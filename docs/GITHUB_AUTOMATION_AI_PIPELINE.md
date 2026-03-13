@@ -204,6 +204,12 @@ Steps:
 - deploy prod functions/rules
 - create release notes
 
+Release note generation can be scripted with:
+
+```bash
+RELEASE_TAG=v0.1.0 node scripts/generate_release_notes.mjs
+```
+
 ## 11. AI-Specific Guardrails
 
 AI agents should:

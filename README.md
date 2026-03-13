@@ -101,11 +101,18 @@ The repository includes:
 - issue and pull request templates
 - CODEOWNERS support for review routing
 - backlog import automation from the source planning docs
+- a release notes generator for future tag-based release automation
 
 Create or sync the GitHub epic/story backlog with:
 
 ```bash
 python3 scripts/bootstrap_github_backlog.py --repo phamhungptithcm/gia-pha
+```
+
+Generate friendly release notes for a tagged release:
+
+```bash
+RELEASE_TAG=v0.1.0 node scripts/generate_release_notes.mjs
 ```
 
 ## Workflow
