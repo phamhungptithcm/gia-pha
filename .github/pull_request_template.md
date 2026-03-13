@@ -6,6 +6,9 @@ Describe the scope in 2-4 bullets.
 
 Closes #
 
+Use a closing keyword here so the production release workflow can automatically close
+the delivered story after it reaches `main`.
+
 ## What changed
 
 - 

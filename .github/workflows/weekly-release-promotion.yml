@@ -1,0 +1,71 @@
+name: Weekly Release Promotion
+
+on:
+  schedule:
+    - cron: "0 14 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: weekly-release-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or refresh release pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          repo="${GITHUB_REPOSITORY}"
+          compare_json="$(gh api "repos/${repo}/compare/main...staging")"
+          ahead_by="$(jq -r '.ahead_by' <<<"${compare_json}")"
+          existing_pr="$(gh pr list --repo "${repo}" --base main --head staging --state open --json number --jq '.[0].number // empty')"
+
+          if [ "${ahead_by}" = "0" ] && [ -z "${existing_pr}" ]; then
+            echo "No release delta between staging and main."
+            exit 0
+          fi
+
+          body_file="$(mktemp)"
+          release_date="$(date -u +%Y-%m-%d)"
+
+          {
+            echo "## Summary"
+            echo
+            echo "Automated weekly promotion from \`staging\` to \`main\`."
+            echo
+            echo "- Generated on ${release_date}"
+            echo "- Approval and Branch CI checks are still required before production merge"
+            echo "- Auto-merge is armed so the PR merges as soon as approval and checks are both satisfied"
+            echo
+            echo "## Included commits"
+            echo
+            jq -r '.commits[:20][] | "- `" + (.sha[0:7]) + "` " + (.commit.message | split("\n")[0])' <<<"${compare_json}"
+          } > "${body_file}"
+
+          if [ -n "${existing_pr}" ]; then
+            gh pr edit "${existing_pr}" \
+              --repo "${repo}" \
+              --title "release: promote staging to main" \
+              --body-file "${body_file}" \
+              --add-label release
+            pr_number="${existing_pr}"
+          else
+            pr_url="$(gh pr create \
+              --repo "${repo}" \
+              --base main \
+              --head staging \
+              --title "release: promote staging to main" \
+              --body-file "${body_file}" \
+              --label release)"
+            pr_number="${pr_url##*/}"
+          fi
+
+          gh pr merge "${pr_number}" --repo "${repo}" --auto --merge

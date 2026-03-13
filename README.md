@@ -97,7 +97,10 @@ flutter run -d ios
 The repository includes:
 
 - docs validation on pull requests
+- required branch CI for `staging` and `main`
 - GitHub Pages deployment from `main`
+- weekly release promotion pull requests from `staging` to `main`
+- post-release story and epic closure after production merges
 - issue and pull request templates
 - CODEOWNERS support for review routing
 - backlog import automation from the source planning docs
@@ -117,8 +120,9 @@ RELEASE_TAG=v0.1.0 node scripts/generate_release_notes.mjs
 
 ## Workflow
 
-1. Create a short-lived branch from `main`.
+1. Create a short-lived branch from `staging`.
 2. Make the required documentation or implementation changes.
 3. Run local verification where applicable.
-4. Open a pull request.
-5. Merge to `main` after review and successful checks.
+4. Open a pull request to `staging`.
+5. Merge to `staging` after review and successful checks.
+6. Review and approve the weekly `staging` to `main` release pull request for production.

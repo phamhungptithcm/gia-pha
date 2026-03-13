@@ -1,23 +1,25 @@
 # GitHub Workflow
 
-This repository follows a docs-first workflow that is ready to scale into app and
-backend delivery.
+This repository follows a `staging` to `main` delivery model with GitHub-managed
+reviews, CI, and release promotion.
 
 ## Delivery loop
 
-1. start from `main`
+1. start from `staging`
 2. create a short-lived branch
 3. implement changes
 4. run local verification
-5. open a pull request
+5. open a pull request to `staging`
 6. let GitHub Actions validate docs and code
-7. merge to `main`
-8. publish docs from `main`
+7. merge to `staging` after approval
+8. let the weekly release workflow open the `staging` to `main` production PR
+9. approve the release PR and let auto-merge finish the production promotion
+10. publish docs from `main` and close released stories and epics
 
 ## Pull request checklist
 
 - explain scope clearly
-- link the related issue or epic
+- link the related story with a closing keyword such as `Closes #123`
 - note testing performed
 - call out schema or contract changes
 - include screenshots when UI content changes

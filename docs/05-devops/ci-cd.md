@@ -1,9 +1,23 @@
 # CI/CD
 
-The repository uses GitHub Actions to validate documentation changes and publish the
-MkDocs site to GitHub Pages.
+The repository uses GitHub Actions to validate pull requests, promote approved weekly
+releases, close delivered backlog items after production, and publish the MkDocs site
+to GitHub Pages.
 
 ## Workflows
+
+### `branch-ci.yml`
+
+Runs on pull requests and pushes to `staging` and `main`.
+
+Checks performed:
+
+- install Python 3.12 and run `mkdocs build --strict`
+- install Flutter and run `flutter analyze`
+- run `flutter test`
+
+The `ci-docs` and `ci-mobile` jobs are required status checks in the branch rulesets
+for both protected branches.
 
 ### `docs-ci.yml`
 
@@ -37,6 +51,30 @@ Deploy flow:
 5. upload the `site/` artifact
 6. publish via `actions/deploy-pages`
 
+### `weekly-release-promotion.yml`
+
+Runs on:
+
+- weekly schedule every Monday at `14:00 UTC`
+- manual `workflow_dispatch`
+
+Release flow:
+
+1. compare `staging` against `main`
+2. create or refresh the release PR if there is anything to promote
+3. enable auto-merge using a merge commit
+4. wait for required approval and Branch CI checks
+
+### `release-issue-closure.yml`
+
+Runs after a merged pull request lands on `main`.
+
+Post-release flow:
+
+1. scan the release PR and included pull requests for `Closes #123` style issue links
+2. comment on released story issues and close them
+3. close the parent epic once all of its linked stories are closed
+
 ## Local preview
 
 ```bash
@@ -54,9 +92,8 @@ mkdocs serve
 
 ## Future expansion
 
-When application code is added, extend CI with:
+Future expansion:
 
-- Flutter formatting, analysis, and tests
 - Firebase Functions linting and tests
 - emulator-backed integration checks for critical paths
 
