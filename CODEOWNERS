@@ -1,0 +1,6 @@
+# Default ownership stays with the repository owner until more reviewers are added.
+* @phamhungptithcm
+
+/docs/ @phamhungptithcm
+/.github/ @phamhungptithcm
+/scripts/ @phamhungptithcm
