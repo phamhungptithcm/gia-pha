@@ -8,7 +8,7 @@ This document provides the implementation plan for AI agents building the Flutte
 Use a feature-first Clean Architecture style.
 
 ```text
-mobile/flutter_app/
+mobile/befam/
   lib/
     app/
       app.dart

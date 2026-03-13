@@ -1,4 +1,4 @@
-package com.familyclanapp.giapha
+package com.familyclanapp.befam
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -7,7 +7,7 @@ This page documents the local Flutter setup for the Family Clan App repository.
 The local Flutter application scaffold lives at:
 
 ```text
-mobile/flutter_app/
+mobile/befam/
 ```
 
 ## Installed toolchain
@@ -62,7 +62,7 @@ flutter_android_test
 ## Run the app
 
 ```bash
-cd mobile/flutter_app
+cd mobile/befam
 flutter run
 ```
 
@@ -75,7 +75,7 @@ After installing Xcode:
 ```bash
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 sudo xcodebuild -runFirstLaunch
-cd mobile/flutter_app
+cd mobile/befam
 pod install --project-directory=ios
 flutter run -d ios
 ```

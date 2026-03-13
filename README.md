@@ -17,7 +17,7 @@ This repository is designed to serve as the project source of truth for:
 ## Repository Structure
 
 - `docs/`: MkDocs content published to GitHub Pages
-- `mobile/flutter_app/`: Flutter application scaffold for local iOS and Android development
+- `mobile/befam/`: Flutter application scaffold for local iOS and Android development
 - `.github/`: GitHub Actions workflows, issue templates, and pull request template
 - `scripts/`: repository automation utilities, including backlog bootstrap tooling
 - `mkdocs.yml`: documentation site configuration
@@ -51,7 +51,7 @@ mkdocs build --strict
 
 ## Flutter Development
 
-The repository includes a local Flutter app scaffold at `mobile/flutter_app`.
+The repository includes a local Flutter app scaffold at `mobile/befam`.
 
 Installed local tooling on this machine:
 
@@ -75,7 +75,7 @@ Start the Android emulator:
 Run the Flutter app on Android:
 
 ```bash
-cd mobile/flutter_app
+cd mobile/befam
 flutter run
 ```
 
@@ -87,7 +87,7 @@ installed, run:
 ```bash
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 sudo xcodebuild -runFirstLaunch
-cd mobile/flutter_app
+cd mobile/befam
 pod install --project-directory=ios
 flutter run -d ios
 ```
