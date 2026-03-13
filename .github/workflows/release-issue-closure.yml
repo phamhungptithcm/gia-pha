@@ -1,0 +1,32 @@
+name: Release Issue Closure
+
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  close-released-work:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Close released stories and epics
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/close_released_issues.py \
+            --repo "${GITHUB_REPOSITORY}" \
+            --release-pr "${{ github.event.pull_request.number }}"
