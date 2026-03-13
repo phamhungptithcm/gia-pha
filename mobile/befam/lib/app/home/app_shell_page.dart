@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../../features/auth/models/auth_entry_method.dart';
+import '../../features/auth/models/auth_session.dart';
 import '../bootstrap/firebase_setup_status.dart';
 import '../models/app_shortcut.dart';
 import 'app_shortcuts.dart';
 
 class AppShellPage extends StatefulWidget {
-  const AppShellPage({super.key, required this.status});
+  const AppShellPage({
+    super.key,
+    required this.status,
+    required this.session,
+    this.onLogoutRequested,
+  });
 
   final FirebaseSetupStatus status;
+  final AuthSession session;
+  final Future<void> Function()? onLogoutRequested;
 
   @override
   State<AppShellPage> createState() => _AppShellPageState();
@@ -47,7 +56,7 @@ class _AppShellPageState extends State<AppShellPage> {
   Widget build(BuildContext context) {
     final destination = _destinations[_selectedIndex];
     final pages = [
-      _HomeDashboard(status: widget.status),
+      _HomeDashboard(status: widget.status, session: widget.session),
       const _ComingSoonPane(
         title: 'Family tree workspace',
         description:
@@ -72,13 +81,33 @@ class _AppShellPageState extends State<AppShellPage> {
       appBar: AppBar(
         title: Text(destination.title),
         actions: [
+          if (_selectedIndex == 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Align(
+                alignment: Alignment.center,
+                child: _SessionChip(session: widget.session),
+              ),
+            ),
           Padding(
-            padding: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.only(right: 8),
             child: Align(
               alignment: Alignment.center,
               child: _ReadinessChip(status: widget.status),
             ),
           ),
+          if (widget.onLogoutRequested != null)
+            PopupMenuButton<String>(
+              tooltip: 'More actions',
+              onSelected: (value) async {
+                if (value == 'logout') {
+                  await widget.onLogoutRequested?.call();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem<String>(value: 'logout', child: Text('Log out')),
+              ],
+            ),
         ],
       ),
       body: SafeArea(
@@ -105,9 +134,10 @@ class _AppShellPageState extends State<AppShellPage> {
 }
 
 class _HomeDashboard extends StatelessWidget {
-  const _HomeDashboard({required this.status});
+  const _HomeDashboard({required this.status, required this.session});
 
   final FirebaseSetupStatus status;
+  final AuthSession session;
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +168,7 @@ class _HomeDashboard extends StatelessWidget {
             children: [
               Text(
                 status.isReady
-                    ? 'BeFam project bootstrap is ready for feature delivery.'
+                    ? 'Welcome back, ${session.displayName}.'
                     : 'Bootstrap is wired, but Firebase still needs cloud setup.',
                 style: theme.textTheme.headlineSmall?.copyWith(
                   color: colorScheme.onPrimary,
@@ -148,7 +178,7 @@ class _HomeDashboard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 status.isReady
-                    ? 'Theme, shell, generated models, and core Firebase startup are now in place for the first feature teams.'
+                    ? 'You are signed in through ${session.loginMethod.summaryLabel.toLowerCase()}, and the BeFam shell is ready for the next feature teams.'
                     : 'The mobile foundation is ready locally. Cloud Firestore still needs to be enabled before backend deployment can finish.',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: colorScheme.onPrimary.withValues(alpha: 0.9),
@@ -165,6 +195,10 @@ class _HomeDashboard extends StatelessWidget {
                   ),
                   _FoundationTag(
                     label: 'Firebase core',
+                    tone: colorScheme.secondaryContainer,
+                  ),
+                  _FoundationTag(
+                    label: 'Auth session live',
                     tone: colorScheme.secondaryContainer,
                   ),
                   _FoundationTag(
@@ -212,7 +246,7 @@ class _HomeDashboard extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         Text(
-          'Bootstrap foundation',
+          'Signed-in context',
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
           ),
@@ -223,6 +257,29 @@ class _HomeDashboard extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
+                _FoundationRow(
+                  label: 'Display name',
+                  value: session.displayName,
+                ),
+                _FoundationRow(
+                  label: 'Login method',
+                  value: session.loginMethod.summaryLabel,
+                ),
+                _FoundationRow(label: 'Phone', value: session.phoneE164),
+                if (session.childIdentifier != null)
+                  _FoundationRow(
+                    label: 'Child ID',
+                    value: session.childIdentifier!,
+                  ),
+                if (session.memberId != null)
+                  _FoundationRow(label: 'Member ID', value: session.memberId!),
+                _FoundationRow(
+                  label: 'Session type',
+                  value: session.isSandbox
+                      ? 'Debug sandbox session'
+                      : 'Firebase auth session',
+                  isLast: false,
+                ),
                 _FoundationRow(
                   label: 'Firebase project',
                   value: status.projectId,
@@ -433,6 +490,31 @@ class _ReadinessChip extends StatelessWidget {
       backgroundColor: status.isReady
           ? colorScheme.primaryContainer
           : colorScheme.secondaryContainer,
+      side: BorderSide.none,
+    );
+  }
+}
+
+class _SessionChip extends StatelessWidget {
+  const _SessionChip({required this.session});
+
+  final AuthSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Chip(
+      avatar: Icon(
+        session.loginMethod == AuthEntryMethod.phone
+            ? Icons.phone_iphone
+            : Icons.child_care,
+        size: 18,
+      ),
+      label: Text(session.loginMethod.summaryLabel),
+      backgroundColor: session.isSandbox
+          ? colorScheme.secondaryContainer
+          : colorScheme.surfaceContainerHighest,
       side: BorderSide.none,
     );
   }

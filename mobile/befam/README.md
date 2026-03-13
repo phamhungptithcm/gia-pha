@@ -9,6 +9,7 @@ The current app foundation includes:
 - Firebase core initialization for Android and iOS
 - Material 3 theme built from the BeFam palette
 - A bottom-navigation shell with placeholder workspaces
+- Authentication entry with phone sign-in, child access, OTP verification, resend cooldown, and logout
 - Freezed and JSON code generation for app models
 - Structured local logging and release-ready Crashlytics wiring
 
@@ -47,7 +48,7 @@ dart run build_runner build --delete-conflicting-outputs
 Run the app:
 
 ```bash
-flutter run
+../../scripts/run_befam_android.sh
 ```
 
 Validate the bootstrap foundation:
@@ -59,6 +60,16 @@ flutter test
 
 ## Current scope
 
-The app now opens into a bootstrap dashboard that confirms Firebase readiness,
-surfaces the initial BeFam modules, and provides placeholder destinations for
-tree, events, and profile flows while feature work expands.
+The app now opens into an authentication-first BeFam flow:
+
+- login method selection
+- phone sign-in with OTP
+- child identifier flow with linked parent OTP
+- silent session restore and logout
+- dashboard shell after sign-in
+
+For local UI testing in debug builds:
+
+- OTP: `123456`
+- child IDs: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
+- live Firebase auth can be forced with `--dart-define=BEFAM_USE_LIVE_AUTH=true`

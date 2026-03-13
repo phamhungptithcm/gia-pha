@@ -62,8 +62,7 @@ flutter_android_test
 ## Run the app
 
 ```bash
-cd mobile/befam
-flutter run
+./scripts/run_befam_android.sh
 ```
 
 ## Regenerate app models
@@ -85,6 +84,23 @@ Run before opening a pull request:
 cd mobile/befam
 flutter analyze
 flutter test
+```
+
+## Local auth sandbox
+
+Debug builds default to a local authentication sandbox so the UI can be tested
+without waiting on real SMS delivery.
+
+Use:
+
+- OTP: `123456`
+- child identifiers: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
+
+To force the live Firebase auth path in debug:
+
+```bash
+cd mobile/befam
+flutter run -d emulator-5554 --dart-define=BEFAM_USE_LIVE_AUTH=true
 ```
 
 ## Firebase project

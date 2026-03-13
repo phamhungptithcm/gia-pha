@@ -44,6 +44,7 @@ dependencies:
   firebase_crashlytics: ^5.0.8
   logger: ^2.6.2
   collection: ^1.19.1
+  shared_preferences: ^2.5.4
 
 dev_dependencies:
   flutter_test:

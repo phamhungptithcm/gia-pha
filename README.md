@@ -59,6 +59,7 @@ Current bootstrap foundation:
 - Firebase core initialization for Android and iOS
 - Material 3 theme based on the project palette
 - Home shell with module placeholders for tree, members, events, and profile
+- Authentication entry flow with phone login, child access, OTP verify, and session restore
 - Freezed and JSON code generation for app models
 - Structured logging with release-only Crashlytics enablement
 
@@ -84,8 +85,7 @@ Start the Android emulator:
 Run the Flutter app on Android:
 
 ```bash
-cd mobile/befam
-flutter run
+./scripts/run_befam_android.sh
 ```
 
 Regenerate model code after changing Freezed or JSON models:
@@ -102,6 +102,12 @@ cd mobile/befam
 flutter analyze
 flutter test
 ```
+
+Local auth sandbox notes:
+
+- default debug OTP: `123456`
+- demo child identifiers: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
+- force the live Firebase auth path in debug with `--dart-define=BEFAM_USE_LIVE_AUTH=true`
 
 ## Firebase Setup
 
