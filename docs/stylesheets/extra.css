@@ -1,0 +1,58 @@
+:root {
+  --md-primary-fg-color: #30364f;
+  --md-primary-fg-color--light: #46506f;
+  --md-primary-fg-color--dark: #23283c;
+  --md-accent-fg-color: #8f6a2f;
+  --md-accent-fg-color--transparent: rgba(143, 106, 47, 0.12);
+}
+
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: #fbfaf5;
+  --md-default-fg-color: #26303c;
+  --md-default-fg-color--light: #5a6472;
+  --md-typeset-a-color: #7a5d2c;
+}
+
+.md-header {
+  border-bottom: 1px solid rgba(48, 54, 79, 0.08);
+  box-shadow: 0 8px 24px rgba(48, 54, 79, 0.08);
+}
+
+.md-tabs {
+  background: linear-gradient(90deg, rgba(48, 54, 79, 0.98), rgba(67, 77, 111, 0.96));
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  letter-spacing: -0.02em;
+}
+
+.md-typeset code {
+  border-radius: 0.35rem;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 0.8rem;
+  box-shadow: 0 10px 30px rgba(48, 54, 79, 0.06);
+}
+
+.md-typeset .mermaid {
+  overflow-x: auto;
+  padding: 1rem 0;
+}
+
+.release-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(48, 54, 79, 0.08);
+  color: var(--md-primary-fg-color);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
