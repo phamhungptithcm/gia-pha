@@ -131,6 +131,11 @@ flutter run -d ios
 
 ## Remaining cloud provisioning step
 
-The mobile apps are registered in Firebase, but the Google Cloud project still
-has Cloud Firestore disabled. Enable Cloud Firestore for project `be-fam-3ab23`
-before attempting to deploy Firestore rules, indexes, or Cloud Functions.
+The mobile apps are registered in Firebase and the default Firestore database is
+now live in `asia-southeast1`.
+
+Current remaining blocker:
+
+- Firestore rules and indexes can deploy from the repository
+- Cloud Functions v2 deployment still needs a billing account linked to `be-fam-3ab23`
+- billing is required before Google can enable Cloud Build, Cloud Run, Artifact Registry, Secret Manager, and Cloud Scheduler for the project

@@ -126,10 +126,22 @@ One-time cloud provisioning status:
 
 - Android app registered: `com.familyclanapp.befam`
 - iOS app registered: `com.familyclanapp.befam`
-- Cloud Firestore API is still disabled in Google Cloud for `be-fam-3ab23`
+- Cloud Firestore API enabled for `be-fam-3ab23`
+- Default Firestore database created in `asia-southeast1`
+- Firestore rules and indexes deployed from the repository
 
-Until Firestore is enabled in Google Cloud Console, Firestore databases, rules
-deployment, indexes deployment, and Cloud Functions deployment remain blocked.
+Prepared production CI/CD artifacts:
+
+- `.github/workflows/deploy-firebase.yml`
+- GitHub environment: `production`
+- GitHub environment variable: `FIREBASE_PROJECT_ID=be-fam-3ab23`
+- GitHub environment variable: `FIREBASE_FUNCTIONS_REGION=asia-southeast1`
+- GitHub environment secret: `FIREBASE_SERVICE_ACCOUNT`
+
+Current production blocker:
+
+- Cloud Functions v2 deployment still requires a billing account linked to `be-fam-3ab23`
+- Google APIs such as Cloud Build, Cloud Run, Artifact Registry, and Cloud Scheduler cannot be enabled until billing is attached
 
 ### iOS note
 
@@ -151,6 +163,7 @@ The repository includes:
 - required branch CI for `staging` and `main`
 - Firebase Functions TypeScript build validation in branch CI
 - GitHub Pages deployment from `main`
+- production Firebase deploy workflow for Firestore, Storage, and Functions
 - weekly release promotion pull requests from `staging` to `main`
 - post-release story and epic closure after production merges
 - issue and pull request templates

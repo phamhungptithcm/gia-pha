@@ -6,7 +6,7 @@ releases.
 ## Branch types
 
 - `staging`: default development branch and integration branch
-- `main`: protected production branch and GitHub Pages deployment source
+- `main`: protected production branch, GitHub Pages deployment source, and Firebase production deploy trigger
 - `codex/<slug>`: Codex-created implementation branches
 - `feat/<issue-id>-<slug>`: feature delivery
 - `fix/<issue-id>-<slug>`: bug fixes
@@ -20,6 +20,7 @@ releases.
 - require one approval and passing Branch CI before merge to `staging` or `main`
 - promote `staging` to `main` through the weekly release PR
 - use merge commits for the `staging` to `main` promotion so release history stays aligned
+- let Firebase production deploys run from `main` with GitHub environment-scoped credentials
 
 ## Example
 

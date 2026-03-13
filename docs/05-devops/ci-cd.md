@@ -52,6 +52,21 @@ Deploy flow:
 5. upload the `site/` artifact
 6. publish via `actions/deploy-pages`
 
+### `deploy-firebase.yml`
+
+Runs on:
+
+- pushes to `main` when Firebase files change
+- manual `workflow_dispatch`
+
+Deploy flow:
+
+1. checkout repository
+2. install Node.js 20 and build `firebase/functions`
+3. install `firebase-tools`
+4. load the production Firebase service account from the GitHub `production` environment
+5. deploy Firestore rules, Firestore indexes, Storage rules, and Cloud Functions
+
 ### `weekly-release-promotion.yml`
 
 Runs on:
@@ -90,6 +105,29 @@ mkdocs serve
 - GitHub Actions must be enabled for the repository
 - GitHub Pages must use GitHub Actions as its publishing source
 - if the repository stays private, GitHub Pages availability depends on the account plan
+- the `production` environment must define:
+  - secret `FIREBASE_SERVICE_ACCOUNT`
+  - variable `FIREBASE_PROJECT_ID`
+  - variable `FIREBASE_FUNCTIONS_REGION`
+
+## Firebase provisioning status
+
+Current production Firebase project:
+
+- project id: `be-fam-3ab23`
+- default Firestore database: `(default)`
+- Firestore location: `asia-southeast1`
+
+Completed from the repository on March 13, 2026:
+
+- enabled the Cloud Firestore API
+- created the default Firestore database
+- deployed Firestore rules and indexes
+- prepared GitHub-based production deployment for Functions and rules
+
+Remaining blocker:
+
+- Cloud Functions v2 still requires project billing before the deploy workflow can enable Cloud Build, Cloud Run, Artifact Registry, Secret Manager, and Cloud Scheduler
 
 ## Future expansion
 

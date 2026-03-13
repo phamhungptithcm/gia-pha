@@ -14,7 +14,7 @@ reviews, CI, and release promotion.
 7. merge to `staging` after approval
 8. let the weekly release workflow open the `staging` to `main` production PR
 9. approve the release PR and let auto-merge finish the production promotion
-10. publish docs from `main` and close released stories and epics
+10. publish docs from `main`, deploy Firebase production changes, and close released stories and epics
 
 ## Pull request checklist
 
@@ -33,6 +33,7 @@ The GitHub setup includes:
 - CODEOWNERS for review routing
 - labels for epics, stories, domains, and agent-driven work
 - a backlog bootstrap script that creates GitHub issues from the source planning doc
+- a production Firebase deployment workflow that reads credentials from the `production` environment
 
 ## Backlog source of truth
 
