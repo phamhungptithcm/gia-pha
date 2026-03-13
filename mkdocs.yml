@@ -1,0 +1,61 @@
+site_name: Family Clan App
+site_description: Digital genealogy and clan management platform documentation
+site_author: Family Clan App Team
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Introduction:
+      - Vision: 00-introduction/vision.md
+      - Problem: 00-introduction/problem.md
+      - Philosophy: 00-introduction/philosophy.md
+  - Master Docs:
+      - AI Build Master Doc: AI_BUILD_MASTER_DOC.md
+      - Firestore Production Schema: FIRESTORE_PRODUCTION_SCHEMA.md
+      - Flutter Implementation Plan: FLUTTER_IMPLEMENTATION_PLAN.md
+      - AI Agent Tasks 150 Issues: AI_AGENT_TASKS_150_ISSUES.md
+      - Genealogy Tree Algorithm: GENEALOGY_TREE_ALGORITHM.md
+      - Firebase Cloud Functions: FIREBASE_CLOUD_FUNCTIONS.md
+      - GitHub Automation AI Pipeline: GITHUB_AUTOMATION_AI_PIPELINE.md
+  - Product:
+      - Product Overview: 01-product/product-overview.md
+      - User Personas: 01-product/user-personas.md
+      - User Stories: 01-product/user-stories.md
+      - Feature Spec: 01-product/feature-spec.md
+      - Roadmap: 01-product/roadmap.md
+  - Architecture:
+      - System Design: 02-architecture/system-design.md
+      - Mobile Architecture: 02-architecture/mobile-architecture.md
+      - Firebase Architecture: 02-architecture/firebase-architecture.md
+      - Data Model: 02-architecture/data-model.md
+  - Mobile:
+      - Flutter Structure: 03-mobile/flutter-structure.md
+      - Navigation: 03-mobile/navigation.md
+      - State Management: 03-mobile/state-management.md
+      - UI Design: 03-mobile/ui-design.md
+  - Backend:
+      - Firestore Schema: 04-backend/firestore-schema.md
+      - Cloud Functions: 04-backend/cloud-functions.md
+      - Authentication: 04-backend/authentication.md
+      - Notifications: 04-backend/notifications.md
+  - DevOps:
+      - CI/CD: 05-devops/ci-cd.md
+      - GitHub Workflow: 05-devops/github-workflow.md
+      - Branching Strategy: 05-devops/branching-strategy.md
+  - Security:
+      - Privacy Model: 06-security/privacy-model.md
+      - Firebase Rules: 06-security/firebase-rules.md
+  - Operations:
+      - Monitoring: 07-operations/monitoring.md
+      - Analytics: 07-operations/analytics.md
+  - Future:
+      - AI Features: 08-future/ai-features.md
+      - Scalability: 08-future/scalability.md
+      - Research: 08-future/research.md
