@@ -59,3 +59,25 @@ When application code is added, extend CI with:
 - Flutter formatting, analysis, and tests
 - Firebase Functions linting and tests
 - emulator-backed integration checks for critical paths
+
+## Release notes automation
+
+The repository now includes a helper script for friendly release notes:
+
+```bash
+RELEASE_TAG=v0.1.0 node scripts/generate_release_notes.mjs
+```
+
+Expected environment variables:
+
+- `RELEASE_TAG` required, for example `v0.1.0`
+- `RELEASE_VERSION` optional override for the displayed version
+- `RELEASE_NOTES_PATH` optional output path, defaults to `dist/release-notes.md`
+- `RELEASE_PRODUCT_NAME` optional product title override
+
+This is intended for future release CI/CD flows that:
+
+1. bump the app version
+2. create a Git tag
+3. generate release notes from commit history
+4. attach those notes to the GitHub release and app store delivery step
