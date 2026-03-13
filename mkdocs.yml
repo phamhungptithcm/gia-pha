@@ -8,11 +8,37 @@ edit_uri: edit/main/docs/
 theme:
   name: material
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.expand
     - content.code.copy
     - search.suggest
-    - search.highlight
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+copyright: "© 2026 Gia Pha. All rights reserved."
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+  - javascripts/mermaid-init.js
+  - javascripts/release-sync.js
 
 nav:
   - Home: index.md
