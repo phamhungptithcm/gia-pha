@@ -1,17 +1,33 @@
-# befam
+# BeFam Flutter App
 
-A new Flutter project.
+This directory contains the BeFam mobile application for iOS and Android.
 
-## Getting Started
+## Firebase wiring
 
-This project is a starting point for a Flutter application.
+The app is configured for Firebase project `be-fam-3ab23` with generated client
+configuration in:
 
-A few resources to get you started if this is your first Flutter project:
+- `android/app/google-services.json`
+- `ios/Runner/GoogleService-Info.plist`
+- `lib/firebase_options.dart`
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Enabled Flutter SDK packages:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- `firebase_core`
+- `firebase_auth`
+- `cloud_firestore`
+- `firebase_storage`
+- `firebase_messaging`
+
+## Run locally
+
+```bash
+flutter pub get
+flutter run
+```
+
+## Current scope
+
+The app currently boots into a Firebase readiness screen so the project
+configuration can be validated before feature development expands across auth,
+genealogy, events, funds, scholarship, and notifications.

@@ -4,3 +4,8 @@ site/
 dist/
 __pycache__/
 .pytest_cache/
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firebase/functions/lib/
+firebase/functions/node_modules/

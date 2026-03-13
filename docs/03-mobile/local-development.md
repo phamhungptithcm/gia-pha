@@ -66,6 +66,29 @@ cd mobile/befam
 flutter run
 ```
 
+## Firebase project
+
+The Flutter app is wired to Firebase project:
+
+```text
+be-fam-3ab23
+```
+
+Generated app configuration files:
+
+- `mobile/befam/android/app/google-services.json`
+- `mobile/befam/ios/Runner/GoogleService-Info.plist`
+- `mobile/befam/lib/firebase_options.dart`
+
+Repo-level Firebase configuration lives in:
+
+- `.firebaserc`
+- `firebase.json`
+- `firebase/firestore.rules`
+- `firebase/firestore.indexes.json`
+- `firebase/storage.rules`
+- `firebase/functions/`
+
 ## iOS requirement
 
 iOS simulator and device builds require the full Xcode application.
@@ -76,6 +99,11 @@ After installing Xcode:
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 sudo xcodebuild -runFirstLaunch
 cd mobile/befam
-pod install --project-directory=ios
 flutter run -d ios
 ```
+
+## Remaining cloud provisioning step
+
+The mobile apps are registered in Firebase, but the Google Cloud project still
+has Cloud Firestore disabled. Enable Cloud Firestore for project `be-fam-3ab23`
+before attempting to deploy Firestore rules, indexes, or Cloud Functions.

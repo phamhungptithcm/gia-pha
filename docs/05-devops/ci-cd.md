@@ -13,11 +13,12 @@ Runs on pull requests and pushes to `staging` and `main`.
 Checks performed:
 
 - install Python 3.12 and run `mkdocs build --strict`
+- install Node.js 20 and run `npm ci && npm run build` in `firebase/functions`
 - install Flutter and run `flutter analyze`
 - run `flutter test`
 
-The `ci-docs` and `ci-mobile` jobs are required status checks in the branch rulesets
-for both protected branches.
+The `ci-docs`, `ci-functions`, and `ci-mobile` jobs are required status checks in
+the branch rulesets for both protected branches.
 
 ### `docs-ci.yml`
 

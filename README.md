@@ -18,6 +18,7 @@ This repository is designed to serve as the project source of truth for:
 
 - `docs/`: MkDocs content published to GitHub Pages
 - `mobile/befam/`: Flutter application scaffold for local iOS and Android development
+- `firebase/`: Firestore rules, indexes, Storage rules, and Cloud Functions scaffold
 - `.github/`: GitHub Actions workflows, issue templates, and pull request template
 - `scripts/`: repository automation utilities, including backlog bootstrap tooling
 - `mkdocs.yml`: documentation site configuration
@@ -79,6 +80,34 @@ cd mobile/befam
 flutter run
 ```
 
+## Firebase Setup
+
+This repository is now linked to Firebase project `be-fam-3ab23`.
+
+Configured mobile app artifacts:
+
+- `mobile/befam/android/app/google-services.json`
+- `mobile/befam/ios/Runner/GoogleService-Info.plist`
+- `mobile/befam/lib/firebase_options.dart`
+
+Configured backend artifacts:
+
+- `firebase.json`
+- `firebase/firestore.rules`
+- `firebase/firestore.indexes.json`
+- `firebase/storage.rules`
+- `firebase/functions/`
+- `.firebaserc`
+
+One-time cloud provisioning status:
+
+- Android app registered: `com.familyclanapp.befam`
+- iOS app registered: `com.familyclanapp.befam`
+- Cloud Firestore API is still disabled in Google Cloud for `be-fam-3ab23`
+
+Until Firestore is enabled in Google Cloud Console, Firestore databases, rules
+deployment, indexes deployment, and Cloud Functions deployment remain blocked.
+
 ### iOS note
 
 iOS builds still require the full Xcode app, not just Command Line Tools. After Xcode is
@@ -88,7 +117,6 @@ installed, run:
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 sudo xcodebuild -runFirstLaunch
 cd mobile/befam
-pod install --project-directory=ios
 flutter run -d ios
 ```
 
@@ -98,6 +126,7 @@ The repository includes:
 
 - docs validation on pull requests
 - required branch CI for `staging` and `main`
+- Firebase Functions TypeScript build validation in branch CI
 - GitHub Pages deployment from `main`
 - weekly release promotion pull requests from `staging` to `main`
 - post-release story and epic closure after production merges
