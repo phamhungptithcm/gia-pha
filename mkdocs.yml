@@ -41,6 +41,7 @@ nav:
       - Data Model: 02-architecture/data-model.md
   - Mobile:
       - Flutter Structure: 03-mobile/flutter-structure.md
+      - Local Development: 03-mobile/local-development.md
       - Navigation: 03-mobile/navigation.md
       - State Management: 03-mobile/state-management.md
       - UI Design: 03-mobile/ui-design.md

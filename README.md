@@ -17,6 +17,7 @@ This repository is designed to serve as the project source of truth for:
 ## Repository Structure
 
 - `docs/`: MkDocs content published to GitHub Pages
+- `mobile/flutter_app/`: Flutter application scaffold for local iOS and Android development
 - `.github/`: GitHub Actions workflows, issue templates, and pull request template
 - `scripts/`: repository automation utilities, including backlog bootstrap tooling
 - `mkdocs.yml`: documentation site configuration
@@ -46,6 +47,49 @@ Build the site in strict mode:
 
 ```bash
 mkdocs build --strict
+```
+
+## Flutter Development
+
+The repository includes a local Flutter app scaffold at `mobile/flutter_app`.
+
+Installed local tooling on this machine:
+
+- Flutter SDK via Homebrew
+- Android SDK command-line tools
+- Android platform packages and emulator image
+- CocoaPods
+
+Run an environment check:
+
+```bash
+./scripts/flutter_doctor_local.sh
+```
+
+Start the Android emulator:
+
+```bash
+./scripts/run_android_emulator.sh
+```
+
+Run the Flutter app on Android:
+
+```bash
+cd mobile/flutter_app
+flutter run
+```
+
+### iOS note
+
+iOS builds still require the full Xcode app, not just Command Line Tools. After Xcode is
+installed, run:
+
+```bash
+sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -runFirstLaunch
+cd mobile/flutter_app
+pod install --project-directory=ios
+flutter run -d ios
 ```
 
 ## GitHub Automation
