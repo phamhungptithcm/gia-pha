@@ -52,7 +52,15 @@ mkdocs build --strict
 
 ## Flutter Development
 
-The repository includes a local Flutter app scaffold at `mobile/befam`.
+The repository includes a local Flutter app at `mobile/befam`.
+
+Current bootstrap foundation:
+
+- Firebase core initialization for Android and iOS
+- Material 3 theme based on the project palette
+- Home shell with module placeholders for tree, members, events, and profile
+- Freezed and JSON code generation for app models
+- Structured logging with release-only Crashlytics enablement
 
 Installed local tooling on this machine:
 
@@ -78,6 +86,21 @@ Run the Flutter app on Android:
 ```bash
 cd mobile/befam
 flutter run
+```
+
+Regenerate model code after changing Freezed or JSON models:
+
+```bash
+cd mobile/befam
+dart run build_runner build --delete-conflicting-outputs
+```
+
+Recommended local verification:
+
+```bash
+cd mobile/befam
+flutter analyze
+flutter test
 ```
 
 ## Firebase Setup

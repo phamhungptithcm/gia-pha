@@ -66,6 +66,27 @@ cd mobile/befam
 flutter run
 ```
 
+## Regenerate app models
+
+The Flutter app now uses Freezed and JSON code generation for bootstrap models.
+
+Run after changing generated models:
+
+```bash
+cd mobile/befam
+dart run build_runner build --delete-conflicting-outputs
+```
+
+## Mobile verification
+
+Run before opening a pull request:
+
+```bash
+cd mobile/befam
+flutter analyze
+flutter test
+```
+
 ## Firebase project
 
 The Flutter app is wired to Firebase project:
@@ -79,6 +100,12 @@ Generated app configuration files:
 - `mobile/befam/android/app/google-services.json`
 - `mobile/befam/ios/Runner/GoogleService-Info.plist`
 - `mobile/befam/lib/firebase_options.dart`
+
+Bootstrap services now include:
+
+- Firebase core initialization
+- local `logger` output during development
+- release-only Crashlytics collection when Firebase is available
 
 Repo-level Firebase configuration lives in:
 

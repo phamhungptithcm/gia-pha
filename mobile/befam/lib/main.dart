@@ -1,32 +1,47 @@
-import 'package:firebase_core/firebase_core.dart';
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import 'app/app.dart';
-import 'core/services/firebase_services.dart';
-import 'firebase_options.dart';
+import 'app/bootstrap/app_bootstrap.dart';
+import 'core/services/crash_reporting_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  late final FirebaseSetupStatus status;
+  var crashReportingService = const CrashReportingService.disabled();
 
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    unawaited(crashReportingService.recordFlutterError(details));
+  };
 
-    status = FirebaseSetupStatus.ready(
-      projectId: Firebase.app().options.projectId,
-      storageBucket: Firebase.app().options.storageBucket ?? '',
-      enabledServices: FirebaseServices.enabledServiceLabels,
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    unawaited(
+      crashReportingService.recordError(
+        error,
+        stackTrace,
+        reason: 'Platform dispatcher error',
+        fatal: true,
+      ),
     );
-  } catch (error) {
-    status = FirebaseSetupStatus.failed(
-      projectId: DefaultFirebaseOptions.currentPlatform.projectId,
-      storageBucket: DefaultFirebaseOptions.currentPlatform.storageBucket ?? '',
-      errorMessage: error.toString(),
-    );
-  }
+    return true;
+  };
 
-  runApp(BeFamApp(status: status));
+  await runZonedGuarded(
+    () async {
+      final bootstrap = await AppBootstrap.initialize();
+      crashReportingService = bootstrap.crashReportingService;
+      runApp(BeFamApp(status: bootstrap.status));
+    },
+    (error, stackTrace) async {
+      await crashReportingService.recordError(
+        error,
+        stackTrace,
+        reason: 'Uncaught zone error',
+        fatal: true,
+      );
+    },
+  );
 }
