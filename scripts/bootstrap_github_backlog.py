@@ -197,7 +197,7 @@ def issue_body_for_epic(epic: Epic, story_refs: list[str] | None = None) -> str:
     lines = [
         "## Scope",
         "",
-        f"Backlog epic generated from `AI_AGENT_TASKS_150_ISSUES.md` for **{epic.title}**.",
+        f"Backlog epic generated from `docs/AI_AGENT_TASKS_150_ISSUES.md` for **{epic.title}**.",
         "",
         "## Success criteria",
         "",
@@ -211,9 +211,9 @@ def issue_body_for_epic(epic: Epic, story_refs: list[str] | None = None) -> str:
         "",
         "## Source",
         "",
-        "- `AI_AGENT_TASKS_150_ISSUES.md`",
-        "- `AI_BUILD_MASTER_DOC.md`",
-        "- `GITHUB_AUTOMATION_AI_PIPELINE.md`",
+        "- `docs/AI_AGENT_TASKS_150_ISSUES.md`",
+        "- `docs/AI_BUILD_MASTER_DOC.md`",
+        "- `docs/GITHUB_AUTOMATION_AI_PIPELINE.md`",
     ]
     return "\n".join(lines)
 
@@ -236,8 +236,8 @@ def issue_body_for_story(story: Story, epic_issue_number: int) -> str:
         "",
         "## Supporting docs",
         "",
-        "- `AI_AGENT_TASKS_150_ISSUES.md`",
-        "- `AI_BUILD_MASTER_DOC.md`",
+        "- `docs/AI_AGENT_TASKS_150_ISSUES.md`",
+        "- `docs/AI_BUILD_MASTER_DOC.md`",
         "",
         "## Delivery notes",
         "",
@@ -300,7 +300,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--source",
-        default="AI_AGENT_TASKS_150_ISSUES.md",
+        default="docs/AI_AGENT_TASKS_150_ISSUES.md",
         help="Path to the markdown backlog source file.",
     )
     parser.add_argument(

@@ -1,8 +1,39 @@
 # Gia Pha
 
-Planning and delivery repository for the Family Clan App documentation set.
+Gia Pha is the planning and technical documentation repository for the Family Clan App,
+a mobile-first genealogy platform for managing family trees, clan operations, events,
+funds, and scholarship programs.
 
-## Local docs preview
+## Overview
+
+This repository is designed to serve as the project source of truth for:
+
+- product direction and feature planning
+- system architecture and data modeling
+- Firebase and Cloud Functions design
+- Flutter implementation planning
+- GitHub workflow and delivery operations
+
+## Repository Structure
+
+- `docs/`: MkDocs content published to GitHub Pages
+- `.github/`: GitHub Actions workflows, issue templates, and pull request template
+- `scripts/`: repository automation utilities, including backlog bootstrap tooling
+- `mkdocs.yml`: documentation site configuration
+
+## Documentation
+
+- Live site: [phamhungptithcm.github.io/gia-pha](https://phamhungptithcm.github.io/gia-pha/)
+- Main source: `docs/`
+- Key planning documents:
+  - `docs/AI_BUILD_MASTER_DOC.md`
+  - `docs/AI_AGENT_TASKS_150_ISSUES.md`
+  - `docs/FIRESTORE_PRODUCTION_SCHEMA.md`
+  - `docs/FLUTTER_IMPLEMENTATION_PLAN.md`
+
+## Local Development
+
+Preview the documentation site locally:
 
 ```bash
 python3 -m venv .venv
@@ -11,16 +42,32 @@ pip install -r requirements-docs.txt
 mkdocs serve
 ```
 
-## GitHub Pages
+Build the site in strict mode:
 
-The repository publishes the MkDocs site through GitHub Actions using the workflow in
-`.github/workflows/deploy-docs.yml`.
+```bash
+mkdocs build --strict
+```
 
-## GitHub backlog bootstrap
+## GitHub Automation
+
+The repository includes:
+
+- docs validation on pull requests
+- GitHub Pages deployment from `main`
+- issue and pull request templates
+- CODEOWNERS support for review routing
+- backlog import automation from the source planning docs
+
+Create or sync the GitHub epic/story backlog with:
 
 ```bash
 python3 scripts/bootstrap_github_backlog.py --repo phamhungptithcm/gia-pha
 ```
 
-The script reads `AI_AGENT_TASKS_150_ISSUES.md` and creates epics plus story issues in
-GitHub with consistent labels.
+## Workflow
+
+1. Create a short-lived branch from `main`.
+2. Make the required documentation or implementation changes.
+3. Run local verification where applicable.
+4. Open a pull request.
+5. Merge to `main` after review and successful checks.
