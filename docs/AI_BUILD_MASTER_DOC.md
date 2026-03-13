@@ -229,7 +229,7 @@ flowchart TD
 Use Clean Architecture with feature-first structure.
 
 ```text
-mobile/flutter_app/
+mobile/befam/
   lib/
     app/
       app.dart
@@ -449,7 +449,7 @@ sequenceDiagram
 family-clan-app/
   docs/
   mobile/
-    flutter_app/
+    befam/
   firebase/
     functions/
     firestore.rules
