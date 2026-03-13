@@ -120,8 +120,8 @@ Use CODEOWNERS to route review.
 Example:
 ```text
 /docs/ @product-owner
-/mobile/flutter_app/lib/features/auth/ @mobile-owner
-/mobile/flutter_app/lib/features/genealogy/ @mobile-owner
+/mobile/befam/lib/features/auth/ @mobile-owner
+/mobile/befam/lib/features/genealogy/ @mobile-owner
 /firebase/functions/ @backend-owner
 ```
 
