@@ -66,6 +66,122 @@ void main() {
     );
   }
 
+  Future<void> waitForSearch(MemberController controller) async {
+    for (var attempt = 0; attempt < 60; attempt++) {
+      if (!controller.isSearching) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+  }
+
+  test('tracks search submitted analytics after query updates', () async {
+    final members = [
+      buildMember(
+        id: 'm1',
+        fullName: 'Nguyen An',
+        branchId: 'b1',
+        generation: 4,
+      ),
+      buildMember(
+        id: 'm2',
+        fullName: 'Tran Binh',
+        branchId: 'b2',
+        generation: 5,
+      ),
+    ];
+    final repository = _FakeMemberRepository(members: members);
+    final analytics = _RecordingSearchAnalyticsService();
+
+    final controller = MemberController(
+      repository: repository,
+      session: buildSession(),
+      searchProvider: const LocalMemberSearchProvider(latency: Duration.zero),
+      searchAnalyticsService: analytics,
+    );
+
+    await controller.initialize();
+    controller.updateSearchQuery('nguyen');
+    await waitForSearch(controller);
+
+    expect(analytics.searchSubmittedEvents, hasLength(1));
+    expect(analytics.searchSubmittedEvents.first.queryLength, 6);
+    expect(analytics.searchSubmittedEvents.first.hasBranchFilter, isFalse);
+    expect(analytics.searchSubmittedEvents.first.hasGenerationFilter, isFalse);
+    expect(analytics.searchSubmittedEvents.first.resultCount, 1);
+  });
+
+  test(
+    'tracks filter updates when branch and generation filters change',
+    () async {
+      final members = [
+        buildMember(
+          id: 'm1',
+          fullName: 'Nguyen An',
+          branchId: 'b1',
+          generation: 4,
+        ),
+        buildMember(
+          id: 'm2',
+          fullName: 'Tran Binh',
+          branchId: 'b2',
+          generation: 5,
+        ),
+      ];
+      final repository = _FakeMemberRepository(members: members);
+      final analytics = _RecordingSearchAnalyticsService();
+
+      final controller = MemberController(
+        repository: repository,
+        session: buildSession(),
+        searchProvider: const LocalMemberSearchProvider(latency: Duration.zero),
+        searchAnalyticsService: analytics,
+      );
+
+      await controller.initialize();
+
+      controller.updateBranchFilter('b2');
+      await waitForSearch(controller);
+      controller.updateGenerationFilter(5);
+      await waitForSearch(controller);
+
+      expect(analytics.filterUpdatedEvents, hasLength(2));
+      expect(analytics.filterUpdatedEvents.first.hasBranchFilter, isTrue);
+      expect(analytics.filterUpdatedEvents.first.hasGenerationFilter, isFalse);
+      expect(analytics.filterUpdatedEvents.last.hasBranchFilter, isTrue);
+      expect(analytics.filterUpdatedEvents.last.hasGenerationFilter, isTrue);
+    },
+  );
+
+  test('tracks failed searches for analytics instrumentation', () async {
+    final repository = _FakeMemberRepository(
+      members: [
+        buildMember(
+          id: 'm1',
+          fullName: 'Nguyen An',
+          branchId: 'b1',
+          generation: 4,
+        ),
+      ],
+    );
+    final analytics = _RecordingSearchAnalyticsService();
+
+    final controller = MemberController(
+      repository: repository,
+      session: buildSession(),
+      searchProvider: _AlwaysFailSearchProvider(),
+      searchAnalyticsService: analytics,
+    );
+
+    await controller.initialize();
+    controller.updateSearchQuery('ng');
+    await waitForSearch(controller);
+
+    expect(controller.searchError, 'search_failed');
+    expect(analytics.searchFailedEvents, hasLength(1));
+    expect(analytics.searchFailedEvents.first.queryLength, 2);
+  });
+
   test('supports retry after a failed search run', () async {
     final members = [
       buildMember(
@@ -83,12 +199,13 @@ void main() {
     ];
     final repository = _FakeMemberRepository(members: members);
     final searchProvider = _FlakySearchProvider();
+    final analytics = _RecordingSearchAnalyticsService();
 
     final controller = MemberController(
       repository: repository,
       session: buildSession(),
       searchProvider: searchProvider,
-      searchAnalyticsService: const NoopMemberSearchAnalyticsService(),
+      searchAnalyticsService: analytics,
     );
 
     await controller.initialize();
@@ -98,6 +215,8 @@ void main() {
     await controller.retrySearch();
     expect(controller.searchError, isNull);
     expect(controller.filteredMembers.map((member) => member.id), ['m1', 'm2']);
+    expect(analytics.retryRequestedEvents, hasLength(1));
+    expect(analytics.searchSubmittedEvents, hasLength(1));
   });
 }
 
@@ -176,5 +295,105 @@ class _FlakySearchProvider implements MemberSearchProvider {
       throw Exception('search failed');
     }
     return members;
+  }
+}
+
+class _AlwaysFailSearchProvider implements MemberSearchProvider {
+  @override
+  Future<List<MemberProfile>> search({
+    required List<MemberProfile> members,
+    required MemberSearchQuery query,
+  }) async {
+    throw Exception('search failed');
+  }
+}
+
+class _SearchEventData {
+  const _SearchEventData({
+    required this.queryLength,
+    required this.hasBranchFilter,
+    required this.hasGenerationFilter,
+    this.resultCount,
+  });
+
+  final int queryLength;
+  final bool hasBranchFilter;
+  final bool hasGenerationFilter;
+  final int? resultCount;
+}
+
+class _RecordingSearchAnalyticsService implements MemberSearchAnalyticsService {
+  final List<_SearchEventData> searchSubmittedEvents = [];
+  final List<_SearchEventData> searchFailedEvents = [];
+  final List<_SearchEventData> filterUpdatedEvents = [];
+  final List<_SearchEventData> retryRequestedEvents = [];
+
+  @override
+  Future<void> trackFiltersUpdated({
+    required int queryLength,
+    required bool hasBranchFilter,
+    required bool hasGenerationFilter,
+  }) async {
+    filterUpdatedEvents.add(
+      _SearchEventData(
+        queryLength: queryLength,
+        hasBranchFilter: hasBranchFilter,
+        hasGenerationFilter: hasGenerationFilter,
+      ),
+    );
+  }
+
+  @override
+  Future<void> trackResultOpened({
+    required String memberId,
+    required String branchId,
+    required int generation,
+  }) async {}
+
+  @override
+  Future<void> trackRetryRequested({
+    required int queryLength,
+    required bool hasBranchFilter,
+    required bool hasGenerationFilter,
+  }) async {
+    retryRequestedEvents.add(
+      _SearchEventData(
+        queryLength: queryLength,
+        hasBranchFilter: hasBranchFilter,
+        hasGenerationFilter: hasGenerationFilter,
+      ),
+    );
+  }
+
+  @override
+  Future<void> trackSearchFailed({
+    required int queryLength,
+    required bool hasBranchFilter,
+    required bool hasGenerationFilter,
+  }) async {
+    searchFailedEvents.add(
+      _SearchEventData(
+        queryLength: queryLength,
+        hasBranchFilter: hasBranchFilter,
+        hasGenerationFilter: hasGenerationFilter,
+      ),
+    );
+  }
+
+  @override
+  Future<void> trackSearchSubmitted({
+    required int queryLength,
+    required bool hasBranchFilter,
+    required bool hasGenerationFilter,
+    required int resultCount,
+  }) async {
+    searchSubmittedEvents.add(
+      _SearchEventData(
+        queryLength: queryLength,
+        hasBranchFilter: hasBranchFilter,
+        hasGenerationFilter: hasGenerationFilter,
+        resultCount: resultCount,
+      ),
+    );
   }
 }

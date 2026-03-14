@@ -97,4 +97,58 @@ void main() {
       'Tran Binh',
     ]);
   });
+
+  test('supports Vietnamese diacritic-insensitive name matching', () async {
+    const provider = LocalMemberSearchProvider(latency: Duration.zero);
+
+    final members = [
+      buildMember(
+        id: 'm4',
+        fullName: 'Nguyễn Ánh',
+        nickName: 'Ánh',
+        branchId: 'b1',
+        generation: 6,
+      ),
+    ];
+
+    final results = await provider.search(
+      members: members,
+      query: const MemberSearchQuery(query: 'nguyen anh'),
+    );
+
+    expect(results, hasLength(1));
+    expect(results.first.id, 'm4');
+  });
+
+  test('ranks exact and prefix matches above partial matches', () async {
+    const provider = LocalMemberSearchProvider(latency: Duration.zero);
+
+    final members = [
+      buildMember(
+        id: 'exact',
+        fullName: 'Le Chi',
+        branchId: 'b1',
+        generation: 5,
+      ),
+      buildMember(
+        id: 'prefix',
+        fullName: 'Le Chinh',
+        branchId: 'b1',
+        generation: 5,
+      ),
+      buildMember(
+        id: 'contains',
+        fullName: 'Tran Le Chien',
+        branchId: 'b1',
+        generation: 5,
+      ),
+    ];
+
+    final results = await provider.search(
+      members: members,
+      query: const MemberSearchQuery(query: 'le chi'),
+    );
+
+    expect(results.map((member) => member.id), ['exact', 'prefix', 'contains']);
+  });
 }
