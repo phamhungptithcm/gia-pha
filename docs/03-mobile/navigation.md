@@ -25,8 +25,8 @@ Current bottom navigation destinations:
 - Events
 - Profile
 
-The Events and Profile tabs are currently placeholder workspaces while the tree
-and member/clan workflows are production-focused.
+The Events tab now hosts the notification inbox while Profile remains a
+placeholder workspace.
 
 ## Notification-driven navigation
 

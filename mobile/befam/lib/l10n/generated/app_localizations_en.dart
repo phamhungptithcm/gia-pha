@@ -1171,6 +1171,77 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationOpenedGeneral => 'Opened a notification.';
 
   @override
+  String get notificationInboxHeroTitle => 'Notification inbox';
+
+  @override
+  String get notificationInboxHeroDescription =>
+      'Review the latest event and scholarship updates delivered to your member profile.';
+
+  @override
+  String notificationInboxUnreadCount(int count) {
+    return '$count unread';
+  }
+
+  @override
+  String get notificationInboxAllRead => 'All caught up';
+
+  @override
+  String get notificationInboxSourceSandbox => 'Local sandbox data';
+
+  @override
+  String get notificationInboxSourceLive => 'Live Firestore data';
+
+  @override
+  String get notificationInboxNoContextTitle =>
+      'Notification inbox unavailable';
+
+  @override
+  String get notificationInboxNoContextDescription =>
+      'This session is not linked to a member profile yet, so there is no inbox to show.';
+
+  @override
+  String get notificationInboxLoadErrorTitle => 'Could not load notifications';
+
+  @override
+  String get notificationInboxLoadErrorDescription =>
+      'Pull to refresh or retry now. If this keeps happening, check Firebase connectivity and permissions.';
+
+  @override
+  String get notificationInboxRetryAction => 'Retry';
+
+  @override
+  String get notificationInboxEmptyTitle => 'No notifications yet';
+
+  @override
+  String get notificationInboxEmptyDescription =>
+      'When events and scholarship updates are sent, they will appear here.';
+
+  @override
+  String get notificationInboxUnreadChip => 'Unread';
+
+  @override
+  String get notificationInboxReadChip => 'Read';
+
+  @override
+  String get notificationInboxTargetEvent => 'Event';
+
+  @override
+  String get notificationInboxTargetScholarship => 'Scholarship';
+
+  @override
+  String get notificationInboxTargetGeneric => 'General';
+
+  @override
+  String get notificationInboxTargetUnknown => 'Update';
+
+  @override
+  String get notificationInboxFallbackTitle => 'Notification update';
+
+  @override
+  String get notificationInboxFallbackBody =>
+      'Open this notification for more details.';
+
+  @override
   String get authIssueRestoreSessionFailed =>
       'We could not restore the last sign-in session.';
 

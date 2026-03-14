@@ -1164,6 +1164,76 @@ class AppLocalizationsVi extends AppLocalizations {
   String get notificationOpenedGeneral => 'Đã mở một thông báo.';
 
   @override
+  String get notificationInboxHeroTitle => 'Hộp thư thông báo';
+
+  @override
+  String get notificationInboxHeroDescription =>
+      'Xem các cập nhật mới nhất về sự kiện và khuyến học gửi đến hồ sơ thành viên của bạn.';
+
+  @override
+  String notificationInboxUnreadCount(int count) {
+    return '$count chưa đọc';
+  }
+
+  @override
+  String get notificationInboxAllRead => 'Bạn đã xem hết thông báo';
+
+  @override
+  String get notificationInboxSourceSandbox => 'Dữ liệu sandbox cục bộ';
+
+  @override
+  String get notificationInboxSourceLive => 'Dữ liệu Firestore trực tiếp';
+
+  @override
+  String get notificationInboxNoContextTitle => 'Chưa thể mở hộp thư thông báo';
+
+  @override
+  String get notificationInboxNoContextDescription =>
+      'Phiên hiện tại chưa liên kết với hồ sơ thành viên nên chưa có hộp thư để hiển thị.';
+
+  @override
+  String get notificationInboxLoadErrorTitle => 'Không thể tải thông báo';
+
+  @override
+  String get notificationInboxLoadErrorDescription =>
+      'Hãy kéo để tải lại hoặc thử lại ngay. Nếu lỗi tiếp tục, hãy kiểm tra kết nối Firebase và quyền truy cập.';
+
+  @override
+  String get notificationInboxRetryAction => 'Thử lại';
+
+  @override
+  String get notificationInboxEmptyTitle => 'Chưa có thông báo nào';
+
+  @override
+  String get notificationInboxEmptyDescription =>
+      'Khi có cập nhật sự kiện hoặc khuyến học, thông báo sẽ xuất hiện tại đây.';
+
+  @override
+  String get notificationInboxUnreadChip => 'Chưa đọc';
+
+  @override
+  String get notificationInboxReadChip => 'Đã đọc';
+
+  @override
+  String get notificationInboxTargetEvent => 'Sự kiện';
+
+  @override
+  String get notificationInboxTargetScholarship => 'Khuyến học';
+
+  @override
+  String get notificationInboxTargetGeneric => 'Chung';
+
+  @override
+  String get notificationInboxTargetUnknown => 'Cập nhật';
+
+  @override
+  String get notificationInboxFallbackTitle => 'Cập nhật thông báo';
+
+  @override
+  String get notificationInboxFallbackBody =>
+      'Mở thông báo này để xem thêm chi tiết.';
+
+  @override
   String get authIssueRestoreSessionFailed =>
       'BeFam chưa thể khôi phục phiên đăng nhập trước đó.';
 
