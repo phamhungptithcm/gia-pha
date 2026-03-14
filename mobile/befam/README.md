@@ -1,17 +1,75 @@
-# befam
+# BeFam Flutter App
 
-A new Flutter project.
+This directory contains the BeFam mobile application for iOS and Android.
 
-## Getting Started
+## Bootstrap status
 
-This project is a starting point for a Flutter application.
+The current app foundation includes:
 
-A few resources to get you started if this is your first Flutter project:
+- Firebase core initialization for Android and iOS
+- Material 3 theme built from the BeFam palette
+- A bottom-navigation shell with placeholder workspaces
+- Authentication entry with phone sign-in, child access, OTP verification, resend cooldown, and logout
+- Freezed and JSON code generation for app models
+- Structured local logging and release-ready Crashlytics wiring
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Firebase wiring
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The app is configured for Firebase project `be-fam-3ab23` with generated client
+configuration in:
+
+- `android/app/google-services.json`
+- `ios/Runner/GoogleService-Info.plist`
+- `lib/firebase_options.dart`
+
+Enabled Flutter SDK packages:
+
+- `firebase_core`
+- `firebase_auth`
+- `cloud_firestore`
+- `firebase_storage`
+- `firebase_messaging`
+- `firebase_crashlytics`
+
+## Local workflow
+
+Install packages:
+
+```bash
+flutter pub get
+```
+
+Regenerate code after model changes:
+
+```bash
+dart run build_runner build --delete-conflicting-outputs
+```
+
+Run the app:
+
+```bash
+../../scripts/run_befam_android.sh
+```
+
+Validate the bootstrap foundation:
+
+```bash
+flutter analyze
+flutter test
+```
+
+## Current scope
+
+The app now opens into an authentication-first BeFam flow:
+
+- login method selection
+- phone sign-in with OTP
+- child identifier flow with linked parent OTP
+- silent session restore and logout
+- dashboard shell after sign-in
+
+For local UI testing in debug builds:
+
+- OTP: `123456`
+- child IDs: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
+- live Firebase auth can be forced with `--dart-define=BEFAM_USE_LIVE_AUTH=true`

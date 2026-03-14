@@ -22,7 +22,7 @@ jobs:
   ci-docs:
     name: ci-docs
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -40,16 +40,54 @@ jobs:
       - name: Build docs
         run: mkdocs build --strict
 
+      - name: Build release docs image
+        run: |
+          docker build \
+            --build-arg RELEASE_VERSION=0.0.0-ci \
+            --build-arg VCS_REF="${GITHUB_SHA}" \
+            --tag gia-pha-docs:test \
+            .
+
+  ci-functions:
+    name: ci-functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: firebase/functions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: firebase/functions/package-lock.json
+
+      - name: Install Functions dependencies
+        run: npm ci
+
+      - name: Build Functions
+        run: npm run build
+
   ci-mobile:
     name: ci-mobile
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: mobile/befam
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -60,8 +98,14 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
+      - name: Generate localization files
+        run: flutter gen-l10n
+
       - name: Analyze Flutter app
         run: flutter analyze
 
       - name: Run Flutter tests
         run: flutter test
+
+      - name: Build Android release APK
+        run: flutter build apk --release --build-name 0.0.0 --build-number 1

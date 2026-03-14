@@ -1,0 +1,74 @@
+name: Deploy Firebase
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "firebase.json"
+      - "firebase/**"
+      - ".firebaserc"
+      - ".github/workflows/deploy-firebase.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-firebase-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: deploy-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: firebase/functions/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: firebase/functions
+        run: npm ci
+
+      - name: Build Functions
+        working-directory: firebase/functions
+        run: npm run build
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Write Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+          test -n "$FIREBASE_PROJECT_ID"
+          test -n "$FIREBASE_FUNCTIONS_REGION"
+          CREDENTIALS_PATH="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIALS_PATH"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$CREDENTIALS_PATH" >> "$GITHUB_ENV"
+          echo "GOOGLE_CLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+          echo "FIREBASE_FUNCTIONS_REGION=$FIREBASE_FUNCTIONS_REGION" >> "$GITHUB_ENV"
+
+      - name: Verify Firebase access
+        run: firebase use "${{ vars.FIREBASE_PROJECT_ID }}" --project "${{ vars.FIREBASE_PROJECT_ID }}"
+
+      - name: Deploy Firestore, Storage, and Functions
+        run: >
+          firebase deploy
+          --project "${{ vars.FIREBASE_PROJECT_ID }}"
+          --non-interactive
+          --only firestore:rules,firestore:indexes,storage,functions

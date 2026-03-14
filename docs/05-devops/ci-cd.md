@@ -13,11 +13,14 @@ Runs on pull requests and pushes to `staging` and `main`.
 Checks performed:
 
 - install Python 3.12 and run `mkdocs build --strict`
+- build the production docs Docker image from the repository root
+- install Node.js 20 and run `npm ci && npm run build` in `firebase/functions`
 - install Flutter and run `flutter analyze`
 - run `flutter test`
+- build the Android release APK path with `flutter build apk --release`
 
-The `ci-docs` and `ci-mobile` jobs are required status checks in the branch rulesets
-for both protected branches.
+The `ci-docs`, `ci-functions`, and `ci-mobile` jobs are required status checks in
+the branch rulesets for both protected branches.
 
 ### `docs-ci.yml`
 
@@ -50,6 +53,38 @@ Deploy flow:
 4. build the static site with `mkdocs build --strict`
 5. upload the `site/` artifact
 6. publish via `actions/deploy-pages`
+
+### `deploy-firebase.yml`
+
+Runs on:
+
+- pushes to `main` when Firebase files change
+- manual `workflow_dispatch`
+
+Deploy flow:
+
+1. checkout repository
+2. install Node.js 20 and build `firebase/functions`
+3. install `firebase-tools`
+4. load the production Firebase service account from the GitHub `production` environment
+5. deploy Firestore rules, Firestore indexes, Storage rules, and Cloud Functions
+
+### `release-main.yml`
+
+Runs on:
+
+- pushes to `main`
+- manual `workflow_dispatch`
+
+Release flow:
+
+1. fetch full Git history and tags
+2. resolve the next semver tag from commit history, or reuse the tag already on `HEAD`
+3. create the Git tag if this is a fresh production merge
+4. generate friendly release notes with `scripts/generate_release_notes.mjs`
+5. build the Android release APK with the computed release version
+6. build and push the docs image to `ghcr.io/phamhungptithcm/gia-pha-docs`
+7. create or update the GitHub release and attach the APK asset
 
 ### `weekly-release-promotion.yml`
 
@@ -89,6 +124,29 @@ mkdocs serve
 - GitHub Actions must be enabled for the repository
 - GitHub Pages must use GitHub Actions as its publishing source
 - if the repository stays private, GitHub Pages availability depends on the account plan
+- the `production` environment must define:
+  - secret `FIREBASE_SERVICE_ACCOUNT`
+  - variable `FIREBASE_PROJECT_ID`
+  - variable `FIREBASE_FUNCTIONS_REGION`
+
+## Firebase provisioning status
+
+Current production Firebase project:
+
+- project id: `be-fam-3ab23`
+- default Firestore database: `(default)`
+- Firestore location: `asia-southeast1`
+
+Completed from the repository on March 13, 2026:
+
+- enabled the Cloud Firestore API
+- created the default Firestore database
+- deployed Firestore rules and indexes
+- prepared GitHub-based production deployment for Functions and rules
+
+Remaining blocker:
+
+- Cloud Functions v2 still requires project billing before the deploy workflow can enable Cloud Build, Cloud Run, Artifact Registry, Secret Manager, and Cloud Scheduler
 
 ## Future expansion
 
@@ -99,9 +157,10 @@ Future expansion:
 
 ## Release notes automation
 
-The repository now includes a helper script for friendly release notes:
+The repository now includes helpers for both release versioning and friendly notes:
 
 ```bash
+node scripts/next_release_version.mjs
 RELEASE_TAG=v0.1.0 node scripts/generate_release_notes.mjs
 ```
 
@@ -112,9 +171,11 @@ Expected environment variables:
 - `RELEASE_NOTES_PATH` optional output path, defaults to `dist/release-notes.md`
 - `RELEASE_PRODUCT_NAME` optional product title override
 
-This is intended for future release CI/CD flows that:
+Current production automation on `main` now:
 
-1. bump the app version
-2. create a Git tag
-3. generate release notes from commit history
-4. attach those notes to the GitHub release and app store delivery step
+1. resolves the next semver tag
+2. creates the Git tag
+3. generates release notes from commit history
+4. publishes a GitHub release
+5. uploads the Android release APK
+6. pushes the docs image to GHCR
