@@ -4,11 +4,17 @@ import 'package:flutter/material.dart';
 
 import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
+import '../../features/events/presentation/event_workspace_page.dart';
+import '../../features/events/services/event_repository.dart';
+import '../../features/funds/presentation/fund_workspace_page.dart';
+import '../../features/funds/services/fund_repository.dart';
 import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
 import '../../features/notifications/services/push_notification_service.dart';
+import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
+import '../../features/scholarship/services/scholarship_repository.dart';
 import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
@@ -25,6 +31,8 @@ class AppShellPage extends StatefulWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    this.eventRepository,
+    this.fundRepository,
     this.genealogyRepository,
     this.pushNotificationService,
     this.onLogoutRequested,
@@ -34,6 +42,8 @@ class AppShellPage extends StatefulWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final EventRepository? eventRepository;
+  final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
   final PushNotificationService? pushNotificationService;
   final Future<void> Function()? onLogoutRequested;
@@ -45,6 +55,8 @@ class AppShellPage extends StatefulWidget {
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
   late final GenealogyReadRepository _genealogyRepository;
+  late final EventRepository _eventRepository;
+  late final FundRepository _fundRepository;
   late final PushNotificationService _pushNotificationService;
 
   static const List<_ShellDestination> _destinations = [
@@ -75,6 +87,8 @@ class _AppShellPageState extends State<AppShellPage> {
     super.initState();
     _genealogyRepository =
         widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
+    _eventRepository = widget.eventRepository ?? createDefaultEventRepository();
+    _fundRepository = widget.fundRepository ?? createDefaultFundRepository();
     _pushNotificationService =
         widget.pushNotificationService ??
         createDefaultPushNotificationService();
@@ -177,9 +191,15 @@ class _AppShellPageState extends State<AppShellPage> {
         session: widget.session,
         clanRepository: widget.clanRepository,
         memberRepository: widget.memberRepository,
+        fundRepository: _fundRepository,
         onOpenTreeRequested: () {
           setState(() {
             _selectedIndex = 1;
+          });
+        },
+        onOpenEventsRequested: () {
+          setState(() {
+            _selectedIndex = 2;
           });
         },
       ),
@@ -187,11 +207,7 @@ class _AppShellPageState extends State<AppShellPage> {
         session: widget.session,
         repository: _genealogyRepository,
       ),
-      _ComingSoonPane(
-        title: l10n.shellEventsWorkspaceTitle,
-        description: l10n.shellEventsWorkspaceDescription,
-        icon: Icons.event,
-      ),
+      EventWorkspacePage(session: widget.session, repository: _eventRepository),
       _ComingSoonPane(
         title: l10n.shellProfileWorkspaceTitle,
         description: l10n.shellProfileWorkspaceDescription,
@@ -270,14 +286,18 @@ class _HomeDashboard extends StatelessWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    required this.fundRepository,
     required this.onOpenTreeRequested,
+    required this.onOpenEventsRequested,
   });
 
   final FirebaseSetupStatus status;
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final FundRepository fundRepository;
   final VoidCallback onOpenTreeRequested;
+  final VoidCallback onOpenEventsRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -472,7 +492,32 @@ class _HomeDashboard extends StatelessWidget {
           ),
         );
       },
+      'scholarship' => () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return ScholarshipWorkspacePage(
+                session: session,
+                repository: createDefaultScholarshipRepository(),
+              );
+            },
+          ),
+        );
+      },
       'tree' => onOpenTreeRequested,
+      'events' => onOpenEventsRequested,
+      'funds' => () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return FundWorkspacePage(
+                session: session,
+                repository: fundRepository,
+              );
+            },
+          ),
+        );
+      },
       _ => null,
     };
   }

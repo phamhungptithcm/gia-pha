@@ -2353,6 +2353,498 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Có lỗi xảy ra khi chuẩn bị đăng nhập. Hãy thử lại.'**
   String get authIssuePreparationFailed;
+
+  /// No description provided for @eventWorkspaceTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không gian sự kiện'**
+  String get eventWorkspaceTitle;
+
+  /// No description provided for @eventRefreshAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tải lại sự kiện'**
+  String get eventRefreshAction;
+
+  /// No description provided for @eventCreateAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tạo sự kiện'**
+  String get eventCreateAction;
+
+  /// No description provided for @eventSaveSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã lưu sự kiện thành công.'**
+  String get eventSaveSuccess;
+
+  /// No description provided for @eventNoContextTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cần ngữ cảnh họ tộc'**
+  String get eventNoContextTitle;
+
+  /// No description provided for @eventNoContextDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy đăng nhập bằng hồ sơ đã liên kết họ tộc để xem và quản lý sự kiện.'**
+  String get eventNoContextDescription;
+
+  /// No description provided for @eventHeroTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lịch chung họ tộc'**
+  String get eventHeroTitle;
+
+  /// No description provided for @eventHeroDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Theo dõi lễ nghi, ngày giỗ và lời nhắc trong một dòng thời gian thống nhất.'**
+  String get eventHeroDescription;
+
+  /// No description provided for @eventReadOnlyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chỉ có quyền xem'**
+  String get eventReadOnlyTitle;
+
+  /// No description provided for @eventReadOnlyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tài khoản này chỉ xem được sự kiện, chưa thể tạo hoặc chỉnh sửa.'**
+  String get eventReadOnlyDescription;
+
+  /// No description provided for @eventLoadErrorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không thể tải sự kiện'**
+  String get eventLoadErrorTitle;
+
+  /// No description provided for @eventLoadErrorDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy thử tải lại. Nếu lỗi còn tiếp diễn, kiểm tra mạng và quyền truy cập.'**
+  String get eventLoadErrorDescription;
+
+  /// No description provided for @eventStatTotal.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tổng sự kiện'**
+  String get eventStatTotal;
+
+  /// No description provided for @eventStatUpcoming.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sắp diễn ra'**
+  String get eventStatUpcoming;
+
+  /// No description provided for @eventStatMemorial.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sự kiện giỗ'**
+  String get eventStatMemorial;
+
+  /// No description provided for @eventFilterSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tìm kiếm và bộ lọc'**
+  String get eventFilterSectionTitle;
+
+  /// No description provided for @eventSearchLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tìm sự kiện'**
+  String get eventSearchLabel;
+
+  /// No description provided for @eventSearchHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tiêu đề, địa điểm, thành viên hoặc mô tả'**
+  String get eventSearchHint;
+
+  /// No description provided for @eventFilterTypeAll.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tất cả'**
+  String get eventFilterTypeAll;
+
+  /// No description provided for @eventFilterClearAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xóa'**
+  String get eventFilterClearAction;
+
+  /// No description provided for @eventListSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Danh sách sự kiện'**
+  String get eventListSectionTitle;
+
+  /// No description provided for @eventListEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có sự kiện'**
+  String get eventListEmptyTitle;
+
+  /// No description provided for @eventListEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy tạo sự kiện đầu tiên cho lịch họ tộc.'**
+  String get eventListEmptyDescription;
+
+  /// No description provided for @eventDetailTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chi tiết sự kiện'**
+  String get eventDetailTitle;
+
+  /// No description provided for @eventEditAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chỉnh sửa'**
+  String get eventEditAction;
+
+  /// No description provided for @eventDetailNotFoundTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không còn thấy sự kiện'**
+  String get eventDetailNotFoundTitle;
+
+  /// No description provided for @eventDetailNotFoundDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sự kiện có thể đã bị xóa hoặc ngoài phạm vi không gian hiện tại.'**
+  String get eventDetailNotFoundDescription;
+
+  /// No description provided for @eventDetailTimingSection.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thời gian và lặp lại'**
+  String get eventDetailTimingSection;
+
+  /// No description provided for @eventDetailReminderSection.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mốc nhắc nhở'**
+  String get eventDetailReminderSection;
+
+  /// No description provided for @eventReminderEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa cấu hình lời nhắc'**
+  String get eventReminderEmptyTitle;
+
+  /// No description provided for @eventReminderEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thêm các mốc nhắc để thông báo trước khi sự kiện bắt đầu.'**
+  String get eventReminderEmptyDescription;
+
+  /// No description provided for @eventFieldType.
+  ///
+  /// In vi, this message translates to:
+  /// **'Loại'**
+  String get eventFieldType;
+
+  /// No description provided for @eventFieldBranch.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chi'**
+  String get eventFieldBranch;
+
+  /// No description provided for @eventFieldTargetMember.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thành viên mục tiêu'**
+  String get eventFieldTargetMember;
+
+  /// No description provided for @eventFieldLocationName.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tên địa điểm'**
+  String get eventFieldLocationName;
+
+  /// No description provided for @eventFieldLocationAddress.
+  ///
+  /// In vi, this message translates to:
+  /// **'Địa chỉ'**
+  String get eventFieldLocationAddress;
+
+  /// No description provided for @eventFieldDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mô tả'**
+  String get eventFieldDescription;
+
+  /// No description provided for @eventFieldStartsAt.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bắt đầu'**
+  String get eventFieldStartsAt;
+
+  /// No description provided for @eventFieldEndsAt.
+  ///
+  /// In vi, this message translates to:
+  /// **'Kết thúc'**
+  String get eventFieldEndsAt;
+
+  /// No description provided for @eventFieldTimezone.
+  ///
+  /// In vi, this message translates to:
+  /// **'Múi giờ'**
+  String get eventFieldTimezone;
+
+  /// No description provided for @eventFieldRecurring.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lặp lại'**
+  String get eventFieldRecurring;
+
+  /// No description provided for @eventFieldRecurrenceRule.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quy tắc lặp'**
+  String get eventFieldRecurrenceRule;
+
+  /// No description provided for @eventFieldVisibility.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phạm vi hiển thị'**
+  String get eventFieldVisibility;
+
+  /// No description provided for @eventFieldStatus.
+  ///
+  /// In vi, this message translates to:
+  /// **'Trạng thái'**
+  String get eventFieldStatus;
+
+  /// No description provided for @eventFieldUnset.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập'**
+  String get eventFieldUnset;
+
+  /// No description provided for @eventRecurringYes.
+  ///
+  /// In vi, this message translates to:
+  /// **'Có'**
+  String get eventRecurringYes;
+
+  /// No description provided for @eventRecurringNo.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không'**
+  String get eventRecurringNo;
+
+  /// No description provided for @eventFormCreateTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tạo sự kiện'**
+  String get eventFormCreateTitle;
+
+  /// No description provided for @eventFormEditTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chỉnh sửa sự kiện'**
+  String get eventFormEditTitle;
+
+  /// No description provided for @eventFormTitleLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tiêu đề'**
+  String get eventFormTitleLabel;
+
+  /// No description provided for @eventFormTitleHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ví dụ: Họp họ, lễ giỗ'**
+  String get eventFormTitleHint;
+
+  /// No description provided for @eventFormTypeLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Loại sự kiện'**
+  String get eventFormTypeLabel;
+
+  /// No description provided for @eventFormBranchLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phạm vi chi'**
+  String get eventFormBranchLabel;
+
+  /// No description provided for @eventFormTargetMemberLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thành viên mục tiêu ngày giỗ'**
+  String get eventFormTargetMemberLabel;
+
+  /// No description provided for @eventFormRecurringMemorialLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lặp lại ngày giỗ hằng năm'**
+  String get eventFormRecurringMemorialLabel;
+
+  /// No description provided for @eventFormStartsAtLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bắt đầu'**
+  String get eventFormStartsAtLabel;
+
+  /// No description provided for @eventFormEndsAtLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Kết thúc'**
+  String get eventFormEndsAtLabel;
+
+  /// No description provided for @eventFormDateTimeHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'YYYY-MM-DD HH:mm'**
+  String get eventFormDateTimeHint;
+
+  /// No description provided for @eventFormTimezoneLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Múi giờ'**
+  String get eventFormTimezoneLabel;
+
+  /// No description provided for @eventFormLocationNameLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tên địa điểm'**
+  String get eventFormLocationNameLabel;
+
+  /// No description provided for @eventFormLocationAddressLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Địa chỉ địa điểm'**
+  String get eventFormLocationAddressLabel;
+
+  /// No description provided for @eventFormDescriptionLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mô tả'**
+  String get eventFormDescriptionLabel;
+
+  /// No description provided for @eventFormReminderSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mốc nhắc nhở'**
+  String get eventFormReminderSectionTitle;
+
+  /// No description provided for @eventFormReminderPresetWeek.
+  ///
+  /// In vi, this message translates to:
+  /// **'+7 ngày'**
+  String get eventFormReminderPresetWeek;
+
+  /// No description provided for @eventFormReminderPresetDay.
+  ///
+  /// In vi, this message translates to:
+  /// **'+1 ngày'**
+  String get eventFormReminderPresetDay;
+
+  /// No description provided for @eventFormReminderPresetHours.
+  ///
+  /// In vi, this message translates to:
+  /// **'+2 giờ'**
+  String get eventFormReminderPresetHours;
+
+  /// No description provided for @eventFormReminderCustomLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mốc tùy chỉnh (phút)'**
+  String get eventFormReminderCustomLabel;
+
+  /// No description provided for @eventFormReminderCustomHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ví dụ: 30'**
+  String get eventFormReminderCustomHint;
+
+  /// No description provided for @eventFormReminderAddAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thêm'**
+  String get eventFormReminderAddAction;
+
+  /// No description provided for @eventFormSaveAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lưu sự kiện'**
+  String get eventFormSaveAction;
+
+  /// No description provided for @eventValidationTitleRequired.
+  ///
+  /// In vi, this message translates to:
+  /// **'Vui lòng nhập tiêu đề sự kiện.'**
+  String get eventValidationTitleRequired;
+
+  /// No description provided for @eventValidationTimeRange.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thời gian bắt đầu/kết thúc không hợp lệ. Thời gian kết thúc phải sau thời gian bắt đầu.'**
+  String get eventValidationTimeRange;
+
+  /// No description provided for @eventValidationReminderOffsets.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mốc nhắc phải là số dương và không trùng lặp.'**
+  String get eventValidationReminderOffsets;
+
+  /// No description provided for @eventValidationMemorialTarget.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sự kiện giỗ lặp lại cần chọn thành viên mục tiêu.'**
+  String get eventValidationMemorialTarget;
+
+  /// No description provided for @eventValidationMemorialRule.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sự kiện giỗ lặp lại phải dùng quy tắc hằng năm.'**
+  String get eventValidationMemorialRule;
+
+  /// No description provided for @eventErrorPermission.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên hiện tại không có quyền quản lý sự kiện.'**
+  String get eventErrorPermission;
+
+  /// No description provided for @eventErrorNotFound.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không tìm thấy sự kiện.'**
+  String get eventErrorNotFound;
+
+  /// No description provided for @eventTypeClanGathering.
+  ///
+  /// In vi, this message translates to:
+  /// **'Họp họ'**
+  String get eventTypeClanGathering;
+
+  /// No description provided for @eventTypeMeeting.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cuộc họp'**
+  String get eventTypeMeeting;
+
+  /// No description provided for @eventTypeBirthday.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sinh nhật'**
+  String get eventTypeBirthday;
+
+  /// No description provided for @eventTypeDeathAnniversary.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày giỗ'**
+  String get eventTypeDeathAnniversary;
+
+  /// No description provided for @eventTypeOther.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khác'**
+  String get eventTypeOther;
 }
 
 class _AppLocalizationsDelegate
