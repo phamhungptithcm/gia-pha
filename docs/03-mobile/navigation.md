@@ -25,13 +25,14 @@ Current bottom navigation destinations:
 - Events
 - Profile
 
-The Events and Profile tabs are currently placeholder workspaces while the tree
-and member/clan workflows are production-focused.
+The Events tab now hosts the notification inbox while Profile remains a
+placeholder workspace.
 
 ## Notification-driven navigation
 
 - push service listens to foreground and opened-app FCM events
-- event-target notifications can switch users to the Events destination
+- event-target and scholarship-target notifications switch users to the Events
+  destination and open target placeholder pages
 - message payloads are normalized into `NotificationDeepLink` objects
 
 ## UX goals for navigation

@@ -41,7 +41,18 @@ Mobile deep-link parser maps payload `target` values to:
 - members can mark their own notifications as read (`isRead` only)
 - creation/deletion is server-controlled
 
+## Mobile inbox status
+
+- notification inbox screen is available in the shell Events destination
+- inbox reads notification documents for the active member with incremental
+  pagination
+- users can mark their notifications as read from inbox actions
+- event and scholarship notifications open dedicated mobile deep-link
+  destination placeholders
+- notification settings toggles are available as profile-level placeholders
+
 ## Next delivery step
 
-- complete notification inbox screen and pagination flow in mobile UI
-- keep deep-link behavior aligned with final event/scholarship destinations
+- replace target placeholder pages with full event and scholarship detail
+  destinations
+- persist notification preference toggles to backend user settings

@@ -12,6 +12,8 @@ import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
+import '../../features/notifications/presentation/notification_settings_placeholder_page.dart';
+import '../../features/notifications/presentation/notification_target_page.dart';
 import '../../features/notifications/services/push_notification_service.dart';
 import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
 import '../../features/scholarship/services/scholarship_repository.dart';
@@ -58,6 +60,7 @@ class _AppShellPageState extends State<AppShellPage> {
   late final EventRepository _eventRepository;
   late final FundRepository _fundRepository;
   late final PushNotificationService _pushNotificationService;
+  String? _lastOpenedNotificationMessageId;
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
@@ -124,11 +127,21 @@ class _AppShellPageState extends State<AppShellPage> {
       return;
     }
 
-    if (deepLink.openedFromSystemNotification &&
-        deepLink.targetType == NotificationTargetType.event) {
+    final shouldOpenTargetPage =
+        deepLink.openedFromSystemNotification &&
+        (deepLink.targetType == NotificationTargetType.event ||
+            deepLink.targetType == NotificationTargetType.scholarship);
+    if (shouldOpenTargetPage) {
       setState(() {
         _selectedIndex = 2;
       });
+      _openNotificationTargetPage(
+        targetType: deepLink.targetType,
+        referenceId: deepLink.referenceId,
+        sourceTitle: deepLink.title,
+        sourceBody: deepLink.body,
+        messageId: deepLink.messageId,
+      );
     }
 
     final defaultMessage = _defaultNotificationMessage(
@@ -146,6 +159,52 @@ class _AppShellPageState extends State<AppShellPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
+  }
+
+  void _openNotificationTargetPage({
+    required NotificationTargetType targetType,
+    required String? referenceId,
+    required String? sourceTitle,
+    required String? sourceBody,
+    String? messageId,
+  }) {
+    if (targetType == NotificationTargetType.unknown) {
+      return;
+    }
+    if (!_shouldOpenNotificationMessage(messageId)) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) {
+            return NotificationTargetPage(
+              targetType: targetType,
+              referenceId: referenceId,
+              sourceTitle: sourceTitle,
+              sourceBody: sourceBody,
+            );
+          },
+        ),
+      );
+    });
+  }
+
+  bool _shouldOpenNotificationMessage(String? messageId) {
+    final normalizedId = messageId?.trim() ?? '';
+    if (normalizedId.isEmpty) {
+      return true;
+    }
+    if (_lastOpenedNotificationMessageId == normalizedId) {
+      return false;
+    }
+    _lastOpenedNotificationMessageId = normalizedId;
+    return true;
   }
 
   String _defaultNotificationMessage(
@@ -208,11 +267,7 @@ class _AppShellPageState extends State<AppShellPage> {
         repository: _genealogyRepository,
       ),
       EventWorkspacePage(session: widget.session, repository: _eventRepository),
-      _ComingSoonPane(
-        title: l10n.shellProfileWorkspaceTitle,
-        description: l10n.shellProfileWorkspaceDescription,
-        icon: Icons.person,
-      ),
+      const NotificationSettingsPlaceholderPage(),
     ];
 
     return Scaffold(
@@ -764,61 +819,6 @@ class _MemberAccessCard extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ComingSoonPane extends StatelessWidget {
-  const _ComingSoonPane({
-    required this.title,
-    required this.description,
-    required this.icon,
-  });
-
-  final String title;
-  final String description;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: colorScheme.primaryContainer,
-                    child: Icon(icon, size: 32),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    description,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ],
-              ),
-            ),
-          ),
         ),
       ),
     );
