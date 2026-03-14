@@ -12,9 +12,9 @@ import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
-import '../../features/notifications/presentation/notification_settings_placeholder_page.dart';
 import '../../features/notifications/presentation/notification_target_page.dart';
 import '../../features/notifications/services/push_notification_service.dart';
+import '../../features/profile/presentation/profile_workspace_page.dart';
 import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
 import '../../features/scholarship/services/scholarship_repository.dart';
 import '../../l10n/l10n.dart';
@@ -232,6 +232,38 @@ class _AppShellPageState extends State<AppShellPage> {
     };
   }
 
+  Future<void> _confirmLogoutRequest() async {
+    if (widget.onLogoutRequested == null) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(context.l10n.shellLogout),
+          content: const Text(
+            'You can sign back in at any time with your linked account.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Log out'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      await widget.onLogoutRequested?.call();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -261,13 +293,22 @@ class _AppShellPageState extends State<AppShellPage> {
             _selectedIndex = 2;
           });
         },
+        onOpenProfileRequested: () {
+          setState(() {
+            _selectedIndex = 3;
+          });
+        },
       ),
       GenealogyWorkspacePage(
         session: widget.session,
         repository: _genealogyRepository,
       ),
       EventWorkspacePage(session: widget.session, repository: _eventRepository),
-      const NotificationSettingsPlaceholderPage(),
+      ProfileWorkspacePage(
+        session: widget.session,
+        memberRepository: widget.memberRepository,
+        onLogoutRequested: widget.onLogoutRequested,
+      ),
     ];
 
     return Scaffold(
@@ -300,7 +341,7 @@ class _AppShellPageState extends State<AppShellPage> {
               tooltip: l10n.shellMoreActions,
               onSelected: (value) async {
                 if (value == 'logout') {
-                  await widget.onLogoutRequested?.call();
+                  await _confirmLogoutRequest();
                 }
               },
               itemBuilder: (context) => [
@@ -343,6 +384,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.memberRepository,
     required this.fundRepository,
     required this.onOpenTreeRequested,
+    required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
   });
 
@@ -352,6 +394,7 @@ class _HomeDashboard extends StatelessWidget {
   final MemberRepository memberRepository;
   final FundRepository fundRepository;
   final VoidCallback onOpenTreeRequested;
+  final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
 
   @override
@@ -560,6 +603,7 @@ class _HomeDashboard extends StatelessWidget {
         );
       },
       'tree' => onOpenTreeRequested,
+      'profile' => onOpenProfileRequested,
       'events' => onOpenEventsRequested,
       'funds' => () {
         Navigator.of(context).push(

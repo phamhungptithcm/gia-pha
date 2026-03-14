@@ -127,6 +127,8 @@ void main() {
 
       await tester.tap(find.text('Profile'));
       await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Open settings'));
+      await tester.pumpAndSettle();
 
       expect(
         find.byKey(const Key('notification-setting-event-updates')),
