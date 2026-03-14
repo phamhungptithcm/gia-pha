@@ -1,0 +1,125 @@
+import 'calendar_date_mode.dart';
+import 'lunar_date.dart';
+import 'lunar_recurrence_policy.dart';
+
+class DualCalendarEvent {
+  const DualCalendarEvent({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.dateMode,
+    required this.solarDate,
+    required this.lunarDate,
+    required this.isAnnualRecurring,
+    required this.recurrencePolicy,
+    required this.reminderOffsetsMinutes,
+    required this.timezone,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final CalendarDateMode dateMode;
+  final DateTime solarDate;
+  final LunarDate? lunarDate;
+  final bool isAnnualRecurring;
+  final LunarRecurrencePolicy recurrencePolicy;
+  final List<int> reminderOffsetsMinutes;
+  final String timezone;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  bool get usesLunarDate => dateMode == CalendarDateMode.lunar;
+
+  DualCalendarEvent copyWith({
+    String? id,
+    String? title,
+    String? description,
+    CalendarDateMode? dateMode,
+    DateTime? solarDate,
+    LunarDate? lunarDate,
+    bool? isAnnualRecurring,
+    LunarRecurrencePolicy? recurrencePolicy,
+    List<int>? reminderOffsetsMinutes,
+    String? timezone,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    bool clearLunarDate = false,
+  }) {
+    return DualCalendarEvent(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      dateMode: dateMode ?? this.dateMode,
+      solarDate: solarDate ?? this.solarDate,
+      lunarDate: clearLunarDate ? null : lunarDate ?? this.lunarDate,
+      isAnnualRecurring: isAnnualRecurring ?? this.isAnnualRecurring,
+      recurrencePolicy: recurrencePolicy ?? this.recurrencePolicy,
+      reminderOffsetsMinutes: reminderOffsetsMinutes ?? this.reminderOffsetsMinutes,
+      timezone: timezone ?? this.timezone,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'dateMode': dateMode.name,
+      'solarDate': solarDate.toIso8601String(),
+      'lunarDate': lunarDate?.toJson(),
+      'isAnnualRecurring': isAnnualRecurring,
+      'recurrencePolicy': recurrencePolicy.wireName,
+      'reminderOffsetsMinutes': reminderOffsetsMinutes,
+      'timezone': timezone,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  factory DualCalendarEvent.fromJson(Map<String, dynamic> json) {
+    final lunarRaw = json['lunarDate'];
+    return DualCalendarEvent(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      dateMode: (json['dateMode'] as String? ?? '').toLowerCase() == 'lunar'
+          ? CalendarDateMode.lunar
+          : CalendarDateMode.solar,
+      solarDate:
+          DateTime.tryParse(json['solarDate'] as String? ?? '') ??
+          DateTime.now(),
+      lunarDate: lunarRaw is Map<String, dynamic>
+          ? LunarDate.fromJson(lunarRaw)
+          : null,
+      isAnnualRecurring: json['isAnnualRecurring'] as bool? ?? false,
+      recurrencePolicy: LunarRecurrencePolicy.fromWireName(
+        json['recurrencePolicy'] as String?,
+      ),
+      reminderOffsetsMinutes: _offsetList(json['reminderOffsetsMinutes']),
+      timezone: json['timezone'] as String? ?? 'Asia/Ho_Chi_Minh',
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      updatedAt:
+          DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
+}
+
+List<int> _offsetList(dynamic value) {
+  if (value is! List) {
+    return const [];
+  }
+
+  return value
+      .whereType<num>()
+      .map((entry) => entry.toInt())
+      .where((entry) => entry > 0)
+      .toSet()
+      .toList(growable: false)
+    ..sort((a, b) => b.compareTo(a));
+}

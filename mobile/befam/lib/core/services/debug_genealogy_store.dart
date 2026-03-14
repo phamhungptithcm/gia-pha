@@ -1,4 +1,8 @@
 import '../../features/clan/models/branch_profile.dart';
+import '../../features/events/models/event_record.dart';
+import '../../features/events/models/event_type.dart';
+import '../../features/funds/models/fund_profile.dart';
+import '../../features/funds/models/fund_transaction.dart';
 import '../../features/member/models/member_profile.dart';
 import '../../features/member/models/member_social_links.dart';
 import '../../features/relationship/models/relationship_record.dart';
@@ -7,8 +11,14 @@ class DebugGenealogyStore {
   DebugGenealogyStore({
     required this.members,
     required this.branches,
+    required this.funds,
+    required this.transactions,
     required this.relationships,
+    required this.events,
     this.memberSequence = 1000,
+    this.eventSequence = 100,
+    this.fundSequence = 1000,
+    this.transactionSequence = 1000,
   });
 
   factory DebugGenealogyStore.seeded() {
@@ -176,6 +186,96 @@ class DebugGenealogyStore {
           memberCount: 2,
         ),
       },
+      funds: {
+        'fund_demo_scholarship': const FundProfile(
+          id: 'fund_demo_scholarship',
+          clanId: 'clan_demo_001',
+          branchId: null,
+          name: 'Scholarship Fund',
+          description: 'Supports descendants with annual scholarships.',
+          fundType: 'scholarship',
+          currency: 'VND',
+          balanceMinor: 2500000,
+          status: 'active',
+        ),
+        'fund_demo_operations': const FundProfile(
+          id: 'fund_demo_operations',
+          clanId: 'clan_demo_001',
+          branchId: null,
+          name: 'Clan Operations Fund',
+          description: 'Covers ceremonies and shared operations.',
+          fundType: 'operations',
+          currency: 'VND',
+          balanceMinor: 850000,
+          status: 'active',
+        ),
+      },
+      transactions: {
+        'txn_demo_001': FundTransaction(
+          id: 'txn_demo_001',
+          fundId: 'fund_demo_scholarship',
+          clanId: 'clan_demo_001',
+          branchId: null,
+          transactionType: FundTransactionType.donation,
+          amountMinor: 3000000,
+          currency: 'VND',
+          memberId: 'member_demo_parent_001',
+          externalReference: null,
+          occurredAt: DateTime.utc(2026, 1, 12, 2, 0),
+          note: 'Tet contribution campaign',
+          receiptUrl: null,
+          createdAt: DateTime.utc(2026, 1, 12, 2, 5),
+          createdBy: 'member_demo_parent_001',
+        ),
+        'txn_demo_002': FundTransaction(
+          id: 'txn_demo_002',
+          fundId: 'fund_demo_scholarship',
+          clanId: 'clan_demo_001',
+          branchId: null,
+          transactionType: FundTransactionType.expense,
+          amountMinor: 500000,
+          currency: 'VND',
+          memberId: 'member_demo_parent_001',
+          externalReference: null,
+          occurredAt: DateTime.utc(2026, 2, 10, 7, 0),
+          note: 'Scholarship disbursement batch 1',
+          receiptUrl: null,
+          createdAt: DateTime.utc(2026, 2, 10, 7, 2),
+          createdBy: 'member_demo_parent_001',
+        ),
+        'txn_demo_003': FundTransaction(
+          id: 'txn_demo_003',
+          fundId: 'fund_demo_operations',
+          clanId: 'clan_demo_001',
+          branchId: null,
+          transactionType: FundTransactionType.donation,
+          amountMinor: 1000000,
+          currency: 'VND',
+          memberId: 'member_demo_parent_002',
+          externalReference: 'OPS-2026-01',
+          occurredAt: DateTime.utc(2026, 1, 20, 3, 0),
+          note: 'Operations contribution',
+          receiptUrl: null,
+          createdAt: DateTime.utc(2026, 1, 20, 3, 1),
+          createdBy: 'member_demo_parent_002',
+        ),
+        'txn_demo_004': FundTransaction(
+          id: 'txn_demo_004',
+          fundId: 'fund_demo_operations',
+          clanId: 'clan_demo_001',
+          branchId: null,
+          transactionType: FundTransactionType.expense,
+          amountMinor: 150000,
+          currency: 'VND',
+          memberId: 'member_demo_parent_002',
+          externalReference: null,
+          occurredAt: DateTime.utc(2026, 2, 1, 8, 0),
+          note: 'Memorial logistics supplies',
+          receiptUrl: null,
+          createdAt: DateTime.utc(2026, 2, 1, 8, 1),
+          createdBy: 'member_demo_parent_002',
+        ),
+      },
       relationships: {
         'rel_parent_child_member_demo_parent_001_member_demo_child_001':
             const RelationshipRecord(
@@ -202,9 +302,52 @@ class DebugGenealogyStore {
               createdBy: 'debug:+84908886655',
             ),
       },
+      events: {
+        'event_demo_memorial_001': EventRecord(
+          id: 'event_demo_memorial_001',
+          clanId: 'clan_demo_001',
+          branchId: 'branch_demo_001',
+          title: 'Giỗ cụ tổ mùa xuân',
+          description:
+              'Lễ giỗ thường niên tại từ đường chi trưởng, chuẩn bị lễ vật trước 2 giờ.',
+          eventType: EventType.deathAnniversary,
+          targetMemberId: 'member_demo_elder_001',
+          locationName: 'Từ đường chi trưởng',
+          locationAddress: 'Quang Nam, Viet Nam',
+          startsAt: DateTime.utc(2026, 4, 4, 2, 0),
+          endsAt: DateTime.utc(2026, 4, 4, 5, 30),
+          timezone: 'Asia/Ho_Chi_Minh',
+          isRecurring: true,
+          recurrenceRule: 'FREQ=YEARLY',
+          reminderOffsetsMinutes: [10080, 1440, 120],
+          visibility: 'clan',
+          status: 'scheduled',
+        ),
+        'event_demo_gathering_001': EventRecord(
+          id: 'event_demo_gathering_001',
+          clanId: 'clan_demo_001',
+          branchId: 'branch_demo_002',
+          title: 'Họp mặt đầu hè',
+          description:
+              'Họp mặt toàn chi để cập nhật kế hoạch học bổng và quỹ đóng góp.',
+          eventType: EventType.clanGathering,
+          targetMemberId: null,
+          locationName: 'Nhà văn hóa chi phụ',
+          locationAddress: 'Hue, Viet Nam',
+          startsAt: DateTime.utc(2026, 5, 12, 1, 0),
+          endsAt: DateTime.utc(2026, 5, 12, 4, 0),
+          timezone: 'Asia/Ho_Chi_Minh',
+          isRecurring: false,
+          recurrenceRule: null,
+          reminderOffsetsMinutes: [1440, 120],
+          visibility: 'clan',
+          status: 'scheduled',
+        ),
+      },
     );
     store.reconcileRelationshipFields('clan_demo_001');
     store.recountBranchMembers('clan_demo_001');
+    store.recountFundBalances('clan_demo_001');
     return store;
   }
 
@@ -214,8 +357,14 @@ class DebugGenealogyStore {
 
   final Map<String, MemberProfile> members;
   final Map<String, BranchProfile> branches;
+  final Map<String, FundProfile> funds;
+  final Map<String, FundTransaction> transactions;
   final Map<String, RelationshipRecord> relationships;
+  final Map<String, EventRecord> events;
   int memberSequence;
+  int eventSequence;
+  int fundSequence;
+  int transactionSequence;
 
   void recountBranchMembers(String clanId) {
     for (final entry in branches.entries) {
@@ -300,6 +449,25 @@ class DebugGenealogyStore {
         childrenIds: childIds,
         spouseIds: spouseIds,
       );
+    }
+  }
+
+  void recountFundBalances(String clanId) {
+    for (final entry in funds.entries) {
+      final fund = entry.value;
+      if (fund.clanId != clanId) {
+        continue;
+      }
+
+      var balance = 0;
+      for (final transaction in transactions.values.where(
+        (candidate) =>
+            candidate.clanId == clanId && candidate.fundId == fund.id,
+      )) {
+        balance += transaction.signedAmountMinor;
+      }
+
+      funds[entry.key] = fund.copyWith(balanceMinor: balance);
     }
   }
 }

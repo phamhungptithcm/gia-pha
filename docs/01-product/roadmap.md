@@ -44,8 +44,15 @@ _Last reviewed: March 14, 2026_
 - scholarship program and review workflows
 - stronger test coverage for financial and scholarship domain rules
 
+### M6: Dual calendar and lunar events (planned)
+
+- dual solar + lunar calendar rendering in month/day views
+- lunar event creation with yearly recurrence resolution
+- lunar holidays, regional calendar settings, and reminder scheduling
+
 ## Planning references
 
 - [AI Build Master Doc](../AI_BUILD_MASTER_DOC.md)
 - [AI Agent Tasks 150 Issues](../AI_AGENT_TASKS_150_ISSUES.md)
+- [Dual Calendar Epic](./epic-dual-calendar-system.md)
 - [GitHub Workflow](../05-devops/github-workflow.md)
