@@ -141,30 +141,28 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
             ),
           ],
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _SummaryMetric(
+          _SummaryMetricGrid(
+            items: [
+              _SummaryMetricItem(
                 key: Key('genealogy-summary-members-${segment.members.length}'),
                 label: l10n.genealogySummaryMembers,
                 value: '${segment.members.length}',
               ),
-              _SummaryMetric(
+              _SummaryMetricItem(
                 key: Key(
                   'genealogy-summary-relationships-${segment.relationships.length}',
                 ),
                 label: l10n.genealogySummaryRelationships,
                 value: '${segment.relationships.length}',
               ),
-              _SummaryMetric(
+              _SummaryMetricItem(
                 key: Key(
                   'genealogy-summary-roots-${segment.rootEntries.length}',
                 ),
                 label: l10n.genealogySummaryRoots,
                 value: '${segment.rootEntries.length}',
               ),
-              _SummaryMetric(
+              _SummaryMetricItem(
                 key: Key('genealogy-summary-scope-${segment.scope.type.name}'),
                 label: l10n.genealogySummaryScope,
                 value: _scopeLabel(l10n, segment.scope.type),
@@ -1039,36 +1037,160 @@ class _RootSelector extends StatelessWidget {
   final ValueChanged<String> onRootSelected;
   final String Function(GenealogyRootReason reason) reasonLabel;
 
+  Future<void> _openRootPicker(BuildContext context) async {
+    final l10n = context.l10n;
+    final searchController = TextEditingController();
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final query = searchController.text.trim().toLowerCase();
+            final filtered = rootEntries.where((root) {
+              final name = resolveMember(root.memberId)?.fullName ?? root.memberId;
+              return query.isEmpty || name.toLowerCase().contains(query);
+            }).toList(growable: false);
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                MediaQuery.viewInsetsOf(context).bottom + 20,
+              ),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.65,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.pick(
+                        vi: 'Chọn điểm vào gốc',
+                        en: 'Choose root entry',
+                      ),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: searchController,
+                      onChanged: (_) => setModalState(() {}),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        labelText: l10n.pick(
+                          vi: 'Tìm theo tên thành viên',
+                          en: 'Search member name',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final root = filtered[index];
+                          final name =
+                              resolveMember(root.memberId)?.fullName ??
+                              root.memberId;
+                          final selected = selectedRootId == root.memberId;
+                          return ListTile(
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              onRootSelected(root.memberId);
+                            },
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                            ),
+                            title: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              root.reasons.map(reasonLabel).join(', '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: selected
+                                ? Icon(
+                                    Icons.check_circle,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  )
+                                : null,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    searchController.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              context.l10n.genealogyRootEntriesTitle,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.l10n.genealogyRootEntriesTitle,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => _openRootPicker(context),
+                  icon: const Icon(Icons.manage_search),
+                  label: Text(
+                    l10n.pick(
+                      vi: 'Xem tất cả (${rootEntries.length})',
+                      en: 'View all (${rootEntries.length})',
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final root in rootEntries)
-                  FilterChip(
-                    selected: selectedRootId == root.memberId,
-                    label: Text(
-                      resolveMember(root.memberId)?.fullName ?? root.memberId,
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final root in rootEntries) ...[
+                    FilterChip(
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      selected: selectedRootId == root.memberId,
+                      label: Text(
+                        resolveMember(root.memberId)?.fullName ?? root.memberId,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onSelected: (_) => onRootSelected(root.memberId),
+                      tooltip: root.reasons.map(reasonLabel).join(', '),
                     ),
-                    onSelected: (_) => onRootSelected(root.memberId),
-                    tooltip: root.reasons.map(reasonLabel).join(', '),
-                  ),
-              ],
+                    const SizedBox(width: 10),
+                  ],
+                ],
+              ),
             ),
           ],
         ),
@@ -1077,8 +1199,53 @@ class _RootSelector extends StatelessWidget {
   }
 }
 
-class _SummaryMetric extends StatelessWidget {
-  const _SummaryMetric({super.key, required this.label, required this.value});
+class _SummaryMetricItem {
+  const _SummaryMetricItem({
+    this.key,
+    required this.label,
+    required this.value,
+  });
+
+  final Key? key;
+  final String label;
+  final String value;
+}
+
+class _SummaryMetricGrid extends StatelessWidget {
+  const _SummaryMetricGrid({required this.items});
+
+  final List<_SummaryMetricItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth >= 760 ? 4 : 2;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: items.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            mainAxisExtent: 138,
+          ),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return KeyedSubtree(
+              key: item.key,
+              child: _SummaryMetricCard(label: item.label, value: item.value),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _SummaryMetricCard extends StatelessWidget {
+  const _SummaryMetricCard({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -1086,24 +1253,29 @@ class _SummaryMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
-      width: 154,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: theme.textTheme.labelLarge),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelLarge,
+            ),
+            const Spacer(),
+            Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                height: 1.05,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

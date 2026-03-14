@@ -113,6 +113,87 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     ).showSnackBar(SnackBar(content: Text(_memberErrorMessage(l10n, error))));
   }
 
+  Future<void> _openAvatarActions(MemberProfile profile) async {
+    final l10n = context.l10n;
+    final action = await showModalBottomSheet<_AvatarAction>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.image_outlined),
+                title: Text(
+                  l10n.pick(
+                    vi: 'Xem ảnh hiện tại',
+                    en: 'View current photo',
+                  ),
+                ),
+                onTap: () => Navigator.of(context).pop(_AvatarAction.view),
+              ),
+              ListTile(
+                leading: const Icon(Icons.file_upload_outlined),
+                title: Text(
+                  l10n.pick(
+                    vi: 'Tải ảnh mới',
+                    en: 'Upload new photo',
+                  ),
+                ),
+                onTap: () => Navigator.of(context).pop(_AvatarAction.upload),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || action == null) {
+      return;
+    }
+
+    if (action == _AvatarAction.upload) {
+      await _handleAvatarUpload();
+      return;
+    }
+
+    if (!profile.hasAvatar) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Hiện chưa có ảnh đại diện.',
+              en: 'No current profile photo yet.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(20),
+          clipBehavior: Clip.antiAlias,
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: Image.network(
+                profile.avatarUrl!,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _openSettings() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -212,9 +293,10 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                           ),
                           onEditProfile: () =>
                               _openEditor(_controller.profile!),
-                          onUpdatePhoto: _controller.isUploadingAvatar
+                          onAvatarTap: _controller.isUploadingAvatar
                               ? null
-                              : _handleAvatarUpload,
+                              : () => _openAvatarActions(_controller.profile!),
+                          isUploadingAvatar: _controller.isUploadingAvatar,
                         ),
                         const SizedBox(height: 20),
                         if (_controller.errorMessage != null) ...[
@@ -228,8 +310,6 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                         ],
                         _ProfileSectionCard(
                           title: l10n.profileDetailsSectionTitle,
-                          actionLabel: l10n.memberEditAction,
-                          onAction: () => _openEditor(_controller.profile!),
                           child: Column(
                             children: [
                               _ProfileDetailRow(
@@ -513,13 +593,15 @@ class _ProfileHeroCard extends StatelessWidget {
     required this.profile,
     required this.roleLabel,
     required this.onEditProfile,
-    this.onUpdatePhoto,
+    this.onAvatarTap,
+    this.isUploadingAvatar = false,
   });
 
   final MemberProfile profile;
   final String roleLabel;
   final VoidCallback onEditProfile;
-  final VoidCallback? onUpdatePhoto;
+  final VoidCallback? onAvatarTap;
+  final bool isUploadingAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -540,67 +622,110 @@ class _ProfileHeroCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 38,
-            backgroundColor: colorScheme.surface,
-            foregroundColor: colorScheme.onSurface,
-            backgroundImage: profile.hasAvatar
-                ? NetworkImage(profile.avatarUrl!)
-                : null,
-            child: profile.hasAvatar
-                ? null
-                : Text(
-                    profile.initials,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
+          InkWell(
+            onTap: onAvatarTap,
+            customBorder: const CircleBorder(),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 38,
+                  backgroundColor: colorScheme.surface,
+                  foregroundColor: colorScheme.onSurface,
+                  backgroundImage: profile.hasAvatar
+                      ? NetworkImage(profile.avatarUrl!)
+                      : null,
+                  child: profile.hasAvatar
+                      ? null
+                      : Text(
+                          profile.initials,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: colorScheme.surface,
+                        width: 1.4,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.photo_camera_outlined,
+                      size: 14,
+                      color: colorScheme.onPrimaryContainer,
                     ),
                   ),
+                ),
+                if (isUploadingAvatar)
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface.withValues(alpha: 0.65),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(22),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  profile.fullName,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: colorScheme.onPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        profile.fullName,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          color: colorScheme.onPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: l10n.memberEditAction,
+                      onPressed: onEditProfile,
+                      icon: const Icon(Icons.edit_outlined),
+                      color: colorScheme.onPrimary,
+                      style: IconButton.styleFrom(
+                        backgroundColor: colorScheme.onPrimary.withValues(
+                          alpha: 0.12,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   roleLabel,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: colorScheme.onPrimary.withValues(alpha: 0.9),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: colorScheme.surface,
-                        foregroundColor: colorScheme.onSurface,
-                      ),
-                      onPressed: onEditProfile,
-                      icon: const Icon(Icons.edit_outlined),
-                      label: Text(l10n.memberEditAction),
-                    ),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: colorScheme.onPrimary,
-                        side: BorderSide(
-                          color: colorScheme.onPrimary.withValues(alpha: 0.45),
-                        ),
-                      ),
-                      onPressed: onUpdatePhoto,
-                      icon: const Icon(Icons.photo_camera_outlined),
-                      label: Text(l10n.memberUploadAvatarAction),
-                    ),
-                  ],
+                Text(
+                  l10n.pick(
+                    vi: 'Chạm ảnh để xem hoặc đổi ảnh đại diện',
+                    en: 'Tap avatar to view or upload a new profile photo',
+                  ),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onPrimary.withValues(alpha: 0.9),
+                  ),
                 ),
               ],
             ),
@@ -610,6 +735,8 @@ class _ProfileHeroCard extends StatelessWidget {
     );
   }
 }
+
+enum _AvatarAction { view, upload }
 
 class _ProfileEditorSheet extends StatefulWidget {
   const _ProfileEditorSheet({
@@ -883,14 +1010,10 @@ class _ProfileSectionCard extends StatelessWidget {
   const _ProfileSectionCard({
     required this.title,
     required this.child,
-    this.actionLabel,
-    this.onAction,
   });
 
   final String title;
   final Widget child;
-  final String? actionLabel;
-  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -911,8 +1034,6 @@ class _ProfileSectionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (actionLabel != null && onAction != null)
-                  TextButton(onPressed: onAction, child: Text(actionLabel!)),
               ],
             ),
             const SizedBox(height: 12),
