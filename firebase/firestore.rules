@@ -1,0 +1,160 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function clanIds() {
+      return signedIn() && request.auth.token.clanIds is list
+        ? request.auth.token.clanIds
+        : [];
+    }
+
+    function hasClanAccess(clanId) {
+      return signedIn() && clanId in clanIds();
+    }
+
+    function memberIdClaim() {
+      return signedIn() && request.auth.token.memberId is string
+        ? request.auth.token.memberId
+        : '';
+    }
+
+    function primaryRole() {
+      return signedIn() && request.auth.token.primaryRole is string
+        ? request.auth.token.primaryRole
+        : '';
+    }
+
+    function isClanAdmin() {
+      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN'];
+    }
+
+    function isSelfMember(memberData) {
+      return signedIn() && memberData.authUid == request.auth.uid;
+    }
+
+    function safeProfileUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'fullName',
+        'normalizedFullName',
+        'nickName',
+        'birthDate',
+        'deathDate',
+        'phoneE164',
+        'email',
+        'addressText',
+        'jobTitle',
+        'avatarUrl',
+        'bio',
+        'socialLinks',
+        'updatedAt',
+        'updatedBy'
+      ]);
+    }
+
+    match /clans/{clanId} {
+      allow read: if hasClanAccess(clanId);
+      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.id);
+    }
+
+    match /branches/{branchId} {
+      allow read: if hasClanAccess(resource.data.clanId);
+      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+    }
+
+    match /members/{memberId} {
+      allow read: if hasClanAccess(resource.data.clanId);
+      allow create: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+      allow update: if hasClanAccess(resource.data.clanId) && (
+        isClanAdmin() ||
+        (
+          isSelfMember(resource.data) &&
+          safeProfileUpdate() &&
+          request.resource.data.clanId == resource.data.clanId &&
+          request.resource.data.branchId == resource.data.branchId &&
+          request.resource.data.primaryRole == resource.data.primaryRole &&
+          request.resource.data.authUid == resource.data.authUid
+        )
+      );
+      allow delete: if false;
+    }
+
+    match /relationships/{relationshipId} {
+      allow read: if hasClanAccess(resource.data.clanId);
+      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+    }
+
+    match /events/{eventId} {
+      allow read: if hasClanAccess(resource.data.clanId);
+      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+    }
+
+    match /funds/{fundId} {
+      allow read: if hasClanAccess(resource.data.clanId);
+      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if hasClanAccess(resource.data.clanId);
+      allow write: if false;
+    }
+
+    match /scholarshipPrograms/{programId} {
+      allow read: if hasClanAccess(resource.data.clanId);
+      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+    }
+
+    match /awardLevels/{awardLevelId} {
+      allow read: if hasClanAccess(resource.data.clanId);
+      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+    }
+
+    match /achievementSubmissions/{submissionId} {
+      allow read: if hasClanAccess(resource.data.clanId);
+      allow create: if
+        hasClanAccess(request.resource.data.clanId) &&
+        request.resource.data.memberId == memberIdClaim();
+      allow update: if
+        hasClanAccess(resource.data.clanId) && (
+          isClanAdmin() ||
+          (
+            resource.data.memberId == memberIdClaim() &&
+            resource.data.status == 'pending' &&
+            request.resource.data.status == 'pending'
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if
+        hasClanAccess(resource.data.clanId) &&
+        (resource.data.memberId == memberIdClaim() || isClanAdmin());
+      allow update: if
+        hasClanAccess(resource.data.clanId) &&
+        resource.data.memberId == memberIdClaim() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'isRead'
+        ]);
+      allow create, delete: if false;
+    }
+
+    match /invites/{inviteId} {
+      allow read: if isClanAdmin() && hasClanAccess(resource.data.clanId);
+      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+    }
+
+    match /memberSearchIndex/{docId} {
+      allow read: if hasClanAccess(resource.data.clanId);
+      allow write: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isClanAdmin() && hasClanAccess(resource.data.clanId);
+      allow write: if false;
+    }
+  }
+}

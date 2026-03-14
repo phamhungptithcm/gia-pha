@@ -18,6 +18,7 @@ This repository is designed to serve as the project source of truth for:
 
 - `docs/`: MkDocs content published to GitHub Pages
 - `mobile/befam/`: Flutter application scaffold for local iOS and Android development
+- `firebase/`: Firestore rules, indexes, Storage rules, and Cloud Functions scaffold
 - `.github/`: GitHub Actions workflows, issue templates, and pull request template
 - `scripts/`: repository automation utilities, including backlog bootstrap tooling
 - `mkdocs.yml`: documentation site configuration
@@ -49,9 +50,27 @@ Build the site in strict mode:
 mkdocs build --strict
 ```
 
+Build the release docs image locally:
+
+```bash
+docker build \
+  --build-arg RELEASE_VERSION=local \
+  --build-arg VCS_REF=$(git rev-parse --short HEAD) \
+  -t gia-pha-docs:local .
+```
+
 ## Flutter Development
 
-The repository includes a local Flutter app scaffold at `mobile/befam`.
+The repository includes a local Flutter app at `mobile/befam`.
+
+Current bootstrap foundation:
+
+- Firebase core initialization for Android and iOS
+- Material 3 theme based on the project palette
+- Home shell with module placeholders for tree, members, events, and profile
+- Authentication entry flow with phone login, child access, OTP verify, and session restore
+- Freezed and JSON code generation for app models
+- Structured logging with release-only Crashlytics enablement
 
 Installed local tooling on this machine:
 
@@ -75,9 +94,69 @@ Start the Android emulator:
 Run the Flutter app on Android:
 
 ```bash
-cd mobile/befam
-flutter run
+./scripts/run_befam_android.sh
 ```
+
+Regenerate model code after changing Freezed or JSON models:
+
+```bash
+cd mobile/befam
+dart run build_runner build --delete-conflicting-outputs
+```
+
+Recommended local verification:
+
+```bash
+cd mobile/befam
+flutter analyze
+flutter test
+```
+
+Local auth sandbox notes:
+
+- default debug OTP: `123456`
+- demo child identifiers: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
+- force the live Firebase auth path in debug with `--dart-define=BEFAM_USE_LIVE_AUTH=true`
+
+## Firebase Setup
+
+This repository is now linked to Firebase project `be-fam-3ab23`.
+
+Configured mobile app artifacts:
+
+- `mobile/befam/android/app/google-services.json`
+- `mobile/befam/ios/Runner/GoogleService-Info.plist`
+- `mobile/befam/lib/firebase_options.dart`
+
+Configured backend artifacts:
+
+- `firebase.json`
+- `firebase/firestore.rules`
+- `firebase/firestore.indexes.json`
+- `firebase/storage.rules`
+- `firebase/functions/`
+- `.firebaserc`
+
+One-time cloud provisioning status:
+
+- Android app registered: `com.familyclanapp.befam`
+- iOS app registered: `com.familyclanapp.befam`
+- Cloud Firestore API enabled for `be-fam-3ab23`
+- Default Firestore database created in `asia-southeast1`
+- Firestore rules and indexes deployed from the repository
+
+Prepared production CI/CD artifacts:
+
+- `.github/workflows/deploy-firebase.yml`
+- GitHub environment: `production`
+- GitHub environment variable: `FIREBASE_PROJECT_ID=be-fam-3ab23`
+- GitHub environment variable: `FIREBASE_FUNCTIONS_REGION=asia-southeast1`
+- GitHub environment secret: `FIREBASE_SERVICE_ACCOUNT`
+
+Current production blocker:
+
+- Cloud Functions v2 deployment still requires a billing account linked to `be-fam-3ab23`
+- Google APIs such as Cloud Build, Cloud Run, Artifact Registry, and Cloud Scheduler cannot be enabled until billing is attached
 
 ### iOS note
 
@@ -88,7 +167,6 @@ installed, run:
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 sudo xcodebuild -runFirstLaunch
 cd mobile/befam
-pod install --project-directory=ios
 flutter run -d ios
 ```
 
@@ -97,11 +175,22 @@ flutter run -d ios
 The repository includes:
 
 - docs validation on pull requests
+- required branch CI for `staging` and `main`
+- Firebase Functions TypeScript build validation in branch CI
+- Android release APK validation in branch CI
+- docs release image validation in branch CI
 - GitHub Pages deployment from `main`
+- production Firebase deploy workflow for Firestore, Storage, and Functions
+- automatic semver tagging and GitHub release publishing on `main`
+- friendly release note generation from conventional commits
+- Android release APK upload to GitHub Releases
+- docs image publishing to GHCR at `ghcr.io/phamhungptithcm/gia-pha-docs`
+- weekly release promotion pull requests from `staging` to `main`
+- post-release story and epic closure after production merges
 - issue and pull request templates
 - CODEOWNERS support for review routing
 - backlog import automation from the source planning docs
-- a release notes generator for future tag-based release automation
+- release version resolution for tag-based production delivery
 
 Create or sync the GitHub epic/story backlog with:
 
@@ -115,10 +204,19 @@ Generate friendly release notes for a tagged release:
 RELEASE_TAG=v0.1.0 node scripts/generate_release_notes.mjs
 ```
 
+Preview the next semver release that would be cut on `main`:
+
+```bash
+node scripts/next_release_version.mjs
+```
+
 ## Workflow
 
-1. Create a short-lived branch from `main`.
+1. Create a short-lived branch from `staging`.
 2. Make the required documentation or implementation changes.
 3. Run local verification where applicable.
-4. Open a pull request.
-5. Merge to `main` after review and successful checks.
+4. Open a pull request to `staging`.
+5. Merge to `staging` after review and successful checks.
+6. Use `Closes #123` keywords for completed stories so production release automation can close them later.
+7. Review and approve the weekly `staging` to `main` release pull request for production.
+8. After the merge lands on `main`, let release automation create the semver tag, friendly notes, Android APK asset, and GHCR docs image.

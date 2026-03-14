@@ -1,11 +1,12 @@
 # Branching Strategy
 
-The repository uses `main` as the default protected branch and favors short-lived
-topic branches.
+The repository uses `staging` for day-to-day development and `main` for production
+releases.
 
 ## Branch types
 
-- `main`: stable branch and GitHub Pages deployment source
+- `staging`: default development branch and integration branch
+- `main`: protected production branch, GitHub Pages deployment source, and Firebase production deploy trigger
 - `codex/<slug>`: Codex-created implementation branches
 - `feat/<issue-id>-<slug>`: feature delivery
 - `fix/<issue-id>-<slug>`: bug fixes
@@ -13,10 +14,14 @@ topic branches.
 
 ## Rules
 
-- branch from the latest `main`
+- branch from the latest `staging`
 - keep changes scoped to one issue or one closely related set of issues
-- open a pull request before merge
-- avoid long-lived integration branches unless the team later adds `develop`
+- open a pull request to `staging` before merge
+- require one approval and passing Branch CI before merge to `staging` or `main`
+- promote `staging` to `main` through the weekly release PR
+- use merge commits for the `staging` to `main` promotion so release history stays aligned
+- let `main` release automation create the semver tag, GitHub release, Android APK asset, and GHCR docs image
+- let Firebase production deploys run from `main` with GitHub environment-scoped credentials
 
 ## Example
 

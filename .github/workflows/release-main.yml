@@ -1,0 +1,206 @@
+name: Release Main
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-main-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare-release:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      build_number: ${{ steps.version.outputs.build_number }}
+      previous_tag: ${{ steps.version.outputs.previous_tag }}
+      head_already_tagged: ${{ steps.version.outputs.head_already_tagged }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --force --tags origin
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Resolve release version
+        id: version
+        run: node scripts/next_release_version.mjs
+
+      - name: Create release tag
+        if: steps.version.outputs.head_already_tagged != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "chore(release): cut ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Generate friendly release notes
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_NOTES_PATH: dist/release-notes.md
+          RELEASE_PRODUCT_NAME: BeFam
+        run: node scripts/generate_release_notes.mjs
+
+      - name: Append artifact summary to release notes
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cat <<EOF >> dist/release-notes.md
+
+          ## Release artifacts
+          - Android APK: \`befam-${RELEASE_VERSION}-android-release.apk\`
+          - Docs image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/gia-pha-docs:${RELEASE_TAG}\`
+          - Docs image alias: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/gia-pha-docs:latest\`
+          EOF
+
+      - name: Upload release notes artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: dist/release-notes.md
+
+  build-android-release:
+    name: Build Android release
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile/befam
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Generate localization files
+        run: flutter gen-l10n
+
+      - name: Build Android release APK
+        run: |
+          flutter build apk \
+            --release \
+            --build-name "${{ needs.prepare-release.outputs.version }}" \
+            --build-number "${{ needs.prepare-release.outputs.build_number }}"
+
+      - name: Upload Android release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: mobile/befam/build/app/outputs/flutter-apk/app-release.apk
+
+  publish-docs-image:
+    name: Publish docs image
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Prepare Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/gia-pha-docs
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ needs.prepare-release.outputs.tag }}
+            type=raw,value=${{ needs.prepare-release.outputs.version }}
+            type=sha,prefix=sha-
+
+      - name: Build and push docs image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            RELEASE_VERSION=${{ needs.prepare-release.outputs.version }}
+            VCS_REF=${{ github.sha }}
+
+  publish-github-release:
+    name: Publish GitHub release
+    needs:
+      - prepare-release
+      - build-android-release
+      - publish-docs-image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: dist
+
+      - name: Download Android release APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release-apk
+          path: dist/android
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          title="BeFam ${RELEASE_TAG}"
+          asset_path="dist/android/app-release.apk"
+          asset_name="befam-${RELEASE_VERSION}-android-release.apk"
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" \
+              --title "${title}" \
+              --notes-file dist/release-notes.md
+          else
+            gh release create "${RELEASE_TAG}" \
+              --title "${title}" \
+              --notes-file dist/release-notes.md
+          fi
+
+          gh release upload "${RELEASE_TAG}" "${asset_path}#${asset_name}" --clobber

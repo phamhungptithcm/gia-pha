@@ -1,23 +1,26 @@
 # GitHub Workflow
 
-This repository follows a docs-first workflow that is ready to scale into app and
-backend delivery.
+This repository follows a `staging` to `main` delivery model with GitHub-managed
+reviews, CI, and release promotion.
 
 ## Delivery loop
 
-1. start from `main`
+1. start from `staging`
 2. create a short-lived branch
 3. implement changes
 4. run local verification
-5. open a pull request
+5. open a pull request to `staging`
 6. let GitHub Actions validate docs and code
-7. merge to `main`
-8. publish docs from `main`
+7. merge to `staging` after approval
+8. use `Closes #123` keywords in the staging PR for stories that are truly complete in that branch
+9. let the weekly release workflow open the `staging` to `main` production PR
+10. approve the release PR and let auto-merge finish the production promotion
+11. publish docs from `main`, deploy Firebase production changes, create the GitHub release, publish the docs image, and close released stories and epics
 
 ## Pull request checklist
 
 - explain scope clearly
-- link the related issue or epic
+- link the related story with a closing keyword such as `Closes #123`
 - note testing performed
 - call out schema or contract changes
 - include screenshots when UI content changes
@@ -31,6 +34,8 @@ The GitHub setup includes:
 - CODEOWNERS for review routing
 - labels for epics, stories, domains, and agent-driven work
 - a backlog bootstrap script that creates GitHub issues from the source planning doc
+- a production Firebase deployment workflow that reads credentials from the `production` environment
+- a production release workflow that cuts semver tags, writes friendly notes, uploads the Android APK, and publishes the docs image
 
 ## Backlog source of truth
 

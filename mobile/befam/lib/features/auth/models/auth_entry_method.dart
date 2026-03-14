@@ -1,0 +1,1 @@
+enum AuthEntryMethod { phone, child }

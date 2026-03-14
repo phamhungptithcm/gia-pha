@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function clanIds() {
+      return signedIn() && request.auth.token.clanIds is list
+        ? request.auth.token.clanIds
+        : [];
+    }
+
+    function hasClanAccess(clanId) {
+      return signedIn() && clanId in clanIds();
+    }
+
+    function memberIdClaim() {
+      return signedIn() && request.auth.token.memberId is string
+        ? request.auth.token.memberId
+        : '';
+    }
+
+    function isClanAdmin() {
+      return signedIn() && request.auth.token.primaryRole in [
+        'SUPER_ADMIN',
+        'CLAN_ADMIN',
+        'BRANCH_ADMIN'
+      ];
+    }
+
+    match /clans/{clanId}/{allPaths=**} {
+      allow read: if hasClanAccess(clanId);
+      allow write: if isClanAdmin() && hasClanAccess(clanId);
+    }
+
+    match /members/{memberId}/avatar/{fileName} {
+      allow read: if signedIn();
+      allow write: if
+        signedIn() &&
+        memberId == memberIdClaim() &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    match /submissions/{clanId}/{memberId}/{fileName} {
+      allow read: if hasClanAccess(clanId);
+      allow write: if
+        hasClanAccess(clanId) &&
+        memberId == memberIdClaim() &&
+        request.resource.size < 20 * 1024 * 1024;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
