@@ -5,7 +5,6 @@ import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/clan/services/debug_clan_repository.dart';
 import 'package:befam/features/member/services/debug_member_repository.dart';
-import 'package:befam/features/notifications/services/notification_inbox_repository.dart';
 import 'package:befam/features/notifications/services/push_notification_service.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +50,6 @@ void main() {
           session: buildSession(),
           clanRepository: DebugClanRepository.seeded(),
           memberRepository: DebugMemberRepository.seeded(),
-          notificationInboxRepository: _StaticNotificationInboxRepository(),
           pushNotificationService: pushService,
         ),
       ),
@@ -86,7 +84,6 @@ void main() {
           session: buildSession(),
           clanRepository: DebugClanRepository.seeded(),
           memberRepository: DebugMemberRepository.seeded(),
-          notificationInboxRepository: _StaticNotificationInboxRepository(),
           pushNotificationService: pushService,
         ),
       ),
@@ -122,7 +119,6 @@ void main() {
             session: buildSession(),
             clanRepository: DebugClanRepository.seeded(),
             memberRepository: DebugMemberRepository.seeded(),
-            notificationInboxRepository: _StaticNotificationInboxRepository(),
             pushNotificationService: _ControllablePushNotificationService(),
           ),
         ),
@@ -171,27 +167,6 @@ class _ControllablePushNotificationService implements PushNotificationService {
   void emit(NotificationDeepLink deepLink) {
     _onDeepLink?.call(deepLink);
   }
-}
-
-class _StaticNotificationInboxRepository
-    implements NotificationInboxRepository {
-  @override
-  bool get isSandbox => true;
-
-  @override
-  Future<NotificationInboxPageResult> loadInboxPage({
-    required AuthSession session,
-    int limit = 20,
-    NotificationInboxCursor? cursor,
-  }) async {
-    return const NotificationInboxPageResult(items: [], nextCursor: null);
-  }
-
-  @override
-  Future<void> markAsRead({
-    required AuthSession session,
-    required String notificationId,
-  }) async {}
 }
 
 class _ShellTestApp extends StatelessWidget {
