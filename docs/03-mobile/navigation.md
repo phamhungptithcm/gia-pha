@@ -31,7 +31,8 @@ placeholder workspace.
 ## Notification-driven navigation
 
 - push service listens to foreground and opened-app FCM events
-- event-target notifications can switch users to the Events destination
+- event-target and scholarship-target notifications switch users to the Events
+  destination and open target placeholder pages
 - message payloads are normalized into `NotificationDeepLink` objects
 
 ## UX goals for navigation

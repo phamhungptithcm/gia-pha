@@ -4,12 +4,36 @@ import '../models/notification_inbox_item.dart';
 import 'debug_notification_inbox_repository.dart';
 import 'firebase_notification_inbox_repository.dart';
 
+class NotificationInboxCursor {
+  const NotificationInboxCursor({required this.createdAt});
+
+  final DateTime createdAt;
+}
+
+class NotificationInboxPageResult {
+  const NotificationInboxPageResult({
+    required this.items,
+    required this.nextCursor,
+  });
+
+  final List<NotificationInboxItem> items;
+  final NotificationInboxCursor? nextCursor;
+
+  bool get hasMore => nextCursor != null;
+}
+
 abstract interface class NotificationInboxRepository {
   bool get isSandbox;
 
-  Future<List<NotificationInboxItem>> loadInbox({
+  Future<NotificationInboxPageResult> loadInboxPage({
     required AuthSession session,
-    int limit = 25,
+    int limit = 20,
+    NotificationInboxCursor? cursor,
+  });
+
+  Future<void> markAsRead({
+    required AuthSession session,
+    required String notificationId,
   });
 }
 

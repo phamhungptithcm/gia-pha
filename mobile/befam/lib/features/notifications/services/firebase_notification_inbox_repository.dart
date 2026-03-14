@@ -20,9 +20,10 @@ class FirebaseNotificationInboxRepository
   bool get isSandbox => false;
 
   @override
-  Future<List<NotificationInboxItem>> loadInbox({
+  Future<NotificationInboxPageResult> loadInboxPage({
     required AuthSession session,
-    int limit = 25,
+    int limit = 20,
+    NotificationInboxCursor? cursor,
   }) async {
     await FirebaseSessionAccessSync.ensureUserSessionDocument(
       firestore: _firestore,
@@ -31,17 +32,23 @@ class FirebaseNotificationInboxRepository
 
     final memberId = session.memberId?.trim() ?? '';
     if (memberId.isEmpty) {
-      return const [];
+      return const NotificationInboxPageResult(items: [], nextCursor: null);
     }
 
-    final effectiveLimit = limit.clamp(1, 100);
-    final snapshot = await _notifications
+    final pageSize = limit.clamp(1, 100);
+    var query = _notifications
         .where('memberId', isEqualTo: memberId)
         .orderBy('createdAt', descending: true)
-        .limit(effectiveLimit)
-        .get();
+        .limit(pageSize + 1);
 
-    return snapshot.docs
+    final cursorCreatedAt = cursor?.createdAt;
+    if (cursorCreatedAt != null) {
+      query = query.startAfter([Timestamp.fromDate(cursorCreatedAt)]);
+    }
+
+    final snapshot = await query.get();
+
+    final mappedItems = snapshot.docs
         .map(
           (doc) => NotificationInboxItem.fromFirestore(
             documentId: doc.id,
@@ -49,5 +56,40 @@ class FirebaseNotificationInboxRepository
           ),
         )
         .toList(growable: false);
+
+    if (mappedItems.isEmpty) {
+      return const NotificationInboxPageResult(items: [], nextCursor: null);
+    }
+
+    final hasMore = mappedItems.length > pageSize;
+    final visibleItems = hasMore
+        ? mappedItems.take(pageSize).toList(growable: false)
+        : mappedItems;
+    final nextCursor = hasMore
+        ? NotificationInboxCursor(createdAt: visibleItems.last.createdAt)
+        : null;
+
+    return NotificationInboxPageResult(
+      items: visibleItems,
+      nextCursor: nextCursor,
+    );
+  }
+
+  @override
+  Future<void> markAsRead({
+    required AuthSession session,
+    required String notificationId,
+  }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
+    final normalizedId = notificationId.trim();
+    if (normalizedId.isEmpty) {
+      return;
+    }
+
+    await _notifications.doc(normalizedId).update({'isRead': true});
   }
 }

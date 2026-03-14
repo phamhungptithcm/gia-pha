@@ -1234,6 +1234,80 @@ class AppLocalizationsVi extends AppLocalizations {
       'Mở thông báo này để xem thêm chi tiết.';
 
   @override
+  String get notificationInboxOpenAction => 'Mở';
+
+  @override
+  String get notificationInboxMarkReadAction => 'Đánh dấu đã đọc';
+
+  @override
+  String get notificationInboxMarkReadFailed =>
+      'Chưa thể đánh dấu thông báo này là đã đọc lúc này.';
+
+  @override
+  String get notificationInboxLoadMoreAction => 'Tải thêm thông báo';
+
+  @override
+  String get notificationInboxPaginationDone => 'Không còn thông báo nào khác.';
+
+  @override
+  String get notificationTargetEventTitle => 'Thông báo sự kiện';
+
+  @override
+  String get notificationTargetEventDescription =>
+      'Điểm đích này xác nhận luồng deep-link đã điều hướng đến phần sự kiện.';
+
+  @override
+  String get notificationTargetScholarshipTitle => 'Thông báo khuyến học';
+
+  @override
+  String get notificationTargetScholarshipDescription =>
+      'Điểm đích này xác nhận luồng deep-link đã điều hướng đến kết quả khuyến học.';
+
+  @override
+  String get notificationTargetUnknownTitle => 'Điểm đích thông báo';
+
+  @override
+  String get notificationTargetUnknownDescription =>
+      'Thông báo này chưa có điểm đích được hỗ trợ.';
+
+  @override
+  String get notificationTargetReferenceLabel => 'Mã tham chiếu';
+
+  @override
+  String get notificationTargetPayloadTitleLabel => 'Tiêu đề thông báo';
+
+  @override
+  String get notificationTargetPayloadBodyLabel => 'Nội dung thông báo';
+
+  @override
+  String get notificationTargetUnknownReference => 'Không có';
+
+  @override
+  String get notificationSettingsTitle => 'Cài đặt thông báo';
+
+  @override
+  String get notificationSettingsDescription =>
+      'Các công tắc này là bản giữ chỗ để hoàn thiện cài đặt thông báo cấp hồ sơ ở các đợt phát hành tiếp theo.';
+
+  @override
+  String get notificationSettingsEventUpdates =>
+      'Nhắc lịch và cập nhật sự kiện';
+
+  @override
+  String get notificationSettingsScholarshipUpdates =>
+      'Kết quả và cập nhật duyệt khuyến học';
+
+  @override
+  String get notificationSettingsGeneralUpdates => 'Thông báo chung của họ tộc';
+
+  @override
+  String get notificationSettingsQuietHours => 'Chế độ giờ yên lặng';
+
+  @override
+  String get notificationSettingsPlaceholderNote =>
+      'Đây là giao diện giữ chỗ. Giá trị công tắc chỉ áp dụng cục bộ và chưa được lưu vào tùy chọn backend.';
+
+  @override
   String get authIssueRestoreSessionFailed =>
       'BeFam chưa thể khôi phục phiên đăng nhập trước đó.';
 

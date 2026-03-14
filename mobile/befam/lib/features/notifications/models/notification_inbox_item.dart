@@ -30,6 +30,41 @@ class NotificationInboxItem {
   final Map<String, String> data;
 
   bool get isUnread => !isRead;
+  bool get canOpenTarget {
+    return targetId?.trim().isNotEmpty == true &&
+        (target == NotificationInboxTarget.event ||
+            target == NotificationInboxTarget.scholarship);
+  }
+
+  NotificationInboxItem copyWith({
+    String? id,
+    String? memberId,
+    String? clanId,
+    String? type,
+    String? title,
+    String? body,
+    bool? isRead,
+    DateTime? createdAt,
+    NotificationInboxTarget? target,
+    Object? targetId = _copySentinel,
+    Map<String, String>? data,
+  }) {
+    return NotificationInboxItem(
+      id: id ?? this.id,
+      memberId: memberId ?? this.memberId,
+      clanId: clanId ?? this.clanId,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      isRead: isRead ?? this.isRead,
+      createdAt: createdAt ?? this.createdAt,
+      target: target ?? this.target,
+      targetId: identical(targetId, _copySentinel)
+          ? this.targetId
+          : targetId as String?,
+      data: data ?? this.data,
+    );
+  }
 
   factory NotificationInboxItem.fromFirestore({
     required String documentId,
@@ -131,3 +166,5 @@ String? _firstNonEmpty(List<String?> values) {
   }
   return null;
 }
+
+const Object _copySentinel = Object();

@@ -12,20 +12,27 @@ class NotificationInboxPage extends StatefulWidget {
     super.key,
     required this.session,
     required this.repository,
+    this.onOpenTarget,
   });
 
   final AuthSession session;
   final NotificationInboxRepository repository;
+  final void Function(NotificationInboxItem item)? onOpenTarget;
 
   @override
   State<NotificationInboxPage> createState() => _NotificationInboxPageState();
 }
 
 class _NotificationInboxPageState extends State<NotificationInboxPage> {
+  static const int _pageSize = 4;
+
   bool _isLoading = true;
   bool _isRefreshing = false;
+  bool _isLoadingMore = false;
   String? _errorMessage;
   List<NotificationInboxItem> _items = const [];
+  NotificationInboxCursor? _nextCursor;
+  final Set<String> _markingReadIds = <String>{};
 
   bool get _hasMemberContext {
     final memberId = widget.session.memberId?.trim() ?? '';
@@ -38,10 +45,10 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadInbox());
+    unawaited(_loadInitial());
   }
 
-  Future<void> _loadInbox({bool refresh = false}) async {
+  Future<void> _loadInitial({bool refresh = false}) async {
     setState(() {
       _errorMessage = null;
       if (refresh) {
@@ -52,12 +59,16 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
     });
 
     try {
-      final items = await widget.repository.loadInbox(session: widget.session);
+      final result = await widget.repository.loadInboxPage(
+        session: widget.session,
+        limit: _pageSize,
+      );
       if (!mounted) {
         return;
       }
       setState(() {
-        _items = items;
+        _items = result.items;
+        _nextCursor = result.nextCursor;
       });
     } catch (error) {
       if (!mounted) {
@@ -74,6 +85,111 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
         });
       }
     }
+  }
+
+  Future<void> _loadMore() async {
+    if (_isLoadingMore || _nextCursor == null) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingMore = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await widget.repository.loadInboxPage(
+        session: widget.session,
+        limit: _pageSize,
+        cursor: _nextCursor,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        final merged = <String, NotificationInboxItem>{
+          for (final item in _items) item.id: item,
+        };
+        for (final item in result.items) {
+          merged[item.id] = item;
+        }
+
+        final deduped = merged.values.toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        _items = deduped;
+        _nextCursor = result.nextCursor;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _markAsRead(
+    NotificationInboxItem item, {
+    bool showError = true,
+  }) async {
+    if (item.isRead || _markingReadIds.contains(item.id)) {
+      return;
+    }
+
+    setState(() {
+      _markingReadIds.add(item.id);
+    });
+
+    try {
+      await widget.repository.markAsRead(
+        session: widget.session,
+        notificationId: item.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _items = _items
+            .map(
+              (candidate) => candidate.id == item.id
+                  ? candidate.copyWith(isRead: true)
+                  : candidate,
+            )
+            .toList(growable: false);
+      });
+    } catch (_) {
+      if (showError && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.notificationInboxMarkReadFailed)),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _markingReadIds.remove(item.id);
+        });
+      }
+    }
+  }
+
+  void _openTarget(NotificationInboxItem item) {
+    if (!item.canOpenTarget) {
+      return;
+    }
+
+    if (item.isUnread) {
+      unawaited(_markAsRead(item, showError: false));
+    }
+
+    widget.onOpenTarget?.call(item);
   }
 
   @override
@@ -94,7 +210,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => _loadInbox(refresh: true),
+      onRefresh: () => _loadInitial(refresh: true),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -111,7 +227,9 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
               description: l10n.notificationInboxLoadErrorDescription,
               tone: colorScheme.errorContainer,
               actionLabel: l10n.notificationInboxRetryAction,
-              onAction: _isRefreshing ? null : _loadInbox,
+              onAction: _isRefreshing
+                  ? null
+                  : () => unawaited(_loadInitial(refresh: true)),
             ),
             const SizedBox(height: 20),
           ],
@@ -129,7 +247,31 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
                     padding: EdgeInsets.only(
                       bottom: item == _items.last ? 0 : 12,
                     ),
-                    child: _NotificationCard(item: item),
+                    child: _NotificationCard(
+                      item: item,
+                      isMarkingRead: _markingReadIds.contains(item.id),
+                      onMarkAsRead: () => unawaited(_markAsRead(item)),
+                      onOpenTarget: () => _openTarget(item),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                if (_isLoadingMore)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (_nextCursor != null)
+                  OutlinedButton.icon(
+                    key: const Key('notification-load-more'),
+                    onPressed: _loadMore,
+                    icon: const Icon(Icons.expand_more),
+                    label: Text(l10n.notificationInboxLoadMoreAction),
+                  )
+                else
+                  Text(
+                    l10n.notificationInboxPaginationDone,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
                   ),
               ],
             ),
@@ -233,9 +375,17 @@ class _HeroChip extends StatelessWidget {
 }
 
 class _NotificationCard extends StatelessWidget {
-  const _NotificationCard({required this.item});
+  const _NotificationCard({
+    required this.item,
+    required this.isMarkingRead,
+    required this.onMarkAsRead,
+    required this.onOpenTarget,
+  });
 
   final NotificationInboxItem item;
+  final bool isMarkingRead;
+  final VoidCallback onMarkAsRead;
+  final VoidCallback onOpenTarget;
 
   @override
   Widget build(BuildContext context) {
@@ -258,83 +408,116 @@ class _NotificationCard extends StatelessWidget {
       NotificationInboxTarget.unknown => l10n.notificationInboxTargetUnknown,
     };
 
+    final canOpenTarget = item.canOpenTarget;
+
     return Card(
       key: Key('notification-row-${item.id}'),
       color: item.isUnread
           ? colorScheme.primaryContainer.withValues(alpha: 0.25)
           : null,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: colorScheme.secondaryContainer,
-              child: Icon(targetIcon, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.title.isEmpty
-                              ? l10n.notificationInboxFallbackTitle
-                              : item.title,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (item.isUnread)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          margin: const EdgeInsets.only(top: 6),
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    item.body.isEmpty
-                        ? l10n.notificationInboxFallbackBody
-                        : item.body,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _MetaChip(label: targetLabel),
-                      _MetaChip(
-                        label: item.isUnread
-                            ? l10n.notificationInboxUnreadChip
-                            : l10n.notificationInboxReadChip,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _formatTimestamp(context, item.createdAt),
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: colorScheme.onSurface.withValues(alpha: 0.72),
-                    ),
-                  ),
-                ],
+      child: InkWell(
+        onTap: canOpenTarget ? onOpenTarget : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: colorScheme.secondaryContainer,
+                child: Icon(targetIcon, size: 18),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.title.isEmpty
+                                ? l10n.notificationInboxFallbackTitle
+                                : item.title,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        if (item.isUnread)
+                          Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.only(top: 6),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      item.body.isEmpty
+                          ? l10n.notificationInboxFallbackBody
+                          : item.body,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _MetaChip(label: targetLabel),
+                        _MetaChip(
+                          label: item.isUnread
+                              ? l10n.notificationInboxUnreadChip
+                              : l10n.notificationInboxReadChip,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        if (canOpenTarget)
+                          TextButton.icon(
+                            key: Key('notification-open-${item.id}'),
+                            onPressed: onOpenTarget,
+                            icon: const Icon(Icons.open_in_new, size: 18),
+                            label: Text(l10n.notificationInboxOpenAction),
+                          ),
+                        if (item.isUnread)
+                          TextButton.icon(
+                            key: Key('notification-mark-read-${item.id}'),
+                            onPressed: isMarkingRead ? null : onMarkAsRead,
+                            icon: isMarkingRead
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.done, size: 18),
+                            label: Text(l10n.notificationInboxMarkReadAction),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatTimestamp(context, item.createdAt),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

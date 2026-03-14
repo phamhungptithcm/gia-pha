@@ -42,12 +42,15 @@ Mobile deep-link parser maps payload `target` values to:
 ## Mobile inbox status
 
 - notification inbox screen is available in the shell Events destination
-- inbox currently reads most recent notification documents for the active member
-- unread/read state is rendered in UI but write-back actions are tracked as a
-  follow-up story
+- inbox reads notification documents for the active member with incremental
+  pagination
+- users can mark their notifications as read from inbox actions
+- event and scholarship notifications open dedicated mobile deep-link
+  destination placeholders
+- notification settings toggles are available as profile-level placeholders
 
 ## Next delivery step
 
-- add mark-as-read interaction
-- complete deep-link destination navigation for event and scholarship targets
-- add inbox pagination support
+- replace target placeholder pages with full event and scholarship detail
+  destinations
+- persist notification preference toggles to backend user settings

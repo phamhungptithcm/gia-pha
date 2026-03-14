@@ -1242,6 +1242,80 @@ class AppLocalizationsEn extends AppLocalizations {
       'Open this notification for more details.';
 
   @override
+  String get notificationInboxOpenAction => 'Open';
+
+  @override
+  String get notificationInboxMarkReadAction => 'Mark as read';
+
+  @override
+  String get notificationInboxMarkReadFailed =>
+      'Could not mark this notification as read right now.';
+
+  @override
+  String get notificationInboxLoadMoreAction => 'Load more notifications';
+
+  @override
+  String get notificationInboxPaginationDone => 'No more notifications.';
+
+  @override
+  String get notificationTargetEventTitle => 'Event notification';
+
+  @override
+  String get notificationTargetEventDescription =>
+      'This confirms deep-link routing into the event destination placeholder.';
+
+  @override
+  String get notificationTargetScholarshipTitle => 'Scholarship notification';
+
+  @override
+  String get notificationTargetScholarshipDescription =>
+      'This confirms deep-link routing into the scholarship result destination placeholder.';
+
+  @override
+  String get notificationTargetUnknownTitle => 'Notification destination';
+
+  @override
+  String get notificationTargetUnknownDescription =>
+      'This notification does not contain a supported destination yet.';
+
+  @override
+  String get notificationTargetReferenceLabel => 'Reference ID';
+
+  @override
+  String get notificationTargetPayloadTitleLabel => 'Notification title';
+
+  @override
+  String get notificationTargetPayloadBodyLabel => 'Notification message';
+
+  @override
+  String get notificationTargetUnknownReference => 'Unavailable';
+
+  @override
+  String get notificationSettingsTitle => 'Notification settings';
+
+  @override
+  String get notificationSettingsDescription =>
+      'These toggles are placeholders so profile-level notification controls can be finalized in later delivery slices.';
+
+  @override
+  String get notificationSettingsEventUpdates => 'Event reminders and updates';
+
+  @override
+  String get notificationSettingsScholarshipUpdates =>
+      'Scholarship decisions and review updates';
+
+  @override
+  String get notificationSettingsGeneralUpdates =>
+      'General family announcements';
+
+  @override
+  String get notificationSettingsQuietHours => 'Quiet hours mode';
+
+  @override
+  String get notificationSettingsPlaceholderNote =>
+      'This is a UI placeholder. Toggle values are local-only and are not persisted to backend preferences yet.';
+
+  @override
   String get authIssueRestoreSessionFailed =>
       'We could not restore the last sign-in session.';
 
