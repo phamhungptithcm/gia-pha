@@ -11,12 +11,7 @@ class LunarDate {
   final int day;
   final bool isLeapMonth;
 
-  LunarDate copyWith({
-    int? year,
-    int? month,
-    int? day,
-    bool? isLeapMonth,
-  }) {
+  LunarDate copyWith({int? year, int? month, int? day, bool? isLeapMonth}) {
     return LunarDate(
       year: year ?? this.year,
       month: month ?? this.month,
@@ -51,4 +46,19 @@ class LunarDate {
       isLeapMonth: json['isLeapMonth'] as bool? ?? false,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    return other is LunarDate &&
+        other.year == year &&
+        other.month == month &&
+        other.day == day &&
+        other.isLeapMonth == isLeapMonth;
+  }
+
+  @override
+  int get hashCode => Object.hash(year, month, day, isLeapMonth);
 }

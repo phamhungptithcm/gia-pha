@@ -32,6 +32,11 @@ class DualCalendarEvent {
   final DateTime updatedAt;
 
   bool get usesLunarDate => dateMode == CalendarDateMode.lunar;
+  bool get hasReminders => reminderOffsetsMinutes.isNotEmpty;
+
+  String get dayKey {
+    return '${solarDate.year}-${solarDate.month.toString().padLeft(2, '0')}-${solarDate.day.toString().padLeft(2, '0')}';
+  }
 
   DualCalendarEvent copyWith({
     String? id,
@@ -57,7 +62,8 @@ class DualCalendarEvent {
       lunarDate: clearLunarDate ? null : lunarDate ?? this.lunarDate,
       isAnnualRecurring: isAnnualRecurring ?? this.isAnnualRecurring,
       recurrencePolicy: recurrencePolicy ?? this.recurrencePolicy,
-      reminderOffsetsMinutes: reminderOffsetsMinutes ?? this.reminderOffsetsMinutes,
+      reminderOffsetsMinutes:
+          reminderOffsetsMinutes ?? this.reminderOffsetsMinutes,
       timezone: timezone ?? this.timezone,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -70,14 +76,14 @@ class DualCalendarEvent {
       'title': title,
       'description': description,
       'dateMode': dateMode.name,
-      'solarDate': solarDate.toIso8601String(),
+      'solarDate': solarDate.toUtc().toIso8601String(),
       'lunarDate': lunarDate?.toJson(),
       'isAnnualRecurring': isAnnualRecurring,
       'recurrencePolicy': recurrencePolicy.wireName,
       'reminderOffsetsMinutes': reminderOffsetsMinutes,
       'timezone': timezone,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
+      'createdAt': createdAt.toUtc().toIso8601String(),
+      'updatedAt': updatedAt.toUtc().toIso8601String(),
     };
   }
 
@@ -90,9 +96,7 @@ class DualCalendarEvent {
       dateMode: (json['dateMode'] as String? ?? '').toLowerCase() == 'lunar'
           ? CalendarDateMode.lunar
           : CalendarDateMode.solar,
-      solarDate:
-          DateTime.tryParse(json['solarDate'] as String? ?? '') ??
-          DateTime.now(),
+      solarDate: _parseDateTime(json['solarDate']) ?? DateTime.now(),
       lunarDate: lunarRaw is Map<String, dynamic>
           ? LunarDate.fromJson(lunarRaw)
           : null,
@@ -102,12 +106,26 @@ class DualCalendarEvent {
       ),
       reminderOffsetsMinutes: _offsetList(json['reminderOffsetsMinutes']),
       timezone: json['timezone'] as String? ?? 'Asia/Ho_Chi_Minh',
-      createdAt:
-          DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
-      updatedAt:
-          DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: _parseDateTime(json['createdAt']) ?? DateTime.now(),
+      updatedAt: _parseDateTime(json['updatedAt']) ?? DateTime.now(),
     );
   }
+}
+
+DateTime? _parseDateTime(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is DateTime) {
+    return value.toLocal();
+  }
+  if (value is String) {
+    return DateTime.tryParse(value)?.toLocal();
+  }
+  if (value is int) {
+    return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true).toLocal();
+  }
+  return null;
 }
 
 List<int> _offsetList(dynamic value) {

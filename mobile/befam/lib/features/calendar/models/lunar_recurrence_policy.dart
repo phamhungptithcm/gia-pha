@@ -1,33 +1,32 @@
 enum LunarRecurrencePolicy {
-  keepLunarMonth,
-  shiftToPreviousMonth,
-  shiftToNextMonth,
-  skipYear;
+  skip,
+  firstOccurrence,
+  leapOccurrence;
 
   String get wireName {
     return switch (this) {
-      LunarRecurrencePolicy.keepLunarMonth => 'keep_lunar_month',
-      LunarRecurrencePolicy.shiftToPreviousMonth => 'shift_prev_month',
-      LunarRecurrencePolicy.shiftToNextMonth => 'shift_next_month',
-      LunarRecurrencePolicy.skipYear => 'skip_year',
+      LunarRecurrencePolicy.skip => 'skip',
+      LunarRecurrencePolicy.firstOccurrence => 'firstOccurrence',
+      LunarRecurrencePolicy.leapOccurrence => 'leapOccurrence',
     };
   }
 
   String get label {
     return switch (this) {
-      LunarRecurrencePolicy.keepLunarMonth => 'Keep lunar month',
-      LunarRecurrencePolicy.shiftToPreviousMonth => 'Shift to previous month',
-      LunarRecurrencePolicy.shiftToNextMonth => 'Shift to next month',
-      LunarRecurrencePolicy.skipYear => 'Skip year when invalid',
+      LunarRecurrencePolicy.skip => 'Skip year',
+      LunarRecurrencePolicy.firstOccurrence => 'First occurrence',
+      LunarRecurrencePolicy.leapOccurrence => 'Leap occurrence',
     };
   }
 
   static LunarRecurrencePolicy fromWireName(String? wireName) {
     return switch (wireName?.trim().toLowerCase()) {
-      'shift_prev_month' => LunarRecurrencePolicy.shiftToPreviousMonth,
-      'shift_next_month' => LunarRecurrencePolicy.shiftToNextMonth,
-      'skip_year' => LunarRecurrencePolicy.skipYear,
-      _ => LunarRecurrencePolicy.keepLunarMonth,
+      'skip' || 'skip_year' => LunarRecurrencePolicy.skip,
+      'firstoccurrence' ||
+      'keep_lunar_month' => LunarRecurrencePolicy.firstOccurrence,
+      'leapoccurrence' ||
+      'shift_next_month' => LunarRecurrencePolicy.leapOccurrence,
+      _ => LunarRecurrencePolicy.firstOccurrence,
     };
   }
 }
