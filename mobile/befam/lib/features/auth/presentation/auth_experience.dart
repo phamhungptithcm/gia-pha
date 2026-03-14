@@ -133,6 +133,7 @@ class _AuthScaffold extends StatelessWidget {
                 AuthStep.loginMethodSelection => _LoginMethodSelectionCard(
                   isBusy: controller.isBusy,
                   showLocalBypass: controller.canUseLocalBypass,
+                  hasAcceptedPrivacyPolicy: controller.hasAcceptedPrivacyPolicy,
                   onPhoneSelected: () {
                     controller.selectLoginMethod(AuthEntryMethod.phone);
                   },
@@ -140,6 +141,10 @@ class _AuthScaffold extends StatelessWidget {
                     controller.selectLoginMethod(AuthEntryMethod.child);
                   },
                   onLocalBypassSelected: controller.signInWithLocalBypass,
+                  onPrivacyConsentChanged: (accepted) {
+                    unawaited(controller.setPrivacyPolicyAccepted(accepted));
+                  },
+                  onViewPrivacyPolicy: () => _showPrivacyPolicy(context),
                 ),
                 AuthStep.phoneNumber => _PhoneLoginCard(
                   isBusy: controller.isBusy,
@@ -308,16 +313,22 @@ class _LoginMethodSelectionCard extends StatelessWidget {
   const _LoginMethodSelectionCard({
     required this.isBusy,
     required this.showLocalBypass,
+    required this.hasAcceptedPrivacyPolicy,
     required this.onPhoneSelected,
     required this.onChildSelected,
     required this.onLocalBypassSelected,
+    required this.onPrivacyConsentChanged,
+    required this.onViewPrivacyPolicy,
   });
 
   final bool isBusy;
   final bool showLocalBypass;
+  final bool hasAcceptedPrivacyPolicy;
   final VoidCallback onPhoneSelected;
   final VoidCallback onChildSelected;
   final Future<void> Function() onLocalBypassSelected;
+  final ValueChanged<bool> onPrivacyConsentChanged;
+  final VoidCallback onViewPrivacyPolicy;
 
   @override
   Widget build(BuildContext context) {
@@ -326,6 +337,44 @@ class _LoginMethodSelectionCard extends StatelessWidget {
     return Column(
       children: [
         const _QuickBenefitsCard(),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CheckboxListTile(
+                  value: hasAcceptedPrivacyPolicy,
+                  onChanged: isBusy
+                      ? null
+                      : (value) => onPrivacyConsentChanged(value ?? false),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    l10n.pick(
+                      vi: 'Tôi đã đọc và đồng ý với Chính sách quyền riêng tư của BeFam.',
+                      en: 'I have read and agree to BeFam Privacy Policy.',
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: onViewPrivacyPolicy,
+                    icon: const Icon(Icons.policy_outlined),
+                    label: Text(
+                      l10n.pick(
+                        vi: 'Xem Chính sách quyền riêng tư',
+                        en: 'View Privacy Policy',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         if (showLocalBypass) ...[
           const SizedBox(height: 16),
           _MethodCard(
@@ -333,7 +382,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
             description: l10n.authPhoneHelperSandbox,
             icon: Icons.bolt_rounded,
             buttonLabel: l10n.authContinueNow,
-            onPressed: isBusy
+            onPressed: isBusy || !hasAcceptedPrivacyPolicy
                 ? null
                 : () {
                     unawaited(onLocalBypassSelected());
@@ -346,7 +395,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
           description: l10n.authMethodPhoneDescription,
           icon: Icons.phone_iphone,
           buttonLabel: l10n.authMethodPhoneButton,
-          onPressed: onPhoneSelected,
+          onPressed: hasAcceptedPrivacyPolicy ? onPhoneSelected : null,
         ),
         const SizedBox(height: 16),
         _MethodCard(
@@ -354,7 +403,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
           description: l10n.authMethodChildDescription,
           icon: Icons.child_care,
           buttonLabel: l10n.authMethodChildButton,
-          onPressed: onChildSelected,
+          onPressed: hasAcceptedPrivacyPolicy ? onChildSelected : null,
         ),
       ],
     );
@@ -1076,4 +1125,69 @@ class _AuthFormCard extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showPrivacyPolicy(BuildContext context) {
+  final l10n = context.l10n;
+  showModalBottomSheet<void>(
+    context: context,
+    useSafeArea: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (context) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          12,
+          20,
+          MediaQuery.viewInsetsOf(context).bottom + 20,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.pick(
+                  vi: 'Chính sách quyền riêng tư',
+                  en: 'Privacy Policy',
+                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                l10n.pick(
+                  vi: 'BeFam chỉ sử dụng số điện thoại hoặc mã định danh trẻ em cho mục đích xác thực và liên kết hồ sơ thành viên thuộc dòng tộc của bạn.',
+                  en: 'BeFam uses your phone number or child identifier only for authentication and linking your member profile within your family clan.',
+                ),
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                l10n.pick(
+                  vi: 'Dữ liệu gia phả được giới hạn theo quyền truy cập họ tộc/chi. Bạn không thể xem dữ liệu của dòng tộc khác nếu không có quyền.',
+                  en: 'Genealogy data is scoped by clan/branch access controls. You cannot view data from other clans without permission.',
+                ),
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                l10n.pick(
+                  vi: 'Khi tiếp tục đăng nhập, bạn xác nhận đã đọc và đồng ý với việc xử lý dữ liệu theo chính sách này.',
+                  en: 'By continuing sign-in, you confirm that you have read and accepted this data processing policy.',
+                ),
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(l10n.pick(vi: 'Đã hiểu', en: 'Understood')),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }

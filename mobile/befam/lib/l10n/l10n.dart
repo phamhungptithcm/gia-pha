@@ -55,6 +55,10 @@ extension AppLocalizationsX on AppLocalizations {
       AuthIssueKey.memberClaimConflict => authIssueMemberClaimConflict,
       AuthIssueKey.parentVerificationMismatch =>
         authIssueParentVerificationMismatch,
+      AuthIssueKey.privacyPolicyRequired => pick(
+        vi: 'Vui lòng đồng ý Chính sách quyền riêng tư trước khi đăng nhập.',
+        en: 'Please accept the Privacy Policy before signing in.',
+      ),
       AuthIssueKey.operationNotAllowed => authIssueOperationNotAllowed,
       AuthIssueKey.authUnavailable => authIssueAuthUnavailable,
       AuthIssueKey.preparationFailed => authIssuePreparationFailed,
@@ -147,10 +151,14 @@ extension AppLocalizationsX on AppLocalizations {
   String calendarDisplayModeLabel(CalendarDisplayMode mode) {
     return switch (mode) {
       CalendarDisplayMode.dual => pick(vi: 'Song song', en: 'Dual'),
-      CalendarDisplayMode.solarOnly =>
-        pick(vi: 'Chỉ dương lịch', en: 'Solar only'),
-      CalendarDisplayMode.lunarOnly =>
-        pick(vi: 'Chỉ âm lịch', en: 'Lunar only'),
+      CalendarDisplayMode.solarOnly => pick(
+        vi: 'Chỉ dương lịch',
+        en: 'Solar only',
+      ),
+      CalendarDisplayMode.lunarOnly => pick(
+        vi: 'Chỉ âm lịch',
+        en: 'Lunar only',
+      ),
     };
   }
 
@@ -175,10 +183,14 @@ extension AppLocalizationsX on AppLocalizations {
         vi: 'Bỏ qua năm không phù hợp',
         en: 'Skip year',
       ),
-      LunarRecurrencePolicy.firstOccurrence =>
-        pick(vi: 'Lần xuất hiện đầu tiên', en: 'First occurrence'),
-      LunarRecurrencePolicy.leapOccurrence =>
-        pick(vi: 'Ưu tiên tháng nhuận', en: 'Leap occurrence'),
+      LunarRecurrencePolicy.firstOccurrence => pick(
+        vi: 'Lần xuất hiện đầu tiên',
+        en: 'First occurrence',
+      ),
+      LunarRecurrencePolicy.leapOccurrence => pick(
+        vi: 'Ưu tiên tháng nhuận',
+        en: 'Leap occurrence',
+      ),
     };
   }
 }
