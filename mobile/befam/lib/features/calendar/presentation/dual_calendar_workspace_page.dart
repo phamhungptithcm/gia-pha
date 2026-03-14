@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
+import '../../../l10n/l10n.dart';
 import '../models/calendar_date_mode.dart';
 import '../models/calendar_display_mode.dart';
 import '../models/calendar_region.dart';
@@ -59,6 +61,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
@@ -67,7 +70,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
           floatingActionButton: FloatingActionButton(
             key: const Key('calendar-add-event-button'),
             onPressed: _controller.isSaving ? null : _openCreateEventSheet,
-            tooltip: 'Create event',
+            tooltip: l10n.pick(vi: 'Tạo sự kiện', en: 'Create event'),
             child: const Icon(Icons.add),
           ),
           body: SafeArea(
@@ -83,7 +86,10 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                         if (_controller.errorMessage case final message?) ...[
                           _InfoBanner(
                             icon: Icons.error_outline,
-                            title: 'Calendar sync issue',
+                            title: l10n.pick(
+                              vi: 'Lỗi đồng bộ lịch',
+                              en: 'Calendar sync issue',
+                            ),
                             description: message,
                             tone: colorScheme.errorContainer,
                           ),
@@ -99,6 +105,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                             focusedMonth: _controller.focusedMonth,
                             displayMode: _controller.displayMode,
                             monthLunarMap: _controller.monthLunarMap,
+                            l10n: l10n,
                           ),
                           onPreviousMonth: _controller.goToPreviousMonth,
                           onNextMonth: _controller.goToNextMonth,
@@ -147,7 +154,14 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
 
     if (didSave == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Event saved successfully.')),
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Đã lưu sự kiện thành công.',
+              en: 'Event saved successfully.',
+            ),
+          ),
+        ),
       );
     }
   }
@@ -169,26 +183,39 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
 
     if (didSave == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Event updated successfully.')),
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Đã cập nhật sự kiện thành công.',
+              en: 'Event updated successfully.',
+            ),
+          ),
+        ),
       );
     }
   }
 
   Future<void> _deleteEvent(DualCalendarEvent event) async {
+    final l10n = context.l10n;
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Delete event?'),
-          content: Text('Remove "${event.title}" from your calendar?'),
+          title: Text(l10n.pick(vi: 'Xóa sự kiện?', en: 'Delete event?')),
+          content: Text(
+            l10n.pick(
+              vi: 'Gỡ "${event.title}" khỏi lịch của bạn?',
+              en: 'Remove "${event.title}" from your calendar?',
+            ),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: Text(l10n.pick(vi: 'Hủy', en: 'Cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete'),
+              child: Text(l10n.pick(vi: 'Xóa', en: 'Delete')),
             ),
           ],
         );
@@ -203,9 +230,13 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Event deleted.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.l10n.pick(vi: 'Đã xóa sự kiện.', en: 'Event deleted.'),
+        ),
+      ),
+    );
   }
 
   DualCalendarController _buildDefaultController() {
@@ -242,6 +273,7 @@ class _SettingsCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = theme.textTheme;
     final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final l10n = context.l10n;
 
     final regionPicker = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -259,7 +291,7 @@ class _SettingsCard extends StatelessWidget {
           for (final region in CalendarRegion.values)
             DropdownMenuItem<CalendarRegion>(
               value: region,
-              child: Text(region.label),
+              child: Text(l10n.calendarRegionLabel(region)),
             ),
         ],
         onChanged: (value) {
@@ -279,7 +311,7 @@ class _SettingsCard extends StatelessWidget {
           for (final mode in CalendarDisplayMode.values)
             ButtonSegment<CalendarDisplayMode>(
               value: mode,
-              label: Text(mode.label),
+              label: Text(l10n.calendarDisplayModeLabel(mode)),
             ),
         ],
         selected: {controller.displayMode},
@@ -328,7 +360,7 @@ class _SettingsCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Dual calendar',
+                  l10n.pick(vi: 'Lịch song song', en: 'Dual calendar'),
                   style: textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -338,7 +370,12 @@ class _SettingsCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Track solar and lunar dates in one place. Tap a day to view details and reminders.',
+            l10n.pick(
+              vi:
+                  'Theo dõi ngày dương và âm trong cùng một nơi. Chạm vào ngày để xem chi tiết và lời nhắc.',
+              en:
+                  'Track solar and lunar dates in one place. Tap a day to view details and reminders.',
+            ),
             style: textTheme.bodyMedium?.copyWith(height: 1.35),
           ),
           const SizedBox(height: 14),
@@ -356,7 +393,9 @@ class _SettingsCard extends StatelessWidget {
                     OutlinedButton.icon(
                       onPressed: onCreateEvent,
                       icon: const Icon(Icons.add),
-                      label: const Text('Create event'),
+                      label: Text(
+                        l10n.pick(vi: 'Tạo sự kiện', en: 'Create event'),
+                      ),
                     ),
                   ],
                 );
@@ -371,7 +410,9 @@ class _SettingsCard extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: onCreateEvent,
                     icon: const Icon(Icons.add),
-                    label: const Text('Create event'),
+                    label: Text(
+                      l10n.pick(vi: 'Tạo sự kiện', en: 'Create event'),
+                    ),
                   ),
                 ],
               );
@@ -381,10 +422,19 @@ class _SettingsCard extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: const [
-              _LegendChip(icon: Icons.today, label: 'Today'),
-              _LegendChip(icon: Icons.celebration_outlined, label: 'Holiday'),
-              _LegendChip(icon: Icons.event_note_outlined, label: 'Has event'),
+            children: [
+              _LegendChip(
+                icon: Icons.today,
+                label: l10n.pick(vi: 'Hôm nay', en: 'Today'),
+              ),
+              _LegendChip(
+                icon: Icons.celebration_outlined,
+                label: l10n.pick(vi: 'Ngày lễ', en: 'Holiday'),
+              ),
+              _LegendChip(
+                icon: Icons.event_note_outlined,
+                label: l10n.pick(vi: 'Có sự kiện', en: 'Has event'),
+              ),
             ],
           ),
         ],
@@ -410,6 +460,7 @@ class _MonthHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final l10n = context.l10n;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -436,7 +487,7 @@ class _MonthHeader extends StatelessWidget {
               Row(
                 children: [
                   _MonthNavButton(
-                    tooltip: 'Previous month',
+                    tooltip: l10n.pick(vi: 'Tháng trước', en: 'Previous month'),
                     icon: Icons.chevron_left,
                     onPressed: () => unawaited(onPreviousMonth()),
                   ),
@@ -444,7 +495,7 @@ class _MonthHeader extends StatelessWidget {
                   Expanded(child: monthTitle),
                   const SizedBox(width: 8),
                   _MonthNavButton(
-                    tooltip: 'Next month',
+                    tooltip: l10n.pick(vi: 'Tháng sau', en: 'Next month'),
                     icon: Icons.chevron_right,
                     onPressed: () => unawaited(onNextMonth()),
                   ),
@@ -455,7 +506,7 @@ class _MonthHeader extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: FilledButton.tonal(
                   onPressed: onToday,
-                  child: const Text('Today'),
+                  child: Text(l10n.pick(vi: 'Hôm nay', en: 'Today')),
                 ),
               ),
             ],
@@ -465,7 +516,7 @@ class _MonthHeader extends StatelessWidget {
         return Row(
           children: [
             _MonthNavButton(
-              tooltip: 'Previous month',
+              tooltip: l10n.pick(vi: 'Tháng trước', en: 'Previous month'),
               icon: Icons.chevron_left,
               onPressed: () => unawaited(onPreviousMonth()),
             ),
@@ -473,12 +524,15 @@ class _MonthHeader extends StatelessWidget {
             Expanded(child: monthTitle),
             const SizedBox(width: 8),
             _MonthNavButton(
-              tooltip: 'Next month',
+              tooltip: l10n.pick(vi: 'Tháng sau', en: 'Next month'),
               icon: Icons.chevron_right,
               onPressed: () => unawaited(onNextMonth()),
             ),
             const SizedBox(width: 8),
-            FilledButton.tonal(onPressed: onToday, child: const Text('Today')),
+            FilledButton.tonal(
+              onPressed: onToday,
+              child: Text(l10n.pick(vi: 'Hôm nay', en: 'Today')),
+            ),
           ],
         );
       },
@@ -490,76 +544,28 @@ String _monthHeaderLabel({
   required DateTime focusedMonth,
   required CalendarDisplayMode displayMode,
   required Map<int, LunarDate> monthLunarMap,
+  required AppLocalizations l10n,
 }) {
   if (displayMode != CalendarDisplayMode.lunarOnly || monthLunarMap.isEmpty) {
-    return '${_monthName(focusedMonth.month)} ${focusedMonth.year}';
+    return '${_monthName(l10n, focusedMonth.month)} ${focusedMonth.year}';
   }
 
-  final orderedDays = monthLunarMap.keys.toList()..sort();
-  final segments = <_LunarMonthSegment>[];
-  for (final day in orderedDays) {
-    final lunarDate = monthLunarMap[day];
-    if (lunarDate == null) {
-      continue;
-    }
-    final segment = _LunarMonthSegment.fromDate(lunarDate);
-    if (segments.isEmpty || segments.last != segment) {
-      segments.add(segment);
-    }
+  // Keep lunar-only header consistent with solar header behavior:
+  // show a single anchor month for the current page (no mixed ranges).
+  final anchorDay = monthLunarMap.keys.isEmpty
+      ? null
+      : (monthLunarMap.keys.toList()..sort()).first;
+  final anchorLunarDate = anchorDay == null ? null : monthLunarMap[anchorDay];
+  if (anchorLunarDate == null) {
+    return '${_monthName(l10n, focusedMonth.month)} ${focusedMonth.year}';
   }
-
-  if (segments.isEmpty) {
-    return '${_monthName(focusedMonth.month)} ${focusedMonth.year}';
-  }
-
-  if (segments.length == 1) {
-    final segment = segments.first;
-    return 'Lunar ${segment.label} ${segment.year}';
-  }
-
-  final first = segments.first;
-  final last = segments.last;
-  if (first.year == last.year) {
-    return 'Lunar ${first.label} - ${last.label} ${first.year}';
-  }
-
-  return 'Lunar ${first.label} ${first.year} - ${last.label} ${last.year}';
-}
-
-class _LunarMonthSegment {
-  const _LunarMonthSegment({
-    required this.month,
-    required this.year,
-    required this.isLeapMonth,
-  });
-
-  factory _LunarMonthSegment.fromDate(LunarDate date) {
-    return _LunarMonthSegment(
-      month: date.month,
-      year: date.year,
-      isLeapMonth: date.isLeapMonth,
-    );
-  }
-
-  final int month;
-  final int year;
-  final bool isLeapMonth;
-
-  String get label => isLeapMonth ? '${month}L' : '$month';
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) {
-      return true;
-    }
-    return other is _LunarMonthSegment &&
-        other.month == month &&
-        other.year == year &&
-        other.isLeapMonth == isLeapMonth;
-  }
-
-  @override
-  int get hashCode => Object.hash(month, year, isLeapMonth);
+  final monthLabel = anchorLunarDate.isLeapMonth
+      ? '${anchorLunarDate.month}L'
+      : '${anchorLunarDate.month}';
+  return l10n.pick(
+    vi: 'Tháng âm $monthLabel ${anchorLunarDate.year}',
+    en: 'Lunar $monthLabel ${anchorLunarDate.year}',
+  );
 }
 
 class _MonthGrid extends StatelessWidget {
@@ -576,6 +582,7 @@ class _MonthGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final focusedMonth = controller.focusedMonth;
+    final l10n = context.l10n;
     final firstOfMonth = DateTime(focusedMonth.year, focusedMonth.month, 1);
     final offset = firstOfMonth.weekday - 1;
     final gridStart = firstOfMonth.subtract(Duration(days: offset));
@@ -596,15 +603,15 @@ class _MonthGrid extends StatelessWidget {
             color: Theme.of(context).colorScheme.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              _WeekdayLabel('Mon'),
-              _WeekdayLabel('Tue'),
-              _WeekdayLabel('Wed'),
-              _WeekdayLabel('Thu'),
-              _WeekdayLabel('Fri'),
-              _WeekdayLabel('Sat'),
-              _WeekdayLabel('Sun'),
+              _WeekdayLabel(l10n.pick(vi: 'T2', en: 'Mon')),
+              _WeekdayLabel(l10n.pick(vi: 'T3', en: 'Tue')),
+              _WeekdayLabel(l10n.pick(vi: 'T4', en: 'Wed')),
+              _WeekdayLabel(l10n.pick(vi: 'T5', en: 'Thu')),
+              _WeekdayLabel(l10n.pick(vi: 'T6', en: 'Fri')),
+              _WeekdayLabel(l10n.pick(vi: 'T7', en: 'Sat')),
+              _WeekdayLabel(l10n.pick(vi: 'CN', en: 'Sun')),
             ],
           ),
         ),
@@ -672,10 +679,11 @@ class _SelectedDayPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final day = controller.selectedDay;
+    final l10n = context.l10n;
     final lunarDate = controller.lunarDateForDay(day);
     final holidays = controller.holidaysForDay(day);
     final occurrences = controller.occurrencesForDay(day);
-    final timeLabel = '${_monthName(day.month)} ${day.day}, ${day.year}';
+    final timeLabel = '${_monthName(l10n, day.month)} ${day.day}, ${day.year}';
 
     return Card(
       child: Padding(
@@ -684,14 +692,25 @@ class _SelectedDayPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Selected day: $timeLabel',
+              l10n.pick(
+                vi: 'Ngày đã chọn: $timeLabel',
+                en: 'Selected day: $timeLabel',
+              ),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(
               lunarDate == null
-                  ? 'Lunar date unavailable for this day.'
-                  : 'Lunar ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (Leap month)' : ''}',
+                  ? l10n.pick(
+                      vi: 'Ngày âm chưa có cho ngày này.',
+                      en: 'Lunar date unavailable for this day.',
+                    )
+                  : l10n.pick(
+                      vi:
+                          'Âm lịch ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (tháng nhuận)' : ''}',
+                      en:
+                          'Lunar ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (Leap month)' : ''}',
+                    ),
             ),
             if (holidays.isNotEmpty) ...[
               const SizedBox(height: 10),
@@ -709,12 +728,19 @@ class _SelectedDayPanel extends StatelessWidget {
             ],
             const SizedBox(height: 14),
             Text(
-              occurrences.isEmpty ? 'No events for this day.' : 'Events',
+              occurrences.isEmpty
+                  ? l10n.pick(vi: 'Không có sự kiện cho ngày này.', en: 'No events for this day.')
+                  : l10n.pick(vi: 'Sự kiện', en: 'Events'),
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             if (occurrences.isEmpty)
-              const Text('Create a lunar or solar event to get started.')
+              Text(
+                l10n.pick(
+                  vi: 'Tạo sự kiện âm lịch hoặc dương lịch để bắt đầu.',
+                  en: 'Create a lunar or solar event to get started.',
+                ),
+              )
             else
               Column(
                 children: [
@@ -741,19 +767,25 @@ class _ReminderPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reminders = controller.upcomingReminders;
+    final l10n = context.l10n;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Upcoming reminders',
+            Text(
+              l10n.pick(vi: 'Lời nhắc sắp tới', en: 'Upcoming reminders'),
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
             if (reminders.isEmpty)
-              const Text('No reminders scheduled in the current window.')
+              Text(
+                l10n.pick(
+                  vi: 'Không có lời nhắc trong khoảng thời gian hiện tại.',
+                  en: 'No reminders scheduled in the current window.',
+                ),
+              )
             else
               Column(
                 children: [
@@ -766,7 +798,12 @@ class _ReminderPanel extends StatelessWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              '${_formatDateTime(reminder.reminderAt)} · ${reminder.offsetMinutes} min before',
+                              l10n.pick(
+                                vi:
+                                    '${_formatDateTime(reminder.reminderAt)} · trước ${reminder.offsetMinutes} phút',
+                                en:
+                                    '${_formatDateTime(reminder.reminderAt)} · ${reminder.offsetMinutes} min before',
+                              ),
                             ),
                           ),
                         ],
@@ -897,6 +934,7 @@ class _OccurrenceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final event = occurrence.event;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -911,7 +949,7 @@ class _OccurrenceRow extends StatelessWidget {
         ),
         title: Text(event.title),
         subtitle: Text(
-          '${_formatDateTime(occurrence.occurrenceDate)} · ${event.dateMode.label}${event.isAnnualRecurring ? ' · yearly' : ''}',
+          '${_formatDateTime(occurrence.occurrenceDate)} · ${l10n.calendarDateModeLabel(event.dateMode)}${event.isAnnualRecurring ? l10n.pick(vi: ' · hằng năm', en: ' · yearly') : ''}',
         ),
         trailing: PopupMenuButton<String>(
           onSelected: (value) {
@@ -921,9 +959,15 @@ class _OccurrenceRow extends StatelessWidget {
               onDelete();
             }
           },
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: 'edit', child: Text('Edit')),
-            PopupMenuItem(value: 'delete', child: Text('Delete')),
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'edit',
+              child: Text(l10n.pick(vi: 'Sửa', en: 'Edit')),
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: Text(l10n.pick(vi: 'Xóa', en: 'Delete')),
+            ),
           ],
         ),
       ),
@@ -1179,6 +1223,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final l10n = context.l10n;
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -1191,7 +1236,9 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.editingEvent == null ? 'Create event' : 'Edit event',
+                widget.editingEvent == null
+                    ? l10n.pick(vi: 'Tạo sự kiện', en: 'Create event')
+                    : l10n.pick(vi: 'Chỉnh sửa sự kiện', en: 'Edit event'),
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
@@ -1201,8 +1248,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
               TextField(
                 key: const Key('calendar-event-title-field'),
                 controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
+                decoration: InputDecoration(
+                  labelText: l10n.pick(vi: 'Tiêu đề', en: 'Title'),
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -1210,8 +1257,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
               TextField(
                 controller: _descriptionController,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
+                decoration: InputDecoration(
+                  labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -1222,7 +1269,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                   for (final mode in CalendarDateMode.values)
                     ButtonSegment<CalendarDateMode>(
                       value: mode,
-                      label: Text(mode.label),
+                      label: Text(l10n.calendarDateModeLabel(mode)),
                     ),
                 ],
                 selected: {_dateMode},
@@ -1278,15 +1325,17 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
               const SizedBox(height: 12),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Repeat annually'),
+                title: Text(
+                  l10n.pick(vi: 'Lặp lại hằng năm', en: 'Repeat annually'),
+                ),
                 value: _isAnnualRecurring,
                 onChanged: (value) {
                   setState(() => _isAnnualRecurring = value);
                 },
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Reminder offsets',
+              Text(
+                l10n.pick(vi: 'Mốc lời nhắc', en: 'Reminder offsets'),
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 8),
@@ -1297,7 +1346,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                   for (final offset in _presetReminderOffsets)
                     FilterChip(
                       selected: _reminderOffsets.contains(offset),
-                      label: Text(_offsetLabel(offset)),
+                      label: Text(_offsetLabel(l10n, offset)),
                       onSelected: (selected) {
                         setState(() {
                           if (selected) {
@@ -1318,7 +1367,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                       onPressed: _isSubmitting
                           ? null
                           : () => Navigator.of(context).pop(false),
-                      child: const Text('Cancel'),
+                      child: Text(l10n.pick(vi: 'Hủy', en: 'Cancel')),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1326,7 +1375,11 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                     child: FilledButton(
                       key: const Key('calendar-event-save-button'),
                       onPressed: _isSubmitting ? null : _submit,
-                      child: Text(_isSubmitting ? 'Saving...' : 'Save'),
+                      child: Text(
+                        _isSubmitting
+                            ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
+                            : l10n.pick(vi: 'Lưu', en: 'Save'),
+                      ),
                     ),
                   ),
                 ],
@@ -1398,7 +1451,10 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     setState(() {
       _previewSolarDate = resolved;
       _previewError = resolved == null
-          ? 'This lunar date is invalid for the selected leap policy.'
+          ? context.l10n.pick(
+              vi: 'Ngày âm này không hợp lệ với chính sách tháng nhuận đã chọn.',
+              en: 'This lunar date is invalid for the selected leap policy.',
+            )
           : null;
     });
   }
@@ -1408,7 +1464,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     if (title.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Title is required.')));
+      ).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Tiêu đề là bắt buộc.',
+              en: 'Title is required.',
+            ),
+          ),
+        ),
+      );
       return;
     }
 
@@ -1443,9 +1508,12 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
             return;
           }
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
-                'Could not resolve this lunar date to a solar date.',
+                context.l10n.pick(
+                  vi: 'Không thể quy đổi ngày âm này sang ngày dương.',
+                  en: 'Could not resolve this lunar date to a solar date.',
+                ),
               ),
             ),
           );
@@ -1574,6 +1642,7 @@ class _LunarDateEditor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final yearOptions = [
       for (
         var year = DateTime.now().year - 2;
@@ -1589,7 +1658,7 @@ class _LunarDateEditor extends StatelessWidget {
           children: [
             Expanded(
               child: _NumberDropdown(
-                label: 'Year',
+                label: l10n.pick(vi: 'Năm', en: 'Year'),
                 value: lunarYear,
                 values: yearOptions,
                 onChanged: onYearChanged,
@@ -1598,7 +1667,7 @@ class _LunarDateEditor extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: _NumberDropdown(
-                label: 'Month',
+                label: l10n.pick(vi: 'Tháng', en: 'Month'),
                 value: lunarMonth,
                 values: const [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
                 onChanged: onMonthChanged,
@@ -1607,7 +1676,7 @@ class _LunarDateEditor extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: _NumberDropdown(
-                label: 'Day',
+                label: l10n.pick(vi: 'Ngày', en: 'Day'),
                 value: lunarDay,
                 values: const [
                   1,
@@ -1649,22 +1718,25 @@ class _LunarDateEditor extends StatelessWidget {
         const SizedBox(height: 8),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Leap month'),
+          title: Text(l10n.pick(vi: 'Tháng nhuận', en: 'Leap month')),
           value: isLeapMonth,
           onChanged: onLeapChanged,
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<LunarRecurrencePolicy>(
           initialValue: recurrencePolicy,
-          decoration: const InputDecoration(
-            labelText: 'Leap month policy',
+          decoration: InputDecoration(
+            labelText: l10n.pick(
+              vi: 'Chính sách tháng nhuận',
+              en: 'Leap month policy',
+            ),
             border: OutlineInputBorder(),
           ),
           items: [
             for (final policy in LunarRecurrencePolicy.values)
               DropdownMenuItem<LunarRecurrencePolicy>(
                 value: policy,
-                child: Text(policy.label),
+                child: Text(l10n.lunarRecurrencePolicyLabel(policy)),
               ),
           ],
           onChanged: (value) {
@@ -1676,7 +1748,10 @@ class _LunarDateEditor extends StatelessWidget {
         const SizedBox(height: 10),
         if (previewSolarDate != null)
           Text(
-            'Resolves to ${_formatDate(previewSolarDate!)}',
+            l10n.pick(
+              vi: 'Quy đổi ra ${_formatDate(previewSolarDate!)}',
+              en: 'Resolves to ${_formatDate(previewSolarDate!)}',
+            ),
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         if (previewError != null)
@@ -1729,7 +1804,10 @@ bool _sameDay(DateTime left, DateTime right) {
       left.day == right.day;
 }
 
-String _monthName(int month) {
+String _monthName(AppLocalizations l10n, int month) {
+  if (l10n.localeName.toLowerCase().startsWith('vi')) {
+    return 'Tháng $month';
+  }
   const names = [
     'January',
     'February',
@@ -1766,17 +1844,21 @@ String _formatDateTime(DateTime value) {
   return '$date $hour:$minute';
 }
 
-String _offsetLabel(int minutes) {
+String _offsetLabel(AppLocalizations l10n, int minutes) {
+  final isVietnamese = l10n.localeName.toLowerCase().startsWith('vi');
   if (minutes >= 10080 && minutes % 10080 == 0) {
-    return '${minutes ~/ 10080}w';
+    final value = minutes ~/ 10080;
+    return isVietnamese ? '$value tuần' : '${value}w';
   }
   if (minutes >= 1440 && minutes % 1440 == 0) {
-    return '${minutes ~/ 1440}d';
+    final value = minutes ~/ 1440;
+    return isVietnamese ? '$value ngày' : '${value}d';
   }
   if (minutes >= 60 && minutes % 60 == 0) {
-    return '${minutes ~/ 60}h';
+    final value = minutes ~/ 60;
+    return isVietnamese ? '$value giờ' : '${value}h';
   }
-  return '${minutes}m';
+  return isVietnamese ? '$minutes phút' : '${minutes}m';
 }
 
 extension _IterableFirstOrNull<T> on Iterable<T> {

@@ -686,14 +686,6 @@ class _ShortcutCard extends StatelessWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               const Spacer(),
-              const SizedBox(height: 12),
-              Text(
-                shortcut.route,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
             ],
           ),
         ),
