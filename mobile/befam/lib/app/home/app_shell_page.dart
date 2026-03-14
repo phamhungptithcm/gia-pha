@@ -11,6 +11,8 @@ import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
 import '../../features/notifications/services/push_notification_service.dart';
+import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
+import '../../features/scholarship/services/scholarship_repository.dart';
 import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
@@ -476,6 +478,18 @@ class _HomeDashboard extends StatelessWidget {
               return MemberWorkspacePage(
                 session: session,
                 repository: memberRepository,
+              );
+            },
+          ),
+        );
+      },
+      'scholarship' => () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return ScholarshipWorkspacePage(
+                session: session,
+                repository: createDefaultScholarshipRepository(),
               );
             },
           ),
