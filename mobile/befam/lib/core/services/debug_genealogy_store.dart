@@ -1,4 +1,6 @@
 import '../../features/clan/models/branch_profile.dart';
+import '../../features/events/models/event_record.dart';
+import '../../features/events/models/event_type.dart';
 import '../../features/funds/models/fund_profile.dart';
 import '../../features/funds/models/fund_transaction.dart';
 import '../../features/member/models/member_profile.dart';
@@ -12,7 +14,9 @@ class DebugGenealogyStore {
     required this.funds,
     required this.transactions,
     required this.relationships,
+    required this.events,
     this.memberSequence = 1000,
+    this.eventSequence = 100,
     this.fundSequence = 1000,
     this.transactionSequence = 1000,
   });
@@ -298,6 +302,48 @@ class DebugGenealogyStore {
               createdBy: 'debug:+84908886655',
             ),
       },
+      events: {
+        'event_demo_memorial_001': EventRecord(
+          id: 'event_demo_memorial_001',
+          clanId: 'clan_demo_001',
+          branchId: 'branch_demo_001',
+          title: 'Giỗ cụ tổ mùa xuân',
+          description:
+              'Lễ giỗ thường niên tại từ đường chi trưởng, chuẩn bị lễ vật trước 2 giờ.',
+          eventType: EventType.deathAnniversary,
+          targetMemberId: 'member_demo_elder_001',
+          locationName: 'Từ đường chi trưởng',
+          locationAddress: 'Quang Nam, Viet Nam',
+          startsAt: DateTime.utc(2026, 4, 4, 2, 0),
+          endsAt: DateTime.utc(2026, 4, 4, 5, 30),
+          timezone: 'Asia/Ho_Chi_Minh',
+          isRecurring: true,
+          recurrenceRule: 'FREQ=YEARLY',
+          reminderOffsetsMinutes: [10080, 1440, 120],
+          visibility: 'clan',
+          status: 'scheduled',
+        ),
+        'event_demo_gathering_001': EventRecord(
+          id: 'event_demo_gathering_001',
+          clanId: 'clan_demo_001',
+          branchId: 'branch_demo_002',
+          title: 'Họp mặt đầu hè',
+          description:
+              'Họp mặt toàn chi để cập nhật kế hoạch học bổng và quỹ đóng góp.',
+          eventType: EventType.clanGathering,
+          targetMemberId: null,
+          locationName: 'Nhà văn hóa chi phụ',
+          locationAddress: 'Hue, Viet Nam',
+          startsAt: DateTime.utc(2026, 5, 12, 1, 0),
+          endsAt: DateTime.utc(2026, 5, 12, 4, 0),
+          timezone: 'Asia/Ho_Chi_Minh',
+          isRecurring: false,
+          recurrenceRule: null,
+          reminderOffsetsMinutes: [1440, 120],
+          visibility: 'clan',
+          status: 'scheduled',
+        ),
+      },
     );
     store.reconcileRelationshipFields('clan_demo_001');
     store.recountBranchMembers('clan_demo_001');
@@ -314,7 +360,9 @@ class DebugGenealogyStore {
   final Map<String, FundProfile> funds;
   final Map<String, FundTransaction> transactions;
   final Map<String, RelationshipRecord> relationships;
+  final Map<String, EventRecord> events;
   int memberSequence;
+  int eventSequence;
   int fundSequence;
   int transactionSequence;
 

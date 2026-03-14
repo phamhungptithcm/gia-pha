@@ -59,6 +59,7 @@ nav:
       - User Personas: 01-product/user-personas.md
       - User Stories: 01-product/user-stories.md
       - Feature Spec: 01-product/feature-spec.md
+      - Dual Calendar Epic: 01-product/epic-dual-calendar-system.md
       - Roadmap: 01-product/roadmap.md
   - Architecture:
       - System Design: 02-architecture/system-design.md

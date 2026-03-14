@@ -101,6 +101,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
       builder: (context, child) {
         final l10n = context.l10n;
         final colorScheme = Theme.of(context).colorScheme;
+        final filteredEvents = _controller.filteredEvents;
 
         return Scaffold(
           appBar: AppBar(
@@ -133,6 +134,8 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                 : RefreshIndicator(
                     onRefresh: _controller.refresh,
                     child: ListView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
                         _WorkspaceHero(
@@ -206,7 +209,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                           onAction: _controller.permissions.canManageEvents
                               ? () => _openEventEditor()
                               : null,
-                          child: _controller.filteredEvents.isEmpty
+                          child: filteredEvents.isEmpty
                               ? _WorkspaceEmptyState(
                                   icon: Icons.event_busy_outlined,
                                   title: l10n.eventListEmptyTitle,
@@ -214,27 +217,32 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                                 )
                               : Column(
                                   children: [
-                                    for (final event
-                                        in _controller.filteredEvents)
+                                    for (
+                                      var i = 0;
+                                      i < filteredEvents.length;
+                                      i++
+                                    )
                                       Padding(
                                         padding: EdgeInsets.only(
-                                          bottom:
-                                              event ==
-                                                  _controller
-                                                      .filteredEvents
-                                                      .last
+                                          bottom: i == filteredEvents.length - 1
                                               ? 0
                                               : 14,
                                         ),
                                         child: _EventSummaryCard(
-                                          key: Key('event-row-${event.id}'),
-                                          event: event,
+                                          key: Key(
+                                            'event-row-${filteredEvents[i].id}',
+                                          ),
+                                          event: filteredEvents[i],
                                           branchName: _controller.branchName(
-                                            event.branchId,
+                                            filteredEvents[i].branchId,
                                           ),
                                           targetMemberName: _controller
-                                              .memberName(event.targetMemberId),
-                                          onTap: () => _openDetail(event),
+                                              .memberName(
+                                                filteredEvents[i]
+                                                    .targetMemberId,
+                                              ),
+                                          onTap: () =>
+                                              _openDetail(filteredEvents[i]),
                                         ),
                                       ),
                                   ],

@@ -51,6 +51,11 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   String? _selectedMemberId;
   int _ancestorDepth = 1;
   int _descendantDepth = 1;
+  _TreeScene? _cachedScene;
+  GenealogyReadSegment? _cachedSceneSegment;
+  String _cachedSceneRootId = '';
+  int _cachedSceneAncestorDepth = 1;
+  int _cachedSceneDescendantDepth = 1;
 
   @override
   void initState() {
@@ -105,7 +110,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     }
 
     final segment = _segment!;
-    final scene = _buildTreeScene(segment);
+    final scene = _resolveTreeScene(segment);
     final selectedMember = _selectedMemberId == null
         ? null
         : segment.graph.membersById[_selectedMemberId!];
@@ -184,11 +189,13 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                     onIncrease: () {
                       setState(() {
                         _ancestorDepth += 1;
+                        _invalidateTreeSceneCache();
                       });
                     },
                     onDecrease: () {
                       setState(() {
                         _ancestorDepth = (_ancestorDepth - 1).clamp(1, 24);
+                        _invalidateTreeSceneCache();
                       });
                     },
                   ),
@@ -201,11 +208,13 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                     onIncrease: () {
                       setState(() {
                         _descendantDepth += 1;
+                        _invalidateTreeSceneCache();
                       });
                     },
                     onDecrease: () {
                       setState(() {
                         _descendantDepth = (_descendantDepth - 1).clamp(1, 24);
+                        _invalidateTreeSceneCache();
                       });
                     },
                   ),
@@ -343,6 +352,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     setState(() {
       _isLoading = true;
       _error = null;
+      _invalidateTreeSceneCache();
     });
 
     try {
@@ -365,6 +375,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         _isLoading = false;
         _rootMemberId = _rootMemberId ?? initialFocus;
         _selectedMemberId = _selectedMemberId ?? initialFocus;
+        _invalidateTreeSceneCache();
       });
     } catch (error) {
       if (!mounted) {
@@ -388,6 +399,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       _ancestorDepth = 1;
       _descendantDepth = 1;
       _transformController.value = Matrix4.identity();
+      _invalidateTreeSceneCache();
     });
     unawaited(_load());
   }
@@ -414,16 +426,50 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       _ancestorDepth = 1;
       _descendantDepth = 1;
       _transformController.value = Matrix4.identity();
+      _invalidateTreeSceneCache();
     });
   }
 
-  _TreeScene _buildTreeScene(GenealogyReadSegment segment) {
-    final stopwatch = Stopwatch()..start();
-    final graph = segment.graph;
+  _TreeScene _resolveTreeScene(GenealogyReadSegment segment) {
+    final rootId = _effectiveRootId(segment);
+    final canReuse =
+        _cachedScene != null &&
+        identical(_cachedSceneSegment, segment) &&
+        _cachedSceneRootId == rootId &&
+        _cachedSceneAncestorDepth == _ancestorDepth &&
+        _cachedSceneDescendantDepth == _descendantDepth;
+    if (canReuse) {
+      return _cachedScene!;
+    }
+
+    final scene = _buildTreeScene(segment, rootId: rootId);
+    _cachedScene = scene;
+    _cachedSceneSegment = segment;
+    _cachedSceneRootId = rootId;
+    _cachedSceneAncestorDepth = _ancestorDepth;
+    _cachedSceneDescendantDepth = _descendantDepth;
+    return scene;
+  }
+
+  String _effectiveRootId(GenealogyReadSegment segment) {
     final fallbackRoot = _resolveInitialFocusMemberId(segment);
-    final rootId = _rootMemberId?.trim().isNotEmpty == true
+    return _rootMemberId?.trim().isNotEmpty == true
         ? _rootMemberId!
         : fallbackRoot;
+  }
+
+  void _invalidateTreeSceneCache() {
+    _cachedScene = null;
+    _cachedSceneSegment = null;
+    _cachedSceneRootId = '';
+  }
+
+  _TreeScene _buildTreeScene(
+    GenealogyReadSegment segment, {
+    required String rootId,
+  }) {
+    final stopwatch = Stopwatch()..start();
+    final graph = segment.graph;
     final visibleMemberIds = _buildVisibleMemberIds(
       graph: graph,
       rootId: rootId,
@@ -592,9 +638,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       visible.addAll(graph.spousesOf(memberId));
     }
 
-    if (_selectedMemberId != null && _selectedMemberId!.isNotEmpty) {
-      visible.add(_selectedMemberId!);
-    }
     return visible;
   }
 

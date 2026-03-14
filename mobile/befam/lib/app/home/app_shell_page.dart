@@ -4,8 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
-import '../../features/events/presentation/event_workspace_page.dart';
-import '../../features/events/services/event_repository.dart';
+import '../../features/calendar/presentation/dual_calendar_workspace_page.dart';
 import '../../features/funds/presentation/fund_workspace_page.dart';
 import '../../features/funds/services/fund_repository.dart';
 import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
@@ -33,7 +32,6 @@ class AppShellPage extends StatefulWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
-    this.eventRepository,
     this.fundRepository,
     this.genealogyRepository,
     this.pushNotificationService,
@@ -44,7 +42,6 @@ class AppShellPage extends StatefulWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
-  final EventRepository? eventRepository;
   final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
   final PushNotificationService? pushNotificationService;
@@ -56,8 +53,8 @@ class AppShellPage extends StatefulWidget {
 
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
+  final Set<int> _visitedDestinationIndexes = <int>{0};
   late final GenealogyReadRepository _genealogyRepository;
-  late final EventRepository _eventRepository;
   late final FundRepository _fundRepository;
   late final PushNotificationService _pushNotificationService;
   String? _lastOpenedNotificationMessageId;
@@ -90,7 +87,6 @@ class _AppShellPageState extends State<AppShellPage> {
     super.initState();
     _genealogyRepository =
         widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
-    _eventRepository = widget.eventRepository ?? createDefaultEventRepository();
     _fundRepository = widget.fundRepository ?? createDefaultFundRepository();
     _pushNotificationService =
         widget.pushNotificationService ??
@@ -134,6 +130,7 @@ class _AppShellPageState extends State<AppShellPage> {
     if (shouldOpenTargetPage) {
       setState(() {
         _selectedIndex = 2;
+        _visitedDestinationIndexes.add(2);
       });
       _openNotificationTargetPage(
         targetType: deepLink.targetType,
@@ -299,16 +296,25 @@ class _AppShellPageState extends State<AppShellPage> {
           });
         },
       ),
-      GenealogyWorkspacePage(
-        session: widget.session,
-        repository: _genealogyRepository,
-      ),
-      EventWorkspacePage(session: widget.session, repository: _eventRepository),
-      ProfileWorkspacePage(
-        session: widget.session,
-        memberRepository: widget.memberRepository,
-        onLogoutRequested: widget.onLogoutRequested,
-      ),
+      if (_visitedDestinationIndexes.contains(1))
+        GenealogyWorkspacePage(
+          session: widget.session,
+          repository: _genealogyRepository,
+        )
+      else
+        const SizedBox.shrink(),
+      if (_visitedDestinationIndexes.contains(2))
+        const DualCalendarWorkspacePage()
+      else
+        const SizedBox.shrink(),
+      if (_visitedDestinationIndexes.contains(3))
+        ProfileWorkspacePage(
+          session: widget.session,
+          memberRepository: widget.memberRepository,
+          onLogoutRequested: widget.onLogoutRequested,
+        )
+      else
+        const SizedBox.shrink(),
     ];
 
     return Scaffold(
@@ -361,6 +367,7 @@ class _AppShellPageState extends State<AppShellPage> {
         onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
+            _visitedDestinationIndexes.add(index);
           });
         },
         destinations: [
