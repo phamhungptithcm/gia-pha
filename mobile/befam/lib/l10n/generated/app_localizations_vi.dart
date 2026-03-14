@@ -1164,6 +1164,150 @@ class AppLocalizationsVi extends AppLocalizations {
   String get notificationOpenedGeneral => 'Đã mở một thông báo.';
 
   @override
+  String get notificationInboxHeroTitle => 'Hộp thư thông báo';
+
+  @override
+  String get notificationInboxHeroDescription =>
+      'Xem các cập nhật mới nhất về sự kiện và khuyến học gửi đến hồ sơ thành viên của bạn.';
+
+  @override
+  String notificationInboxUnreadCount(int count) {
+    return '$count chưa đọc';
+  }
+
+  @override
+  String get notificationInboxAllRead => 'Bạn đã xem hết thông báo';
+
+  @override
+  String get notificationInboxSourceSandbox => 'Dữ liệu sandbox cục bộ';
+
+  @override
+  String get notificationInboxSourceLive => 'Dữ liệu Firestore trực tiếp';
+
+  @override
+  String get notificationInboxNoContextTitle => 'Chưa thể mở hộp thư thông báo';
+
+  @override
+  String get notificationInboxNoContextDescription =>
+      'Phiên hiện tại chưa liên kết với hồ sơ thành viên nên chưa có hộp thư để hiển thị.';
+
+  @override
+  String get notificationInboxLoadErrorTitle => 'Không thể tải thông báo';
+
+  @override
+  String get notificationInboxLoadErrorDescription =>
+      'Hãy kéo để tải lại hoặc thử lại ngay. Nếu lỗi tiếp tục, hãy kiểm tra kết nối Firebase và quyền truy cập.';
+
+  @override
+  String get notificationInboxRetryAction => 'Thử lại';
+
+  @override
+  String get notificationInboxEmptyTitle => 'Chưa có thông báo nào';
+
+  @override
+  String get notificationInboxEmptyDescription =>
+      'Khi có cập nhật sự kiện hoặc khuyến học, thông báo sẽ xuất hiện tại đây.';
+
+  @override
+  String get notificationInboxUnreadChip => 'Chưa đọc';
+
+  @override
+  String get notificationInboxReadChip => 'Đã đọc';
+
+  @override
+  String get notificationInboxTargetEvent => 'Sự kiện';
+
+  @override
+  String get notificationInboxTargetScholarship => 'Khuyến học';
+
+  @override
+  String get notificationInboxTargetGeneric => 'Chung';
+
+  @override
+  String get notificationInboxTargetUnknown => 'Cập nhật';
+
+  @override
+  String get notificationInboxFallbackTitle => 'Cập nhật thông báo';
+
+  @override
+  String get notificationInboxFallbackBody =>
+      'Mở thông báo này để xem thêm chi tiết.';
+
+  @override
+  String get notificationInboxOpenAction => 'Mở';
+
+  @override
+  String get notificationInboxMarkReadAction => 'Đánh dấu đã đọc';
+
+  @override
+  String get notificationInboxMarkReadFailed =>
+      'Chưa thể đánh dấu thông báo này là đã đọc lúc này.';
+
+  @override
+  String get notificationInboxLoadMoreAction => 'Tải thêm thông báo';
+
+  @override
+  String get notificationInboxPaginationDone => 'Không còn thông báo nào khác.';
+
+  @override
+  String get notificationTargetEventTitle => 'Thông báo sự kiện';
+
+  @override
+  String get notificationTargetEventDescription =>
+      'Điểm đích này xác nhận luồng deep-link đã điều hướng đến phần sự kiện.';
+
+  @override
+  String get notificationTargetScholarshipTitle => 'Thông báo khuyến học';
+
+  @override
+  String get notificationTargetScholarshipDescription =>
+      'Điểm đích này xác nhận luồng deep-link đã điều hướng đến kết quả khuyến học.';
+
+  @override
+  String get notificationTargetUnknownTitle => 'Điểm đích thông báo';
+
+  @override
+  String get notificationTargetUnknownDescription =>
+      'Thông báo này chưa có điểm đích được hỗ trợ.';
+
+  @override
+  String get notificationTargetReferenceLabel => 'Mã tham chiếu';
+
+  @override
+  String get notificationTargetPayloadTitleLabel => 'Tiêu đề thông báo';
+
+  @override
+  String get notificationTargetPayloadBodyLabel => 'Nội dung thông báo';
+
+  @override
+  String get notificationTargetUnknownReference => 'Không có';
+
+  @override
+  String get notificationSettingsTitle => 'Cài đặt thông báo';
+
+  @override
+  String get notificationSettingsDescription =>
+      'Các công tắc này là bản giữ chỗ để hoàn thiện cài đặt thông báo cấp hồ sơ ở các đợt phát hành tiếp theo.';
+
+  @override
+  String get notificationSettingsEventUpdates =>
+      'Nhắc lịch và cập nhật sự kiện';
+
+  @override
+  String get notificationSettingsScholarshipUpdates =>
+      'Kết quả và cập nhật duyệt khuyến học';
+
+  @override
+  String get notificationSettingsGeneralUpdates => 'Thông báo chung của họ tộc';
+
+  @override
+  String get notificationSettingsQuietHours => 'Chế độ giờ yên lặng';
+
+  @override
+  String get notificationSettingsPlaceholderNote =>
+      'Đây là giao diện giữ chỗ. Giá trị công tắc chỉ áp dụng cục bộ và chưa được lưu vào tùy chọn backend.';
+
+  @override
   String get authIssueRestoreSessionFailed =>
       'BeFam chưa thể khôi phục phiên đăng nhập trước đó.';
 
@@ -1244,4 +1388,262 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get authIssuePreparationFailed =>
       'Có lỗi xảy ra khi chuẩn bị đăng nhập. Hãy thử lại.';
+
+  @override
+  String get eventWorkspaceTitle => 'Không gian sự kiện';
+
+  @override
+  String get eventRefreshAction => 'Tải lại sự kiện';
+
+  @override
+  String get eventCreateAction => 'Tạo sự kiện';
+
+  @override
+  String get eventSaveSuccess => 'Đã lưu sự kiện thành công.';
+
+  @override
+  String get eventNoContextTitle => 'Cần ngữ cảnh họ tộc';
+
+  @override
+  String get eventNoContextDescription =>
+      'Hãy đăng nhập bằng hồ sơ đã liên kết họ tộc để xem và quản lý sự kiện.';
+
+  @override
+  String get eventHeroTitle => 'Lịch chung họ tộc';
+
+  @override
+  String get eventHeroDescription =>
+      'Theo dõi lễ nghi, ngày giỗ và lời nhắc trong một dòng thời gian thống nhất.';
+
+  @override
+  String get eventReadOnlyTitle => 'Chỉ có quyền xem';
+
+  @override
+  String get eventReadOnlyDescription =>
+      'Tài khoản này chỉ xem được sự kiện, chưa thể tạo hoặc chỉnh sửa.';
+
+  @override
+  String get eventLoadErrorTitle => 'Không thể tải sự kiện';
+
+  @override
+  String get eventLoadErrorDescription =>
+      'Hãy thử tải lại. Nếu lỗi còn tiếp diễn, kiểm tra mạng và quyền truy cập.';
+
+  @override
+  String get eventStatTotal => 'Tổng sự kiện';
+
+  @override
+  String get eventStatUpcoming => 'Sắp diễn ra';
+
+  @override
+  String get eventStatMemorial => 'Sự kiện giỗ';
+
+  @override
+  String get eventFilterSectionTitle => 'Tìm kiếm và bộ lọc';
+
+  @override
+  String get eventSearchLabel => 'Tìm sự kiện';
+
+  @override
+  String get eventSearchHint => 'Tiêu đề, địa điểm, thành viên hoặc mô tả';
+
+  @override
+  String get eventFilterTypeAll => 'Tất cả';
+
+  @override
+  String get eventFilterClearAction => 'Xóa';
+
+  @override
+  String get eventListSectionTitle => 'Danh sách sự kiện';
+
+  @override
+  String get eventListEmptyTitle => 'Chưa có sự kiện';
+
+  @override
+  String get eventListEmptyDescription =>
+      'Hãy tạo sự kiện đầu tiên cho lịch họ tộc.';
+
+  @override
+  String get eventDetailTitle => 'Chi tiết sự kiện';
+
+  @override
+  String get eventEditAction => 'Chỉnh sửa';
+
+  @override
+  String get eventDetailNotFoundTitle => 'Không còn thấy sự kiện';
+
+  @override
+  String get eventDetailNotFoundDescription =>
+      'Sự kiện có thể đã bị xóa hoặc ngoài phạm vi không gian hiện tại.';
+
+  @override
+  String get eventDetailTimingSection => 'Thời gian và lặp lại';
+
+  @override
+  String get eventDetailReminderSection => 'Mốc nhắc nhở';
+
+  @override
+  String get eventReminderEmptyTitle => 'Chưa cấu hình lời nhắc';
+
+  @override
+  String get eventReminderEmptyDescription =>
+      'Thêm các mốc nhắc để thông báo trước khi sự kiện bắt đầu.';
+
+  @override
+  String get eventFieldType => 'Loại';
+
+  @override
+  String get eventFieldBranch => 'Chi';
+
+  @override
+  String get eventFieldTargetMember => 'Thành viên mục tiêu';
+
+  @override
+  String get eventFieldLocationName => 'Tên địa điểm';
+
+  @override
+  String get eventFieldLocationAddress => 'Địa chỉ';
+
+  @override
+  String get eventFieldDescription => 'Mô tả';
+
+  @override
+  String get eventFieldStartsAt => 'Bắt đầu';
+
+  @override
+  String get eventFieldEndsAt => 'Kết thúc';
+
+  @override
+  String get eventFieldTimezone => 'Múi giờ';
+
+  @override
+  String get eventFieldRecurring => 'Lặp lại';
+
+  @override
+  String get eventFieldRecurrenceRule => 'Quy tắc lặp';
+
+  @override
+  String get eventFieldVisibility => 'Phạm vi hiển thị';
+
+  @override
+  String get eventFieldStatus => 'Trạng thái';
+
+  @override
+  String get eventFieldUnset => 'Chưa thiết lập';
+
+  @override
+  String get eventRecurringYes => 'Có';
+
+  @override
+  String get eventRecurringNo => 'Không';
+
+  @override
+  String get eventFormCreateTitle => 'Tạo sự kiện';
+
+  @override
+  String get eventFormEditTitle => 'Chỉnh sửa sự kiện';
+
+  @override
+  String get eventFormTitleLabel => 'Tiêu đề';
+
+  @override
+  String get eventFormTitleHint => 'Ví dụ: Họp họ, lễ giỗ';
+
+  @override
+  String get eventFormTypeLabel => 'Loại sự kiện';
+
+  @override
+  String get eventFormBranchLabel => 'Phạm vi chi';
+
+  @override
+  String get eventFormTargetMemberLabel => 'Thành viên mục tiêu ngày giỗ';
+
+  @override
+  String get eventFormRecurringMemorialLabel => 'Lặp lại ngày giỗ hằng năm';
+
+  @override
+  String get eventFormStartsAtLabel => 'Bắt đầu';
+
+  @override
+  String get eventFormEndsAtLabel => 'Kết thúc';
+
+  @override
+  String get eventFormDateTimeHint => 'YYYY-MM-DD HH:mm';
+
+  @override
+  String get eventFormTimezoneLabel => 'Múi giờ';
+
+  @override
+  String get eventFormLocationNameLabel => 'Tên địa điểm';
+
+  @override
+  String get eventFormLocationAddressLabel => 'Địa chỉ địa điểm';
+
+  @override
+  String get eventFormDescriptionLabel => 'Mô tả';
+
+  @override
+  String get eventFormReminderSectionTitle => 'Mốc nhắc nhở';
+
+  @override
+  String get eventFormReminderPresetWeek => '+7 ngày';
+
+  @override
+  String get eventFormReminderPresetDay => '+1 ngày';
+
+  @override
+  String get eventFormReminderPresetHours => '+2 giờ';
+
+  @override
+  String get eventFormReminderCustomLabel => 'Mốc tùy chỉnh (phút)';
+
+  @override
+  String get eventFormReminderCustomHint => 'Ví dụ: 30';
+
+  @override
+  String get eventFormReminderAddAction => 'Thêm';
+
+  @override
+  String get eventFormSaveAction => 'Lưu sự kiện';
+
+  @override
+  String get eventValidationTitleRequired => 'Vui lòng nhập tiêu đề sự kiện.';
+
+  @override
+  String get eventValidationTimeRange =>
+      'Thời gian bắt đầu/kết thúc không hợp lệ. Thời gian kết thúc phải sau thời gian bắt đầu.';
+
+  @override
+  String get eventValidationReminderOffsets =>
+      'Mốc nhắc phải là số dương và không trùng lặp.';
+
+  @override
+  String get eventValidationMemorialTarget =>
+      'Sự kiện giỗ lặp lại cần chọn thành viên mục tiêu.';
+
+  @override
+  String get eventValidationMemorialRule =>
+      'Sự kiện giỗ lặp lại phải dùng quy tắc hằng năm.';
+
+  @override
+  String get eventErrorPermission =>
+      'Phiên hiện tại không có quyền quản lý sự kiện.';
+
+  @override
+  String get eventErrorNotFound => 'Không tìm thấy sự kiện.';
+
+  @override
+  String get eventTypeClanGathering => 'Họp họ';
+
+  @override
+  String get eventTypeMeeting => 'Cuộc họp';
+
+  @override
+  String get eventTypeBirthday => 'Sinh nhật';
+
+  @override
+  String get eventTypeDeathAnniversary => 'Ngày giỗ';
+
+  @override
+  String get eventTypeOther => 'Khác';
 }

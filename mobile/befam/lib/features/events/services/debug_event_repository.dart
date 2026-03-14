@@ -1,0 +1,277 @@
+import 'dart:async';
+
+import 'package:collection/collection.dart';
+
+import '../../../core/services/debug_genealogy_store.dart';
+import '../../auth/models/auth_member_access_mode.dart';
+import '../../auth/models/auth_session.dart';
+import '../models/event_draft.dart';
+import '../models/event_record.dart';
+import '../models/event_workspace_snapshot.dart';
+import '../models/event_type.dart';
+import 'event_repository.dart';
+import 'event_validation.dart';
+
+class DebugEventRepository implements EventRepository {
+  DebugEventRepository({
+    required DebugGenealogyStore store,
+    Map<String, EventRecord>? eventsSeed,
+    int initialEventSequence = 100,
+  }) : _store = store,
+       _events = Map<String, EventRecord>.from(eventsSeed ?? _seededEvents()),
+       _eventSequence = initialEventSequence;
+
+  factory DebugEventRepository.seeded() {
+    return DebugEventRepository(store: DebugGenealogyStore.seeded());
+  }
+
+  factory DebugEventRepository.shared() {
+    return DebugEventRepository(store: DebugGenealogyStore.sharedSeeded());
+  }
+
+  final DebugGenealogyStore _store;
+  final Map<String, EventRecord> _events;
+  int _eventSequence;
+
+  @override
+  bool get isSandbox => true;
+
+  @override
+  Future<EventWorkspaceSnapshot> loadWorkspace({
+    required AuthSession session,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+
+    final clanId = session.clanId;
+    if (clanId == null || clanId.isEmpty) {
+      return const EventWorkspaceSnapshot(
+        events: [],
+        members: [],
+        branches: [],
+      );
+    }
+
+    final events = _events.values
+        .where((event) => event.clanId == clanId)
+        .sortedBy((event) => event.startsAt)
+        .toList(growable: false);
+    final members = _store.members.values
+        .where((member) => member.clanId == clanId)
+        .sortedBy((member) => member.fullName.toLowerCase())
+        .toList(growable: false);
+    final branches = _store.branches.values
+        .where((branch) => branch.clanId == clanId)
+        .sortedBy((branch) => branch.name.toLowerCase())
+        .toList(growable: false);
+
+    return EventWorkspaceSnapshot(
+      events: events,
+      members: members,
+      branches: branches,
+    );
+  }
+
+  @override
+  Future<EventRecord> saveEvent({
+    required AuthSession session,
+    String? eventId,
+    required EventDraft draft,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 160));
+
+    _ensureCanManage(session);
+    _validateDraft(draft);
+
+    final clanId = session.clanId!;
+    final resolvedEventId = eventId ?? 'event_demo_${_eventSequence++}';
+    final existing = _events[resolvedEventId];
+
+    if (eventId != null && existing == null) {
+      throw const EventRepositoryException(
+        EventRepositoryErrorCode.eventNotFound,
+      );
+    }
+
+    final branchId = _resolvedBranchId(
+      draft: draft,
+      existing: existing,
+      session: session,
+    );
+    if (branchId != null &&
+        !_store.branches.values.any(
+          (branch) => branch.id == branchId && branch.clanId == clanId,
+        )) {
+      throw const EventRepositoryException(
+        EventRepositoryErrorCode.permissionDenied,
+      );
+    }
+
+    final targetMemberId = _resolvedTargetMemberId(draft, clanId);
+    final recurrenceRule = _resolvedRecurrenceRule(draft);
+    final reminderOffsets = EventValidation.sanitizeReminderOffsets(
+      draft.reminderOffsetsMinutes,
+    );
+
+    final record = EventRecord(
+      id: resolvedEventId,
+      clanId: clanId,
+      branchId: branchId,
+      title: draft.title.trim(),
+      description: draft.description.trim(),
+      eventType: draft.eventType,
+      targetMemberId: targetMemberId,
+      locationName: draft.locationName.trim(),
+      locationAddress: draft.locationAddress.trim(),
+      startsAt: draft.startsAt.toUtc(),
+      endsAt: draft.endsAt?.toUtc(),
+      timezone: draft.timezone.trim().isEmpty
+          ? 'Asia/Ho_Chi_Minh'
+          : draft.timezone.trim(),
+      isRecurring: draft.isRecurring,
+      recurrenceRule: recurrenceRule,
+      reminderOffsetsMinutes: reminderOffsets,
+      visibility: draft.visibility.trim().isEmpty
+          ? 'clan'
+          : draft.visibility.trim(),
+      status: draft.status.trim().isEmpty ? 'scheduled' : draft.status.trim(),
+    );
+
+    _events[resolvedEventId] = record;
+    return record;
+  }
+
+  void _ensureCanManage(AuthSession session) {
+    final role = session.primaryRole?.trim().toUpperCase() ?? '';
+    final canManage =
+        session.clanId?.isNotEmpty == true &&
+        session.accessMode == AuthMemberAccessMode.claimed &&
+        session.linkedAuthUid &&
+        const {'SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN'}.contains(role);
+    if (!canManage) {
+      throw const EventRepositoryException(
+        EventRepositoryErrorCode.permissionDenied,
+      );
+    }
+  }
+
+  void _validateDraft(EventDraft draft) {
+    final result = EventValidation.validate(draft);
+    if (result.isValid) {
+      return;
+    }
+
+    final primaryIssue = result.issues.first.code;
+    throw EventRepositoryException(switch (primaryIssue) {
+      EventValidationIssueCode.missingTitle =>
+        EventRepositoryErrorCode.invalidTitle,
+      EventValidationIssueCode.invalidTimeRange =>
+        EventRepositoryErrorCode.invalidTimeRange,
+      EventValidationIssueCode.invalidReminderOffsets =>
+        EventRepositoryErrorCode.invalidReminderOffsets,
+      EventValidationIssueCode.memorialRequiresTargetMember =>
+        EventRepositoryErrorCode.invalidMemorialTarget,
+      EventValidationIssueCode.memorialRequiresYearlyRecurrence =>
+        EventRepositoryErrorCode.invalidRecurrence,
+    });
+  }
+
+  String? _resolvedBranchId({
+    required EventDraft draft,
+    required EventRecord? existing,
+    required AuthSession session,
+  }) {
+    final draftBranchId = draft.branchId?.trim();
+    if (draftBranchId != null && draftBranchId.isNotEmpty) {
+      return draftBranchId;
+    }
+
+    final existingBranchId = existing?.branchId?.trim();
+    if (existingBranchId != null && existingBranchId.isNotEmpty) {
+      return existingBranchId;
+    }
+
+    final sessionBranchId = session.branchId?.trim();
+    if (sessionBranchId != null && sessionBranchId.isNotEmpty) {
+      return sessionBranchId;
+    }
+
+    return null;
+  }
+
+  String? _resolvedTargetMemberId(EventDraft draft, String clanId) {
+    if (!draft.eventType.isMemorial) {
+      return null;
+    }
+
+    final targetMemberId = draft.targetMemberId?.trim();
+    if (targetMemberId == null || targetMemberId.isEmpty) {
+      return null;
+    }
+
+    final targetMember = _store.members[targetMemberId];
+    if (targetMember == null || targetMember.clanId != clanId) {
+      throw const EventRepositoryException(
+        EventRepositoryErrorCode.invalidMemorialTarget,
+      );
+    }
+
+    return targetMemberId;
+  }
+
+  String? _resolvedRecurrenceRule(EventDraft draft) {
+    if (!draft.isRecurring) {
+      return null;
+    }
+
+    if (draft.eventType == EventType.deathAnniversary) {
+      return 'FREQ=YEARLY';
+    }
+
+    return EventValidation.normalizeRecurrenceRule(draft.recurrenceRule);
+  }
+
+  static Map<String, EventRecord> _seededEvents() {
+    return <String, EventRecord>{
+      'event_demo_memorial_001': EventRecord(
+        id: 'event_demo_memorial_001',
+        clanId: 'clan_demo_001',
+        branchId: 'branch_demo_001',
+        title: 'Giỗ cụ tổ mùa xuân',
+        description:
+            'Lễ giỗ thường niên tại từ đường chi trưởng, chuẩn bị lễ vật trước 2 giờ.',
+        eventType: EventType.deathAnniversary,
+        targetMemberId: 'member_demo_elder_001',
+        locationName: 'Từ đường chi trưởng',
+        locationAddress: 'Quang Nam, Viet Nam',
+        startsAt: DateTime.utc(2026, 4, 4, 2, 0),
+        endsAt: DateTime.utc(2026, 4, 4, 5, 30),
+        timezone: 'Asia/Ho_Chi_Minh',
+        isRecurring: true,
+        recurrenceRule: 'FREQ=YEARLY',
+        reminderOffsetsMinutes: const [10080, 1440, 120],
+        visibility: 'clan',
+        status: 'scheduled',
+      ),
+      'event_demo_gathering_001': EventRecord(
+        id: 'event_demo_gathering_001',
+        clanId: 'clan_demo_001',
+        branchId: 'branch_demo_002',
+        title: 'Họp mặt đầu hè',
+        description:
+            'Họp mặt toàn chi để cập nhật kế hoạch học bổng và quỹ đóng góp.',
+        eventType: EventType.clanGathering,
+        targetMemberId: null,
+        locationName: 'Nhà văn hóa chi phụ',
+        locationAddress: 'Hue, Viet Nam',
+        startsAt: DateTime.utc(2026, 5, 12, 1, 0),
+        endsAt: DateTime.utc(2026, 5, 12, 4, 0),
+        timezone: 'Asia/Ho_Chi_Minh',
+        isRecurring: false,
+        recurrenceRule: null,
+        reminderOffsetsMinutes: const [1440, 120],
+        visibility: 'clan',
+        status: 'scheduled',
+      ),
+    };
+  }
+}
