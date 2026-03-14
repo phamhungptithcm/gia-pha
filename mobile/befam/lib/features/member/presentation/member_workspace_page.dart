@@ -330,21 +330,24 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                                               ? 0
                                               : 14,
                                         ),
-                                        child: _MemberSummaryCard(
+                                        child: KeyedSubtree(
                                           key: Key(
                                             'member-search-result-${member.id}',
                                           ),
-                                          member: member,
-                                          branchName: _controller.branchName(
-                                            member.branchId,
+                                          child: _MemberSummaryCard(
+                                            key: Key('member-row-${member.id}'),
+                                            member: member,
+                                            branchName: _controller.branchName(
+                                              member.branchId,
+                                            ),
+                                            roleLabel: l10n.roleLabel(
+                                              member.primaryRole,
+                                            ),
+                                            highlightQuery:
+                                                _controller.filters.query,
+                                            onTap: () =>
+                                                _openMemberDetail(member),
                                           ),
-                                          roleLabel: l10n.roleLabel(
-                                            member.primaryRole,
-                                          ),
-                                          highlightQuery:
-                                              _controller.filters.query,
-                                          onTap: () =>
-                                              _openMemberDetail(member),
                                         ),
                                       ),
                                   ],
