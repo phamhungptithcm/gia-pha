@@ -184,6 +184,10 @@ cd mobile/befam
 flutter run -d ios
 ```
 
+Production release automation on `main` now also prepares an unsigned iOS
+`xcarchive` asset for GitHub Releases. A signed `.ipa` will still require Apple
+signing certificates, provisioning profiles, and export options in CI.
+
 ## GitHub Automation
 
 The repository includes:
@@ -198,7 +202,7 @@ The repository includes:
 - production Firebase deploy workflow for Firestore, Storage, and Functions
 - automatic semver tagging and GitHub release publishing on `main`
 - friendly release note generation from conventional commits
-- Android release APK upload to GitHub Releases
+- Android release APK and unsigned iOS XCArchive upload to GitHub Releases
 - BeFam mobile builder image publishing to GHCR at `ghcr.io/phamhungptithcm/befam-mobile-builder`
 - Firebase tooling image publishing to GHCR at `ghcr.io/phamhungptithcm/befam-firebase-tools`
 - weekly release promotion pull requests from `staging` to `main`
@@ -235,4 +239,4 @@ node scripts/next_release_version.mjs
 5. Merge to `staging` after review and successful checks.
 6. Use `Closes #123` keywords for completed stories so production release automation can close them later.
 7. Review and approve the weekly `staging` to `main` release pull request for production.
-8. After the merge lands on `main`, let release automation create the semver tag, friendly notes, Android APK asset, and the GHCR mobile plus Firebase images.
+8. After the merge lands on `main`, let release automation create the semver tag, friendly notes, the Android APK asset, the unsigned iOS XCArchive asset, and the GHCR mobile plus Firebase images.

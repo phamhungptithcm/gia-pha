@@ -84,9 +84,15 @@ Release flow:
 3. create the Git tag if this is a fresh production merge
 4. generate friendly release notes with `scripts/generate_release_notes.mjs`
 5. build the Android release APK with the computed release version
-6. build and push the BeFam mobile builder image to `ghcr.io/phamhungptithcm/befam-mobile-builder`
-7. build and push the Firebase tooling image to `ghcr.io/phamhungptithcm/befam-firebase-tools`
-8. create or update the GitHub release and attach the APK asset
+6. build an unsigned iOS `xcarchive` on a macOS runner
+7. build and push the BeFam mobile builder image to `ghcr.io/phamhungptithcm/befam-mobile-builder`
+8. build and push the Firebase tooling image to `ghcr.io/phamhungptithcm/befam-firebase-tools`
+9. create or update the GitHub release and attach the Android APK plus the unsigned iOS archive
+
+Current iOS release note:
+
+- the pipeline publishes an unsigned `xcarchive` because Apple signing credentials are not configured in GitHub Actions yet
+- a signed `.ipa` can be added later once certificates, provisioning profiles, and export options are available in CI
 
 ### `weekly-release-promotion.yml`
 
@@ -180,5 +186,6 @@ Current production automation on `main` now:
 3. generates release notes from commit history
 4. publishes a GitHub release
 5. uploads the Android release APK
-6. pushes the BeFam mobile builder image to GHCR
-7. pushes the Firebase tooling image to GHCR
+6. uploads the unsigned iOS XCArchive
+7. pushes the BeFam mobile builder image to GHCR
+8. pushes the Firebase tooling image to GHCR

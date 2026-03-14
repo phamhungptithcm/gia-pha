@@ -67,8 +67,11 @@ jobs:
 
           ## Release artifacts
           - Android APK: \`befam-${RELEASE_VERSION}-android-release.apk\`
+          - iOS archive (unsigned): \`befam-${RELEASE_VERSION}-ios-release-unsigned.xcarchive.zip\`
           - Mobile builder image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/befam-mobile-builder:${RELEASE_TAG}\`
           - Firebase tooling image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/befam-firebase-tools:${RELEASE_TAG}\`
+
+          > Signed \`.ipa\` export will be added once Apple signing credentials are configured in GitHub Actions.
           EOF
 
       - name: Upload release notes artifact
@@ -118,6 +121,65 @@ jobs:
         with:
           name: android-release-apk
           path: mobile/befam/build/app/outputs/flutter-apk/app-release.apk
+
+  build-ios-release:
+    name: Build iOS release archive
+    needs: prepare-release
+    runs-on: macos-latest
+    env:
+      COCOAPODS_DISABLE_STATS: "true"
+    defaults:
+      run:
+        working-directory: mobile/befam
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Install CocoaPods dependencies
+        working-directory: mobile/befam/ios
+        run: pod install
+
+      - name: Generate localization files
+        run: flutter gen-l10n
+
+      - name: Build iOS release archive without codesigning
+        run: |
+          flutter build ipa \
+            --release \
+            --no-codesign \
+            --build-name "${{ needs.prepare-release.outputs.version }}" \
+            --build-number "${{ needs.prepare-release.outputs.build_number }}"
+
+      - name: Package unsigned iOS release archive
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          archive_path="build/ios/archive/Runner.xcarchive"
+          output_dir="${GITHUB_WORKSPACE}/dist/ios"
+          asset_name="befam-${RELEASE_VERSION}-ios-release-unsigned.xcarchive.zip"
+
+          if [ ! -d "${archive_path}" ]; then
+            echo "Expected iOS archive not found at ${archive_path}" >&2
+            exit 1
+          fi
+
+          mkdir -p "${output_dir}"
+          ditto -c -k --sequesterRsrc --keepParent "${archive_path}" "${output_dir}/${asset_name}"
+
+      - name: Upload unsigned iOS release archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-archive
+          path: dist/ios/*.zip
 
   publish-mobile-image:
     name: Publish mobile image
@@ -207,6 +269,7 @@ jobs:
     needs:
       - prepare-release
       - build-android-release
+      - build-ios-release
       - publish-mobile-image
       - publish-firebase-image
     runs-on: ubuntu-latest
@@ -226,6 +289,12 @@ jobs:
           name: android-release-apk
           path: dist/android
 
+      - name: Download unsigned iOS release archive
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-release-archive
+          path: dist/ios
+
       - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -233,8 +302,10 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           title="BeFam ${RELEASE_TAG}"
-          asset_path="dist/android/app-release.apk"
-          asset_name="befam-${RELEASE_VERSION}-android-release.apk"
+          android_asset_path="dist/android/app-release.apk"
+          android_asset_name="befam-${RELEASE_VERSION}-android-release.apk"
+          ios_asset_path="dist/ios/befam-${RELEASE_VERSION}-ios-release-unsigned.xcarchive.zip"
+          ios_asset_name="befam-${RELEASE_VERSION}-ios-release-unsigned.xcarchive.zip"
 
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             gh release edit "${RELEASE_TAG}" \
@@ -246,4 +317,5 @@ jobs:
               --notes-file dist/release-notes.md
           fi
 
-          gh release upload "${RELEASE_TAG}" "${asset_path}#${asset_name}" --clobber
+          gh release upload "${RELEASE_TAG}" "${android_asset_path}#${android_asset_name}" --clobber
+          gh release upload "${RELEASE_TAG}" "${ios_asset_path}#${ios_asset_name}" --clobber

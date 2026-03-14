@@ -15,7 +15,7 @@ reviews, CI, and release promotion.
 8. use `Closes #123` keywords in the staging PR for stories that are truly complete in that branch
 9. let the weekly release workflow open the `staging` to `main` production PR
 10. approve the release PR and let auto-merge finish the production promotion
-11. publish docs from `main`, deploy Firebase production changes, create the GitHub release, publish the mobile and Firebase images, and close released stories and epics
+11. publish docs from `main`, deploy Firebase production changes, create the GitHub release, upload the Android APK plus unsigned iOS archive, publish the mobile and Firebase images, and close released stories and epics
 
 ## Pull request checklist
 
@@ -35,7 +35,7 @@ The GitHub setup includes:
 - labels for epics, stories, domains, and agent-driven work
 - a backlog bootstrap script that creates GitHub issues from the source planning doc
 - a production Firebase deployment workflow that reads credentials from the `production` environment
-- a production release workflow that cuts semver tags, writes friendly notes, uploads the Android APK, and publishes the mobile and Firebase images
+- a production release workflow that cuts semver tags, writes friendly notes, uploads the Android APK plus unsigned iOS archive, and publishes the mobile and Firebase images
 
 ## Backlog source of truth
 
