@@ -18,7 +18,7 @@ _Last reviewed: March 14, 2026_
 | Push token registration | Live | Callable-first with Firestore fallback |
 | Push delivery backend | Live | Notification docs + FCM multicast delivery |
 | Event management UI | Partial | Home shell has Events tab placeholder |
-| Notification inbox UI | Planned | Deep-link hooks already present in shell service |
+| Notification inbox UI | Partial | Inbox list, mark-read, pagination, and event/scholarship deep-link placeholders are live; full destination modules are pending |
 | Funds module | Planned | Backlog defined, not shipped in mobile UI yet |
 | Scholarship UI module | Planned | Backend trigger path exists for review updates |
 

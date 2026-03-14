@@ -128,27 +128,45 @@ class MemberController extends ChangeNotifier {
   }
 
   void updateSearchQuery(String value) {
+    if (_filters.query == value) {
+      return;
+    }
     _filters = _filters.copyWith(query: value);
     unawaited(_runSearch());
   }
 
   void updateBranchFilter(String? branchId) {
+    if (_filters.branchId == branchId) {
+      return;
+    }
     _filters = _filters.copyWith(
       branchId: branchId,
       clearBranch: branchId == null,
     );
+    _trackFiltersUpdated();
     unawaited(_runSearch());
   }
 
   void updateGenerationFilter(int? generation) {
+    if (_filters.generation == generation) {
+      return;
+    }
     _filters = _filters.copyWith(
       generation: generation,
       clearGeneration: generation == null,
     );
+    _trackFiltersUpdated();
     unawaited(_runSearch());
   }
 
   Future<void> retrySearch() async {
+    unawaited(
+      _searchAnalyticsService.trackRetryRequested(
+        queryLength: _filters.query.trim().length,
+        hasBranchFilter: _filters.branchId != null,
+        hasGenerationFilter: _filters.generation != null,
+      ),
+    );
     await _runSearch();
   }
 
@@ -257,6 +275,16 @@ class MemberController extends ChangeNotifier {
             .firstWhereOrNull((branch) => branch.id == branchId)
             ?.name ??
         branchId;
+  }
+
+  void _trackFiltersUpdated() {
+    unawaited(
+      _searchAnalyticsService.trackFiltersUpdated(
+        queryLength: _filters.query.trim().length,
+        hasBranchFilter: _filters.branchId != null,
+        hasGenerationFilter: _filters.generation != null,
+      ),
+    );
   }
 
   Future<void> _runSearch({bool trackAnalytics = true}) async {

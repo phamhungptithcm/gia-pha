@@ -2228,6 +2228,264 @@ abstract class AppLocalizations {
   /// **'Đã mở một thông báo.'**
   String get notificationOpenedGeneral;
 
+  /// No description provided for @notificationInboxHeroTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hộp thư thông báo'**
+  String get notificationInboxHeroTitle;
+
+  /// No description provided for @notificationInboxHeroDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xem các cập nhật mới nhất về sự kiện và khuyến học gửi đến hồ sơ thành viên của bạn.'**
+  String get notificationInboxHeroDescription;
+
+  /// No description provided for @notificationInboxUnreadCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'{count} chưa đọc'**
+  String notificationInboxUnreadCount(int count);
+
+  /// No description provided for @notificationInboxAllRead.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bạn đã xem hết thông báo'**
+  String get notificationInboxAllRead;
+
+  /// No description provided for @notificationInboxSourceSandbox.
+  ///
+  /// In vi, this message translates to:
+  /// **'Dữ liệu sandbox cục bộ'**
+  String get notificationInboxSourceSandbox;
+
+  /// No description provided for @notificationInboxSourceLive.
+  ///
+  /// In vi, this message translates to:
+  /// **'Dữ liệu Firestore trực tiếp'**
+  String get notificationInboxSourceLive;
+
+  /// No description provided for @notificationInboxNoContextTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thể mở hộp thư thông báo'**
+  String get notificationInboxNoContextTitle;
+
+  /// No description provided for @notificationInboxNoContextDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên hiện tại chưa liên kết với hồ sơ thành viên nên chưa có hộp thư để hiển thị.'**
+  String get notificationInboxNoContextDescription;
+
+  /// No description provided for @notificationInboxLoadErrorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không thể tải thông báo'**
+  String get notificationInboxLoadErrorTitle;
+
+  /// No description provided for @notificationInboxLoadErrorDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy kéo để tải lại hoặc thử lại ngay. Nếu lỗi tiếp tục, hãy kiểm tra kết nối Firebase và quyền truy cập.'**
+  String get notificationInboxLoadErrorDescription;
+
+  /// No description provided for @notificationInboxRetryAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thử lại'**
+  String get notificationInboxRetryAction;
+
+  /// No description provided for @notificationInboxEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có thông báo nào'**
+  String get notificationInboxEmptyTitle;
+
+  /// No description provided for @notificationInboxEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khi có cập nhật sự kiện hoặc khuyến học, thông báo sẽ xuất hiện tại đây.'**
+  String get notificationInboxEmptyDescription;
+
+  /// No description provided for @notificationInboxUnreadChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa đọc'**
+  String get notificationInboxUnreadChip;
+
+  /// No description provided for @notificationInboxReadChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã đọc'**
+  String get notificationInboxReadChip;
+
+  /// No description provided for @notificationInboxTargetEvent.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sự kiện'**
+  String get notificationInboxTargetEvent;
+
+  /// No description provided for @notificationInboxTargetScholarship.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khuyến học'**
+  String get notificationInboxTargetScholarship;
+
+  /// No description provided for @notificationInboxTargetGeneric.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chung'**
+  String get notificationInboxTargetGeneric;
+
+  /// No description provided for @notificationInboxTargetUnknown.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cập nhật'**
+  String get notificationInboxTargetUnknown;
+
+  /// No description provided for @notificationInboxFallbackTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cập nhật thông báo'**
+  String get notificationInboxFallbackTitle;
+
+  /// No description provided for @notificationInboxFallbackBody.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở thông báo này để xem thêm chi tiết.'**
+  String get notificationInboxFallbackBody;
+
+  /// No description provided for @notificationInboxOpenAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở'**
+  String get notificationInboxOpenAction;
+
+  /// No description provided for @notificationInboxMarkReadAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đánh dấu đã đọc'**
+  String get notificationInboxMarkReadAction;
+
+  /// No description provided for @notificationInboxMarkReadFailed.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thể đánh dấu thông báo này là đã đọc lúc này.'**
+  String get notificationInboxMarkReadFailed;
+
+  /// No description provided for @notificationInboxLoadMoreAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tải thêm thông báo'**
+  String get notificationInboxLoadMoreAction;
+
+  /// No description provided for @notificationInboxPaginationDone.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không còn thông báo nào khác.'**
+  String get notificationInboxPaginationDone;
+
+  /// No description provided for @notificationTargetEventTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông báo sự kiện'**
+  String get notificationTargetEventTitle;
+
+  /// No description provided for @notificationTargetEventDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Điểm đích này xác nhận luồng deep-link đã điều hướng đến phần sự kiện.'**
+  String get notificationTargetEventDescription;
+
+  /// No description provided for @notificationTargetScholarshipTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông báo khuyến học'**
+  String get notificationTargetScholarshipTitle;
+
+  /// No description provided for @notificationTargetScholarshipDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Điểm đích này xác nhận luồng deep-link đã điều hướng đến kết quả khuyến học.'**
+  String get notificationTargetScholarshipDescription;
+
+  /// No description provided for @notificationTargetUnknownTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Điểm đích thông báo'**
+  String get notificationTargetUnknownTitle;
+
+  /// No description provided for @notificationTargetUnknownDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông báo này chưa có điểm đích được hỗ trợ.'**
+  String get notificationTargetUnknownDescription;
+
+  /// No description provided for @notificationTargetReferenceLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mã tham chiếu'**
+  String get notificationTargetReferenceLabel;
+
+  /// No description provided for @notificationTargetPayloadTitleLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tiêu đề thông báo'**
+  String get notificationTargetPayloadTitleLabel;
+
+  /// No description provided for @notificationTargetPayloadBodyLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nội dung thông báo'**
+  String get notificationTargetPayloadBodyLabel;
+
+  /// No description provided for @notificationTargetUnknownReference.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không có'**
+  String get notificationTargetUnknownReference;
+
+  /// No description provided for @notificationSettingsTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cài đặt thông báo'**
+  String get notificationSettingsTitle;
+
+  /// No description provided for @notificationSettingsDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Các công tắc này là bản giữ chỗ để hoàn thiện cài đặt thông báo cấp hồ sơ ở các đợt phát hành tiếp theo.'**
+  String get notificationSettingsDescription;
+
+  /// No description provided for @notificationSettingsEventUpdates.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhắc lịch và cập nhật sự kiện'**
+  String get notificationSettingsEventUpdates;
+
+  /// No description provided for @notificationSettingsScholarshipUpdates.
+  ///
+  /// In vi, this message translates to:
+  /// **'Kết quả và cập nhật duyệt khuyến học'**
+  String get notificationSettingsScholarshipUpdates;
+
+  /// No description provided for @notificationSettingsGeneralUpdates.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông báo chung của họ tộc'**
+  String get notificationSettingsGeneralUpdates;
+
+  /// No description provided for @notificationSettingsQuietHours.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chế độ giờ yên lặng'**
+  String get notificationSettingsQuietHours;
+
+  /// No description provided for @notificationSettingsPlaceholderNote.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đây là giao diện giữ chỗ. Giá trị công tắc chỉ áp dụng cục bộ và chưa được lưu vào tùy chọn backend.'**
+  String get notificationSettingsPlaceholderNote;
+
   /// No description provided for @authIssueRestoreSessionFailed.
   ///
   /// In vi, this message translates to:

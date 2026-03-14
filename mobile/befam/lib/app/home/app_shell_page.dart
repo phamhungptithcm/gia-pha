@@ -11,7 +11,9 @@ import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
+import '../../features/notifications/presentation/notification_target_page.dart';
 import '../../features/notifications/services/push_notification_service.dart';
+import '../../features/profile/presentation/profile_workspace_page.dart';
 import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
 import '../../features/scholarship/services/scholarship_repository.dart';
 import '../../l10n/l10n.dart';
@@ -55,6 +57,7 @@ class _AppShellPageState extends State<AppShellPage> {
   late final GenealogyReadRepository _genealogyRepository;
   late final FundRepository _fundRepository;
   late final PushNotificationService _pushNotificationService;
+  String? _lastOpenedNotificationMessageId;
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
@@ -99,7 +102,7 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void didUpdateWidget(covariant AppShellPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.session.uid != widget.session.uid) {
+    if (oldWidget.session != widget.session) {
       unawaited(
         _pushNotificationService.start(
           session: widget.session,
@@ -120,12 +123,22 @@ class _AppShellPageState extends State<AppShellPage> {
       return;
     }
 
-    if (deepLink.openedFromSystemNotification &&
-        deepLink.targetType == NotificationTargetType.event) {
+    final shouldOpenTargetPage =
+        deepLink.openedFromSystemNotification &&
+        (deepLink.targetType == NotificationTargetType.event ||
+            deepLink.targetType == NotificationTargetType.scholarship);
+    if (shouldOpenTargetPage) {
       setState(() {
         _selectedIndex = 2;
         _visitedDestinationIndexes.add(2);
       });
+      _openNotificationTargetPage(
+        targetType: deepLink.targetType,
+        referenceId: deepLink.referenceId,
+        sourceTitle: deepLink.title,
+        sourceBody: deepLink.body,
+        messageId: deepLink.messageId,
+      );
     }
 
     final defaultMessage = _defaultNotificationMessage(
@@ -143,6 +156,52 @@ class _AppShellPageState extends State<AppShellPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
+  }
+
+  void _openNotificationTargetPage({
+    required NotificationTargetType targetType,
+    required String? referenceId,
+    required String? sourceTitle,
+    required String? sourceBody,
+    String? messageId,
+  }) {
+    if (targetType == NotificationTargetType.unknown) {
+      return;
+    }
+    if (!_shouldOpenNotificationMessage(messageId)) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) {
+            return NotificationTargetPage(
+              targetType: targetType,
+              referenceId: referenceId,
+              sourceTitle: sourceTitle,
+              sourceBody: sourceBody,
+            );
+          },
+        ),
+      );
+    });
+  }
+
+  bool _shouldOpenNotificationMessage(String? messageId) {
+    final normalizedId = messageId?.trim() ?? '';
+    if (normalizedId.isEmpty) {
+      return true;
+    }
+    if (_lastOpenedNotificationMessageId == normalizedId) {
+      return false;
+    }
+    _lastOpenedNotificationMessageId = normalizedId;
+    return true;
   }
 
   String _defaultNotificationMessage(
@@ -168,6 +227,38 @@ class _AppShellPageState extends State<AppShellPage> {
         l10n.notificationForegroundScholarship,
       NotificationTargetType.unknown => l10n.notificationForegroundGeneral,
     };
+  }
+
+  Future<void> _confirmLogoutRequest() async {
+    if (widget.onLogoutRequested == null) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(context.l10n.shellLogout),
+          content: const Text(
+            'You can sign back in at any time with your linked account.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Log out'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      await widget.onLogoutRequested?.call();
+    }
   }
 
   @override
@@ -199,6 +290,11 @@ class _AppShellPageState extends State<AppShellPage> {
             _selectedIndex = 2;
           });
         },
+        onOpenProfileRequested: () {
+          setState(() {
+            _selectedIndex = 3;
+          });
+        },
       ),
       if (_visitedDestinationIndexes.contains(1))
         GenealogyWorkspacePage(
@@ -212,10 +308,10 @@ class _AppShellPageState extends State<AppShellPage> {
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(3))
-        _ComingSoonPane(
-          title: l10n.shellProfileWorkspaceTitle,
-          description: l10n.shellProfileWorkspaceDescription,
-          icon: Icons.person,
+        ProfileWorkspacePage(
+          session: widget.session,
+          memberRepository: widget.memberRepository,
+          onLogoutRequested: widget.onLogoutRequested,
         )
       else
         const SizedBox.shrink(),
@@ -251,7 +347,7 @@ class _AppShellPageState extends State<AppShellPage> {
               tooltip: l10n.shellMoreActions,
               onSelected: (value) async {
                 if (value == 'logout') {
-                  await widget.onLogoutRequested?.call();
+                  await _confirmLogoutRequest();
                 }
               },
               itemBuilder: (context) => [
@@ -295,6 +391,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.memberRepository,
     required this.fundRepository,
     required this.onOpenTreeRequested,
+    required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
   });
 
@@ -304,6 +401,7 @@ class _HomeDashboard extends StatelessWidget {
   final MemberRepository memberRepository;
   final FundRepository fundRepository;
   final VoidCallback onOpenTreeRequested;
+  final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
 
   @override
@@ -512,6 +610,7 @@ class _HomeDashboard extends StatelessWidget {
         );
       },
       'tree' => onOpenTreeRequested,
+      'profile' => onOpenProfileRequested,
       'events' => onOpenEventsRequested,
       'funds' => () {
         Navigator.of(context).push(
@@ -771,61 +870,6 @@ class _MemberAccessCard extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ComingSoonPane extends StatelessWidget {
-  const _ComingSoonPane({
-    required this.title,
-    required this.description,
-    required this.icon,
-  });
-
-  final String title;
-  final String description;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: colorScheme.primaryContainer,
-                    child: Icon(icon, size: 32),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    description,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ],
-              ),
-            ),
-          ),
         ),
       ),
     );

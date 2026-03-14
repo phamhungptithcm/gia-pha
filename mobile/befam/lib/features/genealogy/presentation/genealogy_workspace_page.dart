@@ -39,6 +39,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   static const _canvasPadding = 40.0;
 
   late final TransformationController _transformController;
+  final _layoutProfiler = _TreeLayoutProfiler(windowSize: 20);
   AnimationController? _centerAnimController;
 
   late GenealogyScopeType _scopeType;
@@ -180,6 +181,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   _DepthControl(
+                    id: 'parents',
                     label: l10n.relationshipParentsTitle,
                     depth: _ancestorDepth,
                     canIncrease: canExpandAncestors,
@@ -198,6 +200,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                     },
                   ),
                   _DepthControl(
+                    id: 'children',
                     label: l10n.relationshipChildrenTitle,
                     depth: _descendantDepth,
                     canIncrease: canExpandDescendants,
@@ -216,6 +219,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                     },
                   ),
                   FilledButton.tonalIcon(
+                    key: const Key('genealogy-center-selected'),
                     onPressed: selectedMember == null
                         ? null
                         : () => _centerOnMember(
@@ -258,6 +262,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                               children: [
                                 Positioned.fill(
                                   child: CustomPaint(
+                                    key: const Key('tree-connectors'),
                                     painter: _TreeConnectorPainter(
                                       parentChildEdges: scene.parentChildEdges,
                                       spouseEdges: scene.spouseEdges,
@@ -273,6 +278,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                     width: entry.value.width,
                                     height: entry.value.height,
                                     child: _MemberNodeCard(
+                                      key: Key('tree-node-${entry.key}'),
                                       member:
                                           segment.graph.membersById[entry.key]!,
                                       generationLabel:
@@ -326,7 +332,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                           edges:
                               scene.parentChildEdges.length +
                               scene.spouseEdges.length,
-                          layoutMs: scene.layoutDuration.inMilliseconds,
+                          latestLayoutMs: scene.layoutProfile.latestMs,
+                          averageLayoutMs: scene.layoutProfile.averageMs,
+                          peakLayoutMs: scene.layoutProfile.peakMs,
                         ),
                       ),
                     ],
@@ -553,15 +561,25 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     }
 
     stopwatch.stop();
+    final layoutProfile = _layoutProfiler.push(stopwatch.elapsed);
     assert(() {
       developer.log(
         'Tree scene build: ${visibleMemberIds.length} nodes, '
         '${parentChildEdges.length + spouseEdges.length} edges, '
-        '${stopwatch.elapsedMilliseconds}ms',
+        '${layoutProfile.latestMs}ms (avg ${layoutProfile.averageMs}ms, peak ${layoutProfile.peakMs}ms)',
         name: 'GenealogyWorkspace',
       );
       return true;
     }());
+    if (layoutProfile.latestMs > 120) {
+      developer.log(
+        'Slow tree layout detected: ${layoutProfile.latestMs}ms '
+        'for ${visibleMemberIds.length} nodes and '
+        '${parentChildEdges.length + spouseEdges.length} edges.',
+        name: 'GenealogyWorkspace',
+        level: 900,
+      );
+    }
 
     return _TreeScene(
       canvasSize: Size(canvasWidth, canvasHeight),
@@ -569,7 +587,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       parentChildEdges: parentChildEdges,
       spouseEdges: spouseEdges,
       visibleMemberIds: visibleMemberIds,
-      layoutDuration: stopwatch.elapsed,
+      layoutProfile: layoutProfile,
     );
   }
 
@@ -884,6 +902,7 @@ class _LandingCard extends StatelessWidget {
     final l10n = context.l10n;
 
     return Container(
+      key: const Key('genealogy-landing-card'),
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -1047,6 +1066,7 @@ class _SummaryMetric extends StatelessWidget {
 
 class _DepthControl extends StatelessWidget {
   const _DepthControl({
+    required this.id,
     required this.label,
     required this.depth,
     required this.canIncrease,
@@ -1055,6 +1075,7 @@ class _DepthControl extends StatelessWidget {
     required this.onDecrease,
   });
 
+  final String id;
   final String label;
   final int depth;
   final bool canIncrease;
@@ -1075,13 +1096,15 @@ class _DepthControl extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
+              key: Key('genealogy-depth-$id-decrease'),
               visualDensity: VisualDensity.compact,
               onPressed: canDecrease ? onDecrease : null,
               icon: const Icon(Icons.remove),
               tooltip: '-',
             ),
-            Text('$label $depth'),
+            Text('$label $depth', key: Key('genealogy-depth-$id-value')),
             IconButton(
+              key: Key('genealogy-depth-$id-increase'),
               visualDensity: VisualDensity.compact,
               onPressed: canIncrease ? onIncrease : null,
               icon: const Icon(Icons.add),
@@ -1096,6 +1119,7 @@ class _DepthControl extends StatelessWidget {
 
 class _MemberNodeCard extends StatelessWidget {
   const _MemberNodeCard({
+    super.key,
     required this.member,
     required this.generationLabel,
     required this.parentCount,
@@ -1296,18 +1320,23 @@ class _TreeMetricCard extends StatelessWidget {
   const _TreeMetricCard({
     required this.members,
     required this.edges,
-    required this.layoutMs,
+    required this.latestLayoutMs,
+    required this.averageLayoutMs,
+    required this.peakLayoutMs,
   });
 
   final int members;
   final int edges;
-  final int layoutMs;
+  final int latestLayoutMs;
+  final int averageLayoutMs;
+  final int peakLayoutMs;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     return DecoratedBox(
+      key: const Key('tree-metrics-card'),
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(14),
@@ -1322,7 +1351,9 @@ class _TreeMetricCard extends StatelessWidget {
             children: [
               Text('Nodes: $members'),
               Text('Edges: $edges'),
-              Text('Layout: ${layoutMs}ms'),
+              Text('Layout: ${latestLayoutMs}ms'),
+              Text('Avg: ${averageLayoutMs}ms'),
+              Text('Peak: ${peakLayoutMs}ms'),
             ],
           ),
         ),
@@ -1373,7 +1404,7 @@ class _TreeScene {
     required this.parentChildEdges,
     required this.spouseEdges,
     required this.visibleMemberIds,
-    required this.layoutDuration,
+    required this.layoutProfile,
   });
 
   final Size canvasSize;
@@ -1381,7 +1412,7 @@ class _TreeScene {
   final List<_TreeEdge> parentChildEdges;
   final List<_TreeEdge> spouseEdges;
   final Set<String> visibleMemberIds;
-  final Duration layoutDuration;
+  final _TreeLayoutProfile layoutProfile;
 }
 
 class _TreeEdge {
@@ -1389,4 +1420,50 @@ class _TreeEdge {
 
   final String fromId;
   final String toId;
+}
+
+class _TreeLayoutProfiler {
+  _TreeLayoutProfiler({this.windowSize = 20});
+
+  final int windowSize;
+  final ListQueue<int> _samples = ListQueue<int>();
+
+  _TreeLayoutProfile push(Duration elapsed) {
+    final latestMs = elapsed.inMilliseconds;
+    _samples.addLast(latestMs);
+    while (_samples.length > windowSize) {
+      _samples.removeFirst();
+    }
+
+    var total = 0;
+    var peak = 0;
+    for (final value in _samples) {
+      total += value;
+      if (value > peak) {
+        peak = value;
+      }
+    }
+    final average = _samples.isEmpty ? 0 : (total / _samples.length).round();
+
+    return _TreeLayoutProfile(
+      latestMs: latestMs,
+      averageMs: average,
+      peakMs: peak,
+      sampleCount: _samples.length,
+    );
+  }
+}
+
+class _TreeLayoutProfile {
+  const _TreeLayoutProfile({
+    required this.latestMs,
+    required this.averageMs,
+    required this.peakMs,
+    required this.sampleCount,
+  });
+
+  final int latestMs;
+  final int averageMs;
+  final int peakMs;
+  final int sampleCount;
 }
