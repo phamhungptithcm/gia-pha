@@ -32,6 +32,15 @@ void main() {
     GenealogySegmentCache.shared().clear();
   });
 
+  Future<void> scrollToTreeWorkspace(WidgetTester tester) async {
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('genealogy-center-selected')),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('renders the genealogy workspace and switches scope', (
     tester,
   ) async {
@@ -60,14 +69,150 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Read model gia phả'), findsOneWidget);
-    expect(find.byKey(const Key('genealogy-summary-members-5')), findsOneWidget);
-    expect(find.byKey(const Key('genealogy-summary-scope-clan')), findsOneWidget);
+    expect(
+      find.byKey(const Key('genealogy-summary-members-5')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('genealogy-summary-scope-clan')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('genealogy-scope-branch')));
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('genealogy-summary-members-3')), findsOneWidget);
-    expect(find.byKey(const Key('genealogy-summary-scope-branch')), findsOneWidget);
+    expect(
+      find.byKey(const Key('genealogy-summary-members-3')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('genealogy-summary-scope-branch')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('renders landing, node cards, connectors, and metrics', (
+    tester,
+  ) async {
+    final repository = DebugGenealogyReadRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('vi'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Scaffold(
+          body: GenealogyWorkspacePage(
+            session: buildClanAdminSession(),
+            repository: repository,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('genealogy-landing-card')), findsOneWidget);
+    await scrollToTreeWorkspace(tester);
+
+    expect(find.byType(CustomPaint), findsWidgets);
+    expect(find.byKey(const Key('tree-metrics-card')), findsOneWidget);
+    expect(find.text('Nguyễn Minh'), findsWidgets);
+    expect(find.byKey(const Key('genealogy-center-selected')), findsOneWidget);
+  });
+
+  testWidgets('shows ancestor and descendant lazy depth controls', (
+    tester,
+  ) async {
+    final repository = DebugGenealogyReadRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('vi'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Scaffold(
+          body: GenealogyWorkspacePage(
+            session: buildClanAdminSession(),
+            repository: repository,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await scrollToTreeWorkspace(tester);
+
+    expect(
+      find.byKey(const Key('genealogy-depth-parents-value')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('genealogy-depth-children-value')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('genealogy-depth-parents-increase')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('genealogy-depth-children-increase')),
+      findsOneWidget,
+    );
+
+    final parentDepthText = tester.widget<Text>(
+      find.byKey(const Key('genealogy-depth-parents-value')),
+    );
+    final childDepthText = tester.widget<Text>(
+      find.byKey(const Key('genealogy-depth-children-value')),
+    );
+    expect(parentDepthText.data, contains('1'));
+    expect(childDepthText.data, contains('1'));
+  });
+
+  testWidgets('opens member detail sheet from node tap', (tester) async {
+    final repository = DebugGenealogyReadRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('vi'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Scaffold(
+          body: GenealogyWorkspacePage(
+            session: buildClanAdminSession(),
+            repository: repository,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await scrollToTreeWorkspace(tester);
+    await tester.tap(find.byKey(const Key('tree-node-member_demo_child_001')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bé Minh'), findsWidgets);
   });
 }
