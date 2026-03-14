@@ -4,12 +4,19 @@ import 'package:flutter/material.dart';
 
 import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
+import '../../features/events/presentation/event_workspace_page.dart';
+import '../../features/events/services/event_repository.dart';
+import '../../features/funds/presentation/fund_workspace_page.dart';
+import '../../features/funds/services/fund_repository.dart';
 import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
+import '../../features/notifications/presentation/notification_target_page.dart';
 import '../../features/notifications/services/push_notification_service.dart';
 import '../../features/profile/presentation/profile_workspace_page.dart';
+import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
+import '../../features/scholarship/services/scholarship_repository.dart';
 import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
@@ -26,6 +33,8 @@ class AppShellPage extends StatefulWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    this.eventRepository,
+    this.fundRepository,
     this.genealogyRepository,
     this.pushNotificationService,
     this.onLogoutRequested,
@@ -35,6 +44,8 @@ class AppShellPage extends StatefulWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final EventRepository? eventRepository;
+  final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
   final PushNotificationService? pushNotificationService;
   final Future<void> Function()? onLogoutRequested;
@@ -46,7 +57,10 @@ class AppShellPage extends StatefulWidget {
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
   late final GenealogyReadRepository _genealogyRepository;
+  late final EventRepository _eventRepository;
+  late final FundRepository _fundRepository;
   late final PushNotificationService _pushNotificationService;
+  String? _lastOpenedNotificationMessageId;
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
@@ -76,6 +90,8 @@ class _AppShellPageState extends State<AppShellPage> {
     super.initState();
     _genealogyRepository =
         widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
+    _eventRepository = widget.eventRepository ?? createDefaultEventRepository();
+    _fundRepository = widget.fundRepository ?? createDefaultFundRepository();
     _pushNotificationService =
         widget.pushNotificationService ??
         createDefaultPushNotificationService();
@@ -90,7 +106,7 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void didUpdateWidget(covariant AppShellPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.session.uid != widget.session.uid) {
+    if (oldWidget.session != widget.session) {
       unawaited(
         _pushNotificationService.start(
           session: widget.session,
@@ -111,11 +127,21 @@ class _AppShellPageState extends State<AppShellPage> {
       return;
     }
 
-    if (deepLink.openedFromSystemNotification &&
-        deepLink.targetType == NotificationTargetType.event) {
+    final shouldOpenTargetPage =
+        deepLink.openedFromSystemNotification &&
+        (deepLink.targetType == NotificationTargetType.event ||
+            deepLink.targetType == NotificationTargetType.scholarship);
+    if (shouldOpenTargetPage) {
       setState(() {
         _selectedIndex = 2;
       });
+      _openNotificationTargetPage(
+        targetType: deepLink.targetType,
+        referenceId: deepLink.referenceId,
+        sourceTitle: deepLink.title,
+        sourceBody: deepLink.body,
+        messageId: deepLink.messageId,
+      );
     }
 
     final defaultMessage = _defaultNotificationMessage(
@@ -133,6 +159,52 @@ class _AppShellPageState extends State<AppShellPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
+  }
+
+  void _openNotificationTargetPage({
+    required NotificationTargetType targetType,
+    required String? referenceId,
+    required String? sourceTitle,
+    required String? sourceBody,
+    String? messageId,
+  }) {
+    if (targetType == NotificationTargetType.unknown) {
+      return;
+    }
+    if (!_shouldOpenNotificationMessage(messageId)) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) {
+            return NotificationTargetPage(
+              targetType: targetType,
+              referenceId: referenceId,
+              sourceTitle: sourceTitle,
+              sourceBody: sourceBody,
+            );
+          },
+        ),
+      );
+    });
+  }
+
+  bool _shouldOpenNotificationMessage(String? messageId) {
+    final normalizedId = messageId?.trim() ?? '';
+    if (normalizedId.isEmpty) {
+      return true;
+    }
+    if (_lastOpenedNotificationMessageId == normalizedId) {
+      return false;
+    }
+    _lastOpenedNotificationMessageId = normalizedId;
+    return true;
   }
 
   String _defaultNotificationMessage(
@@ -210,9 +282,15 @@ class _AppShellPageState extends State<AppShellPage> {
         session: widget.session,
         clanRepository: widget.clanRepository,
         memberRepository: widget.memberRepository,
+        fundRepository: _fundRepository,
         onOpenTreeRequested: () {
           setState(() {
             _selectedIndex = 1;
+          });
+        },
+        onOpenEventsRequested: () {
+          setState(() {
+            _selectedIndex = 2;
           });
         },
         onOpenProfileRequested: () {
@@ -225,11 +303,7 @@ class _AppShellPageState extends State<AppShellPage> {
         session: widget.session,
         repository: _genealogyRepository,
       ),
-      _ComingSoonPane(
-        title: l10n.shellEventsWorkspaceTitle,
-        description: l10n.shellEventsWorkspaceDescription,
-        icon: Icons.event,
-      ),
+      EventWorkspacePage(session: widget.session, repository: _eventRepository),
       ProfileWorkspacePage(
         session: widget.session,
         memberRepository: widget.memberRepository,
@@ -308,16 +382,20 @@ class _HomeDashboard extends StatelessWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    required this.fundRepository,
     required this.onOpenTreeRequested,
     required this.onOpenProfileRequested,
+    required this.onOpenEventsRequested,
   });
 
   final FirebaseSetupStatus status;
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final FundRepository fundRepository;
   final VoidCallback onOpenTreeRequested;
   final VoidCallback onOpenProfileRequested;
+  final VoidCallback onOpenEventsRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -512,8 +590,33 @@ class _HomeDashboard extends StatelessWidget {
           ),
         );
       },
+      'scholarship' => () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return ScholarshipWorkspacePage(
+                session: session,
+                repository: createDefaultScholarshipRepository(),
+              );
+            },
+          ),
+        );
+      },
       'tree' => onOpenTreeRequested,
       'profile' => onOpenProfileRequested,
+      'events' => onOpenEventsRequested,
+      'funds' => () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return FundWorkspacePage(
+                session: session,
+                repository: fundRepository,
+              );
+            },
+          ),
+        );
+      },
       _ => null,
     };
   }
@@ -760,61 +863,6 @@ class _MemberAccessCard extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ComingSoonPane extends StatelessWidget {
-  const _ComingSoonPane({
-    required this.title,
-    required this.description,
-    required this.icon,
-  });
-
-  final String title;
-  final String description;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: colorScheme.primaryContainer,
-                    child: Icon(icon, size: 32),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    description,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ],
-              ),
-            ),
-          ),
         ),
       ),
     );

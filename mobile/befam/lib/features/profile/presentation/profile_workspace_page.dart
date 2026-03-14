@@ -401,6 +401,7 @@ class _NotificationPlaceholderPanel extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         SwitchListTile.adaptive(
+          key: const Key('notification-setting-event-updates'),
           value: prefs.eventReminders,
           onChanged: controller.updateEventRemindersPreference,
           contentPadding: EdgeInsets.zero,
@@ -408,6 +409,7 @@ class _NotificationPlaceholderPanel extends StatelessWidget {
           subtitle: const Text('Placeholder only'),
         ),
         SwitchListTile.adaptive(
+          key: const Key('notification-setting-scholarship-updates'),
           value: prefs.scholarshipUpdates,
           onChanged: controller.updateScholarshipUpdatesPreference,
           contentPadding: EdgeInsets.zero,
@@ -422,10 +424,19 @@ class _NotificationPlaceholderPanel extends StatelessWidget {
           subtitle: const Text('Placeholder only'),
         ),
         SwitchListTile.adaptive(
+          key: const Key('notification-setting-general-updates'),
           value: prefs.systemNotices,
           onChanged: controller.updateSystemNoticesPreference,
           contentPadding: EdgeInsets.zero,
           title: const Text('System notices'),
+          subtitle: const Text('Placeholder only'),
+        ),
+        SwitchListTile.adaptive(
+          key: const Key('notification-setting-quiet-hours'),
+          value: false,
+          onChanged: null,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Quiet hours'),
           subtitle: const Text('Placeholder only'),
         ),
       ],
