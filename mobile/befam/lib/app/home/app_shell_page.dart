@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_session.dart';
 import '../bootstrap/firebase_setup_status.dart';
@@ -27,26 +28,22 @@ class _AppShellPageState extends State<AppShellPage> {
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
-      label: 'Home',
-      title: 'Bootstrap dashboard',
+      id: 'home',
       icon: Icons.space_dashboard_outlined,
       selectedIcon: Icons.space_dashboard,
     ),
     _ShellDestination(
-      label: 'Tree',
-      title: 'Family tree',
+      id: 'tree',
       icon: Icons.account_tree_outlined,
       selectedIcon: Icons.account_tree,
     ),
     _ShellDestination(
-      label: 'Events',
-      title: 'Events',
+      id: 'events',
       icon: Icons.event_outlined,
       selectedIcon: Icons.event,
     ),
     _ShellDestination(
-      label: 'Profile',
-      title: 'Profile',
+      id: 'profile',
       icon: Icons.person_outline,
       selectedIcon: Icons.person,
     ),
@@ -54,32 +51,30 @@ class _AppShellPageState extends State<AppShellPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final destination = _destinations[_selectedIndex];
     final pages = [
       _HomeDashboard(status: widget.status, session: widget.session),
-      const _ComingSoonPane(
-        title: 'Family tree workspace',
-        description:
-            'The shell is ready for the branch-first genealogy experience and large tree rendering work.',
+      _ComingSoonPane(
+        title: l10n.shellTreeWorkspaceTitle,
+        description: l10n.shellTreeWorkspaceDescription,
         icon: Icons.account_tree,
       ),
-      const _ComingSoonPane(
-        title: 'Events workspace',
-        description:
-            'Calendar, memorial rituals, and reminder flows will land here next.',
+      _ComingSoonPane(
+        title: l10n.shellEventsWorkspaceTitle,
+        description: l10n.shellEventsWorkspaceDescription,
         icon: Icons.event,
       ),
-      const _ComingSoonPane(
-        title: 'Profile workspace',
-        description:
-            'Member identity, settings, and household context will grow from this placeholder.',
+      _ComingSoonPane(
+        title: l10n.shellProfileWorkspaceTitle,
+        description: l10n.shellProfileWorkspaceDescription,
         icon: Icons.person,
       ),
     ];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(destination.title),
+        title: Text(l10n.shellDestinationTitle(destination.id)),
         actions: [
           if (_selectedIndex == 0)
             Padding(
@@ -98,14 +93,17 @@ class _AppShellPageState extends State<AppShellPage> {
           ),
           if (widget.onLogoutRequested != null)
             PopupMenuButton<String>(
-              tooltip: 'More actions',
+              tooltip: l10n.shellMoreActions,
               onSelected: (value) async {
                 if (value == 'logout') {
                   await widget.onLogoutRequested?.call();
                 }
               },
-              itemBuilder: (context) => const [
-                PopupMenuItem<String>(value: 'logout', child: Text('Log out')),
+              itemBuilder: (context) => [
+                PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Text(l10n.shellLogout),
+                ),
               ],
             ),
         ],
@@ -125,7 +123,7 @@ class _AppShellPageState extends State<AppShellPage> {
             NavigationDestination(
               icon: Icon(destination.icon),
               selectedIcon: Icon(destination.selectedIcon),
-              label: destination.label,
+              label: l10n.shellDestinationLabel(destination.id),
             ),
         ],
       ),
@@ -143,6 +141,7 @@ class _HomeDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final l10n = context.l10n;
     final size = MediaQuery.sizeOf(context);
     final crossAxisCount = switch (size.width) {
       > 1000 => 3,
@@ -168,8 +167,8 @@ class _HomeDashboard extends StatelessWidget {
             children: [
               Text(
                 status.isReady
-                    ? 'Welcome back, ${session.displayName}.'
-                    : 'Bootstrap is wired, but Firebase still needs cloud setup.',
+                    ? l10n.shellWelcomeBack(session.displayName)
+                    : l10n.shellBootstrapNeedsCloud,
                 style: theme.textTheme.headlineSmall?.copyWith(
                   color: colorScheme.onPrimary,
                   fontWeight: FontWeight.w800,
@@ -178,8 +177,10 @@ class _HomeDashboard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 status.isReady
-                    ? 'You are signed in through ${session.loginMethod.summaryLabel.toLowerCase()}, and the BeFam shell is ready for the next feature teams.'
-                    : 'The mobile foundation is ready locally. Cloud Firestore still needs to be enabled before backend deployment can finish.',
+                    ? l10n.shellSignedInMethod(
+                        l10n.authEntryMethodInline(session.loginMethod),
+                      )
+                    : l10n.shellCloudSetupNeeded,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: colorScheme.onPrimary.withValues(alpha: 0.9),
                 ),
@@ -190,25 +191,25 @@ class _HomeDashboard extends StatelessWidget {
                 runSpacing: 12,
                 children: [
                   _FoundationTag(
-                    label: 'Freezed + JSON',
+                    label: l10n.shellTagFreezedJson,
                     tone: colorScheme.secondaryContainer,
                   ),
                   _FoundationTag(
-                    label: 'Firebase core',
+                    label: l10n.shellTagFirebaseCore,
                     tone: colorScheme.secondaryContainer,
                   ),
                   _FoundationTag(
-                    label: 'Auth session live',
+                    label: l10n.shellTagAuthSessionLive,
                     tone: colorScheme.secondaryContainer,
                   ),
                   _FoundationTag(
                     label: status.isCrashReportingEnabled
-                        ? 'Crashlytics enabled'
-                        : 'Local logger active',
+                        ? l10n.shellTagCrashlyticsEnabled
+                        : l10n.shellTagLocalLoggerActive,
                     tone: colorScheme.surfaceContainerHighest,
                   ),
                   _FoundationTag(
-                    label: 'Shell placeholders',
+                    label: l10n.shellTagShellPlaceholders,
                     tone: colorScheme.surfaceContainerHighest,
                   ),
                 ],
@@ -218,14 +219,14 @@ class _HomeDashboard extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         Text(
-          'Priority workspaces',
+          l10n.shellPriorityWorkspaces,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'These placeholders match the first product surfaces described in the implementation plan.',
+          l10n.shellPriorityWorkspacesDescription,
           style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
@@ -246,7 +247,7 @@ class _HomeDashboard extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         Text(
-          'Signed-in context',
+          l10n.shellSignedInContext,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
           ),
@@ -258,52 +259,58 @@ class _HomeDashboard extends StatelessWidget {
             child: Column(
               children: [
                 _FoundationRow(
-                  label: 'Display name',
+                  label: l10n.shellFieldDisplayName,
                   value: session.displayName,
                 ),
                 _FoundationRow(
-                  label: 'Login method',
-                  value: session.loginMethod.summaryLabel,
+                  label: l10n.shellFieldLoginMethod,
+                  value: l10n.authEntryMethodSummary(session.loginMethod),
                 ),
-                _FoundationRow(label: 'Phone', value: session.phoneE164),
+                _FoundationRow(
+                  label: l10n.shellFieldPhone,
+                  value: session.phoneE164,
+                ),
                 if (session.childIdentifier != null)
                   _FoundationRow(
-                    label: 'Child ID',
+                    label: l10n.shellFieldChildId,
                     value: session.childIdentifier!,
                   ),
                 if (session.memberId != null)
-                  _FoundationRow(label: 'Member ID', value: session.memberId!),
+                  _FoundationRow(
+                    label: l10n.shellFieldMemberId,
+                    value: session.memberId!,
+                  ),
                 _FoundationRow(
-                  label: 'Session type',
+                  label: l10n.shellFieldSessionType,
                   value: session.isSandbox
-                      ? 'Debug sandbox session'
-                      : 'Firebase auth session',
+                      ? l10n.shellSessionTypeSandbox
+                      : l10n.shellSessionTypeFirebase,
                   isLast: false,
                 ),
                 _FoundationRow(
-                  label: 'Firebase project',
+                  label: l10n.shellFieldFirebaseProject,
                   value: status.projectId,
                 ),
                 _FoundationRow(
-                  label: 'Storage bucket',
+                  label: l10n.shellFieldStorageBucket,
                   value: status.storageBucket,
                 ),
                 _FoundationRow(
-                  label: 'Crash handling',
+                  label: l10n.shellFieldCrashHandling,
                   value: status.isCrashReportingEnabled
-                      ? 'Crashlytics captures release crashes.'
-                      : 'Logger is active locally and Crashlytics stays off outside release mode.',
+                      ? l10n.shellCrashHandlingRelease
+                      : l10n.shellCrashHandlingLocal,
                 ),
                 _FoundationRow(
-                  label: 'Core services',
+                  label: l10n.shellFieldCoreServices,
                   value: status.isReady
                       ? status.enabledServices.join(', ')
-                      : 'Firebase core wiring is waiting on initialization.',
+                      : l10n.shellCoreServicesWaiting,
                   isLast: status.errorMessage == null,
                 ),
                 if (status.errorMessage != null)
                   _FoundationRow(
-                    label: 'Startup note',
+                    label: l10n.shellFieldStartupNote,
                     value: status.errorMessage!,
                     isLast: true,
                   ),
@@ -325,6 +332,7 @@ class _ShortcutCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final l10n = context.l10n;
     final statusColor = switch (shortcut.status) {
       AppShortcutStatus.live => colorScheme.primaryContainer,
       AppShortcutStatus.bootstrap => colorScheme.secondaryContainer,
@@ -349,7 +357,7 @@ class _ShortcutCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    shortcut.title,
+                    l10n.shortcutTitle(shortcut.id),
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
@@ -360,7 +368,10 @@ class _ShortcutCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(shortcut.description, style: theme.textTheme.bodyMedium),
+            Text(
+              l10n.shortcutDescription(shortcut.id),
+              style: theme.textTheme.bodyMedium,
+            ),
             const Spacer(),
             const SizedBox(height: 12),
             Text(
@@ -385,20 +396,14 @@ class _ShortcutStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final (label, background) = switch (status) {
-      AppShortcutStatus.live => ('Live', colorScheme.primaryContainer),
-      AppShortcutStatus.bootstrap => (
-        'Bootstrap',
-        colorScheme.secondaryContainer,
-      ),
-      AppShortcutStatus.planned => (
-        'Planned',
-        colorScheme.surfaceContainerHighest,
-      ),
+    final background = switch (status) {
+      AppShortcutStatus.live => colorScheme.primaryContainer,
+      AppShortcutStatus.bootstrap => colorScheme.secondaryContainer,
+      AppShortcutStatus.planned => colorScheme.surfaceContainerHighest,
     };
 
     return Chip(
-      label: Text(label),
+      label: Text(context.l10n.shortcutStatusLabel(status)),
       backgroundColor: background,
       visualDensity: VisualDensity.compact,
       side: BorderSide.none,
@@ -486,7 +491,11 @@ class _ReadinessChip extends StatelessWidget {
             ? colorScheme.onPrimaryContainer
             : colorScheme.onSecondaryContainer,
       ),
-      label: Text(status.isReady ? 'Firebase ready' : 'Cloud setup pending'),
+      label: Text(
+        status.isReady
+            ? context.l10n.shellReadinessReady
+            : context.l10n.shellReadinessPending,
+      ),
       backgroundColor: status.isReady
           ? colorScheme.primaryContainer
           : colorScheme.secondaryContainer,
@@ -511,7 +520,7 @@ class _SessionChip extends StatelessWidget {
             : Icons.child_care,
         size: 18,
       ),
-      label: Text(session.loginMethod.summaryLabel),
+      label: Text(context.l10n.authEntryMethodSummary(session.loginMethod)),
       backgroundColor: session.isSandbox
           ? colorScheme.secondaryContainer
           : colorScheme.surfaceContainerHighest,
@@ -577,14 +586,12 @@ class _ComingSoonPane extends StatelessWidget {
 
 class _ShellDestination {
   const _ShellDestination({
-    required this.label,
-    required this.title,
+    required this.id,
     required this.icon,
     required this.selectedIcon,
   });
 
-  final String label;
-  final String title;
+  final String id;
   final IconData icon;
   final IconData selectedIcon;
 }

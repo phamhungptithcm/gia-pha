@@ -50,6 +50,15 @@ Build the site in strict mode:
 mkdocs build --strict
 ```
 
+Build the release docs image locally:
+
+```bash
+docker build \
+  --build-arg RELEASE_VERSION=local \
+  --build-arg VCS_REF=$(git rev-parse --short HEAD) \
+  -t gia-pha-docs:local .
+```
+
 ## Flutter Development
 
 The repository includes a local Flutter app at `mobile/befam`.
@@ -168,14 +177,20 @@ The repository includes:
 - docs validation on pull requests
 - required branch CI for `staging` and `main`
 - Firebase Functions TypeScript build validation in branch CI
+- Android release APK validation in branch CI
+- docs release image validation in branch CI
 - GitHub Pages deployment from `main`
 - production Firebase deploy workflow for Firestore, Storage, and Functions
+- automatic semver tagging and GitHub release publishing on `main`
+- friendly release note generation from conventional commits
+- Android release APK upload to GitHub Releases
+- docs image publishing to GHCR at `ghcr.io/phamhungptithcm/gia-pha-docs`
 - weekly release promotion pull requests from `staging` to `main`
 - post-release story and epic closure after production merges
 - issue and pull request templates
 - CODEOWNERS support for review routing
 - backlog import automation from the source planning docs
-- a release notes generator for future tag-based release automation
+- release version resolution for tag-based production delivery
 
 Create or sync the GitHub epic/story backlog with:
 
@@ -189,6 +204,12 @@ Generate friendly release notes for a tagged release:
 RELEASE_TAG=v0.1.0 node scripts/generate_release_notes.mjs
 ```
 
+Preview the next semver release that would be cut on `main`:
+
+```bash
+node scripts/next_release_version.mjs
+```
+
 ## Workflow
 
 1. Create a short-lived branch from `staging`.
@@ -196,4 +217,6 @@ RELEASE_TAG=v0.1.0 node scripts/generate_release_notes.mjs
 3. Run local verification where applicable.
 4. Open a pull request to `staging`.
 5. Merge to `staging` after review and successful checks.
-6. Review and approve the weekly `staging` to `main` release pull request for production.
+6. Use `Closes #123` keywords for completed stories so production release automation can close them later.
+7. Review and approve the weekly `staging` to `main` release pull request for production.
+8. After the merge lands on `main`, let release automation create the semver tag, friendly notes, Android APK asset, and GHCR docs image.

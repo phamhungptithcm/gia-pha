@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
 import '../models/auth_entry_method.dart';
+import '../models/auth_issue.dart';
 import '../models/auth_otp_request_result.dart';
 import '../models/auth_session.dart';
 import '../models/pending_otp_challenge.dart';
@@ -28,7 +29,7 @@ class AuthController extends ChangeNotifier {
   AuthStep step = AuthStep.loginMethodSelection;
   AuthSession? session;
   PendingOtpChallenge? pendingChallenge;
-  String? errorMessage;
+  AuthIssue? error;
   bool isRestoring = true;
   bool isBusy = false;
   int resendCooldownSeconds = 0;
@@ -54,7 +55,7 @@ class AuthController extends ChangeNotifier {
       );
     } catch (error, stackTrace) {
       AppLogger.error('Failed to restore auth session.', error, stackTrace);
-      errorMessage = 'We could not restore the last sign-in session.';
+      this.error = const AuthIssue(AuthIssueKey.restoreSessionFailed);
     } finally {
       isRestoring = false;
       _emit();
@@ -111,14 +112,14 @@ class AuthController extends ChangeNotifier {
   Future<void> verifyOtp(String rawCode) async {
     final challenge = pendingChallenge;
     if (challenge == null) {
-      errorMessage = 'Request an OTP before trying to verify it.';
+      error = const AuthIssue(AuthIssueKey.requestOtpBeforeVerify);
       _emit();
       return;
     }
 
     final sanitized = rawCode.replaceAll(RegExp(r'[^0-9]'), '');
     if (!RegExp(r'^\d{6}$').hasMatch(sanitized)) {
-      errorMessage = 'Enter the 6-digit OTP to continue.';
+      error = const AuthIssue(AuthIssueKey.otpMustBeSixDigits);
       _emit();
       return;
     }
@@ -175,7 +176,7 @@ class AuthController extends ChangeNotifier {
   Future<void> _completeSignIn(AuthSession newSession) async {
     session = newSession;
     pendingChallenge = null;
-    errorMessage = null;
+    error = null;
     await _sessionStore.write(newSession);
     _stopCooldown();
     AppLogger.info('Auth session established for ${newSession.uid}.');
@@ -184,14 +185,14 @@ class AuthController extends ChangeNotifier {
 
   Future<void> _runBusy(Future<void> Function() action) async {
     isBusy = true;
-    errorMessage = null;
+    error = null;
     _emit();
 
     try {
       await action();
     } catch (error, stackTrace) {
       AppLogger.error('Authentication flow failed.', error, stackTrace);
-      errorMessage = AuthErrorMapper.messageFor(error);
+      this.error = AuthErrorMapper.map(error);
       _emit();
     } finally {
       isBusy = false;
@@ -220,7 +221,7 @@ class AuthController extends ChangeNotifier {
   }
 
   void _clearError() {
-    errorMessage = null;
+    error = null;
   }
 
   void _emit() {

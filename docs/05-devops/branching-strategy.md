@@ -20,6 +20,7 @@ releases.
 - require one approval and passing Branch CI before merge to `staging` or `main`
 - promote `staging` to `main` through the weekly release PR
 - use merge commits for the `staging` to `main` promotion so release history stays aligned
+- let `main` release automation create the semver tag, GitHub release, Android APK asset, and GHCR docs image
 - let Firebase production deploys run from `main` with GitHub environment-scoped credentials
 
 ## Example

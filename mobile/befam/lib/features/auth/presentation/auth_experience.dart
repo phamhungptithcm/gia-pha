@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/bootstrap/firebase_setup_status.dart';
 import '../../../app/home/app_shell_page.dart';
 import '../../../core/services/app_logger.dart';
+import '../../../l10n/l10n.dart';
 import '../models/auth_entry_method.dart';
 import '../models/pending_otp_challenge.dart';
 import '../services/auth_gateway.dart';
@@ -81,6 +83,7 @@ class _AuthScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final l10n = context.l10n;
 
     return Scaffold(
       body: DecoratedBox(
@@ -100,10 +103,10 @@ class _AuthScaffold extends StatelessWidget {
             children: [
               _AuthHero(status: status, isSandbox: controller.isSandbox),
               const SizedBox(height: 20),
-              if (controller.errorMessage case final String message) ...[
+              if (controller.error case final issue?) ...[
                 _AuthMessageCard(
-                  title: 'Sign-in needs attention',
-                  message: message,
+                  title: l10n.authSignInNeedsAttention,
+                  message: l10n.authIssueMessage(issue),
                   icon: Icons.error_outline,
                   tone: colorScheme.errorContainer,
                 ),
@@ -157,6 +160,7 @@ class _AuthLoadingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
 
     return Scaffold(
       body: Center(
@@ -173,7 +177,7 @@ class _AuthLoadingPage extends StatelessWidget {
                     CircularProgressIndicator(color: colorScheme.primary),
                     const SizedBox(height: 20),
                     Text(
-                      'Preparing your BeFam session',
+                      l10n.authLoadingTitle,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
@@ -181,8 +185,8 @@ class _AuthLoadingPage extends StatelessWidget {
                     const SizedBox(height: 12),
                     Text(
                       status.isReady
-                          ? 'Firebase is ready. Restoring the last auth state now.'
-                          : 'Bootstrap is still checking local Firebase readiness.',
+                          ? l10n.authLoadingReadyDescription
+                          : l10n.authLoadingPendingDescription,
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -206,6 +210,7 @@ class _AuthHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final l10n = context.l10n;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -225,18 +230,22 @@ class _AuthHero extends StatelessWidget {
             runSpacing: 10,
             children: [
               _HeroChip(
-                label: status.isReady ? 'Firebase ready' : 'Bootstrap pending',
+                label: status.isReady
+                    ? l10n.authFirebaseReadyChip
+                    : l10n.authBootstrapPendingChip,
                 icon: status.isReady ? Icons.check_circle : Icons.pending,
               ),
               _HeroChip(
-                label: isSandbox ? 'Debug auth sandbox' : 'Live Firebase auth',
+                label: isSandbox
+                    ? l10n.authSandboxChip
+                    : l10n.authLiveFirebaseChip,
                 icon: isSandbox ? Icons.science_outlined : Icons.verified_user,
               ),
             ],
           ),
           const SizedBox(height: 18),
           Text(
-            'Authentication is the next BeFam milestone.',
+            l10n.authHeroTitle,
             style: theme.textTheme.headlineSmall?.copyWith(
               color: colorScheme.onPrimary,
               fontWeight: FontWeight.w800,
@@ -245,8 +254,8 @@ class _AuthHero extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             isSandbox
-                ? 'Local builds use a safe OTP sandbox so we can test phone and child access flows without waiting on real SMS infrastructure. Use OTP 123456 for the demo flow.'
-                : 'This build uses the live Firebase authentication path for phone verification and session restore.',
+                ? l10n.authHeroSandboxDescription
+                : l10n.authHeroLiveDescription,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: colorScheme.onPrimary.withValues(alpha: 0.92),
             ),
@@ -337,33 +346,35 @@ class _LoginMethodSelectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
     return Column(
       children: [
+        _QuickBenefitsCard(isSandbox: isSandbox),
+        const SizedBox(height: 16),
         _MethodCard(
-          title: 'Continue with phone',
-          description:
-              'Use your own phone number to request an OTP and restore your BeFam identity.',
+          title: l10n.authMethodPhoneTitle,
+          description: l10n.authMethodPhoneDescription,
           icon: Icons.phone_iphone,
-          buttonLabel: 'Use phone number',
+          buttonLabel: l10n.authMethodPhoneButton,
           onPressed: onPhoneSelected,
         ),
         const SizedBox(height: 16),
         _MethodCard(
-          title: 'Continue with child ID',
-          description:
-              'Start from a child identifier, resolve the linked parent phone, and verify access with OTP.',
+          title: l10n.authMethodChildTitle,
+          description: l10n.authMethodChildDescription,
           icon: Icons.child_care,
-          buttonLabel: 'Use child identifier',
+          buttonLabel: l10n.authMethodChildButton,
           onPressed: onChildSelected,
         ),
         const SizedBox(height: 16),
         _AuthMessageCard(
-          title: 'Current bootstrap note',
+          title: l10n.authBootstrapNoteTitle,
           message: status.isReady
               ? isSandbox
-                    ? 'Firebase is ready and the debug auth sandbox is active for local UI testing.'
-                    : 'Firebase is ready and the app will attempt live phone authentication.'
-              : 'Firebase startup still needs attention, so sign-in should stay in the sandbox until cloud setup is stable.',
+                    ? l10n.authBootstrapNoteReadySandbox
+                    : l10n.authBootstrapNoteReadyLive
+              : l10n.authBootstrapNotePending,
           icon: Icons.info_outline,
           tone: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
@@ -461,26 +472,52 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final helperText = widget.isSandbox
+        ? l10n.authPhoneHelperSandbox
+        : l10n.authPhoneHelperLive;
+
     return _AuthFormCard(
-      title: 'Phone verification',
-      description:
-          'Enter a phone number in local Vietnamese format or full E.164 format. BeFam will request an OTP from this number.',
+      title: l10n.authPhoneTitle,
+      description: l10n.authPhoneDescription,
       onBack: widget.onBack,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: _controller,
-            keyboardType: TextInputType.phone,
-            enabled: !widget.isBusy,
-            decoration: const InputDecoration(
-              labelText: 'Phone number',
-              hintText: '0901234567 or +84901234567',
+          AutofillGroup(
+            child: TextField(
+              controller: _controller,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.telephoneNumber],
+              enabled: !widget.isBusy,
+              decoration: InputDecoration(
+                labelText: l10n.authPhoneLabel,
+                hintText: l10n.authPhoneHint,
+                prefixIcon: const Icon(Icons.phone_iphone),
+                helperText: helperText,
+              ),
+              onSubmitted: widget.isBusy
+                  ? null
+                  : (value) => widget.onSubmit(value),
             ),
-            onSubmitted: widget.isBusy
-                ? null
-                : (value) => widget.onSubmit(value),
           ),
+          if (widget.isSandbox) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                ActionChip(
+                  avatar: const Icon(Icons.flash_on_outlined, size: 18),
+                  label: Text(l10n.authPhoneDemoButton),
+                  onPressed: widget.isBusy
+                      ? null
+                      : () => _controller.text = '0901234567',
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -488,7 +525,9 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
               onPressed: widget.isBusy
                   ? null
                   : () => widget.onSubmit(_controller.text),
-              child: Text(widget.isBusy ? 'Sending OTP...' : 'Send OTP'),
+              child: Text(
+                widget.isBusy ? l10n.authSendingOtp : l10n.authSendOtp,
+              ),
             ),
           ),
         ],
@@ -533,10 +572,11 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
     return _AuthFormCard(
-      title: 'Child access',
-      description:
-          'Enter the family child identifier. BeFam will resolve the linked parent phone and request OTP verification there.',
+      title: l10n.authChildTitle,
+      description: l10n.authChildDescription,
       onBack: widget.onBack,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -544,21 +584,45 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
           TextField(
             controller: _controller,
             enabled: !widget.isBusy,
-            decoration: const InputDecoration(
-              labelText: 'Child identifier',
-              hintText: 'BEFAM-CHILD-001',
+            textInputAction: TextInputAction.done,
+            decoration: InputDecoration(
+              labelText: l10n.authChildLabel,
+              hintText: l10n.authChildHint,
+              prefixIcon: const Icon(Icons.badge_outlined),
+              helperText: l10n.authChildHelper,
             ),
             textCapitalization: TextCapitalization.characters,
             onSubmitted: widget.isBusy
                 ? null
                 : (value) => widget.onSubmit(value),
           ),
-          const SizedBox(height: 12),
-          if (widget.isSandbox)
+          if (widget.isSandbox) ...[
+            const SizedBox(height: 12),
             Text(
-              'Demo identifiers for local testing: BEFAM-CHILD-001 and BEFAM-CHILD-002.',
-              style: Theme.of(context).textTheme.bodySmall,
+              l10n.authChildQuickTesting,
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final identifier in const [
+                  'BEFAM-CHILD-001',
+                  'BEFAM-CHILD-002',
+                ])
+                  ActionChip(
+                    avatar: const Icon(Icons.account_tree_outlined, size: 18),
+                    label: Text(identifier),
+                    onPressed: widget.isBusy
+                        ? null
+                        : () => _controller.text = identifier,
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -567,7 +631,9 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
                   ? null
                   : () => widget.onSubmit(_controller.text),
               child: Text(
-                widget.isBusy ? 'Resolving parent phone...' : 'Continue',
+                widget.isBusy
+                    ? l10n.authResolvingParentPhone
+                    : l10n.authContinue,
               ),
             ),
           ),
@@ -600,78 +666,184 @@ class _OtpVerificationCard extends StatefulWidget {
 
 class _OtpVerificationCardState extends State<_OtpVerificationCard> {
   late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+  String _lastSubmittedCode = '';
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController();
+    _focusNode = FocusNode();
+    _controller.addListener(_refresh);
+    _focusNode.addListener(_refresh);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _OtpVerificationCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final currentVerificationId = widget.challenge?.verificationId;
+    final previousVerificationId = oldWidget.challenge?.verificationId;
+
+    if (currentVerificationId != previousVerificationId) {
+      _controller.clear();
+      _lastSubmittedCode = '';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _focusNode.requestFocus();
+        }
+      });
+    } else if (oldWidget.isBusy && !widget.isBusy) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_refresh);
+    _focusNode.removeListener(_refresh);
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _submitCode(String value) async {
+    final sanitized = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (sanitized.length != 6 || widget.isBusy) {
+      return;
+    }
+
+    _lastSubmittedCode = sanitized;
+    await widget.onVerify(sanitized);
+  }
+
+  void _handleCodeChanged(String value) {
+    final sanitized = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (sanitized != value) {
+      _controller.value = TextEditingValue(
+        text: sanitized,
+        selection: TextSelection.collapsed(offset: sanitized.length),
+      );
+      return;
+    }
+
+    if (sanitized.length < 6) {
+      _lastSubmittedCode = '';
+      return;
+    }
+
+    if (!widget.isBusy && sanitized != _lastSubmittedCode) {
+      unawaited(_submitCode(sanitized));
+    }
+  }
+
+  void _fillDemoCode(String code) {
+    final sanitized = code.replaceAll(RegExp(r'[^0-9]'), '');
+    _controller.value = TextEditingValue(
+      text: sanitized,
+      selection: TextSelection.collapsed(offset: sanitized.length),
+    );
+    _handleCodeChanged(sanitized);
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final challenge = widget.challenge;
     if (challenge == null) {
       AppLogger.warning('OTP screen rendered without a pending challenge.');
       return _AuthFormCard(
-        title: 'OTP verification',
-        description: 'Request a new code before trying to verify access.',
+        title: l10n.authOtpMissingTitle,
+        description: l10n.authOtpMissingDescription,
         onBack: widget.onBack,
         child: const SizedBox.shrink(),
       );
     }
 
     return _AuthFormCard(
-      title: 'Verify the OTP',
-      description:
-          'Enter the 6-digit code sent to ${challenge.maskedDestination}.',
+      title: l10n.authOtpTitle,
+      description: l10n.authOtpDescription(challenge.maskedDestination),
       onBack: widget.onBack,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
+          _OtpCodeField(
             controller: _controller,
+            focusNode: _focusNode,
             enabled: !widget.isBusy,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'OTP code',
-              hintText: challenge.debugOtpHint ?? 'Enter 6 digits',
-            ),
-            onSubmitted: widget.isBusy
-                ? null
-                : (value) => widget.onVerify(value),
+            onChanged: _handleCodeChanged,
+            onSubmitted: _submitCode,
           ),
           if (challenge.debugOtpHint case final String hint) ...[
             const SizedBox(height: 12),
-            Text(
-              'Debug sandbox OTP: $hint',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  l10n.authOtpDebugCode(hint),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: widget.isBusy ? null : () => _fillDemoCode(hint),
+                  icon: const Icon(Icons.bolt_outlined),
+                  label: Text(l10n.authOtpAutofillDemo),
+                ),
+              ],
             ),
           ],
           if (challenge.loginMethod == AuthEntryMethod.child &&
               challenge.childIdentifier != null) ...[
             const SizedBox(height: 12),
-            Text(
-              'Child identifier: ${challenge.childIdentifier}',
-              style: Theme.of(context).textTheme.bodySmall,
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.child_care_outlined),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n.authOtpChildIdentifier(challenge.childIdentifier!),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            child: FilledButton(
-              onPressed: widget.isBusy
+            child: FilledButton.icon(
+              onPressed: widget.isBusy || _controller.text.length < 6
                   ? null
-                  : () => widget.onVerify(_controller.text),
-              child: Text(
-                widget.isBusy ? 'Verifying OTP...' : 'Verify and continue',
+                  : () => _submitCode(_controller.text),
+              icon: Icon(
+                widget.isBusy ? Icons.more_horiz : Icons.arrow_forward,
+              ),
+              label: Text(
+                widget.isBusy ? l10n.authVerifyingOtp : l10n.authContinueNow,
               ),
             ),
           ),
@@ -685,10 +857,273 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
               icon: const Icon(Icons.refresh),
               label: Text(
                 widget.resendCooldownSeconds > 0
-                    ? 'Resend in ${widget.resendCooldownSeconds}s'
-                    : 'Resend OTP',
+                    ? l10n.authResendIn(widget.resendCooldownSeconds)
+                    : l10n.authResendOtp,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OtpCodeField extends StatelessWidget {
+  const _OtpCodeField({
+    required this.controller,
+    required this.focusNode,
+    required this.enabled,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    final code = controller.text;
+    final focusedIndex = code.length >= 6 ? 5 : code.length;
+    final l10n = context.l10n;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? focusNode.requestFocus : null,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final spacing = constraints.maxWidth < 320 ? 6.0 : 8.0;
+          final rawTileWidth =
+              (constraints.maxWidth - (spacing * 5)).clamp(
+                0.0,
+                double.infinity,
+              ) /
+              6;
+          final tileHeight = (rawTileWidth * 1.28).clamp(44.0, 58.0).toDouble();
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: tileHeight,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ExcludeSemantics(
+                      child: Row(
+                        children: [
+                          for (var index = 0; index < 6; index++) ...[
+                            Expanded(
+                              child: _OtpDigitTile(
+                                digit: index < code.length ? code[index] : '',
+                                height: tileHeight,
+                                isActive:
+                                    focusNode.hasFocus && focusedIndex == index,
+                                isFilled: index < code.length,
+                                enabled: enabled,
+                              ),
+                            ),
+                            if (index < 5) SizedBox(width: spacing),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        ignoring: !enabled,
+                        child: Opacity(
+                          opacity: 0.02,
+                          child: TextField(
+                            key: const Key('otp-code-input'),
+                            controller: controller,
+                            focusNode: focusNode,
+                            enabled: enabled,
+                            keyboardType: TextInputType.number,
+                            textInputAction: TextInputAction.done,
+                            autofillHints: const [AutofillHints.oneTimeCode],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(6),
+                            ],
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                              isCollapsed: true,
+                            ),
+                            cursorColor: Colors.transparent,
+                            showCursor: false,
+                            style: const TextStyle(color: Colors.transparent),
+                            onChanged: onChanged,
+                            onSubmitted: onSubmitted,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                l10n.authOtpHelpText,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _OtpDigitTile extends StatelessWidget {
+  const _OtpDigitTile({
+    required this.digit,
+    required this.height,
+    required this.isActive,
+    required this.isFilled,
+    required this.enabled,
+  });
+
+  final String digit;
+  final double height;
+  final bool isActive;
+  final bool isFilled;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final borderColor = isActive
+        ? colorScheme.primary
+        : isFilled
+        ? colorScheme.outline
+        : colorScheme.outlineVariant;
+    final backgroundColor = isActive
+        ? colorScheme.primaryContainer
+        : isFilled
+        ? colorScheme.surfaceContainerHighest
+        : colorScheme.surface;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      height: height,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: enabled
+            ? backgroundColor
+            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor, width: isActive ? 2 : 1.2),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: colorScheme.primary.withValues(alpha: 0.18),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : null,
+      ),
+      child: Text(
+        digit,
+        style: theme.textTheme.headlineSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: enabled
+              ? colorScheme.onSurface
+              : colorScheme.onSurface.withValues(alpha: 0.5),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickBenefitsCard extends StatelessWidget {
+  const _QuickBenefitsCard({required this.isSandbox});
+
+  final bool isSandbox;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.authQuickBenefitsTitle,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.authQuickBenefitsDescription,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _BenefitChip(
+                  icon: Icons.sms_outlined,
+                  label: l10n.authQuickBenefitAutoContinue,
+                ),
+                _BenefitChip(
+                  icon: Icons.family_restroom_outlined,
+                  label: l10n.authQuickBenefitMultipleAccess,
+                ),
+                _BenefitChip(
+                  icon: isSandbox
+                      ? Icons.science_outlined
+                      : Icons.verified_user_outlined,
+                  label: isSandbox
+                      ? l10n.authQuickBenefitSandbox
+                      : l10n.authQuickBenefitLive,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BenefitChip extends StatelessWidget {
+  const _BenefitChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -711,26 +1146,35 @@ class _AuthFormCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextButton.icon(
-              onPressed: onBack,
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Back'),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: onBack,
+                  icon: const Icon(Icons.arrow_back),
+                  label: Text(context.l10n.authBack),
+                ),
+                const Spacer(),
+                Icon(Icons.lock_outline, color: colorScheme.primary),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
               title,
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 10),
-            Text(description, style: Theme.of(context).textTheme.bodyLarge),
+            Text(description, style: theme.textTheme.bodyLarge),
             const SizedBox(height: 24),
             child,
           ],

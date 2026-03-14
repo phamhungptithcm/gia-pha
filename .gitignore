@@ -4,6 +4,7 @@ site/
 dist/
 __pycache__/
 .pytest_cache/
+.codex-artifacts/
 .firebase/
 firebase-debug.log
 firebase-debug.*.log

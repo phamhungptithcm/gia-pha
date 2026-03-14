@@ -1,10 +1,14 @@
+import '../models/auth_issue.dart';
+
 class ChildIdentifierFormatter {
   const ChildIdentifierFormatter._();
 
   static String normalize(String input) {
     final trimmed = input.trim();
     if (trimmed.isEmpty) {
-      throw FormatException('Enter a child identifier to continue.');
+      throw const AuthIssueException(
+        AuthIssue(AuthIssueKey.childIdentifierRequired),
+      );
     }
 
     final normalized = trimmed
@@ -13,8 +17,8 @@ class ChildIdentifierFormatter {
         .replaceAll(RegExp(r'[^A-Z0-9_-]'), '');
 
     if (normalized.length < 4) {
-      throw FormatException(
-        'Enter a valid child identifier with at least 4 characters.',
+      throw const AuthIssueException(
+        AuthIssue(AuthIssueKey.childIdentifierInvalid),
       );
     }
 

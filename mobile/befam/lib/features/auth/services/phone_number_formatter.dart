@@ -1,3 +1,5 @@
+import '../models/auth_issue.dart';
+
 class ParsedPhoneNumber {
   const ParsedPhoneNumber({required this.rawInput, required this.e164});
 
@@ -11,7 +13,7 @@ class PhoneNumberFormatter {
   static ParsedPhoneNumber parse(String input) {
     final trimmed = input.trim();
     if (trimmed.isEmpty) {
-      throw FormatException('Enter your phone number to continue.');
+      throw const AuthIssueException(AuthIssue(AuthIssueKey.phoneRequired));
     }
 
     final digitsAndPlus = trimmed.replaceAll(RegExp(r'[^0-9+]'), '');
@@ -29,8 +31,8 @@ class PhoneNumberFormatter {
     }
 
     if (!RegExp(r'^\+[1-9]\d{8,14}$').hasMatch(normalized)) {
-      throw FormatException(
-        'Enter a valid phone number with country code or local Vietnamese format.',
+      throw const AuthIssueException(
+        AuthIssue(AuthIssueKey.phoneInvalidFormat),
       );
     }
 
