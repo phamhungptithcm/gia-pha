@@ -68,7 +68,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Read model gia phả'), findsOneWidget);
+    expect(find.text('Không gian cây gia phả'), findsOneWidget);
     expect(
       find.byKey(const Key('genealogy-summary-members-5')),
       findsOneWidget,

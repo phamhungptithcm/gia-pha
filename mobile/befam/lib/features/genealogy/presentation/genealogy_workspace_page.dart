@@ -33,7 +33,7 @@ class GenealogyWorkspacePage extends StatefulWidget {
 class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     with TickerProviderStateMixin {
   static const _nodeWidth = 232.0;
-  static const _nodeHeight = 128.0;
+  static const _nodeHeight = 146.0;
   static const _rowSpacing = 128.0;
   static const _columnSpacing = 48.0;
   static const _canvasPadding = 40.0;
@@ -296,6 +296,13 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                       spouseCount: segment.graph
                                           .spousesOf(entry.key)
                                           .length,
+                                      isAlive: _isMemberAlive(
+                                        segment.graph.membersById[entry.key]!,
+                                      ),
+                                      aliveStatusLabel:
+                                          l10n.genealogyMemberAliveStatus,
+                                      deceasedStatusLabel:
+                                          l10n.genealogyMemberDeceasedStatus,
                                       isSelected:
                                           _selectedMemberId == entry.key,
                                       onTap: () {
@@ -317,6 +324,27 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                           ),
                                         );
                                       },
+                                      onViewMemberInfo: () {
+                                        final member = segment
+                                            .graph
+                                            .membersById[entry.key]!;
+                                        setState(() {
+                                          _selectedMemberId = member.id;
+                                        });
+                                        _centerOnMember(
+                                          memberId: member.id,
+                                          scene: scene,
+                                          viewport: viewport,
+                                        );
+                                        unawaited(
+                                          _openMemberDetailSheet(
+                                            member: member,
+                                            graph: segment.graph,
+                                          ),
+                                        );
+                                      },
+                                      viewInfoTooltip:
+                                          l10n.genealogyViewMemberInfoAction,
                                     ),
                                   ),
                               ],
@@ -328,6 +356,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                         right: 12,
                         bottom: 12,
                         child: _TreeMetricCard(
+                          l10n: l10n,
                           members: scene.visibleMemberIds.length,
                           edges:
                               scene.parentChildEdges.length +
@@ -791,51 +820,59 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       showDragHandle: true,
       builder: (context) {
         final theme = Theme.of(context);
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                member.fullName,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  member.fullName,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              if (member.nickName.trim().isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(member.nickName, style: theme.textTheme.bodyLarge),
+                if (member.nickName.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(member.nickName, style: theme.textTheme.bodyLarge),
+                ],
+                const SizedBox(height: 14),
+                _FactLine(
+                  label: l10n.genealogyMemberStatusLabel,
+                  value: _isMemberAlive(member)
+                      ? l10n.genealogyMemberAliveStatus
+                      : l10n.genealogyMemberDeceasedStatus,
+                ),
+                _FactLine(
+                  label: l10n.genealogyGenerationLabel,
+                  value:
+                      graph.generationLabels[member.id]?.compactLabel ??
+                      'G${member.generation}',
+                ),
+                _FactLine(
+                  label: l10n.genealogyParentCountLabel,
+                  value: '${graph.parentsOf(member.id).length}',
+                ),
+                _FactLine(
+                  label: l10n.genealogyChildCountLabel,
+                  value: '${graph.childrenOf(member.id).length}',
+                ),
+                _FactLine(
+                  label: l10n.genealogySpouseCountLabel,
+                  value: '${graph.spousesOf(member.id).length}',
+                ),
+                _FactLine(
+                  label: l10n.genealogyDescendantCountLabel,
+                  value: '${descendants.length}',
+                ),
+                _FactLine(
+                  label: l10n.genealogyAncestryPathTitle,
+                  value: '${ancestry.length}',
+                  isLast: true,
+                ),
               ],
-              const SizedBox(height: 14),
-              _FactLine(
-                label: l10n.genealogyGenerationLabel,
-                value:
-                    graph.generationLabels[member.id]?.compactLabel ??
-                    'G${member.generation}',
-              ),
-              _FactLine(
-                label: l10n.genealogyParentCountLabel,
-                value: '${graph.parentsOf(member.id).length}',
-              ),
-              _FactLine(
-                label: l10n.genealogyChildCountLabel,
-                value: '${graph.childrenOf(member.id).length}',
-              ),
-              _FactLine(
-                label: l10n.genealogySpouseCountLabel,
-                value: '${graph.spousesOf(member.id).length}',
-              ),
-              _FactLine(
-                label: l10n.genealogyDescendantCountLabel,
-                value: '${descendants.length}',
-              ),
-              _FactLine(
-                label: l10n.genealogyAncestryPathTitle,
-                value: '${ancestry.length}',
-                isLast: true,
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -875,6 +912,15 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       GenealogyScopeType.clan => l10n.genealogyScopeClan,
       GenealogyScopeType.branch => l10n.genealogyScopeBranch,
     };
+  }
+
+  bool _isMemberAlive(MemberProfile member) {
+    final deathDate = member.deathDate?.trim() ?? '';
+    if (deathDate.isNotEmpty) {
+      return false;
+    }
+    final normalizedStatus = member.status.trim().toLowerCase();
+    return normalizedStatus != 'deceased' && normalizedStatus != 'dead';
   }
 }
 
@@ -1125,8 +1171,13 @@ class _MemberNodeCard extends StatelessWidget {
     required this.parentCount,
     required this.childCount,
     required this.spouseCount,
+    required this.isAlive,
+    required this.aliveStatusLabel,
+    required this.deceasedStatusLabel,
     required this.isSelected,
     required this.onTap,
+    required this.onViewMemberInfo,
+    required this.viewInfoTooltip,
   });
 
   final MemberProfile member;
@@ -1134,8 +1185,13 @@ class _MemberNodeCard extends StatelessWidget {
   final int parentCount;
   final int childCount;
   final int spouseCount;
+  final bool isAlive;
+  final String aliveStatusLabel;
+  final String deceasedStatusLabel;
   final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback onViewMemberInfo;
+  final String viewInfoTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -1154,11 +1210,12 @@ class _MemberNodeCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   CircleAvatar(
                     radius: 18,
@@ -1171,42 +1228,109 @@ class _MemberNodeCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      member.fullName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          member.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        _StatusChip(
+                          isAlive: isAlive,
+                          aliveStatusLabel: aliveStatusLabel,
+                          deceasedStatusLabel: deceasedStatusLabel,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Tooltip(
+                    message: viewInfoTooltip,
+                    child: IconButton(
+                      visualDensity: VisualDensity.compact,
+                      iconSize: 16,
+                      splashRadius: 16,
+                      onPressed: onViewMemberInfo,
+                      icon: const Icon(Icons.info_outline),
                     ),
                   ),
                 ],
               ),
-              const Spacer(),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  _MiniFactChip(
-                    icon: Icons.layers_outlined,
-                    label: generationLabel,
+              const SizedBox(height: 6),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _MiniFactChip(
+                          icon: Icons.layers_outlined,
+                          label: generationLabel,
+                        ),
+                        const SizedBox(width: 8),
+                        _MiniFactChip(
+                          icon: Icons.north_outlined,
+                          label: '$parentCount',
+                        ),
+                        const SizedBox(width: 8),
+                        _MiniFactChip(
+                          icon: Icons.south_outlined,
+                          label: '$childCount',
+                        ),
+                        const SizedBox(width: 8),
+                        _MiniFactChip(
+                          icon: Icons.favorite_border,
+                          label: '$spouseCount',
+                        ),
+                      ],
+                    ),
                   ),
-                  _MiniFactChip(
-                    icon: Icons.north_outlined,
-                    label: '$parentCount',
-                  ),
-                  _MiniFactChip(
-                    icon: Icons.south_outlined,
-                    label: '$childCount',
-                  ),
-                  _MiniFactChip(
-                    icon: Icons.favorite_border,
-                    label: '$spouseCount',
-                  ),
-                ],
+                ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.isAlive,
+    required this.aliveStatusLabel,
+    required this.deceasedStatusLabel,
+  });
+
+  final bool isAlive;
+  final String aliveStatusLabel;
+  final String deceasedStatusLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: isAlive
+            ? colorScheme.tertiaryContainer
+            : colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Text(
+          isAlive ? aliveStatusLabel : deceasedStatusLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -1318,6 +1442,7 @@ class _TreeConnectorPainter extends CustomPainter {
 
 class _TreeMetricCard extends StatelessWidget {
   const _TreeMetricCard({
+    required this.l10n,
     required this.members,
     required this.edges,
     required this.latestLayoutMs,
@@ -1325,6 +1450,7 @@ class _TreeMetricCard extends StatelessWidget {
     required this.peakLayoutMs,
   });
 
+  final AppLocalizations l10n;
   final int members;
   final int edges;
   final int latestLayoutMs;
@@ -1349,11 +1475,11 @@ class _TreeMetricCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Nodes: $members'),
-              Text('Edges: $edges'),
-              Text('Layout: ${latestLayoutMs}ms'),
-              Text('Avg: ${averageLayoutMs}ms'),
-              Text('Peak: ${peakLayoutMs}ms'),
+              Text(l10n.genealogyMetricNodes(members)),
+              Text(l10n.genealogyMetricEdges(edges)),
+              Text(l10n.genealogyMetricLayout(latestLayoutMs)),
+              Text(l10n.genealogyMetricAverage(averageLayoutMs)),
+              Text(l10n.genealogyMetricPeak(peakLayoutMs)),
             ],
           ),
         ),

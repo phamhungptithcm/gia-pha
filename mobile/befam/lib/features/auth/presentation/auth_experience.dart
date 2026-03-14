@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../../app/bootstrap/firebase_setup_status.dart';
 import '../../../app/home/app_shell_page.dart';
 import '../../../core/services/app_logger.dart';
+import '../../../core/services/app_locale_controller.dart';
 import '../../../l10n/l10n.dart';
 import '../../clan/services/clan_repository.dart';
 import '../../member/services/member_repository.dart';
@@ -26,6 +27,7 @@ class AuthExperience extends StatefulWidget {
     this.sessionStore,
     this.clanRepository,
     this.memberRepository,
+    this.localeController,
   });
 
   final FirebaseSetupStatus status;
@@ -34,6 +36,7 @@ class AuthExperience extends StatefulWidget {
   final AuthSessionStore? sessionStore;
   final ClanRepository? clanRepository;
   final MemberRepository? memberRepository;
+  final AppLocaleController? localeController;
 
   @override
   State<AuthExperience> createState() => _AuthExperienceState();
@@ -78,6 +81,7 @@ class _AuthExperienceState extends State<AuthExperience> {
                 widget.clanRepository ?? createDefaultClanRepository(),
             memberRepository:
                 widget.memberRepository ?? createDefaultMemberRepository(),
+            localeController: widget.localeController,
             onLogoutRequested: _controller.logout,
           );
         }

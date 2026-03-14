@@ -332,6 +332,43 @@ class AppLocalizationsEn extends AppLocalizations {
   String get genealogyDescendantCountLabel => 'Descendants';
 
   @override
+  String get genealogyMemberStatusLabel => 'Status';
+
+  @override
+  String get genealogyMemberAliveStatus => 'Alive';
+
+  @override
+  String get genealogyMemberDeceasedStatus => 'Deceased';
+
+  @override
+  String get genealogyViewMemberInfoAction => 'View member details';
+
+  @override
+  String genealogyMetricNodes(int count) {
+    return 'Nodes: $count';
+  }
+
+  @override
+  String genealogyMetricEdges(int count) {
+    return 'Edges: $count';
+  }
+
+  @override
+  String genealogyMetricLayout(int millis) {
+    return 'Layout: ${millis}ms';
+  }
+
+  @override
+  String genealogyMetricAverage(int millis) {
+    return 'Avg: ${millis}ms';
+  }
+
+  @override
+  String genealogyMetricPeak(int millis) {
+    return 'Peak: ${millis}ms';
+  }
+
+  @override
   String get genealogyRootReasonCurrentMember => 'Current member';
 
   @override
@@ -359,6 +396,113 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get shellProfileWorkspaceDescription =>
       'Member identity, settings, and household context will grow from this placeholder.';
+
+  @override
+  String get profileRefreshAction => 'Refresh profile';
+
+  @override
+  String get profileOpenSettingsAction => 'Open settings';
+
+  @override
+  String get profileNoContextTitle => 'Missing member context';
+
+  @override
+  String get profileNoContextDescription =>
+      'Link this account to a member profile before managing personal settings.';
+
+  @override
+  String get profileUpdateSuccess => 'Profile updated successfully.';
+
+  @override
+  String get profileUpdateErrorTitle => 'Could not update profile';
+
+  @override
+  String get profileDetailsSectionTitle => 'Profile details';
+
+  @override
+  String get profileAccountSectionTitle => 'Account';
+
+  @override
+  String get profileLogoutDialogTitle => 'Log out?';
+
+  @override
+  String get profileLogoutDialogDescription =>
+      'You can sign back in at any time with your linked account.';
+
+  @override
+  String get profileSettingsLogoutDescription =>
+      'This confirmation helps prevent accidental sign-out while managing settings.';
+
+  @override
+  String get profileCancelAction => 'Cancel';
+
+  @override
+  String get profileSettingsTitle => 'Settings';
+
+  @override
+  String get profileSettingsOverviewTitle => 'Settings overview';
+
+  @override
+  String get profileSettingsOverviewDescription =>
+      'Manage your app language, notification preferences, and session settings in one place.';
+
+  @override
+  String get profileLanguageSectionTitle => 'Language';
+
+  @override
+  String get profileLanguageSectionDescription =>
+      'Choose the display language used across the app.';
+
+  @override
+  String get profileLanguageVietnamese => 'Tiếng Việt';
+
+  @override
+  String get profileLanguageVietnameseSubtitle =>
+      'Use Vietnamese across all screens';
+
+  @override
+  String get profileLanguageEnglish => 'English';
+
+  @override
+  String get profileLanguageEnglishSubtitle => 'Use English across all screens';
+
+  @override
+  String get profileSecuritySectionTitle => 'Privacy and security';
+
+  @override
+  String get profileSecurityPlaceholderTitle => 'Security settings coming soon';
+
+  @override
+  String get profileSecurityPlaceholderDescription =>
+      'Advanced sign-in and session protection controls will be added in a later release.';
+
+  @override
+  String get profileSessionSectionTitle => 'Session';
+
+  @override
+  String get profileNotificationFundAlerts => 'Fund transaction alerts';
+
+  @override
+  String get profileEditSheetTitle => 'Edit profile';
+
+  @override
+  String get profileEditSheetDescription =>
+      'Update member details and contact links so your profile stays complete and easy to use.';
+
+  @override
+  String get profileSaveErrorTitle => 'Could not save profile';
+
+  @override
+  String get profileFacebookUrlLabel => 'Facebook URL';
+
+  @override
+  String get profileZaloUrlLabel => 'Zalo URL';
+
+  @override
+  String get profileLinkedinUrlLabel => 'LinkedIn URL';
+
+  @override
+  String get profileSavingAction => 'Saving...';
 
   @override
   String get shellMoreActions => 'More actions';
