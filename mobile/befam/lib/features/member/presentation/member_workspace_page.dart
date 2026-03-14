@@ -13,6 +13,8 @@ import '../models/member_draft.dart';
 import '../models/member_profile.dart';
 import '../models/member_social_links.dart';
 import '../services/member_avatar_picker.dart';
+import '../services/member_search_analytics_service.dart';
+import '../services/member_search_provider.dart';
 import '../services/member_repository.dart';
 import 'member_controller.dart';
 
@@ -23,12 +25,16 @@ class MemberWorkspacePage extends StatefulWidget {
     required this.repository,
     this.avatarPicker,
     this.relationshipRepository,
+    this.searchProvider,
+    this.searchAnalyticsService,
   });
 
   final AuthSession session;
   final MemberRepository repository;
   final MemberAvatarPicker? avatarPicker;
   final RelationshipRepository? relationshipRepository;
+  final MemberSearchProvider? searchProvider;
+  final MemberSearchAnalyticsService? searchAnalyticsService;
 
   @override
   State<MemberWorkspacePage> createState() => _MemberWorkspacePageState();
@@ -46,6 +52,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
     _controller = MemberController(
       repository: widget.repository,
       session: widget.session,
+      searchProvider: widget.searchProvider,
+      searchAnalyticsService: widget.searchAnalyticsService,
     );
     _avatarPicker = widget.avatarPicker ?? createDefaultMemberAvatarPicker();
     _relationshipRepository =
@@ -122,6 +130,10 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final l10n = context.l10n;
+        final hasActiveFilters =
+            _controller.filters.query.trim().isNotEmpty ||
+            _controller.filters.branchId != null ||
+            _controller.filters.generation != null;
 
         return Scaffold(
           appBar: AppBar(
@@ -247,6 +259,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                               : null,
                           child: _controller.isSearching
                               ? _SearchStateCard(
+                                  key: const Key('member-search-loading-state'),
                                   icon: Icons.search,
                                   title: l10n.memberSearchLabel,
                                   description: l10n.memberSearchHint,
@@ -259,20 +272,49 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                                 )
                               : _controller.searchError != null
                               ? _SearchStateCard(
+                                  key: const Key('member-search-error-state'),
                                   icon: Icons.wifi_tethering_error_outlined,
                                   title: l10n.memberLoadErrorTitle,
                                   description: l10n.memberLoadErrorDescription,
                                   trailing: TextButton.icon(
+                                    key: const Key(
+                                      'member-search-retry-action',
+                                    ),
                                     onPressed: _controller.retrySearch,
                                     icon: const Icon(Icons.refresh),
                                     label: Text(l10n.memberRefreshAction),
                                   ),
                                 )
                               : _controller.filteredMembers.isEmpty
-                              ? _WorkspaceEmptyState(
+                              ? _SearchStateCard(
+                                  key: const Key('member-search-empty-state'),
                                   icon: Icons.person_search_outlined,
-                                  title: l10n.memberListEmptyTitle,
-                                  description: l10n.memberListEmptyDescription,
+                                  title: hasActiveFilters
+                                      ? l10n.memberSearchLabel
+                                      : l10n.memberListEmptyTitle,
+                                  description: hasActiveFilters
+                                      ? l10n.memberSearchHint
+                                      : l10n.memberListEmptyDescription,
+                                  trailing: hasActiveFilters
+                                      ? TextButton.icon(
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            _controller.updateSearchQuery('');
+                                            _controller.updateBranchFilter(
+                                              null,
+                                            );
+                                            _controller.updateGenerationFilter(
+                                              null,
+                                            );
+                                          },
+                                          icon: const Icon(
+                                            Icons.filter_alt_off_outlined,
+                                          ),
+                                          label: Text(
+                                            l10n.memberClearFiltersAction,
+                                          ),
+                                        )
+                                      : null,
                                 )
                               : Column(
                                   children: [
@@ -289,7 +331,9 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                                               : 14,
                                         ),
                                         child: _MemberSummaryCard(
-                                          key: Key('member-row-${member.id}'),
+                                          key: Key(
+                                            'member-search-result-${member.id}',
+                                          ),
                                           member: member,
                                           branchName: _controller.branchName(
                                             member.branchId,
@@ -1097,6 +1141,10 @@ class _FilterPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final hasActiveFilters =
+        searchController.text.trim().isNotEmpty ||
+        filtersBranchId != null ||
+        filtersGeneration != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1109,6 +1157,17 @@ class _FilterPanel extends StatelessWidget {
             prefixIcon: const Icon(Icons.search),
             labelText: l10n.memberSearchLabel,
             hintText: l10n.memberSearchHint,
+            suffixIcon: searchController.text.trim().isEmpty
+                ? null
+                : IconButton(
+                    key: const Key('members-search-clear-query'),
+                    tooltip: l10n.memberClearFiltersAction,
+                    onPressed: () {
+                      searchController.clear();
+                      onSearchChanged('');
+                    },
+                    icon: const Icon(Icons.close),
+                  ),
           ),
         ),
         const SizedBox(height: 14),
@@ -1120,6 +1179,7 @@ class _FilterPanel extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Wrap(
+          key: const Key('members-branch-filter-wrap'),
           spacing: 10,
           runSpacing: 10,
           children: [
@@ -1149,6 +1209,7 @@ class _FilterPanel extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Wrap(
+          key: const Key('members-generation-filter-wrap'),
           spacing: 10,
           runSpacing: 10,
           children: [
@@ -1173,7 +1234,8 @@ class _FilterPanel extends StatelessWidget {
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            onPressed: onClearFilters,
+            key: const Key('members-clear-filters'),
+            onPressed: hasActiveFilters ? onClearFilters : null,
             icon: const Icon(Icons.filter_alt_off_outlined),
             label: Text(l10n.memberClearFiltersAction),
           ),
@@ -1231,6 +1293,20 @@ class _MemberSummaryCard extends StatelessWidget {
                         color: colorScheme.primary,
                       ),
                     ),
+                    if (member.nickName.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      _HighlightedText(
+                        text: member.nickName,
+                        query: highlightQuery,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        highlightStyle: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     Wrap(
                       spacing: 10,
@@ -1439,6 +1515,7 @@ class _SectionCard extends StatelessWidget {
 
 class _SearchStateCard extends StatelessWidget {
   const _SearchStateCard({
+    super.key,
     required this.icon,
     required this.title,
     required this.description,
