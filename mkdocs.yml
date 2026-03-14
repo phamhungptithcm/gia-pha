@@ -1,6 +1,6 @@
-site_name: Family Clan App
+site_name: BeFam Docs
 site_description: Digital genealogy and clan management platform documentation
-site_author: Family Clan App Team
+site_author: BeFam Team
 site_url: https://phamhungptithcm.github.io/gia-pha/
 repo_url: https://github.com/phamhungptithcm/gia-pha
 repo_name: phamhungptithcm/gia-pha
@@ -30,7 +30,7 @@ markdown_extensions:
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
 
-copyright: "© 2026 Gia Pha. All rights reserved."
+copyright: "© 2026 BeFam. All rights reserved."
 
 extra_css:
   - stylesheets/extra.css

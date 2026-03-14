@@ -3,6 +3,11 @@
 
 This document explains how to model, query, build, and render very large genealogy trees efficiently.
 
+> Implementation note (March 14, 2026): this document defines the target
+> algorithm strategy. Current shipped tree behavior is documented in
+> `docs/02-architecture/data-model.md` and
+> `docs/03-mobile/navigation.md` (Tree workspace section).
+
 ## 1. Problem Statement
 
 A genealogy tree is a graph-like structure with:
