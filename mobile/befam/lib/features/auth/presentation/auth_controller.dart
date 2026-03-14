@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
+import '../../../core/services/runtime_mode.dart';
 import '../models/auth_entry_method.dart';
 import '../models/auth_issue.dart';
 import '../models/auth_otp_request_result.dart';
@@ -20,6 +21,11 @@ enum AuthStep { loginMethodSelection, phoneNumber, childIdentifier, otp }
 typedef AuthOtpAction = Future<AuthOtpRequestResult> Function();
 
 class AuthController extends ChangeNotifier {
+  static const String _localBypassPhoneE164 = String.fromEnvironment(
+    'BEFAM_LOCAL_BYPASS_PHONE',
+    defaultValue: '+84901234567',
+  );
+
   AuthController({
     required AuthGateway authGateway,
     required AuthAnalyticsService analyticsService,
@@ -45,6 +51,7 @@ class AuthController extends ChangeNotifier {
   bool _disposed = false;
 
   bool get isSandbox => _authGateway.isSandbox;
+  bool get canUseLocalBypass => RuntimeMode.shouldBypassPhoneOtp;
 
   Future<void> initialize() async {
     if (_initialized) {
@@ -132,6 +139,39 @@ class AuthController extends ChangeNotifier {
       () => _authGateway.requestPhoneOtp(parsedPhone.e164),
       method: AuthEntryMethod.phone,
     );
+  }
+
+  Future<void> signInWithLocalBypass() async {
+    if (!canUseLocalBypass || isBusy) {
+      return;
+    }
+
+    _clearError();
+    unawaited(
+      _analyticsService.logLoginMethodSelected(
+        AuthEntryMethod.phone,
+        isSandbox: isSandbox,
+      ),
+    );
+
+    await _startOtpRequest(
+      () => _authGateway.requestPhoneOtp(_localBypassPhoneE164),
+      method: AuthEntryMethod.phone,
+    );
+
+    final challenge = pendingChallenge;
+    if (session != null || challenge == null) {
+      return;
+    }
+
+    final otpHint = challenge.debugOtpHint;
+    if (otpHint == null || !RegExp(r'^\d{6}$').hasMatch(otpHint)) {
+      error = const AuthIssue(AuthIssueKey.preparationFailed);
+      _emit();
+      return;
+    }
+
+    await verifyOtp(otpHint);
   }
 
   Future<void> submitChildIdentifier(String rawChildIdentifier) async {
