@@ -13,11 +13,12 @@ Runs on pull requests and pushes to `staging` and `main`.
 Checks performed:
 
 - install Python 3.12 and run `mkdocs build --strict`
-- build the production docs Docker image from the repository root
 - install Node.js 20 and run `npm ci && npm run build` in `firebase/functions`
+- build the Firebase tooling image from `docker/firebase-tools.Dockerfile`
 - install Flutter and run `flutter analyze`
 - run `flutter test`
 - build the Android release APK path with `flutter build apk --release`
+- build the BeFam mobile release-builder image from the repository root
 
 The `ci-docs`, `ci-functions`, and `ci-mobile` jobs are required status checks in
 the branch rulesets for both protected branches.
@@ -83,8 +84,9 @@ Release flow:
 3. create the Git tag if this is a fresh production merge
 4. generate friendly release notes with `scripts/generate_release_notes.mjs`
 5. build the Android release APK with the computed release version
-6. build and push the docs image to `ghcr.io/phamhungptithcm/gia-pha-docs`
-7. create or update the GitHub release and attach the APK asset
+6. build and push the BeFam mobile builder image to `ghcr.io/phamhungptithcm/befam-mobile-builder`
+7. build and push the Firebase tooling image to `ghcr.io/phamhungptithcm/befam-firebase-tools`
+8. create or update the GitHub release and attach the APK asset
 
 ### `weekly-release-promotion.yml`
 
@@ -178,4 +180,5 @@ Current production automation on `main` now:
 3. generates release notes from commit history
 4. publishes a GitHub release
 5. uploads the Android release APK
-6. pushes the docs image to GHCR
+6. pushes the BeFam mobile builder image to GHCR
+7. pushes the Firebase tooling image to GHCR
