@@ -42,7 +42,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
         'Plan clan events, memorial days, and reminders from a shared calendar.',
     'route': '/events',
     'iconKey': 'events',
-    'status': 'planned',
+    'status': 'live',
     'isPrimary': true,
   },
   {
@@ -52,7 +52,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
         'Track contribution funds, transaction history, and transparent balances.',
     'route': '/funds',
     'iconKey': 'funds',
-    'status': 'planned',
+    'status': 'live',
   },
   {
     'id': 'scholarship',

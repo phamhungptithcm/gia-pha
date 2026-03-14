@@ -4,16 +4,19 @@ import 'package:flutter/material.dart';
 
 import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
+import '../../features/events/presentation/event_workspace_page.dart';
+import '../../features/events/services/event_repository.dart';
+import '../../features/funds/presentation/fund_workspace_page.dart';
+import '../../features/funds/services/fund_repository.dart';
 import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
-import '../../features/notifications/presentation/notification_inbox_page.dart';
 import '../../features/notifications/presentation/notification_settings_placeholder_page.dart';
 import '../../features/notifications/presentation/notification_target_page.dart';
-import '../../features/notifications/models/notification_inbox_item.dart';
-import '../../features/notifications/services/notification_inbox_repository.dart';
 import '../../features/notifications/services/push_notification_service.dart';
+import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
+import '../../features/scholarship/services/scholarship_repository.dart';
 import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
@@ -30,8 +33,9 @@ class AppShellPage extends StatefulWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    this.eventRepository,
+    this.fundRepository,
     this.genealogyRepository,
-    this.notificationInboxRepository,
     this.pushNotificationService,
     this.onLogoutRequested,
   });
@@ -40,8 +44,9 @@ class AppShellPage extends StatefulWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final EventRepository? eventRepository;
+  final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
-  final NotificationInboxRepository? notificationInboxRepository;
   final PushNotificationService? pushNotificationService;
   final Future<void> Function()? onLogoutRequested;
 
@@ -52,7 +57,8 @@ class AppShellPage extends StatefulWidget {
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
   late final GenealogyReadRepository _genealogyRepository;
-  late final NotificationInboxRepository _notificationInboxRepository;
+  late final EventRepository _eventRepository;
+  late final FundRepository _fundRepository;
   late final PushNotificationService _pushNotificationService;
   String? _lastOpenedNotificationMessageId;
 
@@ -84,9 +90,8 @@ class _AppShellPageState extends State<AppShellPage> {
     super.initState();
     _genealogyRepository =
         widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
-    _notificationInboxRepository =
-        widget.notificationInboxRepository ??
-        createDefaultNotificationInboxRepository();
+    _eventRepository = widget.eventRepository ?? createDefaultEventRepository();
+    _fundRepository = widget.fundRepository ?? createDefaultFundRepository();
     _pushNotificationService =
         widget.pushNotificationService ??
         createDefaultPushNotificationService();
@@ -101,7 +106,7 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void didUpdateWidget(covariant AppShellPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.session.uid != widget.session.uid) {
+    if (oldWidget.session != widget.session) {
       unawaited(
         _pushNotificationService.start(
           session: widget.session,
@@ -154,22 +159,6 @@ class _AppShellPageState extends State<AppShellPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
-  }
-
-  void _handleInboxNotificationOpen(NotificationInboxItem item) {
-    final targetType = switch (item.target) {
-      NotificationInboxTarget.event => NotificationTargetType.event,
-      NotificationInboxTarget.scholarship => NotificationTargetType.scholarship,
-      NotificationInboxTarget.generic ||
-      NotificationInboxTarget.unknown => NotificationTargetType.unknown,
-    };
-
-    _openNotificationTargetPage(
-      targetType: targetType,
-      referenceId: item.targetId,
-      sourceTitle: item.title,
-      sourceBody: item.body,
-    );
   }
 
   void _openNotificationTargetPage({
@@ -261,9 +250,15 @@ class _AppShellPageState extends State<AppShellPage> {
         session: widget.session,
         clanRepository: widget.clanRepository,
         memberRepository: widget.memberRepository,
+        fundRepository: _fundRepository,
         onOpenTreeRequested: () {
           setState(() {
             _selectedIndex = 1;
+          });
+        },
+        onOpenEventsRequested: () {
+          setState(() {
+            _selectedIndex = 2;
           });
         },
       ),
@@ -271,11 +266,7 @@ class _AppShellPageState extends State<AppShellPage> {
         session: widget.session,
         repository: _genealogyRepository,
       ),
-      NotificationInboxPage(
-        session: widget.session,
-        repository: _notificationInboxRepository,
-        onOpenTarget: _handleInboxNotificationOpen,
-      ),
+      EventWorkspacePage(session: widget.session, repository: _eventRepository),
       const NotificationSettingsPlaceholderPage(),
     ];
 
@@ -350,14 +341,18 @@ class _HomeDashboard extends StatelessWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    required this.fundRepository,
     required this.onOpenTreeRequested,
+    required this.onOpenEventsRequested,
   });
 
   final FirebaseSetupStatus status;
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final FundRepository fundRepository;
   final VoidCallback onOpenTreeRequested;
+  final VoidCallback onOpenEventsRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -552,7 +547,32 @@ class _HomeDashboard extends StatelessWidget {
           ),
         );
       },
+      'scholarship' => () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return ScholarshipWorkspacePage(
+                session: session,
+                repository: createDefaultScholarshipRepository(),
+              );
+            },
+          ),
+        );
+      },
       'tree' => onOpenTreeRequested,
+      'events' => onOpenEventsRequested,
+      'funds' => () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return FundWorkspacePage(
+                session: session,
+                repository: fundRepository,
+              );
+            },
+          ),
+        );
+      },
       _ => null,
     };
   }

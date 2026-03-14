@@ -9,6 +9,8 @@ that supports both foreground and system-opened deep links.
 
 1. Authenticated app starts push service in `AppShellPage`.
 2. Device token is registered through callable `registerDeviceToken`.
+   - token sync runs on first bootstrap and whenever session context changes
+     (member/clan/branch/access mode), even if the Firebase UID is unchanged
 3. Fallback path writes token directly to `users/{uid}/deviceTokens`.
 4. Backend triggers call `notifyMembers(...)`.
 5. `notifyMembers` writes `notifications` docs and sends FCM multicast.

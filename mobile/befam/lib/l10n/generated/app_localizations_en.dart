@@ -1397,4 +1397,262 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get authIssuePreparationFailed =>
       'Something went wrong while preparing sign-in. Please try again.';
+
+  @override
+  String get eventWorkspaceTitle => 'Events workspace';
+
+  @override
+  String get eventRefreshAction => 'Refresh events';
+
+  @override
+  String get eventCreateAction => 'Create event';
+
+  @override
+  String get eventSaveSuccess => 'Event saved successfully.';
+
+  @override
+  String get eventNoContextTitle => 'Clan context is required';
+
+  @override
+  String get eventNoContextDescription =>
+      'Sign in with a linked clan profile to view and manage events.';
+
+  @override
+  String get eventHeroTitle => 'Shared clan schedule';
+
+  @override
+  String get eventHeroDescription =>
+      'Track ceremonies, memorials, and reminders from one timeline for your clan.';
+
+  @override
+  String get eventReadOnlyTitle => 'Read-only access';
+
+  @override
+  String get eventReadOnlyDescription =>
+      'This account can view events but cannot create or edit them yet.';
+
+  @override
+  String get eventLoadErrorTitle => 'Unable to load events';
+
+  @override
+  String get eventLoadErrorDescription =>
+      'Try refreshing. If the issue continues, verify your network and permissions.';
+
+  @override
+  String get eventStatTotal => 'Total events';
+
+  @override
+  String get eventStatUpcoming => 'Upcoming';
+
+  @override
+  String get eventStatMemorial => 'Memorial events';
+
+  @override
+  String get eventFilterSectionTitle => 'Search and filters';
+
+  @override
+  String get eventSearchLabel => 'Search events';
+
+  @override
+  String get eventSearchHint => 'Title, location, member, or description';
+
+  @override
+  String get eventFilterTypeAll => 'All';
+
+  @override
+  String get eventFilterClearAction => 'Clear';
+
+  @override
+  String get eventListSectionTitle => 'Event list';
+
+  @override
+  String get eventListEmptyTitle => 'No events yet';
+
+  @override
+  String get eventListEmptyDescription =>
+      'Create the first event for your clan schedule.';
+
+  @override
+  String get eventDetailTitle => 'Event details';
+
+  @override
+  String get eventEditAction => 'Edit';
+
+  @override
+  String get eventDetailNotFoundTitle => 'Event no longer available';
+
+  @override
+  String get eventDetailNotFoundDescription =>
+      'The event may have been removed or is outside the current workspace scope.';
+
+  @override
+  String get eventDetailTimingSection => 'Timing and recurrence';
+
+  @override
+  String get eventDetailReminderSection => 'Reminder offsets';
+
+  @override
+  String get eventReminderEmptyTitle => 'No reminders configured';
+
+  @override
+  String get eventReminderEmptyDescription =>
+      'Add reminder offsets to notify members before this event starts.';
+
+  @override
+  String get eventFieldType => 'Type';
+
+  @override
+  String get eventFieldBranch => 'Branch';
+
+  @override
+  String get eventFieldTargetMember => 'Target member';
+
+  @override
+  String get eventFieldLocationName => 'Location name';
+
+  @override
+  String get eventFieldLocationAddress => 'Location address';
+
+  @override
+  String get eventFieldDescription => 'Description';
+
+  @override
+  String get eventFieldStartsAt => 'Starts at';
+
+  @override
+  String get eventFieldEndsAt => 'Ends at';
+
+  @override
+  String get eventFieldTimezone => 'Timezone';
+
+  @override
+  String get eventFieldRecurring => 'Recurring';
+
+  @override
+  String get eventFieldRecurrenceRule => 'Recurrence rule';
+
+  @override
+  String get eventFieldVisibility => 'Visibility';
+
+  @override
+  String get eventFieldStatus => 'Status';
+
+  @override
+  String get eventFieldUnset => 'Not set';
+
+  @override
+  String get eventRecurringYes => 'Yes';
+
+  @override
+  String get eventRecurringNo => 'No';
+
+  @override
+  String get eventFormCreateTitle => 'Create event';
+
+  @override
+  String get eventFormEditTitle => 'Edit event';
+
+  @override
+  String get eventFormTitleLabel => 'Title';
+
+  @override
+  String get eventFormTitleHint => 'Example: Clan meeting, memorial ceremony';
+
+  @override
+  String get eventFormTypeLabel => 'Event type';
+
+  @override
+  String get eventFormBranchLabel => 'Branch scope';
+
+  @override
+  String get eventFormTargetMemberLabel => 'Memorial target member';
+
+  @override
+  String get eventFormRecurringMemorialLabel => 'Repeat yearly memorial';
+
+  @override
+  String get eventFormStartsAtLabel => 'Starts at';
+
+  @override
+  String get eventFormEndsAtLabel => 'Ends at';
+
+  @override
+  String get eventFormDateTimeHint => 'YYYY-MM-DD HH:mm';
+
+  @override
+  String get eventFormTimezoneLabel => 'Timezone';
+
+  @override
+  String get eventFormLocationNameLabel => 'Location name';
+
+  @override
+  String get eventFormLocationAddressLabel => 'Location address';
+
+  @override
+  String get eventFormDescriptionLabel => 'Description';
+
+  @override
+  String get eventFormReminderSectionTitle => 'Reminder offsets';
+
+  @override
+  String get eventFormReminderPresetWeek => '+7d';
+
+  @override
+  String get eventFormReminderPresetDay => '+1d';
+
+  @override
+  String get eventFormReminderPresetHours => '+2h';
+
+  @override
+  String get eventFormReminderCustomLabel => 'Custom offset (minutes)';
+
+  @override
+  String get eventFormReminderCustomHint => 'Example: 30';
+
+  @override
+  String get eventFormReminderAddAction => 'Add';
+
+  @override
+  String get eventFormSaveAction => 'Save event';
+
+  @override
+  String get eventValidationTitleRequired => 'Please enter an event title.';
+
+  @override
+  String get eventValidationTimeRange =>
+      'Start and end times are invalid. End time must be after start time.';
+
+  @override
+  String get eventValidationReminderOffsets =>
+      'Reminder offsets must be positive and unique.';
+
+  @override
+  String get eventValidationMemorialTarget =>
+      'Recurring memorial events need a target member.';
+
+  @override
+  String get eventValidationMemorialRule =>
+      'Recurring memorial events must use a yearly recurrence rule.';
+
+  @override
+  String get eventErrorPermission =>
+      'This session does not have permission to manage events.';
+
+  @override
+  String get eventErrorNotFound => 'The event could not be found.';
+
+  @override
+  String get eventTypeClanGathering => 'Clan gathering';
+
+  @override
+  String get eventTypeMeeting => 'Meeting';
+
+  @override
+  String get eventTypeBirthday => 'Birthday';
+
+  @override
+  String get eventTypeDeathAnniversary => 'Death anniversary';
+
+  @override
+  String get eventTypeOther => 'Other';
 }
