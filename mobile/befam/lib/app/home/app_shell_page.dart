@@ -8,6 +8,8 @@ import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
+import '../../features/notifications/presentation/notification_inbox_page.dart';
+import '../../features/notifications/services/notification_inbox_repository.dart';
 import '../../features/notifications/services/push_notification_service.dart';
 import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
@@ -26,6 +28,7 @@ class AppShellPage extends StatefulWidget {
     required this.clanRepository,
     required this.memberRepository,
     this.genealogyRepository,
+    this.notificationInboxRepository,
     this.pushNotificationService,
     this.onLogoutRequested,
   });
@@ -35,6 +38,7 @@ class AppShellPage extends StatefulWidget {
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
   final GenealogyReadRepository? genealogyRepository;
+  final NotificationInboxRepository? notificationInboxRepository;
   final PushNotificationService? pushNotificationService;
   final Future<void> Function()? onLogoutRequested;
 
@@ -45,6 +49,7 @@ class AppShellPage extends StatefulWidget {
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
   late final GenealogyReadRepository _genealogyRepository;
+  late final NotificationInboxRepository _notificationInboxRepository;
   late final PushNotificationService _pushNotificationService;
 
   static const List<_ShellDestination> _destinations = [
@@ -75,6 +80,9 @@ class _AppShellPageState extends State<AppShellPage> {
     super.initState();
     _genealogyRepository =
         widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
+    _notificationInboxRepository =
+        widget.notificationInboxRepository ??
+        createDefaultNotificationInboxRepository();
     _pushNotificationService =
         widget.pushNotificationService ??
         createDefaultPushNotificationService();
@@ -187,10 +195,9 @@ class _AppShellPageState extends State<AppShellPage> {
         session: widget.session,
         repository: _genealogyRepository,
       ),
-      _ComingSoonPane(
-        title: l10n.shellEventsWorkspaceTitle,
-        description: l10n.shellEventsWorkspaceDescription,
-        icon: Icons.event,
+      NotificationInboxPage(
+        session: widget.session,
+        repository: _notificationInboxRepository,
       ),
       _ComingSoonPane(
         title: l10n.shellProfileWorkspaceTitle,

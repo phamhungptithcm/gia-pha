@@ -387,6 +387,34 @@
   "notificationOpenedEvent": "Đã mở thông báo sự kiện.",
   "notificationOpenedScholarship": "Đã mở thông báo khuyến học.",
   "notificationOpenedGeneral": "Đã mở một thông báo.",
+  "notificationInboxHeroTitle": "Hộp thư thông báo",
+  "notificationInboxHeroDescription": "Xem các cập nhật mới nhất về sự kiện và khuyến học gửi đến hồ sơ thành viên của bạn.",
+  "notificationInboxUnreadCount": "{count} chưa đọc",
+  "@notificationInboxUnreadCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationInboxAllRead": "Bạn đã xem hết thông báo",
+  "notificationInboxSourceSandbox": "Dữ liệu sandbox cục bộ",
+  "notificationInboxSourceLive": "Dữ liệu Firestore trực tiếp",
+  "notificationInboxNoContextTitle": "Chưa thể mở hộp thư thông báo",
+  "notificationInboxNoContextDescription": "Phiên hiện tại chưa liên kết với hồ sơ thành viên nên chưa có hộp thư để hiển thị.",
+  "notificationInboxLoadErrorTitle": "Không thể tải thông báo",
+  "notificationInboxLoadErrorDescription": "Hãy kéo để tải lại hoặc thử lại ngay. Nếu lỗi tiếp tục, hãy kiểm tra kết nối Firebase và quyền truy cập.",
+  "notificationInboxRetryAction": "Thử lại",
+  "notificationInboxEmptyTitle": "Chưa có thông báo nào",
+  "notificationInboxEmptyDescription": "Khi có cập nhật sự kiện hoặc khuyến học, thông báo sẽ xuất hiện tại đây.",
+  "notificationInboxUnreadChip": "Chưa đọc",
+  "notificationInboxReadChip": "Đã đọc",
+  "notificationInboxTargetEvent": "Sự kiện",
+  "notificationInboxTargetScholarship": "Khuyến học",
+  "notificationInboxTargetGeneric": "Chung",
+  "notificationInboxTargetUnknown": "Cập nhật",
+  "notificationInboxFallbackTitle": "Cập nhật thông báo",
+  "notificationInboxFallbackBody": "Mở thông báo này để xem thêm chi tiết.",
   "authIssueRestoreSessionFailed": "BeFam chưa thể khôi phục phiên đăng nhập trước đó.",
   "authIssueRequestOtpBeforeVerify": "Hãy yêu cầu OTP trước khi thử xác minh.",
   "authIssueOtpMustBeSixDigits": "Hãy nhập OTP gồm 6 chữ số để tiếp tục.",
