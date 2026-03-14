@@ -51,6 +51,7 @@ class AppShellPage extends StatefulWidget {
 
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
+  final Set<int> _visitedDestinationIndexes = <int>{0};
   late final GenealogyReadRepository _genealogyRepository;
   late final FundRepository _fundRepository;
   late final PushNotificationService _pushNotificationService;
@@ -123,6 +124,7 @@ class _AppShellPageState extends State<AppShellPage> {
         deepLink.targetType == NotificationTargetType.event) {
       setState(() {
         _selectedIndex = 2;
+        _visitedDestinationIndexes.add(2);
       });
     }
 
@@ -198,16 +200,25 @@ class _AppShellPageState extends State<AppShellPage> {
           });
         },
       ),
-      GenealogyWorkspacePage(
-        session: widget.session,
-        repository: _genealogyRepository,
-      ),
-      const DualCalendarWorkspacePage(),
-      _ComingSoonPane(
-        title: l10n.shellProfileWorkspaceTitle,
-        description: l10n.shellProfileWorkspaceDescription,
-        icon: Icons.person,
-      ),
+      if (_visitedDestinationIndexes.contains(1))
+        GenealogyWorkspacePage(
+          session: widget.session,
+          repository: _genealogyRepository,
+        )
+      else
+        const SizedBox.shrink(),
+      if (_visitedDestinationIndexes.contains(2))
+        const DualCalendarWorkspacePage()
+      else
+        const SizedBox.shrink(),
+      if (_visitedDestinationIndexes.contains(3))
+        _ComingSoonPane(
+          title: l10n.shellProfileWorkspaceTitle,
+          description: l10n.shellProfileWorkspaceDescription,
+          icon: Icons.person,
+        )
+      else
+        const SizedBox.shrink(),
     ];
 
     return Scaffold(
@@ -260,6 +271,7 @@ class _AppShellPageState extends State<AppShellPage> {
         onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
+            _visitedDestinationIndexes.add(index);
           });
         },
         destinations: [

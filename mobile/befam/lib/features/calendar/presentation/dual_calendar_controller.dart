@@ -70,6 +70,7 @@ class DualCalendarController extends ChangeNotifier {
   CalendarDisplayMode _displayMode = CalendarDisplayMode.dual;
   Map<int, LunarDate> _monthLunarMap = const {};
   List<LunarHoliday> _holidays = const [];
+  Map<String, List<LunarHoliday>> _holidaysByMonthDay = const {};
   Map<String, List<CalendarEventOccurrence>> _eventsByDay = const {};
   List<LunarReminderSchedule> _upcomingReminders = const [];
   List<DualCalendarEvent> _windowEvents = const [];
@@ -191,7 +192,7 @@ class DualCalendarController extends ChangeNotifier {
     final month = lunarDate.month.toString().padLeft(2, '0');
     final dayValue = lunarDate.day.toString().padLeft(2, '0');
     final key = '$month-$dayValue';
-    return _holidays.where((holiday) => holiday.monthDayKey == key).toList();
+    return _holidaysByMonthDay[key] ?? const [];
   }
 
   int eventCountForDay(DateTime day) {
@@ -279,6 +280,7 @@ class DualCalendarController extends ChangeNotifier {
       region: _region,
     );
     _holidays = await _holidayRepository.loadHolidays(region: _region);
+    _holidaysByMonthDay = _buildHolidayLookup(_holidays);
     await _loadWindowEvents();
   }
 
@@ -297,13 +299,21 @@ class DualCalendarController extends ChangeNotifier {
 
     final byDay = <String, List<CalendarEventOccurrence>>{};
     final reminders = <LunarReminderSchedule>[];
-    for (final event in _windowEvents) {
-      final occurrences = await _recurrenceResolver.resolveOccurrences(
-        event: event,
-        region: _region,
-        rangeStart: windowStart,
-        rangeEnd: windowEnd,
-      );
+    final resolutions = await Future.wait(
+      _windowEvents.map((event) async {
+        final occurrences = await _recurrenceResolver.resolveOccurrences(
+          event: event,
+          region: _region,
+          rangeStart: windowStart,
+          rangeEnd: windowEnd,
+        );
+        return (event: event, occurrences: occurrences);
+      }),
+    );
+
+    for (final resolution in resolutions) {
+      final event = resolution.event;
+      final occurrences = resolution.occurrences;
       if (occurrences.isEmpty) {
         continue;
       }
@@ -341,6 +351,18 @@ class DualCalendarController extends ChangeNotifier {
     );
     _eventsByDay = byDay;
     _upcomingReminders = reminders.take(15).toList(growable: false);
+  }
+
+  Map<String, List<LunarHoliday>> _buildHolidayLookup(
+    List<LunarHoliday> values,
+  ) {
+    final lookup = <String, List<LunarHoliday>>{};
+    for (final holiday in values) {
+      lookup
+          .putIfAbsent(holiday.monthDayKey, () => <LunarHoliday>[])
+          .add(holiday);
+    }
+    return lookup;
   }
 
   static DateTime _dateOnly(DateTime value) {
