@@ -52,7 +52,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
         'Track contribution funds, transaction history, and transparent balances.',
     'route': '/funds',
     'iconKey': 'funds',
-    'status': 'planned',
+    'status': 'live',
   },
   {
     'id': 'scholarship',
