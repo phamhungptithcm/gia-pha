@@ -67,8 +67,11 @@ jobs:
 
           ## Release artifacts
           - Android APK: \`befam-${RELEASE_VERSION}-android-release.apk\`
-          - Docs image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/gia-pha-docs:${RELEASE_TAG}\`
-          - Docs image alias: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/gia-pha-docs:latest\`
+          - iOS archive (unsigned): \`befam-${RELEASE_VERSION}-ios-release-unsigned.xcarchive.zip\`
+          - Mobile builder image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/befam-mobile-builder:${RELEASE_TAG}\`
+          - Firebase tooling image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/befam-firebase-tools:${RELEASE_TAG}\`
+
+          > Signed \`.ipa\` export will be added once Apple signing credentials are configured in GitHub Actions.
           EOF
 
       - name: Upload release notes artifact
@@ -119,8 +122,67 @@ jobs:
           name: android-release-apk
           path: mobile/befam/build/app/outputs/flutter-apk/app-release.apk
 
-  publish-docs-image:
-    name: Publish docs image
+  build-ios-release:
+    name: Build iOS release archive
+    needs: prepare-release
+    runs-on: macos-latest
+    env:
+      COCOAPODS_DISABLE_STATS: "true"
+    defaults:
+      run:
+        working-directory: mobile/befam
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Install CocoaPods dependencies
+        working-directory: mobile/befam/ios
+        run: pod install
+
+      - name: Generate localization files
+        run: flutter gen-l10n
+
+      - name: Build iOS release archive without codesigning
+        run: |
+          flutter build ipa \
+            --release \
+            --no-codesign \
+            --build-name "${{ needs.prepare-release.outputs.version }}" \
+            --build-number "${{ needs.prepare-release.outputs.build_number }}"
+
+      - name: Package unsigned iOS release archive
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          archive_path="build/ios/archive/Runner.xcarchive"
+          output_dir="${GITHUB_WORKSPACE}/dist/ios"
+          asset_name="befam-${RELEASE_VERSION}-ios-release-unsigned.xcarchive.zip"
+
+          if [ ! -d "${archive_path}" ]; then
+            echo "Expected iOS archive not found at ${archive_path}" >&2
+            exit 1
+          fi
+
+          mkdir -p "${output_dir}"
+          ditto -c -k --sequesterRsrc --keepParent "${archive_path}" "${output_dir}/${asset_name}"
+
+      - name: Upload unsigned iOS release archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-archive
+          path: dist/ios/*.zip
+
+  publish-mobile-image:
+    name: Publish mobile image
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
@@ -141,18 +203,60 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/gia-pha-docs
+          images: ghcr.io/${{ github.repository_owner }}/befam-mobile-builder
           tags: |
             type=raw,value=latest
             type=raw,value=${{ needs.prepare-release.outputs.tag }}
             type=raw,value=${{ needs.prepare-release.outputs.version }}
             type=sha,prefix=sha-
 
-      - name: Build and push docs image
+      - name: Build and push mobile image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            RELEASE_VERSION=${{ needs.prepare-release.outputs.version }}
+            VCS_REF=${{ github.sha }}
+
+  publish-firebase-image:
+    name: Publish Firebase image
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Prepare Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/befam-firebase-tools
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ needs.prepare-release.outputs.tag }}
+            type=raw,value=${{ needs.prepare-release.outputs.version }}
+            type=sha,prefix=sha-
+
+      - name: Build and push Firebase image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./docker/firebase-tools.Dockerfile
           push: true
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -165,7 +269,9 @@ jobs:
     needs:
       - prepare-release
       - build-android-release
-      - publish-docs-image
+      - build-ios-release
+      - publish-mobile-image
+      - publish-firebase-image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -183,6 +289,12 @@ jobs:
           name: android-release-apk
           path: dist/android
 
+      - name: Download unsigned iOS release archive
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-release-archive
+          path: dist/ios
+
       - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -190,8 +302,10 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           title="BeFam ${RELEASE_TAG}"
-          asset_path="dist/android/app-release.apk"
-          asset_name="befam-${RELEASE_VERSION}-android-release.apk"
+          android_asset_path="dist/android/app-release.apk"
+          android_asset_name="befam-${RELEASE_VERSION}-android-release.apk"
+          ios_asset_path="dist/ios/befam-${RELEASE_VERSION}-ios-release-unsigned.xcarchive.zip"
+          ios_asset_name="befam-${RELEASE_VERSION}-ios-release-unsigned.xcarchive.zip"
 
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             gh release edit "${RELEASE_TAG}" \
@@ -203,4 +317,5 @@ jobs:
               --notes-file dist/release-notes.md
           fi
 
-          gh release upload "${RELEASE_TAG}" "${asset_path}#${asset_name}" --clobber
+          gh release upload "${RELEASE_TAG}" "${android_asset_path}#${android_asset_name}" --clobber
+          gh release upload "${RELEASE_TAG}" "${ios_asset_path}#${ios_asset_name}" --clobber

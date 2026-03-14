@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/auth_entry_method.dart';
+import '../models/auth_member_access_mode.dart';
 import '../models/auth_otp_request_result.dart';
 import '../models/auth_session.dart';
+import '../models/member_access_context.dart';
 import '../models/pending_otp_challenge.dart';
 import '../models/resolved_child_access.dart';
 import 'auth_gateway.dart';
@@ -20,12 +22,39 @@ class DebugAuthGateway implements AuthGateway {
       parentPhoneE164: '+84901234567',
       memberId: 'member_demo_child_001',
       displayName: 'Be Minh',
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_001',
+      primaryRole: 'MEMBER',
     ),
     'BEFAM-CHILD-002': ResolvedChildAccess(
       childIdentifier: 'BEFAM-CHILD-002',
       parentPhoneE164: '+84908886655',
       memberId: 'member_demo_child_002',
       displayName: 'Be Lan',
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_002',
+      primaryRole: 'MEMBER',
+    ),
+  };
+
+  static const Map<String, MemberAccessContext> _phoneDirectory = {
+    '+84901234567': MemberAccessContext(
+      memberId: 'member_demo_parent_001',
+      displayName: 'Nguyen Minh',
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_001',
+      primaryRole: 'CLAN_ADMIN',
+      accessMode: AuthMemberAccessMode.claimed,
+      linkedAuthUid: true,
+    ),
+    '+84908886655': MemberAccessContext(
+      memberId: 'member_demo_parent_002',
+      displayName: 'Tran Lan',
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_002',
+      primaryRole: 'BRANCH_ADMIN',
+      accessMode: AuthMemberAccessMode.claimed,
+      linkedAuthUid: true,
     ),
   };
 
@@ -35,13 +64,15 @@ class DebugAuthGateway implements AuthGateway {
   @override
   Future<AuthOtpRequestResult> requestPhoneOtp(String phoneE164) async {
     await Future<void>.delayed(_debugDelay);
+    final memberAccess = _phoneDirectory[phoneE164];
     return AuthOtpRequestResult.challenge(
       PendingOtpChallenge(
         loginMethod: AuthEntryMethod.phone,
         phoneE164: phoneE164,
         maskedDestination: PhoneNumberFormatter.mask(phoneE164),
         verificationId: 'debug-phone-$phoneE164',
-        displayName: 'BeFam Member',
+        memberId: memberAccess?.memberId,
+        displayName: memberAccess?.displayName ?? 'BeFam Member',
         debugOtpHint: _debugOtp,
       ),
     );
@@ -100,9 +131,17 @@ class DebugAuthGateway implements AuthGateway {
       uid: 'debug:${challenge.phoneE164}',
       loginMethod: challenge.loginMethod,
       phoneE164: challenge.phoneE164,
-      displayName: challenge.displayName ?? 'BeFam Member',
+      displayName:
+          _memberAccessFor(challenge).displayName ??
+          challenge.displayName ??
+          'BeFam Member',
       childIdentifier: challenge.childIdentifier,
-      memberId: challenge.memberId,
+      memberId: _memberAccessFor(challenge).memberId ?? challenge.memberId,
+      clanId: _memberAccessFor(challenge).clanId,
+      branchId: _memberAccessFor(challenge).branchId,
+      primaryRole: _memberAccessFor(challenge).primaryRole,
+      accessMode: _memberAccessFor(challenge).accessMode,
+      linkedAuthUid: _memberAccessFor(challenge).linkedAuthUid,
       isSandbox: true,
       signedInAtIso: DateTime.now().toIso8601String(),
     );
@@ -110,4 +149,22 @@ class DebugAuthGateway implements AuthGateway {
 
   @override
   Future<void> signOut() async {}
+
+  MemberAccessContext _memberAccessFor(PendingOtpChallenge challenge) {
+    if (challenge.loginMethod == AuthEntryMethod.child) {
+      final resolved = _childDirectory[challenge.childIdentifier];
+      return MemberAccessContext(
+        memberId: resolved?.memberId ?? challenge.memberId,
+        displayName: resolved?.displayName ?? challenge.displayName,
+        clanId: resolved?.clanId,
+        branchId: resolved?.branchId,
+        primaryRole: resolved?.primaryRole,
+        accessMode: AuthMemberAccessMode.child,
+        linkedAuthUid: false,
+      );
+    }
+
+    return _phoneDirectory[challenge.phoneE164] ??
+        MemberAccessContext.unlinked(displayName: challenge.displayName);
+  }
 }

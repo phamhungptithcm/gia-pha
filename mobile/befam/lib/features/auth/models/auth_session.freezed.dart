@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AuthSession {
 
- String get uid; AuthEntryMethod get loginMethod; String get phoneE164; String get displayName; String? get childIdentifier; String? get memberId; bool get isSandbox; String get signedInAtIso;
+ String get uid; AuthEntryMethod get loginMethod; String get phoneE164; String get displayName; String? get childIdentifier; String? get memberId; String? get clanId; String? get branchId; String? get primaryRole; AuthMemberAccessMode get accessMode; bool get linkedAuthUid; bool get isSandbox; String get signedInAtIso;
 /// Create a copy of AuthSession
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $AuthSessionCopyWith<AuthSession> get copyWith => _$AuthSessionCopyWithImpl<Auth
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AuthSession&&(identical(other.uid, uid) || other.uid == uid)&&(identical(other.loginMethod, loginMethod) || other.loginMethod == loginMethod)&&(identical(other.phoneE164, phoneE164) || other.phoneE164 == phoneE164)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.childIdentifier, childIdentifier) || other.childIdentifier == childIdentifier)&&(identical(other.memberId, memberId) || other.memberId == memberId)&&(identical(other.isSandbox, isSandbox) || other.isSandbox == isSandbox)&&(identical(other.signedInAtIso, signedInAtIso) || other.signedInAtIso == signedInAtIso));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AuthSession&&(identical(other.uid, uid) || other.uid == uid)&&(identical(other.loginMethod, loginMethod) || other.loginMethod == loginMethod)&&(identical(other.phoneE164, phoneE164) || other.phoneE164 == phoneE164)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.childIdentifier, childIdentifier) || other.childIdentifier == childIdentifier)&&(identical(other.memberId, memberId) || other.memberId == memberId)&&(identical(other.clanId, clanId) || other.clanId == clanId)&&(identical(other.branchId, branchId) || other.branchId == branchId)&&(identical(other.primaryRole, primaryRole) || other.primaryRole == primaryRole)&&(identical(other.accessMode, accessMode) || other.accessMode == accessMode)&&(identical(other.linkedAuthUid, linkedAuthUid) || other.linkedAuthUid == linkedAuthUid)&&(identical(other.isSandbox, isSandbox) || other.isSandbox == isSandbox)&&(identical(other.signedInAtIso, signedInAtIso) || other.signedInAtIso == signedInAtIso));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,uid,loginMethod,phoneE164,displayName,childIdentifier,memberId,isSandbox,signedInAtIso);
+int get hashCode => Object.hash(runtimeType,uid,loginMethod,phoneE164,displayName,childIdentifier,memberId,clanId,branchId,primaryRole,accessMode,linkedAuthUid,isSandbox,signedInAtIso);
 
 @override
 String toString() {
-  return 'AuthSession(uid: $uid, loginMethod: $loginMethod, phoneE164: $phoneE164, displayName: $displayName, childIdentifier: $childIdentifier, memberId: $memberId, isSandbox: $isSandbox, signedInAtIso: $signedInAtIso)';
+  return 'AuthSession(uid: $uid, loginMethod: $loginMethod, phoneE164: $phoneE164, displayName: $displayName, childIdentifier: $childIdentifier, memberId: $memberId, clanId: $clanId, branchId: $branchId, primaryRole: $primaryRole, accessMode: $accessMode, linkedAuthUid: $linkedAuthUid, isSandbox: $isSandbox, signedInAtIso: $signedInAtIso)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $AuthSessionCopyWith<$Res>  {
   factory $AuthSessionCopyWith(AuthSession value, $Res Function(AuthSession) _then) = _$AuthSessionCopyWithImpl;
 @useResult
 $Res call({
- String uid, AuthEntryMethod loginMethod, String phoneE164, String displayName, String? childIdentifier, String? memberId, bool isSandbox, String signedInAtIso
+ String uid, AuthEntryMethod loginMethod, String phoneE164, String displayName, String? childIdentifier, String? memberId, String? clanId, String? branchId, String? primaryRole, AuthMemberAccessMode accessMode, bool linkedAuthUid, bool isSandbox, String signedInAtIso
 });
 
 
@@ -65,7 +65,7 @@ class _$AuthSessionCopyWithImpl<$Res>
 
 /// Create a copy of AuthSession
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? uid = null,Object? loginMethod = null,Object? phoneE164 = null,Object? displayName = null,Object? childIdentifier = freezed,Object? memberId = freezed,Object? isSandbox = null,Object? signedInAtIso = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? uid = null,Object? loginMethod = null,Object? phoneE164 = null,Object? displayName = null,Object? childIdentifier = freezed,Object? memberId = freezed,Object? clanId = freezed,Object? branchId = freezed,Object? primaryRole = freezed,Object? accessMode = null,Object? linkedAuthUid = null,Object? isSandbox = null,Object? signedInAtIso = null,}) {
   return _then(_self.copyWith(
 uid: null == uid ? _self.uid : uid // ignore: cast_nullable_to_non_nullable
 as String,loginMethod: null == loginMethod ? _self.loginMethod : loginMethod // ignore: cast_nullable_to_non_nullable
@@ -73,7 +73,12 @@ as AuthEntryMethod,phoneE164: null == phoneE164 ? _self.phoneE164 : phoneE164 //
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
 as String,childIdentifier: freezed == childIdentifier ? _self.childIdentifier : childIdentifier // ignore: cast_nullable_to_non_nullable
 as String?,memberId: freezed == memberId ? _self.memberId : memberId // ignore: cast_nullable_to_non_nullable
-as String?,isSandbox: null == isSandbox ? _self.isSandbox : isSandbox // ignore: cast_nullable_to_non_nullable
+as String?,clanId: freezed == clanId ? _self.clanId : clanId // ignore: cast_nullable_to_non_nullable
+as String?,branchId: freezed == branchId ? _self.branchId : branchId // ignore: cast_nullable_to_non_nullable
+as String?,primaryRole: freezed == primaryRole ? _self.primaryRole : primaryRole // ignore: cast_nullable_to_non_nullable
+as String?,accessMode: null == accessMode ? _self.accessMode : accessMode // ignore: cast_nullable_to_non_nullable
+as AuthMemberAccessMode,linkedAuthUid: null == linkedAuthUid ? _self.linkedAuthUid : linkedAuthUid // ignore: cast_nullable_to_non_nullable
+as bool,isSandbox: null == isSandbox ? _self.isSandbox : isSandbox // ignore: cast_nullable_to_non_nullable
 as bool,signedInAtIso: null == signedInAtIso ? _self.signedInAtIso : signedInAtIso // ignore: cast_nullable_to_non_nullable
 as String,
   ));
@@ -160,10 +165,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String uid,  AuthEntryMethod loginMethod,  String phoneE164,  String displayName,  String? childIdentifier,  String? memberId,  bool isSandbox,  String signedInAtIso)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String uid,  AuthEntryMethod loginMethod,  String phoneE164,  String displayName,  String? childIdentifier,  String? memberId,  String? clanId,  String? branchId,  String? primaryRole,  AuthMemberAccessMode accessMode,  bool linkedAuthUid,  bool isSandbox,  String signedInAtIso)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AuthSession() when $default != null:
-return $default(_that.uid,_that.loginMethod,_that.phoneE164,_that.displayName,_that.childIdentifier,_that.memberId,_that.isSandbox,_that.signedInAtIso);case _:
+return $default(_that.uid,_that.loginMethod,_that.phoneE164,_that.displayName,_that.childIdentifier,_that.memberId,_that.clanId,_that.branchId,_that.primaryRole,_that.accessMode,_that.linkedAuthUid,_that.isSandbox,_that.signedInAtIso);case _:
   return orElse();
 
 }
@@ -181,10 +186,10 @@ return $default(_that.uid,_that.loginMethod,_that.phoneE164,_that.displayName,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String uid,  AuthEntryMethod loginMethod,  String phoneE164,  String displayName,  String? childIdentifier,  String? memberId,  bool isSandbox,  String signedInAtIso)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String uid,  AuthEntryMethod loginMethod,  String phoneE164,  String displayName,  String? childIdentifier,  String? memberId,  String? clanId,  String? branchId,  String? primaryRole,  AuthMemberAccessMode accessMode,  bool linkedAuthUid,  bool isSandbox,  String signedInAtIso)  $default,) {final _that = this;
 switch (_that) {
 case _AuthSession():
-return $default(_that.uid,_that.loginMethod,_that.phoneE164,_that.displayName,_that.childIdentifier,_that.memberId,_that.isSandbox,_that.signedInAtIso);case _:
+return $default(_that.uid,_that.loginMethod,_that.phoneE164,_that.displayName,_that.childIdentifier,_that.memberId,_that.clanId,_that.branchId,_that.primaryRole,_that.accessMode,_that.linkedAuthUid,_that.isSandbox,_that.signedInAtIso);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -201,10 +206,10 @@ return $default(_that.uid,_that.loginMethod,_that.phoneE164,_that.displayName,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String uid,  AuthEntryMethod loginMethod,  String phoneE164,  String displayName,  String? childIdentifier,  String? memberId,  bool isSandbox,  String signedInAtIso)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String uid,  AuthEntryMethod loginMethod,  String phoneE164,  String displayName,  String? childIdentifier,  String? memberId,  String? clanId,  String? branchId,  String? primaryRole,  AuthMemberAccessMode accessMode,  bool linkedAuthUid,  bool isSandbox,  String signedInAtIso)?  $default,) {final _that = this;
 switch (_that) {
 case _AuthSession() when $default != null:
-return $default(_that.uid,_that.loginMethod,_that.phoneE164,_that.displayName,_that.childIdentifier,_that.memberId,_that.isSandbox,_that.signedInAtIso);case _:
+return $default(_that.uid,_that.loginMethod,_that.phoneE164,_that.displayName,_that.childIdentifier,_that.memberId,_that.clanId,_that.branchId,_that.primaryRole,_that.accessMode,_that.linkedAuthUid,_that.isSandbox,_that.signedInAtIso);case _:
   return null;
 
 }
@@ -216,7 +221,7 @@ return $default(_that.uid,_that.loginMethod,_that.phoneE164,_that.displayName,_t
 @JsonSerializable()
 
 class _AuthSession implements AuthSession {
-  const _AuthSession({required this.uid, required this.loginMethod, required this.phoneE164, required this.displayName, this.childIdentifier, this.memberId, this.isSandbox = false, required this.signedInAtIso});
+  const _AuthSession({required this.uid, required this.loginMethod, required this.phoneE164, required this.displayName, this.childIdentifier, this.memberId, this.clanId, this.branchId, this.primaryRole, this.accessMode = AuthMemberAccessMode.unlinked, this.linkedAuthUid = false, this.isSandbox = false, required this.signedInAtIso});
   factory _AuthSession.fromJson(Map<String, dynamic> json) => _$AuthSessionFromJson(json);
 
 @override final  String uid;
@@ -225,6 +230,11 @@ class _AuthSession implements AuthSession {
 @override final  String displayName;
 @override final  String? childIdentifier;
 @override final  String? memberId;
+@override final  String? clanId;
+@override final  String? branchId;
+@override final  String? primaryRole;
+@override@JsonKey() final  AuthMemberAccessMode accessMode;
+@override@JsonKey() final  bool linkedAuthUid;
 @override@JsonKey() final  bool isSandbox;
 @override final  String signedInAtIso;
 
@@ -241,16 +251,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AuthSession&&(identical(other.uid, uid) || other.uid == uid)&&(identical(other.loginMethod, loginMethod) || other.loginMethod == loginMethod)&&(identical(other.phoneE164, phoneE164) || other.phoneE164 == phoneE164)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.childIdentifier, childIdentifier) || other.childIdentifier == childIdentifier)&&(identical(other.memberId, memberId) || other.memberId == memberId)&&(identical(other.isSandbox, isSandbox) || other.isSandbox == isSandbox)&&(identical(other.signedInAtIso, signedInAtIso) || other.signedInAtIso == signedInAtIso));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AuthSession&&(identical(other.uid, uid) || other.uid == uid)&&(identical(other.loginMethod, loginMethod) || other.loginMethod == loginMethod)&&(identical(other.phoneE164, phoneE164) || other.phoneE164 == phoneE164)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.childIdentifier, childIdentifier) || other.childIdentifier == childIdentifier)&&(identical(other.memberId, memberId) || other.memberId == memberId)&&(identical(other.clanId, clanId) || other.clanId == clanId)&&(identical(other.branchId, branchId) || other.branchId == branchId)&&(identical(other.primaryRole, primaryRole) || other.primaryRole == primaryRole)&&(identical(other.accessMode, accessMode) || other.accessMode == accessMode)&&(identical(other.linkedAuthUid, linkedAuthUid) || other.linkedAuthUid == linkedAuthUid)&&(identical(other.isSandbox, isSandbox) || other.isSandbox == isSandbox)&&(identical(other.signedInAtIso, signedInAtIso) || other.signedInAtIso == signedInAtIso));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,uid,loginMethod,phoneE164,displayName,childIdentifier,memberId,isSandbox,signedInAtIso);
+int get hashCode => Object.hash(runtimeType,uid,loginMethod,phoneE164,displayName,childIdentifier,memberId,clanId,branchId,primaryRole,accessMode,linkedAuthUid,isSandbox,signedInAtIso);
 
 @override
 String toString() {
-  return 'AuthSession(uid: $uid, loginMethod: $loginMethod, phoneE164: $phoneE164, displayName: $displayName, childIdentifier: $childIdentifier, memberId: $memberId, isSandbox: $isSandbox, signedInAtIso: $signedInAtIso)';
+  return 'AuthSession(uid: $uid, loginMethod: $loginMethod, phoneE164: $phoneE164, displayName: $displayName, childIdentifier: $childIdentifier, memberId: $memberId, clanId: $clanId, branchId: $branchId, primaryRole: $primaryRole, accessMode: $accessMode, linkedAuthUid: $linkedAuthUid, isSandbox: $isSandbox, signedInAtIso: $signedInAtIso)';
 }
 
 
@@ -261,7 +271,7 @@ abstract mixin class _$AuthSessionCopyWith<$Res> implements $AuthSessionCopyWith
   factory _$AuthSessionCopyWith(_AuthSession value, $Res Function(_AuthSession) _then) = __$AuthSessionCopyWithImpl;
 @override @useResult
 $Res call({
- String uid, AuthEntryMethod loginMethod, String phoneE164, String displayName, String? childIdentifier, String? memberId, bool isSandbox, String signedInAtIso
+ String uid, AuthEntryMethod loginMethod, String phoneE164, String displayName, String? childIdentifier, String? memberId, String? clanId, String? branchId, String? primaryRole, AuthMemberAccessMode accessMode, bool linkedAuthUid, bool isSandbox, String signedInAtIso
 });
 
 
@@ -278,7 +288,7 @@ class __$AuthSessionCopyWithImpl<$Res>
 
 /// Create a copy of AuthSession
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? uid = null,Object? loginMethod = null,Object? phoneE164 = null,Object? displayName = null,Object? childIdentifier = freezed,Object? memberId = freezed,Object? isSandbox = null,Object? signedInAtIso = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? uid = null,Object? loginMethod = null,Object? phoneE164 = null,Object? displayName = null,Object? childIdentifier = freezed,Object? memberId = freezed,Object? clanId = freezed,Object? branchId = freezed,Object? primaryRole = freezed,Object? accessMode = null,Object? linkedAuthUid = null,Object? isSandbox = null,Object? signedInAtIso = null,}) {
   return _then(_AuthSession(
 uid: null == uid ? _self.uid : uid // ignore: cast_nullable_to_non_nullable
 as String,loginMethod: null == loginMethod ? _self.loginMethod : loginMethod // ignore: cast_nullable_to_non_nullable
@@ -286,7 +296,12 @@ as AuthEntryMethod,phoneE164: null == phoneE164 ? _self.phoneE164 : phoneE164 //
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
 as String,childIdentifier: freezed == childIdentifier ? _self.childIdentifier : childIdentifier // ignore: cast_nullable_to_non_nullable
 as String?,memberId: freezed == memberId ? _self.memberId : memberId // ignore: cast_nullable_to_non_nullable
-as String?,isSandbox: null == isSandbox ? _self.isSandbox : isSandbox // ignore: cast_nullable_to_non_nullable
+as String?,clanId: freezed == clanId ? _self.clanId : clanId // ignore: cast_nullable_to_non_nullable
+as String?,branchId: freezed == branchId ? _self.branchId : branchId // ignore: cast_nullable_to_non_nullable
+as String?,primaryRole: freezed == primaryRole ? _self.primaryRole : primaryRole // ignore: cast_nullable_to_non_nullable
+as String?,accessMode: null == accessMode ? _self.accessMode : accessMode // ignore: cast_nullable_to_non_nullable
+as AuthMemberAccessMode,linkedAuthUid: null == linkedAuthUid ? _self.linkedAuthUid : linkedAuthUid // ignore: cast_nullable_to_non_nullable
+as bool,isSandbox: null == isSandbox ? _self.isSandbox : isSandbox // ignore: cast_nullable_to_non_nullable
 as bool,signedInAtIso: null == signedInAtIso ? _self.signedInAtIso : signedInAtIso // ignore: cast_nullable_to_non_nullable
 as String,
   ));

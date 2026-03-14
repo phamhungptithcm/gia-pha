@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../app/models/app_shortcut.dart';
 import '../features/auth/models/auth_entry_method.dart';
 import '../features/auth/models/auth_issue.dart';
+import '../features/auth/models/auth_member_access_mode.dart';
 import 'generated/app_localizations.dart';
 
 extension BuildContextL10nX on BuildContext {
@@ -40,9 +41,22 @@ extension AppLocalizationsX on AppLocalizations {
       AuthIssueKey.tooManyRequests => authIssueTooManyRequests,
       AuthIssueKey.quotaExceeded => authIssueQuotaExceeded,
       AuthIssueKey.userNotFound => authIssueUserNotFound,
+      AuthIssueKey.childAccessNotReady => authIssueChildAccessNotReady,
+      AuthIssueKey.memberAlreadyLinked => authIssueMemberAlreadyLinked,
+      AuthIssueKey.memberClaimConflict => authIssueMemberClaimConflict,
+      AuthIssueKey.parentVerificationMismatch =>
+        authIssueParentVerificationMismatch,
       AuthIssueKey.operationNotAllowed => authIssueOperationNotAllowed,
       AuthIssueKey.authUnavailable => authIssueAuthUnavailable,
       AuthIssueKey.preparationFailed => authIssuePreparationFailed,
+    };
+  }
+
+  String authMemberAccessModeLabel(AuthMemberAccessMode mode) {
+    return switch (mode) {
+      AuthMemberAccessMode.unlinked => shellAccessModeUnlinked,
+      AuthMemberAccessMode.claimed => shellAccessModeClaimed,
+      AuthMemberAccessMode.child => shellAccessModeChild,
     };
   }
 
@@ -66,8 +80,20 @@ extension AppLocalizationsX on AppLocalizations {
     };
   }
 
+  String roleLabel(String? role) {
+    return switch (role?.trim().toUpperCase()) {
+      'SUPER_ADMIN' => roleSuperAdmin,
+      'CLAN_ADMIN' => roleClanAdmin,
+      'BRANCH_ADMIN' => roleBranchAdmin,
+      'MEMBER' => roleMember,
+      null || '' => roleUnknown,
+      _ => roleUnknown,
+    };
+  }
+
   String shortcutTitle(String id) {
     return switch (id) {
+      'clan' => shortcutTitleClan,
       'tree' => shortcutTitleTree,
       'members' => shortcutTitleMembers,
       'events' => shortcutTitleEvents,
@@ -80,6 +106,7 @@ extension AppLocalizationsX on AppLocalizations {
 
   String shortcutDescription(String id) {
     return switch (id) {
+      'clan' => shortcutDescriptionClan,
       'tree' => shortcutDescriptionTree,
       'members' => shortcutDescriptionMembers,
       'events' => shortcutDescriptionEvents,

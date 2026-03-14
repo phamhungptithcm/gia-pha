@@ -58,6 +58,12 @@ flutter analyze
 flutter test
 ```
 
+Refresh the production brand asset pack:
+
+```bash
+python3 ../../scripts/generate_brand_assets.py
+```
+
 ## Current scope
 
 The app now opens into an authentication-first BeFam flow:
@@ -73,3 +79,21 @@ For local UI testing in debug builds:
 - OTP: `123456`
 - child IDs: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
 - live Firebase auth can be forced with `--dart-define=BEFAM_USE_LIVE_AUTH=true`
+
+## Branding assets
+
+Production-ready brand exports live in `assets/branding/` and are also synced into:
+
+- `android/app/src/main/res` for launcher, adaptive, splash, and notification icons
+- `ios/Runner/Assets.xcassets` for app icons and launch images
+
+The current pack includes:
+
+- main logo
+- light background logo
+- dark background logo
+- app icon
+- splash logo
+- Android notification icon
+- Android adaptive icon assets
+- Google Play feature graphic

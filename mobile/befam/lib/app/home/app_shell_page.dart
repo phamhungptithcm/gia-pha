@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../features/clan/presentation/clan_detail_page.dart';
+import '../../features/clan/services/clan_repository.dart';
+import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
+import '../../features/genealogy/services/genealogy_read_repository.dart';
+import '../../features/member/presentation/member_workspace_page.dart';
+import '../../features/member/services/member_repository.dart';
 import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
+import '../../features/auth/models/auth_member_access_mode.dart';
 import '../../features/auth/models/auth_session.dart';
 import '../bootstrap/firebase_setup_status.dart';
 import '../models/app_shortcut.dart';
@@ -12,11 +19,17 @@ class AppShellPage extends StatefulWidget {
     super.key,
     required this.status,
     required this.session,
+    required this.clanRepository,
+    required this.memberRepository,
+    this.genealogyRepository,
     this.onLogoutRequested,
   });
 
   final FirebaseSetupStatus status;
   final AuthSession session;
+  final ClanRepository clanRepository;
+  final MemberRepository memberRepository;
+  final GenealogyReadRepository? genealogyRepository;
   final Future<void> Function()? onLogoutRequested;
 
   @override
@@ -25,6 +38,7 @@ class AppShellPage extends StatefulWidget {
 
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
+  late final GenealogyReadRepository _genealogyRepository;
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
@@ -50,15 +64,31 @@ class _AppShellPageState extends State<AppShellPage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _genealogyRepository =
+        widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final destination = _destinations[_selectedIndex];
     final pages = [
-      _HomeDashboard(status: widget.status, session: widget.session),
-      _ComingSoonPane(
-        title: l10n.shellTreeWorkspaceTitle,
-        description: l10n.shellTreeWorkspaceDescription,
-        icon: Icons.account_tree,
+      _HomeDashboard(
+        status: widget.status,
+        session: widget.session,
+        clanRepository: widget.clanRepository,
+        memberRepository: widget.memberRepository,
+        onOpenTreeRequested: () {
+          setState(() {
+            _selectedIndex = 1;
+          });
+        },
+      ),
+      GenealogyWorkspacePage(
+        session: widget.session,
+        repository: _genealogyRepository,
       ),
       _ComingSoonPane(
         title: l10n.shellEventsWorkspaceTitle,
@@ -132,10 +162,19 @@ class _AppShellPageState extends State<AppShellPage> {
 }
 
 class _HomeDashboard extends StatelessWidget {
-  const _HomeDashboard({required this.status, required this.session});
+  const _HomeDashboard({
+    required this.status,
+    required this.session,
+    required this.clanRepository,
+    required this.memberRepository,
+    required this.onOpenTreeRequested,
+  });
 
   final FirebaseSetupStatus status;
   final AuthSession session;
+  final ClanRepository clanRepository;
+  final MemberRepository memberRepository;
+  final VoidCallback onOpenTreeRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -218,6 +257,8 @@ class _HomeDashboard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
+        _MemberAccessCard(session: session),
+        const SizedBox(height: 24),
         Text(
           l10n.shellPriorityWorkspaces,
           style: theme.textTheme.titleLarge?.copyWith(
@@ -242,7 +283,10 @@ class _HomeDashboard extends StatelessWidget {
           ),
           itemBuilder: (context, index) {
             final shortcut = bootstrapShortcuts[index];
-            return _ShortcutCard(shortcut: shortcut);
+            return _ShortcutCard(
+              shortcut: shortcut,
+              onTap: _onShortcutTap(context, shortcut.id),
+            );
           },
         ),
         const SizedBox(height: 24),
@@ -280,6 +324,25 @@ class _HomeDashboard extends StatelessWidget {
                     label: l10n.shellFieldMemberId,
                     value: session.memberId!,
                   ),
+                if (session.clanId != null)
+                  _FoundationRow(
+                    label: l10n.shellFieldClanId,
+                    value: session.clanId!,
+                  ),
+                if (session.branchId != null)
+                  _FoundationRow(
+                    label: l10n.shellFieldBranchId,
+                    value: session.branchId!,
+                  ),
+                if (session.primaryRole != null)
+                  _FoundationRow(
+                    label: l10n.shellFieldPrimaryRole,
+                    value: l10n.roleLabel(session.primaryRole),
+                  ),
+                _FoundationRow(
+                  label: l10n.shellFieldAccessMode,
+                  value: l10n.authMemberAccessModeLabel(session.accessMode),
+                ),
                 _FoundationRow(
                   label: l10n.shellFieldSessionType,
                   value: session.isSandbox
@@ -321,12 +384,44 @@ class _HomeDashboard extends StatelessWidget {
       ],
     );
   }
+
+  VoidCallback? _onShortcutTap(BuildContext context, String shortcutId) {
+    return switch (shortcutId) {
+      'clan' => () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (context) {
+                return ClanDetailPage(
+                  session: session,
+                  repository: clanRepository,
+                );
+              },
+            ),
+          );
+        },
+      'members' => () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (context) {
+                return MemberWorkspacePage(
+                  session: session,
+                  repository: memberRepository,
+                );
+              },
+            ),
+          );
+        },
+      'tree' => onOpenTreeRequested,
+      _ => null,
+    };
+  }
 }
 
 class _ShortcutCard extends StatelessWidget {
-  const _ShortcutCard({required this.shortcut});
+  const _ShortcutCard({required this.shortcut, this.onTap});
 
   final AppShortcut shortcut;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -341,47 +436,51 @@ class _ShortcutCard extends StatelessWidget {
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: statusColor,
-              foregroundColor: colorScheme.onSurface,
-              child: Icon(_iconFor(shortcut.iconKey)),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    l10n.shortcutTitle(shortcut.id),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+      child: InkWell(
+        key: Key('shortcut-${shortcut.id}'),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: statusColor,
+                foregroundColor: colorScheme.onSurface,
+                child: Icon(_iconFor(shortcut.iconKey)),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      l10n.shortcutTitle(shortcut.id),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                _ShortcutStatusChip(status: shortcut.status),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              l10n.shortcutDescription(shortcut.id),
-              style: theme.textTheme.bodyMedium,
-            ),
-            const Spacer(),
-            const SizedBox(height: 12),
-            Text(
-              shortcut.route,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.w700,
+                  const SizedBox(width: 8),
+                  _ShortcutStatusChip(status: shortcut.status),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+              Text(
+                l10n.shortcutDescription(shortcut.id),
+                style: theme.textTheme.bodyMedium,
+              ),
+              const Spacer(),
+              const SizedBox(height: 12),
+              Text(
+                shortcut.route,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -468,6 +567,69 @@ class _FoundationTag extends StatelessWidget {
           style: Theme.of(
             context,
           ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+}
+
+class _MemberAccessCard extends StatelessWidget {
+  const _MemberAccessCard({required this.session});
+
+  final AuthSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final l10n = context.l10n;
+
+    final (title, description, icon, tone) = switch (session.accessMode) {
+      AuthMemberAccessMode.claimed => (
+        l10n.shellMemberAccessClaimedTitle,
+        l10n.shellMemberAccessClaimedDescription,
+        Icons.verified_user_outlined,
+        colorScheme.primaryContainer,
+      ),
+      AuthMemberAccessMode.child => (
+        l10n.shellMemberAccessChildTitle,
+        l10n.shellMemberAccessChildDescription,
+        Icons.family_restroom_outlined,
+        colorScheme.secondaryContainer,
+      ),
+      AuthMemberAccessMode.unlinked => (
+        l10n.shellMemberAccessUnlinkedTitle,
+        l10n.shellMemberAccessUnlinkedDescription,
+        Icons.info_outline,
+        colorScheme.surfaceContainerHighest,
+      ),
+    };
+
+    return Card(
+      color: tone,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 24),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(description, style: theme.textTheme.bodyMedium),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -598,6 +760,7 @@ class _ShellDestination {
 
 IconData _iconFor(String iconKey) {
   return switch (iconKey) {
+    'clan' => Icons.apartment_outlined,
     'tree' => Icons.account_tree_outlined,
     'members' => Icons.groups_2_outlined,
     'events' => Icons.event_note_outlined,

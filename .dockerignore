@@ -3,6 +3,9 @@
 .venv
 .firebase
 .codex-artifacts
+docs
+mkdocs.yml
+requirements-docs.txt
 site
 dist
 __pycache__

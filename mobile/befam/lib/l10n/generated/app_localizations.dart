@@ -530,6 +530,186 @@ abstract class AppLocalizations {
   /// **'Khung ứng dụng đã sẵn sàng cho trải nghiệm cây gia phả theo nhánh và công việc dựng cây lớn.'**
   String get shellTreeWorkspaceDescription;
 
+  /// No description provided for @genealogyWorkspaceTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Read model gia phả'**
+  String get genealogyWorkspaceTitle;
+
+  /// No description provided for @genealogyWorkspaceDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tải phạm vi của cả họ hoặc chi hiện tại, kiểm tra các điểm vào gốc, rồi xác minh chuỗi tổ tiên, hậu duệ, anh chị em và dữ liệu cây đã được cache trước khi bước sang màn hình cây trực quan.'**
+  String get genealogyWorkspaceDescription;
+
+  /// No description provided for @genealogyScopeClan.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phạm vi cả họ'**
+  String get genealogyScopeClan;
+
+  /// No description provided for @genealogyScopeBranch.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chi hiện tại'**
+  String get genealogyScopeBranch;
+
+  /// No description provided for @genealogyRefreshAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tải lại dữ liệu cây'**
+  String get genealogyRefreshAction;
+
+  /// No description provided for @genealogyLoadFailed.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không thể tải không gian gia phả lúc này.'**
+  String get genealogyLoadFailed;
+
+  /// No description provided for @genealogyFromCache.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đang dùng dữ liệu cache'**
+  String get genealogyFromCache;
+
+  /// No description provided for @genealogyLiveData.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ảnh chụp mới nhất'**
+  String get genealogyLiveData;
+
+  /// No description provided for @genealogySummaryMembers.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thành viên'**
+  String get genealogySummaryMembers;
+
+  /// No description provided for @genealogySummaryRelationships.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quan hệ'**
+  String get genealogySummaryRelationships;
+
+  /// No description provided for @genealogySummaryRoots.
+  ///
+  /// In vi, this message translates to:
+  /// **'Điểm vào gốc'**
+  String get genealogySummaryRoots;
+
+  /// No description provided for @genealogySummaryScope.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phạm vi'**
+  String get genealogySummaryScope;
+
+  /// No description provided for @genealogyFocusMemberTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thành viên trọng tâm'**
+  String get genealogyFocusMemberTitle;
+
+  /// No description provided for @genealogyAncestryPathTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chuỗi tổ tiên'**
+  String get genealogyAncestryPathTitle;
+
+  /// No description provided for @genealogyRootEntriesTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Điểm vào gốc của cây'**
+  String get genealogyRootEntriesTitle;
+
+  /// No description provided for @genealogyNoRootEntries.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có điểm vào gốc cho phạm vi này.'**
+  String get genealogyNoRootEntries;
+
+  /// No description provided for @genealogyMemberStructureTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xem trước cấu trúc'**
+  String get genealogyMemberStructureTitle;
+
+  /// No description provided for @genealogyEmptyStateTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có thành viên nào trong phạm vi này.'**
+  String get genealogyEmptyStateTitle;
+
+  /// No description provided for @genealogyEmptyStateDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy tạo hồ sơ thành viên đầu tiên hoặc chuyển phạm vi để bắt đầu dựng đồ thị gia đình.'**
+  String get genealogyEmptyStateDescription;
+
+  /// No description provided for @genealogyGenerationLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đời'**
+  String get genealogyGenerationLabel;
+
+  /// No description provided for @genealogyParentCountLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cha mẹ'**
+  String get genealogyParentCountLabel;
+
+  /// No description provided for @genealogyChildCountLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Con'**
+  String get genealogyChildCountLabel;
+
+  /// No description provided for @genealogySpouseCountLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phối ngẫu'**
+  String get genealogySpouseCountLabel;
+
+  /// No description provided for @genealogySiblingCountLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Anh chị em'**
+  String get genealogySiblingCountLabel;
+
+  /// No description provided for @genealogyDescendantCountLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hậu duệ'**
+  String get genealogyDescendantCountLabel;
+
+  /// No description provided for @genealogyRootReasonCurrentMember.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thành viên hiện tại'**
+  String get genealogyRootReasonCurrentMember;
+
+  /// No description provided for @genealogyRootReasonClanRoot.
+  ///
+  /// In vi, this message translates to:
+  /// **'Gốc của họ'**
+  String get genealogyRootReasonClanRoot;
+
+  /// No description provided for @genealogyRootReasonScopeRoot.
+  ///
+  /// In vi, this message translates to:
+  /// **'Gốc của phạm vi'**
+  String get genealogyRootReasonScopeRoot;
+
+  /// No description provided for @genealogyRootReasonBranchLeader.
+  ///
+  /// In vi, this message translates to:
+  /// **'Trưởng chi'**
+  String get genealogyRootReasonBranchLeader;
+
+  /// No description provided for @genealogyRootReasonBranchViceLeader.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phó chi'**
+  String get genealogyRootReasonBranchViceLeader;
+
   /// No description provided for @shellEventsWorkspaceTitle.
   ///
   /// In vi, this message translates to:
@@ -674,11 +854,53 @@ abstract class AppLocalizations {
   /// **'Mã thành viên'**
   String get shellFieldMemberId;
 
+  /// No description provided for @shellFieldClanId.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mã họ tộc'**
+  String get shellFieldClanId;
+
+  /// No description provided for @shellFieldBranchId.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mã chi'**
+  String get shellFieldBranchId;
+
+  /// No description provided for @shellFieldPrimaryRole.
+  ///
+  /// In vi, this message translates to:
+  /// **'Vai trò chính'**
+  String get shellFieldPrimaryRole;
+
+  /// No description provided for @shellFieldAccessMode.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chế độ truy cập'**
+  String get shellFieldAccessMode;
+
   /// No description provided for @shellFieldSessionType.
   ///
   /// In vi, this message translates to:
   /// **'Loại phiên'**
   String get shellFieldSessionType;
+
+  /// No description provided for @shellAccessModeUnlinked.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đăng nhập chưa liên kết hồ sơ'**
+  String get shellAccessModeUnlinked;
+
+  /// No description provided for @shellAccessModeClaimed.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên thành viên đã liên kết'**
+  String get shellAccessModeClaimed;
+
+  /// No description provided for @shellAccessModeChild.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên truy cập trẻ em'**
+  String get shellAccessModeChild;
 
   /// No description provided for @shellSessionTypeSandbox.
   ///
@@ -740,6 +962,42 @@ abstract class AppLocalizations {
   /// **'Ghi chú khởi động'**
   String get shellFieldStartupNote;
 
+  /// No description provided for @shellMemberAccessClaimedTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hồ sơ thành viên đã được liên kết'**
+  String get shellMemberAccessClaimedTitle;
+
+  /// No description provided for @shellMemberAccessClaimedDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên này đã gắn với một hồ sơ thành viên BeFam, và auth UID cũng đã được liên kết để truy cập trực tiếp hồ sơ đó.'**
+  String get shellMemberAccessClaimedDescription;
+
+  /// No description provided for @shellMemberAccessChildTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Truy cập trẻ em đã được xác minh qua OTP phụ huynh'**
+  String get shellMemberAccessChildTitle;
+
+  /// No description provided for @shellMemberAccessChildDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên này dùng OTP phụ huynh để mở ngữ cảnh thành viên của trẻ. Hồ sơ trẻ có thể được truy cập mà không liên kết vĩnh viễn auth UID.'**
+  String get shellMemberAccessChildDescription;
+
+  /// No description provided for @shellMemberAccessUnlinkedTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã đăng nhập nhưng chưa liên kết được hồ sơ thành viên'**
+  String get shellMemberAccessUnlinkedTitle;
+
+  /// No description provided for @shellMemberAccessUnlinkedDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên số điện thoại đã được xác minh, nhưng BeFam chưa ghép được số này với hồ sơ thành viên có thể nhận. Quyền truy cập theo họ tộc vẫn bị giới hạn cho tới khi hồ sơ được liên kết.'**
+  String get shellMemberAccessUnlinkedDescription;
+
   /// No description provided for @shellShortcutStatusLive.
   ///
   /// In vi, this message translates to:
@@ -781,6 +1039,18 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Bắt đầu trải nghiệm gia phả với điều hướng theo nhánh.'**
   String get shortcutDescriptionTree;
+
+  /// No description provided for @shortcutTitleClan.
+  ///
+  /// In vi, this message translates to:
+  /// **'Họ tộc'**
+  String get shortcutTitleClan;
+
+  /// No description provided for @shortcutDescriptionClan.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết lập hồ sơ họ tộc, ban điều hành chi và không gian quản trị đầu tiên.'**
+  String get shortcutDescriptionClan;
 
   /// No description provided for @shortcutTitleMembers.
   ///
@@ -841,6 +1111,1086 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Dành sẵn không gian cá nhân cho cài đặt thành viên, người giám hộ và ngữ cảnh.'**
   String get shortcutDescriptionProfile;
+
+  /// No description provided for @roleSuperAdmin.
+  ///
+  /// In vi, this message translates to:
+  /// **'Siêu quản trị'**
+  String get roleSuperAdmin;
+
+  /// No description provided for @roleClanAdmin.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản trị họ tộc'**
+  String get roleClanAdmin;
+
+  /// No description provided for @roleBranchAdmin.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản trị chi'**
+  String get roleBranchAdmin;
+
+  /// No description provided for @roleMember.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thành viên'**
+  String get roleMember;
+
+  /// No description provided for @roleUnknown.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa xác định'**
+  String get roleUnknown;
+
+  /// No description provided for @clanDetailTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản lý họ tộc'**
+  String get clanDetailTitle;
+
+  /// No description provided for @clanRefreshAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tải lại'**
+  String get clanRefreshAction;
+
+  /// No description provided for @clanSaveSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã lưu hồ sơ họ tộc.'**
+  String get clanSaveSuccess;
+
+  /// No description provided for @clanBranchSaveSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã lưu thông tin chi.'**
+  String get clanBranchSaveSuccess;
+
+  /// No description provided for @clanNoContextTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tài khoản này chưa có ngữ cảnh họ tộc'**
+  String get clanNoContextTitle;
+
+  /// No description provided for @clanNoContextDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy liên kết tài khoản với một hồ sơ thành viên hoặc hoàn tất quy trình nhận hồ sơ trước khi quản lý họ tộc.'**
+  String get clanNoContextDescription;
+
+  /// No description provided for @clanCreateFirstTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khởi tạo hồ sơ họ tộc'**
+  String get clanCreateFirstTitle;
+
+  /// No description provided for @clanCreateFirstDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tạo hồ sơ cốt lõi của họ tộc để nhóm có nơi quản lý các chi, ban điều hành và cấu trúc vận hành ban đầu.'**
+  String get clanCreateFirstDescription;
+
+  /// No description provided for @clanPermissionEditor.
+  ///
+  /// In vi, this message translates to:
+  /// **'Có quyền quản trị'**
+  String get clanPermissionEditor;
+
+  /// No description provided for @clanPermissionViewer.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chỉ xem'**
+  String get clanPermissionViewer;
+
+  /// No description provided for @clanSandboxSourceChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Dữ liệu sandbox cục bộ'**
+  String get clanSandboxSourceChip;
+
+  /// No description provided for @clanLiveSourceChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Dữ liệu Firestore trực tiếp'**
+  String get clanLiveSourceChip;
+
+  /// No description provided for @clanLoadErrorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không thể tải không gian họ tộc'**
+  String get clanLoadErrorTitle;
+
+  /// No description provided for @clanPermissionDeniedDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên hiện tại không có quyền lưu thay đổi trong cài đặt họ tộc hoặc danh sách chi.'**
+  String get clanPermissionDeniedDescription;
+
+  /// No description provided for @clanLoadErrorDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Có lỗi xảy ra khi tải dữ liệu họ tộc. Hãy thử tải lại hoặc kiểm tra cấu hình Firebase.'**
+  String get clanLoadErrorDescription;
+
+  /// No description provided for @clanReadOnlyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bạn đang ở chế độ chỉ xem'**
+  String get clanReadOnlyTitle;
+
+  /// No description provided for @clanReadOnlyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên này vẫn xem được thông tin họ tộc, nhưng chỉ quản trị họ tộc hoặc quản trị chi đã liên kết mới có thể thay đổi cài đặt.'**
+  String get clanReadOnlyDescription;
+
+  /// No description provided for @clanStatBranches.
+  ///
+  /// In vi, this message translates to:
+  /// **'Số chi'**
+  String get clanStatBranches;
+
+  /// No description provided for @clanStatMembers.
+  ///
+  /// In vi, this message translates to:
+  /// **'Số thành viên'**
+  String get clanStatMembers;
+
+  /// No description provided for @clanStatYourRole.
+  ///
+  /// In vi, this message translates to:
+  /// **'Vai trò của bạn'**
+  String get clanStatYourRole;
+
+  /// No description provided for @clanProfileSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hồ sơ họ tộc'**
+  String get clanProfileSectionTitle;
+
+  /// No description provided for @clanCreateAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tạo hồ sơ'**
+  String get clanCreateAction;
+
+  /// No description provided for @clanEditAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sửa hồ sơ'**
+  String get clanEditAction;
+
+  /// No description provided for @clanProfileEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có hồ sơ họ tộc'**
+  String get clanProfileEmptyTitle;
+
+  /// No description provided for @clanProfileEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy bắt đầu bằng tên họ tộc, người khai sáng và mô tả ngắn để các phần sau có ngữ cảnh đầy đủ.'**
+  String get clanProfileEmptyDescription;
+
+  /// No description provided for @clanFieldName.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tên họ tộc'**
+  String get clanFieldName;
+
+  /// No description provided for @clanFieldSlug.
+  ///
+  /// In vi, this message translates to:
+  /// **'Slug'**
+  String get clanFieldSlug;
+
+  /// No description provided for @clanFieldCountry.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quốc gia'**
+  String get clanFieldCountry;
+
+  /// No description provided for @clanFieldFounder.
+  ///
+  /// In vi, this message translates to:
+  /// **'Người khai sáng'**
+  String get clanFieldFounder;
+
+  /// No description provided for @clanFieldDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mô tả'**
+  String get clanFieldDescription;
+
+  /// No description provided for @clanFieldLogoUrl.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đường dẫn logo'**
+  String get clanFieldLogoUrl;
+
+  /// No description provided for @clanFieldUnset.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập'**
+  String get clanFieldUnset;
+
+  /// No description provided for @clanBranchSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Các chi'**
+  String get clanBranchSectionTitle;
+
+  /// No description provided for @clanAddBranchAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thêm chi'**
+  String get clanAddBranchAction;
+
+  /// No description provided for @clanOpenBranchListAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở danh sách chi'**
+  String get clanOpenBranchListAction;
+
+  /// No description provided for @clanBranchEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có chi nào'**
+  String get clanBranchEmptyTitle;
+
+  /// No description provided for @clanBranchEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tạo chi đầu tiên để phân bổ lãnh đạo, phạm vi vận hành và các màn hình thành viên theo chi.'**
+  String get clanBranchEmptyDescription;
+
+  /// No description provided for @clanBranchCodeLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mã chi'**
+  String get clanBranchCodeLabel;
+
+  /// No description provided for @clanLeaderLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Trưởng chi'**
+  String get clanLeaderLabel;
+
+  /// No description provided for @clanViceLeaderLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phó chi'**
+  String get clanViceLeaderLabel;
+
+  /// No description provided for @clanGenerationHintLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Gợi ý đời'**
+  String get clanGenerationHintLabel;
+
+  /// No description provided for @clanEditBranchAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sửa chi'**
+  String get clanEditBranchAction;
+
+  /// No description provided for @clanEditorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Biên tập hồ sơ họ tộc'**
+  String get clanEditorTitle;
+
+  /// No description provided for @clanEditorDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông tin này xuất hiện như lớp định danh chung cho toàn bộ ứng dụng và giúp đội vận hành thống nhất tên gọi, quốc gia, người khai sáng và mô tả nền.'**
+  String get clanEditorDescription;
+
+  /// No description provided for @clanFieldNameHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ví dụ: Họ Nguyễn Văn'**
+  String get clanFieldNameHint;
+
+  /// No description provided for @clanFieldSlugHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'ví dụ: ho-nguyen-van'**
+  String get clanFieldSlugHint;
+
+  /// No description provided for @clanFieldSlugHelper.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nếu bỏ trống, BeFam sẽ tự tạo slug từ tên họ tộc.'**
+  String get clanFieldSlugHelper;
+
+  /// No description provided for @clanValidationNameRequired.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy nhập tên họ tộc.'**
+  String get clanValidationNameRequired;
+
+  /// No description provided for @clanValidationCountryRequired.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy nhập mã quốc gia hợp lệ.'**
+  String get clanValidationCountryRequired;
+
+  /// No description provided for @clanFieldFounderHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ví dụ: Nguyễn Văn Thủy Tổ'**
+  String get clanFieldFounderHint;
+
+  /// No description provided for @clanFieldDescriptionHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tóm tắt nguồn gốc, phạm vi, hoặc ghi chú quản trị quan trọng của họ tộc.'**
+  String get clanFieldDescriptionHint;
+
+  /// No description provided for @clanSaveAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lưu thay đổi'**
+  String get clanSaveAction;
+
+  /// No description provided for @clanBranchEditorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Biên tập chi'**
+  String get clanBranchEditorTitle;
+
+  /// No description provided for @clanBranchEditorDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tạo hoặc cập nhật chi để sắp xếp người phụ trách, mã nhận diện và gợi ý đời cho các luồng gia phả sau này.'**
+  String get clanBranchEditorDescription;
+
+  /// No description provided for @clanBranchNameLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tên chi'**
+  String get clanBranchNameLabel;
+
+  /// No description provided for @clanBranchNameHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ví dụ: Chi Trưởng'**
+  String get clanBranchNameHint;
+
+  /// No description provided for @clanBranchCodeHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ví dụ: CT01'**
+  String get clanBranchCodeHint;
+
+  /// No description provided for @clanValidationBranchNameRequired.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy nhập tên chi.'**
+  String get clanValidationBranchNameRequired;
+
+  /// No description provided for @clanValidationBranchCodeRequired.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy nhập mã chi.'**
+  String get clanValidationBranchCodeRequired;
+
+  /// No description provided for @clanValidationGenerationRequired.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy nhập gợi ý đời lớn hơn 0.'**
+  String get clanValidationGenerationRequired;
+
+  /// No description provided for @clanNoLeaderOption.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa gán trưởng chi'**
+  String get clanNoLeaderOption;
+
+  /// No description provided for @clanNoViceLeaderOption.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa gán phó chi'**
+  String get clanNoViceLeaderOption;
+
+  /// No description provided for @clanValidationViceDistinct.
+  ///
+  /// In vi, this message translates to:
+  /// **'Trưởng chi và phó chi phải là hai người khác nhau.'**
+  String get clanValidationViceDistinct;
+
+  /// No description provided for @clanBranchListTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Danh sách chi'**
+  String get clanBranchListTitle;
+
+  /// No description provided for @memberWorkspaceTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hồ sơ thành viên'**
+  String get memberWorkspaceTitle;
+
+  /// No description provided for @memberRefreshAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tải lại'**
+  String get memberRefreshAction;
+
+  /// No description provided for @memberNoContextTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tài khoản này chưa có ngữ cảnh thành viên'**
+  String get memberNoContextTitle;
+
+  /// No description provided for @memberNoContextDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy liên kết tài khoản với hồ sơ thành viên trước khi quản lý danh sách thành viên trong BeFam.'**
+  String get memberNoContextDescription;
+
+  /// No description provided for @memberWorkspaceHeroTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản lý hồ sơ thành viên của họ tộc'**
+  String get memberWorkspaceHeroTitle;
+
+  /// No description provided for @memberWorkspaceHeroDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tạo hồ sơ mới, chỉnh sửa hồ sơ đã liên kết, quản lý avatar và chuẩn bị dữ liệu thành viên cho cây gia phả, sự kiện và phân quyền.'**
+  String get memberWorkspaceHeroDescription;
+
+  /// No description provided for @memberReadOnlyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bạn đang ở chế độ chỉ xem'**
+  String get memberReadOnlyTitle;
+
+  /// No description provided for @memberReadOnlyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên này chỉ xem được hồ sơ của chính mình hoặc ngữ cảnh thành viên đã liên kết. Chỉ quản trị họ tộc hoặc quản trị chi mới có thể thêm thành viên mới.'**
+  String get memberReadOnlyDescription;
+
+  /// No description provided for @memberLoadErrorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không thể tải không gian thành viên'**
+  String get memberLoadErrorTitle;
+
+  /// No description provided for @memberLoadErrorDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Có lỗi xảy ra khi tải hồ sơ thành viên. Hãy thử tải lại hoặc kiểm tra cấu hình Firebase.'**
+  String get memberLoadErrorDescription;
+
+  /// No description provided for @memberStatCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tổng hồ sơ'**
+  String get memberStatCount;
+
+  /// No description provided for @memberStatVisible.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đang hiển thị'**
+  String get memberStatVisible;
+
+  /// No description provided for @memberStatRole.
+  ///
+  /// In vi, this message translates to:
+  /// **'Vai trò của bạn'**
+  String get memberStatRole;
+
+  /// No description provided for @memberOwnProfileTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hồ sơ của bạn'**
+  String get memberOwnProfileTitle;
+
+  /// No description provided for @memberEditOwnProfileAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sửa hồ sơ của tôi'**
+  String get memberEditOwnProfileAction;
+
+  /// No description provided for @memberFilterSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tìm kiếm và lọc'**
+  String get memberFilterSectionTitle;
+
+  /// No description provided for @memberListSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Danh sách thành viên'**
+  String get memberListSectionTitle;
+
+  /// No description provided for @memberAddAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thêm thành viên'**
+  String get memberAddAction;
+
+  /// No description provided for @memberListEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có hồ sơ phù hợp'**
+  String get memberListEmptyTitle;
+
+  /// No description provided for @memberListEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy tạo thành viên đầu tiên hoặc thay đổi bộ lọc để xem thêm hồ sơ.'**
+  String get memberListEmptyDescription;
+
+  /// No description provided for @memberSaveSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã lưu hồ sơ thành viên.'**
+  String get memberSaveSuccess;
+
+  /// No description provided for @memberAvatarUploadSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã tải avatar lên thành công.'**
+  String get memberAvatarUploadSuccess;
+
+  /// No description provided for @memberDetailTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chi tiết thành viên'**
+  String get memberDetailTitle;
+
+  /// No description provided for @memberUploadAvatarAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tải ảnh đại diện'**
+  String get memberUploadAvatarAction;
+
+  /// No description provided for @memberEditAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chỉnh sửa'**
+  String get memberEditAction;
+
+  /// No description provided for @memberNotFoundTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không tìm thấy thành viên'**
+  String get memberNotFoundTitle;
+
+  /// No description provided for @memberNotFoundDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hồ sơ thành viên này không còn khả dụng trong ngữ cảnh hiện tại.'**
+  String get memberNotFoundDescription;
+
+  /// No description provided for @memberDetailNoNickname.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có biệt danh'**
+  String get memberDetailNoNickname;
+
+  /// No description provided for @memberGenerationLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đời'**
+  String get memberGenerationLabel;
+
+  /// No description provided for @memberDetailSummaryTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông tin cơ bản'**
+  String get memberDetailSummaryTitle;
+
+  /// No description provided for @memberFullNameLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Họ và tên'**
+  String get memberFullNameLabel;
+
+  /// No description provided for @memberNicknameLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Biệt danh'**
+  String get memberNicknameLabel;
+
+  /// No description provided for @memberFieldUnset.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập'**
+  String get memberFieldUnset;
+
+  /// No description provided for @memberPhoneLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Số điện thoại'**
+  String get memberPhoneLabel;
+
+  /// No description provided for @memberEmailLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Email'**
+  String get memberEmailLabel;
+
+  /// No description provided for @memberGenderLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Giới tính'**
+  String get memberGenderLabel;
+
+  /// No description provided for @memberBirthDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày sinh'**
+  String get memberBirthDateLabel;
+
+  /// No description provided for @memberDeathDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày mất'**
+  String get memberDeathDateLabel;
+
+  /// No description provided for @memberJobTitleLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nghề nghiệp'**
+  String get memberJobTitleLabel;
+
+  /// No description provided for @memberAddressLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Địa chỉ'**
+  String get memberAddressLabel;
+
+  /// No description provided for @memberBioLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tiểu sử ngắn'**
+  String get memberBioLabel;
+
+  /// No description provided for @memberSocialLinksTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Liên kết mạng xã hội'**
+  String get memberSocialLinksTitle;
+
+  /// No description provided for @memberSocialLinksEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có liên kết mạng xã hội'**
+  String get memberSocialLinksEmptyTitle;
+
+  /// No description provided for @memberSocialLinksEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thêm Facebook, Zalo hoặc LinkedIn để hồ sơ dễ liên hệ hơn.'**
+  String get memberSocialLinksEmptyDescription;
+
+  /// No description provided for @memberAvatarHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ảnh đại diện sẽ được lưu vào Firebase Storage và dùng cho các màn hình hồ sơ sau này.'**
+  String get memberAvatarHint;
+
+  /// No description provided for @memberAddSheetTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thêm thành viên'**
+  String get memberAddSheetTitle;
+
+  /// No description provided for @memberEditSheetTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chỉnh sửa thành viên'**
+  String get memberEditSheetTitle;
+
+  /// No description provided for @memberEditorDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Điền thông tin cốt lõi để BeFam có thể tìm kiếm, xác minh và hiển thị hồ sơ thành viên chính xác theo chi và đời.'**
+  String get memberEditorDescription;
+
+  /// No description provided for @memberSaveErrorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không thể lưu hồ sơ thành viên'**
+  String get memberSaveErrorTitle;
+
+  /// No description provided for @memberFullNameHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ví dụ: Nguyễn Văn Minh'**
+  String get memberFullNameHint;
+
+  /// No description provided for @memberValidationNameRequired.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy nhập họ và tên thành viên.'**
+  String get memberValidationNameRequired;
+
+  /// No description provided for @memberNicknameHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ví dụ: Minh'**
+  String get memberNicknameHint;
+
+  /// No description provided for @memberBranchLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chi'**
+  String get memberBranchLabel;
+
+  /// No description provided for @memberValidationBranchRequired.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy chọn chi cho thành viên.'**
+  String get memberValidationBranchRequired;
+
+  /// No description provided for @memberGenderUnspecified.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa xác định'**
+  String get memberGenderUnspecified;
+
+  /// No description provided for @memberGenderMale.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nam'**
+  String get memberGenderMale;
+
+  /// No description provided for @memberGenderFemale.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nữ'**
+  String get memberGenderFemale;
+
+  /// No description provided for @memberGenderOther.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khác'**
+  String get memberGenderOther;
+
+  /// No description provided for @memberValidationGenerationRequired.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy nhập đời lớn hơn 0.'**
+  String get memberValidationGenerationRequired;
+
+  /// No description provided for @memberValidationDateInvalid.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy nhập ngày theo định dạng YYYY-MM-DD hợp lệ.'**
+  String get memberValidationDateInvalid;
+
+  /// No description provided for @memberPhoneHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'0901234567 hoặc +84901234567'**
+  String get memberPhoneHint;
+
+  /// No description provided for @memberValidationPhoneInvalid.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy nhập số điện thoại hợp lệ.'**
+  String get memberValidationPhoneInvalid;
+
+  /// No description provided for @memberJobTitleHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ví dụ: Kỹ sư, giáo viên, quản lý'**
+  String get memberJobTitleHint;
+
+  /// No description provided for @memberAddressHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ví dụ: Đà Nẵng, Việt Nam'**
+  String get memberAddressHint;
+
+  /// No description provided for @memberSaveAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lưu hồ sơ'**
+  String get memberSaveAction;
+
+  /// No description provided for @memberSearchLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tìm thành viên'**
+  String get memberSearchLabel;
+
+  /// No description provided for @memberSearchHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhập tên, biệt danh hoặc số điện thoại'**
+  String get memberSearchHint;
+
+  /// No description provided for @memberFilterBranchLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lọc theo chi'**
+  String get memberFilterBranchLabel;
+
+  /// No description provided for @memberFilterAllBranches.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tất cả chi'**
+  String get memberFilterAllBranches;
+
+  /// No description provided for @memberFilterGenerationLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lọc theo đời'**
+  String get memberFilterGenerationLabel;
+
+  /// No description provided for @memberFilterAllGenerations.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tất cả đời'**
+  String get memberFilterAllGenerations;
+
+  /// No description provided for @memberClearFiltersAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xóa bộ lọc'**
+  String get memberClearFiltersAction;
+
+  /// No description provided for @memberPhoneMissing.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có số điện thoại'**
+  String get memberPhoneMissing;
+
+  /// No description provided for @memberPermissionEditor.
+  ///
+  /// In vi, this message translates to:
+  /// **'Có quyền chỉnh sửa'**
+  String get memberPermissionEditor;
+
+  /// No description provided for @memberPermissionViewer.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chỉ xem'**
+  String get memberPermissionViewer;
+
+  /// No description provided for @memberSandboxChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Dữ liệu sandbox cục bộ'**
+  String get memberSandboxChip;
+
+  /// No description provided for @memberLiveChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Dữ liệu Firestore trực tiếp'**
+  String get memberLiveChip;
+
+  /// No description provided for @memberDuplicatePhoneError.
+  ///
+  /// In vi, this message translates to:
+  /// **'Số điện thoại này đã thuộc về một hồ sơ thành viên khác.'**
+  String get memberDuplicatePhoneError;
+
+  /// No description provided for @memberPermissionDeniedError.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên hiện tại không có quyền thay đổi hồ sơ thành viên này.'**
+  String get memberPermissionDeniedError;
+
+  /// No description provided for @memberAvatarUploadError.
+  ///
+  /// In vi, this message translates to:
+  /// **'BeFam chưa thể tải ảnh đại diện lên lúc này.'**
+  String get memberAvatarUploadError;
+
+  /// No description provided for @relationshipInspectorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quan hệ gia đình'**
+  String get relationshipInspectorTitle;
+
+  /// No description provided for @relationshipInspectorDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Kiểm tra các liên kết cha mẹ, con cái và hôn phối của hồ sơ này. Những thay đổi nhạy cảm chỉ dành cho quản trị đã liên kết.'**
+  String get relationshipInspectorDescription;
+
+  /// No description provided for @relationshipRefreshAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tải lại quan hệ'**
+  String get relationshipRefreshAction;
+
+  /// No description provided for @relationshipAddParentAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thêm cha hoặc mẹ'**
+  String get relationshipAddParentAction;
+
+  /// No description provided for @relationshipAddChildAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thêm con'**
+  String get relationshipAddChildAction;
+
+  /// No description provided for @relationshipAddSpouseAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thêm hôn phối'**
+  String get relationshipAddSpouseAction;
+
+  /// No description provided for @relationshipParentsTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cha mẹ'**
+  String get relationshipParentsTitle;
+
+  /// No description provided for @relationshipChildrenTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Con cái'**
+  String get relationshipChildrenTitle;
+
+  /// No description provided for @relationshipSpousesTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hôn phối'**
+  String get relationshipSpousesTitle;
+
+  /// No description provided for @relationshipNoParents.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có liên kết cha mẹ.'**
+  String get relationshipNoParents;
+
+  /// No description provided for @relationshipNoChildren.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có liên kết con cái.'**
+  String get relationshipNoChildren;
+
+  /// No description provided for @relationshipNoSpouses.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có liên kết hôn phối.'**
+  String get relationshipNoSpouses;
+
+  /// No description provided for @relationshipCanonicalEdgeTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cạnh quan hệ chuẩn'**
+  String get relationshipCanonicalEdgeTitle;
+
+  /// No description provided for @relationshipNoEdges.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có cạnh quan hệ nào cho hồ sơ này.'**
+  String get relationshipNoEdges;
+
+  /// No description provided for @relationshipEdgeParentChild.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cha mẹ -> con'**
+  String get relationshipEdgeParentChild;
+
+  /// No description provided for @relationshipEdgeSpouse.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hôn phối'**
+  String get relationshipEdgeSpouse;
+
+  /// No description provided for @relationshipSourceLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nguồn'**
+  String get relationshipSourceLabel;
+
+  /// No description provided for @relationshipErrorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không thể cập nhật quan hệ'**
+  String get relationshipErrorTitle;
+
+  /// No description provided for @relationshipErrorDuplicateSpouse.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hai thành viên này đã có liên kết hôn phối.'**
+  String get relationshipErrorDuplicateSpouse;
+
+  /// No description provided for @relationshipErrorDuplicateParentChild.
+  ///
+  /// In vi, this message translates to:
+  /// **'Liên kết cha mẹ - con cái này đã tồn tại.'**
+  String get relationshipErrorDuplicateParentChild;
+
+  /// No description provided for @relationshipErrorCycle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Liên kết cha mẹ - con cái này sẽ tạo chu trình không hợp lệ.'**
+  String get relationshipErrorCycle;
+
+  /// No description provided for @relationshipErrorPermissionDenied.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên hiện tại không có quyền thay đổi quan hệ nhạy cảm này.'**
+  String get relationshipErrorPermissionDenied;
+
+  /// No description provided for @relationshipErrorMemberNotFound.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không tìm thấy hồ sơ thành viên phù hợp để tạo quan hệ.'**
+  String get relationshipErrorMemberNotFound;
+
+  /// No description provided for @relationshipErrorSameMember.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không thể tạo quan hệ với chính cùng một thành viên.'**
+  String get relationshipErrorSameMember;
+
+  /// No description provided for @relationshipPickParentTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chọn cha hoặc mẹ'**
+  String get relationshipPickParentTitle;
+
+  /// No description provided for @relationshipPickChildTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chọn thành viên làm con'**
+  String get relationshipPickChildTitle;
+
+  /// No description provided for @relationshipPickSpouseTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chọn hôn phối'**
+  String get relationshipPickSpouseTitle;
+
+  /// No description provided for @relationshipNoCandidates.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không còn ứng viên phù hợp cho thao tác này.'**
+  String get relationshipNoCandidates;
+
+  /// No description provided for @relationshipParentAddedSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thêm liên kết cha mẹ.'**
+  String get relationshipParentAddedSuccess;
+
+  /// No description provided for @relationshipChildAddedSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thêm liên kết con cái.'**
+  String get relationshipChildAddedSuccess;
+
+  /// No description provided for @relationshipSpouseAddedSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thêm liên kết hôn phối.'**
+  String get relationshipSpouseAddedSuccess;
 
   /// No description provided for @authIssueRestoreSessionFailed.
   ///
@@ -925,6 +2275,30 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'BeFam chưa tìm thấy hồ sơ gia đình phù hợp với thông tin này.'**
   String get authIssueUserNotFound;
+
+  /// No description provided for @authIssueChildAccessNotReady.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mã trẻ em này đã tồn tại nhưng chưa được liên kết đầy đủ với luồng OTP phụ huynh.'**
+  String get authIssueChildAccessNotReady;
+
+  /// No description provided for @authIssueMemberAlreadyLinked.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hồ sơ thành viên này đã được liên kết với một tài khoản khác.'**
+  String get authIssueMemberAlreadyLinked;
+
+  /// No description provided for @authIssueMemberClaimConflict.
+  ///
+  /// In vi, this message translates to:
+  /// **'Có nhiều hơn một hồ sơ thành viên dùng cùng số điện thoại này. Hãy liên hệ quản trị viên họ tộc.'**
+  String get authIssueMemberClaimConflict;
+
+  /// No description provided for @authIssueParentVerificationMismatch.
+  ///
+  /// In vi, this message translates to:
+  /// **'Số điện thoại đã xác minh không khớp với số phụ huynh liên kết với mã truy cập trẻ em đó.'**
+  String get authIssueParentVerificationMismatch;
 
   /// No description provided for @authIssueOperationNotAllowed.
   ///
