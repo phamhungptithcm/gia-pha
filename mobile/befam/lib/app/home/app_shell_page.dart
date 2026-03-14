@@ -9,6 +9,7 @@ import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
 import '../../features/notifications/services/push_notification_service.dart';
+import '../../features/profile/presentation/profile_workspace_page.dart';
 import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
@@ -159,6 +160,38 @@ class _AppShellPageState extends State<AppShellPage> {
     };
   }
 
+  Future<void> _confirmLogoutRequest() async {
+    if (widget.onLogoutRequested == null) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(context.l10n.shellLogout),
+          content: const Text(
+            'You can sign back in at any time with your linked account.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Log out'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      await widget.onLogoutRequested?.call();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -182,6 +215,11 @@ class _AppShellPageState extends State<AppShellPage> {
             _selectedIndex = 1;
           });
         },
+        onOpenProfileRequested: () {
+          setState(() {
+            _selectedIndex = 3;
+          });
+        },
       ),
       GenealogyWorkspacePage(
         session: widget.session,
@@ -192,10 +230,10 @@ class _AppShellPageState extends State<AppShellPage> {
         description: l10n.shellEventsWorkspaceDescription,
         icon: Icons.event,
       ),
-      _ComingSoonPane(
-        title: l10n.shellProfileWorkspaceTitle,
-        description: l10n.shellProfileWorkspaceDescription,
-        icon: Icons.person,
+      ProfileWorkspacePage(
+        session: widget.session,
+        memberRepository: widget.memberRepository,
+        onLogoutRequested: widget.onLogoutRequested,
       ),
     ];
 
@@ -229,7 +267,7 @@ class _AppShellPageState extends State<AppShellPage> {
               tooltip: l10n.shellMoreActions,
               onSelected: (value) async {
                 if (value == 'logout') {
-                  await widget.onLogoutRequested?.call();
+                  await _confirmLogoutRequest();
                 }
               },
               itemBuilder: (context) => [
@@ -271,6 +309,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.clanRepository,
     required this.memberRepository,
     required this.onOpenTreeRequested,
+    required this.onOpenProfileRequested,
   });
 
   final FirebaseSetupStatus status;
@@ -278,6 +317,7 @@ class _HomeDashboard extends StatelessWidget {
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
   final VoidCallback onOpenTreeRequested;
+  final VoidCallback onOpenProfileRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -473,6 +513,7 @@ class _HomeDashboard extends StatelessWidget {
         );
       },
       'tree' => onOpenTreeRequested,
+      'profile' => onOpenProfileRequested,
       _ => null,
     };
   }
