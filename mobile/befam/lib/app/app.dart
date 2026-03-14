@@ -9,6 +9,8 @@ import 'bootstrap/firebase_setup_status.dart';
 import 'theme/app_theme.dart';
 
 class BeFamApp extends StatelessWidget {
+  static const defaultLocale = Locale('vi');
+
   const BeFamApp({
     super.key,
     required this.status,
@@ -24,11 +26,13 @@ class BeFamApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveLocale = locale ?? defaultLocale;
+
     return MaterialApp(
       onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      locale: locale,
+      locale: effectiveLocale,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -37,21 +41,13 @@ class BeFamApp extends StatelessWidget {
       ],
       supportedLocales: AppLocalizations.supportedLocales,
       localeResolutionCallback: (deviceLocale, supportedLocales) {
-        if (locale != null) {
-          return locale;
-        }
-
-        if (deviceLocale == null) {
-          return const Locale('vi');
-        }
-
         for (final supportedLocale in supportedLocales) {
-          if (supportedLocale.languageCode == deviceLocale.languageCode) {
+          if (supportedLocale.languageCode == effectiveLocale.languageCode) {
             return supportedLocale;
           }
         }
 
-        return const Locale('vi');
+        return defaultLocale;
       },
       home: AuthExperience(
         status: status,

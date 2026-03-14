@@ -30,6 +30,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('defaults to Vietnamese when no locale override is provided', (
+    tester,
+  ) async {
+    await pumpAuthApp(tester);
+
+    expect(find.text('Tiếp tục bằng số điện thoại'), findsOneWidget);
+    expect(find.text('Tiếp tục bằng mã trẻ em'), findsOneWidget);
+    expect(find.textContaining('Môi trường thử nghiệm'), findsOneWidget);
+  });
+
   testWidgets('supports Vietnamese as the primary locale', (tester) async {
     await pumpAuthApp(tester, locale: const Locale('vi'));
 
