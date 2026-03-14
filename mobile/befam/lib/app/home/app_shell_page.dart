@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
+import '../../features/events/presentation/event_workspace_page.dart';
+import '../../features/events/services/event_repository.dart';
 import '../../features/funds/presentation/fund_workspace_page.dart';
 import '../../features/funds/services/fund_repository.dart';
 import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
@@ -29,6 +31,7 @@ class AppShellPage extends StatefulWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    this.eventRepository,
     this.fundRepository,
     this.genealogyRepository,
     this.pushNotificationService,
@@ -39,6 +42,7 @@ class AppShellPage extends StatefulWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final EventRepository? eventRepository;
   final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
   final PushNotificationService? pushNotificationService;
@@ -51,6 +55,7 @@ class AppShellPage extends StatefulWidget {
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
   late final GenealogyReadRepository _genealogyRepository;
+  late final EventRepository _eventRepository;
   late final FundRepository _fundRepository;
   late final PushNotificationService _pushNotificationService;
 
@@ -82,6 +87,7 @@ class _AppShellPageState extends State<AppShellPage> {
     super.initState();
     _genealogyRepository =
         widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
+    _eventRepository = widget.eventRepository ?? createDefaultEventRepository();
     _fundRepository = widget.fundRepository ?? createDefaultFundRepository();
     _pushNotificationService =
         widget.pushNotificationService ??
@@ -191,16 +197,17 @@ class _AppShellPageState extends State<AppShellPage> {
             _selectedIndex = 1;
           });
         },
+        onOpenEventsRequested: () {
+          setState(() {
+            _selectedIndex = 2;
+          });
+        },
       ),
       GenealogyWorkspacePage(
         session: widget.session,
         repository: _genealogyRepository,
       ),
-      _ComingSoonPane(
-        title: l10n.shellEventsWorkspaceTitle,
-        description: l10n.shellEventsWorkspaceDescription,
-        icon: Icons.event,
-      ),
+      EventWorkspacePage(session: widget.session, repository: _eventRepository),
       _ComingSoonPane(
         title: l10n.shellProfileWorkspaceTitle,
         description: l10n.shellProfileWorkspaceDescription,
@@ -281,6 +288,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.memberRepository,
     required this.fundRepository,
     required this.onOpenTreeRequested,
+    required this.onOpenEventsRequested,
   });
 
   final FirebaseSetupStatus status;
@@ -289,6 +297,7 @@ class _HomeDashboard extends StatelessWidget {
   final MemberRepository memberRepository;
   final FundRepository fundRepository;
   final VoidCallback onOpenTreeRequested;
+  final VoidCallback onOpenEventsRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -496,6 +505,7 @@ class _HomeDashboard extends StatelessWidget {
         );
       },
       'tree' => onOpenTreeRequested,
+      'events' => onOpenEventsRequested,
       'funds' => () {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
