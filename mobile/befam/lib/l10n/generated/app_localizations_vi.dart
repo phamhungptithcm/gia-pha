@@ -252,6 +252,99 @@ class AppLocalizationsVi extends AppLocalizations {
       'Khung ứng dụng đã sẵn sàng cho trải nghiệm cây gia phả theo nhánh và công việc dựng cây lớn.';
 
   @override
+  String get genealogyWorkspaceTitle => 'Read model gia phả';
+
+  @override
+  String get genealogyWorkspaceDescription =>
+      'Tải phạm vi của cả họ hoặc chi hiện tại, kiểm tra các điểm vào gốc, rồi xác minh chuỗi tổ tiên, hậu duệ, anh chị em và dữ liệu cây đã được cache trước khi bước sang màn hình cây trực quan.';
+
+  @override
+  String get genealogyScopeClan => 'Phạm vi cả họ';
+
+  @override
+  String get genealogyScopeBranch => 'Chi hiện tại';
+
+  @override
+  String get genealogyRefreshAction => 'Tải lại dữ liệu cây';
+
+  @override
+  String get genealogyLoadFailed => 'Không thể tải không gian gia phả lúc này.';
+
+  @override
+  String get genealogyFromCache => 'Đang dùng dữ liệu cache';
+
+  @override
+  String get genealogyLiveData => 'Ảnh chụp mới nhất';
+
+  @override
+  String get genealogySummaryMembers => 'Thành viên';
+
+  @override
+  String get genealogySummaryRelationships => 'Quan hệ';
+
+  @override
+  String get genealogySummaryRoots => 'Điểm vào gốc';
+
+  @override
+  String get genealogySummaryScope => 'Phạm vi';
+
+  @override
+  String get genealogyFocusMemberTitle => 'Thành viên trọng tâm';
+
+  @override
+  String get genealogyAncestryPathTitle => 'Chuỗi tổ tiên';
+
+  @override
+  String get genealogyRootEntriesTitle => 'Điểm vào gốc của cây';
+
+  @override
+  String get genealogyNoRootEntries => 'Chưa có điểm vào gốc cho phạm vi này.';
+
+  @override
+  String get genealogyMemberStructureTitle => 'Xem trước cấu trúc';
+
+  @override
+  String get genealogyEmptyStateTitle =>
+      'Chưa có thành viên nào trong phạm vi này.';
+
+  @override
+  String get genealogyEmptyStateDescription =>
+      'Hãy tạo hồ sơ thành viên đầu tiên hoặc chuyển phạm vi để bắt đầu dựng đồ thị gia đình.';
+
+  @override
+  String get genealogyGenerationLabel => 'Đời';
+
+  @override
+  String get genealogyParentCountLabel => 'Cha mẹ';
+
+  @override
+  String get genealogyChildCountLabel => 'Con';
+
+  @override
+  String get genealogySpouseCountLabel => 'Phối ngẫu';
+
+  @override
+  String get genealogySiblingCountLabel => 'Anh chị em';
+
+  @override
+  String get genealogyDescendantCountLabel => 'Hậu duệ';
+
+  @override
+  String get genealogyRootReasonCurrentMember => 'Thành viên hiện tại';
+
+  @override
+  String get genealogyRootReasonClanRoot => 'Gốc của họ';
+
+  @override
+  String get genealogyRootReasonScopeRoot => 'Gốc của phạm vi';
+
+  @override
+  String get genealogyRootReasonBranchLeader => 'Trưởng chi';
+
+  @override
+  String get genealogyRootReasonBranchViceLeader => 'Phó chi';
+
+  @override
   String get shellEventsWorkspaceTitle => 'Không gian sự kiện';
 
   @override
@@ -333,7 +426,28 @@ class AppLocalizationsVi extends AppLocalizations {
   String get shellFieldMemberId => 'Mã thành viên';
 
   @override
+  String get shellFieldClanId => 'Mã họ tộc';
+
+  @override
+  String get shellFieldBranchId => 'Mã chi';
+
+  @override
+  String get shellFieldPrimaryRole => 'Vai trò chính';
+
+  @override
+  String get shellFieldAccessMode => 'Chế độ truy cập';
+
+  @override
   String get shellFieldSessionType => 'Loại phiên';
+
+  @override
+  String get shellAccessModeUnlinked => 'Đăng nhập chưa liên kết hồ sơ';
+
+  @override
+  String get shellAccessModeClaimed => 'Phiên thành viên đã liên kết';
+
+  @override
+  String get shellAccessModeChild => 'Phiên truy cập trẻ em';
 
   @override
   String get shellSessionTypeSandbox => 'Phiên thử nghiệm cục bộ';
@@ -369,6 +483,30 @@ class AppLocalizationsVi extends AppLocalizations {
   String get shellFieldStartupNote => 'Ghi chú khởi động';
 
   @override
+  String get shellMemberAccessClaimedTitle =>
+      'Hồ sơ thành viên đã được liên kết';
+
+  @override
+  String get shellMemberAccessClaimedDescription =>
+      'Phiên này đã gắn với một hồ sơ thành viên BeFam, và auth UID cũng đã được liên kết để truy cập trực tiếp hồ sơ đó.';
+
+  @override
+  String get shellMemberAccessChildTitle =>
+      'Truy cập trẻ em đã được xác minh qua OTP phụ huynh';
+
+  @override
+  String get shellMemberAccessChildDescription =>
+      'Phiên này dùng OTP phụ huynh để mở ngữ cảnh thành viên của trẻ. Hồ sơ trẻ có thể được truy cập mà không liên kết vĩnh viễn auth UID.';
+
+  @override
+  String get shellMemberAccessUnlinkedTitle =>
+      'Đã đăng nhập nhưng chưa liên kết được hồ sơ thành viên';
+
+  @override
+  String get shellMemberAccessUnlinkedDescription =>
+      'Phiên số điện thoại đã được xác minh, nhưng BeFam chưa ghép được số này với hồ sơ thành viên có thể nhận. Quyền truy cập theo họ tộc vẫn bị giới hạn cho tới khi hồ sơ được liên kết.';
+
+  @override
   String get shellShortcutStatusLive => 'Đang dùng';
 
   @override
@@ -389,6 +527,13 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get shortcutDescriptionTree =>
       'Bắt đầu trải nghiệm gia phả với điều hướng theo nhánh.';
+
+  @override
+  String get shortcutTitleClan => 'Họ tộc';
+
+  @override
+  String get shortcutDescriptionClan =>
+      'Thiết lập hồ sơ họ tộc, ban điều hành chi và không gian quản trị đầu tiên.';
 
   @override
   String get shortcutTitleMembers => 'Thành viên';
@@ -424,6 +569,581 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get shortcutDescriptionProfile =>
       'Dành sẵn không gian cá nhân cho cài đặt thành viên, người giám hộ và ngữ cảnh.';
+
+  @override
+  String get roleSuperAdmin => 'Siêu quản trị';
+
+  @override
+  String get roleClanAdmin => 'Quản trị họ tộc';
+
+  @override
+  String get roleBranchAdmin => 'Quản trị chi';
+
+  @override
+  String get roleMember => 'Thành viên';
+
+  @override
+  String get roleUnknown => 'Chưa xác định';
+
+  @override
+  String get clanDetailTitle => 'Quản lý họ tộc';
+
+  @override
+  String get clanRefreshAction => 'Tải lại';
+
+  @override
+  String get clanSaveSuccess => 'Đã lưu hồ sơ họ tộc.';
+
+  @override
+  String get clanBranchSaveSuccess => 'Đã lưu thông tin chi.';
+
+  @override
+  String get clanNoContextTitle => 'Tài khoản này chưa có ngữ cảnh họ tộc';
+
+  @override
+  String get clanNoContextDescription =>
+      'Hãy liên kết tài khoản với một hồ sơ thành viên hoặc hoàn tất quy trình nhận hồ sơ trước khi quản lý họ tộc.';
+
+  @override
+  String get clanCreateFirstTitle => 'Khởi tạo hồ sơ họ tộc';
+
+  @override
+  String get clanCreateFirstDescription =>
+      'Tạo hồ sơ cốt lõi của họ tộc để nhóm có nơi quản lý các chi, ban điều hành và cấu trúc vận hành ban đầu.';
+
+  @override
+  String get clanPermissionEditor => 'Có quyền quản trị';
+
+  @override
+  String get clanPermissionViewer => 'Chỉ xem';
+
+  @override
+  String get clanSandboxSourceChip => 'Dữ liệu sandbox cục bộ';
+
+  @override
+  String get clanLiveSourceChip => 'Dữ liệu Firestore trực tiếp';
+
+  @override
+  String get clanLoadErrorTitle => 'Không thể tải không gian họ tộc';
+
+  @override
+  String get clanPermissionDeniedDescription =>
+      'Phiên hiện tại không có quyền lưu thay đổi trong cài đặt họ tộc hoặc danh sách chi.';
+
+  @override
+  String get clanLoadErrorDescription =>
+      'Có lỗi xảy ra khi tải dữ liệu họ tộc. Hãy thử tải lại hoặc kiểm tra cấu hình Firebase.';
+
+  @override
+  String get clanReadOnlyTitle => 'Bạn đang ở chế độ chỉ xem';
+
+  @override
+  String get clanReadOnlyDescription =>
+      'Phiên này vẫn xem được thông tin họ tộc, nhưng chỉ quản trị họ tộc hoặc quản trị chi đã liên kết mới có thể thay đổi cài đặt.';
+
+  @override
+  String get clanStatBranches => 'Số chi';
+
+  @override
+  String get clanStatMembers => 'Số thành viên';
+
+  @override
+  String get clanStatYourRole => 'Vai trò của bạn';
+
+  @override
+  String get clanProfileSectionTitle => 'Hồ sơ họ tộc';
+
+  @override
+  String get clanCreateAction => 'Tạo hồ sơ';
+
+  @override
+  String get clanEditAction => 'Sửa hồ sơ';
+
+  @override
+  String get clanProfileEmptyTitle => 'Chưa có hồ sơ họ tộc';
+
+  @override
+  String get clanProfileEmptyDescription =>
+      'Hãy bắt đầu bằng tên họ tộc, người khai sáng và mô tả ngắn để các phần sau có ngữ cảnh đầy đủ.';
+
+  @override
+  String get clanFieldName => 'Tên họ tộc';
+
+  @override
+  String get clanFieldSlug => 'Slug';
+
+  @override
+  String get clanFieldCountry => 'Quốc gia';
+
+  @override
+  String get clanFieldFounder => 'Người khai sáng';
+
+  @override
+  String get clanFieldDescription => 'Mô tả';
+
+  @override
+  String get clanFieldLogoUrl => 'Đường dẫn logo';
+
+  @override
+  String get clanFieldUnset => 'Chưa thiết lập';
+
+  @override
+  String get clanBranchSectionTitle => 'Các chi';
+
+  @override
+  String get clanAddBranchAction => 'Thêm chi';
+
+  @override
+  String get clanOpenBranchListAction => 'Mở danh sách chi';
+
+  @override
+  String get clanBranchEmptyTitle => 'Chưa có chi nào';
+
+  @override
+  String get clanBranchEmptyDescription =>
+      'Tạo chi đầu tiên để phân bổ lãnh đạo, phạm vi vận hành và các màn hình thành viên theo chi.';
+
+  @override
+  String get clanBranchCodeLabel => 'Mã chi';
+
+  @override
+  String get clanLeaderLabel => 'Trưởng chi';
+
+  @override
+  String get clanViceLeaderLabel => 'Phó chi';
+
+  @override
+  String get clanGenerationHintLabel => 'Gợi ý đời';
+
+  @override
+  String get clanEditBranchAction => 'Sửa chi';
+
+  @override
+  String get clanEditorTitle => 'Biên tập hồ sơ họ tộc';
+
+  @override
+  String get clanEditorDescription =>
+      'Thông tin này xuất hiện như lớp định danh chung cho toàn bộ ứng dụng và giúp đội vận hành thống nhất tên gọi, quốc gia, người khai sáng và mô tả nền.';
+
+  @override
+  String get clanFieldNameHint => 'Ví dụ: Họ Nguyễn Văn';
+
+  @override
+  String get clanFieldSlugHint => 'ví dụ: ho-nguyen-van';
+
+  @override
+  String get clanFieldSlugHelper =>
+      'Nếu bỏ trống, BeFam sẽ tự tạo slug từ tên họ tộc.';
+
+  @override
+  String get clanValidationNameRequired => 'Hãy nhập tên họ tộc.';
+
+  @override
+  String get clanValidationCountryRequired => 'Hãy nhập mã quốc gia hợp lệ.';
+
+  @override
+  String get clanFieldFounderHint => 'Ví dụ: Nguyễn Văn Thủy Tổ';
+
+  @override
+  String get clanFieldDescriptionHint =>
+      'Tóm tắt nguồn gốc, phạm vi, hoặc ghi chú quản trị quan trọng của họ tộc.';
+
+  @override
+  String get clanSaveAction => 'Lưu thay đổi';
+
+  @override
+  String get clanBranchEditorTitle => 'Biên tập chi';
+
+  @override
+  String get clanBranchEditorDescription =>
+      'Tạo hoặc cập nhật chi để sắp xếp người phụ trách, mã nhận diện và gợi ý đời cho các luồng gia phả sau này.';
+
+  @override
+  String get clanBranchNameLabel => 'Tên chi';
+
+  @override
+  String get clanBranchNameHint => 'Ví dụ: Chi Trưởng';
+
+  @override
+  String get clanBranchCodeHint => 'Ví dụ: CT01';
+
+  @override
+  String get clanValidationBranchNameRequired => 'Hãy nhập tên chi.';
+
+  @override
+  String get clanValidationBranchCodeRequired => 'Hãy nhập mã chi.';
+
+  @override
+  String get clanValidationGenerationRequired =>
+      'Hãy nhập gợi ý đời lớn hơn 0.';
+
+  @override
+  String get clanNoLeaderOption => 'Chưa gán trưởng chi';
+
+  @override
+  String get clanNoViceLeaderOption => 'Chưa gán phó chi';
+
+  @override
+  String get clanValidationViceDistinct =>
+      'Trưởng chi và phó chi phải là hai người khác nhau.';
+
+  @override
+  String get clanBranchListTitle => 'Danh sách chi';
+
+  @override
+  String get memberWorkspaceTitle => 'Hồ sơ thành viên';
+
+  @override
+  String get memberRefreshAction => 'Tải lại';
+
+  @override
+  String get memberNoContextTitle =>
+      'Tài khoản này chưa có ngữ cảnh thành viên';
+
+  @override
+  String get memberNoContextDescription =>
+      'Hãy liên kết tài khoản với hồ sơ thành viên trước khi quản lý danh sách thành viên trong BeFam.';
+
+  @override
+  String get memberWorkspaceHeroTitle => 'Quản lý hồ sơ thành viên của họ tộc';
+
+  @override
+  String get memberWorkspaceHeroDescription =>
+      'Tạo hồ sơ mới, chỉnh sửa hồ sơ đã liên kết, quản lý avatar và chuẩn bị dữ liệu thành viên cho cây gia phả, sự kiện và phân quyền.';
+
+  @override
+  String get memberReadOnlyTitle => 'Bạn đang ở chế độ chỉ xem';
+
+  @override
+  String get memberReadOnlyDescription =>
+      'Phiên này chỉ xem được hồ sơ của chính mình hoặc ngữ cảnh thành viên đã liên kết. Chỉ quản trị họ tộc hoặc quản trị chi mới có thể thêm thành viên mới.';
+
+  @override
+  String get memberLoadErrorTitle => 'Không thể tải không gian thành viên';
+
+  @override
+  String get memberLoadErrorDescription =>
+      'Có lỗi xảy ra khi tải hồ sơ thành viên. Hãy thử tải lại hoặc kiểm tra cấu hình Firebase.';
+
+  @override
+  String get memberStatCount => 'Tổng hồ sơ';
+
+  @override
+  String get memberStatVisible => 'Đang hiển thị';
+
+  @override
+  String get memberStatRole => 'Vai trò của bạn';
+
+  @override
+  String get memberOwnProfileTitle => 'Hồ sơ của bạn';
+
+  @override
+  String get memberEditOwnProfileAction => 'Sửa hồ sơ của tôi';
+
+  @override
+  String get memberFilterSectionTitle => 'Tìm kiếm và lọc';
+
+  @override
+  String get memberListSectionTitle => 'Danh sách thành viên';
+
+  @override
+  String get memberAddAction => 'Thêm thành viên';
+
+  @override
+  String get memberListEmptyTitle => 'Chưa có hồ sơ phù hợp';
+
+  @override
+  String get memberListEmptyDescription =>
+      'Hãy tạo thành viên đầu tiên hoặc thay đổi bộ lọc để xem thêm hồ sơ.';
+
+  @override
+  String get memberSaveSuccess => 'Đã lưu hồ sơ thành viên.';
+
+  @override
+  String get memberAvatarUploadSuccess => 'Đã tải avatar lên thành công.';
+
+  @override
+  String get memberDetailTitle => 'Chi tiết thành viên';
+
+  @override
+  String get memberUploadAvatarAction => 'Tải ảnh đại diện';
+
+  @override
+  String get memberEditAction => 'Chỉnh sửa';
+
+  @override
+  String get memberNotFoundTitle => 'Không tìm thấy thành viên';
+
+  @override
+  String get memberNotFoundDescription =>
+      'Hồ sơ thành viên này không còn khả dụng trong ngữ cảnh hiện tại.';
+
+  @override
+  String get memberDetailNoNickname => 'Chưa có biệt danh';
+
+  @override
+  String get memberGenerationLabel => 'Đời';
+
+  @override
+  String get memberDetailSummaryTitle => 'Thông tin cơ bản';
+
+  @override
+  String get memberFullNameLabel => 'Họ và tên';
+
+  @override
+  String get memberNicknameLabel => 'Biệt danh';
+
+  @override
+  String get memberFieldUnset => 'Chưa thiết lập';
+
+  @override
+  String get memberPhoneLabel => 'Số điện thoại';
+
+  @override
+  String get memberEmailLabel => 'Email';
+
+  @override
+  String get memberGenderLabel => 'Giới tính';
+
+  @override
+  String get memberBirthDateLabel => 'Ngày sinh';
+
+  @override
+  String get memberDeathDateLabel => 'Ngày mất';
+
+  @override
+  String get memberJobTitleLabel => 'Nghề nghiệp';
+
+  @override
+  String get memberAddressLabel => 'Địa chỉ';
+
+  @override
+  String get memberBioLabel => 'Tiểu sử ngắn';
+
+  @override
+  String get memberSocialLinksTitle => 'Liên kết mạng xã hội';
+
+  @override
+  String get memberSocialLinksEmptyTitle => 'Chưa có liên kết mạng xã hội';
+
+  @override
+  String get memberSocialLinksEmptyDescription =>
+      'Thêm Facebook, Zalo hoặc LinkedIn để hồ sơ dễ liên hệ hơn.';
+
+  @override
+  String get memberAvatarHint =>
+      'Ảnh đại diện sẽ được lưu vào Firebase Storage và dùng cho các màn hình hồ sơ sau này.';
+
+  @override
+  String get memberAddSheetTitle => 'Thêm thành viên';
+
+  @override
+  String get memberEditSheetTitle => 'Chỉnh sửa thành viên';
+
+  @override
+  String get memberEditorDescription =>
+      'Điền thông tin cốt lõi để BeFam có thể tìm kiếm, xác minh và hiển thị hồ sơ thành viên chính xác theo chi và đời.';
+
+  @override
+  String get memberSaveErrorTitle => 'Không thể lưu hồ sơ thành viên';
+
+  @override
+  String get memberFullNameHint => 'Ví dụ: Nguyễn Văn Minh';
+
+  @override
+  String get memberValidationNameRequired => 'Hãy nhập họ và tên thành viên.';
+
+  @override
+  String get memberNicknameHint => 'Ví dụ: Minh';
+
+  @override
+  String get memberBranchLabel => 'Chi';
+
+  @override
+  String get memberValidationBranchRequired => 'Hãy chọn chi cho thành viên.';
+
+  @override
+  String get memberGenderUnspecified => 'Chưa xác định';
+
+  @override
+  String get memberGenderMale => 'Nam';
+
+  @override
+  String get memberGenderFemale => 'Nữ';
+
+  @override
+  String get memberGenderOther => 'Khác';
+
+  @override
+  String get memberValidationGenerationRequired => 'Hãy nhập đời lớn hơn 0.';
+
+  @override
+  String get memberValidationDateInvalid =>
+      'Hãy nhập ngày theo định dạng YYYY-MM-DD hợp lệ.';
+
+  @override
+  String get memberPhoneHint => '0901234567 hoặc +84901234567';
+
+  @override
+  String get memberValidationPhoneInvalid => 'Hãy nhập số điện thoại hợp lệ.';
+
+  @override
+  String get memberJobTitleHint => 'Ví dụ: Kỹ sư, giáo viên, quản lý';
+
+  @override
+  String get memberAddressHint => 'Ví dụ: Đà Nẵng, Việt Nam';
+
+  @override
+  String get memberSaveAction => 'Lưu hồ sơ';
+
+  @override
+  String get memberSearchLabel => 'Tìm thành viên';
+
+  @override
+  String get memberSearchHint => 'Nhập tên, biệt danh hoặc số điện thoại';
+
+  @override
+  String get memberFilterBranchLabel => 'Lọc theo chi';
+
+  @override
+  String get memberFilterAllBranches => 'Tất cả chi';
+
+  @override
+  String get memberFilterGenerationLabel => 'Lọc theo đời';
+
+  @override
+  String get memberFilterAllGenerations => 'Tất cả đời';
+
+  @override
+  String get memberClearFiltersAction => 'Xóa bộ lọc';
+
+  @override
+  String get memberPhoneMissing => 'Chưa có số điện thoại';
+
+  @override
+  String get memberPermissionEditor => 'Có quyền chỉnh sửa';
+
+  @override
+  String get memberPermissionViewer => 'Chỉ xem';
+
+  @override
+  String get memberSandboxChip => 'Dữ liệu sandbox cục bộ';
+
+  @override
+  String get memberLiveChip => 'Dữ liệu Firestore trực tiếp';
+
+  @override
+  String get memberDuplicatePhoneError =>
+      'Số điện thoại này đã thuộc về một hồ sơ thành viên khác.';
+
+  @override
+  String get memberPermissionDeniedError =>
+      'Phiên hiện tại không có quyền thay đổi hồ sơ thành viên này.';
+
+  @override
+  String get memberAvatarUploadError =>
+      'BeFam chưa thể tải ảnh đại diện lên lúc này.';
+
+  @override
+  String get relationshipInspectorTitle => 'Quan hệ gia đình';
+
+  @override
+  String get relationshipInspectorDescription =>
+      'Kiểm tra các liên kết cha mẹ, con cái và hôn phối của hồ sơ này. Những thay đổi nhạy cảm chỉ dành cho quản trị đã liên kết.';
+
+  @override
+  String get relationshipRefreshAction => 'Tải lại quan hệ';
+
+  @override
+  String get relationshipAddParentAction => 'Thêm cha hoặc mẹ';
+
+  @override
+  String get relationshipAddChildAction => 'Thêm con';
+
+  @override
+  String get relationshipAddSpouseAction => 'Thêm hôn phối';
+
+  @override
+  String get relationshipParentsTitle => 'Cha mẹ';
+
+  @override
+  String get relationshipChildrenTitle => 'Con cái';
+
+  @override
+  String get relationshipSpousesTitle => 'Hôn phối';
+
+  @override
+  String get relationshipNoParents => 'Chưa có liên kết cha mẹ.';
+
+  @override
+  String get relationshipNoChildren => 'Chưa có liên kết con cái.';
+
+  @override
+  String get relationshipNoSpouses => 'Chưa có liên kết hôn phối.';
+
+  @override
+  String get relationshipCanonicalEdgeTitle => 'Cạnh quan hệ chuẩn';
+
+  @override
+  String get relationshipNoEdges => 'Chưa có cạnh quan hệ nào cho hồ sơ này.';
+
+  @override
+  String get relationshipEdgeParentChild => 'Cha mẹ -> con';
+
+  @override
+  String get relationshipEdgeSpouse => 'Hôn phối';
+
+  @override
+  String get relationshipSourceLabel => 'Nguồn';
+
+  @override
+  String get relationshipErrorTitle => 'Không thể cập nhật quan hệ';
+
+  @override
+  String get relationshipErrorDuplicateSpouse =>
+      'Hai thành viên này đã có liên kết hôn phối.';
+
+  @override
+  String get relationshipErrorDuplicateParentChild =>
+      'Liên kết cha mẹ - con cái này đã tồn tại.';
+
+  @override
+  String get relationshipErrorCycle =>
+      'Liên kết cha mẹ - con cái này sẽ tạo chu trình không hợp lệ.';
+
+  @override
+  String get relationshipErrorPermissionDenied =>
+      'Phiên hiện tại không có quyền thay đổi quan hệ nhạy cảm này.';
+
+  @override
+  String get relationshipErrorMemberNotFound =>
+      'Không tìm thấy hồ sơ thành viên phù hợp để tạo quan hệ.';
+
+  @override
+  String get relationshipErrorSameMember =>
+      'Không thể tạo quan hệ với chính cùng một thành viên.';
+
+  @override
+  String get relationshipPickParentTitle => 'Chọn cha hoặc mẹ';
+
+  @override
+  String get relationshipPickChildTitle => 'Chọn thành viên làm con';
+
+  @override
+  String get relationshipPickSpouseTitle => 'Chọn hôn phối';
+
+  @override
+  String get relationshipNoCandidates =>
+      'Không còn ứng viên phù hợp cho thao tác này.';
+
+  @override
+  String get relationshipParentAddedSuccess => 'Đã thêm liên kết cha mẹ.';
+
+  @override
+  String get relationshipChildAddedSuccess => 'Đã thêm liên kết con cái.';
+
+  @override
+  String get relationshipSpouseAddedSuccess => 'Đã thêm liên kết hôn phối.';
 
   @override
   String get authIssueRestoreSessionFailed =>
@@ -479,6 +1199,22 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get authIssueUserNotFound =>
       'BeFam chưa tìm thấy hồ sơ gia đình phù hợp với thông tin này.';
+
+  @override
+  String get authIssueChildAccessNotReady =>
+      'Mã trẻ em này đã tồn tại nhưng chưa được liên kết đầy đủ với luồng OTP phụ huynh.';
+
+  @override
+  String get authIssueMemberAlreadyLinked =>
+      'Hồ sơ thành viên này đã được liên kết với một tài khoản khác.';
+
+  @override
+  String get authIssueMemberClaimConflict =>
+      'Có nhiều hơn một hồ sơ thành viên dùng cùng số điện thoại này. Hãy liên hệ quản trị viên họ tộc.';
+
+  @override
+  String get authIssueParentVerificationMismatch =>
+      'Số điện thoại đã xác minh không khớp với số phụ huynh liên kết với mã truy cập trẻ em đó.';
 
   @override
   String get authIssueOperationNotAllowed =>

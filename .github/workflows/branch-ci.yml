@@ -22,7 +22,7 @@ jobs:
   ci-docs:
     name: ci-docs
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -40,18 +40,10 @@ jobs:
       - name: Build docs
         run: mkdocs build --strict
 
-      - name: Build release docs image
-        run: |
-          docker build \
-            --build-arg RELEASE_VERSION=0.0.0-ci \
-            --build-arg VCS_REF="${GITHUB_SHA}" \
-            --tag gia-pha-docs:test \
-            .
-
   ci-functions:
     name: ci-functions
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: firebase/functions
@@ -72,10 +64,20 @@ jobs:
       - name: Build Functions
         run: npm run build
 
+      - name: Build Firebase tooling image
+        working-directory: ${{ github.workspace }}
+        run: |
+          docker build \
+            --file docker/firebase-tools.Dockerfile \
+            --build-arg RELEASE_VERSION=0.0.0-ci \
+            --build-arg VCS_REF="${GITHUB_SHA}" \
+            --tag befam-firebase-tools:test \
+            .
+
   ci-mobile:
     name: ci-mobile
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: mobile/befam
@@ -109,3 +111,13 @@ jobs:
 
       - name: Build Android release APK
         run: flutter build apk --release --build-name 0.0.0 --build-number 1
+
+      - name: Build mobile release image
+        working-directory: ${{ github.workspace }}
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --build-arg RELEASE_VERSION=0.0.0-ci \
+            --build-arg VCS_REF="${GITHUB_SHA}" \
+            --tag befam-mobile-builder:test \
+            .

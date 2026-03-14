@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<rect width="1600" height="900" rx="44" fill="#30364F" />
+<g transform="rotate(14 800 235)"><ellipse cx="800" cy="235" rx="158" ry="58" fill="none" stroke="#F0F0DB" stroke-width="24" /></g>
+<g transform="rotate(62 800 235)"><ellipse cx="800" cy="235" rx="158" ry="58" fill="none" stroke="#E1D9BC" stroke-width="24" /></g>
+<g transform="rotate(118 800 235)"><ellipse cx="800" cy="235" rx="158" ry="58" fill="none" stroke="#ACBAC4" stroke-width="24" /></g>
+<g transform="rotate(166 800 235)"><ellipse cx="800" cy="235" rx="158" ry="58" fill="none" stroke="#F0F0DB" stroke-width="24" /></g>
+<polygon points="800,196 835,216 835,256 800,276 765,256 765,216" fill="#F0F0DB" />
+<text x="682" y="550" font-family="New York, Georgia, serif" font-size="136" fill="#E1D9BC">Be</text>
+<text x="846" y="540" font-family="New York, Georgia, serif" font-size="160" font-weight="700" fill="#F0F0DB">Fam</text>
+<text x="800" y="650" font-family="Avenir Next, Helvetica, sans-serif" font-size="34" fill="#F0F0DB" text-anchor="middle" letter-spacing="0.08em">Family roots, beautifully connected.</text>
+</svg>

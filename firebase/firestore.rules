@@ -28,8 +28,30 @@ service cloud.firestore {
         : '';
     }
 
+    function branchIdClaim() {
+      return signedIn() && request.auth.token.branchId is string
+        ? request.auth.token.branchId
+        : '';
+    }
+
     function isClanAdmin() {
       return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN'];
+    }
+
+    function isClanSettingsAdmin() {
+      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN'];
+    }
+
+    function isBranchAdmin() {
+      return primaryRole() == 'BRANCH_ADMIN';
+    }
+
+    function isBranchScopedMemberManager(existingBranchId, nextBranchId) {
+      return isBranchAdmin() &&
+        existingBranchId is string &&
+        nextBranchId is string &&
+        existingBranchId == branchIdClaim() &&
+        nextBranchId == existingBranchId;
     }
 
     function isSelfMember(memberData) {
@@ -57,19 +79,42 @@ service cloud.firestore {
 
     match /clans/{clanId} {
       allow read: if hasClanAccess(clanId);
-      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.id);
+      allow create, update: if
+        isClanSettingsAdmin() &&
+        hasClanAccess(clanId) &&
+        request.resource.data.id == clanId;
+      allow delete: if false;
     }
 
     match /branches/{branchId} {
       allow read: if hasClanAccess(resource.data.clanId);
-      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+      allow create, update: if
+        isClanAdmin() &&
+        hasClanAccess(request.resource.data.clanId) &&
+        request.resource.data.id == branchId;
+      allow delete: if false;
     }
 
     match /members/{memberId} {
       allow read: if hasClanAccess(resource.data.clanId);
-      allow create: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+      allow create: if
+        hasClanAccess(request.resource.data.clanId) && (
+          isClanSettingsAdmin() ||
+          (
+            isBranchAdmin() &&
+            request.resource.data.branchId is string &&
+            request.resource.data.branchId == branchIdClaim()
+          )
+        );
       allow update: if hasClanAccess(resource.data.clanId) && (
-        isClanAdmin() ||
+        (
+          isClanSettingsAdmin() &&
+          request.resource.data.clanId == resource.data.clanId
+        ) ||
+        isBranchScopedMemberManager(
+          resource.data.branchId,
+          request.resource.data.branchId
+        ) ||
         (
           isSelfMember(resource.data) &&
           safeProfileUpdate() &&
@@ -84,7 +129,11 @@ service cloud.firestore {
 
     match /relationships/{relationshipId} {
       allow read: if hasClanAccess(resource.data.clanId);
-      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+      allow create, update: if
+        isClanSettingsAdmin() &&
+        hasClanAccess(request.resource.data.clanId) &&
+        request.resource.data.id == relationshipId;
+      allow delete: if false;
     }
 
     match /events/{eventId} {

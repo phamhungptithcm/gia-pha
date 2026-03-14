@@ -50,13 +50,27 @@ Build the site in strict mode:
 mkdocs build --strict
 ```
 
-Build the release docs image locally:
+Build the BeFam mobile release-builder image locally:
 
 ```bash
 docker build \
+  --platform linux/amd64 \
   --build-arg RELEASE_VERSION=local \
   --build-arg VCS_REF=$(git rev-parse --short HEAD) \
-  -t gia-pha-docs:local .
+  -t befam-mobile-builder:local .
+```
+
+On Apple Silicon, the BeFam mobile builder intentionally targets `linux/amd64`
+because the Flutter Linux SDK used for Android release builds is x86_64-based.
+
+Build the Firebase tooling image locally:
+
+```bash
+docker build \
+  --file docker/firebase-tools.Dockerfile \
+  --build-arg RELEASE_VERSION=local \
+  --build-arg VCS_REF=$(git rev-parse --short HEAD) \
+  -t befam-firebase-tools:local .
 ```
 
 ## Flutter Development
@@ -170,6 +184,10 @@ cd mobile/befam
 flutter run -d ios
 ```
 
+Production release automation on `main` now also prepares an unsigned iOS
+`xcarchive` asset for GitHub Releases. A signed `.ipa` will still require Apple
+signing certificates, provisioning profiles, and export options in CI.
+
 ## GitHub Automation
 
 The repository includes:
@@ -177,14 +195,16 @@ The repository includes:
 - docs validation on pull requests
 - required branch CI for `staging` and `main`
 - Firebase Functions TypeScript build validation in branch CI
+- Firebase tooling image validation in branch CI
 - Android release APK validation in branch CI
-- docs release image validation in branch CI
+- mobile release-builder image validation in branch CI
 - GitHub Pages deployment from `main`
 - production Firebase deploy workflow for Firestore, Storage, and Functions
 - automatic semver tagging and GitHub release publishing on `main`
 - friendly release note generation from conventional commits
-- Android release APK upload to GitHub Releases
-- docs image publishing to GHCR at `ghcr.io/phamhungptithcm/gia-pha-docs`
+- Android release APK and unsigned iOS XCArchive upload to GitHub Releases
+- BeFam mobile builder image publishing to GHCR at `ghcr.io/phamhungptithcm/befam-mobile-builder`
+- Firebase tooling image publishing to GHCR at `ghcr.io/phamhungptithcm/befam-firebase-tools`
 - weekly release promotion pull requests from `staging` to `main`
 - post-release story and epic closure after production merges
 - issue and pull request templates
@@ -219,4 +239,4 @@ node scripts/next_release_version.mjs
 5. Merge to `staging` after review and successful checks.
 6. Use `Closes #123` keywords for completed stories so production release automation can close them later.
 7. Review and approve the weekly `staging` to `main` release pull request for production.
-8. After the merge lands on `main`, let release automation create the semver tag, friendly notes, Android APK asset, and GHCR docs image.
+8. After the merge lands on `main`, let release automation create the semver tag, friendly notes, the Android APK asset, the unsigned iOS XCArchive asset, and the GHCR mobile plus Firebase images.

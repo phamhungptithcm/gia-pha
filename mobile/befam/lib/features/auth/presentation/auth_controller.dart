@@ -8,6 +8,7 @@ import '../models/auth_issue.dart';
 import '../models/auth_otp_request_result.dart';
 import '../models/auth_session.dart';
 import '../models/pending_otp_challenge.dart';
+import '../services/auth_analytics_service.dart';
 import '../services/auth_error_mapper.dart';
 import '../services/auth_gateway.dart';
 import '../services/auth_session_store.dart';
@@ -16,14 +17,19 @@ import '../services/phone_number_formatter.dart';
 
 enum AuthStep { loginMethodSelection, phoneNumber, childIdentifier, otp }
 
+typedef AuthOtpAction = Future<AuthOtpRequestResult> Function();
+
 class AuthController extends ChangeNotifier {
   AuthController({
     required AuthGateway authGateway,
+    required AuthAnalyticsService analyticsService,
     required AuthSessionStore sessionStore,
   }) : _authGateway = authGateway,
+       _analyticsService = analyticsService,
        _sessionStore = sessionStore;
 
   final AuthGateway _authGateway;
+  final AuthAnalyticsService _analyticsService;
   final AuthSessionStore _sessionStore;
 
   AuthStep step = AuthStep.loginMethodSelection;
@@ -68,6 +74,9 @@ class AuthController extends ChangeNotifier {
       AuthEntryMethod.phone => AuthStep.phoneNumber,
       AuthEntryMethod.child => AuthStep.childIdentifier,
     };
+    unawaited(
+      _analyticsService.logLoginMethodSelected(method, isSandbox: isSandbox),
+    );
     _emit();
   }
 
@@ -101,12 +110,16 @@ class AuthController extends ChangeNotifier {
     final parsedPhone = PhoneNumberFormatter.parse(rawPhoneNumber);
     await _startOtpRequest(
       () => _authGateway.requestPhoneOtp(parsedPhone.e164),
+      method: AuthEntryMethod.phone,
     );
   }
 
   Future<void> submitChildIdentifier(String rawChildIdentifier) async {
     final normalized = ChildIdentifierFormatter.normalize(rawChildIdentifier);
-    await _startOtpRequest(() => _authGateway.requestChildOtp(normalized));
+    await _startOtpRequest(
+      () => _authGateway.requestChildOtp(normalized),
+      method: AuthEntryMethod.child,
+    );
   }
 
   Future<void> verifyOtp(String rawCode) async {
@@ -127,7 +140,7 @@ class AuthController extends ChangeNotifier {
     await _runBusy(() async {
       final newSession = await _authGateway.verifyOtp(challenge, sanitized);
       await _completeSignIn(newSession);
-    });
+    }, method: challenge.loginMethod);
   }
 
   Future<void> resendOtp() async {
@@ -136,12 +149,17 @@ class AuthController extends ChangeNotifier {
       return;
     }
 
-    await _startOtpRequest(() => _authGateway.resendOtp(challenge));
+    await _startOtpRequest(
+      () => _authGateway.resendOtp(challenge),
+      method: challenge.loginMethod,
+      isResend: true,
+    );
   }
 
   Future<void> logout() async {
     await _runBusy(() async {
       await _authGateway.signOut();
+      await _analyticsService.logLogout(session);
       await _sessionStore.clear();
       session = null;
       pendingChallenge = null;
@@ -151,12 +169,19 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> _startOtpRequest(
-    Future<AuthOtpRequestResult> Function() action,
-  ) async {
+    AuthOtpAction action, {
+    required AuthEntryMethod method,
+    bool isResend = false,
+  }) async {
     await _runBusy(() async {
       final result = await action();
       await _applyOtpRequestResult(result);
-    });
+      await _analyticsService.logOtpRequested(
+        method,
+        isSandbox: isSandbox,
+        isResend: isResend,
+      );
+    }, method: method);
   }
 
   Future<void> _applyOtpRequestResult(AuthOtpRequestResult result) async {
@@ -169,6 +194,16 @@ class AuthController extends ChangeNotifier {
       pendingChallenge = challenge;
       step = AuthStep.otp;
       _startCooldown();
+      if (challenge.loginMethod == AuthEntryMethod.child &&
+          challenge.childIdentifier != null) {
+        unawaited(
+          _analyticsService.logChildContextResolved(
+            isSandbox: isSandbox,
+            childIdentifier: challenge.childIdentifier!,
+            memberId: challenge.memberId,
+          ),
+        );
+      }
       _emit();
     }
   }
@@ -180,10 +215,14 @@ class AuthController extends ChangeNotifier {
     await _sessionStore.write(newSession);
     _stopCooldown();
     AppLogger.info('Auth session established for ${newSession.uid}.');
+    await _analyticsService.logSessionEstablished(newSession);
     _emit();
   }
 
-  Future<void> _runBusy(Future<void> Function() action) async {
+  Future<void> _runBusy(
+    Future<void> Function() action, {
+    AuthEntryMethod? method,
+  }) async {
     isBusy = true;
     error = null;
     _emit();
@@ -193,6 +232,12 @@ class AuthController extends ChangeNotifier {
     } catch (error, stackTrace) {
       AppLogger.error('Authentication flow failed.', error, stackTrace);
       this.error = AuthErrorMapper.map(error);
+      await _analyticsService.logFailure(
+        stage: step.name,
+        isSandbox: isSandbox,
+        method: method,
+        issue: this.error,
+      );
       _emit();
     } finally {
       isBusy = false;

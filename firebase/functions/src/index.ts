@@ -1,9 +1,18 @@
 import { initializeApp } from 'firebase-admin/app';
 import { setGlobalOptions } from 'firebase-functions/v2/options';
 
-import { claimMemberRecord, createInvite, registerDeviceToken } from './auth/callables';
+import {
+  claimMemberRecord,
+  createInvite,
+  registerDeviceToken,
+  resolveChildLoginContext,
+} from './auth/callables';
 import { APP_REGION } from './config/runtime';
 import { onEventCreated, sendEventReminder } from './events/event-triggers';
+import {
+  createParentChildRelationship,
+  createSpouseRelationship,
+} from './genealogy/callables';
 import {
   onRelationshipCreated,
   onRelationshipDeleted,
@@ -21,6 +30,8 @@ setGlobalOptions({
 
 export {
   claimMemberRecord,
+  createParentChildRelationship,
+  createSpouseRelationship,
   createInvite,
   expireInvitesJob,
   onEventCreated,
@@ -29,5 +40,6 @@ export {
   onSubmissionReviewed,
   onTransactionCreated,
   registerDeviceToken,
+  resolveChildLoginContext,
   sendEventReminder,
 };

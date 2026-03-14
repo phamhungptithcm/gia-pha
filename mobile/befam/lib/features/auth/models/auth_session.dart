@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'auth_member_access_mode.dart';
 import 'auth_entry_method.dart';
 
 part 'auth_session.freezed.dart';
@@ -14,6 +15,11 @@ abstract class AuthSession with _$AuthSession {
     required String displayName,
     String? childIdentifier,
     String? memberId,
+    String? clanId,
+    String? branchId,
+    String? primaryRole,
+    @Default(AuthMemberAccessMode.unlinked) AuthMemberAccessMode accessMode,
+    @Default(false) bool linkedAuthUid,
     @Default(false) bool isSandbox,
     required String signedInAtIso,
   }) = _AuthSession;

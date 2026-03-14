@@ -6,6 +6,16 @@ final List<AppShortcut> bootstrapShortcuts = List.unmodifiable(
 
 const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
   {
+    'id': 'clan',
+    'title': 'Clan',
+    'description':
+        'Set up clan identity, branch leadership, and the first administration workspace.',
+    'route': '/clan',
+    'iconKey': 'clan',
+    'status': 'live',
+    'isPrimary': true,
+  },
+  {
     'id': 'tree',
     'title': 'Family Tree',
     'description':
@@ -22,7 +32,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
         'View member profiles, claim records, and prepare the first data flows.',
     'route': '/members',
     'iconKey': 'members',
-    'status': 'bootstrap',
+    'status': 'live',
     'isPrimary': true,
   },
   {
