@@ -97,6 +97,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
   }
 
   void _openMemberDetail(MemberProfile member) {
+    _controller.trackMemberOpened(member);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
@@ -150,7 +151,6 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                         _WorkspaceHero(
                           title: l10n.memberWorkspaceHeroTitle,
                           description: l10n.memberWorkspaceHeroDescription,
-                          isSandbox: widget.repository.isSandbox,
                           canCreateMembers:
                               _controller.permissions.canCreateMembers,
                           onAddMember: _controller.permissions.canCreateMembers
@@ -245,7 +245,30 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                           onAction: _controller.permissions.canCreateMembers
                               ? () => _openMemberEditor()
                               : null,
-                          child: _controller.filteredMembers.isEmpty
+                          child: _controller.isSearching
+                              ? _SearchStateCard(
+                                  icon: Icons.search,
+                                  title: l10n.memberSearchLabel,
+                                  description: l10n.memberSearchHint,
+                                  trailing: const Padding(
+                                    padding: EdgeInsets.only(top: 4),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              : _controller.searchError != null
+                              ? _SearchStateCard(
+                                  icon: Icons.wifi_tethering_error_outlined,
+                                  title: l10n.memberLoadErrorTitle,
+                                  description: l10n.memberLoadErrorDescription,
+                                  trailing: TextButton.icon(
+                                    onPressed: _controller.retrySearch,
+                                    icon: const Icon(Icons.refresh),
+                                    label: Text(l10n.memberRefreshAction),
+                                  ),
+                                )
+                              : _controller.filteredMembers.isEmpty
                               ? _WorkspaceEmptyState(
                                   icon: Icons.person_search_outlined,
                                   title: l10n.memberListEmptyTitle,
@@ -274,6 +297,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                                           roleLabel: l10n.roleLabel(
                                             member.primaryRole,
                                           ),
+                                          highlightQuery:
+                                              _controller.filters.query,
                                           onTap: () =>
                                               _openMemberDetail(member),
                                         ),
@@ -1071,8 +1096,10 @@ class _FilterPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final theme = Theme.of(context);
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
           key: const Key('members-search-input'),
@@ -1085,51 +1112,61 @@ class _FilterPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        Row(
+        Text(
+          l10n.memberFilterBranchLabel,
+          style: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
           children: [
-            Expanded(
-              child: DropdownButtonFormField<String?>(
-                key: const Key('members-branch-filter'),
-                initialValue: filtersBranchId,
-                decoration: InputDecoration(
-                  labelText: l10n.memberFilterBranchLabel,
-                ),
-                items: [
-                  DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text(l10n.memberFilterAllBranches),
-                  ),
-                  for (final branch in branches)
-                    DropdownMenuItem<String?>(
-                      value: branch.id,
-                      child: Text(branch.name),
-                    ),
-                ],
-                onChanged: onBranchChanged,
-              ),
+            ChoiceChip(
+              key: const Key('members-branch-filter-all'),
+              selected: filtersBranchId == null,
+              label: Text(l10n.memberFilterAllBranches),
+              onSelected: (_) => onBranchChanged(null),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: DropdownButtonFormField<int?>(
-                key: const Key('members-generation-filter'),
-                initialValue: filtersGeneration,
-                decoration: InputDecoration(
-                  labelText: l10n.memberFilterGenerationLabel,
-                ),
-                items: [
-                  DropdownMenuItem<int?>(
-                    value: null,
-                    child: Text(l10n.memberFilterAllGenerations),
-                  ),
-                  for (final generation in generationOptions)
-                    DropdownMenuItem<int?>(
-                      value: generation,
-                      child: Text('${l10n.memberGenerationLabel} $generation'),
-                    ),
-                ],
-                onChanged: onGenerationChanged,
+            for (final branch in branches)
+              FilterChip(
+                key: Key('members-branch-filter-${branch.id}'),
+                selected: filtersBranchId == branch.id,
+                label: Text(branch.name),
+                onSelected: (selected) {
+                  onBranchChanged(selected ? branch.id : null);
+                },
               ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          l10n.memberFilterGenerationLabel,
+          style: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            ChoiceChip(
+              key: const Key('members-generation-filter-all'),
+              selected: filtersGeneration == null,
+              label: Text(l10n.memberFilterAllGenerations),
+              onSelected: (_) => onGenerationChanged(null),
             ),
+            for (final generation in generationOptions)
+              FilterChip(
+                key: Key('members-generation-filter-$generation'),
+                selected: filtersGeneration == generation,
+                label: Text('${l10n.memberGenerationLabel} $generation'),
+                onSelected: (selected) {
+                  onGenerationChanged(selected ? generation : null);
+                },
+              ),
           ],
         ),
         const SizedBox(height: 12),
@@ -1152,12 +1189,14 @@ class _MemberSummaryCard extends StatelessWidget {
     required this.member,
     required this.branchName,
     required this.roleLabel,
+    this.highlightQuery = '',
     required this.onTap,
   });
 
   final MemberProfile member;
   final String branchName;
   final String roleLabel;
+  final String highlightQuery;
   final VoidCallback onTap;
 
   @override
@@ -1181,10 +1220,15 @@ class _MemberSummaryCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      member.fullName,
+                    _HighlightedText(
+                      text: member.fullName,
+                      query: highlightQuery,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
+                      ),
+                      highlightStyle: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: colorScheme.primary,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -1205,10 +1249,15 @@ class _MemberSummaryCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    Text(
-                      member.phoneE164 ?? l10n.memberPhoneMissing,
+                    _HighlightedText(
+                      text: member.phoneE164 ?? l10n.memberPhoneMissing,
+                      query: highlightQuery,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: colorScheme.onSurfaceVariant,
+                      ),
+                      highlightStyle: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
@@ -1259,14 +1308,12 @@ class _WorkspaceHero extends StatelessWidget {
   const _WorkspaceHero({
     required this.title,
     required this.description,
-    required this.isSandbox,
     required this.canCreateMembers,
     this.onAddMember,
   });
 
   final String title;
   final String description;
-  final bool isSandbox;
   final bool canCreateMembers;
   final VoidCallback? onAddMember;
 
@@ -1300,14 +1347,6 @@ class _WorkspaceHero extends StatelessWidget {
                 label: canCreateMembers
                     ? l10n.memberPermissionEditor
                     : l10n.memberPermissionViewer,
-                backgroundColor: colorScheme.onPrimary.withValues(alpha: 0.16),
-                foregroundColor: colorScheme.onPrimary,
-              ),
-              _ChipPill(
-                icon: isSandbox
-                    ? Icons.science_outlined
-                    : Icons.cloud_done_outlined,
-                label: isSandbox ? l10n.memberSandboxChip : l10n.memberLiveChip,
                 backgroundColor: colorScheme.onPrimary.withValues(alpha: 0.16),
                 foregroundColor: colorScheme.onPrimary,
               ),
@@ -1391,6 +1430,61 @@ class _SectionCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchStateCard extends StatelessWidget {
+  const _SearchStateCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(description, style: theme.textTheme.bodyMedium),
+                  if (trailing != null) ...[
+                    const SizedBox(height: 10),
+                    trailing!,
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -1553,6 +1647,55 @@ class _ChipPill extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HighlightedText extends StatelessWidget {
+  const _HighlightedText({
+    required this.text,
+    required this.query,
+    this.style,
+    this.highlightStyle,
+  });
+
+  final String text;
+  final String query;
+  final TextStyle? style;
+  final TextStyle? highlightStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) {
+      return Text(text, style: style);
+    }
+
+    final lowerText = text.toLowerCase();
+    final start = lowerText.indexOf(normalizedQuery);
+    if (start < 0) {
+      return Text(text, style: style);
+    }
+    final end = start + normalizedQuery.length;
+
+    return RichText(
+      text: TextSpan(
+        style: style ?? DefaultTextStyle.of(context).style,
+        children: [
+          TextSpan(text: text.substring(0, start)),
+          TextSpan(
+            text: text.substring(start, end),
+            style: (highlightStyle ?? style)?.copyWith(
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.primaryContainer.withValues(alpha: 0.8),
+            ),
+          ),
+          TextSpan(text: text.substring(end)),
+        ],
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

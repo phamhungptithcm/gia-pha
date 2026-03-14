@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'app/app.dart';
 import 'app/bootstrap/app_bootstrap.dart';
 import 'core/services/crash_reporting_service.dart';
+import 'features/notifications/services/push_notification_service.dart';
 
 Future<void> main() async {
   var crashReportingService = const CrashReportingService.disabled();
@@ -33,6 +34,7 @@ Future<void> main() async {
 
       final bootstrap = await AppBootstrap.initialize();
       crashReportingService = bootstrap.crashReportingService;
+      configurePushBackgroundHandler();
       runApp(BeFamApp(status: bootstrap.status));
     },
     (error, stackTrace) async {

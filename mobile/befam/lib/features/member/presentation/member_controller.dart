@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
@@ -6,19 +8,29 @@ import '../../clan/models/branch_profile.dart';
 import '../models/member_draft.dart';
 import '../models/member_list_filters.dart';
 import '../models/member_profile.dart';
+import '../services/member_search_analytics_service.dart';
 import '../services/member_permissions.dart';
 import '../services/member_repository.dart';
+import '../services/member_search_provider.dart';
 
 class MemberController extends ChangeNotifier {
   MemberController({
     required MemberRepository repository,
     required AuthSession session,
+    MemberSearchProvider? searchProvider,
+    MemberSearchAnalyticsService? searchAnalyticsService,
   }) : _repository = repository,
        _session = session,
+       _searchProvider = searchProvider ?? createDefaultMemberSearchProvider(),
+       _searchAnalyticsService =
+           searchAnalyticsService ??
+           createDefaultMemberSearchAnalyticsService(),
        permissions = MemberPermissions.forSession(session);
 
   final MemberRepository _repository;
   final AuthSession _session;
+  final MemberSearchProvider _searchProvider;
+  final MemberSearchAnalyticsService _searchAnalyticsService;
   final MemberPermissions permissions;
 
   bool _isLoading = true;
@@ -28,6 +40,10 @@ class MemberController extends ChangeNotifier {
   List<MemberProfile> _members = const [];
   List<BranchProfile> _branches = const [];
   MemberListFilters _filters = const MemberListFilters();
+  List<MemberProfile> _searchResults = const [];
+  bool _isSearching = false;
+  String? _searchError;
+  int _searchRevision = 0;
 
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
@@ -36,6 +52,8 @@ class MemberController extends ChangeNotifier {
   List<MemberProfile> get members => _members;
   List<BranchProfile> get branches => _branches;
   MemberListFilters get filters => _filters;
+  bool get isSearching => _isSearching;
+  String? get searchError => _searchError;
   bool get hasClanContext => permissions.canViewWorkspace;
 
   List<MemberProfile> get _accessibleMembers {
@@ -70,24 +88,7 @@ class MemberController extends ChangeNotifier {
   }
 
   List<MemberProfile> get filteredMembers {
-    final normalizedQuery = _filters.query.trim().toLowerCase();
-    return _accessibleMembers
-        .where((member) {
-          final branchMatches =
-              _filters.branchId == null || _filters.branchId == member.branchId;
-          final generationMatches =
-              _filters.generation == null ||
-              _filters.generation == member.generation;
-          final queryMatches =
-              normalizedQuery.isEmpty ||
-              member.fullName.toLowerCase().contains(normalizedQuery) ||
-              member.nickName.toLowerCase().contains(normalizedQuery) ||
-              (member.phoneE164?.toLowerCase().contains(normalizedQuery) ??
-                  false);
-
-          return branchMatches && generationMatches && queryMatches;
-        })
-        .toList(growable: false);
+    return _searchResults;
   }
 
   MemberProfile? get selfMember {
@@ -116,8 +117,10 @@ class MemberController extends ChangeNotifier {
       final snapshot = await _repository.loadWorkspace(session: _session);
       _members = snapshot.members;
       _branches = snapshot.branches;
+      await _runSearch(trackAnalytics: false);
     } catch (error) {
       _errorMessage = error.toString();
+      _searchResults = const [];
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -126,7 +129,7 @@ class MemberController extends ChangeNotifier {
 
   void updateSearchQuery(String value) {
     _filters = _filters.copyWith(query: value);
-    notifyListeners();
+    unawaited(_runSearch());
   }
 
   void updateBranchFilter(String? branchId) {
@@ -134,7 +137,7 @@ class MemberController extends ChangeNotifier {
       branchId: branchId,
       clearBranch: branchId == null,
     );
-    notifyListeners();
+    unawaited(_runSearch());
   }
 
   void updateGenerationFilter(int? generation) {
@@ -142,7 +145,11 @@ class MemberController extends ChangeNotifier {
       generation: generation,
       clearGeneration: generation == null,
     );
-    notifyListeners();
+    unawaited(_runSearch());
+  }
+
+  Future<void> retrySearch() async {
+    await _runSearch();
   }
 
   Future<MemberRepositoryErrorCode?> saveMember({
@@ -235,10 +242,77 @@ class MemberController extends ChangeNotifier {
     return permissions.canUploadAvatar(member, _session);
   }
 
+  void trackMemberOpened(MemberProfile member) {
+    unawaited(
+      _searchAnalyticsService.trackResultOpened(
+        memberId: member.id,
+        branchId: member.branchId,
+        generation: member.generation,
+      ),
+    );
+  }
+
   String branchName(String branchId) {
     return _branches
             .firstWhereOrNull((branch) => branch.id == branchId)
             ?.name ??
         branchId;
+  }
+
+  Future<void> _runSearch({bool trackAnalytics = true}) async {
+    final revision = ++_searchRevision;
+    _isSearching = true;
+    _searchError = null;
+    notifyListeners();
+
+    final query = MemberSearchQuery(
+      query: _filters.query,
+      branchId: _filters.branchId,
+      generation: _filters.generation,
+    );
+
+    try {
+      final results = await _searchProvider.search(
+        members: _accessibleMembers,
+        query: query,
+      );
+      if (revision != _searchRevision) {
+        return;
+      }
+
+      _searchResults = results;
+      _isSearching = false;
+      notifyListeners();
+
+      if (trackAnalytics) {
+        unawaited(
+          _searchAnalyticsService.trackSearchSubmitted(
+            queryLength: query.query.trim().length,
+            hasBranchFilter: query.branchId != null,
+            hasGenerationFilter: query.generation != null,
+            resultCount: results.length,
+          ),
+        );
+      }
+    } catch (_) {
+      if (revision != _searchRevision) {
+        return;
+      }
+
+      _searchResults = const [];
+      _isSearching = false;
+      _searchError = 'search_failed';
+      notifyListeners();
+
+      if (trackAnalytics) {
+        unawaited(
+          _searchAnalyticsService.trackSearchFailed(
+            queryLength: query.query.trim().length,
+            hasBranchFilter: query.branchId != null,
+            hasGenerationFilter: query.generation != null,
+          ),
+        );
+      }
+    }
   }
 }

@@ -53,7 +53,27 @@ class AuthController extends ChangeNotifier {
 
     _initialized = true;
     try {
-      session = await _sessionStore.read();
+      final restoredSession = await _sessionStore.read();
+      if (restoredSession != null &&
+          restoredSession.isSandbox != _authGateway.isSandbox) {
+        AppLogger.warning(
+          'Discarding persisted auth session from an incompatible auth mode.',
+        );
+        await _sessionStore.clear();
+        session = null;
+      } else if (restoredSession != null &&
+          !(await _authGateway.canRestoreSession(restoredSession))) {
+        AppLogger.warning(
+          'Discarding persisted auth session because Firebase authentication is no longer valid.',
+        );
+        await _sessionStore.clear();
+        session = null;
+        try {
+          await _authGateway.signOut();
+        } catch (_) {}
+      } else {
+        session = restoredSession;
+      }
       AppLogger.info(
         session == null
             ? 'No persisted auth session found.'

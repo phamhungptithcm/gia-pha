@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../features/clan/presentation/clan_detail_page.dart';
@@ -6,10 +8,12 @@ import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
+import '../../features/notifications/services/push_notification_service.dart';
 import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
 import '../../features/auth/models/auth_session.dart';
+import '../../features/auth/services/phone_number_formatter.dart';
 import '../bootstrap/firebase_setup_status.dart';
 import '../models/app_shortcut.dart';
 import 'app_shortcuts.dart';
@@ -22,6 +26,7 @@ class AppShellPage extends StatefulWidget {
     required this.clanRepository,
     required this.memberRepository,
     this.genealogyRepository,
+    this.pushNotificationService,
     this.onLogoutRequested,
   });
 
@@ -30,6 +35,7 @@ class AppShellPage extends StatefulWidget {
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
   final GenealogyReadRepository? genealogyRepository;
+  final PushNotificationService? pushNotificationService;
   final Future<void> Function()? onLogoutRequested;
 
   @override
@@ -39,6 +45,7 @@ class AppShellPage extends StatefulWidget {
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
   late final GenealogyReadRepository _genealogyRepository;
+  late final PushNotificationService _pushNotificationService;
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
@@ -68,12 +75,102 @@ class _AppShellPageState extends State<AppShellPage> {
     super.initState();
     _genealogyRepository =
         widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
+    _pushNotificationService =
+        widget.pushNotificationService ??
+        createDefaultPushNotificationService();
+    unawaited(
+      _pushNotificationService.start(
+        session: widget.session,
+        onDeepLink: _handleNotificationDeepLink,
+      ),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant AppShellPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session.uid != widget.session.uid) {
+      unawaited(
+        _pushNotificationService.start(
+          session: widget.session,
+          onDeepLink: _handleNotificationDeepLink,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_pushNotificationService.stop());
+    super.dispose();
+  }
+
+  void _handleNotificationDeepLink(NotificationDeepLink deepLink) {
+    if (!mounted) {
+      return;
+    }
+
+    if (deepLink.openedFromSystemNotification &&
+        deepLink.targetType == NotificationTargetType.event) {
+      setState(() {
+        _selectedIndex = 2;
+      });
+    }
+
+    final defaultMessage = _defaultNotificationMessage(
+      context,
+      targetType: deepLink.targetType,
+      origin: deepLink.origin,
+    );
+    final title = deepLink.title?.trim();
+    final body = deepLink.body?.trim();
+    final snackBarMessage = [
+      if (title != null && title.isNotEmpty) title else defaultMessage,
+      if (body != null && body.isNotEmpty) body,
+    ].join('\n');
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
+  }
+
+  String _defaultNotificationMessage(
+    BuildContext context, {
+    required NotificationTargetType targetType,
+    required NotificationMessageOrigin origin,
+  }) {
+    final l10n = context.l10n;
+    final openedFromTray = origin != NotificationMessageOrigin.foreground;
+
+    if (openedFromTray) {
+      return switch (targetType) {
+        NotificationTargetType.event => l10n.notificationOpenedEvent,
+        NotificationTargetType.scholarship =>
+          l10n.notificationOpenedScholarship,
+        NotificationTargetType.unknown => l10n.notificationOpenedGeneral,
+      };
+    }
+
+    return switch (targetType) {
+      NotificationTargetType.event => l10n.notificationForegroundEvent,
+      NotificationTargetType.scholarship =>
+        l10n.notificationForegroundScholarship,
+      NotificationTargetType.unknown => l10n.notificationForegroundGeneral,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final destination = _destinations[_selectedIndex];
+    final sessionTooltip = l10n.authEntryMethodSummary(
+      widget.session.loginMethod,
+    );
+    final readinessTooltip = widget.status.isReady
+        ? l10n.shellReadinessReady
+        : widget.status.errorMessage?.trim().isNotEmpty == true
+        ? widget.status.errorMessage!
+        : l10n.shellReadinessPending;
     final pages = [
       _HomeDashboard(
         status: widget.status,
@@ -108,17 +205,23 @@ class _AppShellPageState extends State<AppShellPage> {
         actions: [
           if (_selectedIndex == 0)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Align(
-                alignment: Alignment.center,
-                child: _SessionChip(session: widget.session),
+              padding: const EdgeInsets.only(right: 4),
+              child: Tooltip(
+                message: sessionTooltip,
+                child: Icon(
+                  widget.session.loginMethod == AuthEntryMethod.phone
+                      ? Icons.phone_iphone
+                      : Icons.child_care,
+                ),
               ),
             ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: Align(
-              alignment: Alignment.center,
-              child: _ReadinessChip(status: widget.status),
+            child: Tooltip(
+              message: readinessTooltip,
+              child: Icon(
+                widget.status.isReady ? Icons.cloud_done : Icons.cloud_off,
+              ),
             ),
           ),
           if (widget.onLogoutRequested != null)
@@ -312,27 +415,12 @@ class _HomeDashboard extends StatelessWidget {
                 ),
                 _FoundationRow(
                   label: l10n.shellFieldPhone,
-                  value: session.phoneE164,
+                  value: _formatPhoneForDisplay(session.phoneE164),
                 ),
                 if (session.childIdentifier != null)
                   _FoundationRow(
                     label: l10n.shellFieldChildId,
                     value: session.childIdentifier!,
-                  ),
-                if (session.memberId != null)
-                  _FoundationRow(
-                    label: l10n.shellFieldMemberId,
-                    value: session.memberId!,
-                  ),
-                if (session.clanId != null)
-                  _FoundationRow(
-                    label: l10n.shellFieldClanId,
-                    value: session.clanId!,
-                  ),
-                if (session.branchId != null)
-                  _FoundationRow(
-                    label: l10n.shellFieldBranchId,
-                    value: session.branchId!,
                   ),
                 if (session.primaryRole != null)
                   _FoundationRow(
@@ -342,33 +430,6 @@ class _HomeDashboard extends StatelessWidget {
                 _FoundationRow(
                   label: l10n.shellFieldAccessMode,
                   value: l10n.authMemberAccessModeLabel(session.accessMode),
-                ),
-                _FoundationRow(
-                  label: l10n.shellFieldSessionType,
-                  value: session.isSandbox
-                      ? l10n.shellSessionTypeSandbox
-                      : l10n.shellSessionTypeFirebase,
-                  isLast: false,
-                ),
-                _FoundationRow(
-                  label: l10n.shellFieldFirebaseProject,
-                  value: status.projectId,
-                ),
-                _FoundationRow(
-                  label: l10n.shellFieldStorageBucket,
-                  value: status.storageBucket,
-                ),
-                _FoundationRow(
-                  label: l10n.shellFieldCrashHandling,
-                  value: status.isCrashReportingEnabled
-                      ? l10n.shellCrashHandlingRelease
-                      : l10n.shellCrashHandlingLocal,
-                ),
-                _FoundationRow(
-                  label: l10n.shellFieldCoreServices,
-                  value: status.isReady
-                      ? status.enabledServices.join(', ')
-                      : l10n.shellCoreServicesWaiting,
                   isLast: status.errorMessage == null,
                 ),
                 if (status.errorMessage != null)
@@ -388,29 +449,29 @@ class _HomeDashboard extends StatelessWidget {
   VoidCallback? _onShortcutTap(BuildContext context, String shortcutId) {
     return switch (shortcutId) {
       'clan' => () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (context) {
-                return ClanDetailPage(
-                  session: session,
-                  repository: clanRepository,
-                );
-              },
-            ),
-          );
-        },
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return ClanDetailPage(
+                session: session,
+                repository: clanRepository,
+              );
+            },
+          ),
+        );
+      },
       'members' => () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (context) {
-                return MemberWorkspacePage(
-                  session: session,
-                  repository: memberRepository,
-                );
-              },
-            ),
-          );
-        },
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return MemberWorkspacePage(
+                session: session,
+                repository: memberRepository,
+              );
+            },
+          ),
+        );
+      },
       'tree' => onOpenTreeRequested,
       _ => null,
     };
@@ -524,26 +585,54 @@ class _FoundationRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final stackForAccessibility = screenWidth < 420;
 
     return Padding(
       padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 132,
-            child: Text(
-              label,
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+      child: stackForAccessibility
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(value, style: theme.textTheme.bodyMedium),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 132,
+                  child: Text(
+                    label,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+              ],
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
-        ],
-      ),
     );
+  }
+}
+
+String _formatPhoneForDisplay(String value) {
+  try {
+    final parsed = PhoneNumberFormatter.parse(value).e164;
+    if (parsed.startsWith('+84') && parsed.length == 12) {
+      return '+84 ${parsed.substring(3, 5)} ${parsed.substring(5, 8)} ${parsed.substring(8)}';
+    }
+    return parsed;
+  } catch (_) {
+    return value;
   }
 }
 
@@ -632,61 +721,6 @@ class _MemberAccessCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ReadinessChip extends StatelessWidget {
-  const _ReadinessChip({required this.status});
-
-  final FirebaseSetupStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Chip(
-      avatar: Icon(
-        status.isReady ? Icons.check_circle : Icons.pending,
-        size: 18,
-        color: status.isReady
-            ? colorScheme.onPrimaryContainer
-            : colorScheme.onSecondaryContainer,
-      ),
-      label: Text(
-        status.isReady
-            ? context.l10n.shellReadinessReady
-            : context.l10n.shellReadinessPending,
-      ),
-      backgroundColor: status.isReady
-          ? colorScheme.primaryContainer
-          : colorScheme.secondaryContainer,
-      side: BorderSide.none,
-    );
-  }
-}
-
-class _SessionChip extends StatelessWidget {
-  const _SessionChip({required this.session});
-
-  final AuthSession session;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Chip(
-      avatar: Icon(
-        session.loginMethod == AuthEntryMethod.phone
-            ? Icons.phone_iphone
-            : Icons.child_care,
-        size: 18,
-      ),
-      label: Text(context.l10n.authEntryMethodSummary(session.loginMethod)),
-      backgroundColor: session.isSandbox
-          ? colorScheme.secondaryContainer
-          : colorScheme.surfaceContainerHighest,
-      side: BorderSide.none,
     );
   }
 }

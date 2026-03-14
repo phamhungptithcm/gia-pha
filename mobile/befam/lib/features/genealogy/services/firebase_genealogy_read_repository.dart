@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 
+import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
 import '../../clan/models/branch_profile.dart';
@@ -40,6 +41,11 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
     required AuthSession session,
     bool allowCached = true,
   }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
       return GenealogyReadSegment.empty(const GenealogyScope.clan(clanId: ''));
@@ -94,6 +100,11 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
     String? branchId,
     bool allowCached = true,
   }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
     final clanId = session.clanId;
     final resolvedBranchId = branchId ?? session.branchId;
     if (clanId == null ||
@@ -101,7 +112,10 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
         resolvedBranchId == null ||
         resolvedBranchId.isEmpty) {
       return GenealogyReadSegment.empty(
-        GenealogyScope.branch(clanId: clanId ?? '', branchId: resolvedBranchId ?? ''),
+        GenealogyScope.branch(
+          clanId: clanId ?? '',
+          branchId: resolvedBranchId ?? '',
+        ),
       );
     }
 
