@@ -7,8 +7,11 @@ import '../../../app/bootstrap/firebase_setup_status.dart';
 import '../../../app/home/app_shell_page.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../l10n/l10n.dart';
+import '../../clan/services/clan_repository.dart';
+import '../../member/services/member_repository.dart';
 import '../models/auth_entry_method.dart';
 import '../models/pending_otp_challenge.dart';
+import '../services/auth_analytics_service.dart';
 import '../services/auth_gateway.dart';
 import '../services/auth_gateway_factory.dart';
 import '../services/auth_session_store.dart';
@@ -19,12 +22,18 @@ class AuthExperience extends StatefulWidget {
     super.key,
     required this.status,
     this.authGateway,
+    this.authAnalyticsService,
     this.sessionStore,
+    this.clanRepository,
+    this.memberRepository,
   });
 
   final FirebaseSetupStatus status;
   final AuthGateway? authGateway;
+  final AuthAnalyticsService? authAnalyticsService;
   final AuthSessionStore? sessionStore;
+  final ClanRepository? clanRepository;
+  final MemberRepository? memberRepository;
 
   @override
   State<AuthExperience> createState() => _AuthExperienceState();
@@ -38,6 +47,8 @@ class _AuthExperienceState extends State<AuthExperience> {
     super.initState();
     _controller = AuthController(
       authGateway: widget.authGateway ?? createDefaultAuthGateway(),
+      analyticsService:
+          widget.authAnalyticsService ?? createDefaultAuthAnalyticsService(),
       sessionStore: widget.sessionStore ?? SharedPrefsAuthSessionStore(),
     );
     unawaited(_controller.initialize());
@@ -63,6 +74,10 @@ class _AuthExperienceState extends State<AuthExperience> {
           return AppShellPage(
             status: widget.status,
             session: session,
+            clanRepository:
+                widget.clanRepository ?? createDefaultClanRepository(),
+            memberRepository:
+                widget.memberRepository ?? createDefaultMemberRepository(),
             onLogoutRequested: _controller.logout,
           );
         }

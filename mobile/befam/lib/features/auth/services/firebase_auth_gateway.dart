@@ -1,24 +1,26 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/services/app_logger.dart';
 import '../models/auth_entry_method.dart';
 import '../models/auth_otp_request_result.dart';
 import '../models/auth_session.dart';
+import '../models/member_access_context.dart';
 import '../models/pending_otp_challenge.dart';
 import '../models/resolved_child_access.dart';
 import 'auth_gateway.dart';
 import 'phone_number_formatter.dart';
 
 class FirebaseAuthGateway implements AuthGateway {
-  FirebaseAuthGateway({FirebaseAuth? auth, FirebaseFirestore? firestore})
+  FirebaseAuthGateway({FirebaseAuth? auth, FirebaseFunctions? functions})
     : _auth = auth ?? FirebaseAuth.instance,
-      _firestore = firestore ?? FirebaseFirestore.instance;
+      _functions =
+          functions ?? FirebaseFunctions.instanceFor(region: 'asia-southeast1');
 
   final FirebaseAuth _auth;
-  final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
   @override
   bool get isSandbox => false;
@@ -121,7 +123,7 @@ class FirebaseAuthGateway implements AuthGateway {
 
           completer.complete(
             AuthOtpRequestResult.session(
-              _buildSession(
+              await _buildSession(
                 user,
                 loginMethod: loginMethod,
                 phoneE164: phoneE164,
@@ -193,87 +195,73 @@ class FirebaseAuthGateway implements AuthGateway {
   Future<ResolvedChildAccess> _resolveChildAccess(
     String childIdentifier,
   ) async {
-    final inviteSnapshot = await _firestore
-        .collection('invites')
-        .where('childIdentifier', isEqualTo: childIdentifier)
-        .limit(1)
-        .get();
+    final callable = _functions.httpsCallable('resolveChildLoginContext');
+    final result = await callable.call(<String, dynamic>{
+      'childIdentifier': childIdentifier,
+    });
+    final payload = (result.data as Map).map(
+      (key, value) => MapEntry(key.toString(), value),
+    );
 
-    if (inviteSnapshot.docs.isNotEmpty) {
-      final invite = inviteSnapshot.docs.first.data();
-      final phoneE164 = invite['phoneE164'] as String?;
-      final memberId = invite['memberId'] as String?;
-      if (phoneE164 == null || phoneE164.isEmpty) {
-        throw FirebaseAuthException(
-          code: 'user-not-found',
-          message: 'This child identifier is not linked to a parent phone yet.',
-        );
-      }
-
-      return ResolvedChildAccess(
-        childIdentifier: childIdentifier,
-        parentPhoneE164: phoneE164,
-        memberId: memberId,
-        displayName: await _loadMemberDisplayName(memberId),
-      );
-    }
-
-    final memberSnapshot = await _firestore
-        .collection('members')
-        .doc(childIdentifier)
-        .get();
-
-    if (memberSnapshot.exists) {
-      final member = memberSnapshot.data();
-      final phoneE164 = member?['phoneE164'] as String?;
-      if (phoneE164 != null && phoneE164.isNotEmpty) {
-        return ResolvedChildAccess(
-          childIdentifier: childIdentifier,
-          parentPhoneE164: phoneE164,
-          memberId: memberSnapshot.id,
-          displayName: member?['fullName'] as String?,
-        );
-      }
-    }
-
-    throw FirebaseAuthException(
-      code: 'user-not-found',
-      message: 'No child record matches that identifier yet.',
+    return ResolvedChildAccess(
+      childIdentifier: payload['childIdentifier'] as String? ?? childIdentifier,
+      parentPhoneE164: payload['parentPhoneE164'] as String,
+      memberId: payload['memberId'] as String?,
+      displayName: payload['displayName'] as String?,
+      clanId: payload['clanId'] as String?,
+      branchId: payload['branchId'] as String?,
+      primaryRole: payload['primaryRole'] as String?,
     );
   }
 
-  Future<String?> _loadMemberDisplayName(String? memberId) async {
-    if (memberId == null || memberId.isEmpty) {
-      return null;
-    }
+  Future<MemberAccessContext> _claimMemberAccess(
+    User user, {
+    required AuthEntryMethod loginMethod,
+    required String? childIdentifier,
+    required String? memberId,
+  }) async {
+    final callable = _functions.httpsCallable('claimMemberRecord');
+    final result = await callable.call(<String, dynamic>{
+      'loginMethod': loginMethod.name,
+      'childIdentifier': childIdentifier,
+      'memberId': memberId,
+    });
 
-    final memberSnapshot = await _firestore
-        .collection('members')
-        .doc(memberId)
-        .get();
-    if (!memberSnapshot.exists) {
-      return null;
-    }
-
-    final member = memberSnapshot.data();
-    return member?['fullName'] as String?;
+    await user.getIdToken(true);
+    return MemberAccessContext.fromFunctionsData(result.data);
   }
 
-  AuthSession _buildSession(
+  Future<AuthSession> _buildSession(
     User user, {
     required AuthEntryMethod loginMethod,
     required String phoneE164,
     String? childIdentifier,
     String? memberId,
     String? displayName,
-  }) {
+  }) async {
+    final memberAccess = await _claimMemberAccess(
+      user,
+      loginMethod: loginMethod,
+      childIdentifier: childIdentifier,
+      memberId: memberId,
+    );
+
     return AuthSession(
       uid: user.uid,
       loginMethod: loginMethod,
       phoneE164: user.phoneNumber ?? phoneE164,
-      displayName: displayName ?? user.displayName ?? 'BeFam Member',
+      displayName:
+          memberAccess.displayName ??
+          displayName ??
+          user.displayName ??
+          'BeFam Member',
       childIdentifier: childIdentifier,
-      memberId: memberId,
+      memberId: memberAccess.memberId ?? memberId,
+      clanId: memberAccess.clanId,
+      branchId: memberAccess.branchId,
+      primaryRole: memberAccess.primaryRole,
+      accessMode: memberAccess.accessMode,
+      linkedAuthUid: memberAccess.linkedAuthUid,
       isSandbox: false,
       signedInAtIso: DateTime.now().toIso8601String(),
     );

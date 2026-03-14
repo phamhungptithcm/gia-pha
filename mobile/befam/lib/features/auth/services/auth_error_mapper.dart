@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/auth_issue.dart';
@@ -26,6 +27,30 @@ class AuthErrorMapper {
         'quota-exceeded' => const AuthIssue(AuthIssueKey.quotaExceeded),
         'user-not-found' => const AuthIssue(AuthIssueKey.userNotFound),
         'operation-not-allowed' => const AuthIssue(
+          AuthIssueKey.operationNotAllowed,
+        ),
+        _ => const AuthIssue(AuthIssueKey.authUnavailable),
+      };
+    }
+
+    if (error is FirebaseFunctionsException) {
+      final message = error.message ?? '';
+      return switch (error.code) {
+        'not-found' => const AuthIssue(AuthIssueKey.userNotFound),
+        'already-exists' => const AuthIssue(AuthIssueKey.memberAlreadyLinked),
+        'failed-precondition' when message.contains('parent phone') =>
+          const AuthIssue(AuthIssueKey.parentVerificationMismatch),
+        'failed-precondition'
+            when message.contains('child identifier is not fully linked') ||
+                message.contains('child member record is not linked') =>
+          const AuthIssue(AuthIssueKey.childAccessNotReady),
+        'failed-precondition'
+            when message.contains(
+              'Multiple member profiles share this phone',
+            ) =>
+          const AuthIssue(AuthIssueKey.memberClaimConflict),
+        'invalid-argument' => const AuthIssue(AuthIssueKey.preparationFailed),
+        'permission-denied' => const AuthIssue(
           AuthIssueKey.operationNotAllowed,
         ),
         _ => const AuthIssue(AuthIssueKey.authUnavailable),

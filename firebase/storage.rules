@@ -30,18 +30,18 @@ service firebase.storage {
       ];
     }
 
+    match /clans/{clanId}/members/{memberId}/avatar/{fileName} {
+      allow read: if hasClanAccess(clanId);
+      allow write: if
+        hasClanAccess(clanId) &&
+        (isClanAdmin() || memberId == memberIdClaim()) &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+
     match /clans/{clanId}/{allPaths=**} {
       allow read: if hasClanAccess(clanId);
       allow write: if isClanAdmin() && hasClanAccess(clanId);
-    }
-
-    match /members/{memberId}/avatar/{fileName} {
-      allow read: if signedIn();
-      allow write: if
-        signedIn() &&
-        memberId == memberIdClaim() &&
-        request.resource.size < 10 * 1024 * 1024 &&
-        request.resource.contentType.matches('image/.*');
     }
 
     match /submissions/{clanId}/{memberId}/{fileName} {
