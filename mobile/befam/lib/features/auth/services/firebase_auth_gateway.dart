@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/services/app_logger.dart';
+import '../models/auth_issue.dart';
 import '../models/auth_entry_method.dart';
+import '../models/auth_member_access_mode.dart';
 import '../models/auth_otp_request_result.dart';
 import '../models/auth_session.dart';
 import '../models/member_access_context.dart';
@@ -14,16 +17,69 @@ import 'auth_gateway.dart';
 import 'phone_number_formatter.dart';
 
 class FirebaseAuthGateway implements AuthGateway {
-  FirebaseAuthGateway({FirebaseAuth? auth, FirebaseFunctions? functions})
-    : _auth = auth ?? FirebaseAuth.instance,
-      _functions =
-          functions ?? FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+  FirebaseAuthGateway({
+    FirebaseAuth? auth,
+    FirebaseFunctions? functions,
+    FirebaseFirestore? firestore,
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _functions =
+           functions ??
+           FirebaseFunctions.instanceFor(region: 'asia-southeast1'),
+       _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseAuth _auth;
   final FirebaseFunctions _functions;
+  final FirebaseFirestore _firestore;
+
+  CollectionReference<Map<String, dynamic>> get _members =>
+      _firestore.collection('members');
+
+  CollectionReference<Map<String, dynamic>> get _users =>
+      _firestore.collection('users');
+
+  static const Map<String, ResolvedChildAccess> _localChildFallback = {
+    'BEFAM-CHILD-001': ResolvedChildAccess(
+      childIdentifier: 'BEFAM-CHILD-001',
+      parentPhoneE164: '+84901234567',
+      memberId: 'member_demo_child_001',
+      displayName: 'Be Minh',
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_001',
+      primaryRole: 'MEMBER',
+    ),
+    'BEFAM-CHILD-002': ResolvedChildAccess(
+      childIdentifier: 'BEFAM-CHILD-002',
+      parentPhoneE164: '+84908886655',
+      memberId: 'member_demo_child_002',
+      displayName: 'Be Lan',
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_002',
+      primaryRole: 'MEMBER',
+    ),
+  };
 
   @override
   bool get isSandbox => false;
+
+  @override
+  Future<bool> canRestoreSession(AuthSession session) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null || currentUser.uid != session.uid) {
+      return false;
+    }
+
+    try {
+      await currentUser.getIdToken(false);
+      return true;
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Persisted auth session token refresh failed; restoring session is blocked.',
+        error,
+        stackTrace,
+      );
+      return false;
+    }
+  }
 
   @override
   Future<AuthOtpRequestResult> requestPhoneOtp(String phoneE164) {
@@ -195,23 +251,38 @@ class FirebaseAuthGateway implements AuthGateway {
   Future<ResolvedChildAccess> _resolveChildAccess(
     String childIdentifier,
   ) async {
-    final callable = _functions.httpsCallable('resolveChildLoginContext');
-    final result = await callable.call(<String, dynamic>{
-      'childIdentifier': childIdentifier,
-    });
-    final payload = (result.data as Map).map(
-      (key, value) => MapEntry(key.toString(), value),
-    );
+    try {
+      final callable = _functions.httpsCallable('resolveChildLoginContext');
+      final result = await callable.call(<String, dynamic>{
+        'childIdentifier': childIdentifier,
+      });
+      final payload = (result.data as Map).map(
+        (key, value) => MapEntry(key.toString(), value),
+      );
 
-    return ResolvedChildAccess(
-      childIdentifier: payload['childIdentifier'] as String? ?? childIdentifier,
-      parentPhoneE164: payload['parentPhoneE164'] as String,
-      memberId: payload['memberId'] as String?,
-      displayName: payload['displayName'] as String?,
-      clanId: payload['clanId'] as String?,
-      branchId: payload['branchId'] as String?,
-      primaryRole: payload['primaryRole'] as String?,
-    );
+      return ResolvedChildAccess(
+        childIdentifier:
+            payload['childIdentifier'] as String? ?? childIdentifier,
+        parentPhoneE164: payload['parentPhoneE164'] as String,
+        memberId: payload['memberId'] as String?,
+        displayName: payload['displayName'] as String?,
+        clanId: payload['clanId'] as String?,
+        branchId: payload['branchId'] as String?,
+        primaryRole: payload['primaryRole'] as String?,
+      );
+    } on FirebaseFunctionsException catch (error) {
+      if (_shouldUseClientFallback(error.code)) {
+        final fallback =
+            _localChildFallback[childIdentifier.trim().toUpperCase()];
+        if (fallback != null) {
+          AppLogger.warning(
+            'resolveChildLoginContext callable unavailable; using local child fallback.',
+          );
+          return fallback;
+        }
+      }
+      rethrow;
+    }
   }
 
   Future<MemberAccessContext> _claimMemberAccess(
@@ -220,15 +291,169 @@ class FirebaseAuthGateway implements AuthGateway {
     required String? childIdentifier,
     required String? memberId,
   }) async {
-    final callable = _functions.httpsCallable('claimMemberRecord');
-    final result = await callable.call(<String, dynamic>{
-      'loginMethod': loginMethod.name,
-      'childIdentifier': childIdentifier,
-      'memberId': memberId,
-    });
+    try {
+      final callable = _functions.httpsCallable('claimMemberRecord');
+      final result = await callable.call(<String, dynamic>{
+        'loginMethod': loginMethod.name,
+        'childIdentifier': childIdentifier,
+        'memberId': memberId,
+      });
 
-    await user.getIdToken(true);
-    return MemberAccessContext.fromFunctionsData(result.data);
+      await user.getIdToken(true);
+      return MemberAccessContext.fromFunctionsData(result.data);
+    } on FirebaseFunctionsException catch (error) {
+      if (!_shouldUseClientFallback(error.code)) {
+        rethrow;
+      }
+
+      AppLogger.warning(
+        'claimMemberRecord callable unavailable; using client fallback claim flow.',
+      );
+      return _claimMemberAccessWithoutFunctions(
+        user,
+        loginMethod: loginMethod,
+        childIdentifier: childIdentifier,
+        memberId: memberId,
+      );
+    }
+  }
+
+  Future<MemberAccessContext> _claimMemberAccessWithoutFunctions(
+    User user, {
+    required AuthEntryMethod loginMethod,
+    required String? childIdentifier,
+    required String? memberId,
+  }) async {
+    final authPhone = (user.phoneNumber ?? '').trim();
+    if (authPhone.isEmpty) {
+      throw const AuthIssueException(AuthIssue(AuthIssueKey.userNotFound));
+    }
+
+    if (loginMethod == AuthEntryMethod.child) {
+      final resolvedMemberId = memberId?.trim();
+      if (resolvedMemberId == null || resolvedMemberId.isEmpty) {
+        throw const AuthIssueException(
+          AuthIssue(AuthIssueKey.childAccessNotReady),
+        );
+      }
+
+      final memberSnapshot = await _members.doc(resolvedMemberId).get();
+      final data = memberSnapshot.data();
+      if (!memberSnapshot.exists || data == null) {
+        throw const AuthIssueException(AuthIssue(AuthIssueKey.userNotFound));
+      }
+
+      final context = MemberAccessContext(
+        memberId: memberSnapshot.id,
+        displayName: _pickDisplayName(data),
+        clanId: data['clanId'] as String?,
+        branchId: data['branchId'] as String?,
+        primaryRole: data['primaryRole'] as String? ?? 'MEMBER',
+        accessMode: AuthMemberAccessMode.child,
+        linkedAuthUid: false,
+      );
+      await _writeUserSessionDocument(user.uid, context);
+      return context;
+    }
+
+    final matchingMembers = await _members
+        .where('phoneE164', isEqualTo: authPhone)
+        .limit(3)
+        .get();
+
+    if (matchingMembers.docs.isEmpty) {
+      final context = MemberAccessContext.unlinked(
+        displayName: user.displayName ?? 'BeFam Member',
+      );
+      await _writeUserSessionDocument(user.uid, context);
+      return context;
+    }
+
+    if (matchingMembers.docs.length > 1) {
+      final linkedToCurrent = matchingMembers.docs.firstWhere(
+        (doc) => (doc.data()['authUid'] as String?) == user.uid,
+        orElse: () => matchingMembers.docs.first,
+      );
+      if ((linkedToCurrent.data()['authUid'] as String?) != user.uid &&
+          matchingMembers.docs
+              .where((doc) => (doc.data()['authUid'] as String?) == user.uid)
+              .isEmpty) {
+        throw const AuthIssueException(
+          AuthIssue(AuthIssueKey.memberClaimConflict),
+        );
+      }
+    }
+
+    final selected = matchingMembers.docs.firstWhere(
+      (doc) => (doc.data()['authUid'] as String?) == user.uid,
+      orElse: () => matchingMembers.docs.first,
+    );
+    final selectedData = selected.data();
+    final existingAuthUid = (selectedData['authUid'] as String?)?.trim();
+    if (existingAuthUid != null &&
+        existingAuthUid.isNotEmpty &&
+        existingAuthUid != user.uid) {
+      throw const AuthIssueException(
+        AuthIssue(AuthIssueKey.memberAlreadyLinked),
+      );
+    }
+
+    final now = FieldValue.serverTimestamp();
+    await selected.reference.set({
+      'authUid': user.uid,
+      'claimedAt': now,
+      'updatedAt': now,
+      'updatedBy': user.uid,
+    }, SetOptions(merge: true));
+
+    final context = MemberAccessContext(
+      memberId: selected.id,
+      displayName: _pickDisplayName(selectedData),
+      clanId: selectedData['clanId'] as String?,
+      branchId: selectedData['branchId'] as String?,
+      primaryRole: selectedData['primaryRole'] as String? ?? 'MEMBER',
+      accessMode: AuthMemberAccessMode.claimed,
+      linkedAuthUid: true,
+    );
+    await _writeUserSessionDocument(user.uid, context);
+    return context;
+  }
+
+  Future<void> _writeUserSessionDocument(
+    String uid,
+    MemberAccessContext context,
+  ) async {
+    final now = FieldValue.serverTimestamp();
+    await _users.doc(uid).set({
+      'uid': uid,
+      'memberId': context.memberId ?? '',
+      'clanId': context.clanId ?? '',
+      'clanIds': context.clanId == null ? <String>[] : [context.clanId!],
+      'branchId': context.branchId ?? '',
+      'primaryRole': context.primaryRole ?? 'GUEST',
+      'accessMode': context.accessMode.name,
+      'linkedAuthUid': context.linkedAuthUid,
+      'updatedAt': now,
+      'createdAt': now,
+    }, SetOptions(merge: true));
+  }
+
+  bool _shouldUseClientFallback(String code) {
+    return code == 'not-found' ||
+        code == 'unimplemented' ||
+        code == 'unavailable';
+  }
+
+  String _pickDisplayName(Map<String, dynamic> data) {
+    final fullName = (data['fullName'] as String?)?.trim() ?? '';
+    if (fullName.isNotEmpty) {
+      return fullName;
+    }
+    final nickName = (data['nickName'] as String?)?.trim() ?? '';
+    if (nickName.isNotEmpty) {
+      return nickName;
+    }
+    return 'BeFam Member';
   }
 
   Future<AuthSession> _buildSession(

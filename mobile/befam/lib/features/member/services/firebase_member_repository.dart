@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:collection/collection.dart';
 
+import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/services/phone_number_formatter.dart';
@@ -36,6 +37,11 @@ class FirebaseMemberRepository implements MemberRepository {
   Future<MemberWorkspaceSnapshot> loadWorkspace({
     required AuthSession session,
   }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
       return const MemberWorkspaceSnapshot(members: [], branches: []);
@@ -67,6 +73,11 @@ class FirebaseMemberRepository implements MemberRepository {
     String? memberId,
     required MemberDraft draft,
   }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
       throw const MemberRepositoryException(
@@ -143,6 +154,11 @@ class FirebaseMemberRepository implements MemberRepository {
     required String fileName,
     String contentType = 'image/jpeg',
   }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
       throw const MemberRepositoryException(

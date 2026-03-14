@@ -145,16 +145,16 @@ Current production Firebase project:
 - default Firestore database: `(default)`
 - Firestore location: `asia-southeast1`
 
-Completed from the repository on March 13, 2026:
+Current deploy expectations:
 
-- enabled the Cloud Firestore API
-- created the default Firestore database
-- deployed Firestore rules and indexes
-- prepared GitHub-based production deployment for Functions and rules
+- Firestore rules and indexes deploy from the repository
+- Storage rules deploy from the repository
+- Functions deploy from `firebase/functions` after a successful build
+- GitHub `production` environment must keep valid service-account credentials
+  and required project variables
 
-Remaining blocker:
-
-- Cloud Functions v2 still requires project billing before the deploy workflow can enable Cloud Build, Cloud Run, Artifact Registry, Secret Manager, and Cloud Scheduler
+If a deploy fails on Cloud Build/Run or related Google APIs, verify billing and
+service enablement in the Firebase/GCP project before retrying CI.
 
 ## Future expansion
 

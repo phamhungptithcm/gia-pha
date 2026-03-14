@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf lib",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "seed:demo": "node scripts/seed-demo-data.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.7.0",

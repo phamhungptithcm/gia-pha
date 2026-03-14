@@ -1151,6 +1151,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get relationshipSpouseAddedSuccess => 'Spouse link added.';
 
   @override
+  String get notificationForegroundEvent => 'A new event update arrived.';
+
+  @override
+  String get notificationForegroundScholarship =>
+      'A scholarship update arrived.';
+
+  @override
+  String get notificationForegroundGeneral => 'A new notification arrived.';
+
+  @override
+  String get notificationOpenedEvent => 'Opened the event notification.';
+
+  @override
+  String get notificationOpenedScholarship =>
+      'Opened the scholarship notification.';
+
+  @override
+  String get notificationOpenedGeneral => 'Opened a notification.';
+
+  @override
   String get authIssueRestoreSessionFailed =>
       'We could not restore the last sign-in session.';
 

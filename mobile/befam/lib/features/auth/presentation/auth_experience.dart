@@ -82,16 +82,14 @@ class _AuthExperienceState extends State<AuthExperience> {
           );
         }
 
-        return _AuthScaffold(status: widget.status, controller: _controller);
+        return _AuthScaffold(controller: _controller);
       },
     );
   }
 }
 
 class _AuthScaffold extends StatelessWidget {
-  const _AuthScaffold({required this.status, required this.controller});
-
-  final FirebaseSetupStatus status;
+  const _AuthScaffold({required this.controller});
   final AuthController controller;
 
   @override
@@ -116,7 +114,7 @@ class _AuthScaffold extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             children: [
-              _AuthHero(status: status, isSandbox: controller.isSandbox),
+              const _AuthHero(),
               const SizedBox(height: 20),
               if (controller.error case final issue?) ...[
                 _AuthMessageCard(
@@ -129,8 +127,6 @@ class _AuthScaffold extends StatelessWidget {
               ],
               switch (controller.step) {
                 AuthStep.loginMethodSelection => _LoginMethodSelectionCard(
-                  status: status,
-                  isSandbox: controller.isSandbox,
                   onPhoneSelected: () {
                     controller.selectLoginMethod(AuthEntryMethod.phone);
                   },
@@ -139,13 +135,11 @@ class _AuthScaffold extends StatelessWidget {
                   },
                 ),
                 AuthStep.phoneNumber => _PhoneLoginCard(
-                  isSandbox: controller.isSandbox,
                   isBusy: controller.isBusy,
                   onBack: controller.navigateBack,
                   onSubmit: controller.submitPhoneNumber,
                 ),
                 AuthStep.childIdentifier => _ChildIdentifierCard(
-                  isSandbox: controller.isSandbox,
                   isBusy: controller.isBusy,
                   onBack: controller.navigateBack,
                   onSubmit: controller.submitChildIdentifier,
@@ -216,10 +210,7 @@ class _AuthLoadingPage extends StatelessWidget {
 }
 
 class _AuthHero extends StatelessWidget {
-  const _AuthHero({required this.status, required this.isSandbox});
-
-  final FirebaseSetupStatus status;
-  final bool isSandbox;
+  const _AuthHero();
 
   @override
   Widget build(BuildContext context) {
@@ -240,25 +231,6 @@ class _AuthHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _HeroChip(
-                label: status.isReady
-                    ? l10n.authFirebaseReadyChip
-                    : l10n.authBootstrapPendingChip,
-                icon: status.isReady ? Icons.check_circle : Icons.pending,
-              ),
-              _HeroChip(
-                label: isSandbox
-                    ? l10n.authSandboxChip
-                    : l10n.authLiveFirebaseChip,
-                icon: isSandbox ? Icons.science_outlined : Icons.verified_user,
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
           Text(
             l10n.authHeroTitle,
             style: theme.textTheme.headlineSmall?.copyWith(
@@ -268,34 +240,13 @@ class _AuthHero extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            isSandbox
-                ? l10n.authHeroSandboxDescription
-                : l10n.authHeroLiveDescription,
+            l10n.authHeroLiveDescription,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: colorScheme.onPrimary.withValues(alpha: 0.92),
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _HeroChip extends StatelessWidget {
-  const _HeroChip({required this.label, required this.icon});
-
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Chip(
-      avatar: Icon(icon, size: 18, color: colorScheme.onPrimaryContainer),
-      label: Text(label),
-      backgroundColor: colorScheme.secondaryContainer,
-      side: BorderSide.none,
     );
   }
 }
@@ -348,14 +299,10 @@ class _AuthMessageCard extends StatelessWidget {
 
 class _LoginMethodSelectionCard extends StatelessWidget {
   const _LoginMethodSelectionCard({
-    required this.status,
-    required this.isSandbox,
     required this.onPhoneSelected,
     required this.onChildSelected,
   });
 
-  final FirebaseSetupStatus status;
-  final bool isSandbox;
   final VoidCallback onPhoneSelected;
   final VoidCallback onChildSelected;
 
@@ -365,7 +312,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
 
     return Column(
       children: [
-        _QuickBenefitsCard(isSandbox: isSandbox),
+        const _QuickBenefitsCard(),
         const SizedBox(height: 16),
         _MethodCard(
           title: l10n.authMethodPhoneTitle,
@@ -381,17 +328,6 @@ class _LoginMethodSelectionCard extends StatelessWidget {
           icon: Icons.child_care,
           buttonLabel: l10n.authMethodChildButton,
           onPressed: onChildSelected,
-        ),
-        const SizedBox(height: 16),
-        _AuthMessageCard(
-          title: l10n.authBootstrapNoteTitle,
-          message: status.isReady
-              ? isSandbox
-                    ? l10n.authBootstrapNoteReadySandbox
-                    : l10n.authBootstrapNoteReadyLive
-              : l10n.authBootstrapNotePending,
-          icon: Icons.info_outline,
-          tone: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
       ],
     );
@@ -439,10 +375,13 @@ class _MethodCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(description, style: theme.textTheme.bodyLarge),
             const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: onPressed,
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(buttonLabel),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onPressed,
+                icon: const Icon(Icons.arrow_forward),
+                label: Text(buttonLabel),
+              ),
             ),
           ],
         ),
@@ -453,13 +392,11 @@ class _MethodCard extends StatelessWidget {
 
 class _PhoneLoginCard extends StatefulWidget {
   const _PhoneLoginCard({
-    required this.isSandbox,
     required this.isBusy,
     required this.onBack,
     required this.onSubmit,
   });
 
-  final bool isSandbox;
   final bool isBusy;
   final VoidCallback onBack;
   final Future<void> Function(String value) onSubmit;
@@ -474,9 +411,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(
-      text: widget.isSandbox ? '0901234567' : '',
-    );
+    _controller = TextEditingController();
   }
 
   @override
@@ -488,9 +423,6 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final helperText = widget.isSandbox
-        ? l10n.authPhoneHelperSandbox
-        : l10n.authPhoneHelperLive;
 
     return _AuthFormCard(
       title: l10n.authPhoneTitle,
@@ -510,29 +442,13 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
                 labelText: l10n.authPhoneLabel,
                 hintText: l10n.authPhoneHint,
                 prefixIcon: const Icon(Icons.phone_iphone),
-                helperText: helperText,
+                helperText: l10n.authPhoneHelperLive,
               ),
               onSubmitted: widget.isBusy
                   ? null
                   : (value) => widget.onSubmit(value),
             ),
           ),
-          if (widget.isSandbox) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                ActionChip(
-                  avatar: const Icon(Icons.flash_on_outlined, size: 18),
-                  label: Text(l10n.authPhoneDemoButton),
-                  onPressed: widget.isBusy
-                      ? null
-                      : () => _controller.text = '0901234567',
-                ),
-              ],
-            ),
-          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -553,13 +469,11 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
 
 class _ChildIdentifierCard extends StatefulWidget {
   const _ChildIdentifierCard({
-    required this.isSandbox,
     required this.isBusy,
     required this.onBack,
     required this.onSubmit,
   });
 
-  final bool isSandbox;
   final bool isBusy;
   final VoidCallback onBack;
   final Future<void> Function(String value) onSubmit;
@@ -574,9 +488,7 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(
-      text: widget.isSandbox ? 'BEFAM-CHILD-001' : '',
-    );
+    _controller = TextEditingController();
   }
 
   @override
@@ -611,33 +523,6 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
                 ? null
                 : (value) => widget.onSubmit(value),
           ),
-          if (widget.isSandbox) ...[
-            const SizedBox(height: 12),
-            Text(
-              l10n.authChildQuickTesting,
-              style: Theme.of(
-                context,
-              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final identifier in const [
-                  'BEFAM-CHILD-001',
-                  'BEFAM-CHILD-002',
-                ])
-                  ActionChip(
-                    avatar: const Icon(Icons.account_tree_outlined, size: 18),
-                    label: Text(identifier),
-                    onPressed: widget.isBusy
-                        ? null
-                        : () => _controller.text = identifier,
-                  ),
-              ],
-            ),
-          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -766,15 +651,6 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
     }
   }
 
-  void _fillDemoCode(String code) {
-    final sanitized = code.replaceAll(RegExp(r'[^0-9]'), '');
-    _controller.value = TextEditingValue(
-      text: sanitized,
-      selection: TextSelection.collapsed(offset: sanitized.length),
-    );
-    _handleCodeChanged(sanitized);
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -803,27 +679,6 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
             onChanged: _handleCodeChanged,
             onSubmitted: _submitCode,
           ),
-          if (challenge.debugOtpHint case final String hint) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  l10n.authOtpDebugCode(hint),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: widget.isBusy ? null : () => _fillDemoCode(hint),
-                  icon: const Icon(Icons.bolt_outlined),
-                  label: Text(l10n.authOtpAutofillDemo),
-                ),
-              ],
-            ),
-          ],
           if (challenge.loginMethod == AuthEntryMethod.child &&
               challenge.childIdentifier != null) ...[
             const SizedBox(height: 12),
@@ -1058,9 +913,7 @@ class _OtpDigitTile extends StatelessWidget {
 }
 
 class _QuickBenefitsCard extends StatelessWidget {
-  const _QuickBenefitsCard({required this.isSandbox});
-
-  final bool isSandbox;
+  const _QuickBenefitsCard();
 
   @override
   Widget build(BuildContext context) {
@@ -1097,12 +950,8 @@ class _QuickBenefitsCard extends StatelessWidget {
                   label: l10n.authQuickBenefitMultipleAccess,
                 ),
                 _BenefitChip(
-                  icon: isSandbox
-                      ? Icons.science_outlined
-                      : Icons.verified_user_outlined,
-                  label: isSandbox
-                      ? l10n.authQuickBenefitSandbox
-                      : l10n.authQuickBenefitLive,
+                  icon: Icons.verified_user_outlined,
+                  label: l10n.authQuickBenefitLive,
                 ),
               ],
             ),
@@ -1170,14 +1019,17 @@ class _AuthFormCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            OverflowBar(
+              alignment: MainAxisAlignment.spaceBetween,
+              overflowAlignment: OverflowBarAlignment.end,
+              spacing: 12,
+              overflowSpacing: 8,
               children: [
                 TextButton.icon(
                   onPressed: onBack,
                   icon: const Icon(Icons.arrow_back),
                   label: Text(context.l10n.authBack),
                 ),
-                const Spacer(),
                 Icon(Icons.lock_outline, color: colorScheme.primary),
               ],
             ),

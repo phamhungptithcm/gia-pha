@@ -62,6 +62,11 @@ class DebugAuthGateway implements AuthGateway {
   bool get isSandbox => true;
 
   @override
+  Future<bool> canRestoreSession(AuthSession session) async {
+    return session.isSandbox;
+  }
+
+  @override
   Future<AuthOtpRequestResult> requestPhoneOtp(String phoneE164) async {
     await Future<void>.delayed(_debugDelay);
     final memberAccess = _phoneDirectory[phoneE164];

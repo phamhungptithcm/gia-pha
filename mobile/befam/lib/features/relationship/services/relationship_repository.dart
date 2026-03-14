@@ -1,6 +1,5 @@
-import 'package:flutter/foundation.dart';
-
 import '../../../core/services/debug_genealogy_store.dart';
+import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/relationship_record.dart';
 import 'debug_relationship_repository.dart';
@@ -47,8 +46,7 @@ abstract interface class RelationshipRepository {
 }
 
 RelationshipRepository createDefaultRelationshipRepository() {
-  const useLiveBackend = bool.fromEnvironment('BEFAM_USE_LIVE_AUTH');
-  if (kDebugMode && !useLiveBackend) {
+  if (RuntimeMode.shouldUseMockBackend) {
     return DebugRelationshipRepository(
       store: DebugGenealogyStore.sharedSeeded(),
     );

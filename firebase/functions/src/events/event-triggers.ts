@@ -2,7 +2,21 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { APP_REGION, APP_TIMEZONE } from '../config/runtime';
+import {
+  notifyMembers,
+  resolveAudienceMemberIdsByEventScope,
+} from '../notifications/push-delivery';
 import { logInfo, logWarn } from '../shared/logger';
+
+type EventRecord = {
+  clanId?: string | null;
+  branchId?: string | null;
+  title?: string | null;
+  description?: string | null;
+  eventType?: string | null;
+  startsAt?: unknown;
+  visibility?: string | null;
+};
 
 export const onEventCreated = onDocumentCreated(
   {
@@ -18,13 +32,53 @@ export const onEventCreated = onDocumentCreated(
       return;
     }
 
-    const data = snapshot.data();
+    const data = snapshot.data() as EventRecord;
+    const clanId = data.clanId?.trim() ?? '';
+    if (clanId.length === 0) {
+      logWarn('event created without clanId', {
+        eventId: event.params.eventId,
+      });
+      return;
+    }
+
+    const visibility = data.visibility?.trim() ?? 'clan';
+    const audienceMemberIds = await resolveAudienceMemberIdsByEventScope({
+      clanId,
+      branchId: data.branchId ?? null,
+      visibility,
+    });
+    if (audienceMemberIds.length === 0) {
+      logInfo('event created with no eligible notification audience', {
+        eventId: event.params.eventId,
+        clanId,
+        visibility,
+      });
+      return;
+    }
+
+    const title = normalizeEventTitle(data.title);
+    const body = normalizeEventBody(data.description);
+    const delivery = await notifyMembers({
+      clanId,
+      memberIds: audienceMemberIds,
+      type: 'event_created',
+      title,
+      body,
+      target: 'event',
+      targetId: event.params.eventId,
+      extraData: {
+        eventId: event.params.eventId,
+        visibility,
+      },
+    });
 
     logInfo('event created', {
       eventId: event.params.eventId,
-      clanId: data.clanId ?? null,
+      clanId,
       eventType: data.eventType ?? null,
       startsAt: data.startsAt ?? null,
+      visibility,
+      ...delivery,
     });
   },
 );
@@ -39,3 +93,21 @@ export const sendEventReminder = onSchedule(
     logInfo('sendEventReminder tick');
   },
 );
+
+function normalizeEventTitle(value: string | null | undefined): string {
+  const trimmed = value?.trim() ?? '';
+  if (trimmed.length > 0) {
+    return trimmed;
+  }
+
+  return 'New family event';
+}
+
+function normalizeEventBody(value: string | null | undefined): string {
+  const trimmed = value?.trim() ?? '';
+  if (trimmed.length > 0) {
+    return trimmed;
+  }
+
+  return 'Open BeFam to view event details and reminders.';
+}

@@ -3,6 +3,9 @@
 
 This file defines an AI-friendly issue backlog. The exact count can expand beyond 150 as implementation detail grows.
 
+> Status note (March 14, 2026): this file is the canonical planning template.
+> Live completion status now comes from linked GitHub issues and release PRs.
+
 Format:
 - ID
 - Epic

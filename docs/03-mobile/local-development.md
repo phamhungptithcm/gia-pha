@@ -1,6 +1,8 @@
 # Local Development
 
-This page documents the local Flutter setup for the Family Clan App repository.
+This page documents the local Flutter setup for the BeFam mobile app.
+
+_Last reviewed: March 14, 2026_
 
 ## App location
 
@@ -18,6 +20,7 @@ On this machine, the following components were installed:
 - Android SDK command-line tools
 - Android platform packages and emulator
 - CocoaPods
+- Xcode application (`/Applications/Xcode.app`)
 
 ## Environment variables
 
@@ -43,7 +46,7 @@ Expected result:
 - Android toolchain passes
 - Flutter SDK passes
 - CocoaPods is detected
-- iOS remains blocked until full Xcode is installed
+- iOS simulator support is available when full Xcode developer path is active
 
 ## Start Android emulator
 
@@ -63,6 +66,22 @@ flutter_android_test
 
 ```bash
 ./scripts/run_befam_android.sh
+```
+
+Run directly with Flutter (recommended for day-to-day):
+
+```bash
+cd mobile/befam
+flutter run -d emulator-5554
+```
+
+For iOS simulator on machines where `xcode-select` points to command-line
+tools, force the developer path:
+
+```bash
+cd mobile/befam
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer flutter devices
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer flutter run -d ios
 ```
 
 ## Regenerate app models
@@ -86,22 +105,22 @@ flutter analyze
 flutter test
 ```
 
-## Local auth sandbox
+## Auth and runtime mode
 
-Debug builds default to a local authentication sandbox so the UI can be tested
-without waiting on real SMS delivery.
+Debug builds now default to the live Firebase auth path.
 
-Use:
-
-- OTP: `123456`
-- child identifiers: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
-
-To force the live Firebase auth path in debug:
+- live path default: `BEFAM_USE_LIVE_AUTH=true`
+- force mock backend for local sandbox/testing:
 
 ```bash
 cd mobile/befam
-flutter run -d emulator-5554 --dart-define=BEFAM_USE_LIVE_AUTH=true
+flutter run -d emulator-5554 --dart-define=BEFAM_USE_LIVE_AUTH=false
 ```
+
+Optional debug sandbox values:
+
+- OTP: `123456`
+- child identifiers: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
 
 ## Firebase project
 
@@ -120,8 +139,9 @@ Generated app configuration files:
 Bootstrap services now include:
 
 - Firebase core initialization
-- local `logger` output during development
+- local logger output during development
 - release-only Crashlytics collection when Firebase is available
+- push token registration bootstrap on authenticated app shell
 
 Repo-level Firebase configuration lives in:
 
@@ -132,26 +152,21 @@ Repo-level Firebase configuration lives in:
 - `firebase/storage.rules`
 - `firebase/functions/`
 
-## iOS requirement
+## Optional Firebase demo seed for local UI validation
 
-iOS simulator and device builds require the full Xcode application.
-
-After installing Xcode:
+Seed baseline clan/member/invite data into Firebase:
 
 ```bash
-sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
-sudo xcodebuild -runFirstLaunch
-cd mobile/befam
-flutter run -d ios
+cd firebase/functions
+npm ci
+npm run seed:demo
 ```
 
-## Remaining cloud provisioning step
+If you use a service account file:
 
-The mobile apps are registered in Firebase and the default Firestore database is
-now live in `asia-southeast1`.
-
-Current remaining blocker:
-
-- Firestore rules and indexes can deploy from the repository
-- Cloud Functions v2 deployment still needs a billing account linked to `be-fam-3ab23`
-- billing is required before Google can enable Cloud Build, Cloud Run, Artifact Registry, Secret Manager, and Cloud Scheduler for the project
+```bash
+cd firebase/functions
+FIREBASE_PROJECT_ID=be-fam-3ab23 \
+FIREBASE_SERVICE_ACCOUNT_JSON=/absolute/path/to/service-account.json \
+npm run seed:demo
+```

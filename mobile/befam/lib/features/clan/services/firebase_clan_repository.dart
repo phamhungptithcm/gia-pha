@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 
+import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/branch_draft.dart';
@@ -33,6 +34,11 @@ class FirebaseClanRepository implements ClanRepository {
   Future<ClanWorkspaceSnapshot> loadWorkspace({
     required AuthSession session,
   }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
       return const ClanWorkspaceSnapshot(clan: null, branches: [], members: []);
@@ -72,6 +78,11 @@ class FirebaseClanRepository implements ClanRepository {
     required AuthSession session,
     required ClanDraft draft,
   }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
       throw StateError('A clan context is required before saving clan data.');
@@ -115,6 +126,11 @@ class FirebaseClanRepository implements ClanRepository {
     String? branchId,
     required BranchDraft draft,
   }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
       throw StateError('A clan context is required before saving branch data.');

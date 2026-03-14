@@ -3,6 +3,10 @@
 
 This schema is optimized for a high-read mobile genealogy application using Cloud Firestore.
 
+> Implementation note (March 14, 2026): this document is the target schema
+> reference. Active collection behavior and rules are summarized in
+> `docs/04-backend/firestore-schema.md` and `docs/06-security/firebase-rules.md`.
+
 ## 1. Design Goals
 
 - support 100k+ members across large clans and branches

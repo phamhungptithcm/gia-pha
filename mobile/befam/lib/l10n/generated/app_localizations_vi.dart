@@ -1146,6 +1146,24 @@ class AppLocalizationsVi extends AppLocalizations {
   String get relationshipSpouseAddedSuccess => 'Đã thêm liên kết hôn phối.';
 
   @override
+  String get notificationForegroundEvent => 'Có cập nhật sự kiện mới.';
+
+  @override
+  String get notificationForegroundScholarship => 'Có cập nhật khuyến học mới.';
+
+  @override
+  String get notificationForegroundGeneral => 'Có thông báo mới.';
+
+  @override
+  String get notificationOpenedEvent => 'Đã mở thông báo sự kiện.';
+
+  @override
+  String get notificationOpenedScholarship => 'Đã mở thông báo khuyến học.';
+
+  @override
+  String get notificationOpenedGeneral => 'Đã mở một thông báo.';
+
+  @override
   String get authIssueRestoreSessionFailed =>
       'BeFam chưa thể khôi phục phiên đăng nhập trước đó.';
 

@@ -12,25 +12,49 @@ service cloud.firestore {
         : [];
     }
 
+    function hasUserDoc() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userClanIds() {
+      return hasUserDoc() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.clanIds is list
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.clanIds
+        : [];
+    }
+
     function hasClanAccess(clanId) {
-      return signedIn() && clanId in clanIds();
+      return signedIn() && (
+        clanId in clanIds() ||
+        clanId in userClanIds()
+      );
     }
 
     function memberIdClaim() {
       return signedIn() && request.auth.token.memberId is string
         ? request.auth.token.memberId
+        : hasUserDoc() &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.memberId is string
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.memberId
         : '';
     }
 
     function primaryRole() {
       return signedIn() && request.auth.token.primaryRole is string
         ? request.auth.token.primaryRole
+        : hasUserDoc() &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.primaryRole is string
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.primaryRole
         : '';
     }
 
     function branchIdClaim() {
       return signedIn() && request.auth.token.branchId is string
         ? request.auth.token.branchId
+        : hasUserDoc() &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId is string
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId
         : '';
     }
 
@@ -75,6 +99,103 @@ service cloud.firestore {
         'updatedAt',
         'updatedBy'
       ]);
+    }
+
+    function validUserProfileWrite(userId) {
+      return signedIn() &&
+        userId == request.auth.uid &&
+        request.resource.data.keys().hasAll([
+          'uid',
+          'memberId',
+          'clanId',
+          'clanIds',
+          'branchId',
+          'primaryRole',
+          'accessMode',
+          'linkedAuthUid',
+          'updatedAt',
+          'createdAt'
+        ]) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.memberId is string &&
+        request.resource.data.clanId is string &&
+        request.resource.data.clanIds is list &&
+        request.resource.data.branchId is string &&
+        request.resource.data.primaryRole is string &&
+        request.resource.data.accessMode is string &&
+        request.resource.data.linkedAuthUid is bool;
+    }
+
+    function validDeviceTokenWrite(userId) {
+      return signedIn() &&
+        userId == request.auth.uid &&
+        request.resource.data.keys().hasAll([
+          'token',
+          'uid',
+          'platform',
+          'memberId',
+          'clanId',
+          'branchId',
+          'primaryRole',
+          'accessMode',
+          'updatedAt',
+          'createdAt',
+          'lastSeenAt'
+        ]) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.token is string &&
+        request.resource.data.platform is string &&
+        request.resource.data.memberId is string &&
+        request.resource.data.clanId is string &&
+        request.resource.data.branchId is string &&
+        request.resource.data.accessMode is string &&
+        (
+          !('primaryRole' in request.resource.data) ||
+          request.resource.data.primaryRole is string ||
+          request.resource.data.primaryRole == null
+        );
+    }
+
+    function relationshipMemberDoc(memberId) {
+      return get(/databases/$(database)/documents/members/$(memberId)).data;
+    }
+
+    function relationshipMembersResolvable() {
+      return request.resource.data.personA is string &&
+        request.resource.data.personB is string &&
+        exists(
+          /databases/$(database)/documents/members/$(request.resource.data.personA)
+        ) &&
+        exists(
+          /databases/$(database)/documents/members/$(request.resource.data.personB)
+        );
+    }
+
+    function branchScopedRelationshipWrite() {
+      return isBranchAdmin() &&
+        request.resource.data.clanId is string &&
+        hasClanAccess(request.resource.data.clanId) &&
+        relationshipMembersResolvable() &&
+        relationshipMemberDoc(request.resource.data.personA).clanId ==
+          request.resource.data.clanId &&
+        relationshipMemberDoc(request.resource.data.personB).clanId ==
+          request.resource.data.clanId &&
+        relationshipMemberDoc(request.resource.data.personA).branchId ==
+          branchIdClaim() &&
+        relationshipMemberDoc(request.resource.data.personB).branchId ==
+          branchIdClaim();
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && userId == request.auth.uid;
+      allow create, update: if validUserProfileWrite(userId);
+      allow delete: if false;
+
+      match /deviceTokens/{tokenId} {
+        allow read: if signedIn() && userId == request.auth.uid;
+        allow create, update: if validDeviceTokenWrite(userId);
+        allow delete: if signedIn() && userId == request.auth.uid;
+      }
     }
 
     match /clans/{clanId} {
@@ -130,9 +251,14 @@ service cloud.firestore {
     match /relationships/{relationshipId} {
       allow read: if hasClanAccess(resource.data.clanId);
       allow create, update: if
-        isClanSettingsAdmin() &&
-        hasClanAccess(request.resource.data.clanId) &&
-        request.resource.data.id == relationshipId;
+        request.resource.data.id == relationshipId &&
+        (
+          (
+            isClanSettingsAdmin() &&
+            hasClanAccess(request.resource.data.clanId)
+          ) ||
+          branchScopedRelationshipWrite()
+        );
       allow delete: if false;
     }
 

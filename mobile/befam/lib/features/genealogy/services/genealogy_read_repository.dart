@@ -1,6 +1,5 @@
-import 'package:flutter/foundation.dart';
-
 import '../../../core/services/debug_genealogy_store.dart';
+import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/genealogy_read_segment.dart';
 import 'debug_genealogy_read_repository.dart';
@@ -23,9 +22,8 @@ abstract interface class GenealogyReadRepository {
 }
 
 GenealogyReadRepository createDefaultGenealogyReadRepository() {
-  const useLiveBackend = bool.fromEnvironment('BEFAM_USE_LIVE_AUTH');
   final cache = GenealogySegmentCache.shared();
-  if (kDebugMode && !useLiveBackend) {
+  if (RuntimeMode.shouldUseMockBackend) {
     return DebugGenealogyReadRepository(
       store: DebugGenealogyStore.sharedSeeded(),
       cache: cache,

@@ -2192,6 +2192,42 @@ abstract class AppLocalizations {
   /// **'Đã thêm liên kết hôn phối.'**
   String get relationshipSpouseAddedSuccess;
 
+  /// No description provided for @notificationForegroundEvent.
+  ///
+  /// In vi, this message translates to:
+  /// **'Có cập nhật sự kiện mới.'**
+  String get notificationForegroundEvent;
+
+  /// No description provided for @notificationForegroundScholarship.
+  ///
+  /// In vi, this message translates to:
+  /// **'Có cập nhật khuyến học mới.'**
+  String get notificationForegroundScholarship;
+
+  /// No description provided for @notificationForegroundGeneral.
+  ///
+  /// In vi, this message translates to:
+  /// **'Có thông báo mới.'**
+  String get notificationForegroundGeneral;
+
+  /// No description provided for @notificationOpenedEvent.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã mở thông báo sự kiện.'**
+  String get notificationOpenedEvent;
+
+  /// No description provided for @notificationOpenedScholarship.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã mở thông báo khuyến học.'**
+  String get notificationOpenedScholarship;
+
+  /// No description provided for @notificationOpenedGeneral.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã mở một thông báo.'**
+  String get notificationOpenedGeneral;
+
   /// No description provided for @authIssueRestoreSessionFailed.
   ///
   /// In vi, this message translates to:
