@@ -151,7 +151,6 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                               : l10n.clanCreateFirstDescription,
                           canEditClanSettings:
                               _controller.permissions.canEditClanSettings,
-                          isSandbox: widget.repository.isSandbox,
                           onPrimaryAction:
                               _controller.permissions.canEditClanSettings
                               ? _openClanEditor
@@ -331,7 +330,6 @@ class _WorkspaceHero extends StatelessWidget {
     required this.title,
     required this.description,
     required this.canEditClanSettings,
-    required this.isSandbox,
     required this.primaryActionLabel,
     this.onPrimaryAction,
   });
@@ -339,7 +337,6 @@ class _WorkspaceHero extends StatelessWidget {
   final String title;
   final String description;
   final bool canEditClanSettings;
-  final bool isSandbox;
   final String primaryActionLabel;
   final VoidCallback? onPrimaryAction;
 
@@ -373,14 +370,6 @@ class _WorkspaceHero extends StatelessWidget {
                 icon: canEditClanSettings
                     ? Icons.edit_note_outlined
                     : Icons.visibility_outlined,
-              ),
-              _HeroChip(
-                label: isSandbox
-                    ? l10n.clanSandboxSourceChip
-                    : l10n.clanLiveSourceChip,
-                icon: isSandbox
-                    ? Icons.science_outlined
-                    : Icons.cloud_done_outlined,
               ),
             ],
           ),

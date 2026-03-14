@@ -47,6 +47,9 @@ void main() {
     await tester.tap(find.text('Dùng số điện thoại'));
     await tester.pumpAndSettle();
 
+    await tester.enterText(find.byType(TextField).first, '0901234567');
+    await tester.pumpAndSettle();
+
     final sendOtpButton = find.widgetWithText(FilledButton, 'Gửi OTP');
     await tester.tap(sendOtpButton);
     await tester.pumpAndSettle();
@@ -66,6 +69,9 @@ void main() {
     await tester.tap(find.text('Dùng mã trẻ em'));
     await tester.pumpAndSettle();
 
+    await tester.enterText(find.byType(TextField).first, 'BEFAM-CHILD-001');
+    await tester.pumpAndSettle();
+
     await tester.tap(find.widgetWithText(FilledButton, 'Tiếp tục'));
     await tester.pumpAndSettle();
 
@@ -82,7 +88,10 @@ void main() {
 
     expect(find.text('Tiếp tục bằng số điện thoại'), findsOneWidget);
     expect(find.text('Tiếp tục bằng mã trẻ em'), findsOneWidget);
-    expect(find.textContaining('Môi trường thử nghiệm'), findsOneWidget);
+    expect(
+      find.text('Xác thực là cột mốc tiếp theo của BeFam.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('supports Vietnamese as the primary locale', (tester) async {
@@ -90,7 +99,10 @@ void main() {
 
     expect(find.text('Tiếp tục bằng số điện thoại'), findsOneWidget);
     expect(find.text('Tiếp tục bằng mã trẻ em'), findsOneWidget);
-    expect(find.textContaining('Môi trường thử nghiệm'), findsOneWidget);
+    expect(
+      find.text('Xác thực là cột mốc tiếp theo của BeFam.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('supports English as the secondary locale', (tester) async {
@@ -98,7 +110,10 @@ void main() {
 
     expect(find.text('Continue with phone'), findsOneWidget);
     expect(find.text('Continue with child ID'), findsOneWidget);
-    expect(find.textContaining('Debug auth sandbox'), findsOneWidget);
+    expect(
+      find.text('Authentication is the next BeFam milestone.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('completes debug phone login and opens dashboard', (
@@ -114,16 +129,14 @@ void main() {
     expect(find.text('Phiên thành viên đã liên kết'), findsWidgets);
   });
 
-  testWidgets('supports demo child identifier chips for easier local access', (
-    tester,
-  ) async {
+  testWidgets('supports manual child identifier input', (tester) async {
     await pumpAuthApp(tester, locale: const Locale('vi'));
 
     await tester.tap(find.text('Dùng mã trẻ em'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('BEFAM-CHILD-002'));
-    await tester.pump();
+    await tester.enterText(find.byType(TextField).first, 'BEFAM-CHILD-002');
+    await tester.pumpAndSettle();
 
     final childField = tester.widget<TextField>(find.byType(TextField).first);
     expect(childField.controller?.text, 'BEFAM-CHILD-002');
@@ -135,7 +148,7 @@ void main() {
     await loginWithChild(tester);
 
     expect(find.text('Phiên truy cập trẻ em'), findsWidgets);
-    expect(find.text('member_demo_child_001'), findsOneWidget);
+    expect(find.textContaining('BEFAM-CHILD-001'), findsWidgets);
     expect(find.textContaining('OTP phụ huynh'), findsWidgets);
   });
 
@@ -287,9 +300,7 @@ void main() {
       await tester.enterText(find.byKey(const Key('members-search-input')), '');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('members-generation-filter')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Đời 4').last);
+      await tester.tap(find.byKey(const Key('members-generation-filter-4')));
       await tester.pumpAndSettle();
 
       expect(
@@ -305,9 +316,9 @@ void main() {
         findsNothing,
       );
 
-      await tester.tap(find.byKey(const Key('members-branch-filter')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Chi Phụ').last);
+      await tester.tap(
+        find.byKey(const Key('members-branch-filter-branch_demo_002')),
+      );
       await tester.pumpAndSettle();
 
       expect(

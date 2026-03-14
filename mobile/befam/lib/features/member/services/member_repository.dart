@@ -1,6 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
 
 import '../../../core/services/debug_genealogy_store.dart';
+import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import 'debug_member_repository.dart';
 import 'firebase_member_repository.dart';
@@ -46,8 +47,7 @@ abstract interface class MemberRepository {
 }
 
 MemberRepository createDefaultMemberRepository() {
-  const useLiveBackend = bool.fromEnvironment('BEFAM_USE_LIVE_AUTH');
-  if (kDebugMode && !useLiveBackend) {
+  if (RuntimeMode.shouldUseMockBackend) {
     return DebugMemberRepository(store: DebugGenealogyStore.sharedSeeded());
   }
 

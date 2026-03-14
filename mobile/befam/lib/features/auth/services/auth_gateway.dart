@@ -5,6 +5,8 @@ import '../models/auth_session.dart';
 abstract class AuthGateway {
   bool get isSandbox;
 
+  Future<bool> canRestoreSession(AuthSession session);
+
   Future<AuthOtpRequestResult> requestPhoneOtp(String phoneE164);
 
   Future<AuthOtpRequestResult> requestChildOtp(String childIdentifier);

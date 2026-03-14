@@ -4,6 +4,10 @@
 This document is the single source of truth for AI coding agents and reviewers.
 The target product is a Flutter mobile app for iOS and Android using Firebase.
 
+> Implementation note (March 14, 2026): this document defines the strategic
+> product baseline and full target scope. For current shipped behavior, use the
+> Product, Architecture, Mobile, Backend, and DevOps section docs in this site.
+
 ## 1. Product Summary
 
 The application helps Vietnamese families, branches, clans, and lineages manage:

@@ -1,289 +1,117 @@
 # GITHUB AUTOMATION AI PIPELINE
-## AI-driven PR, Build, Review, and Deploy Workflow
+## AI-driven PR, Build, Review, and Release Workflow
 
-This document defines how the repository should support AI agents working with GitHub.
+_Last reviewed: March 14, 2026_
 
-## 1. Goals
+This document describes the current automation model used in this repository.
 
-- allow AI agents to work from issues and docs
-- enforce safe automation boundaries
-- provide repeatable CI/CD
-- keep human reviewer in control of merge and production deploy
+## 1. Branch model
 
-## 2. Repository Automation Components
+- `staging`: development integration branch
+- `main`: production release branch
+- feature branches: `codex/<slug>`, `feat/<id>-<slug>`, `fix/<id>-<slug>`,
+  `docs/<id>-<slug>`
 
-Recommended GitHub setup:
-- GitHub Actions
-- issue templates
-- pull request template
-- CODEOWNERS
-- branch protection
-- labels
-- project board
-- optional release workflow
+All delivery changes go through pull requests.
 
-## 3. Branch Strategy
+## 2. Protected branch policy
 
-Branches:
-- `main` for protected production-ready code
-- `develop` optional if team wants integration branch, but simpler setup can use only `main`
-- feature branches:
-  - `feat/<issue-id>-<slug>`
-  - `fix/<issue-id>-<slug>`
-  - `docs/<issue-id>-<slug>`
+Both `staging` and `main` require:
 
-Recommendation:
-- use trunk-based with short-lived branches
-- require PR for all changes
+- pull request merge only (no direct push)
+- at least one reviewer approval
+- required status checks from Branch CI:
+  - `ci-docs`
+  - `ci-functions`
+  - `ci-mobile`
 
-## 4. AI Agent Workflow
+## 3. Workflow inventory
 
-### Step 1 - Intake
-AI agent reads:
-- `docs/AI_BUILD_MASTER_DOC.md`
-- linked design docs
-- issue acceptance criteria
+### `branch-ci.yml`
 
-### Step 2 - Branch creation
-Agent creates branch from latest protected base.
+Runs on PR/push for `staging` and `main`:
 
-### Step 3 - Implementation
-Agent:
-- writes code
-- updates tests
-- updates relevant docs if contract changes
+- strict docs build
+- functions install + build
+- Flutter analyze + test + Android release build
+- Docker image build checks for mobile and Firebase tooling
 
-### Step 4 - PR creation
-PR must contain:
-- scope summary
-- issue link
-- acceptance checklist
-- testing notes
-- screenshots if UI changed
+### `docs-ci.yml`
 
-### Step 5 - CI
-GitHub Actions runs:
-- Flutter format or lint checks
-- `flutter analyze`
-- `flutter test`
-- optional emulator/integration tests
-- docs build
-- Firebase functions tests
+Runs on docs changes (PR and non-main pushes) and enforces
+`mkdocs build --strict`.
 
-### Step 6 - Human review
-Reviewer checks:
-- correctness
-- security
-- architecture fit
-- user experience
+### `deploy-docs.yml`
 
-### Step 7 - Merge and deploy
-After approval and green CI:
-- merge to protected branch
-- deploy staging automatically
-- deploy production by manual approval
+Publishes MkDocs site to GitHub Pages from `main`.
 
-## 5. Suggested GitHub Issue Templates
+### `deploy-firebase.yml`
 
-Templates:
-- feature
-- bug
-- technical task
-- documentation
-- security review
+Deploys Firestore rules/indexes, Storage rules, and Functions from `main`
+using credentials from the GitHub `production` environment.
 
-Feature issue fields:
-- problem
-- user story
-- scope
-- acceptance criteria
-- technical notes
-- out of scope
+### `release-main.yml`
 
-## 6. Suggested Pull Request Template
+On `main` pushes:
 
-PR sections:
-- Summary
-- Linked issue
-- What changed
-- Why
-- Screenshots / demo
-- Test plan
-- Risks
-- Rollback notes
-- Checklist
+- computes next semver tag
+- creates tag when needed
+- generates friendly release notes
+- builds Android release APK
+- builds unsigned iOS archive and zips artifact
+- publishes GitHub release with artifacts
+- builds/pushes GHCR images:
+  - `befam-mobile-builder`
+  - `befam-firebase-tools`
 
-## 7. CODEOWNERS Strategy
+### `weekly-release-promotion.yml`
 
-Use CODEOWNERS to route review.
+Every Monday at 14:00 UTC (and manual dispatch):
+
+- compares `staging` to `main`
+- creates/refreshes production promotion PR
+- enables auto-merge once approval + CI are satisfied
+
+### `release-issue-closure.yml`
+
+When a PR is merged into `main`:
+
+- closes released stories referenced by closing keywords
+- closes parent epic when all linked stories are closed
+
+## 4. Agent workflow expectations
+
+1. read relevant docs and issue acceptance criteria
+2. create a scoped branch from `staging`
+3. implement code + tests + docs updates
+4. open PR to `staging` with validation details
+5. use closing keywords (for example `Closes #123`) only when scope is truly complete
+6. merge after approval and green CI
+7. allow automated `staging` -> `main` promotion/release flow to complete
+
+## 5. Release note automation
+
+Scripts:
+
+- `scripts/next_release_version.mjs`
+- `scripts/generate_release_notes.mjs`
 
 Example:
-```text
-/docs/ @product-owner
-/mobile/befam/lib/features/auth/ @mobile-owner
-/mobile/befam/lib/features/genealogy/ @mobile-owner
-/firebase/functions/ @backend-owner
-```
-
-## 8. Branch Protection Rules
-
-Protect `main`:
-- no direct pushes
-- require PR
-- require status checks
-- require at least 1 approval
-- dismiss stale approvals on new commits
-- require conversation resolution
-
-## 9. Labels
-
-Recommended labels:
-- epic
-- story
-- task
-- bug
-- docs
-- security
-- flutter
-- firebase
-- genealogy
-- notifications
-- funds
-- scholarship
-- performance
-- ai-agent
-
-## 10. GitHub Actions Workflows
-
-### 10.1 mobile-ci.yml
-Runs on PRs affecting Flutter code.
-
-Steps:
-- checkout
-- setup Flutter
-- get dependencies
-- format check
-- analyze
-- unit tests
-- build apk or ios-no-codesign where feasible
-
-### 10.2 functions-ci.yml
-Runs on PRs affecting Cloud Functions.
-
-Steps:
-- setup node
-- install deps
-- lint
-- unit tests
-- emulator tests optional
-
-### 10.3 docs-ci.yml
-Runs on docs changes.
-
-Steps:
-- install Python + MkDocs Material
-- build docs
-- fail on broken nav / invalid markdown if lint added
-
-### 10.4 deploy-docs.yml
-Runs on merge to main.
-Steps:
-- build MkDocs
-- deploy GitHub Pages
-
-### 10.5 deploy-staging.yml
-Optional on main or release branch.
-Steps:
-- build app artifacts
-- deploy Firebase staging functions/rules
-
-### 10.6 deploy-production.yml
-Manual workflow dispatch with approval.
-Steps:
-- confirm tag or commit
-- deploy prod functions/rules
-- create release notes
-
-Release note generation can be scripted with:
 
 ```bash
-RELEASE_TAG=v0.1.0 node scripts/generate_release_notes.mjs
+RELEASE_TAG=v0.1.0 RELEASE_PRODUCT_NAME=BeFam node scripts/generate_release_notes.mjs
 ```
 
-## 11. AI-Specific Guardrails
+## 6. Backlog source of truth
 
-AI agents should:
-- never merge without human approval
-- never alter secrets
-- never deploy to prod automatically without protected approval
-- never bypass failing tests
-- always update docs when schema/contracts change
+Planning artifacts remain in markdown and are projected into GitHub issues:
 
-## 12. Suggested Project Board Columns
+- `docs/AI_BUILD_MASTER_DOC.md`
+- `docs/AI_AGENT_TASKS_150_ISSUES.md`
+- `docs/GITHUB_AUTOMATION_AI_PIPELINE.md`
 
-- Backlog
-- Ready
-- In Progress
-- In Review
-- Needs Revision
-- Done
+Importer:
 
-Automation:
-- issue opened -> Backlog
-- PR opened -> In Review
-- merged PR -> Done
-
-## 13. Commit Message Convention
-
-Use conventional commits:
-- `feat(auth): implement phone otp verification`
-- `fix(tree): prevent duplicate spouse edges`
-- `docs(schema): add scholarship collections`
-
-## 14. Release Strategy
-
-- semantic versioning recommended
-- internal beta first
-- use tags for release candidates
-- maintain changelog
-
-## 15. Example Automation Policy for AI Agent
-
-An AI agent may:
-- pick a Ready issue
-- create feature branch
-- implement scoped changes
-- open PR
-- request review
-
-An AI agent may not:
-- self-approve
-- merge protected branch
-- deploy production without explicit human approval
-
-## 16. Required Repository Files
-
-Suggested:
-```text
-.github/
-  ISSUE_TEMPLATE/
-    feature.yml
-    bug.yml
-    docs.yml
-  workflows/
-    mobile-ci.yml
-    functions-ci.yml
-    docs-ci.yml
-    deploy-docs.yml
-  pull_request_template.md
-  CODEOWNERS
+```bash
+python3 scripts/bootstrap_github_backlog.py --repo phamhungptithcm/gia-pha
 ```
-
-## 17. Human Reviewer Checklist
-
-- issue scope respected
-- access control unchanged or improved
-- tests are meaningful
-- docs updated
-- no hidden schema changes
-- no hardcoded secrets

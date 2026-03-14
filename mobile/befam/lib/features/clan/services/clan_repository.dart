@@ -1,5 +1,4 @@
-import 'package:flutter/foundation.dart';
-
+import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/branch_draft.dart';
 import '../models/branch_profile.dart';
@@ -26,8 +25,7 @@ abstract interface class ClanRepository {
 }
 
 ClanRepository createDefaultClanRepository() {
-  const useLiveBackend = bool.fromEnvironment('BEFAM_USE_LIVE_AUTH');
-  if (kDebugMode && !useLiveBackend) {
+  if (RuntimeMode.shouldUseMockBackend) {
     return DebugClanRepository.seeded();
   }
 

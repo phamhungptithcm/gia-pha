@@ -206,16 +206,79 @@ export const claimMemberRecord = onCall({ region: APP_REGION }, async (request) 
 
 export const registerDeviceToken = onCall({ region: APP_REGION }, async (request) => {
   const auth = requireAuth(request);
+  const token = requireNonEmptyString(request.data, 'token').trim();
+  if (token.length > 4096) {
+    throw new HttpsError('invalid-argument', 'token is too long.');
+  }
+
+  const requestPlatform = optionalString(request.data, 'platform')?.trim().toLowerCase();
+  const platform = requestPlatform != null && requestPlatform.length > 0
+    ? requestPlatform.slice(0, 32)
+    : 'unknown';
+
+  const memberIdFromClaim = typeof auth.token.memberId === 'string'
+    ? auth.token.memberId.trim()
+    : '';
+  const branchIdFromClaim = typeof auth.token.branchId === 'string'
+    ? auth.token.branchId.trim()
+    : '';
+  const roleFromClaim = typeof auth.token.primaryRole === 'string'
+    ? auth.token.primaryRole.trim()
+    : '';
+  const claimClanIdsRaw = Array.isArray(auth.token.clanIds) ? auth.token.clanIds : [];
+  const claimClanIds = claimClanIdsRaw
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  const fallbackMemberId = optionalString(request.data, 'memberId')?.trim() ?? '';
+  const fallbackBranchId = optionalString(request.data, 'branchId')?.trim() ?? '';
+  const fallbackClanId = optionalString(request.data, 'clanId')?.trim() ?? '';
+  const fallbackAccessMode = optionalString(request.data, 'accessMode')?.trim() ?? '';
+
+  const memberId = memberIdFromClaim.length > 0 ? memberIdFromClaim : fallbackMemberId;
+  const branchId = branchIdFromClaim.length > 0 ? branchIdFromClaim : fallbackBranchId;
+  const clanId = claimClanIds.length > 0
+    ? claimClanIds[0]
+    : fallbackClanId;
+  const accessMode = typeof auth.token.memberAccessMode === 'string'
+    ? auth.token.memberAccessMode.trim()
+    : fallbackAccessMode;
 
   logInfo('registerDeviceToken requested', {
     uid: auth.uid,
-    data: request.data,
+    tokenLength: token.length,
+    platform,
+    memberId,
+    clanId,
+    branchId,
+    primaryRole: roleFromClaim,
+    accessMode,
   });
 
-  throw new HttpsError(
-    'unimplemented',
-    'registerDeviceToken is scaffolded and awaits token upsert logic.',
-  );
+  await db
+    .collection('users')
+    .doc(auth.uid)
+    .collection('deviceTokens')
+    .doc(token)
+    .set({
+      token,
+      uid: auth.uid,
+      platform,
+      memberId: memberId.length > 0 ? memberId : null,
+      clanId: clanId.length > 0 ? clanId : null,
+      branchId: branchId.length > 0 ? branchId : null,
+      primaryRole: roleFromClaim.length > 0 ? roleFromClaim : null,
+      accessMode: accessMode.length > 0 ? accessMode : null,
+      updatedAt: FieldValue.serverTimestamp(),
+      lastSeenAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+  return {
+    status: 'registered',
+    token,
+  };
 });
 
 function requireNonEmptyString(data: unknown, key: string): string {

@@ -3,6 +3,10 @@
 
 This document defines the backend behavior for Cloud Functions.
 
+> Implementation note (March 14, 2026): this document captures target behavior.
+> The currently shipped implementation is summarized in
+> `docs/04-backend/cloud-functions.md`.
+
 ## 1. Goals
 
 Cloud Functions are responsible for:

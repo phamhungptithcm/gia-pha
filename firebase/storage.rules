@@ -12,18 +12,45 @@ service firebase.storage {
         : [];
     }
 
+    function hasUserDoc() {
+      return signedIn() &&
+        exists(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function userClanIds() {
+      return hasUserDoc() &&
+        get(/databases/(default)/documents/users/$(request.auth.uid)).data.clanIds is list
+        ? get(/databases/(default)/documents/users/$(request.auth.uid)).data.clanIds
+        : [];
+    }
+
     function hasClanAccess(clanId) {
-      return signedIn() && clanId in clanIds();
+      return signedIn() && (
+        clanId in clanIds() ||
+        clanId in userClanIds()
+      );
     }
 
     function memberIdClaim() {
       return signedIn() && request.auth.token.memberId is string
         ? request.auth.token.memberId
+        : hasUserDoc() &&
+          get(/databases/(default)/documents/users/$(request.auth.uid)).data.memberId is string
+        ? get(/databases/(default)/documents/users/$(request.auth.uid)).data.memberId
+        : '';
+    }
+
+    function primaryRole() {
+      return signedIn() && request.auth.token.primaryRole is string
+        ? request.auth.token.primaryRole
+        : hasUserDoc() &&
+          get(/databases/(default)/documents/users/$(request.auth.uid)).data.primaryRole is string
+        ? get(/databases/(default)/documents/users/$(request.auth.uid)).data.primaryRole
         : '';
     }
 
     function isClanAdmin() {
-      return signedIn() && request.auth.token.primaryRole in [
+      return signedIn() && primaryRole() in [
         'SUPER_ADMIN',
         'CLAN_ADMIN',
         'BRANCH_ADMIN'
