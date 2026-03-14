@@ -4,6 +4,7 @@ import '../app/models/app_shortcut.dart';
 import '../features/auth/models/auth_entry_method.dart';
 import '../features/auth/models/auth_issue.dart';
 import '../features/auth/models/auth_member_access_mode.dart';
+import '../features/events/models/event_type.dart';
 import 'generated/app_localizations.dart';
 
 extension BuildContextL10nX on BuildContext {
@@ -122,6 +123,16 @@ extension AppLocalizationsX on AppLocalizations {
       AppShortcutStatus.live => shellShortcutStatusLive,
       AppShortcutStatus.bootstrap => shellShortcutStatusBootstrap,
       AppShortcutStatus.planned => shellShortcutStatusPlanned,
+    };
+  }
+
+  String eventTypeLabel(EventType type) {
+    return switch (type) {
+      EventType.clanGathering => eventTypeClanGathering,
+      EventType.meeting => eventTypeMeeting,
+      EventType.birthday => eventTypeBirthday,
+      EventType.deathAnniversary => eventTypeDeathAnniversary,
+      EventType.other => eventTypeOther,
     };
   }
 }
