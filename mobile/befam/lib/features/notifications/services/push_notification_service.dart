@@ -89,11 +89,66 @@ class NoopPushNotificationService implements PushNotificationService {
   Future<void> stop() async {}
 }
 
+class _TokenRegistrationContext {
+  const _TokenRegistrationContext({
+    required this.uid,
+    required this.memberId,
+    required this.clanId,
+    required this.branchId,
+    required this.primaryRole,
+    required this.accessMode,
+  });
+
+  factory _TokenRegistrationContext.fromSession(AuthSession session) {
+    return _TokenRegistrationContext(
+      uid: session.uid,
+      memberId: session.memberId?.trim() ?? '',
+      clanId: session.clanId?.trim() ?? '',
+      branchId: session.branchId?.trim() ?? '',
+      primaryRole: session.primaryRole?.trim() ?? '',
+      accessMode: session.accessMode.name,
+    );
+  }
+
+  final String uid;
+  final String memberId;
+  final String clanId;
+  final String branchId;
+  final String primaryRole;
+  final String accessMode;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    return other is _TokenRegistrationContext &&
+        other.uid == uid &&
+        other.memberId == memberId &&
+        other.clanId == clanId &&
+        other.branchId == branchId &&
+        other.primaryRole == primaryRole &&
+        other.accessMode == accessMode;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      uid,
+      memberId,
+      clanId,
+      branchId,
+      primaryRole,
+      accessMode,
+    );
+  }
+}
+
 class FirebasePushNotificationService implements PushNotificationService {
   StreamSubscription<String>? _tokenSubscription;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
-  String? _activeUid;
+  _TokenRegistrationContext? _activeRegistrationContext;
   bool _tokenCallableMissing = false;
 
   @override
@@ -101,12 +156,13 @@ class FirebasePushNotificationService implements PushNotificationService {
     required AuthSession session,
     void Function(NotificationDeepLink deepLink)? onDeepLink,
   }) async {
-    if (_activeUid == session.uid) {
+    final registrationContext = _TokenRegistrationContext.fromSession(session);
+    if (_activeRegistrationContext == registrationContext) {
       return;
     }
 
     await stop();
-    _activeUid = session.uid;
+    _activeRegistrationContext = registrationContext;
 
     try {
       final messaging = FirebaseServices.messaging;
@@ -157,8 +213,7 @@ class FirebasePushNotificationService implements PushNotificationService {
         onDeepLink?.call(deepLink);
       });
 
-      final initialMessage = await FirebaseServices.messaging
-          .getInitialMessage();
+      final initialMessage = await messaging.getInitialMessage();
       if (initialMessage != null) {
         final deepLink = NotificationDeepLink.fromRemoteMessage(
           initialMessage,
@@ -183,7 +238,7 @@ class FirebasePushNotificationService implements PushNotificationService {
     _tokenSubscription = null;
     _foregroundSubscription = null;
     _openedSubscription = null;
-    _activeUid = null;
+    _activeRegistrationContext = null;
   }
 
   Future<void> _registerToken(AuthSession session, String token) async {
