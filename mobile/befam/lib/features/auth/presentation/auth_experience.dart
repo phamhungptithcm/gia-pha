@@ -127,12 +127,15 @@ class _AuthScaffold extends StatelessWidget {
               ],
               switch (controller.step) {
                 AuthStep.loginMethodSelection => _LoginMethodSelectionCard(
+                  isBusy: controller.isBusy,
+                  showLocalBypass: controller.canUseLocalBypass,
                   onPhoneSelected: () {
                     controller.selectLoginMethod(AuthEntryMethod.phone);
                   },
                   onChildSelected: () {
                     controller.selectLoginMethod(AuthEntryMethod.child);
                   },
+                  onLocalBypassSelected: controller.signInWithLocalBypass,
                 ),
                 AuthStep.phoneNumber => _PhoneLoginCard(
                   isBusy: controller.isBusy,
@@ -299,12 +302,18 @@ class _AuthMessageCard extends StatelessWidget {
 
 class _LoginMethodSelectionCard extends StatelessWidget {
   const _LoginMethodSelectionCard({
+    required this.isBusy,
+    required this.showLocalBypass,
     required this.onPhoneSelected,
     required this.onChildSelected,
+    required this.onLocalBypassSelected,
   });
 
+  final bool isBusy;
+  final bool showLocalBypass;
   final VoidCallback onPhoneSelected;
   final VoidCallback onChildSelected;
+  final Future<void> Function() onLocalBypassSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -313,6 +322,20 @@ class _LoginMethodSelectionCard extends StatelessWidget {
     return Column(
       children: [
         const _QuickBenefitsCard(),
+        if (showLocalBypass) ...[
+          const SizedBox(height: 16),
+          _MethodCard(
+            title: l10n.authSandboxChip,
+            description: l10n.authPhoneHelperSandbox,
+            icon: Icons.bolt_rounded,
+            buttonLabel: l10n.authContinueNow,
+            onPressed: isBusy
+                ? null
+                : () {
+                    unawaited(onLocalBypassSelected());
+                  },
+          ),
+        ],
         const SizedBox(height: 16),
         _MethodCard(
           title: l10n.authMethodPhoneTitle,
@@ -347,7 +370,7 @@ class _MethodCard extends StatelessWidget {
   final String description;
   final IconData icon;
   final String buttonLabel;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
