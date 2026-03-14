@@ -122,6 +122,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final l10n = context.l10n;
+        final filteredMembers = _controller.filteredMembers;
 
         return Scaffold(
           appBar: AppBar(
@@ -146,6 +147,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                 : RefreshIndicator(
                     onRefresh: _controller.refresh,
                     child: ListView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
                         _WorkspaceHero(
@@ -185,7 +188,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                             ),
                             _StatTile(
                               label: l10n.memberStatVisible,
-                              value: '${_controller.filteredMembers.length}',
+                              value: '${filteredMembers.length}',
                               icon: Icons.filter_alt_outlined,
                             ),
                             _StatTile(
@@ -268,7 +271,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                                     label: Text(l10n.memberRefreshAction),
                                   ),
                                 )
-                              : _controller.filteredMembers.isEmpty
+                              : filteredMembers.isEmpty
                               ? _WorkspaceEmptyState(
                                   icon: Icons.person_search_outlined,
                                   title: l10n.memberListEmptyTitle,
@@ -276,31 +279,34 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                                 )
                               : Column(
                                   children: [
-                                    for (final member
-                                        in _controller.filteredMembers)
+                                    for (
+                                      var i = 0;
+                                      i < filteredMembers.length;
+                                      i++
+                                    )
                                       Padding(
                                         padding: EdgeInsets.only(
                                           bottom:
-                                              member ==
-                                                  _controller
-                                                      .filteredMembers
-                                                      .last
+                                              i == filteredMembers.length - 1
                                               ? 0
                                               : 14,
                                         ),
                                         child: _MemberSummaryCard(
-                                          key: Key('member-row-${member.id}'),
-                                          member: member,
+                                          key: Key(
+                                            'member-row-${filteredMembers[i].id}',
+                                          ),
+                                          member: filteredMembers[i],
                                           branchName: _controller.branchName(
-                                            member.branchId,
+                                            filteredMembers[i].branchId,
                                           ),
                                           roleLabel: l10n.roleLabel(
-                                            member.primaryRole,
+                                            filteredMembers[i].primaryRole,
                                           ),
                                           highlightQuery:
                                               _controller.filters.query,
-                                          onTap: () =>
-                                              _openMemberDetail(member),
+                                          onTap: () => _openMemberDetail(
+                                            filteredMembers[i],
+                                          ),
                                         ),
                                       ),
                                   ],

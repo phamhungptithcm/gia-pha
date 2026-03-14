@@ -255,6 +255,11 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
       animation: _controller,
       builder: (context, child) {
         final selectedProgram = _controller.selectedProgram;
+        final selectedProgramAwardLevels =
+            _controller.selectedProgramAwardLevels;
+        final selectedProgramSubmissions =
+            _controller.selectedProgramSubmissions;
+        final reviewQueue = _controller.reviewQueue;
 
         return Scaffold(
           appBar: AppBar(
@@ -284,6 +289,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                     onRefresh: _controller.refresh,
                     child: ListView(
                       key: const Key('scholarship-workspace-list'),
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
                         Container(
@@ -467,7 +474,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                               ? const _InlineEmpty(
                                   message: 'Choose a program first.',
                                 )
-                              : _controller.selectedProgramAwardLevels.isEmpty
+                              : selectedProgramAwardLevels.isEmpty
                               ? const _InlineEmpty(
                                   message:
                                       'No award levels yet. Add at least one so members can submit.',
@@ -475,8 +482,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                               : Column(
                                   children: [
                                     for (final awardLevel
-                                        in _controller
-                                            .selectedProgramAwardLevels)
+                                        in selectedProgramAwardLevels)
                                       ListTile(
                                         key: Key(
                                           'scholarship-award-level-${awardLevel.id}',
@@ -533,7 +539,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                               ? const _InlineEmpty(
                                   message: 'Choose a program first.',
                                 )
-                              : _controller.selectedProgramSubmissions.isEmpty
+                              : selectedProgramSubmissions.isEmpty
                               ? const _InlineEmpty(
                                   message:
                                       'No submissions in this program yet.',
@@ -541,8 +547,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                               : Column(
                                   children: [
                                     for (final submission
-                                        in _controller
-                                            .selectedProgramSubmissions)
+                                        in selectedProgramSubmissions)
                                       Card(
                                         key: Key(
                                           'scholarship-submission-${submission.id}',
@@ -609,15 +614,14 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                   message:
                                       'Your session cannot review scholarship submissions.',
                                 )
-                              : _controller.reviewQueue.isEmpty
+                              : reviewQueue.isEmpty
                               ? const _InlineEmpty(
                                   message:
                                       'No pending submissions in the review queue.',
                                 )
                               : Column(
                                   children: [
-                                    for (final submission
-                                        in _controller.reviewQueue)
+                                    for (final submission in reviewQueue)
                                       Card(
                                         key: Key(
                                           'scholarship-review-item-${submission.id}',

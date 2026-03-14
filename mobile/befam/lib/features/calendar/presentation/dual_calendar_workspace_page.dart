@@ -76,6 +76,8 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                 : RefreshIndicator(
                     onRefresh: _controller.refreshAll,
                     child: ListView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
                       children: [
                         if (_controller.errorMessage case final message?) ...[
@@ -235,6 +237,57 @@ class _SettingsCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = theme.textTheme;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+
+    final regionPicker = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: DropdownButton<CalendarRegion>(
+        value: controller.region,
+        borderRadius: BorderRadius.circular(12),
+        underline: const SizedBox.shrink(),
+        icon: const Icon(Icons.expand_more),
+        items: [
+          for (final region in CalendarRegion.values)
+            DropdownMenuItem<CalendarRegion>(
+              value: region,
+              child: Text(region.label),
+            ),
+        ],
+        onChanged: (value) {
+          if (value == null) {
+            return;
+          }
+          controller.setRegion(value);
+        },
+      ),
+    );
+
+    final displayModePicker = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SegmentedButton<CalendarDisplayMode>(
+        showSelectedIcon: false,
+        segments: [
+          for (final mode in CalendarDisplayMode.values)
+            ButtonSegment<CalendarDisplayMode>(
+              value: mode,
+              label: Text(mode.label),
+            ),
+        ],
+        selected: {controller.displayMode},
+        onSelectionChanged: (selection) {
+          final mode = selection.firstOrNull;
+          if (mode == null) {
+            return;
+          }
+          controller.setDisplayMode(mode);
+        },
+      ),
+    );
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -285,62 +338,40 @@ class _SettingsCard extends StatelessWidget {
             style: textTheme.bodyMedium?.copyWith(height: 1.35),
           ),
           const SizedBox(height: 14),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface.withValues(alpha: 0.8),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.outlineVariant),
-                ),
-                child: DropdownButton<CalendarRegion>(
-                  value: controller.region,
-                  borderRadius: BorderRadius.circular(12),
-                  underline: const SizedBox.shrink(),
-                  icon: const Icon(Icons.expand_more),
-                  items: [
-                    for (final region in CalendarRegion.values)
-                      DropdownMenuItem<CalendarRegion>(
-                        value: region,
-                        child: Text(region.label),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    controller.setRegion(value);
-                  },
-                ),
-              ),
-              SegmentedButton<CalendarDisplayMode>(
-                showSelectedIcon: false,
-                segments: [
-                  for (final mode in CalendarDisplayMode.values)
-                    ButtonSegment<CalendarDisplayMode>(
-                      value: mode,
-                      label: Text(mode.label),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 640 || textScale > 1.1;
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    regionPicker,
+                    const SizedBox(height: 10),
+                    displayModePicker,
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: onCreateEvent,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Create event'),
                     ),
+                  ],
+                );
+              }
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  regionPicker,
+                  displayModePicker,
+                  OutlinedButton.icon(
+                    onPressed: onCreateEvent,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Create event'),
+                  ),
                 ],
-                selected: {controller.displayMode},
-                onSelectionChanged: (selection) {
-                  final mode = selection.firstOrNull;
-                  if (mode == null) {
-                    return;
-                  }
-                  controller.setDisplayMode(mode);
-                },
-              ),
-              OutlinedButton.icon(
-                onPressed: onCreateEvent,
-                icon: const Icon(Icons.add),
-                label: const Text('Create event'),
-              ),
-            ],
+              );
+            },
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -375,39 +406,79 @@ class _MonthHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = '${_monthName(focusedMonth.month)} ${focusedMonth.year}';
     final colorScheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        _MonthNavButton(
-          tooltip: 'Previous month',
-          icon: Icons.chevron_left,
-          onPressed: () => unawaited(onPreviousMonth()),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Container(
-            height: 46,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: colorScheme.outlineVariant),
-            ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-            ),
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 470 || textScale > 1.15;
+
+        final monthTitle = Container(
+          height: 46,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: colorScheme.outlineVariant),
           ),
-        ),
-        const SizedBox(width: 8),
-        _MonthNavButton(
-          tooltip: 'Next month',
-          icon: Icons.chevron_right,
-          onPressed: () => unawaited(onNextMonth()),
-        ),
-        const SizedBox(width: 8),
-        FilledButton.tonal(onPressed: onToday, child: const Text('Today')),
-      ],
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+          ),
+        );
+
+        if (compact) {
+          return Column(
+            children: [
+              Row(
+                children: [
+                  _MonthNavButton(
+                    tooltip: 'Previous month',
+                    icon: Icons.chevron_left,
+                    onPressed: () => unawaited(onPreviousMonth()),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: monthTitle),
+                  const SizedBox(width: 8),
+                  _MonthNavButton(
+                    tooltip: 'Next month',
+                    icon: Icons.chevron_right,
+                    onPressed: () => unawaited(onNextMonth()),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonal(
+                  onPressed: onToday,
+                  child: const Text('Today'),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            _MonthNavButton(
+              tooltip: 'Previous month',
+              icon: Icons.chevron_left,
+              onPressed: () => unawaited(onPreviousMonth()),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: monthTitle),
+            const SizedBox(width: 8),
+            _MonthNavButton(
+              tooltip: 'Next month',
+              icon: Icons.chevron_right,
+              onPressed: () => unawaited(onNextMonth()),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(onPressed: onToday, child: const Text('Today')),
+          ],
+        );
+      },
     );
   }
 }
@@ -430,7 +501,13 @@ class _MonthGrid extends StatelessWidget {
     final offset = firstOfMonth.weekday - 1;
     final gridStart = firstOfMonth.subtract(Duration(days: offset));
     final textScale = MediaQuery.textScalerOf(context).scale(1);
-    final childAspectRatio = textScale > 1.2 ? 0.64 : 0.76;
+    final today = DateTime.now();
+    final childAspectRatio = switch (textScale) {
+      > 1.6 => 0.50,
+      > 1.4 => 0.58,
+      > 1.2 => 0.66,
+      _ => 0.76,
+    };
 
     return Column(
       children: [
@@ -467,7 +544,7 @@ class _MonthGrid extends StatelessWidget {
             final day = gridStart.add(Duration(days: index));
             final isCurrentMonth = day.month == focusedMonth.month;
             final isSelected = _sameDay(day, controller.selectedDay);
-            final isToday = _sameDay(day, DateTime.now());
+            final isToday = _sameDay(day, today);
 
             final lunarDate = isCurrentMonth
                 ? controller.lunarDateForDay(day)
@@ -799,6 +876,7 @@ class _DayTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
     final background = switch ((isSelected, isToday, isHoliday)) {
       (true, _, _) => colorScheme.primaryContainer,
       (false, true, _) => colorScheme.secondaryContainer,
@@ -815,12 +893,13 @@ class _DayTile extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxHeight < 64;
-        final veryCompact = constraints.maxHeight < 52;
+        final veryCompact = constraints.maxHeight < 52 || textScale > 1.35;
         final showLunarLine =
             !veryCompact &&
             displayMode == CalendarDisplayMode.dual &&
             lunarDate != null;
-        final showEventBadge = !veryCompact && eventCount > 0;
+        final showEventBadge =
+            !veryCompact && eventCount > 0 && textScale <= 1.5;
 
         return Container(
           padding: EdgeInsets.symmetric(
@@ -838,7 +917,6 @@ class _DayTile extends StatelessWidget {
             ),
           ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Column(
@@ -882,6 +960,7 @@ class _DayTile extends StatelessWidget {
                   ],
                 ],
               ),
+              const Spacer(),
               if (showEventBadge)
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -972,6 +1051,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   bool _isSubmitting = false;
   DateTime? _previewSolarDate;
   String? _previewError;
+  int _previewRevision = 0;
 
   @override
   void initState() {
@@ -1211,6 +1291,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   }
 
   Future<void> _refreshLunarPreview() async {
+    final revision = ++_previewRevision;
+
     if (_dateMode != CalendarDateMode.lunar) {
       setState(() {
         _previewSolarDate = null;
@@ -1230,7 +1312,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       targetYear: _lunarYear,
     );
 
-    if (!mounted) {
+    if (!mounted || revision != _previewRevision) {
       return;
     }
     setState(() {
