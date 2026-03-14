@@ -89,7 +89,7 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void didUpdateWidget(covariant AppShellPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.session.uid != widget.session.uid) {
+    if (oldWidget.session != widget.session) {
       unawaited(
         _pushNotificationService.start(
           session: widget.session,
