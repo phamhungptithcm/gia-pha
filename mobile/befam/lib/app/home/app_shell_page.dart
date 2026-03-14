@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
+import '../../features/funds/presentation/fund_workspace_page.dart';
+import '../../features/funds/services/fund_repository.dart';
 import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
@@ -25,6 +27,7 @@ class AppShellPage extends StatefulWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    this.fundRepository,
     this.genealogyRepository,
     this.pushNotificationService,
     this.onLogoutRequested,
@@ -34,6 +37,7 @@ class AppShellPage extends StatefulWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
   final PushNotificationService? pushNotificationService;
   final Future<void> Function()? onLogoutRequested;
@@ -45,6 +49,7 @@ class AppShellPage extends StatefulWidget {
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
   late final GenealogyReadRepository _genealogyRepository;
+  late final FundRepository _fundRepository;
   late final PushNotificationService _pushNotificationService;
 
   static const List<_ShellDestination> _destinations = [
@@ -75,6 +80,7 @@ class _AppShellPageState extends State<AppShellPage> {
     super.initState();
     _genealogyRepository =
         widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
+    _fundRepository = widget.fundRepository ?? createDefaultFundRepository();
     _pushNotificationService =
         widget.pushNotificationService ??
         createDefaultPushNotificationService();
@@ -177,6 +183,7 @@ class _AppShellPageState extends State<AppShellPage> {
         session: widget.session,
         clanRepository: widget.clanRepository,
         memberRepository: widget.memberRepository,
+        fundRepository: _fundRepository,
         onOpenTreeRequested: () {
           setState(() {
             _selectedIndex = 1;
@@ -270,6 +277,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    required this.fundRepository,
     required this.onOpenTreeRequested,
   });
 
@@ -277,6 +285,7 @@ class _HomeDashboard extends StatelessWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final FundRepository fundRepository;
   final VoidCallback onOpenTreeRequested;
 
   @override
@@ -473,6 +482,18 @@ class _HomeDashboard extends StatelessWidget {
         );
       },
       'tree' => onOpenTreeRequested,
+      'funds' => () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) {
+              return FundWorkspacePage(
+                session: session,
+                repository: fundRepository,
+              );
+            },
+          ),
+        );
+      },
       _ => null,
     };
   }
