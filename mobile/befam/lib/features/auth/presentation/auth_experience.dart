@@ -10,8 +10,6 @@ import '../../../l10n/l10n.dart';
 import '../../clan/services/clan_repository.dart';
 import '../../member/services/member_repository.dart';
 import '../models/auth_entry_method.dart';
-import '../models/auth_member_access_mode.dart';
-import '../models/auth_session.dart';
 import '../models/pending_otp_challenge.dart';
 import '../services/auth_analytics_service.dart';
 import '../services/auth_gateway.dart';
@@ -43,22 +41,10 @@ class AuthExperience extends StatefulWidget {
 
 class _AuthExperienceState extends State<AuthExperience> {
   late final AuthController _controller;
-  late final AuthSession _guestSession;
-  bool _isGuestMode = false;
 
   @override
   void initState() {
     super.initState();
-    _guestSession = AuthSession(
-      uid: 'guest-local',
-      loginMethod: AuthEntryMethod.phone,
-      phoneE164: 'guest',
-      displayName: 'Guest',
-      accessMode: AuthMemberAccessMode.unlinked,
-      linkedAuthUid: false,
-      isSandbox: true,
-      signedInAtIso: DateTime.now().toIso8601String(),
-    );
     _controller = AuthController(
       authGateway: widget.authGateway ?? createDefaultAuthGateway(),
       analyticsService:
@@ -84,47 +70,27 @@ class _AuthExperienceState extends State<AuthExperience> {
         }
 
         final session = _controller.session;
-        if (session != null || _isGuestMode) {
-          final activeSession = session ?? _guestSession;
+        if (session != null) {
           return AppShellPage(
             status: widget.status,
-            session: activeSession,
+            session: session,
             clanRepository:
                 widget.clanRepository ?? createDefaultClanRepository(),
             memberRepository:
                 widget.memberRepository ?? createDefaultMemberRepository(),
-            onLogoutRequested: () async {
-              if (session == null && _isGuestMode) {
-                setState(() {
-                  _isGuestMode = false;
-                });
-                return;
-              }
-              await _controller.logout();
-            },
+            onLogoutRequested: _controller.logout,
           );
         }
 
-        return _AuthScaffold(
-          controller: _controller,
-          onContinueAsGuest: () {
-            setState(() {
-              _isGuestMode = true;
-            });
-          },
-        );
+        return _AuthScaffold(controller: _controller);
       },
     );
   }
 }
 
 class _AuthScaffold extends StatelessWidget {
-  const _AuthScaffold({
-    required this.controller,
-    required this.onContinueAsGuest,
-  });
+  const _AuthScaffold({required this.controller});
   final AuthController controller;
-  final VoidCallback onContinueAsGuest;
 
   @override
   Widget build(BuildContext context) {
@@ -187,13 +153,6 @@ class _AuthScaffold extends StatelessWidget {
                   onResend: controller.resendOtp,
                 ),
               },
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                key: const Key('auth-continue-guest'),
-                onPressed: controller.isBusy ? null : onContinueAsGuest,
-                icon: const Icon(Icons.calendar_month_outlined),
-                label: const Text('Continue without login'),
-              ),
             ],
           ),
         ),

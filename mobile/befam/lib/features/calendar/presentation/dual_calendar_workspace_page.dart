@@ -64,11 +64,11 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
       builder: (context, child) {
         final colorScheme = Theme.of(context).colorScheme;
         return Scaffold(
-          floatingActionButton: FloatingActionButton.extended(
+          floatingActionButton: FloatingActionButton(
             key: const Key('calendar-add-event-button'),
             onPressed: _controller.isSaving ? null : _openCreateEventSheet,
-            icon: const Icon(Icons.add),
-            label: const Text('Add event'),
+            tooltip: 'Create event',
+            child: const Icon(Icons.add),
           ),
           body: SafeArea(
             child: _controller.isLoading
@@ -76,7 +76,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                 : RefreshIndicator(
                     onRefresh: _controller.refreshAll,
                     child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
                       children: [
                         if (_controller.errorMessage case final message?) ...[
                           _InfoBanner(
@@ -232,54 +232,90 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = theme.textTheme;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            colorScheme.primaryContainer,
-            colorScheme.secondaryContainer,
+            colorScheme.primaryContainer.withValues(alpha: 0.95),
+            colorScheme.tertiaryContainer.withValues(alpha: 0.92),
           ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colorScheme.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Dual calendar',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: colorScheme.primary.withValues(alpha: 0.15),
+                foregroundColor: colorScheme.primary,
+                child: const Icon(Icons.calendar_month_outlined),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Dual calendar',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Plan events with solar and Asian lunar dates. Works without login.',
+          Text(
+            'Track solar and lunar dates in one place. Tap a day to view details and reminders.',
+            style: textTheme.bodyMedium?.copyWith(height: 1.35),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              DropdownButton<CalendarRegion>(
-                value: controller.region,
-                borderRadius: BorderRadius.circular(12),
-                items: [
-                  for (final region in CalendarRegion.values)
-                    DropdownMenuItem<CalendarRegion>(
-                      value: region,
-                      child: Text(region.label),
-                    ),
-                ],
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  controller.setRegion(value);
-                },
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colorScheme.outlineVariant),
+                ),
+                child: DropdownButton<CalendarRegion>(
+                  value: controller.region,
+                  borderRadius: BorderRadius.circular(12),
+                  underline: const SizedBox.shrink(),
+                  icon: const Icon(Icons.expand_more),
+                  items: [
+                    for (final region in CalendarRegion.values)
+                      DropdownMenuItem<CalendarRegion>(
+                        value: region,
+                        child: Text(region.label),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    controller.setRegion(value);
+                  },
+                ),
               ),
               SegmentedButton<CalendarDisplayMode>(
                 showSelectedIcon: false,
@@ -306,6 +342,16 @@ class _SettingsCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: const [
+              _LegendChip(icon: Icons.today, label: 'Today'),
+              _LegendChip(icon: Icons.celebration_outlined, label: 'Holiday'),
+              _LegendChip(icon: Icons.event_note_outlined, label: 'Has event'),
+            ],
+          ),
         ],
       ),
     );
@@ -328,27 +374,39 @@ class _MonthHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = '${_monthName(focusedMonth.month)} ${focusedMonth.year}';
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        IconButton(
+        _MonthNavButton(
           tooltip: 'Previous month',
+          icon: Icons.chevron_left,
           onPressed: () => unawaited(onPreviousMonth()),
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Expanded(
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Next month',
-          onPressed: () => unawaited(onNextMonth()),
-          icon: const Icon(Icons.chevron_right),
         ),
         const SizedBox(width: 8),
-        OutlinedButton(onPressed: onToday, child: const Text('Today')),
+        Expanded(
+          child: Container(
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        _MonthNavButton(
+          tooltip: 'Next month',
+          icon: Icons.chevron_right,
+          onPressed: () => unawaited(onNextMonth()),
+        ),
+        const SizedBox(width: 8),
+        FilledButton.tonal(onPressed: onToday, child: const Text('Today')),
       ],
     );
   }
@@ -371,30 +429,39 @@ class _MonthGrid extends StatelessWidget {
     final firstOfMonth = DateTime(focusedMonth.year, focusedMonth.month, 1);
     final offset = firstOfMonth.weekday - 1;
     final gridStart = firstOfMonth.subtract(Duration(days: offset));
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final childAspectRatio = textScale > 1.2 ? 0.64 : 0.76;
 
     return Column(
       children: [
-        Row(
-          children: const [
-            _WeekdayLabel('Mon'),
-            _WeekdayLabel('Tue'),
-            _WeekdayLabel('Wed'),
-            _WeekdayLabel('Thu'),
-            _WeekdayLabel('Fri'),
-            _WeekdayLabel('Sat'),
-            _WeekdayLabel('Sun'),
-          ],
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Row(
+            children: [
+              _WeekdayLabel('Mon'),
+              _WeekdayLabel('Tue'),
+              _WeekdayLabel('Wed'),
+              _WeekdayLabel('Thu'),
+              _WeekdayLabel('Fri'),
+              _WeekdayLabel('Sat'),
+              _WeekdayLabel('Sun'),
+            ],
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         GridView.builder(
           itemCount: 42,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 7,
-            childAspectRatio: 0.9,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
+            childAspectRatio: childAspectRatio,
+            mainAxisSpacing: 6,
+            crossAxisSpacing: 6,
           ),
           itemBuilder: (context, index) {
             final day = gridStart.add(Duration(days: index));
@@ -602,6 +669,65 @@ class _InfoBanner extends StatelessWidget {
   }
 }
 
+class _LegendChip extends StatelessWidget {
+  const _LegendChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthNavButton extends StatelessWidget {
+  const _MonthNavButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: IconButton(onPressed: onPressed, icon: Icon(icon)),
+      ),
+    );
+  }
+}
+
 class _OccurrenceRow extends StatelessWidget {
   const _OccurrenceRow({
     required this.occurrence,
@@ -682,71 +808,110 @@ class _DayTile extends StatelessWidget {
     final foreground = isCurrentMonth
         ? colorScheme.onSurface
         : colorScheme.onSurface.withValues(alpha: 0.35);
-
-    final solarLabel = '${day.day}';
     final lunarLabel = lunarDate == null
         ? '--'
         : '${lunarDate!.day}/${lunarDate!.month}${lunarDate!.isLeapMonth ? 'L' : ''}';
 
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isSelected ? colorScheme.primary : Colors.transparent,
-          width: 1.2,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (displayMode != CalendarDisplayMode.lunarOnly)
-            Text(
-              solarLabel,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: foreground,
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 64;
+        final veryCompact = constraints.maxHeight < 52;
+        final showLunarLine =
+            !veryCompact &&
+            displayMode == CalendarDisplayMode.dual &&
+            lunarDate != null;
+        final showEventBadge = !veryCompact && eventCount > 0;
+
+        return Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 5 : 7,
+            vertical: compact ? 4 : 6,
+          ),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.outlineVariant,
+              width: isSelected ? 1.4 : 0.8,
             ),
-          if (displayMode == CalendarDisplayMode.dual) ...[
-            const SizedBox(height: 2),
-            Text(
-              'Lunar $lunarLabel',
-              style: TextStyle(fontSize: 11, color: foreground),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-          if (displayMode == CalendarDisplayMode.lunarOnly)
-            Text(
-              lunarLabel,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: foreground,
-              ),
-            ),
-          const Spacer(),
-          if (eventCount > 0)
-            Row(
-              children: [
-                Icon(Icons.circle, size: 8, color: colorScheme.primary),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    '$eventCount',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: foreground,
-                      fontWeight: FontWeight.w600,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          displayMode == CalendarDisplayMode.lunarOnly
+                              ? lunarLabel
+                              : '${day.day}',
+                          maxLines: 1,
+                          overflow: TextOverflow.fade,
+                          softWrap: false,
+                          style: TextStyle(
+                            fontSize: compact ? 15 : 17,
+                            fontWeight: FontWeight.w700,
+                            color: foreground,
+                          ),
+                        ),
+                      ),
+                      if (isToday && !compact) ...[
+                        const SizedBox(width: 3),
+                        Icon(Icons.circle, size: 6, color: colorScheme.primary),
+                      ],
+                    ],
+                  ),
+                  if (showLunarLine) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      'L $lunarLabel',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: compact ? 9.5 : 10.5,
+                        color: foreground.withValues(alpha: 0.82),
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
+                  ],
+                ],
+              ),
+              if (showEventBadge)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.13),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.event, size: 10, color: colorScheme.primary),
+                      const SizedBox(width: 3),
+                      Text(
+                        '$eventCount',
+                        style: TextStyle(
+                          fontSize: compact ? 9 : 10,
+                          color: foreground,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-        ],
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -758,13 +923,16 @@ class _WeekdayLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Expanded(
       child: Text(
         label,
         textAlign: TextAlign.center,
-        style: Theme.of(
-          context,
-        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: colorScheme.onSurface.withValues(alpha: 0.82),
+          letterSpacing: 0.2,
+        ),
       ),
     );
   }
