@@ -95,7 +95,11 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                         ),
                         const SizedBox(height: 16),
                         _MonthHeader(
-                          focusedMonth: _controller.focusedMonth,
+                          label: _monthHeaderLabel(
+                            focusedMonth: _controller.focusedMonth,
+                            displayMode: _controller.displayMode,
+                            monthLunarMap: _controller.monthLunarMap,
+                          ),
                           onPreviousMonth: _controller.goToPreviousMonth,
                           onNextMonth: _controller.goToNextMonth,
                           onToday: () {
@@ -391,20 +395,19 @@ class _SettingsCard extends StatelessWidget {
 
 class _MonthHeader extends StatelessWidget {
   const _MonthHeader({
-    required this.focusedMonth,
+    required this.label,
     required this.onPreviousMonth,
     required this.onNextMonth,
     required this.onToday,
   });
 
-  final DateTime focusedMonth;
+  final String label;
   final Future<void> Function() onPreviousMonth;
   final Future<void> Function() onNextMonth;
   final VoidCallback onToday;
 
   @override
   Widget build(BuildContext context) {
-    final label = '${_monthName(focusedMonth.month)} ${focusedMonth.year}';
     final colorScheme = Theme.of(context).colorScheme;
     final textScale = MediaQuery.textScalerOf(context).scale(1);
 
@@ -481,6 +484,82 @@ class _MonthHeader extends StatelessWidget {
       },
     );
   }
+}
+
+String _monthHeaderLabel({
+  required DateTime focusedMonth,
+  required CalendarDisplayMode displayMode,
+  required Map<int, LunarDate> monthLunarMap,
+}) {
+  if (displayMode != CalendarDisplayMode.lunarOnly || monthLunarMap.isEmpty) {
+    return '${_monthName(focusedMonth.month)} ${focusedMonth.year}';
+  }
+
+  final orderedDays = monthLunarMap.keys.toList()..sort();
+  final segments = <_LunarMonthSegment>[];
+  for (final day in orderedDays) {
+    final lunarDate = monthLunarMap[day];
+    if (lunarDate == null) {
+      continue;
+    }
+    final segment = _LunarMonthSegment.fromDate(lunarDate);
+    if (segments.isEmpty || segments.last != segment) {
+      segments.add(segment);
+    }
+  }
+
+  if (segments.isEmpty) {
+    return '${_monthName(focusedMonth.month)} ${focusedMonth.year}';
+  }
+
+  if (segments.length == 1) {
+    final segment = segments.first;
+    return 'Lunar ${segment.label} ${segment.year}';
+  }
+
+  final first = segments.first;
+  final last = segments.last;
+  if (first.year == last.year) {
+    return 'Lunar ${first.label} - ${last.label} ${first.year}';
+  }
+
+  return 'Lunar ${first.label} ${first.year} - ${last.label} ${last.year}';
+}
+
+class _LunarMonthSegment {
+  const _LunarMonthSegment({
+    required this.month,
+    required this.year,
+    required this.isLeapMonth,
+  });
+
+  factory _LunarMonthSegment.fromDate(LunarDate date) {
+    return _LunarMonthSegment(
+      month: date.month,
+      year: date.year,
+      isLeapMonth: date.isLeapMonth,
+    );
+  }
+
+  final int month;
+  final int year;
+  final bool isLeapMonth;
+
+  String get label => isLeapMonth ? '${month}L' : '$month';
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    return other is _LunarMonthSegment &&
+        other.month == month &&
+        other.year == year &&
+        other.isLeapMonth == isLeapMonth;
+  }
+
+  @override
+  int get hashCode => Object.hash(month, year, isLeapMonth);
 }
 
 class _MonthGrid extends StatelessWidget {
@@ -886,7 +965,8 @@ class _DayTile extends StatelessWidget {
     final foreground = isCurrentMonth
         ? colorScheme.onSurface
         : colorScheme.onSurface.withValues(alpha: 0.35);
-    final lunarLabel = lunarDate == null
+    final lunarPrimaryLabel = lunarDate == null ? '--' : '${lunarDate!.day}';
+    final lunarDetailLabel = lunarDate == null
         ? '--'
         : '${lunarDate!.day}/${lunarDate!.month}${lunarDate!.isLeapMonth ? 'L' : ''}';
 
@@ -927,7 +1007,7 @@ class _DayTile extends StatelessWidget {
                       Flexible(
                         child: Text(
                           displayMode == CalendarDisplayMode.lunarOnly
-                              ? lunarLabel
+                              ? lunarPrimaryLabel
                               : '${day.day}',
                           maxLines: 1,
                           overflow: TextOverflow.fade,
@@ -948,7 +1028,7 @@ class _DayTile extends StatelessWidget {
                   if (showLunarLine) ...[
                     const SizedBox(height: 1),
                     Text(
-                      'L $lunarLabel',
+                      'L $lunarDetailLabel',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
