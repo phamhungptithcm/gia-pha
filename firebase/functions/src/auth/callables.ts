@@ -58,9 +58,19 @@ type MemberSessionContext = {
   linkedAuthUid: boolean;
 };
 
+type DebugLoginProfileResponse = {
+  scenarioKey: string;
+  phoneE164: string;
+  title: string;
+  description: string;
+  sortOrder: number;
+  autoOtpCode: string | null;
+};
+
 const membersCollection = db.collection('members');
 const invitesCollection = db.collection('invites');
 const auditLogsCollection = db.collection('auditLogs');
+const debugLoginProfilesCollection = db.collection('debug_login_profiles');
 
 export const resolveChildLoginContext = onCall(
   { region: APP_REGION },
@@ -281,6 +291,25 @@ export const registerDeviceToken = onCall({ region: APP_REGION }, async (request
   };
 });
 
+export const listDebugLoginProfiles = onCall(
+  { region: APP_REGION },
+  async (request): Promise<{ profiles: Array<DebugLoginProfileResponse> }> => {
+    const snapshot = await debugLoginProfilesCollection.limit(25).get();
+    const profiles = snapshot.docs
+      .map((doc) => sanitizeDebugLoginProfile(doc.id, doc.data() as Record<string, unknown>))
+      .filter((profile): profile is DebugLoginProfileResponse => profile != null)
+      .sort((left, right) => left.sortOrder - right.sortOrder);
+
+    logInfo('listDebugLoginProfiles succeeded', {
+      count: profiles.length,
+      hasAuth: request.auth != null,
+      appId: request.app?.appId ?? null,
+    });
+
+    return { profiles };
+  },
+);
+
 function requireNonEmptyString(data: unknown, key: string): string {
   const value = optionalString(data, key)?.trim();
   if (value == null || value.length === 0) {
@@ -297,6 +326,46 @@ function optionalString(data: unknown, key: string): string | null {
 
   const value = (data as Record<string, unknown>)[key];
   return typeof value === 'string' ? value : null;
+}
+
+function sanitizeDebugLoginProfile(
+  docId: string,
+  data: Record<string, unknown>,
+): DebugLoginProfileResponse | null {
+  if (data.isActive === false) {
+    return null;
+  }
+
+  const phoneFromData = asTrimmedString(data.phoneE164);
+  const phoneE164 = (phoneFromData.length > 0 ? phoneFromData : docId).trim();
+  if (phoneE164.length === 0) {
+    return null;
+  }
+
+  const scenarioKey = asTrimmedString(data.scenarioKey, docId);
+  const title = asTrimmedString(data.title, scenarioKey);
+  const description = asTrimmedString(data.description, phoneE164);
+  const sortOrder = typeof data.sortOrder === 'number' ? data.sortOrder : 9999;
+
+  const rawOtp = asTrimmedString(data.debugOtpCode, asTrimmedString(data.otpCode));
+  const digitsOnlyOtp = rawOtp.replace(/[^\d]/g, '');
+  const autoOtpCode = digitsOnlyOtp.length === 6 ? digitsOnlyOtp : null;
+
+  return {
+    scenarioKey,
+    phoneE164,
+    title,
+    description,
+    sortOrder,
+    autoOtpCode,
+  };
+}
+
+function asTrimmedString(value: unknown, fallback = ''): string {
+  if (typeof value !== 'string') {
+    return fallback.trim();
+  }
+  return value.trim();
 }
 
 function requireLoginMethod(data: unknown): LoginMethod {

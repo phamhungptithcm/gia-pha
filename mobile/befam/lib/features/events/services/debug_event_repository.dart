@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 
 import '../../../core/services/debug_genealogy_store.dart';
-import '../../auth/models/auth_member_access_mode.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/event_draft.dart';
 import '../models/event_record.dart';
@@ -141,12 +141,7 @@ class DebugEventRepository implements EventRepository {
   }
 
   void _ensureCanManage(AuthSession session) {
-    final role = session.primaryRole?.trim().toUpperCase() ?? '';
-    final canManage =
-        session.clanId?.isNotEmpty == true &&
-        session.accessMode == AuthMemberAccessMode.claimed &&
-        session.linkedAuthUid &&
-        const {'SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN'}.contains(role);
+    final canManage = GovernanceRoleMatrix.canManageEvents(session);
     if (!canManage) {
       throw const EventRepositoryException(
         EventRepositoryErrorCode.permissionDenied,

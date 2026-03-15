@@ -1,5 +1,5 @@
-import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../models/member_profile.dart';
 
 class MemberPermissions {
@@ -29,27 +29,31 @@ class MemberPermissions {
   bool get canEditOrganizationFields => canEditAnyMember;
 
   factory MemberPermissions.forSession(AuthSession session) {
-    final role = session.primaryRole?.trim().toUpperCase() ?? '';
     final hasClanContext = session.clanId?.isNotEmpty ?? false;
-    final isClaimedSession =
-        session.accessMode == AuthMemberAccessMode.claimed &&
-        session.linkedAuthUid &&
-        hasClanContext;
+    final isClaimedSession = GovernanceRoleMatrix.isClaimedClanSession(session);
+    final role = GovernanceRoleMatrix.normalizeRole(session.primaryRole);
 
     final canEditOwn =
         isClaimedSession && (session.memberId?.isNotEmpty ?? false);
-    final isSuperOrClanAdmin =
-        isClaimedSession && const {'SUPER_ADMIN', 'CLAN_ADMIN'}.contains(role);
-    final isBranchAdmin =
-        isClaimedSession &&
-        role == 'BRANCH_ADMIN' &&
+    final isSuperOrClanAdmin = isClaimedSession &&
+        const {GovernanceRoles.superAdmin, GovernanceRoles.clanAdmin}.contains(
+          role,
+        );
+    final isBranchAdmin = isClaimedSession &&
+        role == GovernanceRoles.branchAdmin &&
         (session.branchId?.isNotEmpty ?? false);
+    final isSupportStaff =
+        isClaimedSession && role == GovernanceRoles.adminSupport;
+
+    final canCreateMembers = isSuperOrClanAdmin || isBranchAdmin || isSupportStaff;
+    final canEditAnyMember = isSuperOrClanAdmin || isBranchAdmin || isSupportStaff;
+    final canViewAllMembers = isSuperOrClanAdmin || isSupportStaff;
 
     return MemberPermissions(
       canViewWorkspace: hasClanContext,
-      canCreateMembers: isSuperOrClanAdmin || isBranchAdmin,
-      canEditAnyMember: isSuperOrClanAdmin || isBranchAdmin,
-      canViewAllMembers: isSuperOrClanAdmin,
+      canCreateMembers: canCreateMembers,
+      canEditAnyMember: canEditAnyMember,
+      canViewAllMembers: canViewAllMembers,
       canEditOwnProfile: canEditOwn,
       restrictedBranchId: isBranchAdmin ? session.branchId : null,
       sessionMemberId: session.memberId,

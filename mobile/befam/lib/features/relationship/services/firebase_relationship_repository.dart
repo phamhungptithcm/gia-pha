@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/relationship_record.dart';
 import 'relationship_repository.dart';
@@ -439,12 +440,14 @@ class FirebaseRelationshipRepository implements RelationshipRepository {
     required String? firstBranchId,
     required String? secondBranchId,
   }) {
-    final role = (session.primaryRole ?? '').trim().toUpperCase();
-    if (role == 'SUPER_ADMIN' || role == 'CLAN_ADMIN') {
+    final role = GovernanceRoleMatrix.normalizeRole(session.primaryRole);
+    if (role == GovernanceRoles.superAdmin ||
+        role == GovernanceRoles.clanAdmin ||
+        role == GovernanceRoles.adminSupport) {
       return;
     }
 
-    if (role == 'BRANCH_ADMIN') {
+    if (role == GovernanceRoles.branchAdmin) {
       final sessionBranchId = session.branchId?.trim() ?? '';
       if (sessionBranchId.isNotEmpty &&
           firstBranchId == sessionBranchId &&

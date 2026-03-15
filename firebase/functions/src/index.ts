@@ -4,6 +4,7 @@ import { setGlobalOptions } from 'firebase-functions/v2/options';
 import {
   claimMemberRecord,
   createInvite,
+  listDebugLoginProfiles,
   registerDeviceToken,
   resolveChildLoginContext,
 } from './auth/callables';
@@ -23,9 +24,21 @@ import {
   createSpouseRelationship,
 } from './genealogy/callables';
 import {
+  detectDuplicateGenealogy,
+  listJoinRequestsForReview,
+  reviewJoinRequest,
+  searchGenealogyDiscovery,
+  submitJoinRequest,
+} from './genealogy/discovery-callables';
+import {
   onRelationshipCreated,
   onRelationshipDeleted,
 } from './genealogy/relationship-triggers';
+import {
+  assignGovernanceRole,
+  getTreasurerDashboard,
+} from './governance/callables';
+import { reviewScholarshipSubmission } from './scholarship/callables';
 import { billingSubscriptionReminderJob, expireInvitesJob } from './scheduled/jobs';
 import { onSubmissionReviewed } from './scholarship/submission-triggers';
 import { onTransactionCreated } from './funds/transaction-triggers';
@@ -46,7 +59,12 @@ export {
   createSpouseRelationship,
   createInvite,
   createSubscriptionCheckout,
+  detectDuplicateGenealogy,
   expireInvitesJob,
+  assignGovernanceRole,
+  getTreasurerDashboard,
+  listJoinRequestsForReview,
+  listDebugLoginProfiles,
   loadBillingWorkspace,
   onEventCreated,
   onRelationshipCreated,
@@ -55,8 +73,12 @@ export {
   onTransactionCreated,
   registerDeviceToken,
   resolveBillingEntitlement,
+  reviewJoinRequest,
+  reviewScholarshipSubmission,
   resolveChildLoginContext,
+  searchGenealogyDiscovery,
   sendEventReminder,
+  submitJoinRequest,
   simulateVnpaySettlement,
   updateBillingPreferences,
   vnpayPaymentCallback,

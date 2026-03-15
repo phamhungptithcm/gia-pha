@@ -9,6 +9,9 @@ on:
       - "mkdocs.yml"
       - "requirements-docs.txt"
       - ".github/workflows/deploy-docs.yml"
+  release:
+    types:
+      - published
   workflow_dispatch:
 
 permissions:

@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 
 import '../../../core/services/debug_genealogy_store.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/achievement_submission.dart';
 import '../models/achievement_submission_draft.dart';
 import '../models/award_level.dart';
 import '../models/award_level_draft.dart';
+import '../models/scholarship_approval_log_entry.dart';
 import '../models/scholarship_program.dart';
 import '../models/scholarship_program_draft.dart';
 import '../models/scholarship_workspace_snapshot.dart';
@@ -57,6 +59,8 @@ class DebugScholarshipRepository implements ScholarshipRepository {
         awardLevels: [],
         submissions: [],
         memberNamesById: {},
+        approvalLogs: [],
+        councilHeadMemberIds: [],
       );
     }
 
@@ -88,11 +92,31 @@ class DebugScholarshipRepository implements ScholarshipRepository {
         if (member.clanId == clanId) member.id: member.fullName,
     };
 
+    final councilHeadMemberIds = _genealogyStore.members.values
+        .where(
+          (member) =>
+              member.clanId == clanId &&
+              member.primaryRole.trim().toUpperCase() ==
+                  GovernanceRoles.scholarshipCouncilHead &&
+              member.status.trim().toLowerCase() == 'active',
+        )
+        .map((member) => member.id)
+        .toList(growable: false);
+
+    final approvalLogs = _store.approvalLogs.values
+        .where((entry) => entry.clanId == clanId)
+        .sorted(
+          (left, right) => right.createdAtIso.compareTo(left.createdAtIso),
+        )
+        .toList(growable: false);
+
     return ScholarshipWorkspaceSnapshot(
       programs: programs,
       awardLevels: awards,
       submissions: submissions,
       memberNamesById: memberNamesById,
+      approvalLogs: approvalLogs,
+      councilHeadMemberIds: councilHeadMemberIds,
     );
   }
 
@@ -328,6 +352,20 @@ class DebugScholarshipRepository implements ScholarshipRepository {
       );
     }
 
+    final role = session.primaryRole?.trim().toUpperCase() ?? '';
+    if (role != GovernanceRoles.scholarshipCouncilHead) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+
+    final reviewerMemberId = session.memberId?.trim() ?? '';
+    if (reviewerMemberId.isEmpty) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+
     final existing = _store.submissions[submissionId];
     if (existing == null || existing.clanId != clanId) {
       throw const ScholarshipRepositoryException(
@@ -335,18 +373,86 @@ class DebugScholarshipRepository implements ScholarshipRepository {
       );
     }
 
+    if (!existing.isPending) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.validationFailed,
+        'submission_not_pending',
+      );
+    }
+
+    final hasExistingVote = existing.approvalVotes.any(
+      (vote) => vote.memberId == reviewerMemberId,
+    );
+    if (hasExistingVote) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.validationFailed,
+        'duplicate_vote',
+      );
+    }
+
     final nowIso = DateTime.now().toIso8601String();
     final trimmedNote = _nullIfEmpty(reviewNote);
+    final updatedVotes = [
+      ...existing.approvalVotes,
+      ScholarshipApprovalVote(
+        memberId: reviewerMemberId,
+        decision: approved ? 'approve' : 'reject',
+        createdAtIso: nowIso,
+        note: trimmedNote,
+      ),
+    ];
+    final approvalCount = updatedVotes.where((vote) => vote.isApprove).length;
+    final rejectionCount = updatedVotes.where((vote) => vote.isReject).length;
+
+    var status = 'pending';
+    if (approvalCount >= 2) {
+      status = 'approved';
+    } else if (rejectionCount >= 2) {
+      status = 'rejected';
+    }
+
     final updated = existing.copyWith(
-      status: approved ? 'approved' : 'rejected',
-      reviewNote: trimmedNote,
-      clearReviewNote: trimmedNote == null,
-      reviewedBy: session.memberId ?? session.uid,
-      reviewedAtIso: nowIso,
+      status: status,
+      reviewNote: status == 'pending' ? null : trimmedNote,
+      clearReviewNote: status == 'pending' || trimmedNote == null,
+      reviewedBy: status == 'pending' ? null : reviewerMemberId,
+      clearReviewedBy: status == 'pending',
+      reviewedAtIso: status == 'pending' ? null : nowIso,
+      clearReviewedAtIso: status == 'pending',
       updatedAtIso: nowIso,
+      approvalVotes: updatedVotes,
+      finalDecisionReason: status == 'pending' ? null : trimmedNote,
+      clearFinalDecisionReason: status == 'pending',
     );
 
     _store.submissions[submissionId] = updated;
+    final voteLog = ScholarshipApprovalLogEntry(
+      id: 'log_vote_${_store.logSequence++}',
+      clanId: clanId,
+      submissionId: submissionId,
+      action: 'vote',
+      decision: approved ? 'approve' : 'reject',
+      actorMemberId: reviewerMemberId,
+      actorRole: role,
+      note: trimmedNote,
+      createdAtIso: nowIso,
+    );
+    _store.approvalLogs[voteLog.id] = voteLog;
+    if (status != 'pending') {
+      final finalizeLog = ScholarshipApprovalLogEntry(
+        id: 'log_final_${_store.logSequence++}',
+        clanId: clanId,
+        submissionId: submissionId,
+        action: 'finalized',
+        decision: status,
+        actorMemberId: reviewerMemberId,
+        actorRole: role,
+        note: trimmedNote,
+        createdAtIso: nowIso,
+      );
+      _store.approvalLogs[finalizeLog.id] = finalizeLog;
+    }
+
     return updated;
   }
 }
@@ -356,6 +462,7 @@ class _DebugScholarshipStore {
     required this.programs,
     required this.awardLevels,
     required this.submissions,
+    required this.approvalLogs,
   });
 
   factory _DebugScholarshipStore.seeded() {
@@ -444,15 +551,18 @@ class _DebugScholarshipStore {
           updatedAtIso: now,
         ),
       },
+      approvalLogs: {},
     );
   }
 
   final Map<String, ScholarshipProgram> programs;
   final Map<String, AwardLevel> awardLevels;
   final Map<String, AchievementSubmission> submissions;
+  final Map<String, ScholarshipApprovalLogEntry> approvalLogs;
   int programSequence = 2027;
   int awardSequence = 100;
   int submissionSequence = 1000;
+  int logSequence = 1000;
 }
 
 String _statusOrDefault(String status) {

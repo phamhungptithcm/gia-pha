@@ -139,16 +139,16 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                       en: 'Loading fund workspace...',
                     ),
                   )
-                : !_controller.hasClanContext
+                : !_controller.canViewFunds
                 ? _EmptyWorkspace(
                     icon: Icons.lock_outline,
                     title: l10n.pick(
-                      vi: 'Thiếu ngữ cảnh họ tộc',
-                      en: 'No clan context',
+                      vi: 'Không có quyền tài chính',
+                      en: 'No finance access',
                     ),
                     description: l10n.pick(
-                      vi: 'Liên kết tài khoản này với một họ tộc trước khi xem quỹ và giao dịch.',
-                      en: 'Link this account to a clan before viewing funds and transactions.',
+                      vi: 'Chỉ vai trò Trưởng tộc, Trưởng chi, hoặc Thủ quỹ mới xem được sổ quỹ.',
+                      en: 'Only Clan Lead, Branch Lead, or Treasurer roles can access the fund ledger.',
                     ),
                   )
                 : RefreshIndicator(

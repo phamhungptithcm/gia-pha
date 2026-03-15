@@ -98,6 +98,15 @@ extension AppLocalizationsX on AppLocalizations {
       'SUPER_ADMIN' => roleSuperAdmin,
       'CLAN_ADMIN' => roleClanAdmin,
       'BRANCH_ADMIN' => roleBranchAdmin,
+      'TREASURER' => pick(vi: 'Thủ quỹ', en: 'Treasurer'),
+      'SCHOLARSHIP_COUNCIL_HEAD' => pick(
+        vi: 'Trưởng hội đồng học bổng',
+        en: 'Scholarship Council Head',
+      ),
+      'ADMIN_SUPPORT' => pick(
+        vi: 'Hỗ trợ quản trị',
+        en: 'Admin/Support Staff',
+      ),
       'MEMBER' => roleMember,
       null || '' => roleUnknown,
       _ => roleUnknown,
