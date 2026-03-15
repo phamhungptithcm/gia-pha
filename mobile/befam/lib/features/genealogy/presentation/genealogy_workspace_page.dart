@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/performance_measurement_logger.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -46,6 +46,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
 
   late final TransformationController _transformController;
   final _layoutProfiler = _TreeLayoutProfiler(windowSize: 20);
+  final _performanceLogger = PerformanceMeasurementLogger(
+    defaultSlowThreshold: const Duration(milliseconds: 120),
+  );
   AnimationController? _centerAnimController;
 
   late GenealogyScopeType _scopeType;
@@ -719,24 +722,18 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
 
     stopwatch.stop();
     final layoutProfile = _layoutProfiler.push(stopwatch.elapsed);
-    assert(() {
-      developer.log(
-        'Tree scene build: ${visibleMemberIds.length} nodes, '
-        '${parentChildEdges.length + spouseEdges.length} edges, '
-        '${layoutProfile.latestMs}ms (avg ${layoutProfile.averageMs}ms, peak ${layoutProfile.peakMs}ms)',
-        name: 'GenealogyWorkspace',
-      );
-      return true;
-    }());
-    if (layoutProfile.latestMs > 120) {
-      developer.log(
-        'Slow tree layout detected: ${layoutProfile.latestMs}ms '
-        'for ${visibleMemberIds.length} nodes and '
-        '${parentChildEdges.length + spouseEdges.length} edges.',
-        name: 'GenealogyWorkspace',
-        level: 900,
-      );
-    }
+    _performanceLogger.logDuration(
+      metric: 'genealogy.tree_scene_build',
+      elapsed: stopwatch.elapsed,
+      dimensions: {
+        'nodes': visibleMemberIds.length,
+        'edges': parentChildEdges.length + spouseEdges.length,
+        'layout_latest_ms': layoutProfile.latestMs,
+        'layout_average_ms': layoutProfile.averageMs,
+        'layout_peak_ms': layoutProfile.peakMs,
+        'layout_samples': layoutProfile.sampleCount,
+      },
+    );
 
     return _TreeScene(
       canvasSize: Size(canvasWidth, canvasHeight),

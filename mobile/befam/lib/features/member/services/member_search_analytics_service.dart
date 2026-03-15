@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/services/analytics_event_names.dart';
 import '../../../core/services/firebase_services.dart';
 
 abstract interface class MemberSearchAnalyticsService {
@@ -47,7 +48,7 @@ class FirebaseMemberSearchAnalyticsService
     required int resultCount,
   }) {
     return FirebaseServices.analytics.logEvent(
-      name: 'member_search_submit',
+      name: AnalyticsEventNames.memberSearchSubmitted,
       parameters: {
         'query_length': queryLength,
         'has_branch_filter': hasBranchFilter ? 1 : 0,
@@ -64,7 +65,7 @@ class FirebaseMemberSearchAnalyticsService
     required bool hasGenerationFilter,
   }) {
     return FirebaseServices.analytics.logEvent(
-      name: 'member_search_failed',
+      name: AnalyticsEventNames.memberSearchFailed,
       parameters: {
         'query_length': queryLength,
         'has_branch_filter': hasBranchFilter ? 1 : 0,
@@ -80,7 +81,7 @@ class FirebaseMemberSearchAnalyticsService
     required bool hasGenerationFilter,
   }) {
     return FirebaseServices.analytics.logEvent(
-      name: 'member_search_filters_updated',
+      name: AnalyticsEventNames.memberSearchFiltersUpdated,
       parameters: {
         'query_length': queryLength,
         'has_branch_filter': hasBranchFilter ? 1 : 0,
@@ -96,7 +97,7 @@ class FirebaseMemberSearchAnalyticsService
     required bool hasGenerationFilter,
   }) {
     return FirebaseServices.analytics.logEvent(
-      name: 'member_search_retry',
+      name: AnalyticsEventNames.memberSearchRetryRequested,
       parameters: {
         'query_length': queryLength,
         'has_branch_filter': hasBranchFilter ? 1 : 0,
@@ -112,7 +113,7 @@ class FirebaseMemberSearchAnalyticsService
     required int generation,
   }) {
     return FirebaseServices.analytics.logEvent(
-      name: 'member_search_open_result',
+      name: AnalyticsEventNames.memberSearchResultOpened,
       parameters: {
         'member_id': memberId,
         'branch_id': branchId,

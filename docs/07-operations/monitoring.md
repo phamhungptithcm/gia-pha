@@ -1,6 +1,6 @@
 # Monitoring
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## Application monitoring
 
@@ -9,7 +9,26 @@ _Last reviewed: March 14, 2026_
   - `FlutterError.onError`
   - `PlatformDispatcher.instance.onError`
   - zone-level uncaught handler
+- widget-build failures now render a user-friendly fallback screen through
+  `ErrorWidget.builder` (`app/error/app_error_fallback.dart`)
 - Crashlytics collection is enabled only for release builds
+
+## Performance measurement logging
+
+`PerformanceMeasurementLogger` now provides consistent duration logs with
+slow-path warnings.
+
+Current instrumented metrics:
+
+- `perf.bootstrap.firebase_initialize`
+- `perf.member_search.query`
+- `perf.genealogy.tree_scene_build`
+
+Operational notes:
+
+- each log includes `elapsed_ms` and structured dimensions
+- warning logs are emitted when `elapsed` meets/exceeds the metric threshold
+- thresholds are currently tuned per flow in code
 
 ## Backend monitoring
 
@@ -44,5 +63,7 @@ When release issues appear:
 2. verify Firebase deploy credentials and project variables
 3. confirm app build artifact outputs (APK and iOS archive)
 4. review function logs for trigger/callable failures
-5. for billing incidents: verify gateway callback signature logs and
+5. inspect mobile logs for `perf.*` warnings to identify regressions
+6. verify fallback UI occurrence and Crashlytics traces for render failures
+7. for billing incidents: verify gateway callback signature logs and
    transaction idempotency records

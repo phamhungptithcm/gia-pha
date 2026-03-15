@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'app/app.dart';
 import 'app/bootstrap/app_bootstrap.dart';
+import 'app/error/app_error_fallback.dart';
 import 'core/services/crash_reporting_service.dart';
 import 'features/notifications/services/push_notification_service.dart';
 
@@ -14,6 +15,7 @@ Future<void> main() async {
   await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
+      installAppErrorFallback();
 
       FlutterError.onError = (details) {
         FlutterError.presentError(details);
