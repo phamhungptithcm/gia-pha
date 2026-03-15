@@ -4,6 +4,10 @@ import '../app/models/app_shortcut.dart';
 import '../features/auth/models/auth_entry_method.dart';
 import '../features/auth/models/auth_issue.dart';
 import '../features/auth/models/auth_member_access_mode.dart';
+import '../features/calendar/models/calendar_date_mode.dart';
+import '../features/calendar/models/calendar_display_mode.dart';
+import '../features/calendar/models/calendar_region.dart';
+import '../features/calendar/models/lunar_recurrence_policy.dart';
 import '../features/events/models/event_type.dart';
 import 'generated/app_localizations.dart';
 
@@ -12,6 +16,10 @@ extension BuildContextL10nX on BuildContext {
 }
 
 extension AppLocalizationsX on AppLocalizations {
+  String pick({required String vi, required String en}) {
+    return localeName.toLowerCase().startsWith('vi') ? vi : en;
+  }
+
   String authEntryMethodSummary(AuthEntryMethod method) {
     return switch (method) {
       AuthEntryMethod.phone => authEntryMethodPhoneSummary,
@@ -47,6 +55,10 @@ extension AppLocalizationsX on AppLocalizations {
       AuthIssueKey.memberClaimConflict => authIssueMemberClaimConflict,
       AuthIssueKey.parentVerificationMismatch =>
         authIssueParentVerificationMismatch,
+      AuthIssueKey.privacyPolicyRequired => pick(
+        vi: 'Vui lòng đồng ý Chính sách quyền riêng tư trước khi đăng nhập.',
+        en: 'Please accept the Privacy Policy before signing in.',
+      ),
       AuthIssueKey.operationNotAllowed => authIssueOperationNotAllowed,
       AuthIssueKey.authUnavailable => authIssueAuthUnavailable,
       AuthIssueKey.preparationFailed => authIssuePreparationFailed,
@@ -133,6 +145,52 @@ extension AppLocalizationsX on AppLocalizations {
       EventType.birthday => eventTypeBirthday,
       EventType.deathAnniversary => eventTypeDeathAnniversary,
       EventType.other => eventTypeOther,
+    };
+  }
+
+  String calendarDisplayModeLabel(CalendarDisplayMode mode) {
+    return switch (mode) {
+      CalendarDisplayMode.dual => pick(vi: 'Song song', en: 'Dual'),
+      CalendarDisplayMode.solarOnly => pick(
+        vi: 'Chỉ dương lịch',
+        en: 'Solar only',
+      ),
+      CalendarDisplayMode.lunarOnly => pick(
+        vi: 'Chỉ âm lịch',
+        en: 'Lunar only',
+      ),
+    };
+  }
+
+  String calendarDateModeLabel(CalendarDateMode mode) {
+    return switch (mode) {
+      CalendarDateMode.solar => pick(vi: 'Ngày dương', en: 'Solar date'),
+      CalendarDateMode.lunar => pick(vi: 'Ngày âm', en: 'Lunar date'),
+    };
+  }
+
+  String calendarRegionLabel(CalendarRegion region) {
+    return switch (region) {
+      CalendarRegion.vietnam => pick(vi: 'Việt Nam', en: 'Vietnam'),
+      CalendarRegion.china => pick(vi: 'Trung Quốc', en: 'China'),
+      CalendarRegion.korea => pick(vi: 'Hàn Quốc', en: 'Korea'),
+    };
+  }
+
+  String lunarRecurrencePolicyLabel(LunarRecurrencePolicy policy) {
+    return switch (policy) {
+      LunarRecurrencePolicy.skip => pick(
+        vi: 'Bỏ qua năm không phù hợp',
+        en: 'Skip year',
+      ),
+      LunarRecurrencePolicy.firstOccurrence => pick(
+        vi: 'Lần xuất hiện đầu tiên',
+        en: 'First occurrence',
+      ),
+      LunarRecurrencePolicy.leapOccurrence => pick(
+        vi: 'Ưu tiên tháng nhuận',
+        en: 'Leap occurrence',
+      ),
     };
   }
 }

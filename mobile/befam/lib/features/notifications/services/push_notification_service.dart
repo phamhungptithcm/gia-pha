@@ -283,6 +283,7 @@ class FirebasePushNotificationService implements PushNotificationService {
     String token,
   ) async {
     try {
+      final normalizedRole = (session.primaryRole ?? '').trim();
       await FirebaseServices.firestore
           .collection('users')
           .doc(session.uid)
@@ -295,7 +296,7 @@ class FirebasePushNotificationService implements PushNotificationService {
             'memberId': session.memberId ?? '',
             'clanId': session.clanId ?? '',
             'branchId': session.branchId ?? '',
-            'primaryRole': session.primaryRole ?? '',
+            'primaryRole': normalizedRole.isEmpty ? 'GUEST' : normalizedRole,
             'accessMode': session.accessMode.name,
             'updatedAt': FieldValue.serverTimestamp(),
             'createdAt': FieldValue.serverTimestamp(),

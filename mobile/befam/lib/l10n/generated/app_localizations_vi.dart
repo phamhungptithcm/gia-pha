@@ -252,11 +252,11 @@ class AppLocalizationsVi extends AppLocalizations {
       'Khung ứng dụng đã sẵn sàng cho trải nghiệm cây gia phả theo nhánh và công việc dựng cây lớn.';
 
   @override
-  String get genealogyWorkspaceTitle => 'Read model gia phả';
+  String get genealogyWorkspaceTitle => 'Không gian cây gia phả';
 
   @override
   String get genealogyWorkspaceDescription =>
-      'Tải phạm vi của cả họ hoặc chi hiện tại, kiểm tra các điểm vào gốc, rồi xác minh chuỗi tổ tiên, hậu duệ, anh chị em và dữ liệu cây đã được cache trước khi bước sang màn hình cây trực quan.';
+      'Tải phạm vi cả họ hoặc chi hiện tại, kiểm tra các điểm vào gốc, rồi mở cây trực quan để theo dõi tổ tiên, hậu duệ và quan hệ hôn phối dễ hiểu.';
 
   @override
   String get genealogyScopeClan => 'Phạm vi cả họ';
@@ -330,6 +330,43 @@ class AppLocalizationsVi extends AppLocalizations {
   String get genealogyDescendantCountLabel => 'Hậu duệ';
 
   @override
+  String get genealogyMemberStatusLabel => 'Tình trạng';
+
+  @override
+  String get genealogyMemberAliveStatus => 'Còn sống';
+
+  @override
+  String get genealogyMemberDeceasedStatus => 'Đã mất';
+
+  @override
+  String get genealogyViewMemberInfoAction => 'Xem thông tin thành viên';
+
+  @override
+  String genealogyMetricNodes(int count) {
+    return 'Nút: $count';
+  }
+
+  @override
+  String genealogyMetricEdges(int count) {
+    return 'Liên kết: $count';
+  }
+
+  @override
+  String genealogyMetricLayout(int millis) {
+    return 'Bố cục: ${millis}ms';
+  }
+
+  @override
+  String genealogyMetricAverage(int millis) {
+    return 'TB: ${millis}ms';
+  }
+
+  @override
+  String genealogyMetricPeak(int millis) {
+    return 'Đỉnh: ${millis}ms';
+  }
+
+  @override
   String get genealogyRootReasonCurrentMember => 'Thành viên hiện tại';
 
   @override
@@ -357,6 +394,114 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get shellProfileWorkspaceDescription =>
       'Thông tin thành viên, cài đặt và bối cảnh gia đình sẽ phát triển từ phần giữ chỗ này.';
+
+  @override
+  String get profileRefreshAction => 'Tải lại hồ sơ';
+
+  @override
+  String get profileOpenSettingsAction => 'Mở cài đặt';
+
+  @override
+  String get profileNoContextTitle => 'Thiếu ngữ cảnh thành viên';
+
+  @override
+  String get profileNoContextDescription =>
+      'Hãy liên kết tài khoản với hồ sơ thành viên trước khi quản lý cài đặt cá nhân.';
+
+  @override
+  String get profileUpdateSuccess => 'Đã cập nhật hồ sơ thành công.';
+
+  @override
+  String get profileUpdateErrorTitle => 'Không thể cập nhật hồ sơ';
+
+  @override
+  String get profileDetailsSectionTitle => 'Chi tiết hồ sơ';
+
+  @override
+  String get profileAccountSectionTitle => 'Tài khoản';
+
+  @override
+  String get profileLogoutDialogTitle => 'Đăng xuất?';
+
+  @override
+  String get profileLogoutDialogDescription =>
+      'Bạn có thể đăng nhập lại bất cứ lúc nào bằng tài khoản đã liên kết.';
+
+  @override
+  String get profileSettingsLogoutDescription =>
+      'Xác nhận này giúp tránh đăng xuất nhầm khi bạn đang điều chỉnh cài đặt.';
+
+  @override
+  String get profileCancelAction => 'Hủy';
+
+  @override
+  String get profileSettingsTitle => 'Cài đặt';
+
+  @override
+  String get profileSettingsOverviewTitle => 'Tổng quan cài đặt';
+
+  @override
+  String get profileSettingsOverviewDescription =>
+      'Quản lý ngôn ngữ hiển thị, tùy chọn thông báo và phiên làm việc của bạn trong BeFam.';
+
+  @override
+  String get profileLanguageSectionTitle => 'Ngôn ngữ';
+
+  @override
+  String get profileLanguageSectionDescription =>
+      'Chọn ngôn ngữ hiển thị cho toàn bộ ứng dụng.';
+
+  @override
+  String get profileLanguageVietnamese => 'Tiếng Việt';
+
+  @override
+  String get profileLanguageVietnameseSubtitle =>
+      'Mặc định cho người dùng tại Việt Nam';
+
+  @override
+  String get profileLanguageEnglish => 'English';
+
+  @override
+  String get profileLanguageEnglishSubtitle => 'Use English across all screens';
+
+  @override
+  String get profileSecuritySectionTitle => 'Riêng tư và bảo mật';
+
+  @override
+  String get profileSecurityPlaceholderTitle =>
+      'Cài đặt bảo mật đang được hoàn thiện';
+
+  @override
+  String get profileSecurityPlaceholderDescription =>
+      'Các tùy chọn đăng nhập nâng cao và kiểm soát phiên sẽ được bổ sung ở đợt phát hành tiếp theo.';
+
+  @override
+  String get profileSessionSectionTitle => 'Phiên đăng nhập';
+
+  @override
+  String get profileNotificationFundAlerts => 'Thông báo giao dịch quỹ';
+
+  @override
+  String get profileEditSheetTitle => 'Chỉnh sửa hồ sơ';
+
+  @override
+  String get profileEditSheetDescription =>
+      'Cập nhật thông tin thành viên và liên kết liên hệ để hồ sơ luôn đầy đủ, dễ dùng.';
+
+  @override
+  String get profileSaveErrorTitle => 'Không thể lưu hồ sơ';
+
+  @override
+  String get profileFacebookUrlLabel => 'Liên kết Facebook';
+
+  @override
+  String get profileZaloUrlLabel => 'Liên kết Zalo';
+
+  @override
+  String get profileLinkedinUrlLabel => 'Liên kết LinkedIn';
+
+  @override
+  String get profileSavingAction => 'Đang lưu...';
 
   @override
   String get shellMoreActions => 'Thao tác khác';

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/app_locale_controller.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../../member/models/member_profile.dart';
@@ -16,12 +18,14 @@ class ProfileWorkspacePage extends StatefulWidget {
     required this.session,
     required this.memberRepository,
     this.avatarPicker,
+    this.localeController,
     this.onLogoutRequested,
   });
 
   final AuthSession session;
   final MemberRepository memberRepository;
   final MemberAvatarPicker? avatarPicker;
+  final AppLocaleController? localeController;
   final Future<void> Function()? onLogoutRequested;
 
   @override
@@ -31,6 +35,8 @@ class ProfileWorkspacePage extends StatefulWidget {
 class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
   late final ProfileController _controller;
   late final MemberAvatarPicker _avatarPicker;
+  late final AppLocaleController _localeController;
+  late final bool _ownsLocaleController;
 
   @override
   void initState() {
@@ -40,16 +46,23 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       session: widget.session,
     );
     _avatarPicker = widget.avatarPicker ?? createDefaultMemberAvatarPicker();
+    _localeController = widget.localeController ?? AppLocaleController();
+    _ownsLocaleController = widget.localeController == null;
+    unawaited(_localeController.load());
     unawaited(_controller.initialize());
   }
 
   @override
   void dispose() {
+    if (_ownsLocaleController) {
+      _localeController.dispose();
+    }
     _controller.dispose();
     super.dispose();
   }
 
   Future<void> _openEditor(MemberProfile profile) async {
+    final l10n = context.l10n;
     final didSave = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -65,13 +78,14 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     );
 
     if (didSave == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated successfully.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.profileUpdateSuccess)));
     }
   }
 
   Future<void> _handleAvatarUpload() async {
+    final l10n = context.l10n;
     final picked = await _avatarPicker.pickAvatar();
     if (picked == null || !mounted) {
       return;
@@ -90,13 +104,94 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     if (error == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Profile image updated.')));
+      ).showSnackBar(SnackBar(content: Text(l10n.memberAvatarUploadSuccess)));
       return;
     }
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(_memberErrorMessage(error))));
+    ).showSnackBar(SnackBar(content: Text(_memberErrorMessage(l10n, error))));
+  }
+
+  Future<void> _openAvatarActions(MemberProfile profile) async {
+    final l10n = context.l10n;
+    final action = await showModalBottomSheet<_AvatarAction>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.image_outlined),
+                title: Text(
+                  l10n.pick(
+                    vi: 'Xem ảnh hiện tại',
+                    en: 'View current photo',
+                  ),
+                ),
+                onTap: () => Navigator.of(context).pop(_AvatarAction.view),
+              ),
+              ListTile(
+                leading: const Icon(Icons.file_upload_outlined),
+                title: Text(
+                  l10n.pick(
+                    vi: 'Tải ảnh mới',
+                    en: 'Upload new photo',
+                  ),
+                ),
+                onTap: () => Navigator.of(context).pop(_AvatarAction.upload),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || action == null) {
+      return;
+    }
+
+    if (action == _AvatarAction.upload) {
+      await _handleAvatarUpload();
+      return;
+    }
+
+    if (!profile.hasAvatar) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Hiện chưa có ảnh đại diện.',
+              en: 'No current profile photo yet.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(20),
+          clipBehavior: Clip.antiAlias,
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: Image.network(
+                profile.avatarUrl!,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _openSettings() async {
@@ -105,6 +200,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         builder: (context) {
           return _SettingsScreenShell(
             controller: _controller,
+            localeController: _localeController,
             onLogoutRequested: widget.onLogoutRequested,
           );
         },
@@ -117,22 +213,21 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       return;
     }
 
+    final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Log out?'),
-          content: const Text(
-            'You can sign back in at any time with your linked account.',
-          ),
+          title: Text(l10n.profileLogoutDialogTitle),
+          content: Text(l10n.profileLogoutDialogDescription),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: Text(l10n.profileCancelAction),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Log out'),
+              child: Text(l10n.shellLogout),
             ),
           ],
         );
@@ -155,15 +250,15 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Profile'),
+            title: Text(l10n.shellProfileTitle),
             actions: [
               IconButton(
-                tooltip: 'Refresh profile',
+                tooltip: l10n.profileRefreshAction,
                 onPressed: _controller.isLoading ? null : _controller.refresh,
                 icon: const Icon(Icons.refresh),
               ),
               IconButton(
-                tooltip: 'Open settings',
+                tooltip: l10n.profileOpenSettingsAction,
                 onPressed: _openSettings,
                 icon: const Icon(Icons.settings_outlined),
               ),
@@ -173,19 +268,17 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
             child: _controller.isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : !_controller.hasMemberContext
-                ? const _ProfileEmptyState(
+                ? _ProfileEmptyState(
                     icon: Icons.lock_outline,
-                    title: 'Missing member context',
-                    description:
-                        'Link your account to a member profile before managing settings.',
+                    title: l10n.profileNoContextTitle,
+                    description: l10n.profileNoContextDescription,
                   )
                 : _controller.profile == null
                 ? _ProfileEmptyState(
                     icon: Icons.person_search_outlined,
-                    title: 'Profile record not found',
-                    description:
-                        'We could not resolve your member profile from the current clan scope.',
-                    actionLabel: 'Retry',
+                    title: l10n.memberNotFoundTitle,
+                    description: l10n.memberNotFoundDescription,
+                    actionLabel: l10n.notificationInboxRetryAction,
                     onAction: _controller.refresh,
                   )
                 : RefreshIndicator(
@@ -200,60 +293,65 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                           ),
                           onEditProfile: () =>
                               _openEditor(_controller.profile!),
-                          onUpdatePhoto: _controller.isUploadingAvatar
+                          onAvatarTap: _controller.isUploadingAvatar
                               ? null
-                              : _handleAvatarUpload,
+                              : () => _openAvatarActions(_controller.profile!),
+                          isUploadingAvatar: _controller.isUploadingAvatar,
                         ),
                         const SizedBox(height: 20),
                         if (_controller.errorMessage != null) ...[
                           _ProfileInfoCard(
                             icon: Icons.error_outline,
-                            title: 'Could not update profile',
+                            title: l10n.profileUpdateErrorTitle,
                             description: _controller.errorMessage!,
                             tone: colorScheme.errorContainer,
                           ),
                           const SizedBox(height: 20),
                         ],
                         _ProfileSectionCard(
-                          title: 'Profile details',
-                          actionLabel: 'Edit',
-                          onAction: () => _openEditor(_controller.profile!),
+                          title: l10n.profileDetailsSectionTitle,
                           child: Column(
                             children: [
                               _ProfileDetailRow(
-                                label: 'Full name',
+                                label: l10n.memberFullNameLabel,
                                 value: _controller.profile!.fullName,
                               ),
                               _ProfileDetailRow(
-                                label: 'Nickname',
+                                label: l10n.memberNicknameLabel,
                                 value:
                                     _controller.profile!.nickName.trim().isEmpty
-                                    ? 'Not set'
+                                    ? l10n.memberFieldUnset
                                     : _controller.profile!.nickName,
                               ),
                               _ProfileDetailRow(
-                                label: 'Phone',
+                                label: l10n.memberPhoneLabel,
                                 value:
-                                    _controller.profile!.phoneE164 ?? 'Not set',
+                                    _controller.profile!.phoneE164 ??
+                                    l10n.memberFieldUnset,
                               ),
                               _ProfileDetailRow(
-                                label: 'Email',
-                                value: _controller.profile!.email ?? 'Not set',
-                              ),
-                              _ProfileDetailRow(
-                                label: 'Job title',
+                                label: l10n.memberEmailLabel,
                                 value:
-                                    _controller.profile!.jobTitle ?? 'Not set',
+                                    _controller.profile!.email ??
+                                    l10n.memberFieldUnset,
                               ),
                               _ProfileDetailRow(
-                                label: 'Address',
+                                label: l10n.memberJobTitleLabel,
+                                value:
+                                    _controller.profile!.jobTitle ??
+                                    l10n.memberFieldUnset,
+                              ),
+                              _ProfileDetailRow(
+                                label: l10n.memberAddressLabel,
                                 value:
                                     _controller.profile!.addressText ??
-                                    'Not set',
+                                    l10n.memberFieldUnset,
                               ),
                               _ProfileDetailRow(
-                                label: 'Bio',
-                                value: _controller.profile!.bio ?? 'Not set',
+                                label: l10n.memberBioLabel,
+                                value:
+                                    _controller.profile!.bio ??
+                                    l10n.memberFieldUnset,
                                 isLast: true,
                               ),
                             ],
@@ -261,7 +359,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                         ),
                         const SizedBox(height: 20),
                         _ProfileSectionCard(
-                          title: 'Notification preferences',
+                          title: l10n.notificationSettingsTitle,
                           child: _NotificationPlaceholderPanel(
                             controller: _controller,
                           ),
@@ -269,11 +367,11 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                         const SizedBox(height: 20),
                         if (widget.onLogoutRequested != null)
                           _ProfileSectionCard(
-                            title: 'Account',
+                            title: l10n.profileAccountSectionTitle,
                             child: OutlinedButton.icon(
                               onPressed: _confirmLogout,
                               icon: const Icon(Icons.logout),
-                              label: const Text('Log out'),
+                              label: Text(l10n.shellLogout),
                             ),
                           ),
                       ],
@@ -289,10 +387,12 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
 class _SettingsScreenShell extends StatelessWidget {
   const _SettingsScreenShell({
     required this.controller,
+    required this.localeController,
     required this.onLogoutRequested,
   });
 
   final ProfileController controller;
+  final AppLocaleController localeController;
   final Future<void> Function()? onLogoutRequested;
 
   Future<void> _confirmLogout(BuildContext context) async {
@@ -300,22 +400,21 @@ class _SettingsScreenShell extends StatelessWidget {
       return;
     }
 
+    final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Log out?'),
-          content: const Text(
-            'This confirmation prevents accidental sign out while managing settings.',
-          ),
+          title: Text(l10n.profileLogoutDialogTitle),
+          content: Text(l10n.profileSettingsLogoutDescription),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: Text(l10n.profileCancelAction),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Log out'),
+              child: Text(l10n.shellLogout),
             ),
           ],
         );
@@ -330,46 +429,90 @@ class _SettingsScreenShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return AnimatedBuilder(
-      animation: controller,
+      animation: Listenable.merge([controller, localeController]),
       builder: (context, _) {
+        final selectedLanguageCode = localeController.locale.languageCode;
         return Scaffold(
-          appBar: AppBar(title: const Text('Settings')),
+          appBar: AppBar(title: Text(l10n.profileSettingsTitle)),
           body: SafeArea(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
               children: [
                 _ProfileSectionCard(
-                  title: 'Settings shell',
+                  title: l10n.profileSettingsOverviewTitle,
                   child: Text(
-                    'This shell groups account and preference settings for later expansion.',
+                    l10n.profileSettingsOverviewDescription,
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
                 const SizedBox(height: 20),
                 _ProfileSectionCard(
-                  title: 'Notification preference placeholders',
+                  title: l10n.profileLanguageSectionTitle,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.profileLanguageSectionDescription,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 10),
+                      SegmentedButton<String>(
+                        showSelectedIcon: true,
+                        segments: [
+                          ButtonSegment<String>(
+                            value: 'vi',
+                            label: Text(l10n.profileLanguageVietnamese),
+                          ),
+                          ButtonSegment<String>(
+                            value: 'en',
+                            label: Text(l10n.profileLanguageEnglish),
+                          ),
+                        ],
+                        selected: {selectedLanguageCode},
+                        onSelectionChanged: (selected) {
+                          if (selected.isEmpty) {
+                            return;
+                          }
+                          unawaited(
+                            localeController.updateLanguageCode(selected.first),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        selectedLanguageCode == 'vi'
+                            ? l10n.profileLanguageVietnameseSubtitle
+                            : l10n.profileLanguageEnglishSubtitle,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _ProfileSectionCard(
+                  title: l10n.notificationSettingsTitle,
                   child: _NotificationPlaceholderPanel(controller: controller),
                 ),
                 const SizedBox(height: 20),
                 _ProfileSectionCard(
-                  title: 'Privacy and security',
-                  child: const _ProfileEmptyState(
+                  title: l10n.profileSecuritySectionTitle,
+                  child: _ProfileEmptyState(
                     icon: Icons.security_outlined,
-                    title: 'Security settings placeholder',
-                    description:
-                        'Passwordless auth and session security options will be connected in a later story.',
+                    title: l10n.profileSecurityPlaceholderTitle,
+                    description: l10n.profileSecurityPlaceholderDescription,
                   ),
                 ),
                 if (onLogoutRequested != null) ...[
                   const SizedBox(height: 20),
                   _ProfileSectionCard(
-                    title: 'Session',
+                    title: l10n.profileSessionSectionTitle,
                     child: OutlinedButton.icon(
                       onPressed: () => _confirmLogout(context),
                       icon: const Icon(Icons.logout),
-                      label: const Text('Log out'),
+                      label: Text(l10n.shellLogout),
                     ),
                   ),
                 ],
@@ -391,12 +534,13 @@ class _NotificationPlaceholderPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final prefs = controller.notificationPreferences;
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Preference toggles are placeholders for now. They update local state in this session.',
+          l10n.notificationSettingsDescription,
           style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: 8),
@@ -405,39 +549,39 @@ class _NotificationPlaceholderPanel extends StatelessWidget {
           value: prefs.eventReminders,
           onChanged: controller.updateEventRemindersPreference,
           contentPadding: EdgeInsets.zero,
-          title: const Text('Event reminders'),
-          subtitle: const Text('Placeholder only'),
+          title: Text(l10n.notificationSettingsEventUpdates),
+          subtitle: Text(l10n.notificationSettingsPlaceholderNote),
         ),
         SwitchListTile.adaptive(
           key: const Key('notification-setting-scholarship-updates'),
           value: prefs.scholarshipUpdates,
           onChanged: controller.updateScholarshipUpdatesPreference,
           contentPadding: EdgeInsets.zero,
-          title: const Text('Scholarship updates'),
-          subtitle: const Text('Placeholder only'),
+          title: Text(l10n.notificationSettingsScholarshipUpdates),
+          subtitle: Text(l10n.notificationSettingsPlaceholderNote),
         ),
         SwitchListTile.adaptive(
           value: prefs.fundTransactions,
           onChanged: controller.updateFundTransactionsPreference,
           contentPadding: EdgeInsets.zero,
-          title: const Text('Fund transaction alerts'),
-          subtitle: const Text('Placeholder only'),
+          title: Text(l10n.profileNotificationFundAlerts),
+          subtitle: Text(l10n.notificationSettingsPlaceholderNote),
         ),
         SwitchListTile.adaptive(
           key: const Key('notification-setting-general-updates'),
           value: prefs.systemNotices,
           onChanged: controller.updateSystemNoticesPreference,
           contentPadding: EdgeInsets.zero,
-          title: const Text('System notices'),
-          subtitle: const Text('Placeholder only'),
+          title: Text(l10n.notificationSettingsGeneralUpdates),
+          subtitle: Text(l10n.notificationSettingsPlaceholderNote),
         ),
         SwitchListTile.adaptive(
           key: const Key('notification-setting-quiet-hours'),
           value: false,
           onChanged: null,
           contentPadding: EdgeInsets.zero,
-          title: const Text('Quiet hours'),
-          subtitle: const Text('Placeholder only'),
+          title: Text(l10n.notificationSettingsQuietHours),
+          subtitle: Text(l10n.notificationSettingsPlaceholderNote),
         ),
       ],
     );
@@ -449,18 +593,21 @@ class _ProfileHeroCard extends StatelessWidget {
     required this.profile,
     required this.roleLabel,
     required this.onEditProfile,
-    this.onUpdatePhoto,
+    this.onAvatarTap,
+    this.isUploadingAvatar = false,
   });
 
   final MemberProfile profile;
   final String roleLabel;
   final VoidCallback onEditProfile;
-  final VoidCallback? onUpdatePhoto;
+  final VoidCallback? onAvatarTap;
+  final bool isUploadingAvatar;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final l10n = context.l10n;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -475,67 +622,110 @@ class _ProfileHeroCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 38,
-            backgroundColor: colorScheme.surface,
-            foregroundColor: colorScheme.onSurface,
-            backgroundImage: profile.hasAvatar
-                ? NetworkImage(profile.avatarUrl!)
-                : null,
-            child: profile.hasAvatar
-                ? null
-                : Text(
-                    profile.initials,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
+          InkWell(
+            onTap: onAvatarTap,
+            customBorder: const CircleBorder(),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 38,
+                  backgroundColor: colorScheme.surface,
+                  foregroundColor: colorScheme.onSurface,
+                  backgroundImage: profile.hasAvatar
+                      ? NetworkImage(profile.avatarUrl!)
+                      : null,
+                  child: profile.hasAvatar
+                      ? null
+                      : Text(
+                          profile.initials,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: colorScheme.surface,
+                        width: 1.4,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.photo_camera_outlined,
+                      size: 14,
+                      color: colorScheme.onPrimaryContainer,
                     ),
                   ),
+                ),
+                if (isUploadingAvatar)
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface.withValues(alpha: 0.65),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(22),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  profile.fullName,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: colorScheme.onPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        profile.fullName,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          color: colorScheme.onPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: l10n.memberEditAction,
+                      onPressed: onEditProfile,
+                      icon: const Icon(Icons.edit_outlined),
+                      color: colorScheme.onPrimary,
+                      style: IconButton.styleFrom(
+                        backgroundColor: colorScheme.onPrimary.withValues(
+                          alpha: 0.12,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   roleLabel,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: colorScheme.onPrimary.withValues(alpha: 0.9),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: colorScheme.surface,
-                        foregroundColor: colorScheme.onSurface,
-                      ),
-                      onPressed: onEditProfile,
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('Edit profile'),
-                    ),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: colorScheme.onPrimary,
-                        side: BorderSide(
-                          color: colorScheme.onPrimary.withValues(alpha: 0.45),
-                        ),
-                      ),
-                      onPressed: onUpdatePhoto,
-                      icon: const Icon(Icons.photo_camera_outlined),
-                      label: const Text('Update photo'),
-                    ),
-                  ],
+                Text(
+                  l10n.pick(
+                    vi: 'Chạm ảnh để xem hoặc đổi ảnh đại diện',
+                    en: 'Tap avatar to view or upload a new profile photo',
+                  ),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onPrimary.withValues(alpha: 0.9),
+                  ),
                 ),
               ],
             ),
@@ -545,6 +735,8 @@ class _ProfileHeroCard extends StatelessWidget {
     );
   }
 }
+
+enum _AvatarAction { view, upload }
 
 class _ProfileEditorSheet extends StatefulWidget {
   const _ProfileEditorSheet({
@@ -666,6 +858,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
   Widget build(BuildContext context) {
     final insets = MediaQuery.viewInsetsOf(context);
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -693,81 +886,95 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Edit profile',
+                  l10n.profileEditSheetTitle,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Update your member profile details and social links.',
+                  l10n.profileEditSheetDescription,
                   style: theme.textTheme.bodyMedium,
                 ),
                 if (_submitError != null) ...[
                   const SizedBox(height: 16),
                   _ProfileInfoCard(
                     icon: Icons.error_outline,
-                    title: 'Could not save profile',
-                    description: _memberErrorMessage(_submitError!),
+                    title: l10n.profileSaveErrorTitle,
+                    description: _memberErrorMessage(l10n, _submitError!),
                     tone: theme.colorScheme.errorContainer,
                   ),
                 ],
                 const SizedBox(height: 18),
                 TextFormField(
                   controller: _fullNameController,
-                  decoration: const InputDecoration(labelText: 'Full name'),
+                  decoration: InputDecoration(
+                    labelText: l10n.memberFullNameLabel,
+                  ),
                   validator: (value) {
                     return value == null || value.trim().isEmpty
-                        ? 'Full name is required.'
+                        ? l10n.memberValidationNameRequired
                         : null;
                   },
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _nickNameController,
-                  decoration: const InputDecoration(labelText: 'Nickname'),
+                  decoration: InputDecoration(
+                    labelText: l10n.memberNicknameLabel,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _phoneController,
-                  decoration: const InputDecoration(labelText: 'Phone'),
+                  decoration: InputDecoration(labelText: l10n.memberPhoneLabel),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  decoration: InputDecoration(labelText: l10n.memberEmailLabel),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _jobTitleController,
-                  decoration: const InputDecoration(labelText: 'Job title'),
+                  decoration: InputDecoration(
+                    labelText: l10n.memberJobTitleLabel,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _addressController,
                   maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Address'),
+                  decoration: InputDecoration(
+                    labelText: l10n.memberAddressLabel,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _bioController,
                   maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Bio'),
+                  decoration: InputDecoration(labelText: l10n.memberBioLabel),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _facebookController,
-                  decoration: const InputDecoration(labelText: 'Facebook URL'),
+                  decoration: InputDecoration(
+                    labelText: l10n.profileFacebookUrlLabel,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _zaloController,
-                  decoration: const InputDecoration(labelText: 'Zalo URL'),
+                  decoration: InputDecoration(
+                    labelText: l10n.profileZaloUrlLabel,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _linkedinController,
-                  decoration: const InputDecoration(labelText: 'LinkedIn URL'),
+                  decoration: InputDecoration(
+                    labelText: l10n.profileLinkedinUrlLabel,
+                  ),
                 ),
                 const SizedBox(height: 22),
                 SizedBox(
@@ -785,8 +992,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                         : const Icon(Icons.save_outlined),
                     label: Text(
                       (_isSubmitting || widget.isSaving)
-                          ? 'Saving...'
-                          : 'Save profile',
+                          ? l10n.profileSavingAction
+                          : l10n.memberSaveAction,
                     ),
                   ),
                 ),
@@ -803,14 +1010,10 @@ class _ProfileSectionCard extends StatelessWidget {
   const _ProfileSectionCard({
     required this.title,
     required this.child,
-    this.actionLabel,
-    this.onAction,
   });
 
   final String title;
   final Widget child;
-  final String? actionLabel;
-  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -831,8 +1034,6 @@ class _ProfileSectionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (actionLabel != null && onAction != null)
-                  TextButton(onPressed: onAction, child: Text(actionLabel!)),
               ],
             ),
             const SizedBox(height: 12),
@@ -971,14 +1172,16 @@ class _ProfileEmptyState extends StatelessWidget {
   }
 }
 
-String _memberErrorMessage(MemberRepositoryErrorCode code) {
+String _memberErrorMessage(
+  AppLocalizations l10n,
+  MemberRepositoryErrorCode code,
+) {
   return switch (code) {
-    MemberRepositoryErrorCode.duplicatePhone =>
-      'This phone number is already linked to another member.',
+    MemberRepositoryErrorCode.duplicatePhone => l10n.memberDuplicatePhoneError,
     MemberRepositoryErrorCode.permissionDenied =>
-      'You do not have permission for this action.',
-    MemberRepositoryErrorCode.memberNotFound => 'Profile record not found.',
+      l10n.memberPermissionDeniedError,
+    MemberRepositoryErrorCode.memberNotFound => l10n.memberNotFoundDescription,
     MemberRepositoryErrorCode.avatarUploadFailed =>
-      'Image upload failed. Please try again.',
+      l10n.memberAvatarUploadError,
   };
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
+import '../../../core/services/runtime_mode.dart';
 import '../models/auth_entry_method.dart';
 import '../models/auth_issue.dart';
 import '../models/auth_otp_request_result.dart';
@@ -11,6 +12,7 @@ import '../models/pending_otp_challenge.dart';
 import '../services/auth_analytics_service.dart';
 import '../services/auth_error_mapper.dart';
 import '../services/auth_gateway.dart';
+import '../services/auth_privacy_policy_store.dart';
 import '../services/auth_session_store.dart';
 import '../services/child_identifier_formatter.dart';
 import '../services/phone_number_formatter.dart';
@@ -20,17 +22,26 @@ enum AuthStep { loginMethodSelection, phoneNumber, childIdentifier, otp }
 typedef AuthOtpAction = Future<AuthOtpRequestResult> Function();
 
 class AuthController extends ChangeNotifier {
+  static const String _localBypassPhoneE164 = String.fromEnvironment(
+    'BEFAM_LOCAL_BYPASS_PHONE',
+    defaultValue: '+84901234567',
+  );
+
   AuthController({
     required AuthGateway authGateway,
     required AuthAnalyticsService analyticsService,
     required AuthSessionStore sessionStore,
+    AuthPrivacyPolicyStore? privacyPolicyStore,
   }) : _authGateway = authGateway,
        _analyticsService = analyticsService,
-       _sessionStore = sessionStore;
+       _sessionStore = sessionStore,
+       _privacyPolicyStore =
+           privacyPolicyStore ?? SharedPrefsAuthPrivacyPolicyStore();
 
   final AuthGateway _authGateway;
   final AuthAnalyticsService _analyticsService;
   final AuthSessionStore _sessionStore;
+  final AuthPrivacyPolicyStore _privacyPolicyStore;
 
   AuthStep step = AuthStep.loginMethodSelection;
   AuthSession? session;
@@ -38,6 +49,7 @@ class AuthController extends ChangeNotifier {
   AuthIssue? error;
   bool isRestoring = true;
   bool isBusy = false;
+  bool hasAcceptedPrivacyPolicy = false;
   int resendCooldownSeconds = 0;
 
   Timer? _resendTimer;
@@ -45,6 +57,7 @@ class AuthController extends ChangeNotifier {
   bool _disposed = false;
 
   bool get isSandbox => _authGateway.isSandbox;
+  bool get canUseLocalBypass => RuntimeMode.shouldBypassPhoneOtp;
 
   Future<void> initialize() async {
     if (_initialized) {
@@ -53,6 +66,7 @@ class AuthController extends ChangeNotifier {
 
     _initialized = true;
     try {
+      hasAcceptedPrivacyPolicy = await _privacyPolicyStore.readAccepted();
       final restoredSession = await _sessionStore.read();
       if (restoredSession != null &&
           restoredSession.isSandbox != _authGateway.isSandbox) {
@@ -89,6 +103,9 @@ class AuthController extends ChangeNotifier {
   }
 
   void selectLoginMethod(AuthEntryMethod method) {
+    if (!_ensurePrivacyPolicyAccepted()) {
+      return;
+    }
     _clearError();
     step = switch (method) {
       AuthEntryMethod.phone => AuthStep.phoneNumber,
@@ -132,6 +149,42 @@ class AuthController extends ChangeNotifier {
       () => _authGateway.requestPhoneOtp(parsedPhone.e164),
       method: AuthEntryMethod.phone,
     );
+  }
+
+  Future<void> signInWithLocalBypass() async {
+    if (!canUseLocalBypass || isBusy) {
+      return;
+    }
+    if (!_ensurePrivacyPolicyAccepted()) {
+      return;
+    }
+
+    _clearError();
+    unawaited(
+      _analyticsService.logLoginMethodSelected(
+        AuthEntryMethod.phone,
+        isSandbox: isSandbox,
+      ),
+    );
+
+    await _startOtpRequest(
+      () => _authGateway.requestPhoneOtp(_localBypassPhoneE164),
+      method: AuthEntryMethod.phone,
+    );
+
+    final challenge = pendingChallenge;
+    if (session != null || challenge == null) {
+      return;
+    }
+
+    final otpHint = challenge.debugOtpHint;
+    if (otpHint == null || !RegExp(r'^\d{6}$').hasMatch(otpHint)) {
+      error = const AuthIssue(AuthIssueKey.preparationFailed);
+      _emit();
+      return;
+    }
+
+    await verifyOtp(otpHint);
   }
 
   Future<void> submitChildIdentifier(String rawChildIdentifier) async {
@@ -186,6 +239,12 @@ class AuthController extends ChangeNotifier {
       step = AuthStep.loginMethodSelection;
       _stopCooldown();
     });
+  }
+
+  Future<void> setPrivacyPolicyAccepted(bool accepted) async {
+    hasAcceptedPrivacyPolicy = accepted;
+    _emit();
+    await _privacyPolicyStore.writeAccepted(accepted);
   }
 
   Future<void> _startOtpRequest(
@@ -287,6 +346,15 @@ class AuthController extends ChangeNotifier {
 
   void _clearError() {
     error = null;
+  }
+
+  bool _ensurePrivacyPolicyAccepted() {
+    if (hasAcceptedPrivacyPolicy) {
+      return true;
+    }
+    error = const AuthIssue(AuthIssueKey.privacyPolicyRequired);
+    _emit();
+    return false;
   }
 
   void _emit() {

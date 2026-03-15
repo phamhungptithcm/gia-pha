@@ -4,8 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
-import '../../features/events/presentation/event_workspace_page.dart';
-import '../../features/events/services/event_repository.dart';
+import '../../features/calendar/presentation/dual_calendar_workspace_page.dart';
 import '../../features/funds/presentation/fund_workspace_page.dart';
 import '../../features/funds/services/fund_repository.dart';
 import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
@@ -22,6 +21,7 @@ import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
 import '../../features/auth/models/auth_session.dart';
 import '../../features/auth/services/phone_number_formatter.dart';
+import '../../core/services/app_locale_controller.dart';
 import '../bootstrap/firebase_setup_status.dart';
 import '../models/app_shortcut.dart';
 import 'app_shortcuts.dart';
@@ -33,10 +33,10 @@ class AppShellPage extends StatefulWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
-    this.eventRepository,
     this.fundRepository,
     this.genealogyRepository,
     this.pushNotificationService,
+    this.localeController,
     this.onLogoutRequested,
   });
 
@@ -44,10 +44,10 @@ class AppShellPage extends StatefulWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
-  final EventRepository? eventRepository;
   final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
   final PushNotificationService? pushNotificationService;
+  final AppLocaleController? localeController;
   final Future<void> Function()? onLogoutRequested;
 
   @override
@@ -56,8 +56,8 @@ class AppShellPage extends StatefulWidget {
 
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
+  final Set<int> _visitedDestinationIndexes = <int>{0};
   late final GenealogyReadRepository _genealogyRepository;
-  late final EventRepository _eventRepository;
   late final FundRepository _fundRepository;
   late final PushNotificationService _pushNotificationService;
   String? _lastOpenedNotificationMessageId;
@@ -90,7 +90,6 @@ class _AppShellPageState extends State<AppShellPage> {
     super.initState();
     _genealogyRepository =
         widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
-    _eventRepository = widget.eventRepository ?? createDefaultEventRepository();
     _fundRepository = widget.fundRepository ?? createDefaultFundRepository();
     _pushNotificationService =
         widget.pushNotificationService ??
@@ -134,6 +133,7 @@ class _AppShellPageState extends State<AppShellPage> {
     if (shouldOpenTargetPage) {
       setState(() {
         _selectedIndex = 2;
+        _visitedDestinationIndexes.add(2);
       });
       _openNotificationTargetPage(
         targetType: deepLink.targetType,
@@ -240,19 +240,18 @@ class _AppShellPageState extends State<AppShellPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
+        final l10n = context.l10n;
         return AlertDialog(
-          title: Text(context.l10n.shellLogout),
-          content: const Text(
-            'You can sign back in at any time with your linked account.',
-          ),
+          title: Text(l10n.shellLogout),
+          content: Text(l10n.profileLogoutDialogDescription),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: Text(l10n.profileCancelAction),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Log out'),
+              child: Text(l10n.shellLogout),
             ),
           ],
         );
@@ -299,16 +298,26 @@ class _AppShellPageState extends State<AppShellPage> {
           });
         },
       ),
-      GenealogyWorkspacePage(
-        session: widget.session,
-        repository: _genealogyRepository,
-      ),
-      EventWorkspacePage(session: widget.session, repository: _eventRepository),
-      ProfileWorkspacePage(
-        session: widget.session,
-        memberRepository: widget.memberRepository,
-        onLogoutRequested: widget.onLogoutRequested,
-      ),
+      if (_visitedDestinationIndexes.contains(1))
+        GenealogyWorkspacePage(
+          session: widget.session,
+          repository: _genealogyRepository,
+        )
+      else
+        const SizedBox.shrink(),
+      if (_visitedDestinationIndexes.contains(2))
+        const DualCalendarWorkspacePage()
+      else
+        const SizedBox.shrink(),
+      if (_visitedDestinationIndexes.contains(3))
+        ProfileWorkspacePage(
+          session: widget.session,
+          memberRepository: widget.memberRepository,
+          localeController: widget.localeController,
+          onLogoutRequested: widget.onLogoutRequested,
+        )
+      else
+        const SizedBox.shrink(),
     ];
 
     return Scaffold(
@@ -361,6 +370,7 @@ class _AppShellPageState extends State<AppShellPage> {
         onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
+            _visitedDestinationIndexes.add(index);
           });
         },
         destinations: [
@@ -676,14 +686,6 @@ class _ShortcutCard extends StatelessWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               const Spacer(),
-              const SizedBox(height: 12),
-              Text(
-                shortcut.route,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
             ],
           ),
         ),

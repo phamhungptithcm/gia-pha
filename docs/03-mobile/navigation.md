@@ -25,8 +25,9 @@ Current bottom navigation destinations:
 - Events
 - Profile
 
-The Events tab now hosts the notification inbox while Profile remains a
-placeholder workspace.
+The Events tab now hosts the dual calendar workspace. Notification inbox and
+target pages are reachable from deep-link and profile/settings entry points.
+Profile is now a real workspace (not a placeholder).
 
 ## Notification-driven navigation
 
@@ -34,6 +35,10 @@ placeholder workspace.
 - event-target and scholarship-target notifications switch users to the Events
   destination and open target placeholder pages
 - message payloads are normalized into `NotificationDeepLink` objects
+
+Planned addition:
+
+- billing reminder deep-links to subscription management screen (Epic #213)
 
 ## UX goals for navigation
 

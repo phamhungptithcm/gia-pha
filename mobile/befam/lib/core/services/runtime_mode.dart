@@ -11,10 +11,28 @@ class RuntimeMode {
   static const bool forceMockBackend = bool.fromEnvironment(
     'BEFAM_USE_MOCK_AUTH',
   );
+  static const String localAuthBypass = String.fromEnvironment(
+    'BEFAM_LOCAL_AUTH_BYPASS',
+    defaultValue: 'auto',
+  );
   static const bool forceTestMode = bool.fromEnvironment('FLUTTER_TEST');
 
   static bool get shouldUseMockBackend {
-    return forceTestMode || _isWidgetTestBinding() || _isDebugMockOverride;
+    return forceTestMode ||
+        _isWidgetTestBinding() ||
+        shouldBypassPhoneOtp ||
+        _isDebugMockOverride;
+  }
+
+  static bool get shouldBypassPhoneOtp {
+    final mode = localAuthBypass.toLowerCase().trim();
+    if (mode == 'on' || mode == 'true' || mode == '1') {
+      return true;
+    }
+    if (mode == 'off' || mode == 'false' || mode == '0') {
+      return false;
+    }
+    return kDebugMode;
   }
 
   static bool get _isDebugMockOverride {
