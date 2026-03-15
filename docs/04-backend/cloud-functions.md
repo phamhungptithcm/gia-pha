@@ -61,7 +61,7 @@ and TypeScript.
 ### Contract tests
 
 - contract tests are implemented under `src/contract-tests/*`
-- `npm test` compiles functions and runs Node test contracts from `lib/**/*.contract.test.js`
+- `npm test` compiles functions and runs Node test contracts from `lib/contract-tests/*.contract.test.js`
 
 ### Planned billing callables and triggers (Epic #213)
 
