@@ -4,8 +4,11 @@ on:
   pull_request:
     paths:
       - "docs/**"
+      - "firebase/firestore.rules"
+      - "firebase/storage.rules"
       - "mkdocs.yml"
       - "requirements-docs.txt"
+      - "scripts/validate_rules_documentation.py"
       - ".github/workflows/docs-ci.yml"
       - ".github/workflows/deploy-docs.yml"
   push:
@@ -13,8 +16,11 @@ on:
       - main
     paths:
       - "docs/**"
+      - "firebase/firestore.rules"
+      - "firebase/storage.rules"
       - "mkdocs.yml"
       - "requirements-docs.txt"
+      - "scripts/validate_rules_documentation.py"
       - ".github/workflows/docs-ci.yml"
       - ".github/workflows/deploy-docs.yml"
 
@@ -37,6 +43,9 @@ jobs:
 
       - name: Install docs dependencies
         run: pip install -r requirements-docs.txt
+
+      - name: Validate rules documentation
+        run: python3 scripts/validate_rules_documentation.py
 
       - name: Build docs
         run: mkdocs build --strict

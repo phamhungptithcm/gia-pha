@@ -8,7 +8,9 @@ import 'package:befam/features/member/models/member_profile.dart';
 import 'package:befam/features/member/models/member_social_links.dart';
 import 'package:befam/features/member/models/member_workspace_snapshot.dart';
 import 'package:befam/features/member/services/member_repository.dart';
+import 'package:befam/features/profile/models/profile_notification_preferences.dart';
 import 'package:befam/features/profile/presentation/profile_controller.dart';
+import 'package:befam/features/profile/services/profile_notification_preferences_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -63,9 +65,12 @@ void main() {
 
   test('uploads avatar and updates profile state', () async {
     final repository = _FakeMemberRepository(profile: buildProfile());
+    final preferencesRepository =
+        _FakeProfileNotificationPreferencesRepository();
     final controller = ProfileController(
       memberRepository: repository,
       session: buildSession(),
+      notificationPreferencesRepository: preferencesRepository,
     );
 
     await controller.initialize();
@@ -86,12 +91,15 @@ void main() {
     'returns member_not_found when session member cannot be resolved',
     () async {
       final repository = _FakeMemberRepository(profile: buildProfile());
+      final preferencesRepository =
+          _FakeProfileNotificationPreferencesRepository();
       final controller = ProfileController(
         memberRepository: repository,
         session: buildSession(
           memberId: 'missing_member',
           uid: 'debug:+84000000000',
         ),
+        notificationPreferencesRepository: preferencesRepository,
       );
 
       await controller.initialize();
@@ -113,9 +121,12 @@ void main() {
       profile: buildProfile(),
       failUpload: true,
     );
+    final preferencesRepository =
+        _FakeProfileNotificationPreferencesRepository();
     final controller = ProfileController(
       memberRepository: repository,
       session: buildSession(),
+      notificationPreferencesRepository: preferencesRepository,
     );
 
     await controller.initialize();
@@ -128,6 +139,53 @@ void main() {
 
     expect(result, MemberRepositoryErrorCode.avatarUploadFailed);
     expect(repository.uploadCalls, 1);
+  });
+
+  test(
+    'loads notification preferences from repository during initialize',
+    () async {
+      final repository = _FakeMemberRepository(profile: buildProfile());
+      final preferencesRepository =
+          _FakeProfileNotificationPreferencesRepository(
+            initial: const ProfileNotificationPreferences(
+              eventReminders: false,
+              scholarshipUpdates: true,
+              fundTransactions: false,
+              systemNotices: true,
+              quietHoursEnabled: true,
+            ),
+          );
+      final controller = ProfileController(
+        memberRepository: repository,
+        session: buildSession(),
+        notificationPreferencesRepository: preferencesRepository,
+      );
+
+      await controller.initialize();
+
+      expect(controller.notificationPreferences.eventReminders, isFalse);
+      expect(controller.notificationPreferences.fundTransactions, isFalse);
+      expect(controller.notificationPreferences.quietHoursEnabled, isTrue);
+    },
+  );
+
+  test('persists notification preference updates via repository', () async {
+    final repository = _FakeMemberRepository(profile: buildProfile());
+    final preferencesRepository =
+        _FakeProfileNotificationPreferencesRepository();
+    final controller = ProfileController(
+      memberRepository: repository,
+      session: buildSession(),
+      notificationPreferencesRepository: preferencesRepository,
+    );
+
+    await controller.initialize();
+    await controller.updateEventRemindersPreference(false);
+    await controller.updateQuietHoursPreference(true);
+
+    expect(preferencesRepository.saveCalls, 2);
+    expect(controller.notificationPreferences.eventReminders, isFalse);
+    expect(controller.notificationPreferences.quietHoursEnabled, isTrue);
   });
 }
 
@@ -184,5 +242,35 @@ class _FakeMemberRepository implements MemberRepository {
 
     profile = profile.copyWith(avatarUrl: 'debug://avatar/$memberId/$fileName');
     return profile;
+  }
+}
+
+class _FakeProfileNotificationPreferencesRepository
+    implements ProfileNotificationPreferencesRepository {
+  _FakeProfileNotificationPreferencesRepository({
+    ProfileNotificationPreferences? initial,
+  }) : _preferences = initial ?? const ProfileNotificationPreferences();
+
+  ProfileNotificationPreferences _preferences;
+  int saveCalls = 0;
+
+  @override
+  bool get isSandbox => true;
+
+  @override
+  Future<ProfileNotificationPreferences> load({
+    required AuthSession session,
+  }) async {
+    return _preferences;
+  }
+
+  @override
+  Future<ProfileNotificationPreferences> save({
+    required AuthSession session,
+    required ProfileNotificationPreferences preferences,
+  }) async {
+    saveCalls += 1;
+    _preferences = preferences;
+    return preferences;
   }
 }

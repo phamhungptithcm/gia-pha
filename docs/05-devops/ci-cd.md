@@ -189,3 +189,13 @@ Current production automation on `main` now:
 6. uploads the unsigned iOS XCArchive
 7. pushes the BeFam mobile builder image to GHCR
 8. pushes the Firebase tooling image to GHCR
+
+## Release quality gates
+
+Before promoting a release candidate to `main`, complete:
+
+- `05-devops/pre-release-qa-checklist.md`
+- `05-devops/store-assets-checklist.md`
+
+These checklists are part of Epic 17 release-hardening controls and should be
+linked in the release PR description.

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/auth_entry_method.dart';
@@ -13,8 +14,11 @@ import 'auth_gateway.dart';
 import 'phone_number_formatter.dart';
 
 class DebugAuthGateway implements AuthGateway {
+  DebugAuthGateway({FirebaseFirestore? firestore}) : _firestore = firestore;
+
   static const String _debugOtp = '123456';
   static const Duration _debugDelay = Duration(milliseconds: 450);
+  final FirebaseFirestore? _firestore;
 
   static const Map<String, ResolvedChildAccess> _childDirectory = {
     'BEFAM-CHILD-001': ResolvedChildAccess(
@@ -38,6 +42,15 @@ class DebugAuthGateway implements AuthGateway {
   };
 
   static const Map<String, MemberAccessContext> _phoneDirectory = {
+    '+84909990001': MemberAccessContext(
+      memberId: null,
+      displayName: 'Truong Toc Chua Tao Gia Pha',
+      clanId: 'clan_onboarding_001',
+      branchId: null,
+      primaryRole: 'CLAN_ADMIN',
+      accessMode: AuthMemberAccessMode.claimed,
+      linkedAuthUid: true,
+    ),
     '+84901234567': MemberAccessContext(
       memberId: 'member_demo_parent_001',
       displayName: 'Nguyen Minh',
@@ -56,6 +69,25 @@ class DebugAuthGateway implements AuthGateway {
       accessMode: AuthMemberAccessMode.claimed,
       linkedAuthUid: true,
     ),
+    '+84907770011': MemberAccessContext(
+      memberId: 'member_demo_elder_001',
+      displayName: 'Ong Bao',
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_002',
+      primaryRole: 'MEMBER',
+      accessMode: AuthMemberAccessMode.claimed,
+      linkedAuthUid: true,
+    ),
+    '+84906660022': MemberAccessContext.unlinked(displayName: 'Khach Moi'),
+    '+84905550033': MemberAccessContext(
+      memberId: null,
+      displayName: 'Truong Chi Chua Gan Gia Pha',
+      clanId: null,
+      branchId: null,
+      primaryRole: 'BRANCH_ADMIN',
+      accessMode: AuthMemberAccessMode.unlinked,
+      linkedAuthUid: false,
+    ),
   };
 
   @override
@@ -69,15 +101,15 @@ class DebugAuthGateway implements AuthGateway {
   @override
   Future<AuthOtpRequestResult> requestPhoneOtp(String phoneE164) async {
     await Future<void>.delayed(_debugDelay);
-    final memberAccess = _phoneDirectory[phoneE164];
+    final memberAccess = await _memberAccessForPhone(phoneE164);
     return AuthOtpRequestResult.challenge(
       PendingOtpChallenge(
         loginMethod: AuthEntryMethod.phone,
         phoneE164: phoneE164,
         maskedDestination: PhoneNumberFormatter.mask(phoneE164),
         verificationId: 'debug-phone-$phoneE164',
-        memberId: memberAccess?.memberId,
-        displayName: memberAccess?.displayName ?? 'BeFam Member',
+        memberId: memberAccess.memberId,
+        displayName: memberAccess.displayName ?? 'BeFam Member',
         debugOtpHint: _debugOtp,
       ),
     );
@@ -132,21 +164,20 @@ class DebugAuthGateway implements AuthGateway {
       );
     }
 
+    final memberAccess = await _memberAccessFor(challenge);
     return AuthSession(
       uid: 'debug:${challenge.phoneE164}',
       loginMethod: challenge.loginMethod,
       phoneE164: challenge.phoneE164,
       displayName:
-          _memberAccessFor(challenge).displayName ??
-          challenge.displayName ??
-          'BeFam Member',
+          memberAccess.displayName ?? challenge.displayName ?? 'BeFam Member',
       childIdentifier: challenge.childIdentifier,
-      memberId: _memberAccessFor(challenge).memberId ?? challenge.memberId,
-      clanId: _memberAccessFor(challenge).clanId,
-      branchId: _memberAccessFor(challenge).branchId,
-      primaryRole: _memberAccessFor(challenge).primaryRole,
-      accessMode: _memberAccessFor(challenge).accessMode,
-      linkedAuthUid: _memberAccessFor(challenge).linkedAuthUid,
+      memberId: memberAccess.memberId ?? challenge.memberId,
+      clanId: memberAccess.clanId,
+      branchId: memberAccess.branchId,
+      primaryRole: memberAccess.primaryRole,
+      accessMode: memberAccess.accessMode,
+      linkedAuthUid: memberAccess.linkedAuthUid,
       isSandbox: true,
       signedInAtIso: DateTime.now().toIso8601String(),
     );
@@ -155,7 +186,9 @@ class DebugAuthGateway implements AuthGateway {
   @override
   Future<void> signOut() async {}
 
-  MemberAccessContext _memberAccessFor(PendingOtpChallenge challenge) {
+  Future<MemberAccessContext> _memberAccessFor(
+    PendingOtpChallenge challenge,
+  ) async {
     if (challenge.loginMethod == AuthEntryMethod.child) {
       final resolved = _childDirectory[challenge.childIdentifier];
       return MemberAccessContext(
@@ -169,7 +202,58 @@ class DebugAuthGateway implements AuthGateway {
       );
     }
 
-    return _phoneDirectory[challenge.phoneE164] ??
-        MemberAccessContext.unlinked(displayName: challenge.displayName);
+    return _memberAccessForPhone(challenge.phoneE164, challenge.displayName);
+  }
+
+  Future<MemberAccessContext> _memberAccessForPhone(
+    String phoneE164, [
+    String? fallbackDisplayName,
+  ]) async {
+    final remote = await _loadRemoteProfile(phoneE164);
+    if (remote != null) {
+      return remote;
+    }
+    return _phoneDirectory[phoneE164] ??
+        MemberAccessContext.unlinked(displayName: fallbackDisplayName);
+  }
+
+  Future<MemberAccessContext?> _loadRemoteProfile(String phoneE164) async {
+    try {
+      final snapshot = await (_firestore ?? FirebaseFirestore.instance)
+          .collection('debug_login_profiles')
+          .doc(phoneE164)
+          .get();
+      final data = snapshot.data();
+      if (data == null || data['isActive'] == false) {
+        return null;
+      }
+
+      final rawMode = (data['accessMode'] as String?)?.trim().toLowerCase();
+      final accessMode = switch (rawMode) {
+        'claimed' => AuthMemberAccessMode.claimed,
+        'child' => AuthMemberAccessMode.child,
+        _ => AuthMemberAccessMode.unlinked,
+      };
+
+      return MemberAccessContext(
+        memberId: (data['memberId'] as String?)?.trim().isEmpty == true
+            ? null
+            : (data['memberId'] as String?),
+        displayName: (data['displayName'] as String?)?.trim(),
+        clanId: (data['clanId'] as String?)?.trim().isEmpty == true
+            ? null
+            : (data['clanId'] as String?),
+        branchId: (data['branchId'] as String?)?.trim().isEmpty == true
+            ? null
+            : (data['branchId'] as String?),
+        primaryRole: (data['primaryRole'] as String?)?.trim().isEmpty == true
+            ? null
+            : (data['primaryRole'] as String?),
+        accessMode: accessMode,
+        linkedAuthUid: data['linkedAuthUid'] == true,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 }

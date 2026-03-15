@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/achievement_submission.dart';
 import '../models/achievement_submission_draft.dart';
@@ -274,7 +275,9 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
           ),
           body: SafeArea(
             child: _controller.isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const AppLoadingState(
+                    message: 'Loading scholarship workspace...',
+                  )
                 : !_controller.permissions.canViewWorkspace
                 ? const Center(
                     child: Padding(

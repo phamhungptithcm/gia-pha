@@ -1,5 +1,6 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 
+import '../../../core/services/analytics_event_names.dart';
 import '../../../core/services/app_logger.dart';
 import '../models/auth_entry_method.dart';
 import '../models/auth_issue.dart';
@@ -84,7 +85,7 @@ class FirebaseAuthAnalyticsService implements AuthAnalyticsService {
     AuthEntryMethod method, {
     required bool isSandbox,
   }) {
-    return _logEvent('auth_method_selected', {
+    return _logEvent(AnalyticsEventNames.authMethodSelected, {
       'method': method.name,
       'is_sandbox': isSandbox ? 1 : 0,
     });
@@ -96,7 +97,7 @@ class FirebaseAuthAnalyticsService implements AuthAnalyticsService {
     required bool isSandbox,
     required bool isResend,
   }) {
-    return _logEvent('auth_otp_requested', {
+    return _logEvent(AnalyticsEventNames.authOtpRequested, {
       'method': method.name,
       'is_sandbox': isSandbox ? 1 : 0,
       'is_resend': isResend ? 1 : 0,
@@ -109,7 +110,7 @@ class FirebaseAuthAnalyticsService implements AuthAnalyticsService {
     required String childIdentifier,
     required String? memberId,
   }) {
-    return _logEvent('auth_child_context_resolved', {
+    return _logEvent(AnalyticsEventNames.authChildContextResolved, {
       'is_sandbox': isSandbox ? 1 : 0,
       'has_member_id': memberId == null ? 0 : 1,
       'child_identifier_length': childIdentifier.length,
@@ -120,15 +121,15 @@ class FirebaseAuthAnalyticsService implements AuthAnalyticsService {
   Future<void> logSessionEstablished(AuthSession session) async {
     await _analytics.setUserId(id: session.uid);
     await _analytics.setUserProperty(
-      name: 'auth_method',
+      name: AnalyticsUserPropertyNames.authMethod,
       value: session.loginMethod.name,
     );
     await _analytics.setUserProperty(
-      name: 'member_access_mode',
+      name: AnalyticsUserPropertyNames.memberAccessMode,
       value: session.accessMode.name,
     );
 
-    await _logEvent('auth_session_established', {
+    await _logEvent(AnalyticsEventNames.authSessionEstablished, {
       'method': session.loginMethod.name,
       'access_mode': session.accessMode.name,
       'is_sandbox': session.isSandbox ? 1 : 0,
@@ -144,7 +145,7 @@ class FirebaseAuthAnalyticsService implements AuthAnalyticsService {
     AuthEntryMethod? method,
     AuthIssue? issue,
   }) {
-    return _logEvent('auth_failure', {
+    return _logEvent(AnalyticsEventNames.authFailure, {
       'stage': stage,
       'method': method?.name ?? 'unknown',
       'issue': issue?.key.name ?? 'unknown',
@@ -154,7 +155,7 @@ class FirebaseAuthAnalyticsService implements AuthAnalyticsService {
 
   @override
   Future<void> logLogout(AuthSession? session) async {
-    await _logEvent('auth_logout', {
+    await _logEvent(AnalyticsEventNames.authLogout, {
       'method': session?.loginMethod.name ?? 'unknown',
       'access_mode':
           session?.accessMode.name ?? AuthMemberAccessMode.unlinked.name,

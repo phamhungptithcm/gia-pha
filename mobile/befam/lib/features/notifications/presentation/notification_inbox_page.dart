@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/notification_inbox_item.dart';
@@ -198,7 +199,12 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return AppLoadingState(
+        message: l10n.pick(
+          vi: 'Đang tải hộp thư thông báo...',
+          en: 'Loading notifications...',
+        ),
+      );
     }
 
     if (!_hasMemberContext) {
@@ -256,9 +262,14 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
                   ),
                 const SizedBox(height: 16),
                 if (_isLoadingMore)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: AppInlineProgressIndicator(
+                      semanticLabel: l10n.pick(
+                        vi: 'Đang tải thêm thông báo',
+                        en: 'Loading more notifications',
+                      ),
+                    ),
                   )
                 else if (_nextCursor != null)
                   OutlinedButton.icon(
@@ -494,11 +505,16 @@ class _NotificationCard extends StatelessWidget {
                             key: Key('notification-mark-read-${item.id}'),
                             onPressed: isMarkingRead ? null : onMarkAsRead,
                             icon: isMarkingRead
-                                ? const SizedBox(
+                                ? SizedBox(
                                     width: 14,
                                     height: 14,
-                                    child: CircularProgressIndicator(
+                                    child: AppInlineProgressIndicator(
+                                      size: 14,
                                       strokeWidth: 2,
+                                      semanticLabel: l10n.pick(
+                                        vi: 'Đang đánh dấu đã đọc',
+                                        en: 'Marking as read',
+                                      ),
                                     ),
                                   )
                                 : const Icon(Icons.done, size: 18),

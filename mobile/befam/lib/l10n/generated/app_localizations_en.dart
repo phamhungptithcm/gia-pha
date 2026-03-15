@@ -1439,7 +1439,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationSettingsDescription =>
-      'These toggles are placeholders so profile-level notification controls can be finalized in later delivery slices.';
+      'Manage which reminders and updates you want to receive on this device.';
 
   @override
   String get notificationSettingsEventUpdates => 'Event reminders and updates';
@@ -1457,7 +1457,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationSettingsPlaceholderNote =>
-      'This is a UI placeholder. Toggle values are local-only and are not persisted to backend preferences yet.';
+      'Changes are saved to your profile notification preferences for the next sessions.';
 
   @override
   String get authIssueRestoreSessionFailed =>

@@ -1,7 +1,11 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 
 import { APP_REGION } from '../config/runtime';
-import { logInfo, logWarn } from '../shared/logger';
+import {
+  deriveTransactionDeltaMinor,
+  recalculateFundBalanceFromTransaction,
+} from './fund-balance-recalculation';
+import { logWarn } from '../shared/logger';
 
 export const onTransactionCreated = onDocumentCreated(
   {
@@ -18,17 +22,19 @@ export const onTransactionCreated = onDocumentCreated(
     }
 
     const data = snapshot.data();
-    const delta =
-      data.transactionType === 'donation'
-        ? data.amountMinor ?? 0
-        : -1 * (data.amountMinor ?? 0);
-
-    logInfo('transaction created', {
+    const derivedDeltaMinor = deriveTransactionDeltaMinor(data);
+    await recalculateFundBalanceFromTransaction({
       transactionId: event.params.transactionId,
-      clanId: data.clanId ?? null,
-      fundId: data.fundId ?? null,
-      amountMinor: data.amountMinor ?? null,
-      derivedDeltaMinor: delta,
+      transaction: data,
+      source: 'function:onTransactionCreated',
     });
+
+    if (derivedDeltaMinor == null) {
+      logWarn('transaction trigger received unsupported transaction payload', {
+        transactionId: event.params.transactionId,
+        transactionType: data.transactionType ?? null,
+        amountMinor: data.amountMinor ?? null,
+      });
+    }
   },
 );

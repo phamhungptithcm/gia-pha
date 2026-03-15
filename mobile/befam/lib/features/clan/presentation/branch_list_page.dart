@@ -117,6 +117,7 @@ class BranchListPage extends StatelessWidget {
           floatingActionButton: controller.permissions.canManageBranches
               ? FloatingActionButton.extended(
                   onPressed: () => onEditBranch(),
+                  tooltip: l10n.clanAddBranchAction,
                   icon: const Icon(Icons.add),
                   label: Text(l10n.clanAddBranchAction),
                 )

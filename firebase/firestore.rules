@@ -151,6 +151,56 @@ service cloud.firestore {
         request.resource.data.accessMode == memberAccessModeClaim();
     }
 
+    function validNotificationPreferenceWrite(userId, preferenceId) {
+      return signedIn() &&
+        userId == request.auth.uid &&
+        preferenceId == 'notifications' &&
+        request.resource.data.keys().hasOnly([
+          'id',
+          'uid',
+          'memberId',
+          'clanId',
+          'branchId',
+          'eventReminders',
+          'scholarshipUpdates',
+          'fundTransactions',
+          'systemNotices',
+          'quietHoursEnabled',
+          'updatedBy',
+          'updatedAt',
+          'createdAt'
+        ]) &&
+        request.resource.data.keys().hasAll([
+          'id',
+          'uid',
+          'memberId',
+          'clanId',
+          'branchId',
+          'eventReminders',
+          'scholarshipUpdates',
+          'fundTransactions',
+          'systemNotices',
+          'quietHoursEnabled',
+          'updatedBy',
+          'updatedAt',
+          'createdAt'
+        ]) &&
+        request.resource.data.id == preferenceId &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.memberId is string &&
+        request.resource.data.clanId is string &&
+        request.resource.data.branchId is string &&
+        request.resource.data.memberId == memberIdClaim() &&
+        request.resource.data.clanId == primaryClanId() &&
+        request.resource.data.branchId == branchIdClaim() &&
+        request.resource.data.eventReminders is bool &&
+        request.resource.data.scholarshipUpdates is bool &&
+        request.resource.data.fundTransactions is bool &&
+        request.resource.data.systemNotices is bool &&
+        request.resource.data.quietHoursEnabled is bool &&
+        request.resource.data.updatedBy == request.auth.uid;
+    }
+
     function relationshipMemberDoc(memberId) {
       return get(/databases/$(database)/documents/members/$(memberId)).data;
     }
@@ -191,6 +241,21 @@ service cloud.firestore {
         allow create, update: if validDeviceTokenWrite(userId);
         allow delete: if signedIn() && userId == request.auth.uid;
       }
+
+      match /preferences/{preferenceId} {
+        allow read: if
+          signedIn() &&
+          userId == request.auth.uid &&
+          preferenceId == 'notifications';
+        allow create, update: if
+          validNotificationPreferenceWrite(userId, preferenceId);
+        allow delete: if false;
+      }
+    }
+
+    match /debug_login_profiles/{phoneE164} {
+      allow read: if resource.data.isActive == true;
+      allow create, update, delete: if false;
     }
 
     match /clans/{clanId} {

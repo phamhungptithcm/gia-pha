@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/app_locale_controller.dart';
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../../member/models/member_profile.dart';
 import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
+import '../services/profile_notification_preferences_repository.dart';
 import '../models/profile_draft.dart';
 import 'profile_controller.dart';
 
@@ -18,15 +20,20 @@ class ProfileWorkspacePage extends StatefulWidget {
     required this.session,
     required this.memberRepository,
     this.avatarPicker,
+    this.notificationPreferencesRepository,
     this.localeController,
     this.onLogoutRequested,
+    this.showAppBar = false,
   });
 
   final AuthSession session;
   final MemberRepository memberRepository;
   final MemberAvatarPicker? avatarPicker;
+  final ProfileNotificationPreferencesRepository?
+  notificationPreferencesRepository;
   final AppLocaleController? localeController;
   final Future<void> Function()? onLogoutRequested;
+  final bool showAppBar;
 
   @override
   State<ProfileWorkspacePage> createState() => _ProfileWorkspacePageState();
@@ -44,6 +51,8 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     _controller = ProfileController(
       memberRepository: widget.memberRepository,
       session: widget.session,
+      notificationPreferencesRepository:
+          widget.notificationPreferencesRepository,
     );
     _avatarPicker = widget.avatarPicker ?? createDefaultMemberAvatarPicker();
     _localeController = widget.localeController ?? AppLocaleController();
@@ -126,20 +135,14 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
               ListTile(
                 leading: const Icon(Icons.image_outlined),
                 title: Text(
-                  l10n.pick(
-                    vi: 'Xem ảnh hiện tại',
-                    en: 'View current photo',
-                  ),
+                  l10n.pick(vi: 'Xem ảnh hiện tại', en: 'View current photo'),
                 ),
                 onTap: () => Navigator.of(context).pop(_AvatarAction.view),
               ),
               ListTile(
                 leading: const Icon(Icons.file_upload_outlined),
                 title: Text(
-                  l10n.pick(
-                    vi: 'Tải ảnh mới',
-                    en: 'Upload new photo',
-                  ),
+                  l10n.pick(vi: 'Tải ảnh mới', en: 'Upload new photo'),
                 ),
                 onTap: () => Navigator.of(context).pop(_AvatarAction.upload),
               ),
@@ -183,10 +186,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
             child: InteractiveViewer(
               minScale: 1,
               maxScale: 4,
-              child: Image.network(
-                profile.avatarUrl!,
-                fit: BoxFit.cover,
-              ),
+              child: Image.network(profile.avatarUrl!, fit: BoxFit.cover),
             ),
           ),
         );
@@ -249,24 +249,33 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         final l10n = context.l10n;
 
         return Scaffold(
-          appBar: AppBar(
-            title: Text(l10n.shellProfileTitle),
-            actions: [
-              IconButton(
-                tooltip: l10n.profileRefreshAction,
-                onPressed: _controller.isLoading ? null : _controller.refresh,
-                icon: const Icon(Icons.refresh),
-              ),
-              IconButton(
-                tooltip: l10n.profileOpenSettingsAction,
-                onPressed: _openSettings,
-                icon: const Icon(Icons.settings_outlined),
-              ),
-            ],
-          ),
+          appBar: widget.showAppBar
+              ? AppBar(
+                  title: Text(l10n.shellProfileTitle),
+                  actions: [
+                    IconButton(
+                      tooltip: l10n.profileRefreshAction,
+                      onPressed: _controller.isLoading
+                          ? null
+                          : _controller.refresh,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                    IconButton(
+                      tooltip: l10n.profileOpenSettingsAction,
+                      onPressed: _openSettings,
+                      icon: const Icon(Icons.settings_outlined),
+                    ),
+                  ],
+                )
+              : null,
           body: SafeArea(
             child: _controller.isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? AppLoadingState(
+                    message: l10n.pick(
+                      vi: 'Đang tải hồ sơ...',
+                      en: 'Loading profile...',
+                    ),
+                  )
                 : !_controller.hasMemberContext
                 ? _ProfileEmptyState(
                     icon: Icons.lock_outline,
@@ -286,6 +295,29 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
+                        if (!widget.showAppBar) ...[
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Wrap(
+                              spacing: 8,
+                              children: [
+                                IconButton(
+                                  tooltip: l10n.profileRefreshAction,
+                                  onPressed: _controller.isLoading
+                                      ? null
+                                      : _controller.refresh,
+                                  icon: const Icon(Icons.refresh),
+                                ),
+                                IconButton(
+                                  tooltip: l10n.profileOpenSettingsAction,
+                                  onPressed: _openSettings,
+                                  icon: const Icon(Icons.settings_outlined),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                         _ProfileHeroCard(
                           profile: _controller.profile!,
                           roleLabel: l10n.roleLabel(
@@ -305,6 +337,15 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                             title: l10n.profileUpdateErrorTitle,
                             description: _controller.errorMessage!,
                             tone: colorScheme.errorContainer,
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _controller.refresh,
+                              icon: const Icon(Icons.refresh),
+                              label: Text(l10n.profileRefreshAction),
+                            ),
                           ),
                           const SizedBox(height: 20),
                         ],
@@ -360,7 +401,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                         const SizedBox(height: 20),
                         _ProfileSectionCard(
                           title: l10n.notificationSettingsTitle,
-                          child: _NotificationPlaceholderPanel(
+                          child: _NotificationSettingsPanel(
                             controller: _controller,
                           ),
                         ),
@@ -494,16 +535,7 @@ class _SettingsScreenShell extends StatelessWidget {
                 const SizedBox(height: 20),
                 _ProfileSectionCard(
                   title: l10n.notificationSettingsTitle,
-                  child: _NotificationPlaceholderPanel(controller: controller),
-                ),
-                const SizedBox(height: 20),
-                _ProfileSectionCard(
-                  title: l10n.profileSecuritySectionTitle,
-                  child: _ProfileEmptyState(
-                    icon: Icons.security_outlined,
-                    title: l10n.profileSecurityPlaceholderTitle,
-                    description: l10n.profileSecurityPlaceholderDescription,
-                  ),
+                  child: _NotificationSettingsPanel(controller: controller),
                 ),
                 if (onLogoutRequested != null) ...[
                   const SizedBox(height: 20),
@@ -525,8 +557,8 @@ class _SettingsScreenShell extends StatelessWidget {
   }
 }
 
-class _NotificationPlaceholderPanel extends StatelessWidget {
-  const _NotificationPlaceholderPanel({required this.controller});
+class _NotificationSettingsPanel extends StatelessWidget {
+  const _NotificationSettingsPanel({required this.controller});
 
   final ProfileController controller;
 
@@ -535,6 +567,7 @@ class _NotificationPlaceholderPanel extends StatelessWidget {
     final prefs = controller.notificationPreferences;
     final theme = Theme.of(context);
     final l10n = context.l10n;
+    final isSaving = controller.isSavingNotificationPreferences;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -543,45 +576,67 @@ class _NotificationPlaceholderPanel extends StatelessWidget {
           l10n.notificationSettingsDescription,
           style: theme.textTheme.bodyMedium,
         ),
+        if (isSaving) ...[
+          const SizedBox(height: 10),
+          const LinearProgressIndicator(minHeight: 2),
+        ],
         const SizedBox(height: 8),
         SwitchListTile.adaptive(
           key: const Key('notification-setting-event-updates'),
           value: prefs.eventReminders,
-          onChanged: controller.updateEventRemindersPreference,
+          onChanged: isSaving
+              ? null
+              : (value) {
+                  unawaited(controller.updateEventRemindersPreference(value));
+                },
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.notificationSettingsEventUpdates),
-          subtitle: Text(l10n.notificationSettingsPlaceholderNote),
         ),
         SwitchListTile.adaptive(
           key: const Key('notification-setting-scholarship-updates'),
           value: prefs.scholarshipUpdates,
-          onChanged: controller.updateScholarshipUpdatesPreference,
+          onChanged: isSaving
+              ? null
+              : (value) {
+                  unawaited(
+                    controller.updateScholarshipUpdatesPreference(value),
+                  );
+                },
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.notificationSettingsScholarshipUpdates),
-          subtitle: Text(l10n.notificationSettingsPlaceholderNote),
         ),
         SwitchListTile.adaptive(
+          key: const Key('notification-setting-fund-transactions'),
           value: prefs.fundTransactions,
-          onChanged: controller.updateFundTransactionsPreference,
+          onChanged: isSaving
+              ? null
+              : (value) {
+                  unawaited(controller.updateFundTransactionsPreference(value));
+                },
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.profileNotificationFundAlerts),
-          subtitle: Text(l10n.notificationSettingsPlaceholderNote),
         ),
         SwitchListTile.adaptive(
           key: const Key('notification-setting-general-updates'),
           value: prefs.systemNotices,
-          onChanged: controller.updateSystemNoticesPreference,
+          onChanged: isSaving
+              ? null
+              : (value) {
+                  unawaited(controller.updateSystemNoticesPreference(value));
+                },
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.notificationSettingsGeneralUpdates),
-          subtitle: Text(l10n.notificationSettingsPlaceholderNote),
         ),
         SwitchListTile.adaptive(
           key: const Key('notification-setting-quiet-hours'),
-          value: false,
-          onChanged: null,
+          value: prefs.quietHoursEnabled,
+          onChanged: isSaving
+              ? null
+              : (value) {
+                  unawaited(controller.updateQuietHoursPreference(value));
+                },
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.notificationSettingsQuietHours),
-          subtitle: Text(l10n.notificationSettingsPlaceholderNote),
         ),
       ],
     );
@@ -1007,10 +1062,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
 }
 
 class _ProfileSectionCard extends StatelessWidget {
-  const _ProfileSectionCard({
-    required this.title,
-    required this.child,
-  });
+  const _ProfileSectionCard({required this.title, required this.child});
 
   final String title;
   final Widget child;
