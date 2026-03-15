@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/performance_measurement_logger.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -1109,8 +1110,10 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   }
 
   GenealogyScopeType _resolveInitialScope(AuthSession session) {
-    final role = session.primaryRole?.trim().toUpperCase();
-    if (role == 'SUPER_ADMIN' || role == 'CLAN_ADMIN') {
+    final role = GovernanceRoleMatrix.normalizeRole(session.primaryRole);
+    if (role == GovernanceRoles.superAdmin ||
+        role == GovernanceRoles.clanAdmin ||
+        role == GovernanceRoles.adminSupport) {
       return GenealogyScopeType.clan;
     }
     if (session.branchId != null && session.branchId!.isNotEmpty) {

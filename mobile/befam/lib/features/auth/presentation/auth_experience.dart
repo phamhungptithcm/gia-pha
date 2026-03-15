@@ -13,6 +13,8 @@ import '../../../core/services/app_logger.dart';
 import '../../../core/services/app_locale_controller.dart';
 import '../../../l10n/l10n.dart';
 import '../../clan/services/clan_repository.dart';
+import '../../discovery/presentation/genealogy_discovery_page.dart';
+import '../../discovery/services/genealogy_discovery_repository.dart';
 import '../../member/services/member_repository.dart';
 import '../models/auth_entry_method.dart';
 import '../models/pending_otp_challenge.dart';
@@ -158,6 +160,18 @@ class _AuthScaffold extends StatelessWidget {
                     unawaited(controller.setPrivacyPolicyAccepted(accepted));
                   },
                   onViewPrivacyPolicy: () => _showPrivacyPolicy(context),
+                  onOpenDiscovery: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (context) {
+                          return GenealogyDiscoveryPage(
+                            repository:
+                                createDefaultGenealogyDiscoveryRepository(),
+                          );
+                        },
+                      ),
+                    );
+                  },
                 ),
                 AuthStep.phoneNumber => _PhoneLoginCard(
                   isBusy: controller.isBusy,
@@ -336,6 +350,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
     required this.onSandboxProfileSelected,
     required this.onPrivacyConsentChanged,
     required this.onViewPrivacyPolicy,
+    required this.onOpenDiscovery,
   });
 
   final bool isBusy;
@@ -348,6 +363,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
   onSandboxProfileSelected;
   final ValueChanged<bool> onPrivacyConsentChanged;
   final VoidCallback onViewPrivacyPolicy;
+  final VoidCallback onOpenDiscovery;
 
   @override
   Widget build(BuildContext context) {
@@ -382,6 +398,22 @@ class _LoginMethodSelectionCard extends StatelessWidget {
           onPressed: isBusy || !hasAcceptedPrivacyPolicy
               ? null
               : onChildSelected,
+        ),
+        const SizedBox(height: 16),
+        _MethodCard(
+          title: l10n.pick(
+            vi: 'Khám phá gia phả công khai',
+            en: 'Discover public genealogies',
+          ),
+          description: l10n.pick(
+            vi: 'Tìm gia phả theo trưởng tộc hoặc địa phương rồi gửi yêu cầu tham gia trực tiếp.',
+            en: 'Search genealogies by leader or location, then submit a request to join.',
+          ),
+          icon: Icons.travel_explore_outlined,
+          buttonLabel: l10n.pick(vi: 'Tìm gia phả', en: 'Explore now'),
+          onPressed: isBusy || !hasAcceptedPrivacyPolicy
+              ? null
+              : onOpenDiscovery,
         ),
         if (showSandboxProfiles) ...[
           const SizedBox(height: 16),

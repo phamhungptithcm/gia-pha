@@ -1,3 +1,39 @@
+class ScholarshipApprovalVote {
+  const ScholarshipApprovalVote({
+    required this.memberId,
+    required this.decision,
+    required this.createdAtIso,
+    this.note,
+  });
+
+  final String memberId;
+  final String decision;
+  final String createdAtIso;
+  final String? note;
+
+  bool get isApprove => decision.trim().toLowerCase() == 'approve';
+  bool get isReject => decision.trim().toLowerCase() == 'reject';
+
+  Map<String, dynamic> toJson() {
+    return {
+      'memberId': memberId,
+      'decision': decision,
+      'createdAt': createdAtIso,
+      'note': note,
+    };
+  }
+
+  factory ScholarshipApprovalVote.fromJson(Map<String, dynamic> json) {
+    final nowIso = DateTime.now().toIso8601String();
+    return ScholarshipApprovalVote(
+      memberId: json['memberId'] as String? ?? '',
+      decision: json['decision'] as String? ?? '',
+      createdAtIso: _isoFromDynamic(json['createdAt']) ?? nowIso,
+      note: json['note'] as String?,
+    );
+  }
+}
+
 class AchievementSubmission {
   const AchievementSubmission({
     required this.id,
@@ -15,6 +51,8 @@ class AchievementSubmission {
     required this.reviewedAtIso,
     required this.createdAtIso,
     required this.updatedAtIso,
+    this.approvalVotes = const [],
+    this.finalDecisionReason,
   });
 
   final String id;
@@ -32,10 +70,15 @@ class AchievementSubmission {
   final String? reviewedAtIso;
   final String createdAtIso;
   final String updatedAtIso;
+  final List<ScholarshipApprovalVote> approvalVotes;
+  final String? finalDecisionReason;
 
   bool get isPending => status.trim().toLowerCase() == 'pending';
   bool get isApproved => status.trim().toLowerCase() == 'approved';
   bool get isRejected => status.trim().toLowerCase() == 'rejected';
+
+  int get approvalCount => approvalVotes.where((vote) => vote.isApprove).length;
+  int get rejectionCount => approvalVotes.where((vote) => vote.isReject).length;
 
   AchievementSubmission copyWith({
     String? id,
@@ -56,6 +99,9 @@ class AchievementSubmission {
     bool clearReviewedAtIso = false,
     String? createdAtIso,
     String? updatedAtIso,
+    List<ScholarshipApprovalVote>? approvalVotes,
+    String? finalDecisionReason,
+    bool clearFinalDecisionReason = false,
   }) {
     return AchievementSubmission(
       id: id ?? this.id,
@@ -75,6 +121,10 @@ class AchievementSubmission {
           : (reviewedAtIso ?? this.reviewedAtIso),
       createdAtIso: createdAtIso ?? this.createdAtIso,
       updatedAtIso: updatedAtIso ?? this.updatedAtIso,
+      approvalVotes: approvalVotes ?? this.approvalVotes,
+      finalDecisionReason: clearFinalDecisionReason
+          ? null
+          : (finalDecisionReason ?? this.finalDecisionReason),
     );
   }
 
@@ -93,6 +143,10 @@ class AchievementSubmission {
       'reviewNote': reviewNote,
       'reviewedBy': reviewedBy,
       'reviewedAt': reviewedAtIso,
+      'approvalVotes': approvalVotes.map((vote) => vote.toJson()).toList(
+        growable: false,
+      ),
+      'finalDecisionReason': finalDecisionReason,
       'createdAt': createdAtIso,
       'updatedAt': updatedAtIso,
     };
@@ -114,6 +168,8 @@ class AchievementSubmission {
       reviewNote: json['reviewNote'] as String?,
       reviewedBy: json['reviewedBy'] as String?,
       reviewedAtIso: _isoFromDynamic(json['reviewedAt']),
+      approvalVotes: _asApprovalVotes(json['approvalVotes']),
+      finalDecisionReason: json['finalDecisionReason'] as String?,
       createdAtIso: _isoFromDynamic(json['createdAt']) ?? nowIso,
       updatedAtIso: _isoFromDynamic(json['updatedAt']) ?? nowIso,
     );
@@ -130,6 +186,30 @@ List<String> _asStringList(dynamic value) {
       .map((item) => item.trim())
       .where((item) => item.isNotEmpty)
       .toList(growable: false);
+}
+
+List<ScholarshipApprovalVote> _asApprovalVotes(dynamic value) {
+  if (value is! List) {
+    return const [];
+  }
+
+  final votes = <ScholarshipApprovalVote>[];
+  for (final entry in value) {
+    if (entry is Map<String, dynamic>) {
+      votes.add(ScholarshipApprovalVote.fromJson(entry));
+      continue;
+    }
+    if (entry is Map) {
+      votes.add(
+        ScholarshipApprovalVote.fromJson(
+          entry.map(
+            (key, raw) => MapEntry(key.toString(), raw),
+          ),
+        ),
+      );
+    }
+  }
+  return votes;
 }
 
 String? _isoFromDynamic(dynamic value) {

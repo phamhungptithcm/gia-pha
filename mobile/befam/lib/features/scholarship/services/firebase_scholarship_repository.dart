@@ -1,16 +1,19 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/achievement_submission.dart';
 import '../models/achievement_submission_draft.dart';
 import '../models/award_level.dart';
 import '../models/award_level_draft.dart';
+import '../models/scholarship_approval_log_entry.dart';
 import '../models/scholarship_program.dart';
 import '../models/scholarship_program_draft.dart';
 import '../models/scholarship_workspace_snapshot.dart';
@@ -20,11 +23,14 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
   FirebaseScholarshipRepository({
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
+    FirebaseFunctions? functions,
   }) : _firestore = firestore ?? FirebaseServices.firestore,
-       _storage = storage ?? FirebaseServices.storage;
+       _storage = storage ?? FirebaseServices.storage,
+       _functions = functions ?? FirebaseServices.functions;
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+  final FirebaseFunctions _functions;
 
   CollectionReference<Map<String, dynamic>> get _programs =>
       _firestore.collection('scholarshipPrograms');
@@ -37,6 +43,9 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
 
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
+
+  CollectionReference<Map<String, dynamic>> get _approvalLogs =>
+      _firestore.collection('scholarshipApprovalLogs');
 
   @override
   bool get isSandbox => false;
@@ -57,6 +66,8 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
         awardLevels: [],
         submissions: [],
         memberNamesById: {},
+        approvalLogs: [],
+        councilHeadMemberIds: [],
       );
     }
 
@@ -65,6 +76,11 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       _awardLevels.where('clanId', isEqualTo: clanId).get(),
       _submissions.where('clanId', isEqualTo: clanId).get(),
       _members.where('clanId', isEqualTo: clanId).get(),
+      _approvalLogs
+          .where('clanId', isEqualTo: clanId)
+          .orderBy('createdAt', descending: true)
+          .limit(200)
+          .get(),
     ]);
 
     final programs = results[0].docs
@@ -99,11 +115,30 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
               : (doc.data()['id'] as String),
     };
 
+    final councilHeadMemberIds = results[3].docs
+        .where((doc) {
+          final role = (doc.data()['primaryRole'] as String?)?.trim().toUpperCase();
+          final status = (doc.data()['status'] as String?)?.trim().toLowerCase();
+          return role == GovernanceRoles.scholarshipCouncilHead &&
+              (status == null || status.isEmpty || status == 'active');
+        })
+        .map((doc) => doc.id)
+        .toList(growable: false);
+
+    final approvalLogs = results[4].docs
+        .map((doc) => ScholarshipApprovalLogEntry.fromJson(doc.data()))
+        .sorted(
+          (left, right) => right.createdAtIso.compareTo(left.createdAtIso),
+        )
+        .toList(growable: false);
+
     return ScholarshipWorkspaceSnapshot(
       programs: programs,
       awardLevels: awardLevels,
       submissions: submissions,
       memberNamesById: memberNamesById,
+      approvalLogs: approvalLogs,
+      councilHeadMemberIds: councilHeadMemberIds,
     );
   }
 
@@ -383,26 +418,50 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       );
     }
 
-    final submissionRef = _submissions.doc(submissionId);
-    final existing = await submissionRef.get();
-    final data = existing.data();
-    if (!existing.exists || data == null || data['clanId'] != clanId) {
-      throw const ScholarshipRepositoryException(
-        ScholarshipRepositoryErrorCode.submissionNotFound,
+    final callable = _functions.httpsCallable('reviewScholarshipSubmission');
+    try {
+      final response = await callable.call(<String, dynamic>{
+        'submissionId': submissionId,
+        'decision': approved ? 'approve' : 'reject',
+        'note': _nullIfEmpty(reviewNote),
+      });
+      final data = response.data;
+      if (data is Map && data['submission'] is Map<String, dynamic>) {
+        return AchievementSubmission.fromJson(
+          data['submission'] as Map<String, dynamic>,
+        );
+      }
+
+      final updated = await _submissions.doc(submissionId).get();
+      if (!updated.exists || updated.data() == null) {
+        throw const ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.submissionNotFound,
+        );
+      }
+      return AchievementSubmission.fromJson(updated.data()!);
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code == 'already-exists') {
+        throw ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.validationFailed,
+          'duplicate_vote',
+        );
+      }
+      if (error.code == 'permission-denied') {
+        throw ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.permissionDenied,
+          error.message,
+        );
+      }
+      if (error.code == 'not-found') {
+        throw const ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.submissionNotFound,
+        );
+      }
+      throw ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.validationFailed,
+        error.message ?? error.code,
       );
     }
-
-    await submissionRef.set({
-      'status': approved ? 'approved' : 'rejected',
-      'reviewNote': _nullIfEmpty(reviewNote),
-      'reviewedBy': session.memberId ?? session.uid,
-      'reviewedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedBy': session.memberId ?? session.uid,
-    }, SetOptions(merge: true));
-
-    final updated = await submissionRef.get();
-    return AchievementSubmission.fromJson(updated.data()!);
   }
 }
 

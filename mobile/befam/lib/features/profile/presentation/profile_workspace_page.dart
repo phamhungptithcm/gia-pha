@@ -7,6 +7,8 @@ import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
+import '../../billing/presentation/billing_workspace_page.dart';
+import '../../billing/services/billing_repository.dart';
 import '../../member/models/member_profile.dart';
 import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
@@ -22,6 +24,8 @@ class ProfileWorkspacePage extends StatefulWidget {
     this.avatarPicker,
     this.notificationPreferencesRepository,
     this.localeController,
+    this.billingRepository,
+    this.onBillingStateChanged,
     this.onLogoutRequested,
     this.showAppBar = false,
   });
@@ -32,6 +36,8 @@ class ProfileWorkspacePage extends StatefulWidget {
   final ProfileNotificationPreferencesRepository?
   notificationPreferencesRepository;
   final AppLocaleController? localeController;
+  final BillingRepository? billingRepository;
+  final VoidCallback? onBillingStateChanged;
   final Future<void> Function()? onLogoutRequested;
   final bool showAppBar;
 
@@ -200,7 +206,10 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         builder: (context) {
           return _SettingsScreenShell(
             controller: _controller,
+            session: widget.session,
             localeController: _localeController,
+            billingRepository: widget.billingRepository,
+            onBillingStateChanged: widget.onBillingStateChanged,
             onLogoutRequested: widget.onLogoutRequested,
           );
         },
@@ -428,12 +437,18 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
 class _SettingsScreenShell extends StatelessWidget {
   const _SettingsScreenShell({
     required this.controller,
+    required this.session,
     required this.localeController,
+    this.billingRepository,
+    this.onBillingStateChanged,
     required this.onLogoutRequested,
   });
 
   final ProfileController controller;
+  final AuthSession session;
   final AppLocaleController localeController;
+  final BillingRepository? billingRepository;
+  final VoidCallback? onBillingStateChanged;
   final Future<void> Function()? onLogoutRequested;
 
   Future<void> _confirmLogout(BuildContext context) async {
@@ -536,6 +551,46 @@ class _SettingsScreenShell extends StatelessWidget {
                 _ProfileSectionCard(
                   title: l10n.notificationSettingsTitle,
                   child: _NotificationSettingsPanel(controller: controller),
+                ),
+                const SizedBox(height: 20),
+                _ProfileSectionCard(
+                  title: l10n.pick(
+                    vi: 'Gói dịch vụ & thanh toán',
+                    en: 'Subscription & billing',
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.pick(
+                          vi: 'Xem trạng thái gói, ngày hết hạn, chế độ thanh toán tự động/thủ công và lịch sử giao dịch.',
+                          en: 'View your current plan, expiry date, payment mode, and transaction history.',
+                        ),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 10),
+                      FilledButton.tonalIcon(
+                        onPressed: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (context) => BillingWorkspacePage(
+                                session: session,
+                                repository: billingRepository,
+                              ),
+                            ),
+                          );
+                          onBillingStateChanged?.call();
+                        },
+                        icon: const Icon(Icons.workspace_premium_outlined),
+                        label: Text(
+                          l10n.pick(
+                            vi: 'Mở quản lý gói',
+                            en: 'Open billing workspace',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 if (onLogoutRequested != null) ...[
                   const SizedBox(height: 20),

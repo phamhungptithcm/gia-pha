@@ -200,11 +200,26 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
       return;
     }
 
-    _showResultSnackBar(
-      error == null
-          ? (approved ? 'Submission approved.' : 'Submission rejected.')
-          : 'Could not review submission (${error.name}).',
-    );
+    if (error == null) {
+      _showResultSnackBar(
+        approved
+            ? 'Vote recorded. Submission will approve when 2 council heads approve.'
+            : 'Rejection vote recorded.',
+      );
+      return;
+    }
+
+    final errorHint = _controller.errorMessage?.toLowerCase() ?? '';
+    if (errorHint.contains('duplicate_vote')) {
+      _showResultSnackBar('You have already voted for this submission.');
+      return;
+    }
+    if (errorHint.contains('permission')) {
+      _showResultSnackBar('Only Scholarship Council Heads can vote.');
+      return;
+    }
+
+    _showResultSnackBar('Could not review submission (${error.name}).');
   }
 
   Future<String?> _openReviewNoteDialog() async {
@@ -353,6 +368,33 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                               padding: EdgeInsets.all(16),
                               child: Text(
                                 'You have read-only scholarship access in this session.',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                        if (_controller.canViewApprovalHistory) ...[
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Governance status',
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Council heads: ${_controller.councilHeadMemberIds.length}/3 seats active',
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    'Scholarship submissions are finalized automatically at 2 approvals (or 2 rejections).',
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -592,6 +634,10 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                               Text(
                                                 'Evidence files: ${submission.evidenceUrls.length}',
                                               ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Council votes: ${submission.approvalCount} approve • ${submission.rejectionCount} reject',
+                                              ),
                                               if (submission.reviewNote !=
                                                       null &&
                                                   submission.reviewNote!
@@ -600,6 +646,16 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                 const SizedBox(height: 4),
                                                 Text(
                                                   'Review note: ${submission.reviewNote}',
+                                                ),
+                                              ],
+                                              if (submission
+                                                      .finalDecisionReason
+                                                      ?.trim()
+                                                      .isNotEmpty ==
+                                                  true) ...[
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Final reason: ${submission.finalDecisionReason}',
                                                 ),
                                               ],
                                             ],
@@ -652,6 +708,10 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                               Text(
                                                 'Member: ${_controller.memberName(submission.memberId)}',
                                               ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                '2-of-3 council rule • ${submission.approvalCount}/2 approvals',
+                                              ),
                                               const SizedBox(height: 10),
                                               Row(
                                                 children: [
@@ -663,6 +723,10 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                       onPressed:
                                                           _controller
                                                               .isReviewing
+                                                          || _controller
+                                                                  .hasCurrentReviewerVoted(
+                                                                    submission,
+                                                                  )
                                                           ? null
                                                           : () {
                                                               _reviewSubmission(
@@ -688,6 +752,10 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                       onPressed:
                                                           _controller
                                                               .isReviewing
+                                                          || _controller
+                                                                  .hasCurrentReviewerVoted(
+                                                                    submission,
+                                                                  )
                                                           ? null
                                                           : () {
                                                               _reviewSubmission(
@@ -713,6 +781,41 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                   ],
                                 ),
                         ),
+                        if (_controller.canViewApprovalHistory) ...[
+                          const SizedBox(height: 16),
+                          _SectionCard(
+                            title: 'Approval activity log',
+                            child: _controller.approvalLogs.isEmpty
+                                ? const _InlineEmpty(
+                                    message:
+                                        'No approval activity yet for this clan.',
+                                  )
+                                : Column(
+                                    children: [
+                                      for (final log in _controller
+                                          .approvalLogs
+                                          .take(25))
+                                        ListTile(
+                                          key: Key(
+                                            'scholarship-approval-log-${log.id}',
+                                          ),
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(
+                                            log.action == 'finalized'
+                                                ? Icons.flag_outlined
+                                                : Icons.how_to_vote_outlined,
+                                          ),
+                                          title: Text(
+                                            '${log.action.toUpperCase()} • ${log.decision ?? 'n/a'}',
+                                          ),
+                                          subtitle: Text(
+                                            'Submission ${log.submissionId} • ${_controller.memberName(log.actorMemberId)}',
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -859,6 +962,20 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
                                             Text(
                                               'Evidence files: ${submission.evidenceUrls.length}',
                                             ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Council votes: ${submission.approvalCount} approve • ${submission.rejectionCount} reject',
+                                            ),
+                                            if (submission
+                                                    .finalDecisionReason
+                                                    ?.trim()
+                                                    .isNotEmpty ==
+                                                true) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Final reason: ${submission.finalDecisionReason}',
+                                              ),
+                                            ],
                                             if (controller
                                                     .canReviewSubmissions &&
                                                 submission.isPending) ...[
@@ -870,13 +987,19 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
                                                       key: Key(
                                                         'scholarship-detail-approve-${submission.id}',
                                                       ),
-                                                      onPressed: () {
-                                                        onReviewSubmission(
-                                                          submission:
-                                                              submission,
-                                                          approved: true,
-                                                        );
-                                                      },
+                                                      onPressed:
+                                                          controller
+                                                              .hasCurrentReviewerVoted(
+                                                                submission,
+                                                              )
+                                                          ? null
+                                                          : () {
+                                                              onReviewSubmission(
+                                                                submission:
+                                                                    submission,
+                                                                approved: true,
+                                                              );
+                                                            },
                                                       child: const Text(
                                                         'Approve',
                                                       ),
@@ -888,13 +1011,19 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
                                                       key: Key(
                                                         'scholarship-detail-reject-${submission.id}',
                                                       ),
-                                                      onPressed: () {
-                                                        onReviewSubmission(
-                                                          submission:
-                                                              submission,
-                                                          approved: false,
-                                                        );
-                                                      },
+                                                      onPressed:
+                                                          controller
+                                                              .hasCurrentReviewerVoted(
+                                                                submission,
+                                                              )
+                                                          ? null
+                                                          : () {
+                                                              onReviewSubmission(
+                                                                submission:
+                                                                    submission,
+                                                                approved: false,
+                                                              );
+                                                            },
                                                       child: const Text(
                                                         'Reject',
                                                       ),

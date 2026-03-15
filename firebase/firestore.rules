@@ -47,15 +47,39 @@ service cloud.firestore {
     }
 
     function isClanAdmin() {
-      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN'];
+      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN', 'ADMIN_SUPPORT'];
     }
 
     function isClanSettingsAdmin() {
-      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN'];
+      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'ADMIN_SUPPORT'];
     }
 
     function isBranchAdmin() {
       return primaryRole() == 'BRANCH_ADMIN';
+    }
+
+    function isScholarshipCouncilHead() {
+      return primaryRole() == 'SCHOLARSHIP_COUNCIL_HEAD';
+    }
+
+    function isFinanceViewer() {
+      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN', 'TREASURER'];
+    }
+
+    function isFinanceManager() {
+      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'TREASURER'];
+    }
+
+    function isGovernanceJoinReviewer() {
+      return primaryRole() in [
+        'SUPER_ADMIN',
+        'CLAN_ADMIN',
+        'BRANCH_ADMIN',
+        'ADMIN_SUPPORT',
+        'CLAN_LEADER',
+        'VICE_LEADER',
+        'SUPPORTER_OF_LEADER'
+      ];
     }
 
     function isBranchScopedMemberManager(existingBranchId, nextBranchId) {
@@ -327,12 +351,12 @@ service cloud.firestore {
     }
 
     match /funds/{fundId} {
-      allow read: if hasClanAccess(resource.data.clanId);
-      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+      allow read: if hasClanAccess(resource.data.clanId) && isFinanceViewer();
+      allow write: if isFinanceManager() && hasClanAccess(request.resource.data.clanId);
     }
 
     match /transactions/{transactionId} {
-      allow read: if hasClanAccess(resource.data.clanId);
+      allow read: if hasClanAccess(resource.data.clanId) && isFinanceViewer();
       allow write: if false;
     }
 
@@ -352,15 +376,50 @@ service cloud.firestore {
         hasClanAccess(request.resource.data.clanId) &&
         request.resource.data.memberId == memberIdClaim();
       allow update: if
-        hasClanAccess(resource.data.clanId) && (
-          isClanAdmin() ||
-          (
-            resource.data.memberId == memberIdClaim() &&
-            resource.data.status == 'pending' &&
-            request.resource.data.status == 'pending'
-          )
-        );
+        hasClanAccess(resource.data.clanId) &&
+        resource.data.memberId == memberIdClaim() &&
+        resource.data.status == 'pending' &&
+        request.resource.data.status == 'pending';
       allow delete: if false;
+    }
+
+    match /scholarshipApprovalLogs/{logId} {
+      allow read: if
+        hasClanAccess(resource.data.clanId) &&
+        (isClanSettingsAdmin() || isScholarshipCouncilHead());
+      allow write: if false;
+    }
+
+    match /governanceRoleAssignments/{assignmentId} {
+      allow read: if hasClanAccess(resource.data.clanId) && isClanSettingsAdmin();
+      allow write: if false;
+    }
+
+    match /genealogyDiscoveryIndex/{entryId} {
+      allow read: if
+        (
+          resource.data.isPublic == true
+        ) ||
+        (
+          hasClanAccess(resource.data.clanId) &&
+          isGovernanceJoinReviewer()
+        );
+      allow write: if false;
+    }
+
+    match /joinRequests/{requestId} {
+      allow read: if hasClanAccess(resource.data.clanId) && isGovernanceJoinReviewer();
+      allow write: if false;
+    }
+
+    match /joinRequestNotifications/{notificationId} {
+      allow read: if hasClanAccess(resource.data.clanId) && isGovernanceJoinReviewer();
+      allow write: if false;
+    }
+
+    match /joinRequestNotificationEvents/{eventId} {
+      allow read: if hasClanAccess(resource.data.clanId) && isGovernanceJoinReviewer();
+      allow write: if false;
     }
 
     match /notifications/{notificationId} {

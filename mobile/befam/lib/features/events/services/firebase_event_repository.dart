@@ -3,7 +3,7 @@ import 'package:collection/collection.dart';
 
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
-import '../../auth/models/auth_member_access_mode.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../../clan/models/branch_profile.dart';
 import '../../member/models/member_profile.dart';
@@ -150,12 +150,7 @@ class FirebaseEventRepository implements EventRepository {
   }
 
   void _ensureCanManage(AuthSession session) {
-    final role = session.primaryRole?.trim().toUpperCase() ?? '';
-    final canManage =
-        session.clanId?.isNotEmpty == true &&
-        session.accessMode == AuthMemberAccessMode.claimed &&
-        session.linkedAuthUid &&
-        const {'SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN'}.contains(role);
+    final canManage = GovernanceRoleMatrix.canManageEvents(session);
     if (!canManage) {
       throw const EventRepositoryException(
         EventRepositoryErrorCode.permissionDenied,
