@@ -110,7 +110,7 @@ void main() {
   });
 
   testWidgets(
-    'renders notification settings placeholder toggles on Profile tab',
+    'renders notification settings toggles on Profile tab',
     (tester) async {
       await tester.pumpWidget(
         _ShellTestApp(

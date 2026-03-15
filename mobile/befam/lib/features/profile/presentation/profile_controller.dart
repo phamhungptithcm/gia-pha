@@ -8,20 +8,28 @@ import '../../member/models/member_social_links.dart';
 import '../../member/services/member_repository.dart';
 import '../models/profile_draft.dart';
 import '../models/profile_notification_preferences.dart';
+import '../services/profile_notification_preferences_repository.dart';
 
 class ProfileController extends ChangeNotifier {
   ProfileController({
     required MemberRepository memberRepository,
     required AuthSession session,
+    ProfileNotificationPreferencesRepository? notificationPreferencesRepository,
   }) : _memberRepository = memberRepository,
-       _session = session;
+       _session = session,
+       _notificationPreferencesRepository =
+           notificationPreferencesRepository ??
+           createDefaultProfileNotificationPreferencesRepository();
 
   final MemberRepository _memberRepository;
   final AuthSession _session;
+  final ProfileNotificationPreferencesRepository
+  _notificationPreferencesRepository;
 
   bool _isLoading = true;
   bool _isSavingProfile = false;
   bool _isUploadingAvatar = false;
+  bool _isSavingNotificationPreferences = false;
   String? _errorMessage;
   MemberProfile? _profile;
   ProfileNotificationPreferences _notificationPreferences =
@@ -30,6 +38,7 @@ class ProfileController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isSavingProfile => _isSavingProfile;
   bool get isUploadingAvatar => _isUploadingAvatar;
+  bool get isSavingNotificationPreferences => _isSavingNotificationPreferences;
   String? get errorMessage => _errorMessage;
   MemberProfile? get profile => _profile;
   ProfileNotificationPreferences get notificationPreferences =>
@@ -50,8 +59,18 @@ class ProfileController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    String? failureMessage;
+    try {
+      _notificationPreferences = await _notificationPreferencesRepository.load(
+        session: _session,
+      );
+    } catch (error) {
+      failureMessage = error.toString();
+    }
+
     if (!hasMemberContext) {
       _profile = null;
+      _errorMessage = failureMessage;
       _isLoading = false;
       notifyListeners();
       return;
@@ -67,9 +86,10 @@ class ProfileController extends ChangeNotifier {
           ) ??
           snapshot.members.firstWhereOrNull((member) => member.authUid == uid);
     } catch (error) {
-      _errorMessage = error.toString();
+      failureMessage = error.toString();
       _profile = null;
     } finally {
+      _errorMessage = failureMessage;
       _isLoading = false;
       notifyListeners();
     }
@@ -150,32 +170,61 @@ class ProfileController extends ChangeNotifier {
     }
   }
 
-  void updateEventRemindersPreference(bool enabled) {
-    _notificationPreferences = _notificationPreferences.copyWith(
-      eventReminders: enabled,
+  Future<void> updateEventRemindersPreference(bool enabled) {
+    return _updateNotificationPreference(
+      _notificationPreferences.copyWith(eventReminders: enabled),
     );
-    notifyListeners();
   }
 
-  void updateScholarshipUpdatesPreference(bool enabled) {
-    _notificationPreferences = _notificationPreferences.copyWith(
-      scholarshipUpdates: enabled,
+  Future<void> updateScholarshipUpdatesPreference(bool enabled) {
+    return _updateNotificationPreference(
+      _notificationPreferences.copyWith(scholarshipUpdates: enabled),
     );
-    notifyListeners();
   }
 
-  void updateFundTransactionsPreference(bool enabled) {
-    _notificationPreferences = _notificationPreferences.copyWith(
-      fundTransactions: enabled,
+  Future<void> updateFundTransactionsPreference(bool enabled) {
+    return _updateNotificationPreference(
+      _notificationPreferences.copyWith(fundTransactions: enabled),
     );
-    notifyListeners();
   }
 
-  void updateSystemNoticesPreference(bool enabled) {
-    _notificationPreferences = _notificationPreferences.copyWith(
-      systemNotices: enabled,
+  Future<void> updateSystemNoticesPreference(bool enabled) {
+    return _updateNotificationPreference(
+      _notificationPreferences.copyWith(systemNotices: enabled),
     );
+  }
+
+  Future<void> updateQuietHoursPreference(bool enabled) {
+    return _updateNotificationPreference(
+      _notificationPreferences.copyWith(quietHoursEnabled: enabled),
+    );
+  }
+
+  Future<void> _updateNotificationPreference(
+    ProfileNotificationPreferences next,
+  ) async {
+    if (_isSavingNotificationPreferences) {
+      return;
+    }
+
+    final previous = _notificationPreferences;
+    _notificationPreferences = next;
+    _isSavingNotificationPreferences = true;
+    _errorMessage = null;
     notifyListeners();
+
+    try {
+      _notificationPreferences = await _notificationPreferencesRepository.save(
+        session: _session,
+        preferences: next,
+      );
+    } catch (error) {
+      _notificationPreferences = previous;
+      _errorMessage = error.toString();
+    } finally {
+      _isSavingNotificationPreferences = false;
+      notifyListeners();
+    }
   }
 }
 

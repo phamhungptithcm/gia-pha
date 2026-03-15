@@ -2705,7 +2705,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationSettingsDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Các công tắc này là bản giữ chỗ để hoàn thiện cài đặt thông báo cấp hồ sơ ở các đợt phát hành tiếp theo.'**
+  /// **'Quản lý lời nhắc và loại thông báo bạn muốn nhận trên thiết bị này.'**
   String get notificationSettingsDescription;
 
   /// No description provided for @notificationSettingsEventUpdates.
@@ -2735,7 +2735,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationSettingsPlaceholderNote.
   ///
   /// In vi, this message translates to:
-  /// **'Đây là giao diện giữ chỗ. Giá trị công tắc chỉ áp dụng cục bộ và chưa được lưu vào tùy chọn backend.'**
+  /// **'Thay đổi sẽ được lưu vào cài đặt hồ sơ và áp dụng cho phiên sử dụng tiếp theo.'**
   String get notificationSettingsPlaceholderNote;
 
   /// No description provided for @authIssueRestoreSessionFailed.
