@@ -1,6 +1,6 @@
 # Firebase Rules
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## Firestore rules highlights
 
@@ -47,4 +47,6 @@ Rules are defined in `firebase/storage.rules` and enforce:
 - keep rules and indexes versioned with feature changes
 - deploy rules/indexes through CI from protected branches
 - validate new role fields in both claims and `users/{uid}` fallback docs
+- keep `docs/06-security/firebase-rules.md` aligned using
+  `scripts/validate_rules_documentation.py` in CI
 - include billing collections in emulator/rules test matrix before rollout
