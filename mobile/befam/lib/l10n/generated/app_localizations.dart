@@ -533,13 +533,13 @@ abstract class AppLocalizations {
   /// No description provided for @genealogyWorkspaceTitle.
   ///
   /// In vi, this message translates to:
-  /// **'Read model gia phả'**
+  /// **'Không gian cây gia phả'**
   String get genealogyWorkspaceTitle;
 
   /// No description provided for @genealogyWorkspaceDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Tải phạm vi của cả họ hoặc chi hiện tại, kiểm tra các điểm vào gốc, rồi xác minh chuỗi tổ tiên, hậu duệ, anh chị em và dữ liệu cây đã được cache trước khi bước sang màn hình cây trực quan.'**
+  /// **'Tải phạm vi cả họ hoặc chi hiện tại, kiểm tra các điểm vào gốc, rồi mở cây trực quan để theo dõi tổ tiên, hậu duệ và quan hệ hôn phối dễ hiểu.'**
   String get genealogyWorkspaceDescription;
 
   /// No description provided for @genealogyScopeClan.
@@ -680,6 +680,60 @@ abstract class AppLocalizations {
   /// **'Hậu duệ'**
   String get genealogyDescendantCountLabel;
 
+  /// No description provided for @genealogyMemberStatusLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tình trạng'**
+  String get genealogyMemberStatusLabel;
+
+  /// No description provided for @genealogyMemberAliveStatus.
+  ///
+  /// In vi, this message translates to:
+  /// **'Còn sống'**
+  String get genealogyMemberAliveStatus;
+
+  /// No description provided for @genealogyMemberDeceasedStatus.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã mất'**
+  String get genealogyMemberDeceasedStatus;
+
+  /// No description provided for @genealogyViewMemberInfoAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xem thông tin thành viên'**
+  String get genealogyViewMemberInfoAction;
+
+  /// No description provided for @genealogyMetricNodes.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nút: {count}'**
+  String genealogyMetricNodes(int count);
+
+  /// No description provided for @genealogyMetricEdges.
+  ///
+  /// In vi, this message translates to:
+  /// **'Liên kết: {count}'**
+  String genealogyMetricEdges(int count);
+
+  /// No description provided for @genealogyMetricLayout.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bố cục: {millis}ms'**
+  String genealogyMetricLayout(int millis);
+
+  /// No description provided for @genealogyMetricAverage.
+  ///
+  /// In vi, this message translates to:
+  /// **'TB: {millis}ms'**
+  String genealogyMetricAverage(int millis);
+
+  /// No description provided for @genealogyMetricPeak.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đỉnh: {millis}ms'**
+  String genealogyMetricPeak(int millis);
+
   /// No description provided for @genealogyRootReasonCurrentMember.
   ///
   /// In vi, this message translates to:
@@ -733,6 +787,204 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Thông tin thành viên, cài đặt và bối cảnh gia đình sẽ phát triển từ phần giữ chỗ này.'**
   String get shellProfileWorkspaceDescription;
+
+  /// No description provided for @profileRefreshAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tải lại hồ sơ'**
+  String get profileRefreshAction;
+
+  /// No description provided for @profileOpenSettingsAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở cài đặt'**
+  String get profileOpenSettingsAction;
+
+  /// No description provided for @profileNoContextTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiếu ngữ cảnh thành viên'**
+  String get profileNoContextTitle;
+
+  /// No description provided for @profileNoContextDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hãy liên kết tài khoản với hồ sơ thành viên trước khi quản lý cài đặt cá nhân.'**
+  String get profileNoContextDescription;
+
+  /// No description provided for @profileUpdateSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã cập nhật hồ sơ thành công.'**
+  String get profileUpdateSuccess;
+
+  /// No description provided for @profileUpdateErrorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không thể cập nhật hồ sơ'**
+  String get profileUpdateErrorTitle;
+
+  /// No description provided for @profileDetailsSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chi tiết hồ sơ'**
+  String get profileDetailsSectionTitle;
+
+  /// No description provided for @profileAccountSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tài khoản'**
+  String get profileAccountSectionTitle;
+
+  /// No description provided for @profileLogoutDialogTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đăng xuất?'**
+  String get profileLogoutDialogTitle;
+
+  /// No description provided for @profileLogoutDialogDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bạn có thể đăng nhập lại bất cứ lúc nào bằng tài khoản đã liên kết.'**
+  String get profileLogoutDialogDescription;
+
+  /// No description provided for @profileSettingsLogoutDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xác nhận này giúp tránh đăng xuất nhầm khi bạn đang điều chỉnh cài đặt.'**
+  String get profileSettingsLogoutDescription;
+
+  /// No description provided for @profileCancelAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hủy'**
+  String get profileCancelAction;
+
+  /// No description provided for @profileSettingsTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cài đặt'**
+  String get profileSettingsTitle;
+
+  /// No description provided for @profileSettingsOverviewTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tổng quan cài đặt'**
+  String get profileSettingsOverviewTitle;
+
+  /// No description provided for @profileSettingsOverviewDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản lý ngôn ngữ hiển thị, tùy chọn thông báo và phiên làm việc của bạn trong BeFam.'**
+  String get profileSettingsOverviewDescription;
+
+  /// No description provided for @profileLanguageSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngôn ngữ'**
+  String get profileLanguageSectionTitle;
+
+  /// No description provided for @profileLanguageSectionDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chọn ngôn ngữ hiển thị cho toàn bộ ứng dụng.'**
+  String get profileLanguageSectionDescription;
+
+  /// No description provided for @profileLanguageVietnamese.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tiếng Việt'**
+  String get profileLanguageVietnamese;
+
+  /// No description provided for @profileLanguageVietnameseSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mặc định cho người dùng tại Việt Nam'**
+  String get profileLanguageVietnameseSubtitle;
+
+  /// No description provided for @profileLanguageEnglish.
+  ///
+  /// In vi, this message translates to:
+  /// **'English'**
+  String get profileLanguageEnglish;
+
+  /// No description provided for @profileLanguageEnglishSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Use English across all screens'**
+  String get profileLanguageEnglishSubtitle;
+
+  /// No description provided for @profileSecuritySectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Riêng tư và bảo mật'**
+  String get profileSecuritySectionTitle;
+
+  /// No description provided for @profileSecurityPlaceholderTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cài đặt bảo mật đang được hoàn thiện'**
+  String get profileSecurityPlaceholderTitle;
+
+  /// No description provided for @profileSecurityPlaceholderDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Các tùy chọn đăng nhập nâng cao và kiểm soát phiên sẽ được bổ sung ở đợt phát hành tiếp theo.'**
+  String get profileSecurityPlaceholderDescription;
+
+  /// No description provided for @profileSessionSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Phiên đăng nhập'**
+  String get profileSessionSectionTitle;
+
+  /// No description provided for @profileNotificationFundAlerts.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông báo giao dịch quỹ'**
+  String get profileNotificationFundAlerts;
+
+  /// No description provided for @profileEditSheetTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chỉnh sửa hồ sơ'**
+  String get profileEditSheetTitle;
+
+  /// No description provided for @profileEditSheetDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cập nhật thông tin thành viên và liên kết liên hệ để hồ sơ luôn đầy đủ, dễ dùng.'**
+  String get profileEditSheetDescription;
+
+  /// No description provided for @profileSaveErrorTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không thể lưu hồ sơ'**
+  String get profileSaveErrorTitle;
+
+  /// No description provided for @profileFacebookUrlLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Liên kết Facebook'**
+  String get profileFacebookUrlLabel;
+
+  /// No description provided for @profileZaloUrlLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Liên kết Zalo'**
+  String get profileZaloUrlLabel;
+
+  /// No description provided for @profileLinkedinUrlLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Liên kết LinkedIn'**
+  String get profileLinkedinUrlLabel;
+
+  /// No description provided for @profileSavingAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đang lưu...'**
+  String get profileSavingAction;
 
   /// No description provided for @shellMoreActions.
   ///

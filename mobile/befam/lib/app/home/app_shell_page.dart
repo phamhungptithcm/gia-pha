@@ -21,6 +21,7 @@ import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
 import '../../features/auth/models/auth_session.dart';
 import '../../features/auth/services/phone_number_formatter.dart';
+import '../../core/services/app_locale_controller.dart';
 import '../bootstrap/firebase_setup_status.dart';
 import '../models/app_shortcut.dart';
 import 'app_shortcuts.dart';
@@ -35,6 +36,7 @@ class AppShellPage extends StatefulWidget {
     this.fundRepository,
     this.genealogyRepository,
     this.pushNotificationService,
+    this.localeController,
     this.onLogoutRequested,
   });
 
@@ -45,6 +47,7 @@ class AppShellPage extends StatefulWidget {
   final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
   final PushNotificationService? pushNotificationService;
+  final AppLocaleController? localeController;
   final Future<void> Function()? onLogoutRequested;
 
   @override
@@ -237,19 +240,18 @@ class _AppShellPageState extends State<AppShellPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
+        final l10n = context.l10n;
         return AlertDialog(
-          title: Text(context.l10n.shellLogout),
-          content: const Text(
-            'You can sign back in at any time with your linked account.',
-          ),
+          title: Text(l10n.shellLogout),
+          content: Text(l10n.profileLogoutDialogDescription),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: Text(l10n.profileCancelAction),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Log out'),
+              child: Text(l10n.shellLogout),
             ),
           ],
         );
@@ -311,6 +313,7 @@ class _AppShellPageState extends State<AppShellPage> {
         ProfileWorkspacePage(
           session: widget.session,
           memberRepository: widget.memberRepository,
+          localeController: widget.localeController,
           onLogoutRequested: widget.onLogoutRequested,
         )
       else
@@ -683,14 +686,6 @@ class _ShortcutCard extends StatelessWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               const Spacer(),
-              const SizedBox(height: 12),
-              Text(
-                shortcut.route,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
             ],
           ),
         ),

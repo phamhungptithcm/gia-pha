@@ -784,7 +784,7 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
           zalo: _nullIfBlank(_zaloController.text),
           linkedin: _nullIfBlank(_linkedinController.text),
         ),
-        isMinor: false,
+        isMinor: widget.initialDraft.isMinor,
       ),
     );
 

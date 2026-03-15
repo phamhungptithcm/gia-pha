@@ -94,8 +94,8 @@
   "shellProfileTitle": "Hồ sơ",
   "shellTreeWorkspaceTitle": "Không gian gia phả",
   "shellTreeWorkspaceDescription": "Khung ứng dụng đã sẵn sàng cho trải nghiệm cây gia phả theo nhánh và công việc dựng cây lớn.",
-  "genealogyWorkspaceTitle": "Read model gia phả",
-  "genealogyWorkspaceDescription": "Tải phạm vi của cả họ hoặc chi hiện tại, kiểm tra các điểm vào gốc, rồi xác minh chuỗi tổ tiên, hậu duệ, anh chị em và dữ liệu cây đã được cache trước khi bước sang màn hình cây trực quan.",
+  "genealogyWorkspaceTitle": "Không gian cây gia phả",
+  "genealogyWorkspaceDescription": "Tải phạm vi cả họ hoặc chi hiện tại, kiểm tra các điểm vào gốc, rồi mở cây trực quan để theo dõi tổ tiên, hậu duệ và quan hệ hôn phối dễ hiểu.",
   "genealogyScopeClan": "Phạm vi cả họ",
   "genealogyScopeBranch": "Chi hiện tại",
   "genealogyRefreshAction": "Tải lại dữ liệu cây",
@@ -119,6 +119,50 @@
   "genealogySpouseCountLabel": "Phối ngẫu",
   "genealogySiblingCountLabel": "Anh chị em",
   "genealogyDescendantCountLabel": "Hậu duệ",
+  "genealogyMemberStatusLabel": "Tình trạng",
+  "genealogyMemberAliveStatus": "Còn sống",
+  "genealogyMemberDeceasedStatus": "Đã mất",
+  "genealogyViewMemberInfoAction": "Xem thông tin thành viên",
+  "genealogyMetricNodes": "Nút: {count}",
+  "@genealogyMetricNodes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "genealogyMetricEdges": "Liên kết: {count}",
+  "@genealogyMetricEdges": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "genealogyMetricLayout": "Bố cục: {millis}ms",
+  "@genealogyMetricLayout": {
+    "placeholders": {
+      "millis": {
+        "type": "int"
+      }
+    }
+  },
+  "genealogyMetricAverage": "TB: {millis}ms",
+  "@genealogyMetricAverage": {
+    "placeholders": {
+      "millis": {
+        "type": "int"
+      }
+    }
+  },
+  "genealogyMetricPeak": "Đỉnh: {millis}ms",
+  "@genealogyMetricPeak": {
+    "placeholders": {
+      "millis": {
+        "type": "int"
+      }
+    }
+  },
   "genealogyRootReasonCurrentMember": "Thành viên hiện tại",
   "genealogyRootReasonClanRoot": "Gốc của họ",
   "genealogyRootReasonScopeRoot": "Gốc của phạm vi",
@@ -128,6 +172,39 @@
   "shellEventsWorkspaceDescription": "Lịch họ tộc, ngày giỗ và lời nhắc sẽ được triển khai tại đây tiếp theo.",
   "shellProfileWorkspaceTitle": "Không gian hồ sơ",
   "shellProfileWorkspaceDescription": "Thông tin thành viên, cài đặt và bối cảnh gia đình sẽ phát triển từ phần giữ chỗ này.",
+  "profileRefreshAction": "Tải lại hồ sơ",
+  "profileOpenSettingsAction": "Mở cài đặt",
+  "profileNoContextTitle": "Thiếu ngữ cảnh thành viên",
+  "profileNoContextDescription": "Hãy liên kết tài khoản với hồ sơ thành viên trước khi quản lý cài đặt cá nhân.",
+  "profileUpdateSuccess": "Đã cập nhật hồ sơ thành công.",
+  "profileUpdateErrorTitle": "Không thể cập nhật hồ sơ",
+  "profileDetailsSectionTitle": "Chi tiết hồ sơ",
+  "profileAccountSectionTitle": "Tài khoản",
+  "profileLogoutDialogTitle": "Đăng xuất?",
+  "profileLogoutDialogDescription": "Bạn có thể đăng nhập lại bất cứ lúc nào bằng tài khoản đã liên kết.",
+  "profileSettingsLogoutDescription": "Xác nhận này giúp tránh đăng xuất nhầm khi bạn đang điều chỉnh cài đặt.",
+  "profileCancelAction": "Hủy",
+  "profileSettingsTitle": "Cài đặt",
+  "profileSettingsOverviewTitle": "Tổng quan cài đặt",
+  "profileSettingsOverviewDescription": "Quản lý ngôn ngữ hiển thị, tùy chọn thông báo và phiên làm việc của bạn trong BeFam.",
+  "profileLanguageSectionTitle": "Ngôn ngữ",
+  "profileLanguageSectionDescription": "Chọn ngôn ngữ hiển thị cho toàn bộ ứng dụng.",
+  "profileLanguageVietnamese": "Tiếng Việt",
+  "profileLanguageVietnameseSubtitle": "Mặc định cho người dùng tại Việt Nam",
+  "profileLanguageEnglish": "English",
+  "profileLanguageEnglishSubtitle": "Use English across all screens",
+  "profileSecuritySectionTitle": "Riêng tư và bảo mật",
+  "profileSecurityPlaceholderTitle": "Cài đặt bảo mật đang được hoàn thiện",
+  "profileSecurityPlaceholderDescription": "Các tùy chọn đăng nhập nâng cao và kiểm soát phiên sẽ được bổ sung ở đợt phát hành tiếp theo.",
+  "profileSessionSectionTitle": "Phiên đăng nhập",
+  "profileNotificationFundAlerts": "Thông báo giao dịch quỹ",
+  "profileEditSheetTitle": "Chỉnh sửa hồ sơ",
+  "profileEditSheetDescription": "Cập nhật thông tin thành viên và liên kết liên hệ để hồ sơ luôn đầy đủ, dễ dùng.",
+  "profileSaveErrorTitle": "Không thể lưu hồ sơ",
+  "profileFacebookUrlLabel": "Liên kết Facebook",
+  "profileZaloUrlLabel": "Liên kết Zalo",
+  "profileLinkedinUrlLabel": "Liên kết LinkedIn",
+  "profileSavingAction": "Đang lưu...",
   "shellMoreActions": "Thao tác khác",
   "shellLogout": "Đăng xuất",
   "shellWelcomeBack": "Chào mừng trở lại, {displayName}.",

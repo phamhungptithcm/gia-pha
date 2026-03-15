@@ -119,6 +119,50 @@
   "genealogySpouseCountLabel": "Spouses",
   "genealogySiblingCountLabel": "Siblings",
   "genealogyDescendantCountLabel": "Descendants",
+  "genealogyMemberStatusLabel": "Status",
+  "genealogyMemberAliveStatus": "Alive",
+  "genealogyMemberDeceasedStatus": "Deceased",
+  "genealogyViewMemberInfoAction": "View member details",
+  "genealogyMetricNodes": "Nodes: {count}",
+  "@genealogyMetricNodes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "genealogyMetricEdges": "Edges: {count}",
+  "@genealogyMetricEdges": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "genealogyMetricLayout": "Layout: {millis}ms",
+  "@genealogyMetricLayout": {
+    "placeholders": {
+      "millis": {
+        "type": "int"
+      }
+    }
+  },
+  "genealogyMetricAverage": "Avg: {millis}ms",
+  "@genealogyMetricAverage": {
+    "placeholders": {
+      "millis": {
+        "type": "int"
+      }
+    }
+  },
+  "genealogyMetricPeak": "Peak: {millis}ms",
+  "@genealogyMetricPeak": {
+    "placeholders": {
+      "millis": {
+        "type": "int"
+      }
+    }
+  },
   "genealogyRootReasonCurrentMember": "Current member",
   "genealogyRootReasonClanRoot": "Clan root",
   "genealogyRootReasonScopeRoot": "Scope root",
@@ -128,6 +172,39 @@
   "shellEventsWorkspaceDescription": "Calendar, memorial rituals, and reminder flows will land here next.",
   "shellProfileWorkspaceTitle": "Profile workspace",
   "shellProfileWorkspaceDescription": "Member identity, settings, and household context will grow from this placeholder.",
+  "profileRefreshAction": "Refresh profile",
+  "profileOpenSettingsAction": "Open settings",
+  "profileNoContextTitle": "Missing member context",
+  "profileNoContextDescription": "Link this account to a member profile before managing personal settings.",
+  "profileUpdateSuccess": "Profile updated successfully.",
+  "profileUpdateErrorTitle": "Could not update profile",
+  "profileDetailsSectionTitle": "Profile details",
+  "profileAccountSectionTitle": "Account",
+  "profileLogoutDialogTitle": "Log out?",
+  "profileLogoutDialogDescription": "You can sign back in at any time with your linked account.",
+  "profileSettingsLogoutDescription": "This confirmation helps prevent accidental sign-out while managing settings.",
+  "profileCancelAction": "Cancel",
+  "profileSettingsTitle": "Settings",
+  "profileSettingsOverviewTitle": "Settings overview",
+  "profileSettingsOverviewDescription": "Manage your app language, notification preferences, and session settings in one place.",
+  "profileLanguageSectionTitle": "Language",
+  "profileLanguageSectionDescription": "Choose the display language used across the app.",
+  "profileLanguageVietnamese": "Tiếng Việt",
+  "profileLanguageVietnameseSubtitle": "Use Vietnamese across all screens",
+  "profileLanguageEnglish": "English",
+  "profileLanguageEnglishSubtitle": "Use English across all screens",
+  "profileSecuritySectionTitle": "Privacy and security",
+  "profileSecurityPlaceholderTitle": "Security settings coming soon",
+  "profileSecurityPlaceholderDescription": "Advanced sign-in and session protection controls will be added in a later release.",
+  "profileSessionSectionTitle": "Session",
+  "profileNotificationFundAlerts": "Fund transaction alerts",
+  "profileEditSheetTitle": "Edit profile",
+  "profileEditSheetDescription": "Update member details and contact links so your profile stays complete and easy to use.",
+  "profileSaveErrorTitle": "Could not save profile",
+  "profileFacebookUrlLabel": "Facebook URL",
+  "profileZaloUrlLabel": "Zalo URL",
+  "profileLinkedinUrlLabel": "LinkedIn URL",
+  "profileSavingAction": "Saving...",
   "shellMoreActions": "More actions",
   "shellLogout": "Log out",
   "shellWelcomeBack": "Welcome back, {displayName}.",

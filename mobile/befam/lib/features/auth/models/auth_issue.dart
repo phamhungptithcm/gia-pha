@@ -17,6 +17,7 @@ enum AuthIssueKey {
   memberAlreadyLinked,
   memberClaimConflict,
   parentVerificationMismatch,
+  privacyPolicyRequired,
   operationNotAllowed,
   authUnavailable,
   preparationFailed,

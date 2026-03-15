@@ -9,6 +9,7 @@ import 'package:befam/features/member/services/debug_member_repository.dart';
 import 'package:befam/features/member/services/member_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   final status = FirebaseSetupStatus.ready(
@@ -24,6 +25,7 @@ void main() {
     ClanRepository? clanRepository,
     MemberRepository? memberRepository,
   }) async {
+    SharedPreferences.setMockInitialValues({});
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1200, 2000);
     addTearDown(tester.view.resetPhysicalSize);
@@ -43,7 +45,24 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> acceptPrivacyPolicy(WidgetTester tester) async {
+    final checkboxFinder = find.byType(Checkbox);
+    if (checkboxFinder.evaluate().isEmpty) {
+      return;
+    }
+
+    final checkbox = tester.widget<Checkbox>(checkboxFinder.first);
+    if (checkbox.value == true) {
+      return;
+    }
+
+    await tester.tap(checkboxFinder.first);
+    await tester.pumpAndSettle();
+  }
+
   Future<void> loginWithPhone(WidgetTester tester) async {
+    await acceptPrivacyPolicy(tester);
+
     await tester.tap(find.text('Dùng số điện thoại'));
     await tester.pumpAndSettle();
 
@@ -66,6 +85,8 @@ void main() {
   }
 
   Future<void> loginWithChild(WidgetTester tester) async {
+    await acceptPrivacyPolicy(tester);
+
     await tester.tap(find.text('Dùng mã trẻ em'));
     await tester.pumpAndSettle();
 
@@ -131,6 +152,7 @@ void main() {
 
   testWidgets('supports manual child identifier input', (tester) async {
     await pumpAuthApp(tester, locale: const Locale('vi'));
+    await acceptPrivacyPolicy(tester);
 
     await tester.tap(find.text('Dùng mã trẻ em'));
     await tester.pumpAndSettle();
