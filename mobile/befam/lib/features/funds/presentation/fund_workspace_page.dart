@@ -1385,7 +1385,12 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                                 return CheckboxListTile(
                                   value: isChecked,
                                   title: Text(member.displayName),
-                                  subtitle: Text('ID: ${member.id}'),
+                                  subtitle: Text(
+                                    context.l10n.pick(
+                                      vi: 'Mã: ${member.id}',
+                                      en: 'ID: ${member.id}',
+                                    ),
+                                  ),
                                   onChanged: (value) {
                                     setModalState(() {
                                       if (value == true) {

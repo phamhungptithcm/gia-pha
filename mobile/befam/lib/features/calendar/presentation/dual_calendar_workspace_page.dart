@@ -2465,7 +2465,12 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                   title: Text(member.fullName),
                                   subtitle: member.branchId.trim().isEmpty
                                       ? null
-                                      : Text('ID: ${member.id}'),
+                                      : Text(
+                                          context.l10n.pick(
+                                            vi: 'Mã: ${member.id}',
+                                            en: 'ID: ${member.id}',
+                                          ),
+                                        ),
                                   onChanged: (value) {
                                     setModalState(() {
                                       if (value == true) {
