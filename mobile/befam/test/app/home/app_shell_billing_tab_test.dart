@@ -12,6 +12,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  Future<void> pumpUi(WidgetTester tester, {int frames = 24}) async {
+    for (var index = 0; index < frames; index += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+  }
+
   FirebaseSetupStatus buildReadyStatus() {
     return FirebaseSetupStatus.ready(
       projectId: 'be-fam-3ab23',
@@ -69,7 +75,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await pumpUi(tester);
 
       final destinations = tester
           .widgetList<NavigationDestination>(find.byType(NavigationDestination))
@@ -95,7 +101,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUi(tester);
 
     final destinations = tester
         .widgetList<NavigationDestination>(find.byType(NavigationDestination))
@@ -105,7 +111,7 @@ void main() {
     expect(destinations[4].label, 'Profile');
 
     await tester.tap(find.text('Billing'));
-    await tester.pumpAndSettle();
+    await pumpUi(tester, frames: 36);
 
     expect(find.text('Discover genealogies'), findsOneWidget);
     expect(find.text('Create clan workspace'), findsOneWidget);
