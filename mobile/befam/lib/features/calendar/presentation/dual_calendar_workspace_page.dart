@@ -7,7 +7,6 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../models/calendar_date_mode.dart';
 import '../models/calendar_display_mode.dart';
-import '../models/calendar_region.dart';
 import '../models/dual_calendar_event.dart';
 import '../models/lunar_date.dart';
 import '../models/lunar_recurrence_policy.dart';
@@ -126,6 +125,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                           ),
                           onPreviousMonth: _controller.goToPreviousMonth,
                           onNextMonth: _controller.goToNextMonth,
+                          onPickMonthYear: _openMonthYearPicker,
                           onToday: () {
                             final now = DateTime.now();
                             _controller.jumpToMonth(now);
@@ -256,6 +256,67 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
     );
   }
 
+  Future<void> _openMonthYearPicker() async {
+    final l10n = context.l10n;
+    final isLunarView =
+        _controller.displayMode == CalendarDisplayMode.lunarOnly;
+    final anchorLunarDate = _anchorLunarDateForMonth(_controller.monthLunarMap);
+    final initialYear = isLunarView
+        ? (anchorLunarDate?.year ?? _controller.focusedMonth.year)
+        : _controller.focusedMonth.year;
+    final initialMonth = isLunarView
+        ? (anchorLunarDate?.month ?? _controller.focusedMonth.month)
+        : _controller.focusedMonth.month;
+
+    final selection = await showModalBottomSheet<_MonthYearSelection>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => _MonthYearPickerSheet(
+        initialYear: initialYear,
+        initialMonth: initialMonth,
+      ),
+    );
+    if (selection == null) {
+      return;
+    }
+
+    if (isLunarView) {
+      final resolved = await _controller.resolveLunarToSolar(
+        lunarDate: LunarDate(
+          year: selection.year,
+          month: selection.month,
+          day: 1,
+        ),
+        policy: LunarRecurrencePolicy.firstOccurrence,
+        targetYear: selection.year,
+      );
+      if (resolved == null) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick(
+                vi: 'Không thể mở tháng đã chọn. Hãy thử tháng khác.',
+                en: 'Unable to open the selected month. Try another month.',
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+      await _controller.jumpToMonth(DateTime(resolved.year, resolved.month));
+      _controller.selectDay(resolved);
+      return;
+    }
+
+    final targetMonth = DateTime(selection.year, selection.month);
+    await _controller.jumpToMonth(targetMonth);
+    _controller.selectDay(targetMonth);
+  }
+
   DualCalendarController _buildDefaultController() {
     final conversionCache = LunarConversionCache();
     final resolutionCache = LunarResolutionCache();
@@ -292,53 +353,63 @@ class _SettingsCard extends StatelessWidget {
     final textScale = MediaQuery.textScalerOf(context).scale(1);
     final l10n = context.l10n;
 
-    final regionPicker = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+    final displayModePicker = Container(
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: colorScheme.surface.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(12),
+        color: colorScheme.surface.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
-      child: DropdownButton<CalendarRegion>(
-        value: controller.region,
-        borderRadius: BorderRadius.circular(12),
-        underline: const SizedBox.shrink(),
-        icon: const Icon(Icons.expand_more),
-        items: [
-          for (final region in CalendarRegion.values)
-            DropdownMenuItem<CalendarRegion>(
-              value: region,
-              child: Text(l10n.calendarRegionLabel(region)),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SegmentedButton<CalendarDisplayMode>(
+          showSelectedIcon: false,
+          style: ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            padding: const WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             ),
-        ],
-        onChanged: (value) {
-          if (value == null) {
-            return;
-          }
-          controller.setRegion(value);
-        },
-      ),
-    );
-
-    final displayModePicker = SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SegmentedButton<CalendarDisplayMode>(
-        showSelectedIcon: false,
-        segments: [
-          for (final mode in CalendarDisplayMode.values)
-            ButtonSegment<CalendarDisplayMode>(
-              value: mode,
-              label: Text(l10n.calendarDisplayModeLabel(mode)),
+            textStyle: const WidgetStatePropertyAll(
+              TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
-        ],
-        selected: {controller.displayMode},
-        onSelectionChanged: (selection) {
-          final mode = selection.firstOrNull;
-          if (mode == null) {
-            return;
-          }
-          controller.setDisplayMode(mode);
-        },
+            side: WidgetStateProperty.resolveWith((states) {
+              final isSelected = states.contains(WidgetState.selected);
+              return BorderSide(
+                color: isSelected ? colorScheme.primary : colorScheme.outline,
+                width: 1.1,
+              );
+            }),
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return colorScheme.surface;
+              }
+              return colorScheme.surface.withValues(alpha: 0.58);
+            }),
+            foregroundColor: WidgetStateProperty.resolveWith((states) {
+              return states.contains(WidgetState.selected)
+                  ? colorScheme.onSurface
+                  : colorScheme.onSurfaceVariant;
+            }),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+          segments: [
+            for (final mode in CalendarDisplayMode.values)
+              ButtonSegment<CalendarDisplayMode>(
+                value: mode,
+                label: Text(l10n.calendarDisplayModeLabel(mode)),
+              ),
+          ],
+          selected: {controller.displayMode},
+          onSelectionChanged: (selection) {
+            final mode = selection.firstOrNull;
+            if (mode == null) {
+              return;
+            }
+            controller.setDisplayMode(mode);
+          },
+        ),
       ),
     );
 
@@ -401,8 +472,6 @@ class _SettingsCard extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    regionPicker,
-                    const SizedBox(height: 10),
                     displayModePicker,
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
@@ -420,7 +489,6 @@ class _SettingsCard extends StatelessWidget {
                 runSpacing: 12,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  regionPicker,
                   displayModePicker,
                   OutlinedButton.icon(
                     onPressed: onCreateEvent,
@@ -463,12 +531,14 @@ class _MonthHeader extends StatelessWidget {
     required this.label,
     required this.onPreviousMonth,
     required this.onNextMonth,
+    required this.onPickMonthYear,
     required this.onToday,
   });
 
   final String label;
   final Future<void> Function() onPreviousMonth;
   final Future<void> Function() onNextMonth;
+  final Future<void> Function() onPickMonthYear;
   final VoidCallback onToday;
 
   @override
@@ -481,18 +551,46 @@ class _MonthHeader extends StatelessWidget {
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 470 || textScale > 1.15;
 
-        final monthTitle = Container(
-          height: 46,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: colorScheme.outlineVariant),
+        final monthTitle = Tooltip(
+          message: l10n.pick(
+            vi: 'Chạm để đổi nhanh tháng và năm',
+            en: 'Tap to quickly change month and year',
           ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => unawaited(onPickMonthYear()),
+              child: Container(
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: colorScheme.outlineVariant),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.unfold_more_rounded, size: 20),
+                  ],
+                ),
+              ),
+            ),
           ),
         );
 
@@ -555,6 +653,125 @@ class _MonthHeader extends StatelessWidget {
   }
 }
 
+class _MonthYearSelection {
+  const _MonthYearSelection({required this.year, required this.month});
+
+  final int year;
+  final int month;
+}
+
+class _MonthYearPickerSheet extends StatefulWidget {
+  const _MonthYearPickerSheet({
+    required this.initialYear,
+    required this.initialMonth,
+  });
+
+  final int initialYear;
+  final int initialMonth;
+
+  @override
+  State<_MonthYearPickerSheet> createState() => _MonthYearPickerSheetState();
+}
+
+class _MonthYearPickerSheetState extends State<_MonthYearPickerSheet> {
+  late int _year = widget.initialYear;
+  late int _month = widget.initialMonth;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final currentYear = DateTime.now().year;
+    final yearOptions = [
+      for (var year = currentYear - 80; year <= currentYear + 40; year++) year,
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.pick(vi: 'Chọn tháng và năm', en: 'Choose month and year'),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  initialValue: _month,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Tháng', en: 'Month'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (var month = 1; month <= 12; month++)
+                      DropdownMenuItem<int>(
+                        value: month,
+                        child: Text(_monthName(l10n, month)),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() => _month = value);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  initialValue: _year,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Năm', en: 'Year'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (final year in yearOptions)
+                      DropdownMenuItem<int>(value: year, child: Text('$year')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() => _year = value);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(l10n.pick(vi: 'Hủy', en: 'Cancel')),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.of(
+                      context,
+                    ).pop(_MonthYearSelection(year: _year, month: _month));
+                  },
+                  child: Text(l10n.pick(vi: 'Đi tới', en: 'Go')),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 String _monthHeaderLabel({
   required DateTime focusedMonth,
   required CalendarDisplayMode displayMode,
@@ -565,22 +782,11 @@ String _monthHeaderLabel({
     return '${_monthName(l10n, focusedMonth.month)} ${focusedMonth.year}';
   }
 
-  // Keep lunar-only header consistent with solar header behavior:
-  // show a single anchor month for the current page (no mixed ranges).
-  final anchorDay = monthLunarMap.keys.isEmpty
-      ? null
-      : (monthLunarMap.keys.toList()..sort()).first;
-  final anchorLunarDate = anchorDay == null ? null : monthLunarMap[anchorDay];
+  final anchorLunarDate = _anchorLunarDateForMonth(monthLunarMap);
   if (anchorLunarDate == null) {
     return '${_monthName(l10n, focusedMonth.month)} ${focusedMonth.year}';
   }
-  final monthLabel = anchorLunarDate.isLeapMonth
-      ? '${anchorLunarDate.month}L'
-      : '${anchorLunarDate.month}';
-  return l10n.pick(
-    vi: 'Tháng âm $monthLabel ${anchorLunarDate.year}',
-    en: 'Lunar $monthLabel ${anchorLunarDate.year}',
-  );
+  return '${_monthName(l10n, anchorLunarDate.month)} ${anchorLunarDate.year}';
 }
 
 class _MonthGrid extends StatelessWidget {
@@ -861,8 +1067,8 @@ class _ReminderPanel extends StatelessWidget {
                           Expanded(
                             child: Text(
                               l10n.pick(
-                                vi: '${_formatDateTime(reminder.reminderAt)} · trước ${reminder.offsetMinutes} phút',
-                                en: '${_formatDateTime(reminder.reminderAt)} · ${reminder.offsetMinutes} min before',
+                                vi: '${_formatDateTime(reminder.reminderAt)} · trước ${_formatReminderLeadTime(l10n, reminder.offsetMinutes)}',
+                                en: '${_formatDateTime(reminder.reminderAt)} · ${_formatReminderLeadTime(l10n, reminder.offsetMinutes)} before',
                               ),
                             ),
                           ),
@@ -1069,19 +1275,30 @@ class _DayTile extends StatelessWidget {
     final foreground = isCurrentMonth
         ? colorScheme.onSurface
         : colorScheme.onSurface.withValues(alpha: 0.35);
-    final lunarPrimaryLabel = lunarDate == null ? '--' : '${lunarDate!.day}';
+    final solarPrimaryLabel = '${day.day}';
+    final solarDetailLabel = '${day.day}/${day.month}';
+    final lunarPrimaryLabel = lunarDate == null
+        ? solarPrimaryLabel
+        : '${lunarDate!.day}';
     final lunarDetailLabel = lunarDate == null
-        ? '--'
-        : '${lunarDate!.day}/${lunarDate!.month}${lunarDate!.isLeapMonth ? 'L' : ''}';
+        ? solarDetailLabel
+        : '${lunarDate!.day}/${lunarDate!.month}';
+    final primaryLabel = switch (displayMode) {
+      CalendarDisplayMode.dual => solarPrimaryLabel,
+      CalendarDisplayMode.solarOnly => solarPrimaryLabel,
+      CalendarDisplayMode.lunarOnly => lunarPrimaryLabel,
+    };
+    final String? secondaryLabel = switch (displayMode) {
+      CalendarDisplayMode.dual => lunarDetailLabel,
+      CalendarDisplayMode.solarOnly => null,
+      CalendarDisplayMode.lunarOnly => solarDetailLabel,
+    };
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxHeight < 64;
         final veryCompact = constraints.maxHeight < 52 || textScale > 1.35;
-        final showLunarLine =
-            !veryCompact &&
-            displayMode == CalendarDisplayMode.dual &&
-            lunarDate != null;
+        final showSecondaryLine = !veryCompact && secondaryLabel != null;
         final showEventBadge =
             !veryCompact && eventCount > 0 && textScale <= 1.5;
 
@@ -1110,9 +1327,7 @@ class _DayTile extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          displayMode == CalendarDisplayMode.lunarOnly
-                              ? lunarPrimaryLabel
-                              : '${day.day}',
+                          primaryLabel,
                           maxLines: 1,
                           overflow: TextOverflow.fade,
                           softWrap: false,
@@ -1129,10 +1344,10 @@ class _DayTile extends StatelessWidget {
                       ],
                     ],
                   ),
-                  if (showLunarLine) ...[
+                  if (showSecondaryLine) ...[
                     const SizedBox(height: 1),
                     Text(
-                      'L $lunarDetailLabel',
+                      secondaryLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1862,6 +2077,16 @@ bool _sameDay(DateTime left, DateTime right) {
       left.day == right.day;
 }
 
+LunarDate? _anchorLunarDateForMonth(Map<int, LunarDate> monthLunarMap) {
+  if (monthLunarMap.isEmpty) {
+    return null;
+  }
+  final days = monthLunarMap.keys.toList()..sort();
+  final anchorIndex = days.length ~/ 2;
+  final anchorDay = days[anchorIndex];
+  return monthLunarMap[anchorDay];
+}
+
 String _monthName(AppLocalizations l10n, int month) {
   if (l10n.localeName.toLowerCase().startsWith('vi')) {
     return 'Tháng $month';
@@ -1917,6 +2142,67 @@ String _offsetLabel(AppLocalizations l10n, int minutes) {
     return isVietnamese ? '$value giờ' : '${value}h';
   }
   return isVietnamese ? '$minutes phút' : '${minutes}m';
+}
+
+String _formatReminderLeadTime(AppLocalizations l10n, int totalMinutes) {
+  final isVietnamese = l10n.localeName.toLowerCase().startsWith('vi');
+  if (totalMinutes <= 0) {
+    return isVietnamese ? '0 phút' : '0 minutes';
+  }
+
+  var remaining = totalMinutes;
+  const minuteInHour = 60;
+  const minuteInDay = 24 * minuteInHour;
+  const minuteInMonth = 30 * minuteInDay;
+  const minuteInYear = 365 * minuteInDay;
+
+  final years = remaining ~/ minuteInYear;
+  remaining %= minuteInYear;
+  final months = remaining ~/ minuteInMonth;
+  remaining %= minuteInMonth;
+  final days = remaining ~/ minuteInDay;
+  remaining %= minuteInDay;
+  final hours = remaining ~/ minuteInHour;
+  remaining %= minuteInHour;
+  final minutes = remaining;
+
+  final parts = <String>[];
+  if (years > 0) {
+    parts.add(
+      isVietnamese
+          ? '$years ${years == 1 ? 'năm' : 'năm'}'
+          : '$years ${years == 1 ? 'year' : 'years'}',
+    );
+  }
+  if (months > 0) {
+    parts.add(
+      isVietnamese
+          ? '$months ${months == 1 ? 'tháng' : 'tháng'}'
+          : '$months ${months == 1 ? 'month' : 'months'}',
+    );
+  }
+  if (days > 0) {
+    parts.add(
+      isVietnamese
+          ? '$days ${days == 1 ? 'ngày' : 'ngày'}'
+          : '$days ${days == 1 ? 'day' : 'days'}',
+    );
+  }
+  if (hours > 0) {
+    parts.add(
+      isVietnamese
+          ? '$hours ${hours == 1 ? 'giờ' : 'giờ'}'
+          : '$hours ${hours == 1 ? 'hour' : 'hours'}',
+    );
+  }
+  if (minutes > 0 || parts.isEmpty) {
+    parts.add(
+      isVietnamese
+          ? '$minutes ${minutes == 1 ? 'phút' : 'phút'}'
+          : '$minutes ${minutes == 1 ? 'minute' : 'minutes'}',
+    );
+  }
+  return parts.join(' ');
 }
 
 extension _IterableFirstOrNull<T> on Iterable<T> {
