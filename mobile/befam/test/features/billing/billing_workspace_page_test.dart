@@ -31,10 +31,11 @@ void main() {
     WidgetTester tester, {
     AuthSession? session,
     DebugBillingRepository? repository,
+    Locale locale = const Locale('vi'),
   }) async {
     await tester.pumpWidget(
       MaterialApp(
-        locale: const Locale('vi'),
+        locale: locale,
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -193,4 +194,38 @@ void main() {
       expect(snapshot.subscription.status, 'pending_payment');
     },
   );
+
+  testWidgets('localizes statuses and audit labels in English', (tester) async {
+    seedPaidTier();
+    await pumpBillingPage(tester, locale: const Locale('en'));
+
+    await tester.tap(find.byKey(const Key('billing-checkout-card-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+
+    await tester.scrollUntilVisible(
+      find.text('Payment history'),
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Payment history'), findsOneWidget);
+    expect(find.textContaining('• Pending'), findsWidgets);
+
+    await tester.scrollUntilVisible(
+      find.text('Invoices'),
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.textContaining('Status: Issued'), findsWidgets);
+
+    await tester.scrollUntilVisible(
+      find.text('Audit logs'),
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Checkout created'), findsWidgets);
+    expect(find.textContaining('Payment transaction •'), findsWidgets);
+    expect(find.text('checkout_created'), findsNothing);
+    expect(find.text('paymentTransaction'), findsNothing);
+  });
 }

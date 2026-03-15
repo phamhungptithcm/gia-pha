@@ -5,10 +5,16 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
+import '../../auth/models/auth_member_access_mode.dart';
+import '../../auth/models/auth_session.dart';
+import '../../clan/models/branch_profile.dart';
 import '../../events/models/event_type.dart';
+import '../../member/models/member_profile.dart';
+import '../../member/services/member_repository.dart';
 import '../models/calendar_date_mode.dart';
 import '../models/calendar_display_mode.dart';
 import '../models/dual_calendar_event.dart';
+import '../models/event_notification_audience.dart';
 import '../models/lunar_date.dart';
 import '../models/lunar_recurrence_policy.dart';
 import '../services/calendar_settings_store.dart';
@@ -24,16 +30,20 @@ import 'dual_calendar_controller.dart';
 class DualCalendarWorkspacePage extends StatefulWidget {
   const DualCalendarWorkspacePage({
     super.key,
+    this.session,
     this.controller,
     this.eventStore,
     this.holidayRepository,
     this.settingsStore,
+    this.memberRepository,
   });
 
+  final AuthSession? session;
   final DualCalendarController? controller;
   final DualCalendarEventStore? eventStore;
   final LunarHolidayRepository? holidayRepository;
   final CalendarSettingsStore? settingsStore;
+  final MemberRepository? memberRepository;
 
   @override
   State<DualCalendarWorkspacePage> createState() =>
@@ -43,13 +53,21 @@ class DualCalendarWorkspacePage extends StatefulWidget {
 class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
   late final DualCalendarController _controller;
   late final bool _ownsController;
+  late final MemberRepository _memberRepository;
+  List<MemberProfile> _members = const [];
+  List<BranchProfile> _branches = const [];
+  bool _isLoadingMembers = false;
 
   @override
   void initState() {
     super.initState();
     _ownsController = widget.controller == null;
+    _memberRepository =
+        widget.memberRepository ??
+        createDefaultMemberRepository(session: widget.session);
     _controller = widget.controller ?? _buildDefaultController();
     unawaited(_controller.initialize());
+    unawaited(_loadRecipientsDirectory());
   }
 
   @override
@@ -157,6 +175,10 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
   }
 
   Future<void> _openCreateEventSheet() async {
+    await _loadRecipientsDirectory();
+    if (!mounted) {
+      return;
+    }
     final didSave = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -166,6 +188,9 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
         return _EventEditorSheet(
           controller: _controller,
           initialDate: _controller.selectedDay,
+          members: _members,
+          branches: _branches,
+          isRecipientsLoading: _isLoadingMembers,
         );
       },
     );
@@ -185,6 +210,10 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
   }
 
   Future<void> _openEditEventSheet(DualCalendarEvent event) async {
+    await _loadRecipientsDirectory();
+    if (!mounted) {
+      return;
+    }
     final didSave = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -195,6 +224,9 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
           controller: _controller,
           initialDate: _controller.selectedDay,
           editingEvent: event,
+          members: _members,
+          branches: _branches,
+          isRecipientsLoading: _isLoadingMembers,
         );
       },
     );
@@ -337,6 +369,47 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
       conversionCache: conversionCache,
       resolutionCache: resolutionCache,
     );
+  }
+
+  Future<void> _loadRecipientsDirectory() async {
+    final session = widget.session;
+    if (session == null ||
+        session.accessMode != AuthMemberAccessMode.claimed ||
+        (session.clanId ?? '').trim().isEmpty) {
+      if (_members.isNotEmpty || _branches.isNotEmpty) {
+        setState(() {
+          _members = const [];
+          _branches = const [];
+        });
+      }
+      return;
+    }
+
+    if (_isLoadingMembers) {
+      return;
+    }
+
+    _isLoadingMembers = true;
+    try {
+      final snapshot = await _memberRepository.loadWorkspace(session: session);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _members = snapshot.members;
+        _branches = snapshot.branches;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _members = const [];
+        _branches = const [];
+      });
+    } finally {
+      _isLoadingMembers = false;
+    }
   }
 }
 
@@ -1228,6 +1301,10 @@ class _OccurrenceRow extends StatelessWidget {
           vi: 'Địa chỉ: ${event.locationAddress.trim()}',
           en: 'Address: ${event.locationAddress.trim()}',
         ),
+      l10n.pick(
+        vi: 'Người nhận: ${_audienceSummaryLabel(l10n, event.notificationAudience)}',
+        en: 'Recipients: ${_audienceSummaryLabel(l10n, event.notificationAudience)}',
+      ),
     ];
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1330,17 +1407,17 @@ class _DayTile extends StatelessWidget {
         final showSecondaryCandidate = !veryCompact && secondaryLabel != null;
         final showEventBadgeCandidate =
             !veryCompact && eventCount > 0 && textScale <= 1.5;
-        final innerHeight = (constraints.maxHeight - (verticalPadding * 2)).clamp(
-          0.0,
-          999.0,
-        );
+        final innerHeight = (constraints.maxHeight - (verticalPadding * 2))
+            .clamp(0.0, 999.0);
         final baseTextHeight = (primaryFontSize * 1.15);
         final secondaryTextHeight = (secondaryFontSize * 1.2) + 1;
         final showSecondaryLine =
             showSecondaryCandidate &&
             innerHeight >= (baseTextHeight + secondaryTextHeight + 1);
         final remainingHeightAfterText =
-            innerHeight - baseTextHeight - (showSecondaryLine ? secondaryTextHeight : 0);
+            innerHeight -
+            baseTextHeight -
+            (showSecondaryLine ? secondaryTextHeight : 0);
         final showEventBadge =
             showEventBadgeCandidate && remainingHeightAfterText >= 14;
 
@@ -1385,7 +1462,11 @@ class _DayTile extends StatelessWidget {
                         ),
                         if (isToday && !veryCompact) ...[
                           const SizedBox(width: 3),
-                          Icon(Icons.circle, size: 6, color: colorScheme.primary),
+                          Icon(
+                            Icons.circle,
+                            size: 6,
+                            color: colorScheme.primary,
+                          ),
                         ],
                       ],
                     ),
@@ -1469,11 +1550,17 @@ class _EventEditorSheet extends StatefulWidget {
   const _EventEditorSheet({
     required this.controller,
     required this.initialDate,
+    required this.members,
+    required this.branches,
+    required this.isRecipientsLoading,
     this.editingEvent,
   });
 
   final DualCalendarController controller;
   final DateTime initialDate;
+  final List<MemberProfile> members;
+  final List<BranchProfile> branches;
+  final bool isRecipientsLoading;
   final DualCalendarEvent? editingEvent;
 
   @override
@@ -1500,6 +1587,13 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   LunarRecurrencePolicy _recurrencePolicy =
       LunarRecurrencePolicy.firstOccurrence;
   final Set<int> _reminderOffsets = <int>{};
+  EventNotificationAudienceMode _audienceMode =
+      EventNotificationAudienceMode.clanAll;
+  String? _audienceBranchId;
+  final Set<String> _includeMemberIds = <String>{};
+  final Set<String> _excludeMemberIds = <String>{};
+  final Set<EventNotificationAudienceExcludeRule> _excludeRules =
+      <EventNotificationAudienceExcludeRule>{};
   bool _isSubmitting = false;
   DateTime? _previewSolarDate;
   String? _previewError;
@@ -1531,6 +1625,11 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       _isAnnualRecurring = event.isAnnualRecurring;
       _recurrencePolicy = event.recurrencePolicy;
       _reminderOffsets.addAll(event.reminderOffsetsMinutes);
+      _audienceMode = event.notificationAudience.mode;
+      _audienceBranchId = event.notificationAudience.branchId;
+      _includeMemberIds.addAll(event.notificationAudience.includeMemberIds);
+      _excludeMemberIds.addAll(event.notificationAudience.excludeMemberIds);
+      _excludeRules.addAll(event.notificationAudience.excludeRules);
     } else {
       _solarDate = DateTime(
         initialDate.year,
@@ -1540,6 +1639,12 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       );
       _lunarYear = initialDate.year;
       _reminderOffsets.addAll(const [1440]);
+    }
+
+    if (_audienceBranchId == null &&
+        widget.branches.isNotEmpty &&
+        _audienceMode == EventNotificationAudienceMode.branchAll) {
+      _audienceBranchId = widget.branches.first.id;
     }
 
     _refreshLunarPreview();
@@ -1733,6 +1838,329 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
               ),
               const SizedBox(height: 8),
               Text(
+                l10n.pick(
+                  vi: 'Người nhận thông báo',
+                  en: 'Notification recipients',
+                ),
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.pick(
+                  vi: 'Chọn nhóm nhận để hệ thống gửi lời nhắc đúng đối tượng.',
+                  en: 'Choose who should receive reminders for this event.',
+                ),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              if (widget.isRecipientsLoading) ...[
+                const SizedBox(height: 8),
+                const LinearProgressIndicator(minHeight: 2),
+              ],
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _audienceMode = EventNotificationAudienceMode.clanAll;
+                        _audienceBranchId = null;
+                        _includeMemberIds.clear();
+                      });
+                    },
+                    icon: const Icon(Icons.groups_outlined),
+                    label: Text(l10n.pick(vi: 'Toàn tộc', en: 'All clan')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: widget.branches.isEmpty
+                        ? null
+                        : () {
+                            setState(() {
+                              _audienceMode =
+                                  EventNotificationAudienceMode.branchAll;
+                              _audienceBranchId =
+                                  _audienceBranchId ?? widget.branches.first.id;
+                              _includeMemberIds.clear();
+                            });
+                          },
+                    icon: const Icon(Icons.account_tree_outlined),
+                    label: Text(l10n.pick(vi: 'Toàn chi', en: 'All branch')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: widget.members.isEmpty
+                        ? null
+                        : _applyLeaderViceQuickRecipients,
+                    icon: const Icon(Icons.shield_outlined),
+                    label: Text(
+                      l10n.pick(vi: 'Trưởng + phó', en: 'Lead + deputy'),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: widget.members.isEmpty
+                        ? null
+                        : () {
+                            setState(() {
+                              _audienceMode =
+                                  EventNotificationAudienceMode.named;
+                              _excludeMemberIds.clear();
+                              _excludeRules.clear();
+                            });
+                          },
+                    icon: const Icon(Icons.person_search_outlined),
+                    label: Text(l10n.pick(vi: 'Đích danh', en: 'Named only')),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SegmentedButton<EventNotificationAudienceMode>(
+                showSelectedIcon: false,
+                segments: [
+                  ButtonSegment(
+                    value: EventNotificationAudienceMode.clanAll,
+                    label: Text(l10n.pick(vi: 'Toàn tộc', en: 'All clan')),
+                  ),
+                  ButtonSegment(
+                    value: EventNotificationAudienceMode.branchAll,
+                    label: Text(l10n.pick(vi: 'Toàn chi', en: 'All branch')),
+                  ),
+                  ButtonSegment(
+                    value: EventNotificationAudienceMode.named,
+                    label: Text(l10n.pick(vi: 'Đích danh', en: 'Named')),
+                  ),
+                ],
+                selected: {_audienceMode},
+                onSelectionChanged: (selection) {
+                  final mode = selection.firstOrNull;
+                  if (mode == null) {
+                    return;
+                  }
+                  setState(() {
+                    _audienceMode = mode;
+                    if (_audienceMode !=
+                        EventNotificationAudienceMode.branchAll) {
+                      _audienceBranchId = null;
+                    } else if (widget.branches.isNotEmpty) {
+                      _audienceBranchId ??= widget.branches.first.id;
+                    }
+                  });
+                },
+              ),
+              if (_audienceMode == EventNotificationAudienceMode.branchAll) ...[
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String?>(
+                  initialValue: _audienceBranchId,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Chọn chi', en: 'Select branch'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (final branch in widget.branches)
+                      DropdownMenuItem<String?>(
+                        value: branch.id,
+                        child: Text(branch.name),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    setState(() => _audienceBranchId = value);
+                  },
+                ),
+              ],
+              if (_audienceMode == EventNotificationAudienceMode.named) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: widget.members.isEmpty
+                      ? null
+                      : () => _pickMemberIds(
+                          title: l10n.pick(
+                            vi: 'Chọn người nhận đích danh',
+                            en: 'Pick named recipients',
+                          ),
+                          initialSelected: _includeMemberIds,
+                          onApplied: (picked) {
+                            setState(() {
+                              _includeMemberIds
+                                ..clear()
+                                ..addAll(picked);
+                            });
+                          },
+                        ),
+                  icon: const Icon(Icons.group_add_outlined),
+                  label: Text(
+                    l10n.pick(vi: 'Chọn người nhận', en: 'Pick recipients'),
+                  ),
+                ),
+                if (_includeMemberIds.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final memberId in _includeMemberIds.toList()..sort())
+                        InputChip(
+                          label: Text(_memberLabel(memberId)),
+                          onDeleted: () {
+                            setState(() {
+                              _includeMemberIds.remove(memberId);
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                ],
+              ] else ...[
+                const SizedBox(height: 10),
+                Text(
+                  l10n.pick(
+                    vi: 'Loại trừ khỏi thông báo',
+                    en: 'Exclude from notifications',
+                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilterChip(
+                      selected: _excludeRules.contains(
+                        EventNotificationAudienceExcludeRule.female,
+                      ),
+                      label: Text(
+                        l10n.pick(vi: 'Trừ con gái', en: 'Exclude daughters'),
+                      ),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _excludeRules.add(
+                              EventNotificationAudienceExcludeRule.female,
+                            );
+                          } else {
+                            _excludeRules.remove(
+                              EventNotificationAudienceExcludeRule.female,
+                            );
+                          }
+                        });
+                      },
+                    ),
+                    FilterChip(
+                      selected: _excludeRules.contains(
+                        EventNotificationAudienceExcludeRule.nonLeaderOrVice,
+                      ),
+                      label: Text(
+                        l10n.pick(
+                          vi: 'Chỉ trưởng/phó',
+                          en: 'Leads/deputies only',
+                        ),
+                      ),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _excludeRules.add(
+                              EventNotificationAudienceExcludeRule
+                                  .nonLeaderOrVice,
+                            );
+                          } else {
+                            _excludeRules.remove(
+                              EventNotificationAudienceExcludeRule
+                                  .nonLeaderOrVice,
+                            );
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: widget.members.isEmpty
+                      ? null
+                      : () => _pickMemberIds(
+                          title: l10n.pick(
+                            vi: 'Chọn người loại trừ',
+                            en: 'Pick excluded members',
+                          ),
+                          initialSelected: _excludeMemberIds,
+                          onApplied: (picked) {
+                            setState(() {
+                              _excludeMemberIds
+                                ..clear()
+                                ..addAll(picked);
+                            });
+                          },
+                        ),
+                  icon: const Icon(Icons.person_remove_outlined),
+                  label: Text(
+                    l10n.pick(
+                      vi: 'Loại trừ đích danh',
+                      en: 'Exclude named members',
+                    ),
+                  ),
+                ),
+                if (_excludeMemberIds.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final memberId in _excludeMemberIds.toList()..sort())
+                        InputChip(
+                          label: Text(_memberLabel(memberId)),
+                          onDeleted: () {
+                            setState(() {
+                              _excludeMemberIds.remove(memberId);
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+              const SizedBox(height: 8),
+              Builder(
+                builder: (context) {
+                  final recipients = _resolvedRecipientsPreview();
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.pick(
+                            vi: 'Sẽ gửi cho ${recipients.length} thành viên',
+                            en: 'Will notify ${recipients.length} members',
+                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        if (recipients.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            recipients
+                                .take(5)
+                                .map((m) => m.fullName)
+                                .join(', '),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
                 l10n.pick(vi: 'Mốc lời nhắc', en: 'Reminder offsets'),
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
@@ -1857,6 +2285,237 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     });
   }
 
+  EventNotificationAudience _buildNotificationAudience() {
+    final includeIds = _includeMemberIds.toList(growable: false)..sort();
+    final excludeIds = _excludeMemberIds.toList(growable: false)..sort();
+    final excludeRules = _excludeRules.toList(growable: false)
+      ..sort((left, right) => left.wireName.compareTo(right.wireName));
+    return EventNotificationAudience(
+      mode: _audienceMode,
+      branchId: _audienceMode == EventNotificationAudienceMode.branchAll
+          ? _audienceBranchId
+          : null,
+      includeMemberIds: includeIds,
+      excludeMemberIds: excludeIds,
+      excludeRules: excludeRules,
+    );
+  }
+
+  List<MemberProfile> _resolvedRecipientsPreview() {
+    final audience = _buildNotificationAudience();
+    return audience.resolveRecipients(
+      members: widget.members,
+      fallbackMembers: const [],
+    );
+  }
+
+  String _memberLabel(String memberId) {
+    for (final member in widget.members) {
+      if (member.id == memberId) {
+        return member.fullName;
+      }
+    }
+    return memberId;
+  }
+
+  void _applyLeaderViceQuickRecipients() {
+    final branchScoped =
+        _audienceMode == EventNotificationAudienceMode.branchAll &&
+        (_audienceBranchId ?? '').trim().isNotEmpty;
+    final selectedIds = _leaderViceMemberIds(
+      branchId: branchScoped ? _audienceBranchId : null,
+    );
+    if (selectedIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Không tìm thấy trưởng/phó còn hoạt động để chọn nhanh.',
+              en: 'No active lead/deputy members available for quick pick.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _audienceMode = EventNotificationAudienceMode.named;
+      _includeMemberIds
+        ..clear()
+        ..addAll(selectedIds);
+      _excludeMemberIds.clear();
+      _excludeRules.clear();
+    });
+  }
+
+  Set<String> _leaderViceMemberIds({String? branchId}) {
+    final normalizedBranch = (branchId ?? '').trim();
+    return widget.members
+        .where((member) {
+          if (!_isMemberAlive(member)) {
+            return false;
+          }
+          if (!_isLeaderOrViceRole(member.primaryRole)) {
+            return false;
+          }
+          if (normalizedBranch.isNotEmpty &&
+              member.branchId.trim() != normalizedBranch) {
+            return false;
+          }
+          return true;
+        })
+        .map((member) => member.id)
+        .toSet();
+  }
+
+  bool _isLeaderOrViceRole(String? role) {
+    final normalized = (role ?? '').trim().toUpperCase();
+    return const <String>{
+      'SUPER_ADMIN',
+      'CLAN_ADMIN',
+      'CLAN_OWNER',
+      'CLAN_LEADER',
+      'BRANCH_ADMIN',
+      'VICE_LEADER',
+    }.contains(normalized);
+  }
+
+  bool _isMemberAlive(MemberProfile member) {
+    final deathDate = member.deathDate?.trim() ?? '';
+    if (deathDate.isNotEmpty) {
+      return false;
+    }
+    final normalizedStatus = member.status.trim().toLowerCase();
+    return normalizedStatus != 'deceased' && normalizedStatus != 'dead';
+  }
+
+  Future<void> _pickMemberIds({
+    required String title,
+    required Set<String> initialSelected,
+    required ValueChanged<Set<String>> onApplied,
+  }) async {
+    final selected = Set<String>.from(initialSelected);
+    String query = '';
+    final result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filteredMembers = widget.members
+                .where((member) {
+                  if (query.trim().isEmpty) {
+                    return true;
+                  }
+                  final normalized = query.trim().toLowerCase();
+                  return member.fullName.toLowerCase().contains(normalized) ||
+                      member.id.toLowerCase().contains(normalized);
+                })
+                .toList(growable: false);
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.72,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        hintText: context.l10n.pick(
+                          vi: 'Tìm thành viên...',
+                          en: 'Search members...',
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setModalState(() {
+                          query = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: filteredMembers.isEmpty
+                          ? Center(
+                              child: Text(
+                                context.l10n.pick(
+                                  vi: 'Không tìm thấy thành viên phù hợp.',
+                                  en: 'No matching members found.',
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: filteredMembers.length,
+                              itemBuilder: (context, index) {
+                                final member = filteredMembers[index];
+                                final isChecked = selected.contains(member.id);
+                                return CheckboxListTile(
+                                  value: isChecked,
+                                  title: Text(member.fullName),
+                                  subtitle: member.branchId.trim().isEmpty
+                                      ? null
+                                      : Text('ID: ${member.id}'),
+                                  onChanged: (value) {
+                                    setModalState(() {
+                                      if (value == true) {
+                                        selected.add(member.id);
+                                      } else {
+                                        selected.remove(member.id);
+                                      }
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(
+                              context.l10n.pick(vi: 'Hủy', en: 'Cancel'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () =>
+                                Navigator.of(context).pop(selected),
+                            child: Text(
+                              context.l10n.pick(vi: 'Xong', en: 'Done'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (result == null) {
+      return;
+    }
+    onApplied(result);
+  }
+
   Future<void> _submit() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
@@ -1879,6 +2538,36 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
             context.l10n.pick(
               vi: 'Vui lòng nhập người được giỗ.',
               en: 'Please provide who this memorial is for.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_audienceMode == EventNotificationAudienceMode.branchAll &&
+        (_audienceBranchId ?? '').trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Vui lòng chọn chi nhận thông báo.',
+              en: 'Please select the branch that should receive notifications.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_audienceMode == EventNotificationAudienceMode.named &&
+        _includeMemberIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Vui lòng chọn ít nhất 1 thành viên nhận thông báo.',
+              en: 'Please pick at least one recipient.',
             ),
           ),
         ),
@@ -1940,6 +2629,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
 
       final source = widget.editingEvent;
       final now = DateTime.now();
+      final notificationAudience = _buildNotificationAudience();
       final event = DualCalendarEvent(
         id: source?.id ?? '',
         title: title,
@@ -1957,6 +2647,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         recurrencePolicy: _recurrencePolicy,
         reminderOffsetsMinutes: _reminderOffsets.toList(growable: false)
           ..sort((left, right) => right.compareTo(left)),
+        notificationAudience: notificationAudience,
         timezone: source?.timezone ?? 'Asia/Ho_Chi_Minh',
         createdAt: source?.createdAt ?? now,
         updatedAt: now,
@@ -2284,6 +2975,44 @@ String _offsetLabel(AppLocalizations l10n, int minutes) {
     return isVietnamese ? '$value giờ' : '${value}h';
   }
   return isVietnamese ? '$minutes phút' : '${minutes}m';
+}
+
+String _audienceSummaryLabel(
+  AppLocalizations l10n,
+  EventNotificationAudience audience,
+) {
+  final modeLabel = switch (audience.mode) {
+    EventNotificationAudienceMode.clanAll => l10n.pick(
+      vi: 'Toàn tộc',
+      en: 'All clan',
+    ),
+    EventNotificationAudienceMode.branchAll => l10n.pick(
+      vi: 'Toàn chi',
+      en: 'All branch',
+    ),
+    EventNotificationAudienceMode.named => l10n.pick(
+      vi: 'Đích danh',
+      en: 'Named',
+    ),
+  };
+
+  final hasExclusions =
+      audience.excludeMemberIds.isNotEmpty || audience.excludeRules.isNotEmpty;
+  if (audience.mode == EventNotificationAudienceMode.named) {
+    return l10n.pick(
+      vi: '$modeLabel (${audience.includeMemberIds.length} người)',
+      en: '$modeLabel (${audience.includeMemberIds.length})',
+    );
+  }
+
+  if (!hasExclusions) {
+    return modeLabel;
+  }
+
+  return l10n.pick(
+    vi: '$modeLabel (có loại trừ)',
+    en: '$modeLabel (with exclusions)',
+  );
 }
 
 String _formatReminderLeadTime(AppLocalizations l10n, int totalMinutes) {

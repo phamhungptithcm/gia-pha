@@ -254,7 +254,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       orElse: () => minimumTier,
     );
     final pendingTransactions = workspace.transactions
-        .where((tx) => tx.paymentStatus == 'pending')
+        .where((tx) => _isPendingPaymentStatus(tx.paymentStatus))
         .toList(growable: false);
 
     return RefreshIndicator(
@@ -634,10 +634,8 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                             '${invoice.planCode} • ${_formatVnd(invoice.amountVnd)}',
                           ),
                           subtitle: Text(
-                            l10n.pick(
-                              vi: 'Trạng thái: ${invoice.status}',
-                              en: 'Status: ${invoice.status}',
-                            ),
+                            '${l10n.pick(vi: 'Trạng thái', en: 'Status')}: '
+                            '${_humanizeInvoiceStatus(invoice.status, l10n)}',
                           ),
                           trailing: Text(
                             _dateLabel(invoice.issuedAtIso, l10n),
@@ -668,8 +666,10 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                         ListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          title: Text(log.action),
-                          subtitle: Text('${log.entityType} • ${log.entityId}'),
+                          title: Text(_humanizeAuditAction(log.action, l10n)),
+                          subtitle: Text(
+                            '${_humanizeAuditEntityType(log.entityType, l10n)} • ${log.entityId}',
+                          ),
                           trailing: Text(
                             _dateLabel(log.createdAtIso, l10n),
                             style: theme.textTheme.bodySmall,
@@ -868,7 +868,12 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   }
 
   String _humanizeStatus(String status, AppLocalizations l10n) {
-    switch (status) {
+    final normalized = status.trim().toLowerCase();
+    switch (normalized) {
+      case 'pending':
+        return l10n.pick(vi: 'Chờ xử lý', en: 'Pending');
+      case 'created':
+        return l10n.pick(vi: 'Đã tạo', en: 'Created');
       case 'active':
         return l10n.pick(vi: 'Đang hoạt động', en: 'Active');
       case 'grace_period':
@@ -877,13 +882,101 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         return l10n.pick(vi: 'Chờ thanh toán', en: 'Pending payment');
       case 'expired':
         return l10n.pick(vi: 'Hết hạn', en: 'Expired');
+      case 'paid':
+        return l10n.pick(vi: 'Đã thanh toán', en: 'Paid');
+      case 'issued':
+        return l10n.pick(vi: 'Đã phát hành', en: 'Issued');
+      case 'void':
+        return l10n.pick(vi: 'Đã hủy', en: 'Void');
+      case 'canceled':
+      case 'cancelled':
+        return l10n.pick(vi: 'Đã hủy', en: 'Canceled');
       case 'succeeded':
         return l10n.pick(vi: 'Thành công', en: 'Succeeded');
       case 'failed':
         return l10n.pick(vi: 'Thất bại', en: 'Failed');
       default:
-        return status;
+        return _humanizeCode(status);
     }
+  }
+
+  String _humanizeInvoiceStatus(String status, AppLocalizations l10n) {
+    final normalized = status.trim().toLowerCase();
+    switch (normalized) {
+      case 'issued':
+        return l10n.pick(vi: 'Đã phát hành', en: 'Issued');
+      case 'paid':
+        return l10n.pick(vi: 'Đã thanh toán', en: 'Paid');
+      case 'failed':
+        return l10n.pick(vi: 'Thất bại', en: 'Failed');
+      case 'void':
+      case 'canceled':
+      case 'cancelled':
+        return l10n.pick(vi: 'Đã hủy', en: 'Canceled');
+      case 'pending':
+        return l10n.pick(vi: 'Chờ thanh toán', en: 'Pending');
+      default:
+        return _humanizeCode(status);
+    }
+  }
+
+  String _humanizeAuditAction(String action, AppLocalizations l10n) {
+    final normalized = action.trim().toLowerCase();
+    switch (normalized) {
+      case 'checkout_created':
+        return l10n.pick(vi: 'Đã tạo phiên thanh toán', en: 'Checkout created');
+      case 'payment_succeeded':
+        return l10n.pick(vi: 'Thanh toán thành công', en: 'Payment succeeded');
+      case 'payment_failed':
+        return l10n.pick(vi: 'Thanh toán thất bại', en: 'Payment failed');
+      case 'billing_preferences_updated':
+        return l10n.pick(
+          vi: 'Đã cập nhật cài đặt thanh toán',
+          en: 'Billing preferences updated',
+        );
+      default:
+        return _humanizeCode(action);
+    }
+  }
+
+  String _humanizeAuditEntityType(String entityType, AppLocalizations l10n) {
+    final normalized = entityType.trim().toLowerCase();
+    switch (normalized) {
+      case 'paymenttransaction':
+      case 'payment_transaction':
+        return l10n.pick(vi: 'Giao dịch thanh toán', en: 'Payment transaction');
+      case 'billingsettings':
+      case 'billing_settings':
+        return l10n.pick(vi: 'Cài đặt thanh toán', en: 'Billing settings');
+      case 'subscription':
+        return l10n.pick(vi: 'Gói dịch vụ', en: 'Subscription');
+      case 'invoice':
+        return l10n.pick(vi: 'Hóa đơn', en: 'Invoice');
+      default:
+        return _humanizeCode(entityType);
+    }
+  }
+
+  bool _isPendingPaymentStatus(String status) {
+    final normalized = status.trim().toLowerCase();
+    return normalized == 'pending' || normalized == 'created';
+  }
+
+  String _humanizeCode(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return raw;
+    }
+    var normalized = trimmed.replaceAll('_', ' ').replaceAll('-', ' ');
+    normalized = normalized.replaceAllMapped(
+      RegExp(r'([a-z])([A-Z])'),
+      (match) => '${match.group(1)} ${match.group(2)}',
+    );
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.isEmpty) {
+      return raw;
+    }
+    return '${normalized[0].toUpperCase()}${normalized.substring(1)}';
   }
 
   String _dateLabel(String? iso, AppLocalizations l10n) {

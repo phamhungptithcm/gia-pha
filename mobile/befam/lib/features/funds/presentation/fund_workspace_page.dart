@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -43,6 +44,12 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
   bool _isSwitchingClanContext = false;
   String _cachedMembersClanId = '';
   List<MemberProfile> _cachedMembers = const [];
+  List<MemberProfile> _treasurerMembers = const [];
+  String _treasurerClanId = '';
+  bool _isLoadingTreasurers = false;
+  bool _hasResolvedTreasurers = false;
+  bool _treasurerLookupFailed = false;
+  int _treasurerRequestToken = 0;
 
   AuthSession get _session => _activeSession;
 
@@ -78,6 +85,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       session: _session,
     );
     unawaited(_controller.initialize());
+    unawaited(_refreshTreasurerRoster(force: true));
   }
 
   @override
@@ -105,6 +113,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       session: _session,
     );
     unawaited(_controller.initialize());
+    unawaited(_refreshTreasurerRoster(force: true));
   }
 
   @override
@@ -242,6 +251,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       );
       setState(() {});
       await _controller.initialize();
+      unawaited(_refreshTreasurerRoster(force: true));
       return _session;
     } finally {
       if (mounted) {
@@ -265,6 +275,79 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     );
   }
 
+  Future<void> _refreshWorkspace() async {
+    await _controller.refresh();
+    await _refreshTreasurerRoster(force: true);
+  }
+
+  Future<void> _refreshTreasurerRoster({bool force = false}) async {
+    final clanId = (_session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _treasurerMembers = const [];
+        _treasurerClanId = '';
+        _isLoadingTreasurers = false;
+        _hasResolvedTreasurers = true;
+        _treasurerLookupFailed = false;
+      });
+      return;
+    }
+
+    if (!force && _hasResolvedTreasurers && _treasurerClanId == clanId) {
+      return;
+    }
+
+    final requestToken = ++_treasurerRequestToken;
+    if (mounted) {
+      setState(() {
+        _isLoadingTreasurers = true;
+        _treasurerLookupFailed = false;
+      });
+    }
+
+    try {
+      final members = await _loadMembersForClan(clanId);
+      if (!mounted || requestToken != _treasurerRequestToken) {
+        return;
+      }
+
+      final treasurers =
+          members
+              .where(
+                (member) =>
+                    GovernanceRoleMatrix.normalizeRole(member.primaryRole) ==
+                    GovernanceRoles.treasurer,
+              )
+              .toList(growable: false)
+            ..sort(
+              (left, right) => left.displayName.toLowerCase().compareTo(
+                right.displayName.toLowerCase(),
+              ),
+            );
+
+      setState(() {
+        _treasurerMembers = treasurers;
+        _treasurerClanId = clanId;
+        _isLoadingTreasurers = false;
+        _hasResolvedTreasurers = true;
+      });
+    } catch (_) {
+      if (!mounted || requestToken != _treasurerRequestToken) {
+        return;
+      }
+      setState(() {
+        _treasurerMembers = const [];
+        _treasurerClanId = clanId;
+        _isLoadingTreasurers = false;
+        _hasResolvedTreasurers = true;
+        _treasurerLookupFailed = true;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -273,6 +356,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         final l10n = context.l10n;
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
+        final currentFund = _controller.selectedFund;
 
         return Scaffold(
           appBar: AppBar(
@@ -308,7 +392,11 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                 ),
               IconButton(
                 tooltip: l10n.pick(vi: 'Tải lại', en: 'Refresh'),
-                onPressed: _controller.isLoading ? null : _controller.refresh,
+                onPressed: _controller.isLoading
+                    ? null
+                    : () {
+                        unawaited(_refreshWorkspace());
+                      },
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -342,7 +430,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                     ),
                   )
                 : RefreshIndicator(
-                    onRefresh: _controller.refresh,
+                    onRefresh: _refreshWorkspace,
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
@@ -384,7 +472,9 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: TextButton.icon(
-                              onPressed: _controller.refresh,
+                              onPressed: () {
+                                unawaited(_refreshWorkspace());
+                              },
                               icon: const Icon(Icons.refresh),
                               label: Text(
                                 l10n.pick(vi: 'Tải lại', en: 'Retry'),
@@ -432,6 +522,18 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                                   ? l10n.pick(vi: 'Ghi', en: 'Write')
                                   : l10n.pick(vi: 'Đọc', en: 'Read'),
                               icon: Icons.verified_user_outlined,
+                            ),
+                            _StatTile(
+                              label: l10n.pick(
+                                vi: 'Thủ quỹ quỹ hiện tại',
+                                en: 'Current fund treasurer',
+                              ),
+                              value: _treasurerSummaryLabel(
+                                context,
+                                currentFund: currentFund,
+                              ),
+                              valueMaxLines: 2,
+                              icon: Icons.badge_outlined,
                             ),
                           ],
                         ),
@@ -510,6 +612,96 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       vi: 'Áp dụng: ${fund.appliedMemberIds.length} thành viên',
       en: 'Applies to ${fund.appliedMemberIds.length} members',
     );
+  }
+
+  String _treasurerSummaryLabel(
+    BuildContext context, {
+    required FundProfile? currentFund,
+  }) {
+    final l10n = context.l10n;
+    if (_isLoadingTreasurers && !_hasResolvedTreasurers) {
+      return l10n.pick(vi: 'Đang tải...', en: 'Loading...');
+    }
+    if (_treasurerLookupFailed) {
+      return l10n.pick(vi: 'Chưa tải được', en: 'Unavailable');
+    }
+    if (currentFund == null) {
+      return l10n.pick(vi: 'Chưa chọn quỹ', en: 'No fund selected');
+    }
+
+    final activeClanId = (_session.clanId ?? '').trim();
+    final fundClanId = currentFund.clanId.trim();
+    if (activeClanId.isEmpty || fundClanId != activeClanId) {
+      return l10n.pick(vi: 'Ngoài phạm vi clan', en: 'Out of clan scope');
+    }
+
+    final treasurerNames = _resolveTreasurerNamesForCurrentFund(
+      currentFund: currentFund,
+      activeClanId: activeClanId,
+    );
+    if (treasurerNames.isEmpty) {
+      return l10n.pick(vi: 'Chưa phân công', en: 'Unassigned');
+    }
+    if (treasurerNames.length == 1) {
+      return treasurerNames.first;
+    }
+    final first = treasurerNames.first;
+    final remaining = treasurerNames.length - 1;
+    return '$first +$remaining';
+  }
+
+  List<String> _resolveTreasurerNamesForCurrentFund({
+    required FundProfile currentFund,
+    required String activeClanId,
+  }) {
+    Iterable<MemberProfile> scoped = _treasurerMembers.where(
+      (member) => member.clanId.trim() == activeClanId,
+    );
+
+    final branchId = _nullIfBlank(currentFund.branchId);
+    if (branchId != null) {
+      scoped = scoped.where((member) => member.branchId.trim() == branchId);
+    }
+
+    final appliedMemberIds = currentFund.appliedMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet();
+
+    if (appliedMemberIds.isNotEmpty) {
+      scoped = scoped.where((member) => appliedMemberIds.contains(member.id));
+    } else {
+      final transactionActorIds = _controller.transactions
+          .where(
+            (transaction) =>
+                transaction.fundId == currentFund.id &&
+                transaction.clanId.trim() == activeClanId,
+          )
+          .expand((transaction) {
+            return [
+              transaction.memberId?.trim() ?? '',
+              transaction.createdBy?.trim() ?? '',
+            ];
+          })
+          .where((entry) => entry.isNotEmpty)
+          .toSet();
+      if (transactionActorIds.isNotEmpty) {
+        scoped = scoped.where(
+          (member) => transactionActorIds.contains(member.id),
+        );
+      }
+    }
+
+    final names =
+        scoped
+            .map((member) => member.displayName.trim())
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList(growable: false)
+          ..sort(
+            (left, right) => left.toLowerCase().compareTo(right.toLowerCase()),
+          );
+    return names;
   }
 }
 
@@ -2124,11 +2316,13 @@ class _StatTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    this.valueMaxLines = 1,
   });
 
   final String label;
   final String value;
   final IconData icon;
+  final int valueMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -2153,6 +2347,9 @@ class _StatTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     value,
+                    maxLines: valueMaxLines,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: valueMaxLines > 1,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),

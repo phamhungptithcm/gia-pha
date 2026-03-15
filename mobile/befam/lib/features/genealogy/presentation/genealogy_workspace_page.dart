@@ -146,9 +146,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     final rootEntriesForSelector = filteredRoots.isEmpty
         ? segment.rootEntries
         : filteredRoots;
-    final selectedMember = _selectedMemberId == null
-        ? null
-        : segment.graph.membersById[_selectedMemberId!];
     final canExpandAncestors = _hasHiddenAncestors(segment.graph, scene);
     final canExpandDescendants = _hasHiddenDescendants(segment.graph, scene);
 
@@ -179,6 +176,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           _ViewControlCard(
             displayPreset: _displayPreset,
             onDisplayPresetChanged: _applyDisplayPreset,
+            onAddGenealogyPressed: _showAddGenealogyPlaceholder,
+            onAddBranchPressed: _showAddBranchPlaceholder,
             statusFilter: _statusFilter,
             onStatusFilterChanged: (value) {
               setState(() {
@@ -244,54 +243,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final compact = constraints.maxWidth < 640;
-                  final iconOnlyFocus = constraints.maxWidth < 460;
-                  final focusAction = iconOnlyFocus
-                      ? Tooltip(
-                          message: l10n.genealogyFocusMemberTitle,
-                          child: FilledButton.tonal(
-                            key: const Key('genealogy-center-selected'),
-                            onPressed: selectedMember == null
-                                ? null
-                                : () => _centerOnMember(
-                                    memberId: selectedMember.id,
-                                    scene: scene,
-                                    viewport: const Size(1, 1),
-                                    useViewportFromLayout: true,
-                                  ),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size(50, 50),
-                              padding: const EdgeInsets.all(12),
-                              shape: const StadiumBorder(),
-                            ),
-                            child: const Icon(Icons.center_focus_strong),
-                          ),
-                        )
-                      : FilledButton.tonalIcon(
-                          key: const Key('genealogy-center-selected'),
-                          onPressed: selectedMember == null
-                              ? null
-                              : () => _centerOnMember(
-                                  memberId: selectedMember.id,
-                                  scene: scene,
-                                  viewport: const Size(1, 1),
-                                  useViewportFromLayout: true,
-                                ),
-                          icon: const Icon(Icons.center_focus_strong),
-                          label: Text(
-                            l10n.genealogyFocusMemberTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            softWrap: false,
-                          ),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size(164, 50),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            shape: const StadiumBorder(),
-                          ),
-                        );
 
                   final parentControl = _DepthControl(
                     id: 'parents',
@@ -355,11 +306,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                         parentControl,
                         const SizedBox(height: 10),
                         childControl,
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: focusAction,
-                        ),
                       ],
                     );
                   }
@@ -369,8 +315,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                       Expanded(child: parentControl),
                       const SizedBox(width: 12),
                       Expanded(child: childControl),
-                      const SizedBox(width: 12),
-                      focusAction,
                     ],
                   );
                 },
@@ -641,6 +585,38 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       _transformController.value = Matrix4.identity();
       _invalidateTreeSceneCache();
     });
+  }
+
+  void _showAddGenealogyPlaceholder() {
+    final l10n = context.l10n;
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Sắp có chức năng thêm gia phả trực tiếp trên màn hình này.',
+              en: 'Add genealogy action will be available on this screen soon.',
+            ),
+          ),
+        ),
+      );
+  }
+
+  void _showAddBranchPlaceholder() {
+    final l10n = context.l10n;
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Sắp có chức năng thêm nhánh trực tiếp trên màn hình này.',
+              en: 'Add branch action will be available on this screen soon.',
+            ),
+          ),
+        ),
+      );
   }
 
   void _applyDisplayPreset(_TreeDisplayPreset preset) {
@@ -1579,11 +1555,30 @@ class _LandingCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.genealogyWorkspaceTitle,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.genealogyWorkspaceTitle,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              IconButton(
+                key: const Key('genealogy-refresh-icon'),
+                onPressed: onRefresh,
+                tooltip: l10n.genealogyRefreshAction,
+                visualDensity: VisualDensity.compact,
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           Text(
@@ -1608,17 +1603,6 @@ class _LandingCard extends StatelessWidget {
                   selected: scopeType == GenealogyScopeType.branch,
                   onSelected: (_) => onScopeChanged(GenealogyScopeType.branch),
                 ),
-              FilledButton.tonalIcon(
-                onPressed: onRefresh,
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh),
-                label: Text(l10n.genealogyRefreshAction),
-              ),
             ],
           ),
         ],
@@ -1910,6 +1894,8 @@ class _ViewControlCard extends StatelessWidget {
   const _ViewControlCard({
     required this.displayPreset,
     required this.onDisplayPresetChanged,
+    required this.onAddGenealogyPressed,
+    required this.onAddBranchPressed,
     required this.statusFilter,
     required this.onStatusFilterChanged,
     required this.branches,
@@ -1921,6 +1907,8 @@ class _ViewControlCard extends StatelessWidget {
 
   final _TreeDisplayPreset displayPreset;
   final ValueChanged<_TreeDisplayPreset> onDisplayPresetChanged;
+  final VoidCallback onAddGenealogyPressed;
+  final VoidCallback onAddBranchPressed;
   final _MemberStatusFilter statusFilter;
   final ValueChanged<_MemberStatusFilter> onStatusFilterChanged;
   final List<BranchProfile> branches;
@@ -1975,7 +1963,8 @@ class _ViewControlCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                _horizontalChipRow(
+                _chipRow(
+                  iconOnly: iconOnlyChips,
                   children: [
                     ChoiceChip(
                       key: const Key('tree-preset-focused'),
@@ -2052,7 +2041,8 @@ class _ViewControlCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                _horizontalChipRow(
+                _chipRow(
+                  iconOnly: iconOnlyChips,
                   children: [
                     FilterChip(
                       key: const Key('tree-status-all'),
@@ -2128,6 +2118,67 @@ class _ViewControlCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                LayoutBuilder(
+                  builder: (context, actionConstraints) {
+                    final compactActions = actionConstraints.maxWidth < 560;
+                    final addGenealogyLabel = l10n.pick(
+                      vi: 'Thêm gia phả',
+                      en: 'Add genealogy',
+                    );
+                    final addBranchLabel = l10n.pick(
+                      vi: 'Thêm nhánh',
+                      en: 'Add branch',
+                    );
+
+                    final addGenealogyButton = FilledButton.tonalIcon(
+                      key: const Key('genealogy-action-add-tree'),
+                      onPressed: onAddGenealogyPressed,
+                      icon: const Icon(Icons.account_tree_outlined),
+                      label: Text(
+                        addGenealogyLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                      ),
+                    );
+                    final addBranchButton = OutlinedButton.icon(
+                      key: const Key('genealogy-action-add-branch'),
+                      onPressed: onAddBranchPressed,
+                      icon: const Icon(Icons.call_split_outlined),
+                      label: Text(
+                        addBranchLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                      ),
+                    );
+
+                    if (compactActions) {
+                      return Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: addGenealogyButton,
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: addBranchButton,
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: addGenealogyButton),
+                        const SizedBox(width: 8),
+                        Expanded(child: addBranchButton),
+                      ],
+                    );
+                  },
+                ),
                 if (branchItems.length > 1) ...[
                   const SizedBox(height: 12),
                   Text(
@@ -2187,6 +2238,26 @@ class _ViewControlCard extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+
+  Widget _chipRow({required bool iconOnly, required List<Widget> children}) {
+    if (iconOnly) {
+      return _equalChipRow(children: children);
+    }
+    return _horizontalChipRow(children: children);
+  }
+
+  Widget _equalChipRow({required List<Widget> children}) {
+    return Row(
+      children: [
+        for (var index = 0; index < children.length; index++) ...[
+          Expanded(
+            child: SizedBox(width: double.infinity, child: children[index]),
+          ),
+          if (index < children.length - 1) const SizedBox(width: 8),
+        ],
+      ],
     );
   }
 
