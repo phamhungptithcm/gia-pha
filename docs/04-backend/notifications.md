@@ -22,18 +22,26 @@ Current push target mapping:
 
 - `event`
 - `scholarship`
+- `billing` (planned)
 - `generic` (internal support type)
 
 Mobile deep-link parser maps payload `target` values to:
 
 - `NotificationTargetType.event`
 - `NotificationTargetType.scholarship`
+- `NotificationTargetType.billing` (planned)
 - `NotificationTargetType.unknown`
 
 ## Trigger sources currently wired
 
 - event creation (`onEventCreated`)
 - scholarship review status changes (`onSubmissionReviewed`)
+
+Planned trigger sources:
+
+- subscription expiry reminders
+- manual renewal due reminders
+- payment success/failure status updates
 
 ## Read/update model
 

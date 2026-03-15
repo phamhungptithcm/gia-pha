@@ -42,5 +42,11 @@ These events capture query/filter usage and result engagement.
 ## Next analytics opportunities
 
 - instrument genealogy interaction depth and focus actions
-- add event/fund/scholarship funnel metrics once UIs are fully delivered
+- add conversion funnel metrics for tiered subscription checkout:
+  - subscription_screen_view
+  - subscription_mode_changed (auto/manual)
+  - checkout_started (card/vnpay)
+  - checkout_completed
+  - checkout_failed
+  - renewal_reminder_opened
 - align dashboard definitions with release and adoption KPIs

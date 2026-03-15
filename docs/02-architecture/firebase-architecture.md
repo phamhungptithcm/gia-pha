@@ -18,6 +18,11 @@ _Last reviewed: March 14, 2026_
 - Firebase Cloud Messaging (token registration and push delivery)
 - Firebase Analytics and Crashlytics on mobile
 
+Planned for billing epic:
+
+- payment gateway integration (card + VNPay) mediated by Cloud Functions
+- subscription lifecycle and invoice state stored in Firestore
+
 ## Access model
 
 - identity context is carried by custom claims (`clanIds`, `memberId`,
@@ -37,6 +42,14 @@ firebase/functions/src/
   funds/transaction-triggers.ts
   notifications/push-delivery.ts
   scheduled/jobs.ts
+
+Planned additions:
+
+```text
+  billing/checkout-callables.ts
+  billing/payment-webhooks.ts
+  billing/subscription-jobs.ts
+```
 ```
 
 ## Delivery architecture

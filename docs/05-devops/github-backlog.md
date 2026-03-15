@@ -42,9 +42,14 @@ Useful flags:
 - Notifications
 - Funds
 - Scholarship Programs
+- Subscription and Billing
 - Search and Discovery
 - Profile and Settings
 - Permissions and Security
 - Cloud Functions Integration
 - Observability and Analytics
 - Release Hardening
+
+Current active billing planning issue:
+
+- [#213 - Tiered Family-Tree Subscription + Card/VNPay Payments](https://github.com/phamhungptithcm/gia-pha/issues/213)

@@ -48,6 +48,22 @@ and TypeScript.
 
 - `expireInvitesJob` (hourly scheduler tick scaffold)
 
+### Planned billing callables and triggers (Epic #213)
+
+- `createSubscriptionCheckout`:
+  - validates clan owner/admin permission
+  - computes tier from `member_count`
+  - initializes card/VNPay checkout with VAT-included amount
+- `handleVnpayWebhook`:
+  - validates gateway signature and replay/idempotency constraints
+  - commits transaction + subscription updates atomically
+- `handleCardWebhook`:
+  - verifies provider signature and payment status transition
+  - writes invoice/transaction/audit records
+- `sendSubscriptionRenewalReminders` (scheduled):
+  - finds upcoming expiry windows
+  - emits notification docs and push payloads to owner/admin audience
+
 ## Supporting modules
 
 - `notifications/push-delivery.ts` handles:

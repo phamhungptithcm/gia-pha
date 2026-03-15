@@ -15,12 +15,15 @@ _Last reviewed: March 14, 2026_
 | Relationship commands | Live | Parent-child/spouse callables with cycle/duplicate checks |
 | Genealogy read model | Live | Clan/branch scopes, root selection, graph helpers |
 | Genealogy UI | Live | Tree nodes/connectors, zoom/pan, center/focus, detail sheet |
+| Dual calendar workspace | Live | Solar + lunar tiles, regional settings, reminder offsets |
+| Event management UX | Live | Event create/edit/delete in dual calendar context |
+| Funds module | Live | Fund profiles, transactions, permissions, and validations |
+| Scholarship module | Live | Program/award/submission/review baseline |
+| Profile workspace | Live | Profile shell is in navigation with settings extension points |
 | Push token registration | Live | Callable-first with Firestore fallback |
 | Push delivery backend | Live | Notification docs + FCM multicast delivery |
-| Event management UI | Partial | Home shell has Events tab placeholder |
-| Notification inbox UI | Partial | Inbox list, mark-read, pagination, and event/scholarship deep-link placeholders are live; full destination modules are pending |
-| Funds module | Planned | Backlog defined, not shipped in mobile UI yet |
-| Scholarship UI module | Planned | Backend trigger path exists for review updates |
+| Notification inbox UI | Partial | Inbox list, mark-read, pagination, and destination placeholders are live; full destination screens are pending |
+| Subscription + billing | Planned | Epic [#213](https://github.com/phamhungptithcm/gia-pha/issues/213) |
 
 ## Functional guardrails
 
@@ -28,9 +31,12 @@ _Last reviewed: March 14, 2026_
 - role-based writes for sensitive actions (`CLAN_ADMIN`, `BRANCH_ADMIN`)
 - child login access mode tracked as distinct session context
 - immutable audit-style records for relationship and auth-link actions
+- planned billing guardrails include signed gateway callbacks, webhook
+  idempotency, and owner/admin-only billing visibility
 
 ## Technical compatibility
 
 - mobile: Flutter, Android, iOS
 - backend: Firebase Auth, Firestore, Storage, Functions v2, FCM
+- billing (planned): card gateway + VNPay with server-side callback validation
 - CI/CD: GitHub Actions with protected `staging` and `main` delivery model

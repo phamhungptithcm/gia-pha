@@ -4,7 +4,8 @@ _Last reviewed: March 14, 2026_
 
 BeFam is a mobile-first genealogy and clan operations platform for Vietnamese
 families. The product helps clans manage members, relationships, events,
-scholarships, and notifications in one secure Firebase-backed system.
+scholarships, notifications, and fund workflows in one secure Firebase-backed
+system.
 
 ## Product goals
 
@@ -24,19 +25,25 @@ Delivered in the current app baseline:
 - relationship mutation commands (parent-child and spouse) with permissions
 - genealogy read model with zoom/pan tree view, lazy expansion depth controls,
   and human-readable member detail sheet
+- events delivered via dual calendar workspace (solar + lunar, recurrence,
+  reminders, regional settings)
+- funds workspace and transaction flow baseline
+- scholarship workspace and review flow baseline
+- notification inbox and deep-link destination placeholders
+- profile workspace with user-facing settings entry points
 - Firebase Cloud Messaging registration on mobile and server-side push delivery
 
 In progress / partially delivered:
 
-- events and profile tabs currently use interim workspace placeholders in
-  mobile navigation while backend event notifications are already wired
-- notification inbox UI is planned, while push delivery plumbing is active
+- full payment and subscription lifecycle is not yet implemented
+- notification settings persistence and non-placeholder deep-link destinations
+  are still being expanded
 
 Planned next modules:
 
-- funds and scholarship full UI flows
-- richer event management screens and reminder UX
-- profile/settings completion
+- tiered annual subscription and billing (card + VNPay)
+- auto-renew/manual-renew preference management and renewal reminders
+- billing history and invoice baseline for clan owners/admins
 
 ## Supported platforms and language
 
@@ -50,4 +57,5 @@ Planned next modules:
 - [AI Build Master Doc](../AI_BUILD_MASTER_DOC.md)
 - [AI Agent Tasks 150 Issues](../AI_AGENT_TASKS_150_ISSUES.md)
 - [Feature Spec](feature-spec.md)
+- [Subscription Billing Epic](epic-tiered-subscription-payments.md)
 - [Roadmap](roadmap.md)

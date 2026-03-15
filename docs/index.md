@@ -26,6 +26,11 @@ architecture, delivery, and implementation decisions across the repository.
 - Firebase configuration is connected to `be-fam-3ab23`
 - production delivery uses protected `staging` (development) and `main`
   (release) branches
+- Events now use a dual solar + lunar calendar workspace
+- Funds, scholarship, notifications inbox, and profile workspace are integrated
+  in the current app baseline
+- new billing planning epic is tracked in GitHub issue
+  [#213](https://github.com/phamhungptithcm/gia-pha/issues/213)
 - release automation creates semver tags, friendly notes, Android APK, unsigned
   iOS archive, and GHCR images
 - GitHub Pages publishes this documentation from `main`

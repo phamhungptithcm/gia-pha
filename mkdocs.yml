@@ -60,6 +60,7 @@ nav:
       - User Stories: 01-product/user-stories.md
       - Feature Spec: 01-product/feature-spec.md
       - Dual Calendar Epic: 01-product/epic-dual-calendar-system.md
+      - Subscription Billing Epic: 01-product/epic-tiered-subscription-payments.md
       - Roadmap: 01-product/roadmap.md
   - Architecture:
       - System Design: 02-architecture/system-design.md

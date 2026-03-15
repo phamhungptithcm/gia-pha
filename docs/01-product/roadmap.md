@@ -32,27 +32,37 @@ _Last reviewed: March 14, 2026_
 - searchable people pickers and human-readable profile/genealogy surfaces
 - real Firebase connectivity replacing local-only mock assumptions
 
-### M4: Events, notifications inbox, and engagement (next)
+### M4: Events, notifications inbox, and engagement (active)
 
-- event list/detail/create/edit screens
-- reminder UX and notification inbox with read-state management
-- deep-link completion from push notifications to destination screens
+- dual calendar workspace (solar + lunar) with event create/edit/delete
+- reminder UX and notification inbox with read-state management baseline
+- deep-link routing to event/scholarship destination placeholders
 
-### M5: Funds and scholarship programs (planned)
+### M5: Funds and scholarship programs (completed baseline)
 
-- fund and transaction management
-- scholarship program and review workflows
-- stronger test coverage for financial and scholarship domain rules
+- fund and transaction management baseline delivered
+- scholarship program and review workflows baseline delivered
+- test coverage added for financial and scholarship core flows
 
-### M6: Dual calendar and lunar events (planned)
+### M6: Dual calendar and lunar events (completed baseline)
 
 - dual solar + lunar calendar rendering in month/day views
 - lunar event creation with yearly recurrence resolution
 - lunar holidays, regional calendar settings, and reminder scheduling
+
+### M7: Tiered subscription billing and payments (next)
+
+- annual tiered pricing by member count with VAT-included display
+- checkout support for card and VNPay
+- webhook/callback validation and idempotent payment processing
+- subscription lifecycle (activation, renewal, expiry)
+- auto-renew/manual-renew setup and owner/admin reminders
+- billing history, invoice baseline, and audit logs
 
 ## Planning references
 
 - [AI Build Master Doc](../AI_BUILD_MASTER_DOC.md)
 - [AI Agent Tasks 150 Issues](../AI_AGENT_TASKS_150_ISSUES.md)
 - [Dual Calendar Epic](./epic-dual-calendar-system.md)
+- [Subscription Billing Epic](./epic-tiered-subscription-payments.md)
 - [GitHub Workflow](../05-devops/github-workflow.md)

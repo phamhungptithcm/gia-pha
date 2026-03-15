@@ -17,6 +17,14 @@ Cloud Functions.
 - `events`, `funds`, `transactions`, `scholarshipPrograms`, `awardLevels`,
   `achievementSubmissions`, `auditLogs`
 
+Planned billing collections (Epic #213):
+
+- `subscriptions`: clan-level plan state, tier, price, expiry, renew mode
+- `subscriptionInvoices`: invoice summaries for each billing cycle
+- `paymentTransactions`: gateway-level payment intent/settlement records
+- `paymentWebhookEvents`: idempotency and callback verification tracking
+- `billingSettings`: owner/admin renewal preferences and reminder settings
+
 ## Member + relationship pattern
 
 - truth source:
@@ -43,6 +51,8 @@ Key indexes are maintained in `firebase/firestore.indexes.json`:
 - relationships by clan + person + type
 - events by clan/branch + start time
 - notifications by member + created time and read state
+- planned billing indexes by clan + subscription status/expiry and transaction
+  chronology
 
 ## Reference
 

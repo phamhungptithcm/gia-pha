@@ -43,6 +43,8 @@ resolution and role context syncing.
   - local child mapping fallback for known demo identifiers
   - Firestore-based claim/session sync fallback
 - `RuntimeMode` still supports explicit mock mode for tests
+- debug local bypass mode exists for OTP smoke testing in development builds
+  and must be disabled in production-mode builds
 
 ## Session persistence
 
@@ -55,3 +57,5 @@ resolution and role context syncing.
 - child login requires verified parent phone to match resolved context
 - duplicate phone claims are rejected with conflict errors
 - rule fallback supports either auth token claims or `users/{uid}` context
+- planned billing actions are owner/admin-scoped and must enforce role checks
+  in both callable layer and Firestore rules

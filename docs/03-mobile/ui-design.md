@@ -20,6 +20,8 @@ to keep the app approachable for both younger and older users.
   when six digits are entered
 - long forms are split into clearer sections with sticky action placement
 - member and genealogy screens prioritize human-readable copy and relationships
+- dual calendar card, month grid, and day tile layouts are tuned for large text
+  and lower-end devices
 
 ## Accessibility and resilience
 
@@ -32,3 +34,10 @@ to keep the app approachable for both younger and older users.
 - concise, direct wording for critical actions
 - status and guidance shown inline where needed
 - debug-only visual noise removed from production-facing screens
+
+Planned billing UX principles:
+
+- transparent tier/price display with VAT-included wording
+- always-visible subscription expiry for clan owner/admin users
+- clear payment-mode control (auto-renew vs manual)
+- non-technical error messages for failed checkout/callback states
