@@ -4,6 +4,7 @@ import { setGlobalOptions } from 'firebase-functions/v2/options';
 import {
   claimMemberRecord,
   createInvite,
+  listDebugLoginProfiles,
   registerDeviceToken,
   resolveChildLoginContext,
 } from './auth/callables';
@@ -34,6 +35,7 @@ export {
   createSpouseRelationship,
   createInvite,
   expireInvitesJob,
+  listDebugLoginProfiles,
   onEventCreated,
   onRelationshipCreated,
   onRelationshipDeleted,

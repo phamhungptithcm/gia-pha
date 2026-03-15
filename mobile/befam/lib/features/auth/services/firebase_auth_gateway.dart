@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
 import '../models/auth_issue.dart';
@@ -30,33 +31,13 @@ class FirebaseAuthGateway implements AuthGateway {
   final FirebaseAuth _auth;
   final FirebaseFunctions _functions;
   final FirebaseFirestore _firestore;
+  static bool _debugPhoneAuthConfigured = false;
 
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection('users');
-
-  static const Map<String, ResolvedChildAccess> _localChildFallback = {
-    'BEFAM-CHILD-001': ResolvedChildAccess(
-      childIdentifier: 'BEFAM-CHILD-001',
-      parentPhoneE164: '+84901234567',
-      memberId: 'member_demo_child_001',
-      displayName: 'Be Minh',
-      clanId: 'clan_demo_001',
-      branchId: 'branch_demo_001',
-      primaryRole: 'MEMBER',
-    ),
-    'BEFAM-CHILD-002': ResolvedChildAccess(
-      childIdentifier: 'BEFAM-CHILD-002',
-      parentPhoneE164: '+84908886655',
-      memberId: 'member_demo_child_002',
-      displayName: 'Be Lan',
-      clanId: 'clan_demo_001',
-      branchId: 'branch_demo_002',
-      primaryRole: 'MEMBER',
-    ),
-  };
 
   @override
   bool get isSandbox => false;
@@ -154,6 +135,7 @@ class FirebaseAuthGateway implements AuthGateway {
     String? displayName,
     int? forceResendingToken,
   }) async {
+    await _configurePhoneAuthForDebugIfNeeded();
     final completer = Completer<AuthOtpRequestResult>();
 
     await _auth.verifyPhoneNumber(
@@ -248,6 +230,31 @@ class FirebaseAuthGateway implements AuthGateway {
     );
   }
 
+  Future<void> _configurePhoneAuthForDebugIfNeeded() async {
+    if (!kDebugMode || _debugPhoneAuthConfigured) {
+      return;
+    }
+    _debugPhoneAuthConfigured = true;
+    try {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _auth.setSettings(appVerificationDisabledForTesting: true);
+        AppLogger.info(
+          'Enabled FirebaseAuth test phone verification for Android debug.',
+        );
+      } else {
+        AppLogger.info(
+          'Using default Firebase phone verification flow for non-Android debug.',
+        );
+      }
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Could not enable FirebaseAuth test phone verification in debug.',
+        error,
+        stackTrace,
+      );
+    }
+  }
+
   Future<ResolvedChildAccess> _resolveChildAccess(
     String childIdentifier,
   ) async {
@@ -270,17 +277,7 @@ class FirebaseAuthGateway implements AuthGateway {
         branchId: payload['branchId'] as String?,
         primaryRole: payload['primaryRole'] as String?,
       );
-    } on FirebaseFunctionsException catch (error) {
-      if (_shouldUseClientFallback(error.code)) {
-        final fallback =
-            _localChildFallback[childIdentifier.trim().toUpperCase()];
-        if (fallback != null) {
-          AppLogger.warning(
-            'resolveChildLoginContext callable unavailable; using local child fallback.',
-          );
-          return fallback;
-        }
-      }
+    } on FirebaseFunctionsException {
       rethrow;
     }
   }
