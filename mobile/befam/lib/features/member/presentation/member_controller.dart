@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../core/services/performance_measurement_logger.dart';
 import '../../auth/models/auth_session.dart';
 import '../../clan/models/branch_profile.dart';
 import '../models/member_draft.dart';
@@ -19,18 +20,21 @@ class MemberController extends ChangeNotifier {
     required AuthSession session,
     MemberSearchProvider? searchProvider,
     MemberSearchAnalyticsService? searchAnalyticsService,
+    PerformanceMeasurementLogger? performanceLogger,
   }) : _repository = repository,
        _session = session,
        _searchProvider = searchProvider ?? createDefaultMemberSearchProvider(),
        _searchAnalyticsService =
            searchAnalyticsService ??
            createDefaultMemberSearchAnalyticsService(),
+       _performanceLogger = performanceLogger ?? PerformanceMeasurementLogger(),
        permissions = MemberPermissions.forSession(session);
 
   final MemberRepository _repository;
   final AuthSession _session;
   final MemberSearchProvider _searchProvider;
   final MemberSearchAnalyticsService _searchAnalyticsService;
+  final PerformanceMeasurementLogger _performanceLogger;
   final MemberPermissions permissions;
 
   bool _isLoading = true;
@@ -292,12 +296,14 @@ class MemberController extends ChangeNotifier {
     _isSearching = true;
     _searchError = null;
     notifyListeners();
+    var status = 'success';
 
     final query = MemberSearchQuery(
       query: _filters.query,
       branchId: _filters.branchId,
       generation: _filters.generation,
     );
+    final searchStopwatch = Stopwatch()..start();
 
     try {
       final results = await _searchProvider.search(
@@ -305,6 +311,7 @@ class MemberController extends ChangeNotifier {
         query: query,
       );
       if (revision != _searchRevision) {
+        status = 'stale';
         return;
       }
 
@@ -324,12 +331,14 @@ class MemberController extends ChangeNotifier {
       }
     } catch (_) {
       if (revision != _searchRevision) {
+        status = 'stale';
         return;
       }
 
       _searchResults = const [];
       _isSearching = false;
       _searchError = 'search_failed';
+      status = 'failed';
       notifyListeners();
 
       if (trackAnalytics) {
@@ -341,6 +350,19 @@ class MemberController extends ChangeNotifier {
           ),
         );
       }
+    } finally {
+      searchStopwatch.stop();
+      _performanceLogger.logDuration(
+        metric: 'member_search.query',
+        elapsed: searchStopwatch.elapsed,
+        warnAfter: const Duration(milliseconds: 250),
+        dimensions: {
+          'status': status,
+          'query_length': query.query.trim().length,
+          'has_branch_filter': query.branchId == null ? 0 : 1,
+          'has_generation_filter': query.generation == null ? 0 : 1,
+        },
+      );
     }
   }
 }
