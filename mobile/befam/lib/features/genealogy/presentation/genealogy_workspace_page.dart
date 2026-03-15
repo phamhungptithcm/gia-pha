@@ -1922,6 +1922,7 @@ class _AdditionalClanSheetState extends State<_AdditionalClanSheet> {
                 Row(
                   children: [
                     Expanded(
+                      flex: 5,
                       child: OutlinedButton(
                         onPressed: _isSubmitting
                             ? null
@@ -1931,6 +1932,7 @@ class _AdditionalClanSheetState extends State<_AdditionalClanSheet> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
+                      flex: 7,
                       child: FilledButton.icon(
                         onPressed: _isSubmitting ? null : _submit,
                         icon: const Icon(Icons.account_tree_outlined),
@@ -1939,6 +1941,9 @@ class _AdditionalClanSheetState extends State<_AdditionalClanSheet> {
                             vi: 'Tạo gia phả riêng',
                             en: 'Create private tree',
                           ),
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
@@ -2189,6 +2194,7 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
                 Row(
                   children: [
                     Expanded(
+                      flex: 5,
                       child: OutlinedButton(
                         onPressed: _isSubmitting
                             ? null
@@ -2198,11 +2204,15 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
+                      flex: 7,
                       child: FilledButton.icon(
                         onPressed: _isSubmitting ? null : _submit,
                         icon: const Icon(Icons.call_split_outlined),
                         label: Text(
                           l10n.pick(vi: 'Tạo nhánh riêng', en: 'Create branch'),
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
