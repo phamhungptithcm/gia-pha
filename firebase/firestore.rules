@@ -50,6 +50,22 @@ service cloud.firestore {
       return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN'];
     }
 
+    function isBillingAdmin() {
+      return primaryRole() in [
+        'SUPER_ADMIN',
+        'CLAN_ADMIN',
+        'BRANCH_ADMIN',
+        'CLAN_OWNER',
+        'CLAN_LEADER',
+        'VICE_LEADER',
+        'SUPPORTER_OF_LEADER'
+      ];
+    }
+
+    function canReadBillingDoc(clanId) {
+      return hasClanAccess(clanId) && isBillingAdmin();
+    }
+
     function isClanSettingsAdmin() {
       return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN'];
     }
@@ -390,6 +406,35 @@ service cloud.firestore {
     match /auditLogs/{logId} {
       allow read: if isClanAdmin() && hasClanAccess(resource.data.clanId);
       allow write: if false;
+    }
+
+    match /subscriptions/{subscriptionId} {
+      allow read: if canReadBillingDoc(resource.data.clanId);
+      allow write: if false;
+    }
+
+    match /billingSettings/{settingsId} {
+      allow read: if canReadBillingDoc(resource.data.clanId);
+      allow write: if false;
+    }
+
+    match /paymentTransactions/{transactionId} {
+      allow read: if canReadBillingDoc(resource.data.clanId);
+      allow write: if false;
+    }
+
+    match /subscriptionInvoices/{invoiceId} {
+      allow read: if canReadBillingDoc(resource.data.clanId);
+      allow write: if false;
+    }
+
+    match /billingAuditLogs/{auditLogId} {
+      allow read: if canReadBillingDoc(resource.data.clanId);
+      allow write: if false;
+    }
+
+    match /paymentWebhookEvents/{eventId} {
+      allow read, write: if false;
     }
   }
 }

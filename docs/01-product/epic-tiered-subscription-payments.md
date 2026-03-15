@@ -3,6 +3,7 @@
 _Last reviewed: March 15, 2026_
 
 Source tracking issue: [#213](https://github.com/phamhungptithcm/gia-pha/issues/213)
+Implementation status: baseline delivered in `codex/epic-213-tiered-subscription-payments`
 
 ## Goal
 
