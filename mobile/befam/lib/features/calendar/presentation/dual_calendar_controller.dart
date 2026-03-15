@@ -101,8 +101,13 @@ class DualCalendarController extends ChangeNotifier {
 
     try {
       final settings = await _settingsStore.load();
-      _region = settings.region;
       _displayMode = settings.displayMode;
+      _region = CalendarRegion.vietnam;
+      if (settings.region != CalendarRegion.vietnam) {
+        await _settingsStore.save(
+          CalendarSettings(region: _region, displayMode: _displayMode),
+        );
+      }
       await _loadFocusedMonth();
     } catch (error) {
       _errorMessage = error.toString();
@@ -113,6 +118,9 @@ class DualCalendarController extends ChangeNotifier {
   }
 
   Future<void> setRegion(CalendarRegion value) async {
+    if (value != CalendarRegion.vietnam) {
+      return;
+    }
     if (_region == value) {
       return;
     }

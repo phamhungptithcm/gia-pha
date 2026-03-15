@@ -1,4 +1,5 @@
 import 'calendar_date_mode.dart';
+import '../../events/models/event_type.dart';
 import 'lunar_date.dart';
 import 'lunar_recurrence_policy.dart';
 
@@ -7,6 +8,10 @@ class DualCalendarEvent {
     required this.id,
     required this.title,
     required this.description,
+    required this.eventType,
+    required this.memorialForName,
+    required this.hostHousehold,
+    required this.locationAddress,
     required this.dateMode,
     required this.solarDate,
     required this.lunarDate,
@@ -21,6 +26,10 @@ class DualCalendarEvent {
   final String id;
   final String title;
   final String description;
+  final EventType eventType;
+  final String memorialForName;
+  final String hostHousehold;
+  final String locationAddress;
   final CalendarDateMode dateMode;
   final DateTime solarDate;
   final LunarDate? lunarDate;
@@ -42,6 +51,10 @@ class DualCalendarEvent {
     String? id,
     String? title,
     String? description,
+    EventType? eventType,
+    String? memorialForName,
+    String? hostHousehold,
+    String? locationAddress,
     CalendarDateMode? dateMode,
     DateTime? solarDate,
     LunarDate? lunarDate,
@@ -57,6 +70,10 @@ class DualCalendarEvent {
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
+      eventType: eventType ?? this.eventType,
+      memorialForName: memorialForName ?? this.memorialForName,
+      hostHousehold: hostHousehold ?? this.hostHousehold,
+      locationAddress: locationAddress ?? this.locationAddress,
       dateMode: dateMode ?? this.dateMode,
       solarDate: solarDate ?? this.solarDate,
       lunarDate: clearLunarDate ? null : lunarDate ?? this.lunarDate,
@@ -75,6 +92,10 @@ class DualCalendarEvent {
       'id': id,
       'title': title,
       'description': description,
+      'eventType': eventType.wireName,
+      'memorialForName': memorialForName,
+      'hostHousehold': hostHousehold,
+      'locationAddress': locationAddress,
       'dateMode': dateMode.name,
       'solarDate': solarDate.toUtc().toIso8601String(),
       'lunarDate': lunarDate?.toJson(),
@@ -93,6 +114,10 @@ class DualCalendarEvent {
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
       description: json['description'] as String? ?? '',
+      eventType: EventType.fromWireName(json['eventType'] as String?),
+      memorialForName: json['memorialForName'] as String? ?? '',
+      hostHousehold: json['hostHousehold'] as String? ?? '',
+      locationAddress: json['locationAddress'] as String? ?? '',
       dateMode: (json['dateMode'] as String? ?? '').toLowerCase() == 'lunar'
           ? CalendarDateMode.lunar
           : CalendarDateMode.solar,

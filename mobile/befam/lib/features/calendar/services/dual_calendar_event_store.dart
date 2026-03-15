@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../events/models/event_type.dart';
 import '../models/calendar_date_mode.dart';
 import '../models/dual_calendar_event.dart';
 import '../models/lunar_date.dart';
@@ -189,6 +190,10 @@ class SharedPrefsDualCalendarEventStore implements DualCalendarEventStore {
         id: 'cal_event_1000',
         title: 'Ancestor memorial',
         description: 'Prepare offerings and family gathering.',
+        eventType: EventType.deathAnniversary,
+        memorialForName: 'Nguyễn Văn Tổ',
+        hostHousehold: 'Nhà trưởng chi',
+        locationAddress: 'Nhà thờ họ, Quảng Nam',
         dateMode: CalendarDateMode.lunar,
         solarDate: DateTime(now.year, now.month, now.day, 9),
         lunarDate: LunarDate(year: now.year, month: 3, day: 10),
@@ -203,6 +208,10 @@ class SharedPrefsDualCalendarEventStore implements DualCalendarEventStore {
         id: 'cal_event_1001',
         title: 'Quarterly clan meeting',
         description: 'Discuss scholarship and fund plans.',
+        eventType: EventType.meeting,
+        memorialForName: '',
+        hostHousehold: 'Nhà văn hóa chi phụ',
+        locationAddress: 'Thừa Thiên Huế',
         dateMode: CalendarDateMode.solar,
         solarDate: DateTime(now.year, now.month, now.day + 7, 19),
         lunarDate: null,

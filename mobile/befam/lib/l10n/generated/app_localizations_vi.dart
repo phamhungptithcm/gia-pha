@@ -1432,7 +1432,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get notificationSettingsDescription =>
-      'Các công tắc này là bản giữ chỗ để hoàn thiện cài đặt thông báo cấp hồ sơ ở các đợt phát hành tiếp theo.';
+      'Quản lý lời nhắc và loại thông báo bạn muốn nhận trên thiết bị này.';
 
   @override
   String get notificationSettingsEventUpdates =>
@@ -1450,7 +1450,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get notificationSettingsPlaceholderNote =>
-      'Đây là giao diện giữ chỗ. Giá trị công tắc chỉ áp dụng cục bộ và chưa được lưu vào tùy chọn backend.';
+      'Thay đổi sẽ được lưu vào cài đặt hồ sơ và áp dụng cho phiên sử dụng tiếp theo.';
 
   @override
   String get authIssueRestoreSessionFailed =>

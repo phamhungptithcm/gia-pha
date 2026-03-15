@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -352,7 +353,12 @@ class _RelationshipInspectorPanelState
               const SizedBox(height: 16),
             ],
             if (_isLoading)
-              const Center(child: CircularProgressIndicator())
+              AppLoadingState(
+                message: l10n.pick(
+                  vi: 'Đang tải quan hệ...',
+                  en: 'Loading relationships...',
+                ),
+              )
             else ...[
               _RelationshipGroup(
                 title: l10n.relationshipParentsTitle,
