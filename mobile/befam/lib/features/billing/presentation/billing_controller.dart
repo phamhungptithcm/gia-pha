@@ -21,6 +21,7 @@ class BillingController extends ChangeNotifier {
   String? _errorMessage;
   String? _actionMessage;
   BillingWorkspaceSnapshot? _workspace;
+  BillingViewerSummary? _viewerSummary;
   BillingCheckoutResult? _lastCheckout;
 
   bool get isLoading => _isLoading;
@@ -30,6 +31,7 @@ class BillingController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get actionMessage => _actionMessage;
   BillingWorkspaceSnapshot? get workspace => _workspace;
+  BillingViewerSummary? get viewerSummary => _viewerSummary;
   BillingCheckoutResult? get lastCheckout => _lastCheckout;
 
   bool get hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
@@ -62,13 +64,21 @@ class BillingController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      _workspace = await _repository.loadWorkspace(session: _session);
+      if (canManageBilling) {
+        _workspace = await _repository.loadWorkspace(session: _session);
+        _viewerSummary = null;
+      } else {
+        _viewerSummary = await _repository.loadViewerSummary(session: _session);
+        _workspace = null;
+      }
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();
       _workspace = null;
+      _viewerSummary = null;
     } catch (error) {
       _errorMessage = error.toString();
       _workspace = null;
+      _viewerSummary = null;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -105,6 +115,7 @@ class BillingController extends ChangeNotifier {
 
   Future<BillingCheckoutResult?> createCheckout({
     required String paymentMethod,
+    String? requestedPlanCode,
     String? returnUrl,
   }) async {
     _isCreatingCheckout = true;
@@ -115,9 +126,11 @@ class BillingController extends ChangeNotifier {
       _lastCheckout = await _repository.createCheckout(
         session: _session,
         paymentMethod: paymentMethod,
+        requestedPlanCode: requestedPlanCode,
         returnUrl: returnUrl,
       );
       _workspace = await _repository.loadWorkspace(session: _session);
+      _viewerSummary = null;
       _actionMessage = 'Checkout created successfully.';
       return _lastCheckout;
     } on BillingRepositoryException catch (error) {
@@ -143,6 +156,7 @@ class BillingController extends ChangeNotifier {
         transactionId: transactionId,
       );
       _workspace = await _repository.loadWorkspace(session: _session);
+      _viewerSummary = null;
       _actionMessage = 'Card payment confirmed.';
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();
@@ -165,6 +179,7 @@ class BillingController extends ChangeNotifier {
         transactionId: transactionId,
       );
       _workspace = await _repository.loadWorkspace(session: _session);
+      _viewerSummary = null;
       _actionMessage = 'VNPay payment confirmed.';
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();

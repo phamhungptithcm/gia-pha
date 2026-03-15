@@ -10,7 +10,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  AuthSession buildSession() {
+  AuthSession buildSession({String primaryRole = 'CLAN_ADMIN'}) {
     return AuthSession(
       uid: 'debug:+84901234567',
       loginMethod: AuthEntryMethod.phone,
@@ -19,7 +19,7 @@ void main() {
       memberId: 'member_demo_parent_001',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',
-      primaryRole: 'CLAN_ADMIN',
+      primaryRole: primaryRole,
       accessMode: AuthMemberAccessMode.claimed,
       linkedAuthUid: true,
       isSandbox: true,
@@ -27,7 +27,11 @@ void main() {
     );
   }
 
-  Future<void> pumpBillingPage(WidgetTester tester) async {
+  Future<void> pumpBillingPage(
+    WidgetTester tester, {
+    AuthSession? session,
+    DebugBillingRepository? repository,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('vi'),
@@ -39,8 +43,8 @@ void main() {
           GlobalCupertinoLocalizations.delegate,
         ],
         home: BillingWorkspacePage(
-          session: buildSession(),
-          repository: DebugBillingRepository.shared(),
+          session: session ?? buildSession(),
+          repository: repository ?? DebugBillingRepository.shared(),
         ),
       ),
     );
@@ -51,11 +55,27 @@ void main() {
   void seedPaidTier() {
     final store = DebugGenealogyStore.sharedSeeded();
     for (var index = 0; index < 20; index += 1) {
-      store.members['member_billing_widget_$index'] =
-          store.members['member_demo_parent_001']!.copyWith(
+      store.members['member_billing_widget_$index'] = store
+          .members['member_demo_parent_001']!
+          .copyWith(
             id: 'member_billing_widget_$index',
             fullName: 'Billing Widget Member $index',
             normalizedFullName: 'billing widget member $index',
+            authUid: null,
+            primaryRole: 'MEMBER',
+          );
+    }
+  }
+
+  void seedPlusTier() {
+    final store = DebugGenealogyStore.sharedSeeded();
+    for (var index = 0; index < 260; index += 1) {
+      store.members['member_billing_widget_plus_$index'] = store
+          .members['member_demo_parent_001']!
+          .copyWith(
+            id: 'member_billing_widget_plus_$index',
+            fullName: 'Billing Plus Member $index',
+            normalizedFullName: 'billing plus member $index',
             authUid: null,
             primaryRole: 'MEMBER',
           );
@@ -75,7 +95,9 @@ void main() {
     expect(find.text('Lịch sử thanh toán'), findsOneWidget);
   });
 
-  testWidgets('creates card checkout and displays latest checkout card', (tester) async {
+  testWidgets('creates card checkout and displays latest checkout card', (
+    tester,
+  ) async {
     seedPaidTier();
     await pumpBillingPage(tester);
 
@@ -109,4 +131,66 @@ void main() {
 
     expect(find.text('Đã lưu cài đặt thanh toán.'), findsOneWidget);
   });
+
+  testWidgets('viewer mode shows summary only and hides manager actions', (
+    tester,
+  ) async {
+    final repository = DebugBillingRepository.shared();
+    await pumpBillingPage(
+      tester,
+      session: buildSession(primaryRole: 'MEMBER'),
+      repository: repository,
+    );
+
+    expect(find.text('Chế độ xem'), findsOneWidget);
+    expect(find.byKey(const Key('billing-checkout-card-button')), findsNothing);
+    expect(
+      find.byKey(const Key('billing-checkout-vnpay-button')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('billing-save-preferences-button')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('billing-payment-history-section')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+    'manager can select upgrade-only plans and checkout selected plan',
+    (tester) async {
+      seedPlusTier();
+      final repository = DebugBillingRepository.shared();
+      final session = buildSession(primaryRole: 'CLAN_ADMIN');
+
+      await pumpBillingPage(tester, session: session, repository: repository);
+
+      final selector = find.byKey(const Key('billing-plan-selector'));
+      expect(selector, findsOneWidget);
+
+      await tester.tap(selector);
+      await tester.pump(const Duration(milliseconds: 350));
+
+      expect(find.textContaining('FREE •'), findsNothing);
+      expect(find.textContaining('BASE •'), findsNothing);
+      expect(find.textContaining('PLUS •'), findsWidgets);
+      expect(find.textContaining('PRO •'), findsWidgets);
+
+      await tester.tap(find.textContaining('PRO •').last);
+      await tester.pump(const Duration(milliseconds: 350));
+
+      await tester.tap(find.byKey(const Key('billing-checkout-card-button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+
+      final snapshot = await tester.runAsync(
+        () => repository.loadWorkspace(session: session),
+      );
+      expect(snapshot, isNotNull);
+      expect(snapshot!.subscription.planCode, 'PRO');
+      expect(snapshot.subscription.status, 'pending_payment');
+    },
+  );
 }

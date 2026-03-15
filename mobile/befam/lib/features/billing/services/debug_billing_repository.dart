@@ -37,6 +37,17 @@ class DebugBillingRepository implements BillingRepository {
   }
 
   @override
+  Future<BillingViewerSummary> loadViewerSummary({
+    required AuthSession session,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 90));
+    final clanId = _clanIdOf(session);
+    final state = _ensureState(clanId);
+    _syncStateWithMemberCount(state, clanId);
+    return state.toViewerSummary();
+  }
+
+  @override
   Future<BillingEntitlement> resolveEntitlement({
     required AuthSession session,
   }) async {
@@ -115,6 +126,7 @@ class DebugBillingRepository implements BillingRepository {
   Future<BillingCheckoutResult> createCheckout({
     required AuthSession session,
     required String paymentMethod,
+    String? requestedPlanCode,
     String? returnUrl,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 140));
@@ -130,7 +142,25 @@ class DebugBillingRepository implements BillingRepository {
       );
     }
 
-    final tier = _resolveTier(state.memberCount);
+    final minimumTier = _resolveTier(state.memberCount);
+    final currentTier = _resolveTierByPlanCode(state.subscription.planCode);
+    final defaultTier = _rankPlanCode(currentTier.planCode) >=
+            _rankPlanCode(minimumTier.planCode)
+        ? currentTier
+        : minimumTier;
+    var tier = defaultTier;
+    final requestedPlan = requestedPlanCode?.trim().toUpperCase();
+    if (requestedPlan != null && requestedPlan.isNotEmpty) {
+      final requestedTier = _resolveTierByPlanCode(requestedPlan);
+      if (_rankPlanCode(requestedTier.planCode) <
+          _rankPlanCode(minimumTier.planCode)) {
+        throw const BillingRepositoryException(
+          BillingRepositoryErrorCode.invalidArgument,
+          'requestedPlanCode is below minimum tier for current member count.',
+        );
+      }
+      tier = requestedTier;
+    }
     final now = DateTime.now().toUtc();
     final transactionId = 'txn_debug_${_transactionSequence++}';
     final invoiceId = 'inv_debug_${_invoiceSequence++}';
@@ -327,7 +357,12 @@ class DebugBillingRepository implements BillingRepository {
     if (memberCount == state.memberCount) {
       return;
     }
-    final tier = _resolveTier(memberCount);
+    final minimumTier = _resolveTier(memberCount);
+    final currentTier = _resolveTierByPlanCode(state.subscription.planCode);
+    final tier = _rankPlanCode(currentTier.planCode) >=
+            _rankPlanCode(minimumTier.planCode)
+        ? currentTier
+        : minimumTier;
     state.memberCount = memberCount;
     state.subscription = BillingSubscription(
       id: state.subscription.id,
@@ -523,6 +558,57 @@ class DebugBillingRepository implements BillingRepository {
     );
   }
 
+  _PricingTier _resolveTierByPlanCode(String planCode) {
+    final normalized = planCode.trim().toUpperCase();
+    if (normalized == 'BASE') {
+      return const _PricingTier(
+        planCode: 'BASE',
+        minMembers: 11,
+        maxMembers: 200,
+        priceVndYear: 49000,
+        showAds: true,
+      );
+    }
+    if (normalized == 'PLUS') {
+      return const _PricingTier(
+        planCode: 'PLUS',
+        minMembers: 201,
+        maxMembers: 700,
+        priceVndYear: 89000,
+        showAds: false,
+      );
+    }
+    if (normalized == 'PRO') {
+      return const _PricingTier(
+        planCode: 'PRO',
+        minMembers: 701,
+        maxMembers: null,
+        priceVndYear: 119000,
+        showAds: false,
+      );
+    }
+    return const _PricingTier(
+      planCode: 'FREE',
+      minMembers: 0,
+      maxMembers: 10,
+      priceVndYear: 0,
+      showAds: true,
+    );
+  }
+
+  int _rankPlanCode(String planCode) {
+    switch (planCode.trim().toUpperCase()) {
+      case 'BASE':
+        return 1;
+      case 'PLUS':
+        return 2;
+      case 'PRO':
+        return 3;
+      default:
+        return 0;
+    }
+  }
+
   BillingEntitlement _buildEntitlement({
     required String planCode,
     required String status,
@@ -619,6 +705,17 @@ class _DebugBillingState {
       transactions: List.unmodifiable(transactions),
       invoices: List.unmodifiable(invoices),
       auditLogs: List.unmodifiable(auditLogs),
+    );
+  }
+
+  BillingViewerSummary toViewerSummary() {
+    final snapshot = toSnapshot();
+    return BillingViewerSummary(
+      clanId: snapshot.clanId,
+      subscription: snapshot.subscription,
+      entitlement: snapshot.entitlement,
+      pricingTiers: snapshot.pricingTiers,
+      memberCount: snapshot.memberCount,
     );
   }
 }

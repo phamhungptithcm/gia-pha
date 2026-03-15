@@ -5,6 +5,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { APP_REGION } from '../config/runtime';
 import {
   applyPaymentResult,
+  countClanMembers,
   buildEntitlementFromSubscription,
   createPendingCheckout,
   ensureSubscriptionForClan,
@@ -15,6 +16,9 @@ import {
 } from './store';
 import {
   BILLING_PRICING_TIERS,
+  rankPlanCode,
+  resolvePlanByMemberCount,
+  type BillingPlanCode,
   type PaymentMethod,
   type PaymentMode,
 } from './pricing';
@@ -169,10 +173,22 @@ export const createSubscriptionCheckout = onCall(
     assertBillingAdmin(auth.token);
 
     const paymentMethod = normalizePaymentMethod(request.data);
+    const requestedPlanCode = normalizeRequestedPlanCode(request.data);
+    if (requestedPlanCode != null) {
+      const memberCount = await countClanMembers(clanId);
+      const minimumPlanCode = resolvePlanByMemberCount(memberCount).planCode;
+      if (rankPlanCode(requestedPlanCode) < rankPlanCode(minimumPlanCode)) {
+        throw new HttpsError(
+          'invalid-argument',
+          `requestedPlanCode must be at least ${minimumPlanCode} for ${memberCount} members.`,
+        );
+      }
+    }
     const checkout = await createPendingCheckout({
       clanId,
       actorUid: auth.uid,
       paymentMethod,
+      requestedPlanCode: requestedPlanCode ?? undefined,
     });
 
     let checkoutUrl = '';
@@ -416,6 +432,20 @@ function normalizePaymentModeFromInput(data: unknown): PaymentMode {
   throw new HttpsError(
     'invalid-argument',
     'paymentMode must be "manual" or "auto_renew".',
+  );
+}
+
+function normalizeRequestedPlanCode(data: unknown): BillingPlanCode | null {
+  const planCode = readString(data, 'requestedPlanCode')?.toUpperCase();
+  if (planCode == null || planCode.length === 0) {
+    return null;
+  }
+  if (planCode === 'FREE' || planCode === 'BASE' || planCode === 'PLUS' || planCode === 'PRO') {
+    return planCode;
+  }
+  throw new HttpsError(
+    'invalid-argument',
+    'requestedPlanCode must be one of FREE, BASE, PLUS, PRO.',
   );
 }
 

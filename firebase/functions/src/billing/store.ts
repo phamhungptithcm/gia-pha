@@ -10,6 +10,7 @@ import {
 import {
   BILLING_PRICING_TIERS,
   computeRenewalWindow,
+  resolveEffectivePlanCode,
   resolvePlanByMemberCount,
   type BillingPlanCode,
   type BillingTierPricing,
@@ -69,6 +70,7 @@ export type BillingInvoiceRecord = {
 
 export type EnsureSubscriptionResult = {
   memberCount: number;
+  minimumTier: BillingTierPricing;
   tier: BillingTierPricing;
   subscription: BillingSubscriptionRecord;
   entitlement: BillingEntitlement;
@@ -164,12 +166,12 @@ export async function ensureSubscriptionForClan({
     loadBillingSettings(clanId),
     loadSubscription(clanId),
   ]);
-  const tier = resolvePlanByMemberCount(memberCount);
+  const minimumTier = resolvePlanByMemberCount(memberCount);
 
   if (existing == null) {
     const seeded = seedSubscription({
       clanId,
-      tier,
+      tier: minimumTier,
       memberCount,
       settings,
       now,
@@ -198,7 +200,8 @@ export async function ensureSubscriptionForClan({
     });
     return {
       memberCount,
-      tier,
+      minimumTier,
+      tier: minimumTier,
       subscription: seeded,
       entitlement: buildEntitlementFromSubscription(seeded),
       settings,
@@ -211,7 +214,12 @@ export async function ensureSubscriptionForClan({
     graceEndsAt: existing.graceEndsAt,
     now,
   });
-  const nextPlanCode = tier.planCode;
+  const effectivePlanCode = resolveEffectivePlanCode({
+    memberCount,
+    currentPlanCode: existing.planCode,
+  });
+  const targetTier = resolveTierByPlanCode(effectivePlanCode);
+  const nextPlanCode = targetTier.planCode;
   const updated: BillingSubscriptionRecord = {
     ...existing,
     planCode: nextPlanCode,
@@ -220,8 +228,8 @@ export async function ensureSubscriptionForClan({
       currentStatus: normalizedStatus,
     }),
     memberCount,
-    amountVndYear: tier.priceVndYear,
-    vatIncluded: tier.vatIncluded,
+    amountVndYear: targetTier.priceVndYear,
+    vatIncluded: targetTier.vatIncluded,
     paymentMode: settings.paymentMode,
     autoRenew: settings.autoRenew,
     updatedAt: now,
@@ -238,7 +246,8 @@ export async function ensureSubscriptionForClan({
 
   return {
     memberCount,
-    tier,
+    minimumTier,
+    tier: targetTier,
     subscription: updated,
     entitlement: buildEntitlementFromSubscription(updated),
     settings,
@@ -249,11 +258,13 @@ export async function createPendingCheckout({
   clanId,
   actorUid,
   paymentMethod,
+  requestedPlanCode,
   now = new Date(),
 }: {
   clanId: string;
   actorUid: string;
   paymentMethod: PaymentMethod;
+  requestedPlanCode?: BillingPlanCode;
   now?: Date;
 }): Promise<{
   tier: BillingTierPricing;
@@ -263,7 +274,13 @@ export async function createPendingCheckout({
   invoice: BillingInvoiceRecord;
 }> {
   const ensured = await ensureSubscriptionForClan({ clanId, actorUid, now });
-  const { tier, memberCount, subscription } = ensured;
+  const { memberCount, subscription } = ensured;
+  const effectivePlanCode = resolveEffectivePlanCode({
+    memberCount,
+    currentPlanCode: ensured.tier.planCode,
+    requestedPlanCode: requestedPlanCode ?? null,
+  });
+  const tier = resolveTierByPlanCode(effectivePlanCode);
 
   const transactionRef = transactionsCollection.doc();
   const invoiceRef = invoicesCollection.doc();
@@ -323,6 +340,10 @@ export async function createPendingCheckout({
   batch.set(
     subscriptionsCollection.doc(clanId),
     {
+      planCode: tier.planCode,
+      memberCount,
+      amountVndYear: tier.priceVndYear,
+      vatIncluded: tier.vatIncluded,
       status: tier.planCode === 'FREE' ? 'active' : 'pending_payment',
       lastTransactionId: transaction.id,
       lastInvoiceId: invoice.id,
@@ -348,7 +369,19 @@ export async function createPendingCheckout({
     },
   });
 
-  return { tier, memberCount, subscription, transaction, invoice };
+  const checkoutSubscription: BillingSubscriptionRecord = {
+    ...subscription,
+    planCode: tier.planCode,
+    memberCount,
+    amountVndYear: tier.priceVndYear,
+    vatIncluded: tier.vatIncluded,
+    status: tier.planCode === 'FREE' ? 'active' : 'pending_payment',
+    lastPaymentMethod: paymentMethod,
+    lastTransactionId: transaction.id,
+    updatedAt: now,
+  };
+
+  return { tier, memberCount, subscription: checkoutSubscription, transaction, invoice };
 }
 
 export async function recordPaymentWebhookEvent({
