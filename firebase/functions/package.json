@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf lib",
     "lint": "tsc --noEmit",
-    "seed:demo": "node scripts/seed-demo-data.mjs"
+    "seed:demo": "node scripts/seed-demo-data.mjs",
+    "test": "npm run build && node --test \"lib/**/*.contract.test.js\""
   },
   "dependencies": {
     "firebase-admin": "^13.7.0",
