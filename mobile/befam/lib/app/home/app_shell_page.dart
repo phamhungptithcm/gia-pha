@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
 import '../../features/calendar/presentation/dual_calendar_workspace_page.dart';
+import '../../features/events/models/event_record.dart';
+import '../../features/events/services/event_repository.dart';
 import '../../features/funds/presentation/fund_workspace_page.dart';
 import '../../features/funds/services/fund_repository.dart';
 import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
@@ -447,59 +449,31 @@ class _HomeDashboard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 status.isReady
-                    ? l10n.shellSignedInMethod(
-                        l10n.authEntryMethodInline(session.loginMethod),
+                    ? l10n.pick(
+                        vi: 'Trang chủ đã sẵn sàng để bạn theo dõi gia phả, sự kiện và hồ sơ gia đình.',
+                        en: 'Your home dashboard is ready to manage family tree, events, and member profiles.',
                       )
                     : l10n.shellCloudSetupNeeded,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: colorScheme.onPrimary.withValues(alpha: 0.9),
                 ),
               ),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _FoundationTag(
-                    label: l10n.shellTagFreezedJson,
-                    tone: colorScheme.secondaryContainer,
-                  ),
-                  _FoundationTag(
-                    label: l10n.shellTagFirebaseCore,
-                    tone: colorScheme.secondaryContainer,
-                  ),
-                  _FoundationTag(
-                    label: l10n.shellTagAuthSessionLive,
-                    tone: colorScheme.secondaryContainer,
-                  ),
-                  _FoundationTag(
-                    label: status.isCrashReportingEnabled
-                        ? l10n.shellTagCrashlyticsEnabled
-                        : l10n.shellTagLocalLoggerActive,
-                    tone: colorScheme.surfaceContainerHighest,
-                  ),
-                  _FoundationTag(
-                    label: l10n.shellTagShellPlaceholders,
-                    tone: colorScheme.surfaceContainerHighest,
-                  ),
-                ],
-              ),
             ],
           ),
+        ),
+        const SizedBox(height: 24),
+        _UpcomingEventSection(
+          session: session,
+          onOpenEventsRequested: onOpenEventsRequested,
         ),
         const SizedBox(height: 24),
         _MemberAccessCard(session: session),
         const SizedBox(height: 24),
         Text(
-          l10n.shellPriorityWorkspaces,
+          l10n.pick(vi: 'Truy cập nhanh', en: 'Quick access'),
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          l10n.shellPriorityWorkspacesDescription,
-          style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
         GridView.builder(
@@ -682,7 +656,7 @@ class _ShortcutCard extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                l10n.shortcutDescription(shortcut.id),
+                _productionShortcutDescription(context, shortcut.id),
                 style: theme.textTheme.bodyMedium,
               ),
               const Spacer(),
@@ -782,30 +756,233 @@ String _formatPhoneForDisplay(String value) {
   }
 }
 
-class _FoundationTag extends StatelessWidget {
-  const _FoundationTag({required this.label, required this.tone});
+String _productionShortcutDescription(BuildContext context, String shortcutId) {
+  final l10n = context.l10n;
+  return switch (shortcutId) {
+    'clan' => l10n.pick(
+      vi: 'Quản lý thông tin họ tộc và cấu trúc chi nhánh.',
+      en: 'Manage clan profile and branch structure.',
+    ),
+    'tree' => l10n.pick(
+      vi: 'Theo dõi cây gia phả và các mối quan hệ thành viên.',
+      en: 'Explore family tree and member relationships.',
+    ),
+    'members' => l10n.pick(
+      vi: 'Tra cứu và cập nhật hồ sơ thành viên nhanh chóng.',
+      en: 'Search and update member profiles quickly.',
+    ),
+    'events' => l10n.pick(
+      vi: 'Xem lịch sự kiện, giỗ và lời nhắc quan trọng.',
+      en: 'Track events, memorial dates, and reminders.',
+    ),
+    'funds' => l10n.pick(
+      vi: 'Theo dõi thu chi và số dư quỹ dòng họ.',
+      en: 'Track fund transactions and balances.',
+    ),
+    'scholarship' => l10n.pick(
+      vi: 'Quản lý chương trình học bổng của dòng họ.',
+      en: 'Manage clan scholarship programs.',
+    ),
+    'profile' => l10n.pick(
+      vi: 'Cập nhật thông tin cá nhân và thiết lập tài khoản.',
+      en: 'Update personal profile and account settings.',
+    ),
+    _ => l10n.shortcutDescription(shortcutId),
+  };
+}
 
-  final String label;
-  final Color tone;
+String _formatDashboardDateTime(DateTime utcValue) {
+  final value = utcValue.toLocal();
+  final hour = value.hour.toString().padLeft(2, '0');
+  final minute = value.minute.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  final month = value.month.toString().padLeft(2, '0');
+  return '$hour:$minute · $day/$month/${value.year}';
+}
+
+class _UpcomingEventSection extends StatefulWidget {
+  const _UpcomingEventSection({
+    required this.session,
+    required this.onOpenEventsRequested,
+  });
+
+  final AuthSession session;
+  final VoidCallback onOpenEventsRequested;
+
+  @override
+  State<_UpcomingEventSection> createState() => _UpcomingEventSectionState();
+}
+
+class _UpcomingEventSectionState extends State<_UpcomingEventSection> {
+  late final EventRepository _eventRepository;
+  late Future<_UpcomingEventData?> _upcomingFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _eventRepository = createDefaultEventRepository();
+    _upcomingFuture = _loadUpcomingEvent();
+  }
+
+  @override
+  void didUpdateWidget(covariant _UpcomingEventSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session != widget.session) {
+      _upcomingFuture = _loadUpcomingEvent();
+    }
+  }
+
+  Future<_UpcomingEventData?> _loadUpcomingEvent() async {
+    try {
+      final snapshot = await _eventRepository.loadWorkspace(
+        session: widget.session,
+      );
+      final nowUtc = DateTime.now().toUtc();
+      final upcoming =
+          snapshot.events
+              .where((event) => !event.startsAt.isBefore(nowUtc))
+              .toList(growable: false)
+            ..sort((left, right) => left.startsAt.compareTo(right.startsAt));
+      if (upcoming.isEmpty) {
+        return null;
+      }
+
+      final event = upcoming.first;
+      final branchName = event.branchId == null
+          ? null
+          : snapshot.branches
+                .where((branch) => branch.id == event.branchId)
+                .map((branch) => branch.name)
+                .toList(growable: false)
+                .firstOrNull;
+      final hostHousehold = event.locationName.trim().isNotEmpty
+          ? event.locationName.trim()
+          : branchName;
+      return _UpcomingEventData(event: event, hostHousehold: hostHousehold);
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: tone,
-        borderRadius: BorderRadius.circular(999),
-      ),
+    final theme = Theme.of(context);
+    final l10n = context.l10n;
+    return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Text(
-          label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+        padding: const EdgeInsets.all(20),
+        child: FutureBuilder<_UpcomingEventData?>(
+          future: _upcomingFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Row(
+                children: [
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    l10n.pick(
+                      vi: 'Đang tải sự kiện sắp tới...',
+                      en: 'Loading upcoming event...',
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            final data = snapshot.data;
+            if (data == null) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.pick(vi: 'Sự kiện gần tới', en: 'Upcoming event'),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.pick(
+                      vi: 'Hiện chưa có sự kiện nào trong thời gian tới.',
+                      en: 'There are no upcoming events at the moment.',
+                    ),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              );
+            }
+
+            final event = data.event;
+            final hostLabel = data.hostHousehold?.trim().isNotEmpty == true
+                ? data.hostHousehold!.trim()
+                : l10n.pick(vi: 'Cả họ', en: 'Clan-wide');
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.event_outlined,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        l10n.pick(vi: 'Sự kiện gần tới', en: 'Upcoming event'),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: widget.onOpenEventsRequested,
+                      child: Text(
+                        l10n.pick(vi: 'Mở lịch', en: 'Open calendar'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  event.title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _formatDashboardDateTime(event.startsAt),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l10n.pick(
+                    vi: 'Nhà/chi: $hostLabel',
+                    en: 'Household/branch: $hostLabel',
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
+}
+
+class _UpcomingEventData {
+  const _UpcomingEventData({required this.event, required this.hostHousehold});
+
+  final EventRecord event;
+  final String? hostHousehold;
 }
 
 class _MemberAccessCard extends StatelessWidget {
@@ -822,19 +999,28 @@ class _MemberAccessCard extends StatelessWidget {
     final (title, description, icon, tone) = switch (session.accessMode) {
       AuthMemberAccessMode.claimed => (
         l10n.shellMemberAccessClaimedTitle,
-        l10n.shellMemberAccessClaimedDescription,
+        l10n.pick(
+          vi: 'Tài khoản đã liên kết với hồ sơ thành viên của bạn trong gia phả.',
+          en: 'Your account is linked to your member profile in the family tree.',
+        ),
         Icons.verified_user_outlined,
         colorScheme.primaryContainer,
       ),
       AuthMemberAccessMode.child => (
         l10n.shellMemberAccessChildTitle,
-        l10n.shellMemberAccessChildDescription,
+        l10n.pick(
+          vi: 'Bạn đang vào chế độ trẻ em thông qua xác thực của phụ huynh.',
+          en: 'You are viewing child access mode through parent verification.',
+        ),
         Icons.family_restroom_outlined,
         colorScheme.secondaryContainer,
       ),
       AuthMemberAccessMode.unlinked => (
         l10n.shellMemberAccessUnlinkedTitle,
-        l10n.shellMemberAccessUnlinkedDescription,
+        l10n.pick(
+          vi: 'Tài khoản chưa liên kết hồ sơ thành viên. Bạn có thể thiết lập trong mục Hồ sơ.',
+          en: 'This account is not linked to a member profile yet. You can set it up in Profile.',
+        ),
         Icons.info_outline,
         colorScheme.surfaceContainerHighest,
       ),
@@ -894,4 +1080,8 @@ IconData _iconFor(String iconKey) {
     'profile' => Icons.person_outline,
     _ => Icons.widgets_outlined,
   };
+}
+
+extension _IterableFirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
