@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/branch_draft.dart';
@@ -129,7 +130,12 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
           ),
           body: SafeArea(
             child: _controller.isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? AppLoadingState(
+                    message: l10n.pick(
+                      vi: 'Đang tải không gian họ tộc...',
+                      en: 'Loading clan workspace...',
+                    ),
+                  )
                 : !_controller.permissions.canViewWorkspace
                 ? _EmptyWorkspace(
                     icon: Icons.lock_outline,
@@ -169,6 +175,15 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                                 ? l10n.clanPermissionDeniedDescription
                                 : l10n.clanLoadErrorDescription,
                             tone: colorScheme.errorContainer,
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _controller.refresh,
+                              icon: const Icon(Icons.refresh),
+                              label: Text(l10n.clanRefreshAction),
+                            ),
                           ),
                           const SizedBox(height: 20),
                         ],

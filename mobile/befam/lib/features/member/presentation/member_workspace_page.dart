@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -148,7 +149,12 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
           ),
           body: SafeArea(
             child: _controller.isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? AppLoadingState(
+                    message: l10n.pick(
+                      vi: 'Đang tải không gian thành viên...',
+                      en: 'Loading member workspace...',
+                    ),
+                  )
                 : !_controller.hasClanContext
                 ? _WorkspaceEmptyState(
                     icon: Icons.lock_outline,
@@ -185,6 +191,15 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                             title: l10n.memberLoadErrorTitle,
                             description: l10n.memberLoadErrorDescription,
                             tone: colorScheme.errorContainer,
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _controller.refresh,
+                              icon: const Icon(Icons.refresh),
+                              label: Text(l10n.memberRefreshAction),
+                            ),
                           ),
                           const SizedBox(height: 20),
                         ],
@@ -976,6 +991,10 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                           labelText: l10n.memberBirthDateLabel,
                           hintText: 'YYYY-MM-DD',
                           suffixIcon: IconButton(
+                            tooltip: l10n.pick(
+                              vi: 'Chọn ngày sinh',
+                              en: 'Select birth date',
+                            ),
                             onPressed: () => _pickDate(_birthDateController),
                             icon: const Icon(Icons.calendar_today_outlined),
                           ),
@@ -996,6 +1015,10 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                           labelText: l10n.memberDeathDateLabel,
                           hintText: 'YYYY-MM-DD',
                           suffixIcon: IconButton(
+                            tooltip: l10n.pick(
+                              vi: 'Chọn ngày mất',
+                              en: 'Select death date',
+                            ),
                             onPressed: () => _pickDate(_deathDateController),
                             icon: const Icon(Icons.calendar_today_outlined),
                           ),
