@@ -69,10 +69,24 @@ class DebugMemberRepository implements MemberRepository {
     final resolvedMemberId =
         memberId ?? 'member_demo_${_store.memberSequence++}';
     final existing = _store.members[resolvedMemberId];
+    var parentIds = _normalizeParentIds(
+      draft.parentIds,
+    ).where((id) => id != resolvedMemberId).toList(growable: false);
+    var branchId =
+        draft.branchId ?? existing?.branchId ?? session.branchId ?? '';
+    var generation = draft.generation;
+    if (parentIds.isNotEmpty) {
+      final primaryParent = _store.members[parentIds.first];
+      if (primaryParent != null) {
+        branchId = primaryParent.branchId;
+        generation = primaryParent.generation + 1;
+      }
+    }
+    final previousParentIds = existing?.parentIds ?? const <String>[];
     final payload = MemberProfile(
       id: resolvedMemberId,
       clanId: clanId,
-      branchId: draft.branchId ?? existing?.branchId ?? session.branchId ?? '',
+      branchId: branchId,
       fullName: draft.fullName.trim(),
       normalizedFullName: draft.fullName.trim().toLowerCase(),
       nickName: draft.nickName.trim(),
@@ -86,10 +100,13 @@ class DebugMemberRepository implements MemberRepository {
       avatarUrl: existing?.avatarUrl,
       bio: _nullableTrim(draft.bio),
       socialLinks: draft.socialLinks,
-      parentIds: existing?.parentIds ?? const [],
+      parentIds: parentIds,
       childrenIds: existing?.childrenIds ?? const [],
       spouseIds: existing?.spouseIds ?? const [],
-      generation: draft.generation,
+      siblingOrder: parentIds.isEmpty
+          ? null
+          : existing?.siblingOrder ?? draft.siblingOrder,
+      generation: generation <= 0 ? 1 : generation,
       primaryRole: existing?.primaryRole ?? draft.primaryRole,
       status: existing?.status ?? draft.status,
       isMinor: draft.isMinor,
@@ -97,8 +114,23 @@ class DebugMemberRepository implements MemberRepository {
     );
 
     _store.members[resolvedMemberId] = payload;
+    _syncParentLinks(
+      memberId: resolvedMemberId,
+      previousParentIds: previousParentIds,
+      nextParentIds: parentIds,
+    );
+    _syncSiblingOrder(
+      clanId: clanId,
+      parentIds: {...previousParentIds, ...parentIds},
+    );
+    if (parentIds.isEmpty) {
+      final current = _store.members[resolvedMemberId];
+      if (current != null && current.siblingOrder != null) {
+        _store.members[resolvedMemberId] = current.copyWith(siblingOrder: null);
+      }
+    }
     _store.recountBranchMembers(clanId);
-    return payload;
+    return _store.members[resolvedMemberId] ?? payload;
   }
 
   @override
@@ -139,6 +171,67 @@ class DebugMemberRepository implements MemberRepository {
       );
     }
   }
+
+  void _syncParentLinks({
+    required String memberId,
+    required List<String> previousParentIds,
+    required List<String> nextParentIds,
+  }) {
+    final previous = previousParentIds.toSet();
+    final next = nextParentIds.toSet();
+    for (final parentId in previous.difference(next)) {
+      final parent = _store.members[parentId];
+      if (parent == null) {
+        continue;
+      }
+      _store.members[parentId] = parent.copyWith(
+        childrenIds: parent.childrenIds
+            .where((childId) => childId != memberId)
+            .toList(growable: false),
+      );
+    }
+    for (final parentId in next.difference(previous)) {
+      final parent = _store.members[parentId];
+      if (parent == null) {
+        continue;
+      }
+      final mergedChildren = {
+        ...parent.childrenIds,
+        memberId,
+      }.toList(growable: false);
+      _store.members[parentId] = parent.copyWith(childrenIds: mergedChildren);
+    }
+  }
+
+  void _syncSiblingOrder({
+    required String clanId,
+    required Set<String> parentIds,
+  }) {
+    for (final parentId in parentIds) {
+      if (parentId.trim().isEmpty) {
+        continue;
+      }
+      final parent = _store.members[parentId];
+      if (parent == null || parent.clanId != clanId) {
+        continue;
+      }
+      final rankedChildren =
+          parent.childrenIds
+              .map((childId) => _store.members[childId])
+              .whereType<MemberProfile>()
+              .where((child) => child.clanId == clanId)
+              .toList(growable: false)
+            ..sort(_compareMemberBySiblingOrderRules);
+      for (var index = 0; index < rankedChildren.length; index++) {
+        final member = rankedChildren[index];
+        final nextOrder = index + 1;
+        if (member.siblingOrder == nextOrder) {
+          continue;
+        }
+        _store.members[member.id] = member.copyWith(siblingOrder: nextOrder);
+      }
+    }
+  }
 }
 
 String? _normalizePhoneOrNull(String input) {
@@ -153,4 +246,53 @@ String? _normalizePhoneOrNull(String input) {
 String? _nullableTrim(String? value) {
   final trimmed = value?.trim();
   return trimmed == null || trimmed.isEmpty ? null : trimmed;
+}
+
+List<String> _normalizeParentIds(List<String> parentIds) {
+  return parentIds
+      .map((id) => id.trim())
+      .where((id) => id.isNotEmpty)
+      .toSet()
+      .toList(growable: false);
+}
+
+DateTime? _tryParseIsoDate(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return null;
+  }
+  return DateTime.tryParse(trimmed);
+}
+
+int _compareMemberBySiblingOrderRules(MemberProfile left, MemberProfile right) {
+  final leftBirthDate = _tryParseIsoDate(left.birthDate);
+  final rightBirthDate = _tryParseIsoDate(right.birthDate);
+  final byBirthDate = _compareNullableDate(leftBirthDate, rightBirthDate);
+  if (byBirthDate != 0) {
+    return byBirthDate;
+  }
+  final byGeneration = left.generation.compareTo(right.generation);
+  if (byGeneration != 0) {
+    return byGeneration;
+  }
+  final byName = left.fullName.toLowerCase().compareTo(
+    right.fullName.toLowerCase(),
+  );
+  if (byName != 0) {
+    return byName;
+  }
+  return left.id.compareTo(right.id);
+}
+
+int _compareNullableDate(DateTime? left, DateTime? right) {
+  if (left == null && right == null) {
+    return 0;
+  }
+  if (left == null) {
+    return 1;
+  }
+  if (right == null) {
+    return -1;
+  }
+  return left.compareTo(right);
 }

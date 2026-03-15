@@ -39,8 +39,9 @@ abstract interface class EventRepository {
   });
 }
 
-EventRepository createDefaultEventRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
+EventRepository createDefaultEventRepository({AuthSession? session}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugEventRepository(store: DebugGenealogyStore.sharedSeeded());
   }
 

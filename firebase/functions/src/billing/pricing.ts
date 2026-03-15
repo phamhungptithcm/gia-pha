@@ -65,6 +65,13 @@ export const BILLING_PRICING_TIERS: ReadonlyArray<BillingTierPricing> = [
   },
 ];
 
+const PLAN_RANK: Record<BillingPlanCode, number> = {
+  FREE: 0,
+  BASE: 1,
+  PLUS: 2,
+  PRO: 3,
+};
+
 export function normalizeMemberCount(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.max(0, Math.trunc(value));
@@ -87,6 +94,37 @@ export function resolvePlanByMemberCount(memberCountInput: unknown): BillingTier
   });
 
   return matched ?? BILLING_PRICING_TIERS[BILLING_PRICING_TIERS.length - 1];
+}
+
+export function rankPlanCode(planCode: BillingPlanCode): number {
+  return PLAN_RANK[planCode] ?? 0;
+}
+
+export function resolveEffectivePlanCode({
+  memberCount,
+  currentPlanCode,
+  requestedPlanCode,
+}: {
+  memberCount: number;
+  currentPlanCode?: BillingPlanCode | null;
+  requestedPlanCode?: BillingPlanCode | null;
+}): BillingPlanCode {
+  const minimumPlanCode = resolvePlanByMemberCount(memberCount).planCode;
+  const baselinePlanCode =
+    currentPlanCode != null &&
+        rankPlanCode(currentPlanCode) >= rankPlanCode(minimumPlanCode)
+      ? currentPlanCode
+      : minimumPlanCode;
+
+  if (requestedPlanCode == null) {
+    return baselinePlanCode;
+  }
+  if (rankPlanCode(requestedPlanCode) < rankPlanCode(minimumPlanCode)) {
+    throw new Error(
+      `requestedPlanCode ${requestedPlanCode} is below minimum ${minimumPlanCode}.`,
+    );
+  }
+  return requestedPlanCode;
 }
 
 export function isPaidPlan(planCode: BillingPlanCode): boolean {

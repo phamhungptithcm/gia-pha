@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
@@ -13,10 +15,19 @@ import '../models/clan_workspace_snapshot.dart';
 import 'clan_repository.dart';
 
 class FirebaseClanRepository implements ClanRepository {
-  FirebaseClanRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseServices.firestore;
+  FirebaseClanRepository({
+    FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
+    FirebaseAuth? auth,
+  }) : _firestore = firestore ?? FirebaseServices.firestore,
+       _functions =
+           functions ??
+           FirebaseFunctions.instanceFor(region: 'asia-southeast1'),
+       _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
+  final FirebaseAuth _auth;
 
   CollectionReference<Map<String, dynamic>> get _clans =>
       _firestore.collection('clans');
@@ -39,7 +50,7 @@ class FirebaseClanRepository implements ClanRepository {
       session: session,
     );
 
-    final clanId = session.clanId;
+    final clanId = await _resolveClanId(session);
     if (clanId == null || clanId.isEmpty) {
       return const ClanWorkspaceSnapshot(clan: null, branches: [], members: []);
     }
@@ -83,9 +94,10 @@ class FirebaseClanRepository implements ClanRepository {
       session: session,
     );
 
-    final clanId = session.clanId;
+    final clanId = await _resolveClanId(session);
     if (clanId == null || clanId.isEmpty) {
-      throw StateError('A clan context is required before saving clan data.');
+      await _bootstrapClanWorkspace(session: session, draft: draft);
+      return;
     }
 
     final now = FieldValue.serverTimestamp();
@@ -131,7 +143,7 @@ class FirebaseClanRepository implements ClanRepository {
       session: session,
     );
 
-    final clanId = session.clanId;
+    final clanId = await _resolveClanId(session);
     if (clanId == null || clanId.isEmpty) {
       throw StateError('A clan context is required before saving branch data.');
     }
@@ -177,5 +189,59 @@ class FirebaseClanRepository implements ClanRepository {
     }, SetOptions(merge: true));
 
     return BranchProfile.fromJson(payload);
+  }
+
+  Future<void> _bootstrapClanWorkspace({
+    required AuthSession session,
+    required ClanDraft draft,
+  }) async {
+    final callable = _functions.httpsCallable('bootstrapClanWorkspace');
+    await callable.call(<String, dynamic>{
+      'name': draft.name,
+      'slug': draft.slug,
+      'description': draft.description,
+      'countryCode': draft.countryCode,
+      'founderName': draft.founderName,
+      'logoUrl': draft.logoUrl,
+    });
+
+    final currentUser = _auth.currentUser;
+    if (currentUser != null && currentUser.uid == session.uid) {
+      await currentUser.getIdToken(true);
+    }
+  }
+
+  Future<String?> _resolveClanId(AuthSession session) async {
+    final sessionClanId = session.clanId?.trim();
+    if (sessionClanId != null && sessionClanId.isNotEmpty) {
+      return sessionClanId;
+    }
+
+    final currentUser = _auth.currentUser;
+    if (currentUser == null || currentUser.uid != session.uid) {
+      return null;
+    }
+
+    try {
+      final token = await currentUser.getIdTokenResult();
+      final claims = token.claims ?? const <String, dynamic>{};
+      final claimClanIds = claims['clanIds'];
+      if (claimClanIds is List) {
+        for (final claim in claimClanIds) {
+          if (claim is String && claim.trim().isNotEmpty) {
+            return claim.trim();
+          }
+        }
+      }
+
+      final claimClanId = (claims['clanId'] as String?)?.trim();
+      if (claimClanId != null && claimClanId.isNotEmpty) {
+        return claimClanId;
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
   }
 }

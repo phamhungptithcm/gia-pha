@@ -1,6 +1,7 @@
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/core/services/debug_genealogy_store.dart';
 import 'package:befam/features/funds/models/fund_draft.dart';
 import 'package:befam/features/funds/models/fund_transaction.dart';
 import 'package:befam/features/funds/models/fund_transaction_draft.dart';
@@ -61,6 +62,39 @@ void main() {
     final snapshot = await repository.loadWorkspace(session: session);
     expect(snapshot.funds.any((fund) => fund.id == created.id), isTrue);
   });
+
+  test(
+    'selecting treasurer members stores ids and grants TREASURER role',
+    () async {
+      final store = DebugGenealogyStore.seeded();
+      final repository = DebugFundRepository(store: store);
+      final session = buildClanAdminSession();
+
+      final created = await repository.saveFund(
+        session: session,
+        draft: const FundDraft(
+          name: 'Clan Development',
+          description: 'Fund for clan development activities.',
+          fundType: 'operations',
+          currency: 'VND',
+          treasurerMemberIds: [
+            'member_demo_child_001',
+            'member_demo_parent_001',
+          ],
+        ),
+      );
+
+      expect(created.treasurerMemberIds, contains('member_demo_child_001'));
+      expect(
+        store.members['member_demo_child_001']?.primaryRole,
+        equals('TREASURER'),
+      );
+      expect(
+        store.members['member_demo_parent_001']?.primaryRole,
+        equals('CLAN_ADMIN'),
+      );
+    },
+  );
 
   test('records donation and updates running balance', () async {
     final repository = DebugFundRepository.seeded();

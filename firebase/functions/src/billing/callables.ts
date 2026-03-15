@@ -5,6 +5,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { APP_REGION } from '../config/runtime';
 import {
   applyPaymentResult,
+  countClanMembers,
   buildEntitlementFromSubscription,
   createPendingCheckout,
   ensureSubscriptionForClan,
@@ -15,13 +16,22 @@ import {
 } from './store';
 import {
   BILLING_PRICING_TIERS,
+  rankPlanCode,
+  resolvePlanByMemberCount,
+  type BillingPlanCode,
   type PaymentMethod,
   type PaymentMode,
 } from './pricing';
 import { requireAuth } from '../shared/errors';
 import { db } from '../shared/firestore';
 import { notifyMembers } from '../notifications/push-delivery';
-import { logInfo, logWarn } from '../shared/logger';
+import { logInfo } from '../shared/logger';
+import {
+  ensureClaimedSession,
+  ensureClanAccess,
+  tokenClanIds,
+  type AuthToken,
+} from '../shared/permissions';
 
 const subscriptionsCollection = db.collection('subscriptions');
 const transactionsCollection = db.collection('paymentTransactions');
@@ -32,10 +42,12 @@ export const resolveBillingEntitlement = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
+    ensureClaimedSession(auth.token);
     const clanId = resolveClanId(auth.token, request.data);
     if (clanId.length === 0) {
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
+    ensureClanAccess(auth.token, clanId);
 
     const ensured = await ensureSubscriptionForClan({
       clanId,
@@ -58,10 +70,12 @@ export const loadBillingWorkspace = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
+    ensureClaimedSession(auth.token);
     const clanId = resolveClanId(auth.token, request.data);
     if (clanId.length === 0) {
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
+    ensureClanAccess(auth.token, clanId);
     assertBillingAdmin(auth.token);
 
     const ensured = await ensureSubscriptionForClan({
@@ -113,10 +127,12 @@ export const updateBillingPreferences = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
+    ensureClaimedSession(auth.token);
     const clanId = resolveClanId(auth.token, request.data);
     if (clanId.length === 0) {
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
+    ensureClanAccess(auth.token, clanId);
     assertBillingAdmin(auth.token);
 
     const paymentMode = normalizePaymentModeFromInput(request.data);
@@ -162,17 +178,31 @@ export const createSubscriptionCheckout = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
+    ensureClaimedSession(auth.token);
     const clanId = resolveClanId(auth.token, request.data);
     if (clanId.length === 0) {
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
+    ensureClanAccess(auth.token, clanId);
     assertBillingAdmin(auth.token);
 
     const paymentMethod = normalizePaymentMethod(request.data);
+    const requestedPlanCode = normalizeRequestedPlanCode(request.data);
+    if (requestedPlanCode != null) {
+      const memberCount = await countClanMembers(clanId);
+      const minimumPlanCode = resolvePlanByMemberCount(memberCount).planCode;
+      if (rankPlanCode(requestedPlanCode) < rankPlanCode(minimumPlanCode)) {
+        throw new HttpsError(
+          'invalid-argument',
+          `requestedPlanCode must be at least ${minimumPlanCode} for ${memberCount} members.`,
+        );
+      }
+    }
     const checkout = await createPendingCheckout({
       clanId,
       actorUid: auth.uid,
       paymentMethod,
+      requestedPlanCode: requestedPlanCode ?? undefined,
     });
 
     let checkoutUrl = '';
@@ -226,10 +256,12 @@ export const completeCardCheckout = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
+    ensureClaimedSession(auth.token);
     const clanId = resolveClanId(auth.token, request.data);
     if (clanId.length === 0) {
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
+    ensureClanAccess(auth.token, clanId);
     assertBillingAdmin(auth.token);
 
     const transactionId = readString(request.data, 'transactionId');
@@ -279,10 +311,12 @@ export const simulateVnpaySettlement = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
+    ensureClaimedSession(auth.token);
     const clanId = resolveClanId(auth.token, request.data);
     if (clanId.length === 0) {
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
+    ensureClanAccess(auth.token, clanId);
     assertBillingAdmin(auth.token);
 
     const transactionId = readString(request.data, 'transactionId');
@@ -355,27 +389,22 @@ async function notifyBillingResult({
   });
 }
 
-function resolveClanId(
-  token: Record<string, unknown>,
-  data: unknown,
-): string {
-  const clanIdsRaw = token.clanIds;
-  if (Array.isArray(clanIdsRaw)) {
-    for (const item of clanIdsRaw) {
-      if (typeof item === 'string' && item.trim().length > 0) {
-        return item.trim();
-      }
-    }
-  }
-  const tokenClanId = normalizeString(token.clanId);
-  if (tokenClanId.length > 0) {
-    return tokenClanId;
-  }
+function resolveClanId(token: AuthToken, data: unknown): string {
+  const clanIds = tokenClanIds(token);
   const dataClanId = readString(data, 'clanId');
-  return dataClanId ?? '';
+  if (dataClanId != null && dataClanId.length > 0) {
+    if (!clanIds.includes(dataClanId)) {
+      throw new HttpsError(
+        'permission-denied',
+        'This session does not have access to the requested clan.',
+      );
+    }
+    return dataClanId;
+  }
+  return clanIds[0] ?? '';
 }
 
-function assertBillingAdmin(token: Record<string, unknown>): void {
+function assertBillingAdmin(token: AuthToken): void {
   const role = normalizeString(token.primaryRole).toUpperCase();
   const allowed = new Set([
     'SUPER_ADMIN',
@@ -416,6 +445,20 @@ function normalizePaymentModeFromInput(data: unknown): PaymentMode {
   throw new HttpsError(
     'invalid-argument',
     'paymentMode must be "manual" or "auto_renew".',
+  );
+}
+
+function normalizeRequestedPlanCode(data: unknown): BillingPlanCode | null {
+  const planCode = readString(data, 'requestedPlanCode')?.toUpperCase();
+  if (planCode == null || planCode.length === 0) {
+    return null;
+  }
+  if (planCode === 'FREE' || planCode === 'BASE' || planCode === 'PLUS' || planCode === 'PRO') {
+    return planCode;
+  }
+  throw new HttpsError(
+    'invalid-argument',
+    'requestedPlanCode must be one of FREE, BASE, PLUS, PRO.',
   );
 }
 

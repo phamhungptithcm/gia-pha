@@ -1,5 +1,6 @@
 import 'calendar_date_mode.dart';
 import '../../events/models/event_type.dart';
+import 'event_notification_audience.dart';
 import 'lunar_date.dart';
 import 'lunar_recurrence_policy.dart';
 
@@ -18,6 +19,7 @@ class DualCalendarEvent {
     required this.isAnnualRecurring,
     required this.recurrencePolicy,
     required this.reminderOffsetsMinutes,
+    this.notificationAudience = const EventNotificationAudience(),
     required this.timezone,
     required this.createdAt,
     required this.updatedAt,
@@ -36,6 +38,7 @@ class DualCalendarEvent {
   final bool isAnnualRecurring;
   final LunarRecurrencePolicy recurrencePolicy;
   final List<int> reminderOffsetsMinutes;
+  final EventNotificationAudience notificationAudience;
   final String timezone;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -61,6 +64,7 @@ class DualCalendarEvent {
     bool? isAnnualRecurring,
     LunarRecurrencePolicy? recurrencePolicy,
     List<int>? reminderOffsetsMinutes,
+    EventNotificationAudience? notificationAudience,
     String? timezone,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -81,6 +85,7 @@ class DualCalendarEvent {
       recurrencePolicy: recurrencePolicy ?? this.recurrencePolicy,
       reminderOffsetsMinutes:
           reminderOffsetsMinutes ?? this.reminderOffsetsMinutes,
+      notificationAudience: notificationAudience ?? this.notificationAudience,
       timezone: timezone ?? this.timezone,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -102,6 +107,7 @@ class DualCalendarEvent {
       'isAnnualRecurring': isAnnualRecurring,
       'recurrencePolicy': recurrencePolicy.wireName,
       'reminderOffsetsMinutes': reminderOffsetsMinutes,
+      'notificationAudience': notificationAudience.toJson(),
       'timezone': timezone,
       'createdAt': createdAt.toUtc().toIso8601String(),
       'updatedAt': updatedAt.toUtc().toIso8601String(),
@@ -130,6 +136,11 @@ class DualCalendarEvent {
         json['recurrencePolicy'] as String?,
       ),
       reminderOffsetsMinutes: _offsetList(json['reminderOffsetsMinutes']),
+      notificationAudience: EventNotificationAudience.fromJson(
+        json['notificationAudience'] is Map<String, dynamic>
+            ? json['notificationAudience'] as Map<String, dynamic>
+            : null,
+      ),
       timezone: json['timezone'] as String? ?? 'Asia/Ho_Chi_Minh',
       createdAt: _parseDateTime(json['createdAt']) ?? DateTime.now(),
       updatedAt: _parseDateTime(json['updatedAt']) ?? DateTime.now(),

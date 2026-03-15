@@ -3,7 +3,9 @@ import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/scholarship/presentation/scholarship_workspace_page.dart';
 import 'package:befam/features/scholarship/services/debug_scholarship_repository.dart';
+import 'package:befam/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -48,6 +50,14 @@ void main() {
   }) async {
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         home: ScholarshipWorkspacePage(
           session: session ?? buildClanAdminSession(),
           repository: repository ?? DebugScholarshipRepository.seeded(),

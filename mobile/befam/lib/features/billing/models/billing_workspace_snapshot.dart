@@ -22,6 +22,22 @@ class BillingWorkspaceSnapshot {
   final List<BillingAuditLog> auditLogs;
 }
 
+class BillingViewerSummary {
+  const BillingViewerSummary({
+    required this.clanId,
+    required this.subscription,
+    required this.entitlement,
+    required this.pricingTiers,
+    required this.memberCount,
+  });
+
+  final String clanId;
+  final BillingSubscription subscription;
+  final BillingEntitlement entitlement;
+  final List<BillingPlanPricing> pricingTiers;
+  final int memberCount;
+}
+
 class BillingSubscription {
   const BillingSubscription({
     required this.id,

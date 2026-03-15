@@ -2,9 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
+import '../../auth/models/clan_context_option.dart';
+import '../../member/models/member_profile.dart';
+import '../../member/services/member_repository.dart';
 import '../models/fund_draft.dart';
 import '../models/fund_profile.dart';
 import '../models/fund_transaction.dart';
@@ -18,26 +22,98 @@ class FundWorkspacePage extends StatefulWidget {
     super.key,
     required this.session,
     required this.repository,
+    this.memberRepository,
+    this.availableClanContexts = const [],
+    this.onSwitchClanContext,
   });
 
   final AuthSession session;
   final FundRepository repository;
+  final MemberRepository? memberRepository;
+  final List<ClanContextOption> availableClanContexts;
+  final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
 
   @override
   State<FundWorkspacePage> createState() => _FundWorkspacePageState();
 }
 
 class _FundWorkspacePageState extends State<FundWorkspacePage> {
-  late final FundController _controller;
+  late FundController _controller;
+  late AuthSession _activeSession;
+  late MemberRepository _memberRepository;
+  bool _isSwitchingClanContext = false;
+  String _cachedMembersClanId = '';
+  List<MemberProfile> _cachedMembers = const [];
+  List<MemberProfile> _treasurerMembers = const [];
+  String _treasurerClanId = '';
+  bool _isLoadingTreasurers = false;
+  bool _hasResolvedTreasurers = false;
+  bool _treasurerLookupFailed = false;
+  int _treasurerRequestToken = 0;
+
+  AuthSession get _session => _activeSession;
+
+  List<ClanContextOption> get _clanContexts {
+    if (widget.availableClanContexts.isNotEmpty) {
+      return widget.availableClanContexts;
+    }
+    final clanId = (_session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
+      return const [];
+    }
+    return [
+      ClanContextOption(
+        clanId: clanId,
+        clanName: clanId,
+        memberId: (_session.memberId ?? '').trim(),
+        primaryRole: (_session.primaryRole ?? 'MEMBER').trim().toUpperCase(),
+        branchId: _nullIfBlank(_session.branchId),
+        displayName: _nullIfBlank(_session.displayName),
+      ),
+    ];
+  }
 
   @override
   void initState() {
     super.initState();
+    _activeSession = widget.session;
+    _memberRepository =
+        widget.memberRepository ??
+        createDefaultMemberRepository(session: _session);
     _controller = FundController(
       repository: widget.repository,
-      session: widget.session,
+      session: _session,
     );
     unawaited(_controller.initialize());
+    unawaited(_refreshTreasurerRoster(force: true));
+  }
+
+  @override
+  void didUpdateWidget(covariant FundWorkspacePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final sessionChanged = oldWidget.session != widget.session;
+    final repositoryChanged = oldWidget.repository != widget.repository;
+    final memberRepositoryChanged =
+        oldWidget.memberRepository != widget.memberRepository;
+    if (!sessionChanged && !repositoryChanged && !memberRepositoryChanged) {
+      return;
+    }
+
+    _activeSession = widget.session;
+    if (memberRepositoryChanged) {
+      _memberRepository =
+          widget.memberRepository ??
+          createDefaultMemberRepository(session: _session);
+    }
+    _cachedMembers = const [];
+    _cachedMembersClanId = '';
+    _controller.dispose();
+    _controller = FundController(
+      repository: widget.repository,
+      session: _session,
+    );
+    unawaited(_controller.initialize());
+    unawaited(_refreshTreasurerRoster(force: true));
   }
 
   @override
@@ -65,6 +141,10 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           initialDraft: fund == null
               ? FundDraft.empty()
               : FundDraft.fromProfile(fund),
+          availableClanContexts: _clanContexts,
+          activeClanId: (_session.clanId ?? '').trim(),
+          onEnsureClanContext: _ensureClanContext,
+          loadMembersForClan: _loadMembersForClan,
           isSaving: _controller.isSavingFund,
           onSubmit: (draft) {
             return _controller.saveFund(fundId: fund?.id, draft: draft);
@@ -92,6 +172,98 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     }
   }
 
+  Future<bool> _ensureClanContext(String clanId) async {
+    final normalizedClanId = clanId.trim();
+    if (normalizedClanId.isEmpty) {
+      return false;
+    }
+    if (normalizedClanId == (_session.clanId ?? '').trim()) {
+      return true;
+    }
+    final switched = await _switchClanContext(normalizedClanId);
+    return switched != null &&
+        (switched.clanId ?? '').trim() == normalizedClanId;
+  }
+
+  Future<List<MemberProfile>> _loadMembersForClan(String clanId) async {
+    final normalizedClanId = clanId.trim();
+    if (normalizedClanId.isEmpty) {
+      return const [];
+    }
+    if (_cachedMembersClanId == normalizedClanId && _cachedMembers.isNotEmpty) {
+      return _cachedMembers;
+    }
+
+    AuthSession effectiveSession = _session;
+    if ((_session.clanId ?? '').trim() != normalizedClanId) {
+      final switched = await _switchClanContext(normalizedClanId);
+      if (switched == null) {
+        return const [];
+      }
+      effectiveSession = switched;
+    }
+
+    final snapshot = await _memberRepository.loadWorkspace(
+      session: effectiveSession,
+    );
+    final members = snapshot.members
+        .where((member) => member.clanId.trim() == normalizedClanId)
+        .toList(growable: false);
+    _cachedMembersClanId = normalizedClanId;
+    _cachedMembers = members;
+    return members;
+  }
+
+  Future<AuthSession?> _switchClanContext(String clanId) async {
+    final normalizedClanId = clanId.trim();
+    if (normalizedClanId.isEmpty) {
+      return null;
+    }
+    if (normalizedClanId == (_session.clanId ?? '').trim()) {
+      return _session;
+    }
+    final switcher = widget.onSwitchClanContext;
+    if (switcher == null) {
+      return null;
+    }
+    if (_isSwitchingClanContext) {
+      return null;
+    }
+
+    setState(() {
+      _isSwitchingClanContext = true;
+    });
+    try {
+      final switched = await switcher(normalizedClanId);
+      if (switched == null) {
+        return null;
+      }
+      if (!mounted) {
+        return switched;
+      }
+      _activeSession = switched;
+      _cachedMembers = const [];
+      _cachedMembersClanId = '';
+      _controller.dispose();
+      _controller = FundController(
+        repository: widget.repository,
+        session: _session,
+      );
+      setState(() {});
+      await _controller.initialize();
+      unawaited(_refreshTreasurerRoster(force: true));
+      return _session;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSwitchingClanContext = false;
+        });
+      } else {
+        _isSwitchingClanContext = false;
+      }
+    }
+  }
+
   void _openFundDetail(FundProfile fund) {
     _controller.selectFund(fund.id);
     Navigator.of(context).push(
@@ -103,6 +275,79 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     );
   }
 
+  Future<void> _refreshWorkspace() async {
+    await _controller.refresh();
+    await _refreshTreasurerRoster(force: true);
+  }
+
+  Future<void> _refreshTreasurerRoster({bool force = false}) async {
+    final clanId = (_session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _treasurerMembers = const [];
+        _treasurerClanId = '';
+        _isLoadingTreasurers = false;
+        _hasResolvedTreasurers = true;
+        _treasurerLookupFailed = false;
+      });
+      return;
+    }
+
+    if (!force && _hasResolvedTreasurers && _treasurerClanId == clanId) {
+      return;
+    }
+
+    final requestToken = ++_treasurerRequestToken;
+    if (mounted) {
+      setState(() {
+        _isLoadingTreasurers = true;
+        _treasurerLookupFailed = false;
+      });
+    }
+
+    try {
+      final members = await _loadMembersForClan(clanId);
+      if (!mounted || requestToken != _treasurerRequestToken) {
+        return;
+      }
+
+      final treasurers =
+          members
+              .where(
+                (member) =>
+                    GovernanceRoleMatrix.normalizeRole(member.primaryRole) ==
+                    GovernanceRoles.treasurer,
+              )
+              .toList(growable: false)
+            ..sort(
+              (left, right) => left.displayName.toLowerCase().compareTo(
+                right.displayName.toLowerCase(),
+              ),
+            );
+
+      setState(() {
+        _treasurerMembers = treasurers;
+        _treasurerClanId = clanId;
+        _isLoadingTreasurers = false;
+        _hasResolvedTreasurers = true;
+      });
+    } catch (_) {
+      if (!mounted || requestToken != _treasurerRequestToken) {
+        return;
+      }
+      setState(() {
+        _treasurerMembers = const [];
+        _treasurerClanId = clanId;
+        _isLoadingTreasurers = false;
+        _hasResolvedTreasurers = true;
+        _treasurerLookupFailed = true;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -111,14 +356,47 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         final l10n = context.l10n;
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
+        final currentFund = _controller.selectedFund;
 
         return Scaffold(
           appBar: AppBar(
             title: Text(l10n.pick(vi: 'Quỹ', en: 'Funds')),
             actions: [
+              if (_isSwitchingClanContext)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else if (_clanContexts.length > 1)
+                PopupMenuButton<String>(
+                  tooltip: l10n.pick(vi: 'Chuyển gia phả', en: 'Switch clan'),
+                  onSelected: (clanId) {
+                    unawaited(_switchClanContext(clanId));
+                  },
+                  itemBuilder: (context) => [
+                    for (final option in _clanContexts)
+                      PopupMenuItem<String>(
+                        value: option.clanId,
+                        child: Text(
+                          option.clanId == (_session.clanId ?? '').trim()
+                              ? '• ${option.clanName}'
+                              : option.clanName,
+                        ),
+                      ),
+                  ],
+                  icon: const Icon(Icons.account_tree_outlined),
+                ),
               IconButton(
                 tooltip: l10n.pick(vi: 'Tải lại', en: 'Refresh'),
-                onPressed: _controller.isLoading ? null : _controller.refresh,
+                onPressed: _controller.isLoading
+                    ? null
+                    : () {
+                        unawaited(_refreshWorkspace());
+                      },
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -152,7 +430,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                     ),
                   )
                 : RefreshIndicator(
-                    onRefresh: _controller.refresh,
+                    onRefresh: _refreshWorkspace,
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
@@ -170,6 +448,15 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                               ? () => _openFundEditor()
                               : null,
                         ),
+                        const SizedBox(height: 16),
+                        _ClanScopeCard(
+                          activeClanId: (_session.clanId ?? '').trim(),
+                          clanContexts: _clanContexts,
+                          isSwitching: _isSwitchingClanContext,
+                          onSwitch: widget.onSwitchClanContext == null
+                              ? null
+                              : (clanId) => _switchClanContext(clanId),
+                        ),
                         const SizedBox(height: 20),
                         if (_controller.errorMessage case final error?) ...[
                           _InfoCard(
@@ -185,7 +472,9 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: TextButton.icon(
-                              onPressed: _controller.refresh,
+                              onPressed: () {
+                                unawaited(_refreshWorkspace());
+                              },
                               icon: const Icon(Icons.refresh),
                               label: Text(
                                 l10n.pick(vi: 'Tải lại', en: 'Retry'),
@@ -234,6 +523,18 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                                   : l10n.pick(vi: 'Đọc', en: 'Read'),
                               icon: Icons.verified_user_outlined,
                             ),
+                            _StatTile(
+                              label: l10n.pick(
+                                vi: 'Thủ quỹ quỹ hiện tại',
+                                en: 'Current fund treasurer',
+                              ),
+                              value: _treasurerSummaryLabel(
+                                context,
+                                currentFund: currentFund,
+                              ),
+                              valueMaxLines: 2,
+                              icon: Icons.badge_outlined,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 20),
@@ -276,6 +577,11 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                                         ),
                                         child: _FundSummaryCard(
                                           fund: _controller.funds[i],
+                                          memberCountLabel:
+                                              _memberCountLabelForFund(
+                                                context,
+                                                _controller.funds[i],
+                                              ),
                                           onTap: () => _openFundDetail(
                                             _controller.funds[i],
                                           ),
@@ -296,6 +602,126 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         );
       },
     );
+  }
+
+  String? _memberCountLabelForFund(BuildContext context, FundProfile fund) {
+    if (fund.appliedMemberIds.isEmpty) {
+      return null;
+    }
+    return context.l10n.pick(
+      vi: 'Áp dụng: ${fund.appliedMemberIds.length} thành viên',
+      en: 'Applies to ${fund.appliedMemberIds.length} members',
+    );
+  }
+
+  String _treasurerSummaryLabel(
+    BuildContext context, {
+    required FundProfile? currentFund,
+  }) {
+    final l10n = context.l10n;
+    if (_isLoadingTreasurers && !_hasResolvedTreasurers) {
+      return l10n.pick(vi: 'Đang tải...', en: 'Loading...');
+    }
+    if (_treasurerLookupFailed) {
+      return l10n.pick(vi: 'Chưa tải được', en: 'Unavailable');
+    }
+    if (currentFund == null) {
+      return l10n.pick(vi: 'Chưa chọn quỹ', en: 'No fund selected');
+    }
+
+    final activeClanId = (_session.clanId ?? '').trim();
+    final fundClanId = currentFund.clanId.trim();
+    if (activeClanId.isEmpty || fundClanId != activeClanId) {
+      return l10n.pick(vi: 'Ngoài phạm vi clan', en: 'Out of clan scope');
+    }
+
+    final treasurerNames = _resolveTreasurerNamesForCurrentFund(
+      currentFund: currentFund,
+      activeClanId: activeClanId,
+    );
+    if (treasurerNames.isEmpty) {
+      return l10n.pick(vi: 'Chưa phân công', en: 'Unassigned');
+    }
+    if (treasurerNames.length == 1) {
+      return treasurerNames.first;
+    }
+    final first = treasurerNames.first;
+    final remaining = treasurerNames.length - 1;
+    return '$first +$remaining';
+  }
+
+  List<String> _resolveTreasurerNamesForCurrentFund({
+    required FundProfile currentFund,
+    required String activeClanId,
+  }) {
+    final explicitTreasurerIds = currentFund.treasurerMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet();
+    if (explicitTreasurerIds.isNotEmpty) {
+      final names =
+          _cachedMembers
+              .where((member) => member.clanId.trim() == activeClanId)
+              .where((member) => explicitTreasurerIds.contains(member.id))
+              .map((member) => member.displayName.trim())
+              .where((name) => name.isNotEmpty)
+              .toSet()
+              .toList(growable: false)
+            ..sort(
+              (left, right) =>
+                  left.toLowerCase().compareTo(right.toLowerCase()),
+            );
+      return names;
+    }
+
+    Iterable<MemberProfile> scoped = _treasurerMembers.where(
+      (member) => member.clanId.trim() == activeClanId,
+    );
+
+    final branchId = _nullIfBlank(currentFund.branchId);
+    if (branchId != null) {
+      scoped = scoped.where((member) => member.branchId.trim() == branchId);
+    }
+
+    final appliedMemberIds = currentFund.appliedMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet();
+
+    if (appliedMemberIds.isNotEmpty) {
+      scoped = scoped.where((member) => appliedMemberIds.contains(member.id));
+    } else {
+      final transactionActorIds = _controller.transactions
+          .where(
+            (transaction) =>
+                transaction.fundId == currentFund.id &&
+                transaction.clanId.trim() == activeClanId,
+          )
+          .expand((transaction) {
+            return [
+              transaction.memberId?.trim() ?? '',
+              transaction.createdBy?.trim() ?? '',
+            ];
+          })
+          .where((entry) => entry.isNotEmpty)
+          .toSet();
+      if (transactionActorIds.isNotEmpty) {
+        scoped = scoped.where(
+          (member) => transactionActorIds.contains(member.id),
+        );
+      }
+    }
+
+    final names =
+        scoped
+            .map((member) => member.displayName.trim())
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList(growable: false)
+          ..sort(
+            (left, right) => left.toLowerCase().compareTo(right.toLowerCase()),
+          );
+    return names;
   }
 }
 
@@ -330,6 +756,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
     FundProfile fund,
     FundTransactionType type,
   ) async {
+    final l10n = context.l10n;
     final didSave = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -338,11 +765,17 @@ class _FundDetailPageState extends State<_FundDetailPage> {
       builder: (context) {
         return _TransactionEditorSheet(
           title: type == FundTransactionType.donation
-              ? 'Record donation'
-              : 'Record expense',
+              ? l10n.pick(vi: 'Ghi nhận đóng góp', en: 'Record donation')
+              : l10n.pick(vi: 'Ghi nhận chi tiêu', en: 'Record expense'),
           description: type == FundTransactionType.donation
-              ? 'Add incoming contributions to this fund.'
-              : 'Log outgoing expenses from this fund.',
+              ? l10n.pick(
+                  vi: 'Thêm khoản đóng góp vào quỹ này.',
+                  en: 'Add incoming contributions to this fund.',
+                )
+              : l10n.pick(
+                  vi: 'Ghi nhận khoản chi từ quỹ này.',
+                  en: 'Log outgoing expenses from this fund.',
+                ),
           initialDraft: FundTransactionDraft.empty(
             fundId: fund.id,
             transactionType: type,
@@ -361,8 +794,8 @@ class _FundDetailPageState extends State<_FundDetailPage> {
         SnackBar(
           content: Text(
             type == FundTransactionType.donation
-                ? 'Donation saved.'
-                : 'Expense saved.',
+                ? l10n.pick(vi: 'Đã lưu khoản đóng góp.', en: 'Donation saved.')
+                : l10n.pick(vi: 'Đã lưu khoản chi.', en: 'Expense saved.'),
           ),
         ),
       );
@@ -379,14 +812,21 @@ class _FundDetailPageState extends State<_FundDetailPage> {
             .firstOrNull;
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
+        final l10n = context.l10n;
 
         if (fund == null) {
-          return const Scaffold(
+          return Scaffold(
             body: SafeArea(
               child: _EmptyWorkspace(
                 icon: Icons.search_off,
-                title: 'Fund not found',
-                description: 'This fund may have been removed or changed.',
+                title: l10n.pick(
+                  vi: 'Không tìm thấy quỹ',
+                  en: 'Fund not found',
+                ),
+                description: l10n.pick(
+                  vi: 'Quỹ này có thể đã bị xóa hoặc thay đổi.',
+                  en: 'This fund may have been removed or changed.',
+                ),
               ),
             ),
           );
@@ -401,7 +841,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
             title: Text(fund.name),
             actions: [
               IconButton(
-                tooltip: 'Refresh',
+                tooltip: l10n.pick(vi: 'Tải lại', en: 'Refresh'),
                 onPressed: widget.controller.isLoading
                     ? null
                     : widget.controller.refresh,
@@ -430,7 +870,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _titleCase(fund.fundType),
+                        _fundTypeLabel(context, fund.fundType),
                         style: theme.textTheme.labelLarge?.copyWith(
                           color: colorScheme.onPrimary,
                           fontWeight: FontWeight.w700,
@@ -438,7 +878,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Running balance',
+                        l10n.pick(vi: 'Số dư hiện tại', en: 'Running balance'),
                         style: theme.textTheme.titleMedium?.copyWith(
                           color: colorScheme.onPrimary.withValues(alpha: 0.9),
                         ),
@@ -477,7 +917,12 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                                 FundTransactionType.donation,
                               ),
                               icon: const Icon(Icons.add_circle_outline),
-                              label: const Text('Add donation'),
+                              label: Text(
+                                l10n.pick(
+                                  vi: 'Thêm đóng góp',
+                                  en: 'Add donation',
+                                ),
+                              ),
                             ),
                             OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
@@ -493,7 +938,12 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                                 FundTransactionType.expense,
                               ),
                               icon: const Icon(Icons.remove_circle_outline),
-                              label: const Text('Add expense'),
+                              label: Text(
+                                l10n.pick(
+                                  vi: 'Thêm chi tiêu',
+                                  en: 'Add expense',
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -503,11 +953,14 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                 ),
                 const SizedBox(height: 20),
                 _SectionCard(
-                  title: 'Transaction filters',
+                  title: l10n.pick(
+                    vi: 'Bộ lọc giao dịch',
+                    en: 'Transaction filters',
+                  ),
                   actionLabel:
                       widget.controller.filters.query.trim().isNotEmpty ||
                           widget.controller.filters.transactionType != null
-                      ? 'Clear'
+                      ? l10n.pick(vi: 'Xóa lọc', en: 'Clear')
                       : null,
                   onAction:
                       widget.controller.filters.query.trim().isNotEmpty ||
@@ -521,9 +974,12 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                     children: [
                       TextField(
                         controller: _queryController,
-                        decoration: const InputDecoration(
-                          labelText: 'Search note/reference/member',
-                          prefixIcon: Icon(Icons.search),
+                        decoration: InputDecoration(
+                          labelText: l10n.pick(
+                            vi: 'Tìm theo ghi chú/mã tham chiếu/thành viên',
+                            en: 'Search note/reference/member',
+                          ),
+                          prefixIcon: const Icon(Icons.search),
                         ),
                         textInputAction: TextInputAction.search,
                         onChanged: widget.controller.updateQueryFilter,
@@ -531,21 +987,30 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                       const SizedBox(height: 14),
                       DropdownButtonFormField<FundTransactionType?>(
                         initialValue: widget.controller.filters.transactionType,
-                        decoration: const InputDecoration(
-                          labelText: 'Transaction type',
+                        decoration: InputDecoration(
+                          labelText: l10n.pick(
+                            vi: 'Loại giao dịch',
+                            en: 'Transaction type',
+                          ),
                         ),
-                        items: const [
+                        items: [
                           DropdownMenuItem<FundTransactionType?>(
                             value: null,
-                            child: Text('All types'),
+                            child: Text(
+                              l10n.pick(vi: 'Tất cả', en: 'All types'),
+                            ),
                           ),
                           DropdownMenuItem<FundTransactionType?>(
                             value: FundTransactionType.donation,
-                            child: Text('Donations'),
+                            child: Text(
+                              l10n.pick(vi: 'Đóng góp', en: 'Donations'),
+                            ),
                           ),
                           DropdownMenuItem<FundTransactionType?>(
                             value: FundTransactionType.expense,
-                            child: Text('Expenses'),
+                            child: Text(
+                              l10n.pick(vi: 'Chi tiêu', en: 'Expenses'),
+                            ),
                           ),
                         ],
                         onChanged: widget.controller.updateTypeFilter,
@@ -555,9 +1020,12 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                 ),
                 const SizedBox(height: 20),
                 _SectionCard(
-                  title: 'Transaction history',
+                  title: l10n.pick(
+                    vi: 'Lịch sử giao dịch',
+                    en: 'Transaction history',
+                  ),
                   actionLabel: widget.controller.canManageFunds
-                      ? 'Donation'
+                      ? l10n.pick(vi: 'Đóng góp', en: 'Donation')
                       : null,
                   onAction: widget.controller.canManageFunds
                       ? () => _openTransactionEditor(
@@ -566,11 +1034,16 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                         )
                       : null,
                   child: transactions.isEmpty
-                      ? const _EmptyWorkspace(
+                      ? _EmptyWorkspace(
                           icon: Icons.receipt_long_outlined,
-                          title: 'No transactions',
-                          description:
-                              'Create a donation or expense to populate this ledger.',
+                          title: l10n.pick(
+                            vi: 'Chưa có giao dịch',
+                            en: 'No transactions',
+                          ),
+                          description: l10n.pick(
+                            vi: 'Tạo giao dịch đóng góp hoặc chi tiêu để hiển thị sổ quỹ.',
+                            en: 'Create a donation or expense to populate this ledger.',
+                          ),
                         )
                       : Column(
                           children: [
@@ -600,6 +1073,10 @@ class _FundEditorSheet extends StatefulWidget {
     required this.title,
     required this.description,
     required this.initialDraft,
+    required this.availableClanContexts,
+    required this.activeClanId,
+    required this.onEnsureClanContext,
+    required this.loadMembersForClan,
     required this.isSaving,
     required this.onSubmit,
   });
@@ -607,6 +1084,10 @@ class _FundEditorSheet extends StatefulWidget {
   final String title;
   final String description;
   final FundDraft initialDraft;
+  final List<ClanContextOption> availableClanContexts;
+  final String activeClanId;
+  final Future<bool> Function(String clanId) onEnsureClanContext;
+  final Future<List<MemberProfile>> Function(String clanId) loadMembersForClan;
   final bool isSaving;
   final Future<FundRepositoryErrorCode?> Function(FundDraft draft) onSubmit;
 
@@ -622,6 +1103,12 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
 
   late String _fundType;
   late String _currency;
+  late String _selectedClanId;
+  List<MemberProfile> _members = const [];
+  Set<String> _selectedMemberIds = <String>{};
+  Set<String> _selectedTreasurerMemberIds = <String>{};
+  bool _isLoadingMembers = false;
+  String? _memberLoadError;
   FundRepositoryErrorCode? _submitError;
   bool _isSubmitting = false;
 
@@ -650,6 +1137,31 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
     _currency = _currencies.contains(widget.initialDraft.currency.toUpperCase())
         ? widget.initialDraft.currency.toUpperCase()
         : 'VND';
+    final candidateClanId =
+        _nullIfBlank(widget.initialDraft.clanId) ??
+        _nullIfBlank(widget.activeClanId) ??
+        (widget.availableClanContexts.isNotEmpty
+            ? widget.availableClanContexts.first.clanId
+            : '');
+    if (widget.availableClanContexts.isNotEmpty &&
+        !widget.availableClanContexts.any(
+          (entry) => entry.clanId.trim() == candidateClanId.trim(),
+        )) {
+      _selectedClanId = widget.availableClanContexts.first.clanId;
+    } else {
+      _selectedClanId = candidateClanId;
+    }
+    _selectedMemberIds = widget.initialDraft.appliedMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet();
+    _selectedTreasurerMemberIds = widget.initialDraft.treasurerMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet();
+    if (_selectedClanId.isNotEmpty) {
+      unawaited(_loadMembersForClan(_selectedClanId));
+    }
   }
 
   @override
@@ -670,13 +1182,37 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
       _submitError = null;
     });
 
+    final targetClanId = _selectedClanId.trim();
+    if (targetClanId.isEmpty) {
+      setState(() {
+        _isSubmitting = false;
+        _submitError = FundRepositoryErrorCode.validationFailed;
+      });
+      return;
+    }
+
+    final clanReady = await widget.onEnsureClanContext(targetClanId);
+    if (!clanReady) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isSubmitting = false;
+        _submitError = FundRepositoryErrorCode.permissionDenied;
+      });
+      return;
+    }
+
     final error = await widget.onSubmit(
       FundDraft(
+        clanId: targetClanId,
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         fundType: _fundType,
         currency: _currency,
         branchId: _nullIfBlank(_branchIdController.text),
+        appliedMemberIds: _selectedMemberIds.toList(growable: false),
+        treasurerMemberIds: _selectedTreasurerMemberIds.toList(growable: false),
       ),
     );
 
@@ -695,10 +1231,225 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
     });
   }
 
+  Future<void> _loadMembersForClan(String clanId) async {
+    final normalizedClanId = clanId.trim();
+    if (normalizedClanId.isEmpty) {
+      setState(() {
+        _members = const [];
+        _selectedMemberIds.clear();
+        _selectedTreasurerMemberIds.clear();
+        _memberLoadError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingMembers = true;
+      _memberLoadError = null;
+    });
+    try {
+      final ensured = await widget.onEnsureClanContext(normalizedClanId);
+      if (!ensured) {
+        throw StateError('switch_context_failed');
+      }
+      final members = await widget.loadMembersForClan(normalizedClanId);
+      if (!mounted) {
+        return;
+      }
+      final memberIdSet = members.map((entry) => entry.id).toSet();
+      setState(() {
+        _members = members;
+        _selectedMemberIds = _selectedMemberIds
+            .where(memberIdSet.contains)
+            .toSet();
+        _selectedTreasurerMemberIds = _selectedTreasurerMemberIds
+            .where(memberIdSet.contains)
+            .toSet();
+        _isLoadingMembers = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoadingMembers = false;
+        _memberLoadError = context.l10n.pick(
+          vi: 'Không thể tải thành viên theo gia phả đã chọn.',
+          en: 'Unable to load members for the selected clan.',
+        );
+      });
+    }
+  }
+
+  Future<void> _handleClanChanged(String? clanId) async {
+    final normalizedClanId = _nullIfBlank(clanId);
+    if (normalizedClanId == null || normalizedClanId == _selectedClanId) {
+      return;
+    }
+    setState(() {
+      _selectedClanId = normalizedClanId;
+      _selectedMemberIds.clear();
+      _selectedTreasurerMemberIds.clear();
+    });
+    await _loadMembersForClan(normalizedClanId);
+  }
+
+  List<MemberProfile> _selectedMembersFor(Set<String> ids) {
+    if (ids.isEmpty) {
+      return const [];
+    }
+    final selected =
+        _members
+            .where((member) => ids.contains(member.id))
+            .toList(growable: false)
+          ..sort(
+            (left, right) => left.displayName.toLowerCase().compareTo(
+              right.displayName.toLowerCase(),
+            ),
+          );
+    return selected;
+  }
+
+  Future<void> _pickMemberIds({
+    required String title,
+    required Set<String> initialSelected,
+    required ValueChanged<Set<String>> onApplied,
+  }) async {
+    final selected = Set<String>.from(initialSelected);
+    String query = '';
+    final result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final normalizedQuery = query.trim().toLowerCase();
+            final filteredMembers = _members
+                .where((member) {
+                  if (normalizedQuery.isEmpty) {
+                    return true;
+                  }
+                  return member.displayName.toLowerCase().contains(
+                        normalizedQuery,
+                      ) ||
+                      member.id.toLowerCase().contains(normalizedQuery);
+                })
+                .toList(growable: false);
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.72,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        hintText: context.l10n.pick(
+                          vi: 'Tìm thành viên...',
+                          en: 'Search members...',
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setModalState(() {
+                          query = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: filteredMembers.isEmpty
+                          ? Center(
+                              child: Text(
+                                context.l10n.pick(
+                                  vi: 'Không tìm thấy thành viên phù hợp.',
+                                  en: 'No matching members found.',
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: filteredMembers.length,
+                              itemBuilder: (context, index) {
+                                final member = filteredMembers[index];
+                                final isChecked = selected.contains(member.id);
+                                return CheckboxListTile(
+                                  value: isChecked,
+                                  title: Text(member.displayName),
+                                  subtitle: Text(
+                                    context.l10n.pick(
+                                      vi: 'Mã: ${member.id}',
+                                      en: 'ID: ${member.id}',
+                                    ),
+                                  ),
+                                  onChanged: (value) {
+                                    setModalState(() {
+                                      if (value == true) {
+                                        selected.add(member.id);
+                                      } else {
+                                        selected.remove(member.id);
+                                      }
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(
+                              context.l10n.pick(vi: 'Hủy', en: 'Cancel'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () =>
+                                Navigator.of(context).pop(selected),
+                            child: Text(
+                              context.l10n.pick(vi: 'Xong', en: 'Done'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (result == null) {
+      return;
+    }
+    onApplied(result);
+  }
+
   @override
   Widget build(BuildContext context) {
     final insets = MediaQuery.viewInsetsOf(context);
     final theme = Theme.of(context);
+    final l10n = context.l10n;
+    final selectedTreasurerMembers = _selectedMembersFor(
+      _selectedTreasurerMemberIds,
+    );
+    final selectedAppliedMembers = _selectedMembersFor(_selectedMemberIds);
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -737,34 +1488,74 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   const SizedBox(height: 16),
                   _InfoCard(
                     icon: Icons.error_outline,
-                    title: 'Unable to save fund',
-                    description: _errorMessageForCode(_submitError!),
+                    title: l10n.pick(
+                      vi: 'Không thể lưu quỹ',
+                      en: 'Unable to save fund',
+                    ),
+                    description: _errorMessageForCode(context, _submitError!),
                     tone: theme.colorScheme.errorContainer,
                   ),
                 ],
                 const SizedBox(height: 18),
+                DropdownButtonFormField<String>(
+                  key: const Key('fund-clan-selector'),
+                  initialValue: _selectedClanId.isEmpty
+                      ? null
+                      : _selectedClanId,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Gia phả quản lý',
+                      en: 'Target clan',
+                    ),
+                  ),
+                  items: [
+                    for (final contextOption in widget.availableClanContexts)
+                      DropdownMenuItem<String>(
+                        value: contextOption.clanId,
+                        child: Text(contextOption.clanName),
+                      ),
+                    if (widget.availableClanContexts.isEmpty &&
+                        _selectedClanId.isNotEmpty)
+                      DropdownMenuItem<String>(
+                        value: _selectedClanId,
+                        child: Text(_selectedClanId),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    unawaited(_handleClanChanged(value));
+                  },
+                ),
+                const SizedBox(height: 14),
                 TextFormField(
                   key: const Key('fund-name-input'),
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Fund name',
-                    hintText: 'Scholarship Fund',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Tên quỹ', en: 'Fund name'),
+                    hintText: l10n.pick(
+                      vi: 'Quỹ khuyến học',
+                      en: 'Scholarship Fund',
+                    ),
                   ),
                   validator: (value) {
                     return value == null || value.trim().isEmpty
-                        ? 'Fund name is required.'
+                        ? l10n.pick(
+                            vi: 'Tên quỹ là bắt buộc.',
+                            en: 'Fund name is required.',
+                          )
                         : null;
                   },
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: _fundType,
-                  decoration: const InputDecoration(labelText: 'Fund type'),
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Loại quỹ', en: 'Fund type'),
+                  ),
                   items: [
                     for (final type in _fundTypes)
                       DropdownMenuItem<String>(
                         value: type,
-                        child: Text(_titleCase(type)),
+                        child: Text(_fundTypeLabel(context, type)),
                       ),
                   ],
                   onChanged: (value) {
@@ -779,7 +1570,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: _currency,
-                  decoration: const InputDecoration(labelText: 'Currency'),
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Tiền tệ', en: 'Currency'),
+                  ),
                   items: [
                     for (final currency in _currencies)
                       DropdownMenuItem<String>(
@@ -800,9 +1593,15 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                 TextFormField(
                   key: const Key('fund-branch-id-input'),
                   controller: _branchIdController,
-                  decoration: const InputDecoration(
-                    labelText: 'Branch id (optional)',
-                    hintText: 'branch_demo_001',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Mã chi (tuỳ chọn)',
+                      en: 'Branch id (optional)',
+                    ),
+                    hintText: l10n.pick(
+                      vi: 'chi_demo_001',
+                      en: 'branch_demo_001',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -810,11 +1609,190 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   key: const Key('fund-description-input'),
                   controller: _descriptionController,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    hintText:
-                        'Describe who this fund supports and how it is used.',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                    hintText: l10n.pick(
+                      vi: 'Mô tả quỹ hỗ trợ ai và cách sử dụng.',
+                      en: 'Describe who this fund supports and how it is used.',
+                    ),
                   ),
+                ),
+                const SizedBox(height: 14),
+                InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Thủ quỹ phụ trách',
+                      en: 'Assigned treasurer',
+                    ),
+                  ),
+                  child: _isLoadingMembers
+                      ? Row(
+                          children: [
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              l10n.pick(
+                                vi: 'Đang tải thành viên...',
+                                en: 'Loading members...',
+                              ),
+                            ),
+                          ],
+                        )
+                      : _memberLoadError != null
+                      ? Text(_memberLoadError!)
+                      : _members.isEmpty
+                      ? Text(
+                          l10n.pick(
+                            vi: 'Không có thành viên khả dụng trong gia phả này.',
+                            en: 'No members available in this clan.',
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.pick(
+                                vi: 'Đã chọn ${_selectedTreasurerMemberIds.length}/${_members.length} thủ quỹ',
+                                en: 'Selected ${_selectedTreasurerMemberIds.length}/${_members.length} treasurers',
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              l10n.pick(
+                                vi: 'Thành viên được chọn sẽ được cấp vai trò Thủ quỹ mặc định.',
+                                en: 'Selected members are granted the Treasurer role by default.',
+                              ),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 10),
+                            OutlinedButton.icon(
+                              key: const Key('fund-treasurer-picker'),
+                              onPressed: () {
+                                unawaited(
+                                  _pickMemberIds(
+                                    title: l10n.pick(
+                                      vi: 'Chọn thủ quỹ',
+                                      en: 'Select treasurers',
+                                    ),
+                                    initialSelected:
+                                        _selectedTreasurerMemberIds,
+                                    onApplied: (picked) {
+                                      setState(() {
+                                        _selectedTreasurerMemberIds = picked;
+                                      });
+                                    },
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.person_search_outlined),
+                              label: Text(
+                                l10n.pick(
+                                  vi: 'Chọn thành viên',
+                                  en: 'Choose members',
+                                ),
+                              ),
+                            ),
+                            if (selectedTreasurerMembers.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final member in selectedTreasurerMembers)
+                                    Chip(label: Text(member.displayName)),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                ),
+                const SizedBox(height: 14),
+                InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Áp dụng cho thành viên',
+                      en: 'Apply to members',
+                    ),
+                  ),
+                  child: _isLoadingMembers
+                      ? Row(
+                          children: [
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              l10n.pick(
+                                vi: 'Đang tải thành viên...',
+                                en: 'Loading members...',
+                              ),
+                            ),
+                          ],
+                        )
+                      : _memberLoadError != null
+                      ? Text(_memberLoadError!)
+                      : _members.isEmpty
+                      ? Text(
+                          l10n.pick(
+                            vi: 'Không có thành viên khả dụng trong gia phả này.',
+                            en: 'No members available in this clan.',
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.pick(
+                                vi: 'Đã chọn ${_selectedMemberIds.length}/${_members.length} thành viên',
+                                en: 'Selected ${_selectedMemberIds.length}/${_members.length} members',
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            OutlinedButton.icon(
+                              key: const Key('fund-applied-members-picker'),
+                              onPressed: () {
+                                unawaited(
+                                  _pickMemberIds(
+                                    title: l10n.pick(
+                                      vi: 'Chọn thành viên áp dụng',
+                                      en: 'Select applicable members',
+                                    ),
+                                    initialSelected: _selectedMemberIds,
+                                    onApplied: (picked) {
+                                      setState(() {
+                                        _selectedMemberIds = picked;
+                                      });
+                                    },
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.group_outlined),
+                              label: Text(
+                                l10n.pick(
+                                  vi: 'Chọn thành viên',
+                                  en: 'Choose members',
+                                ),
+                              ),
+                            ),
+                            if (selectedAppliedMembers.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final member in selectedAppliedMembers)
+                                    Chip(label: Text(member.displayName)),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
                 ),
                 const SizedBox(height: 22),
                 SizedBox(
@@ -832,8 +1810,8 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                         : const Icon(Icons.save_outlined),
                     label: Text(
                       (_isSubmitting || widget.isSaving)
-                          ? 'Saving...'
-                          : 'Save fund',
+                          ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
+                          : l10n.pick(vi: 'Lưu quỹ', en: 'Save fund'),
                     ),
                   ),
                 ),
@@ -968,6 +1946,7 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
   Widget build(BuildContext context) {
     final insets = MediaQuery.viewInsetsOf(context);
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -1006,8 +1985,11 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   const SizedBox(height: 16),
                   _InfoCard(
                     icon: Icons.error_outline,
-                    title: 'Unable to save transaction',
-                    description: _errorMessageForCode(_submitError!),
+                    title: l10n.pick(
+                      vi: 'Không thể lưu giao dịch',
+                      en: 'Unable to save transaction',
+                    ),
+                    description: _errorMessageForCode(context, _submitError!),
                     tone: theme.colorScheme.errorContainer,
                   ),
                 ],
@@ -1019,15 +2001,18 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                     decimal: true,
                   ),
                   decoration: InputDecoration(
-                    labelText: 'Amount',
+                    labelText: l10n.pick(vi: 'Số tiền', en: 'Amount'),
                     hintText: widget.initialDraft.currency == 'VND'
-                        ? '500000'
-                        : '50.00',
+                        ? l10n.pick(vi: '500000', en: '500000')
+                        : l10n.pick(vi: '50.00', en: '50.00'),
                     suffixText: widget.initialDraft.currency,
                   ),
                   validator: (value) {
                     return value == null || value.trim().isEmpty
-                        ? 'Amount is required.'
+                        ? l10n.pick(
+                            vi: 'Số tiền là bắt buộc.',
+                            en: 'Amount is required.',
+                          )
                         : null;
                   },
                 ),
@@ -1036,27 +2021,42 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   key: const Key('fund-transaction-note-input'),
                   controller: _noteController,
                   maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Note',
-                    hintText: 'Tet contribution',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Ghi chú', en: 'Note'),
+                    hintText: l10n.pick(
+                      vi: 'Đóng góp Tết',
+                      en: 'Tet contribution',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   key: const Key('fund-transaction-member-input'),
                   controller: _memberIdController,
-                  decoration: const InputDecoration(
-                    labelText: 'Member id (optional)',
-                    hintText: 'member_demo_parent_001',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Mã thành viên (tuỳ chọn)',
+                      en: 'Member id (optional)',
+                    ),
+                    hintText: l10n.pick(
+                      vi: 'thanh_vien_demo_001',
+                      en: 'member_demo_parent_001',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   key: const Key('fund-transaction-reference-input'),
                   controller: _referenceController,
-                  decoration: const InputDecoration(
-                    labelText: 'Reference (optional)',
-                    hintText: 'RECEIPT-2026-001',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Mã tham chiếu (tuỳ chọn)',
+                      en: 'Reference (optional)',
+                    ),
+                    hintText: l10n.pick(
+                      vi: 'BIENLAI-2026-001',
+                      en: 'RECEIPT-2026-001',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -1064,11 +2064,14 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   borderRadius: BorderRadius.circular(12),
                   onTap: _pickOccurredDate,
                   child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Occurred date',
-                      suffixIcon: Icon(Icons.calendar_today_outlined),
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Ngày phát sinh',
+                        en: 'Occurred date',
+                      ),
+                      suffixIcon: const Icon(Icons.calendar_today_outlined),
                     ),
-                    child: Text(_formatDate(_occurredAt)),
+                    child: Text(_formatDate(context, _occurredAt)),
                   ),
                 ),
                 const SizedBox(height: 22),
@@ -1092,11 +2095,11 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                           ),
                     label: Text(
                       (_isSubmitting || widget.isSaving)
-                          ? 'Saving...'
+                          ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
                           : widget.initialDraft.transactionType ==
                                 FundTransactionType.donation
-                          ? 'Save donation'
-                          : 'Save expense',
+                          ? l10n.pick(vi: 'Lưu đóng góp', en: 'Save donation')
+                          : l10n.pick(vi: 'Lưu chi tiêu', en: 'Save expense'),
                     ),
                   ),
                 ),
@@ -1112,11 +2115,13 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
 class _FundSummaryCard extends StatelessWidget {
   const _FundSummaryCard({
     required this.fund,
+    this.memberCountLabel,
     required this.onTap,
     this.onEdit,
   });
 
   final FundProfile fund;
+  final String? memberCountLabel;
   final VoidCallback onTap;
   final VoidCallback? onEdit;
 
@@ -1150,12 +2155,24 @@ class _FundSummaryCard extends StatelessWidget {
                           _titleCase(fund.fundType),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
+                        if (memberCountLabel != null &&
+                            memberCountLabel!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            memberCountLabel!,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                   if (onEdit != null)
                     IconButton(
-                      tooltip: 'Edit fund',
+                      tooltip: context.l10n.pick(
+                        vi: 'Chỉnh sửa quỹ',
+                        en: 'Edit fund',
+                      ),
                       onPressed: onEdit,
                       icon: const Icon(Icons.edit_outlined),
                     ),
@@ -1263,7 +2280,7 @@ class _TransactionRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${transaction.transactionType.label} • ${_formatDate(transaction.occurredAt)}',
+                    '${_transactionTypeLabel(context, transaction.transactionType)} • ${_formatDate(context, transaction.occurredAt)}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   if ((transaction.externalReference ?? '')
@@ -1271,12 +2288,95 @@ class _TransactionRow extends StatelessWidget {
                       .isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      'Ref: ${transaction.externalReference}',
+                      '${context.l10n.pick(vi: 'Mã: ', en: 'Ref: ')}${transaction.externalReference}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ClanScopeCard extends StatelessWidget {
+  const _ClanScopeCard({
+    required this.activeClanId,
+    required this.clanContexts,
+    required this.isSwitching,
+    this.onSwitch,
+  });
+
+  final String activeClanId;
+  final List<ClanContextOption> clanContexts;
+  final bool isSwitching;
+  final Future<AuthSession?> Function(String clanId)? onSwitch;
+
+  @override
+  Widget build(BuildContext context) {
+    if (clanContexts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final activeContext = clanContexts.firstWhere(
+      (item) => item.clanId.trim() == activeClanId.trim(),
+      orElse: () => clanContexts.first,
+    );
+    final l10n = context.l10n;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.account_tree_outlined),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.pick(
+                      vi: 'Phạm vi gia phả đang quản lý',
+                      en: 'Active clan scope',
+                    ),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (isSwitching)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: activeContext.clanId,
+              decoration: InputDecoration(
+                labelText: l10n.pick(vi: 'Gia phả', en: 'Clan'),
+              ),
+              items: [
+                for (final contextOption in clanContexts)
+                  DropdownMenuItem<String>(
+                    value: contextOption.clanId,
+                    child: Text(contextOption.clanName),
+                  ),
+              ],
+              onChanged: onSwitch == null || isSwitching
+                  ? null
+                  : (value) {
+                      final resolved = _nullIfBlank(value);
+                      if (resolved == null) {
+                        return;
+                      }
+                      unawaited(onSwitch!(resolved));
+                    },
             ),
           ],
         ),
@@ -1429,6 +2529,7 @@ class _WorkspaceHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final l10n = context.l10n;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1457,56 +2558,17 @@ class _WorkspaceHero extends StatelessWidget {
               color: colorScheme.onPrimary.withValues(alpha: 0.9),
             ),
           ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _HeroTag(
-                label: canManageFunds ? 'Write enabled' : 'Read-only access',
-                tone: colorScheme.secondaryContainer,
-              ),
-              _HeroTag(
-                label: 'Balance + history',
-                tone: colorScheme.surfaceContainerHighest,
-              ),
-            ],
-          ),
           if (canManageFunds && onPrimaryAction != null) ...[
             const SizedBox(height: 18),
             FilledButton.icon(
               onPressed: onPrimaryAction,
               icon: const Icon(Icons.add),
-              label: const Text('Create first fund'),
+              label: Text(
+                l10n.pick(vi: 'Tạo quỹ đầu tiên', en: 'Create first fund'),
+              ),
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _HeroTag extends StatelessWidget {
-  const _HeroTag({required this.label, required this.tone});
-
-  final String label;
-  final Color tone;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: tone,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Text(
-          label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-        ),
       ),
     );
   }
@@ -1544,11 +2606,13 @@ class _StatTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    this.valueMaxLines = 1,
   });
 
   final String label;
   final String value;
   final IconData icon;
+  final int valueMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -1573,6 +2637,9 @@ class _StatTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     value,
+                    maxLines: valueMaxLines,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: valueMaxLines > 1,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
@@ -1604,11 +2671,28 @@ String _titleCase(String value) {
       .join(' ');
 }
 
-String _formatDate(DateTime value) {
+String _fundTypeLabel(BuildContext context, String fundType) {
+  final l10n = context.l10n;
+  return switch (fundType.trim().toLowerCase()) {
+    'scholarship' => l10n.pick(vi: 'Khuyến học', en: 'Scholarship'),
+    'operations' => l10n.pick(vi: 'Vận hành', en: 'Operations'),
+    'maintenance' => l10n.pick(vi: 'Bảo trì', en: 'Maintenance'),
+    'custom' => l10n.pick(vi: 'Tuỳ chỉnh', en: 'Custom'),
+    _ => _titleCase(fundType),
+  };
+}
+
+String _transactionTypeLabel(BuildContext context, FundTransactionType type) {
+  final l10n = context.l10n;
+  return switch (type) {
+    FundTransactionType.donation => l10n.pick(vi: 'Đóng góp', en: 'Donation'),
+    FundTransactionType.expense => l10n.pick(vi: 'Chi tiêu', en: 'Expense'),
+  };
+}
+
+String _formatDate(BuildContext context, DateTime value) {
   final local = value.toLocal();
-  final month = local.month.toString().padLeft(2, '0');
-  final day = local.day.toString().padLeft(2, '0');
-  return '${local.year}-$month-$day';
+  return MaterialLocalizations.of(context).formatCompactDate(local);
 }
 
 String? _nullIfBlank(String? value) {
@@ -1616,21 +2700,40 @@ String? _nullIfBlank(String? value) {
   return trimmed.isEmpty ? null : trimmed;
 }
 
-String _errorMessageForCode(FundRepositoryErrorCode code) {
+String _errorMessageForCode(
+  BuildContext context,
+  FundRepositoryErrorCode code,
+) {
+  final l10n = context.l10n;
   return switch (code) {
-    FundRepositoryErrorCode.permissionDenied =>
-      'You do not have permission for this action.',
-    FundRepositoryErrorCode.fundNotFound => 'The selected fund was not found.',
-    FundRepositoryErrorCode.invalidCurrency =>
-      'Currency is invalid. Use a 3-letter ISO code like VND or USD.',
-    FundRepositoryErrorCode.invalidAmount =>
-      'Amount is invalid. Check decimal format and value.',
-    FundRepositoryErrorCode.insufficientBalance =>
-      'Expense exceeds available balance.',
-    FundRepositoryErrorCode.validationFailed =>
-      'Submitted data did not pass validation.',
-    FundRepositoryErrorCode.writeFailed =>
-      'Unable to save changes right now. Try again.',
+    FundRepositoryErrorCode.permissionDenied => l10n.pick(
+      vi: 'Bạn không có quyền thực hiện thao tác này.',
+      en: 'You do not have permission for this action.',
+    ),
+    FundRepositoryErrorCode.fundNotFound => l10n.pick(
+      vi: 'Không tìm thấy quỹ đã chọn.',
+      en: 'The selected fund was not found.',
+    ),
+    FundRepositoryErrorCode.invalidCurrency => l10n.pick(
+      vi: 'Tiền tệ không hợp lệ. Hãy dùng mã ISO 3 ký tự như VND hoặc USD.',
+      en: 'Currency is invalid. Use a 3-letter ISO code like VND or USD.',
+    ),
+    FundRepositoryErrorCode.invalidAmount => l10n.pick(
+      vi: 'Số tiền không hợp lệ. Vui lòng kiểm tra định dạng.',
+      en: 'Amount is invalid. Check decimal format and value.',
+    ),
+    FundRepositoryErrorCode.insufficientBalance => l10n.pick(
+      vi: 'Khoản chi vượt quá số dư hiện tại.',
+      en: 'Expense exceeds available balance.',
+    ),
+    FundRepositoryErrorCode.validationFailed => l10n.pick(
+      vi: 'Dữ liệu gửi lên chưa hợp lệ.',
+      en: 'Submitted data did not pass validation.',
+    ),
+    FundRepositoryErrorCode.writeFailed => l10n.pick(
+      vi: 'Không thể lưu thay đổi lúc này. Vui lòng thử lại.',
+      en: 'Unable to save changes right now. Try again.',
+    ),
   };
 }
 

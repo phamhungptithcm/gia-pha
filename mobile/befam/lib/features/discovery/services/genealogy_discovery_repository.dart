@@ -30,8 +30,11 @@ abstract interface class GenealogyDiscoveryRepository {
   });
 }
 
-GenealogyDiscoveryRepository createDefaultGenealogyDiscoveryRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
+GenealogyDiscoveryRepository createDefaultGenealogyDiscoveryRepository({
+  AuthSession? session,
+}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugGenealogyDiscoveryRepository.seeded();
   }
   return FirebaseGenealogyDiscoveryRepository();

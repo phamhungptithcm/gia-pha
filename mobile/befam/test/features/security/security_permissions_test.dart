@@ -49,6 +49,24 @@ void main() {
       expect(permissions.canManageBranches, isFalse);
       expect(permissions.isReadOnly, isTrue);
     });
+
+    test('unlinked member without clan context can bootstrap a new clan', () {
+      final permissions = ClanPermissions.forSession(
+        _session(
+          primaryRole: 'MEMBER',
+          clanId: null,
+          branchId: null,
+          memberId: null,
+          accessMode: AuthMemberAccessMode.unlinked,
+          linkedAuthUid: false,
+        ),
+      );
+
+      expect(permissions.canBootstrapClan, isTrue);
+      expect(permissions.canViewWorkspace, isTrue);
+      expect(permissions.canEditClanSettings, isTrue);
+      expect(permissions.canManageBranches, isFalse);
+    });
   });
 
   group('MemberPermissions', () {
@@ -59,6 +77,7 @@ void main() {
 
       expect(permissions.canCreateMembers, isTrue);
       expect(permissions.canEditAnyMember, isTrue);
+      expect(permissions.canAssignRoleManually, isFalse);
       expect(permissions.canManageBranch('branch-1'), isTrue);
       expect(permissions.canManageBranch('branch-2'), isFalse);
       expect(permissions.canCreateInBranch('branch-2'), isFalse);
@@ -90,6 +109,7 @@ void main() {
         );
 
         expect(permissions.canViewAllMembers, isTrue);
+        expect(permissions.canAssignRoleManually, isTrue);
         expect(permissions.canManageBranch('branch-9'), isTrue);
         expect(permissions.canManageBranch(''), isFalse);
         expect(permissions.canManageBranch(null), isFalse);

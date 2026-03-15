@@ -135,93 +135,147 @@ class FirebaseAuthGateway implements AuthGateway {
     String? displayName,
     int? forceResendingToken,
   }) async {
+    final requestTag =
+        'firebase_otp_${DateTime.now().millisecondsSinceEpoch}_${loginMethod.name}';
+    AppLogger.info(
+      '[$requestTag] Preparing Firebase OTP request (method=${loginMethod.name}, phone=$phoneE164, forceResendingToken=${forceResendingToken ?? 'none'}).',
+    );
+
+    final debugSession = await _signInWithDebugProfileTokenIfAvailable(
+      requestTag: requestTag,
+      loginMethod: loginMethod,
+      phoneE164: phoneE164,
+      childIdentifier: childIdentifier,
+      memberId: memberId,
+      displayName: displayName,
+      forceResendingToken: forceResendingToken,
+    );
+    if (debugSession != null) {
+      return AuthOtpRequestResult.session(debugSession);
+    }
+
     await _configurePhoneAuthForDebugIfNeeded();
+    _logPhoneAuthPreflight(requestTag);
     final completer = Completer<AuthOtpRequestResult>();
 
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneE164,
-      forceResendingToken: forceResendingToken,
-      verificationCompleted: (credential) async {
-        if (completer.isCompleted) {
-          return;
-        }
-
-        try {
-          final userCredential = await _auth.signInWithCredential(credential);
-          final user = userCredential.user;
-          if (user == null) {
-            completer.completeError(
-              FirebaseAuthException(
-                code: 'unknown',
-                message: 'Firebase did not return a signed-in user.',
-              ),
-            );
+    try {
+      AppLogger.info('[$requestTag] Calling FirebaseAuth.verifyPhoneNumber.');
+      await _auth.verifyPhoneNumber(
+        phoneNumber: phoneE164,
+        forceResendingToken: forceResendingToken,
+        verificationCompleted: (credential) async {
+          if (completer.isCompleted) {
             return;
           }
 
-          completer.complete(
-            AuthOtpRequestResult.session(
-              await _buildSession(
-                user,
-                loginMethod: loginMethod,
-                phoneE164: phoneE164,
-                childIdentifier: childIdentifier,
-                memberId: memberId,
-                displayName: displayName,
-              ),
-            ),
+          AppLogger.info(
+            '[$requestTag] verificationCompleted callback received.',
           );
-        } catch (error) {
-          completer.completeError(error);
-        }
-      },
-      verificationFailed: (error) {
-        if (!completer.isCompleted) {
-          completer.completeError(error);
-        }
-      },
-      codeSent: (verificationId, resendToken) {
-        if (!completer.isCompleted) {
-          completer.complete(
-            AuthOtpRequestResult.challenge(
-              PendingOtpChallenge(
-                loginMethod: loginMethod,
-                phoneE164: phoneE164,
-                maskedDestination: PhoneNumberFormatter.mask(phoneE164),
-                verificationId: verificationId,
-                childIdentifier: childIdentifier,
-                memberId: memberId,
-                displayName: displayName,
-                resendToken: resendToken,
+          try {
+            final userCredential = await _auth.signInWithCredential(credential);
+            final user = userCredential.user;
+            if (user == null) {
+              completer.completeError(
+                FirebaseAuthException(
+                  code: 'unknown',
+                  message: 'Firebase did not return a signed-in user.',
+                ),
+              );
+              return;
+            }
+
+            completer.complete(
+              AuthOtpRequestResult.session(
+                await _buildSession(
+                  user,
+                  loginMethod: loginMethod,
+                  phoneE164: phoneE164,
+                  childIdentifier: childIdentifier,
+                  memberId: memberId,
+                  displayName: displayName,
+                ),
               ),
-            ),
+            );
+          } catch (error, stackTrace) {
+            AppLogger.error(
+              '[$requestTag] Failed to complete auto verification.',
+              error,
+              stackTrace,
+            );
+            completer.completeError(error);
+          }
+        },
+        verificationFailed: (error) {
+          AppLogger.warning(
+            '[$requestTag] verificationFailed callback.',
+            error,
+            StackTrace.current,
           );
-        }
-      },
-      codeAutoRetrievalTimeout: (verificationId) {
-        if (!completer.isCompleted) {
-          completer.complete(
-            AuthOtpRequestResult.challenge(
-              PendingOtpChallenge(
-                loginMethod: loginMethod,
-                phoneE164: phoneE164,
-                maskedDestination: PhoneNumberFormatter.mask(phoneE164),
-                verificationId: verificationId,
-                childIdentifier: childIdentifier,
-                memberId: memberId,
-                displayName: displayName,
-                resendToken: forceResendingToken,
+          if (!completer.isCompleted) {
+            completer.completeError(error);
+          }
+        },
+        codeSent: (verificationId, resendToken) {
+          AppLogger.info(
+            '[$requestTag] codeSent callback (verificationId=$verificationId, resendToken=${resendToken ?? 'none'}).',
+          );
+          if (!completer.isCompleted) {
+            completer.complete(
+              AuthOtpRequestResult.challenge(
+                PendingOtpChallenge(
+                  loginMethod: loginMethod,
+                  phoneE164: phoneE164,
+                  maskedDestination: PhoneNumberFormatter.mask(phoneE164),
+                  verificationId: verificationId,
+                  childIdentifier: childIdentifier,
+                  memberId: memberId,
+                  displayName: displayName,
+                  resendToken: resendToken,
+                ),
               ),
-            ),
+            );
+          }
+        },
+        codeAutoRetrievalTimeout: (verificationId) {
+          AppLogger.info(
+            '[$requestTag] codeAutoRetrievalTimeout callback (verificationId=$verificationId).',
           );
-        }
-      },
-    );
+          if (!completer.isCompleted) {
+            completer.complete(
+              AuthOtpRequestResult.challenge(
+                PendingOtpChallenge(
+                  loginMethod: loginMethod,
+                  phoneE164: phoneE164,
+                  maskedDestination: PhoneNumberFormatter.mask(phoneE164),
+                  verificationId: verificationId,
+                  childIdentifier: childIdentifier,
+                  memberId: memberId,
+                  displayName: displayName,
+                  resendToken: forceResendingToken,
+                ),
+              ),
+            );
+          }
+        },
+      );
+      AppLogger.info(
+        '[$requestTag] verifyPhoneNumber call returned to Dart layer.',
+      );
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        '[$requestTag] verifyPhoneNumber threw before callbacks.',
+        error,
+        stackTrace,
+      );
+      rethrow;
+    }
 
     return completer.future.timeout(
       const Duration(seconds: 60),
       onTimeout: () {
-        AppLogger.warning('Phone auth request timed out for $phoneE164.');
+        AppLogger.warning(
+          '[$requestTag] Phone auth request timed out for $phoneE164.',
+        );
         throw FirebaseAuthException(
           code: 'session-expired',
           message: 'The verification session expired before the OTP arrived.',
@@ -236,16 +290,10 @@ class FirebaseAuthGateway implements AuthGateway {
     }
     _debugPhoneAuthConfigured = true;
     try {
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        await _auth.setSettings(appVerificationDisabledForTesting: true);
-        AppLogger.info(
-          'Enabled FirebaseAuth test phone verification for Android debug.',
-        );
-      } else {
-        AppLogger.info(
-          'Using default Firebase phone verification flow for non-Android debug.',
-        );
-      }
+      await _auth.setSettings(appVerificationDisabledForTesting: true);
+      AppLogger.info(
+        'Enabled FirebaseAuth test phone verification for debug mode.',
+      );
     } catch (error, stackTrace) {
       AppLogger.warning(
         'Could not enable FirebaseAuth test phone verification in debug.',
@@ -253,6 +301,100 @@ class FirebaseAuthGateway implements AuthGateway {
         stackTrace,
       );
     }
+  }
+
+  void _logPhoneAuthPreflight(String requestTag) {
+    if (!kDebugMode || kIsWeb) {
+      return;
+    }
+    final app = _auth.app;
+    final googleAppId = app.options.appId;
+    final expectedIosCallbackScheme = 'app-${googleAppId.replaceAll(':', '-')}';
+    AppLogger.info(
+      '[$requestTag] PhoneAuth preflight (platform=${defaultTargetPlatform.name}, firebaseApp=${app.name}, iosBundleId=${app.options.iosBundleId}, googleAppId=$googleAppId, expectedIosCallbackScheme=$expectedIosCallbackScheme, debugPhoneAuthConfigured=$_debugPhoneAuthConfigured).',
+    );
+  }
+
+  Future<AuthSession?> _signInWithDebugProfileTokenIfAvailable({
+    required String requestTag,
+    required AuthEntryMethod loginMethod,
+    required String phoneE164,
+    required String? childIdentifier,
+    required String? memberId,
+    required String? displayName,
+    required int? forceResendingToken,
+  }) async {
+    if (!kDebugMode ||
+        kIsWeb ||
+        loginMethod != AuthEntryMethod.phone ||
+        forceResendingToken != null) {
+      return null;
+    }
+
+    try {
+      final callable = _functions.httpsCallable('issueDebugProfileCustomToken');
+      final result = await callable.call(<String, dynamic>{
+        'phoneE164': phoneE164,
+      });
+      final payload = (result.data as Map).map(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+      final customToken = (payload['customToken'] as String?)?.trim() ?? '';
+      if (customToken.isEmpty) {
+        AppLogger.warning(
+          '[$requestTag] Debug profile token callable returned an empty token.',
+        );
+        return null;
+      }
+
+      final resolvedMemberId = (payload['memberId'] as String?)?.trim();
+      final resolvedDisplayName = (payload['displayName'] as String?)?.trim();
+      AppLogger.info(
+        '[$requestTag] Using debug profile custom token sign-in for $phoneE164.',
+      );
+
+      final userCredential = await _auth.signInWithCustomToken(customToken);
+      final user = userCredential.user;
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'unknown',
+          message: 'Firebase did not return a signed-in user for debug token.',
+        );
+      }
+
+      return _buildSession(
+        user,
+        loginMethod: loginMethod,
+        phoneE164: phoneE164,
+        childIdentifier: childIdentifier,
+        memberId: (resolvedMemberId?.isNotEmpty ?? false)
+            ? resolvedMemberId
+            : memberId,
+        displayName: (resolvedDisplayName?.isNotEmpty ?? false)
+            ? resolvedDisplayName
+            : displayName,
+      );
+    } on FirebaseFunctionsException catch (error, stackTrace) {
+      if (_isExpectedDebugBypassMiss(error.code)) {
+        AppLogger.info(
+          '[$requestTag] Debug profile token bypass not available (${error.code}). Falling back to phone OTP flow.',
+        );
+        return null;
+      }
+      AppLogger.warning(
+        '[$requestTag] Debug profile token bypass failed unexpectedly.',
+        error,
+        stackTrace,
+      );
+      rethrow;
+    }
+  }
+
+  bool _isExpectedDebugBypassMiss(String code) {
+    return code == 'not-found' ||
+        code == 'permission-denied' ||
+        code == 'unimplemented' ||
+        code == 'failed-precondition';
   }
 
   Future<ResolvedChildAccess> _resolveChildAccess(

@@ -161,6 +161,20 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "clanId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occurredAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "fundId",
           "order": "ASCENDING"
         },

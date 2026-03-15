@@ -5,6 +5,7 @@ import test from 'node:test';
 import { isValidVnpaySignature } from '../billing/webhooks';
 import {
   canAccessPremiumFeatures,
+  resolveEffectivePlanCode,
   resolvePlanByMemberCount,
   shouldShowAds,
 } from '../billing/pricing';
@@ -17,6 +18,33 @@ test('billing contract: member-count pricing tiers are non-overlapping (+1 bound
   assert.equal(resolvePlanByMemberCount(201).planCode, 'PLUS');
   assert.equal(resolvePlanByMemberCount(700).planCode, 'PLUS');
   assert.equal(resolvePlanByMemberCount(701).planCode, 'PRO');
+});
+
+test('billing contract: auto + upgrade keeps higher plan and blocks lower-than-min requests', () => {
+  assert.equal(
+    resolveEffectivePlanCode({
+      memberCount: 60,
+      currentPlanCode: 'PRO',
+    }),
+    'PRO',
+  );
+
+  assert.equal(
+    resolveEffectivePlanCode({
+      memberCount: 60,
+      currentPlanCode: 'BASE',
+      requestedPlanCode: 'PLUS',
+    }),
+    'PLUS',
+  );
+
+  assert.throws(() =>
+    resolveEffectivePlanCode({
+      memberCount: 60,
+      currentPlanCode: 'BASE',
+      requestedPlanCode: 'FREE',
+    }),
+  );
 });
 
 test('billing contract: ad entitlement and premium access follow plan + status', () => {

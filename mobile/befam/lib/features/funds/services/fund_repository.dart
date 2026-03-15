@@ -45,8 +45,9 @@ abstract interface class FundRepository {
   });
 }
 
-FundRepository createDefaultFundRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
+FundRepository createDefaultFundRepository({AuthSession? session}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugFundRepository.shared();
   }
 

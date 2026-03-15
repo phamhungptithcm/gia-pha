@@ -2,11 +2,15 @@ import { initializeApp } from 'firebase-admin/app';
 import { setGlobalOptions } from 'firebase-functions/v2/options';
 
 import {
+  bootstrapClanWorkspace,
   claimMemberRecord,
   createInvite,
+  issueDebugProfileCustomToken,
   listDebugLoginProfiles,
+  listUserClanContexts,
   registerDeviceToken,
   resolveChildLoginContext,
+  switchActiveClanContext,
 } from './auth/callables';
 import {
   completeCardCheckout,
@@ -52,12 +56,14 @@ setGlobalOptions({
 
 export {
   billingSubscriptionReminderJob,
+  bootstrapClanWorkspace,
   cardPaymentCallback,
   claimMemberRecord,
   completeCardCheckout,
   createParentChildRelationship,
   createSpouseRelationship,
   createInvite,
+  issueDebugProfileCustomToken,
   createSubscriptionCheckout,
   detectDuplicateGenealogy,
   expireInvitesJob,
@@ -65,6 +71,7 @@ export {
   getTreasurerDashboard,
   listJoinRequestsForReview,
   listDebugLoginProfiles,
+  listUserClanContexts,
   loadBillingWorkspace,
   onEventCreated,
   onRelationshipCreated,
@@ -80,6 +87,7 @@ export {
   sendEventReminder,
   submitJoinRequest,
   simulateVnpaySettlement,
+  switchActiveClanContext,
   updateBillingPreferences,
   vnpayPaymentCallback,
 };

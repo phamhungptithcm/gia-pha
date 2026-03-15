@@ -26,7 +26,13 @@ class BillingRepositoryException implements Exception {
 abstract interface class BillingRepository {
   bool get isSandbox;
 
-  Future<BillingWorkspaceSnapshot> loadWorkspace({required AuthSession session});
+  Future<BillingWorkspaceSnapshot> loadWorkspace({
+    required AuthSession session,
+  });
+
+  Future<BillingViewerSummary> loadViewerSummary({
+    required AuthSession session,
+  });
 
   Future<BillingEntitlement> resolveEntitlement({required AuthSession session});
 
@@ -40,6 +46,7 @@ abstract interface class BillingRepository {
   Future<BillingCheckoutResult> createCheckout({
     required AuthSession session,
     required String paymentMethod,
+    String? requestedPlanCode,
     String? returnUrl,
   });
 
@@ -54,8 +61,9 @@ abstract interface class BillingRepository {
   });
 }
 
-BillingRepository createDefaultBillingRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
+BillingRepository createDefaultBillingRepository({AuthSession? session}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugBillingRepository.shared();
   }
 

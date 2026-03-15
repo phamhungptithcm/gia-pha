@@ -184,3 +184,16 @@ Seed output now includes:
   - unlinked user
   - branch admin role without clan linkage
   - clan admin context before clan creation
+  - each profile is explicitly marked with `isTestUser: true`
+
+Important behavior for local real-data testing:
+
+- Login test profiles are loaded from Firebase (`listDebugLoginProfiles` / `debug_login_profiles`).
+- App only shows profiles that are both `isActive: true` and `isTestUser: true`.
+- Test profile OTP bypass uses `debugOtpCode` (returned as `autoOtpCode`) and
+  auto-verifies after requesting phone auth challenge.
+- In debug mode, mobile app enables `appVerificationDisabledForTesting` for FirebaseAuth.
+- Post-login feature data (clan/member/tree/events/etc.) is loaded from Firebase repositories,
+  matching production data flow.
+- Mock auth backend is enabled only when `BEFAM_USE_MOCK_AUTH=true` (or widget tests),
+  so normal local runs use real Firebase auth/session flow.

@@ -72,8 +72,11 @@ abstract interface class ScholarshipRepository {
   });
 }
 
-ScholarshipRepository createDefaultScholarshipRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
+ScholarshipRepository createDefaultScholarshipRepository({
+  AuthSession? session,
+}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugScholarshipRepository.shared();
   }
 

@@ -36,6 +36,31 @@ class FirebaseBillingRepository implements BillingRepository {
   }
 
   @override
+  Future<BillingViewerSummary> loadViewerSummary({
+    required AuthSession session,
+  }) async {
+    final clanId = _sessionClanId(session);
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+    final result = await _call('resolveBillingEntitlement').call({
+      'clanId': clanId,
+    });
+    final map = _asMap(result.data);
+    final pricing = _asList(map['pricingTiers'])
+        .map((item) => _parsePricing(_asMap(item)))
+        .toList(growable: false);
+    return BillingViewerSummary(
+      clanId: _readString(map, 'clanId', fallback: clanId),
+      subscription: _parseSubscription(_asMap(map['subscription'])),
+      entitlement: _parseEntitlement(_asMap(map['entitlement'])),
+      pricingTiers: pricing,
+      memberCount: _readInt(map, 'memberCount'),
+    );
+  }
+
+  @override
   Future<BillingEntitlement> resolveEntitlement({
     required AuthSession session,
   }) async {
@@ -79,6 +104,7 @@ class FirebaseBillingRepository implements BillingRepository {
   Future<BillingCheckoutResult> createCheckout({
     required AuthSession session,
     required String paymentMethod,
+    String? requestedPlanCode,
     String? returnUrl,
   }) async {
     final clanId = _sessionClanId(session);
@@ -89,6 +115,8 @@ class FirebaseBillingRepository implements BillingRepository {
     final result = await _call('createSubscriptionCheckout').call({
       'clanId': clanId,
       'paymentMethod': paymentMethod,
+      if (requestedPlanCode != null && requestedPlanCode.trim().isNotEmpty)
+        'requestedPlanCode': requestedPlanCode.trim().toUpperCase(),
       if (returnUrl != null && returnUrl.trim().isNotEmpty)
         'returnUrl': returnUrl.trim(),
     });

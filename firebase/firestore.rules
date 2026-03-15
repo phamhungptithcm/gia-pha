@@ -47,7 +47,14 @@ service cloud.firestore {
     }
 
     function isClanAdmin() {
-      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN', 'ADMIN_SUPPORT'];
+      return primaryRole() in [
+        'SUPER_ADMIN',
+        'CLAN_ADMIN',
+        'CLAN_OWNER',
+        'CLAN_LEADER',
+        'BRANCH_ADMIN',
+        'ADMIN_SUPPORT'
+      ];
     }
 
     function isBillingAdmin() {
@@ -67,7 +74,13 @@ service cloud.firestore {
     }
 
     function isClanSettingsAdmin() {
-      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'ADMIN_SUPPORT'];
+      return primaryRole() in [
+        'SUPER_ADMIN',
+        'CLAN_ADMIN',
+        'CLAN_OWNER',
+        'CLAN_LEADER',
+        'ADMIN_SUPPORT'
+      ];
     }
 
     function isBranchAdmin() {
@@ -413,12 +426,13 @@ service cloud.firestore {
 
     match /genealogyDiscoveryIndex/{entryId} {
       allow read: if
+        signedIn() &&
         (
-          resource.data.isPublic == true
-        ) ||
-        (
-          hasClanAccess(resource.data.clanId) &&
-          isGovernanceJoinReviewer()
+          resource.data.isPublic == true ||
+          (
+            hasClanAccess(resource.data.clanId) &&
+            isGovernanceJoinReviewer()
+          )
         );
       allow write: if false;
     }
