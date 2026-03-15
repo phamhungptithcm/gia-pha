@@ -1,6 +1,6 @@
 # Firestore Schema
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 This page summarizes the active Firestore model used by the mobile app and
 Cloud Functions.
@@ -16,6 +16,15 @@ Cloud Functions.
 - `notifications`: per-member notification inbox documents
 - `events`, `funds`, `transactions`, `scholarshipPrograms`, `awardLevels`,
   `achievementSubmissions`, `auditLogs`
+
+Planned billing collections (Epic #213):
+
+- `subscriptions`: clan-level plan state (`FREE`, `BASE`, `PLUS`, `PRO`),
+  member snapshot, price, ad entitlement, expiry, renew mode
+- `subscriptionInvoices`: invoice summaries for each billing cycle
+- `paymentTransactions`: gateway-level payment intent/settlement records
+- `paymentWebhookEvents`: idempotency and callback verification tracking
+- `billingSettings`: owner/admin renewal preferences and reminder settings
 
 ## Member + relationship pattern
 
@@ -43,6 +52,8 @@ Key indexes are maintained in `firebase/firestore.indexes.json`:
 - relationships by clan + person + type
 - events by clan/branch + start time
 - notifications by member + created time and read state
+- planned billing indexes by clan + subscription status/expiry and transaction
+  chronology
 
 ## Reference
 

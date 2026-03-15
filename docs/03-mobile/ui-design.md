@@ -1,6 +1,6 @@
 # UI Design
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## Design direction
 
@@ -20,6 +20,8 @@ to keep the app approachable for both younger and older users.
   when six digits are entered
 - long forms are split into clearer sections with sticky action placement
 - member and genealogy screens prioritize human-readable copy and relationships
+- dual calendar card, month grid, and day tile layouts are tuned for large text
+  and lower-end devices
 
 ## Accessibility and resilience
 
@@ -32,3 +34,12 @@ to keep the app approachable for both younger and older users.
 - concise, direct wording for critical actions
 - status and guidance shown inline where needed
 - debug-only visual noise removed from production-facing screens
+
+Planned billing UX principles:
+
+- transparent plan/price display with VAT-included wording
+- always-visible subscription expiry for clan owner/admin users
+- clear payment-mode control (auto-renew vs manual)
+- visible ad entitlement label by plan (Free/Base: ads, Plus/Pro: ad-free)
+- ad placements must be non-intrusive and excluded from sensitive flows
+- non-technical error messages for failed checkout/callback states

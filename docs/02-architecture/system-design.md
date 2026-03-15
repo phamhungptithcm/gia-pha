@@ -1,6 +1,6 @@
 # System Design
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## High-level architecture
 
@@ -11,8 +11,12 @@ flowchart TD
     A --> D["Firebase Storage"]
     A --> E["Cloud Functions v2 (asia-southeast1)"]
     A --> F["Firebase Cloud Messaging"]
+    A --> K["Card/VNPay checkout redirect or SDK flow"]
+    A --> M["Ad SDK/Network (planned, plan-gated)"]
     E --> C
     E --> F
+    K --> L["Payment Gateway"]
+    L --> E
     G["GitHub Actions CI/CD"] --> H["staging/main protected branches"]
     G --> I["GitHub Releases + GHCR images"]
     G --> J["Firebase deploy + GitHub Pages deploy"]
@@ -24,6 +28,10 @@ flowchart TD
   calls
 - Firestore is the source of truth for core domain entities
 - Cloud Functions handle cross-document workflows and push fan-out
+- planned billing flow keeps payment verification on server-side callbacks
+  before state mutation
+- plan entitlements (including ad eligibility) are resolved server-side and
+  enforced in client UI state
 - Firebase Rules enforce role and clan scope on reads/writes
 
 ## Environment and branch topology
@@ -40,6 +48,8 @@ flowchart TD
 - Firebase auth and app session context are synchronized to custom claims and
   `users/{uid}` session documents
 - push notification delivery supports event and scholarship payload targets
+- planned subscription model introduces clan-level billing state and renewal
+  reminder delivery
 - release workflow produces mobile artifacts plus container images
 
 ## Design principles in practice

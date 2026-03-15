@@ -1,6 +1,6 @@
 # Analytics
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## Current analytics surface
 
@@ -42,5 +42,14 @@ These events capture query/filter usage and result engagement.
 ## Next analytics opportunities
 
 - instrument genealogy interaction depth and focus actions
-- add event/fund/scholarship funnel metrics once UIs are fully delivered
+- add conversion funnel metrics for tiered subscription checkout:
+  - subscription_screen_view
+  - subscription_plan_viewed (free/base/plus/pro)
+  - subscription_mode_changed (auto/manual)
+  - checkout_started (card/vnpay)
+  - checkout_completed
+  - checkout_failed
+  - ad_impression_served (free/base only)
+  - ad_suppressed_by_plan (plus/pro)
+  - renewal_reminder_opened
 - align dashboard definitions with release and adoption KPIs

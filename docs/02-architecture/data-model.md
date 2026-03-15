@@ -1,6 +1,6 @@
 # Data Model
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## Core entities
 
@@ -20,6 +20,18 @@ Primary Firestore collections:
 - `invites`
 - `auditLogs`
 - `users` and nested `users/{uid}/deviceTokens`
+
+Planned billing collections for Epic #213:
+
+- `subscriptions`
+- `subscriptionInvoices`
+- `paymentTransactions`
+- `paymentWebhookEvents`
+- `billingSettings`
+
+Planned subscription fields include `planCode` (`FREE`, `BASE`, `PLUS`,
+`PRO`), `memberCountSnapshot`, `priceVndInclVat`, `expiresAt`,
+`renewalMode`, and `adEntitlement`.
 
 ## Relationship model
 
@@ -48,6 +60,12 @@ Primary Firestore collections:
   - relationships by `clanId + personA/personB + type`
   - events by `clanId/branchId + startsAt`
   - notifications by `memberId + createdAt`
+
+Planned billing index profile:
+
+- subscriptions by `clanId + status + expiresAt`
+- payment transactions by `clanId + createdAt`
+- invoices by `clanId + periodStart/periodEnd`
 
 ## Schema references
 
