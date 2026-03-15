@@ -253,6 +253,11 @@ service cloud.firestore {
       }
     }
 
+    match /debug_login_profiles/{phoneE164} {
+      allow read: if resource.data.isActive == true;
+      allow create, update, delete: if false;
+    }
+
     match /clans/{clanId} {
       allow read: if hasClanAccess(clanId);
       allow create, update: if

@@ -382,6 +382,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                           _openMemberDetailSheet(
                                             member: member,
                                             graph: segment.graph,
+                                            branches: segment.branches,
                                           ),
                                         );
                                       },
@@ -398,9 +399,10 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                           viewport: viewport,
                                         );
                                         unawaited(
-                                          _openMemberDetailSheet(
+                                          _openMemberDetailPage(
                                             member: member,
                                             graph: segment.graph,
+                                            branches: segment.branches,
                                           ),
                                         );
                                       },
@@ -411,20 +413,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                               ],
                             ),
                           ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 12,
-                        bottom: 12,
-                        child: _TreeMetricCard(
-                          l10n: l10n,
-                          members: scene.visibleMemberIds.length,
-                          edges:
-                              scene.parentChildEdges.length +
-                              scene.spouseEdges.length,
-                          latestLayoutMs: scene.layoutProfile.latestMs,
-                          averageLayoutMs: scene.layoutProfile.averageMs,
-                          peakLayoutMs: scene.layoutProfile.peakMs,
                         ),
                       ),
                       Positioned(
@@ -480,6 +468,12 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         _selectedMemberId = _selectedMemberId ?? initialFocus;
         _invalidateTreeSceneCache();
       });
+
+      // Cached snapshots keep the workspace responsive, then we immediately
+      // reconcile against Firestore to avoid stale production data.
+      if (allowCached && segment.fromCache) {
+        unawaited(_load(allowCached: false));
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -749,20 +743,21 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required GenealogyGraph graph,
     required String rootId,
   }) {
+    final allMembers = graph.membersById.keys.toSet();
     if (rootId.isEmpty || !graph.membersById.containsKey(rootId)) {
-      return graph.membersById.keys.toSet();
+      return _applyVisibilityFilters(allMembers, rootId: rootId);
     }
 
-    final visible = <String>{rootId};
+    final visibleFromFocus = <String>{rootId};
     var ancestors = <String>{rootId};
     for (var level = 0; level < _ancestorDepth; level++) {
       final next = <String>{};
       for (final memberId in ancestors) {
         for (final parentId in graph.parentsOf(memberId)) {
-          if (visible.add(parentId)) {
+          if (visibleFromFocus.add(parentId)) {
             next.add(parentId);
           }
-          visible.addAll(graph.spousesOf(parentId));
+          visibleFromFocus.addAll(graph.spousesOf(parentId));
         }
       }
       ancestors = next;
@@ -776,10 +771,10 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       final next = <String>{};
       for (final memberId in descendants) {
         for (final childId in graph.childrenOf(memberId)) {
-          if (visible.add(childId)) {
+          if (visibleFromFocus.add(childId)) {
             next.add(childId);
           }
-          visible.addAll(graph.spousesOf(childId));
+          visibleFromFocus.addAll(graph.spousesOf(childId));
         }
       }
       descendants = next;
@@ -788,16 +783,31 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       }
     }
 
-    for (final memberId in visible.toList()) {
-      visible.addAll(graph.spousesOf(memberId));
+    for (final memberId in visibleFromFocus.toList()) {
+      visibleFromFocus.addAll(graph.spousesOf(memberId));
     }
 
+    final shouldShowScopeCoverage =
+        _displayPreset == _TreeDisplayPreset.coverage;
+    final baseVisible = shouldShowScopeCoverage ? allMembers : visibleFromFocus;
+    return _applyVisibilityFilters(baseVisible, rootId: rootId);
+  }
+
+  Set<String> _applyVisibilityFilters(
+    Set<String> baseVisible, {
+    required String rootId,
+  }) {
     if (_branchFilterId == null && _statusFilter == _MemberStatusFilter.all) {
-      return visible;
+      return baseVisible;
+    }
+
+    final graph = _segment?.graph;
+    if (graph == null) {
+      return baseVisible;
     }
 
     final filtered = <String>{};
-    for (final memberId in visible) {
+    for (final memberId in baseVisible) {
       final member = graph.membersById[memberId];
       if (member == null) {
         continue;
@@ -807,15 +817,15 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       }
     }
 
-    if (rootId.isNotEmpty && visible.contains(rootId)) {
+    if (rootId.isNotEmpty && baseVisible.contains(rootId)) {
       filtered.add(rootId);
     }
-    if (_selectedMemberId != null && visible.contains(_selectedMemberId!)) {
+    if (_selectedMemberId != null && baseVisible.contains(_selectedMemberId!)) {
       filtered.add(_selectedMemberId!);
     }
 
-    if (filtered.isEmpty && visible.isNotEmpty) {
-      filtered.add(rootId.isNotEmpty ? rootId : visible.first);
+    if (filtered.isEmpty && baseVisible.isNotEmpty) {
+      filtered.add(rootId.isNotEmpty ? rootId : baseVisible.first);
     }
 
     return filtered;
@@ -955,6 +965,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   Future<void> _openMemberDetailSheet({
     required MemberProfile member,
     required GenealogyGraph graph,
+    required List<BranchProfile> branches,
   }) async {
     final l10n = context.l10n;
     final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
@@ -1022,11 +1033,78 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                   value: '${ancestry.length}',
                   isLast: true,
                 ),
+                const SizedBox(height: 16),
+                FilledButton.tonalIcon(
+                  key: const Key('genealogy-open-member-detail-action'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    unawaited(
+                      _openMemberDetailPage(
+                        member: member,
+                        graph: graph,
+                        branches: branches,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text(
+                    l10n.pick(
+                      vi: 'Mở chi tiết thành viên',
+                      en: 'Open member details',
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Future<void> _openMemberDetailPage({
+    required MemberProfile member,
+    required GenealogyGraph graph,
+    required List<BranchProfile> branches,
+  }) async {
+    final l10n = context.l10n;
+    final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
+      graph: graph,
+      memberId: member.id,
+    );
+    final descendants = GenealogyGraphAlgorithms.buildDescendantsTraversal(
+      graph: graph,
+      memberId: member.id,
+      maxDepth: 12,
+    );
+    var branchName = member.branchId;
+    for (final branch in branches) {
+      if (branch.id == member.branchId && branch.name.trim().isNotEmpty) {
+        branchName = branch.name;
+        break;
+      }
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return _GenealogyMemberDetailPage(
+            member: member,
+            branchName: branchName,
+            generationLabel:
+                graph.generationLabels[member.id]?.compactLabel ??
+                'G${member.generation}',
+            ancestryCount: ancestry.length,
+            descendantCount: descendants.length,
+            parentCount: graph.parentsOf(member.id).length,
+            childCount: graph.childrenOf(member.id).length,
+            spouseCount: graph.spousesOf(member.id).length,
+            isAlive: _isMemberAlive(member),
+            aliveStatusLabel: l10n.genealogyMemberAliveStatus,
+            deceasedStatusLabel: l10n.genealogyMemberDeceasedStatus,
+          );
+        },
+      ),
     );
   }
 
@@ -1176,18 +1254,6 @@ class _LandingCard extends StatelessWidget {
                   selected: scopeType == GenealogyScopeType.branch,
                   onSelected: (_) => onScopeChanged(GenealogyScopeType.branch),
                 ),
-              ActionChip(
-                avatar: Icon(
-                  isFromCache ? Icons.bolt_outlined : Icons.cloud_done,
-                  size: 18,
-                ),
-                label: Text(
-                  isFromCache
-                      ? l10n.genealogyFromCache
-                      : l10n.genealogyLiveData,
-                ),
-                onPressed: null,
-              ),
               FilledButton.tonalIcon(
                 onPressed: onRefresh,
                 icon: isLoading
@@ -1808,6 +1874,7 @@ class _MemberNodeCard extends StatelessWidget {
                   Tooltip(
                     message: viewInfoTooltip,
                     child: IconButton(
+                      key: Key('tree-node-info-${member.id}'),
                       visualDensity: VisualDensity.compact,
                       iconSize: 16,
                       splashRadius: 16,
@@ -1996,54 +2063,6 @@ class _TreeConnectorPainter extends CustomPainter {
   }
 }
 
-class _TreeMetricCard extends StatelessWidget {
-  const _TreeMetricCard({
-    required this.l10n,
-    required this.members,
-    required this.edges,
-    required this.latestLayoutMs,
-    required this.averageLayoutMs,
-    required this.peakLayoutMs,
-  });
-
-  final AppLocalizations l10n;
-  final int members;
-  final int edges;
-  final int latestLayoutMs;
-  final int averageLayoutMs;
-  final int peakLayoutMs;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return DecoratedBox(
-      key: const Key('tree-metrics-card'),
-      decoration: BoxDecoration(
-        color: colorScheme.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: DefaultTextStyle(
-          style: theme.textTheme.labelMedium!,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(l10n.genealogyMetricNodes(members)),
-              Text(l10n.genealogyMetricEdges(edges)),
-              Text(l10n.genealogyMetricLayout(latestLayoutMs)),
-              Text(l10n.genealogyMetricAverage(averageLayoutMs)),
-              Text(l10n.genealogyMetricPeak(peakLayoutMs)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _FactLine extends StatelessWidget {
   const _FactLine({
     required this.label,
@@ -2077,6 +2096,224 @@ class _FactLine extends StatelessWidget {
       ),
     );
   }
+}
+
+class _GenealogyMemberDetailPage extends StatelessWidget {
+  const _GenealogyMemberDetailPage({
+    required this.member,
+    required this.branchName,
+    required this.generationLabel,
+    required this.parentCount,
+    required this.childCount,
+    required this.spouseCount,
+    required this.ancestryCount,
+    required this.descendantCount,
+    required this.isAlive,
+    required this.aliveStatusLabel,
+    required this.deceasedStatusLabel,
+  });
+
+  final MemberProfile member;
+  final String branchName;
+  final String generationLabel;
+  final int parentCount;
+  final int childCount;
+  final int spouseCount;
+  final int ancestryCount;
+  final int descendantCount;
+  final bool isAlive;
+  final String aliveStatusLabel;
+  final String deceasedStatusLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.memberDetailTitle)),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 34,
+                      child: Text(
+                        member.initials,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            member.fullName,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            member.nickName.trim().isEmpty
+                                ? l10n.memberDetailNoNickname
+                                : member.nickName,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _MiniFactChip(
+                                icon: Icons.account_tree_outlined,
+                                label: branchName,
+                              ),
+                              _MiniFactChip(
+                                icon: Icons.layers_outlined,
+                                label: generationLabel,
+                              ),
+                              _StatusChip(
+                                isAlive: isAlive,
+                                aliveStatusLabel: aliveStatusLabel,
+                                deceasedStatusLabel: deceasedStatusLabel,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.memberDetailSummaryTitle,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _FactLine(
+                      label: l10n.memberFullNameLabel,
+                      value: member.fullName,
+                    ),
+                    _FactLine(
+                      label: l10n.memberNicknameLabel,
+                      value: member.nickName.trim().isEmpty
+                          ? l10n.memberFieldUnset
+                          : member.nickName,
+                    ),
+                    _FactLine(
+                      label: l10n.memberPhoneLabel,
+                      value: member.phoneE164 ?? l10n.memberFieldUnset,
+                    ),
+                    _FactLine(
+                      label: l10n.memberEmailLabel,
+                      value: member.email ?? l10n.memberFieldUnset,
+                    ),
+                    _FactLine(
+                      label: l10n.memberGenderLabel,
+                      value: _memberGenderLabel(l10n, member.gender),
+                    ),
+                    _FactLine(
+                      label: l10n.memberBirthDateLabel,
+                      value: member.birthDate ?? l10n.memberFieldUnset,
+                    ),
+                    _FactLine(
+                      label: l10n.memberDeathDateLabel,
+                      value: member.deathDate ?? l10n.memberFieldUnset,
+                    ),
+                    _FactLine(
+                      label: l10n.memberJobTitleLabel,
+                      value: member.jobTitle ?? l10n.memberFieldUnset,
+                    ),
+                    _FactLine(
+                      label: l10n.memberAddressLabel,
+                      value: member.addressText ?? l10n.memberFieldUnset,
+                    ),
+                    _FactLine(
+                      label: l10n.memberBioLabel,
+                      value: member.bio ?? l10n.memberFieldUnset,
+                      isLast: true,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.pick(
+                        vi: 'Tóm tắt quan hệ',
+                        en: 'Relationship summary',
+                      ),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _FactLine(
+                      label: l10n.genealogyParentCountLabel,
+                      value: '$parentCount',
+                    ),
+                    _FactLine(
+                      label: l10n.genealogyChildCountLabel,
+                      value: '$childCount',
+                    ),
+                    _FactLine(
+                      label: l10n.genealogySpouseCountLabel,
+                      value: '$spouseCount',
+                    ),
+                    _FactLine(
+                      label: l10n.genealogyDescendantCountLabel,
+                      value: '$descendantCount',
+                    ),
+                    _FactLine(
+                      label: l10n.genealogyAncestryPathTitle,
+                      value: '$ancestryCount',
+                      isLast: true,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _memberGenderLabel(AppLocalizations l10n, String? value) {
+  final normalized = value?.trim().toLowerCase();
+  return switch (normalized) {
+    'male' => l10n.memberGenderMale,
+    'female' => l10n.memberGenderFemale,
+    'other' => l10n.memberGenderOther,
+    _ => l10n.memberGenderUnspecified,
+  };
 }
 
 class _TreeScene {

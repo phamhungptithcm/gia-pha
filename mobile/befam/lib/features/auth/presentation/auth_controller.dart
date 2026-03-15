@@ -152,6 +152,10 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> signInWithLocalBypass() async {
+    await signInWithLocalBypassPhone(_localBypassPhoneE164);
+  }
+
+  Future<void> signInWithLocalBypassPhone(String phoneE164) async {
     if (!canUseLocalBypass || isBusy) {
       return;
     }
@@ -168,7 +172,7 @@ class AuthController extends ChangeNotifier {
     );
 
     await _startOtpRequest(
-      () => _authGateway.requestPhoneOtp(_localBypassPhoneE164),
+      () => _authGateway.requestPhoneOtp(phoneE164.trim()),
       method: AuthEntryMethod.phone,
     );
 
