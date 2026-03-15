@@ -4,7 +4,8 @@ import {
 } from 'firebase-functions/v2/firestore';
 
 import { APP_REGION } from '../config/runtime';
-import { logInfo, logWarn } from '../shared/logger';
+import { reconcileRelationshipMembers } from './relationship-reconciliation';
+import { logWarn } from '../shared/logger';
 
 export const onRelationshipCreated = onDocumentCreated(
   {
@@ -21,11 +22,11 @@ export const onRelationshipCreated = onDocumentCreated(
     }
 
     const relationship = snapshot.data();
-
-    logInfo('relationship created', {
+    await reconcileRelationshipMembers({
       relationshipId: event.params.relationshipId,
-      clanId: relationship.clanId ?? null,
-      type: relationship.type ?? null,
+      action: 'create',
+      relationship,
+      source: 'function:onRelationshipCreated',
     });
   },
 );
@@ -45,11 +46,11 @@ export const onRelationshipDeleted = onDocumentDeleted(
     }
 
     const relationship = snapshot.data();
-
-    logInfo('relationship deleted', {
+    await reconcileRelationshipMembers({
       relationshipId: event.params.relationshipId,
-      clanId: relationship.clanId ?? null,
-      type: relationship.type ?? null,
+      action: 'delete',
+      relationship,
+      source: 'function:onRelationshipDeleted',
     });
   },
 );

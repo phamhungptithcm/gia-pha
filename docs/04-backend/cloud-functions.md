@@ -25,8 +25,13 @@ and TypeScript.
 
 - `createParentChildRelationship`
 - `createSpouseRelationship`
-- `onRelationshipCreated` (log-oriented trigger)
-- `onRelationshipDeleted` (log-oriented trigger)
+- `onRelationshipCreated`:
+  - reconciles denormalized `members.parentIds` / `childrenIds` / `spouseIds`
+    from canonical relationship edges
+  - validates member/clan consistency before merge updates
+- `onRelationshipDeleted`:
+  - removes deleted canonical edge impacts from denormalized member arrays
+  - keeps reconciliation idempotent for repeated deliveries
 
 ### Events and notifications
 
@@ -42,11 +47,21 @@ and TypeScript.
   - watches status transitions to approved/rejected
   - sends targeted push + notification doc updates
 - `onTransactionCreated`:
-  - computes signed delta and logs transaction context
+  - derives signed transaction delta (donation/expense)
+  - recomputes fund balance from ledger transactions and persists
+    `funds.balanceMinor`
 
 ### Scheduled
 
-- `expireInvitesJob` (hourly scheduler tick scaffold)
+- `expireInvitesJob`:
+  - scans invites with `expiresAt <= now`
+  - marks `pending` / `active` invites as `expired` in batches
+  - logs scanned/expired counts per run
+
+### Contract tests
+
+- contract tests are implemented under `src/contract-tests/*`
+- `npm test` compiles functions and runs Node test contracts from `lib/contract-tests/*.contract.test.js`
 
 ### Planned billing callables and triggers (Epic #213)
 
