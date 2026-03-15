@@ -32,19 +32,18 @@ Delivered in the current app baseline:
 - notification inbox and deep-link destination placeholders
 - profile workspace with user-facing settings entry points
 - Firebase Cloud Messaging registration on mobile and server-side push delivery
+- annual subscription billing (Free/Base/Plus/Pro) with Card + VNPay checkout
+- billing status UI with expiry, payment mode, reminders, history, invoices,
+  and audit trail
 
 In progress / partially delivered:
 
-- full payment and subscription lifecycle is not yet implemented
 - notification settings persistence and non-placeholder deep-link destinations
   are still being expanded
 
 Planned next modules:
 
-- annual plan model by member count: Free/Base/Plus/Pro (card + VNPay)
-- ad-supported Free/Base plans and ad-free Plus/Pro plans
-- auto-renew/manual-renew preference management and renewal reminders
-- billing history and invoice baseline for clan owners/admins
+- deeper analytics and destination-specific notification deep-link screens
 
 ## Supported platforms and language
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../features/billing/services/billing_repository.dart';
 import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
 import '../../features/calendar/presentation/dual_calendar_workspace_page.dart';
@@ -37,6 +38,7 @@ class AppShellPage extends StatefulWidget {
     required this.memberRepository,
     this.fundRepository,
     this.genealogyRepository,
+    this.billingRepository,
     this.pushNotificationService,
     this.localeController,
     this.onLogoutRequested,
@@ -48,6 +50,7 @@ class AppShellPage extends StatefulWidget {
   final MemberRepository memberRepository;
   final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
+  final BillingRepository? billingRepository;
   final PushNotificationService? pushNotificationService;
   final AppLocaleController? localeController;
   final Future<void> Function()? onLogoutRequested;
@@ -61,8 +64,12 @@ class _AppShellPageState extends State<AppShellPage> {
   final Set<int> _visitedDestinationIndexes = <int>{0};
   late final GenealogyReadRepository _genealogyRepository;
   late final FundRepository _fundRepository;
+  late final BillingRepository _billingRepository;
   late final PushNotificationService _pushNotificationService;
   String? _lastOpenedNotificationMessageId;
+  bool _showAdBanner = true;
+  bool _isResolvingBillingEntitlement = false;
+  bool _dismissAdBannerForSession = false;
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
@@ -93,6 +100,7 @@ class _AppShellPageState extends State<AppShellPage> {
     _genealogyRepository =
         widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
     _fundRepository = widget.fundRepository ?? createDefaultFundRepository();
+    _billingRepository = widget.billingRepository ?? createDefaultBillingRepository();
     _pushNotificationService =
         widget.pushNotificationService ??
         createDefaultPushNotificationService();
@@ -102,6 +110,7 @@ class _AppShellPageState extends State<AppShellPage> {
         onDeepLink: _handleNotificationDeepLink,
       ),
     );
+    unawaited(_refreshBillingEntitlement());
   }
 
   @override
@@ -114,6 +123,8 @@ class _AppShellPageState extends State<AppShellPage> {
           onDeepLink: _handleNotificationDeepLink,
         ),
       );
+      _dismissAdBannerForSession = false;
+      unawaited(_refreshBillingEntitlement());
     }
   }
 
@@ -234,6 +245,46 @@ class _AppShellPageState extends State<AppShellPage> {
     };
   }
 
+  Future<void> _refreshBillingEntitlement() async {
+    if (_isResolvingBillingEntitlement) {
+      return;
+    }
+    if (!_hasBillingContext(widget.session)) {
+      if (mounted) {
+        setState(() {
+          _showAdBanner = true;
+        });
+      }
+      return;
+    }
+
+    _isResolvingBillingEntitlement = true;
+    try {
+      final entitlement = await _billingRepository.resolveEntitlement(
+        session: widget.session,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _showAdBanner = entitlement.showAds;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _showAdBanner = true;
+      });
+    } finally {
+      _isResolvingBillingEntitlement = false;
+    }
+  }
+
+  bool _hasBillingContext(AuthSession session) {
+    return (session.clanId ?? '').trim().isNotEmpty;
+  }
+
   Future<void> _confirmLogoutRequest() async {
     if (widget.onLogoutRequested == null) {
       return;
@@ -315,6 +366,10 @@ class _AppShellPageState extends State<AppShellPage> {
         ProfileWorkspacePage(
           session: widget.session,
           memberRepository: widget.memberRepository,
+          billingRepository: _billingRepository,
+          onBillingStateChanged: () {
+            unawaited(_refreshBillingEntitlement());
+          },
           localeController: widget.localeController,
           onLogoutRequested: widget.onLogoutRequested,
         )
@@ -367,22 +422,81 @@ class _AppShellPageState extends State<AppShellPage> {
       body: SafeArea(
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-            _visitedDestinationIndexes.add(index);
-          });
-        },
-        destinations: [
-          for (final destination in _destinations)
-            NavigationDestination(
-              icon: Icon(destination.icon),
-              selectedIcon: Icon(destination.selectedIcon),
-              label: l10n.shellDestinationLabel(destination.id),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_showAdBanner && !_dismissAdBannerForSession)
+            _SponsoredAdBanner(
+              onClose: () {
+                setState(() {
+                  _dismissAdBannerForSession = true;
+                });
+              },
             ),
+          NavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (index) {
+              setState(() {
+                _selectedIndex = index;
+                _visitedDestinationIndexes.add(index);
+              });
+            },
+            destinations: [
+              for (final destination in _destinations)
+                NavigationDestination(
+                  icon: Icon(destination.icon),
+                  selectedIcon: Icon(destination.selectedIcon),
+                  label: l10n.shellDestinationLabel(destination.id),
+                ),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _SponsoredAdBanner extends StatelessWidget {
+  const _SponsoredAdBanner({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: colorScheme.tertiaryContainer.withValues(alpha: 0.88),
+      child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              Icons.campaign_outlined,
+              color: colorScheme.onTertiaryContainer,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                l10n.pick(
+                  vi: 'Quảng cáo nhẹ đang hiển thị trong gói Free/Base. Nâng cấp Plus/Pro để tắt hoàn toàn quảng cáo.',
+                  en: 'Light ads are active on Free/Base plans. Upgrade to Plus/Pro for a fully ad-free experience.',
+                ),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onTertiaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+            IconButton(
+              tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
+              onPressed: onClose,
+              icon: const Icon(Icons.close),
+              color: colorScheme.onTertiaryContainer,
+            ),
+          ],
+        ),
       ),
     );
   }

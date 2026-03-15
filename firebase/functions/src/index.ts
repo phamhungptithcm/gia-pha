@@ -7,6 +7,15 @@ import {
   registerDeviceToken,
   resolveChildLoginContext,
 } from './auth/callables';
+import {
+  completeCardCheckout,
+  createSubscriptionCheckout,
+  loadBillingWorkspace,
+  resolveBillingEntitlement,
+  simulateVnpaySettlement,
+  updateBillingPreferences,
+} from './billing/callables';
+import { cardPaymentCallback, vnpayPaymentCallback } from './billing/webhooks';
 import { APP_REGION } from './config/runtime';
 import { onEventCreated, sendEventReminder } from './events/event-triggers';
 import {
@@ -17,7 +26,7 @@ import {
   onRelationshipCreated,
   onRelationshipDeleted,
 } from './genealogy/relationship-triggers';
-import { expireInvitesJob } from './scheduled/jobs';
+import { billingSubscriptionReminderJob, expireInvitesJob } from './scheduled/jobs';
 import { onSubmissionReviewed } from './scholarship/submission-triggers';
 import { onTransactionCreated } from './funds/transaction-triggers';
 
@@ -29,17 +38,26 @@ setGlobalOptions({
 });
 
 export {
+  billingSubscriptionReminderJob,
+  cardPaymentCallback,
   claimMemberRecord,
+  completeCardCheckout,
   createParentChildRelationship,
   createSpouseRelationship,
   createInvite,
+  createSubscriptionCheckout,
   expireInvitesJob,
+  loadBillingWorkspace,
   onEventCreated,
   onRelationshipCreated,
   onRelationshipDeleted,
   onSubmissionReviewed,
   onTransactionCreated,
   registerDeviceToken,
+  resolveBillingEntitlement,
   resolveChildLoginContext,
   sendEventReminder,
+  simulateVnpaySettlement,
+  updateBillingPreferences,
+  vnpayPaymentCallback,
 };
