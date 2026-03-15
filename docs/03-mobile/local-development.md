@@ -170,3 +170,17 @@ FIREBASE_PROJECT_ID=be-fam-3ab23 \
 FIREBASE_SERVICE_ACCOUNT_JSON=/absolute/path/to/service-account.json \
 npm run seed:demo
 ```
+
+Seed output now includes:
+
+- 1 demo clan with 4 branches
+- 32 members (multi-generation graph, including both `active` and `deceased`)
+- parent-child and spouse relationships for wide tree rendering tests
+- invite records for phone and child OTP flows
+- `debug_login_profiles` collection for local bypass role/security scenarios:
+  - clan admin with existing clan
+  - branch admin with existing clan
+  - member with existing clan
+  - unlinked user
+  - branch admin role without clan linkage
+  - clan admin context before clan creation

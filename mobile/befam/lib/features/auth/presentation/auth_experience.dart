@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -140,7 +141,7 @@ class _AuthScaffold extends StatelessWidget {
                   onChildSelected: () {
                     controller.selectLoginMethod(AuthEntryMethod.child);
                   },
-                  onLocalBypassSelected: controller.signInWithLocalBypass,
+                  onLocalBypassSelected: controller.signInWithLocalBypassPhone,
                   onPrivacyConsentChanged: (accepted) {
                     unawaited(controller.setPrivacyPolicyAccepted(accepted));
                   },
@@ -252,7 +253,10 @@ class _AuthHero extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            l10n.authHeroLiveDescription,
+            l10n.pick(
+              vi: 'Đăng nhập bằng số điện thoại hoặc mã trẻ em để vào đúng không gian gia phả và tiếp tục ngay sau khi xác minh OTP.',
+              en: 'Sign in with phone or child ID to enter the correct genealogy workspace and continue right after OTP verification.',
+            ),
             style: theme.textTheme.bodyLarge?.copyWith(
               color: colorScheme.onPrimary.withValues(alpha: 0.92),
             ),
@@ -326,76 +330,113 @@ class _LoginMethodSelectionCard extends StatelessWidget {
   final bool hasAcceptedPrivacyPolicy;
   final VoidCallback onPhoneSelected;
   final VoidCallback onChildSelected;
-  final Future<void> Function() onLocalBypassSelected;
+  final Future<void> Function(String phoneE164) onLocalBypassSelected;
   final ValueChanged<bool> onPrivacyConsentChanged;
   final VoidCallback onViewPrivacyPolicy;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final sandboxPresets = <_SandboxLoginPreset>[
+      _SandboxLoginPreset(
+        scenarioKey: 'clan_admin_existing',
+        phoneE164: '+84901234567',
+        title: l10n.pick(
+          vi: 'Trưởng tộc đã có gia phả',
+          en: 'Clan lead in clan',
+        ),
+        description: l10n.pick(
+          vi: 'Role CLAN_ADMIN, đã liên kết thành viên và đã có dữ liệu gia phả.',
+          en: 'CLAN_ADMIN role, linked member, existing clan data.',
+        ),
+        icon: Icons.admin_panel_settings_outlined,
+      ),
+      _SandboxLoginPreset(
+        scenarioKey: 'branch_admin_existing',
+        phoneE164: '+84908886655',
+        title: l10n.pick(
+          vi: 'Trưởng chi đã có gia phả',
+          en: 'Branch lead in clan',
+        ),
+        description: l10n.pick(
+          vi: 'Role BRANCH_ADMIN, đã liên kết vào chi hiện có.',
+          en: 'BRANCH_ADMIN role, linked to an existing branch.',
+        ),
+        icon: Icons.account_tree_outlined,
+      ),
+      _SandboxLoginPreset(
+        scenarioKey: 'member_existing',
+        phoneE164: '+84907770011',
+        title: l10n.pick(
+          vi: 'Thành viên thường đã vào gia phả',
+          en: 'Member already in clan',
+        ),
+        description: l10n.pick(
+          vi: 'Role MEMBER, đã liên kết hồ sơ trong gia phả.',
+          en: 'MEMBER role with a linked profile in clan data.',
+        ),
+        icon: Icons.person_outline,
+      ),
+      _SandboxLoginPreset(
+        scenarioKey: 'user_unlinked',
+        phoneE164: '+84906660022',
+        title: l10n.pick(
+          vi: 'Người dùng chưa vào gia phả nào',
+          en: 'User not in any clan',
+        ),
+        description: l10n.pick(
+          vi: 'Trạng thái unlinked để kiểm thử onboarding ban đầu.',
+          en: 'Unlinked state for first-time onboarding tests.',
+        ),
+        icon: Icons.person_add_alt_1_outlined,
+      ),
+      _SandboxLoginPreset(
+        scenarioKey: 'branch_admin_unlinked',
+        phoneE164: '+84905550033',
+        title: l10n.pick(
+          vi: 'Set role Trưởng chi nhưng chưa gắn gia phả',
+          en: 'Branch lead role without clan',
+        ),
+        description: l10n.pick(
+          vi: 'Role BRANCH_ADMIN nhưng không có clan/branch context.',
+          en: 'BRANCH_ADMIN role with no clan/branch context.',
+        ),
+        icon: Icons.gpp_maybe_outlined,
+      ),
+      _SandboxLoginPreset(
+        scenarioKey: 'clan_admin_uninitialized',
+        phoneE164: '+84909990001',
+        title: l10n.pick(
+          vi: 'Trưởng tộc chưa tạo gia phả',
+          en: 'Clan lead before clan creation',
+        ),
+        description: l10n.pick(
+          vi: 'Role CLAN_ADMIN có context tạo clan nhưng chưa có dữ liệu.',
+          en: 'CLAN_ADMIN role ready to create clan with no seeded profile.',
+        ),
+        icon: Icons.rocket_launch_outlined,
+      ),
+    ];
 
     return Column(
       children: [
         const _QuickBenefitsCard(),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CheckboxListTile(
-                  value: hasAcceptedPrivacyPolicy,
-                  onChanged: isBusy
-                      ? null
-                      : (value) => onPrivacyConsentChanged(value ?? false),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    l10n.pick(
-                      vi: 'Tôi đã đọc và đồng ý với Chính sách quyền riêng tư của BeFam.',
-                      en: 'I have read and agree to BeFam Privacy Policy.',
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: onViewPrivacyPolicy,
-                    icon: const Icon(Icons.policy_outlined),
-                    label: Text(
-                      l10n.pick(
-                        vi: 'Xem Chính sách quyền riêng tư',
-                        en: 'View Privacy Policy',
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        _PrivacyPolicyConsentCard(
+          isBusy: isBusy,
+          hasAcceptedPrivacyPolicy: hasAcceptedPrivacyPolicy,
+          onChanged: onPrivacyConsentChanged,
+          onViewPrivacyPolicy: onViewPrivacyPolicy,
         ),
-        if (showLocalBypass) ...[
-          const SizedBox(height: 16),
-          _MethodCard(
-            title: l10n.authSandboxChip,
-            description: l10n.authPhoneHelperSandbox,
-            icon: Icons.bolt_rounded,
-            buttonLabel: l10n.authContinueNow,
-            onPressed: isBusy || !hasAcceptedPrivacyPolicy
-                ? null
-                : () {
-                    unawaited(onLocalBypassSelected());
-                  },
-          ),
-        ],
         const SizedBox(height: 16),
         _MethodCard(
           title: l10n.authMethodPhoneTitle,
           description: l10n.authMethodPhoneDescription,
           icon: Icons.phone_iphone,
           buttonLabel: l10n.authMethodPhoneButton,
-          onPressed: hasAcceptedPrivacyPolicy ? onPhoneSelected : null,
+          onPressed: isBusy || !hasAcceptedPrivacyPolicy
+              ? null
+              : onPhoneSelected,
         ),
         const SizedBox(height: 16),
         _MethodCard(
@@ -403,9 +444,400 @@ class _LoginMethodSelectionCard extends StatelessWidget {
           description: l10n.authMethodChildDescription,
           icon: Icons.child_care,
           buttonLabel: l10n.authMethodChildButton,
-          onPressed: hasAcceptedPrivacyPolicy ? onChildSelected : null,
+          onPressed: isBusy || !hasAcceptedPrivacyPolicy
+              ? null
+              : onChildSelected,
         ),
+        if (showLocalBypass) ...[
+          const SizedBox(height: 16),
+          _SandboxEnvironmentCard(
+            isBusy: isBusy,
+            hasAcceptedPrivacyPolicy: hasAcceptedPrivacyPolicy,
+            title: l10n.authSandboxChip,
+            description: l10n.authPhoneHelperSandbox,
+            presets: sandboxPresets,
+            onSelected: onLocalBypassSelected,
+          ),
+        ],
       ],
+    );
+  }
+}
+
+class _PrivacyPolicyConsentCard extends StatelessWidget {
+  const _PrivacyPolicyConsentCard({
+    required this.isBusy,
+    required this.hasAcceptedPrivacyPolicy,
+    required this.onChanged,
+    required this.onViewPrivacyPolicy,
+  });
+
+  final bool isBusy;
+  final bool hasAcceptedPrivacyPolicy;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback onViewPrivacyPolicy;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: isBusy ? null : () => onChanged(!hasAcceptedPrivacyPolicy),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer.withValues(
+                        alpha: 0.65,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      hasAcceptedPrivacyPolicy
+                          ? Icons.verified_user_outlined
+                          : Icons.shield_outlined,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n.pick(
+                        vi: 'Tôi đã đọc và đồng ý với Chính sách quyền riêng tư của BeFam.',
+                        en: 'I have read and agree to BeFam Privacy Policy.',
+                      ),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Checkbox(
+                    value: hasAcceptedPrivacyPolicy,
+                    onChanged: isBusy
+                        ? null
+                        : (value) => onChanged(value ?? false),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                l10n.pick(
+                  vi: 'BeFam chỉ dùng dữ liệu đăng nhập để xác thực và bảo vệ quyền truy cập dữ liệu gia phả đúng phạm vi.',
+                  en: 'BeFam uses sign-in data only for authentication and to protect scoped genealogy access.',
+                ),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.8),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: onViewPrivacyPolicy,
+                icon: const Icon(Icons.policy_outlined),
+                label: Text(
+                  l10n.pick(
+                    vi: 'Xem Chính sách quyền riêng tư',
+                    en: 'View Privacy Policy',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SandboxLoginPreset {
+  const _SandboxLoginPreset({
+    required this.scenarioKey,
+    required this.phoneE164,
+    required this.title,
+    required this.description,
+    required this.icon,
+  });
+
+  final String scenarioKey;
+  final String phoneE164;
+  final String title;
+  final String description;
+  final IconData icon;
+
+  _SandboxLoginPreset copyWith({
+    String? phoneE164,
+    String? title,
+    String? description,
+    IconData? icon,
+  }) {
+    return _SandboxLoginPreset(
+      scenarioKey: scenarioKey,
+      phoneE164: phoneE164 ?? this.phoneE164,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      icon: icon ?? this.icon,
+    );
+  }
+}
+
+class _RemoteSandboxProfile {
+  const _RemoteSandboxProfile({
+    required this.scenarioKey,
+    required this.phoneE164,
+    required this.title,
+    required this.description,
+    required this.isActive,
+  });
+
+  final String scenarioKey;
+  final String phoneE164;
+  final String title;
+  final String description;
+  final bool isActive;
+
+  factory _RemoteSandboxProfile.fromDoc(
+    String docId,
+    Map<String, dynamic> data,
+  ) {
+    final phone = (data['phoneE164'] as String? ?? docId).trim();
+    final scenarioKey = (data['scenarioKey'] as String? ?? docId).trim();
+    final title = (data['title'] as String? ?? scenarioKey).trim();
+    final description = (data['description'] as String? ?? phone).trim();
+
+    return _RemoteSandboxProfile(
+      scenarioKey: scenarioKey.isEmpty ? docId : scenarioKey,
+      phoneE164: phone,
+      title: title.isEmpty ? scenarioKey : title,
+      description: description.isEmpty ? phone : description,
+      isActive: data['isActive'] != false,
+    );
+  }
+}
+
+class _SandboxEnvironmentCard extends StatefulWidget {
+  const _SandboxEnvironmentCard({
+    required this.isBusy,
+    required this.hasAcceptedPrivacyPolicy,
+    required this.title,
+    required this.description,
+    required this.presets,
+    required this.onSelected,
+  });
+
+  final bool isBusy;
+  final bool hasAcceptedPrivacyPolicy;
+  final String title;
+  final String description;
+  final List<_SandboxLoginPreset> presets;
+  final Future<void> Function(String phoneE164) onSelected;
+
+  @override
+  State<_SandboxEnvironmentCard> createState() =>
+      _SandboxEnvironmentCardState();
+}
+
+class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
+  late final Future<List<_RemoteSandboxProfile>> _remoteProfilesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _remoteProfilesFuture = _loadRemoteProfiles();
+  }
+
+  Future<List<_RemoteSandboxProfile>> _loadRemoteProfiles() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('debug_login_profiles')
+          .orderBy('sortOrder')
+          .get();
+
+      final profiles = snapshot.docs
+          .map((doc) => _RemoteSandboxProfile.fromDoc(doc.id, doc.data()))
+          .where((profile) => profile.isActive && profile.phoneE164.isNotEmpty)
+          .toList(growable: false);
+      return profiles;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  List<_SandboxLoginPreset> _resolvedPresets(
+    List<_RemoteSandboxProfile> remote,
+  ) {
+    if (remote.isEmpty) {
+      return widget.presets;
+    }
+
+    final fallbackByScenario = {
+      for (final preset in widget.presets) preset.scenarioKey: preset,
+    };
+    final resolved = <_SandboxLoginPreset>[];
+    final usedScenarioKeys = <String>{};
+
+    for (final profile in remote) {
+      final fallback = fallbackByScenario[profile.scenarioKey];
+      if (fallback != null) {
+        resolved.add(fallback.copyWith(phoneE164: profile.phoneE164));
+        usedScenarioKeys.add(profile.scenarioKey);
+        continue;
+      }
+      resolved.add(
+        _SandboxLoginPreset(
+          scenarioKey: profile.scenarioKey,
+          phoneE164: profile.phoneE164,
+          title: profile.title,
+          description: profile.description,
+          icon: Icons.person_pin_circle_outlined,
+        ),
+      );
+    }
+
+    for (final fallback in widget.presets) {
+      if (!usedScenarioKeys.contains(fallback.scenarioKey)) {
+        resolved.add(fallback);
+      }
+    }
+    return resolved;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final l10n = context.l10n;
+
+    return FutureBuilder<List<_RemoteSandboxProfile>>(
+      future: _remoteProfilesFuture,
+      builder: (context, snapshot) {
+        final presets = _resolvedPresets(snapshot.data ?? const []);
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: colorScheme.primaryContainer,
+                  child: const Icon(Icons.bolt_rounded),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  widget.title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(widget.description, style: theme.textTheme.bodyLarge),
+                if (isLoading) ...[
+                  const SizedBox(height: 14),
+                  const LinearProgressIndicator(minHeight: 3),
+                ],
+                const SizedBox(height: 16),
+                for (var index = 0; index < presets.length; index++) ...[
+                  _SandboxPresetTile(
+                    preset: presets[index],
+                    enabled: widget.hasAcceptedPrivacyPolicy && !widget.isBusy,
+                    onTap: () {
+                      unawaited(widget.onSelected(presets[index].phoneE164));
+                    },
+                  ),
+                  if (index < presets.length - 1) const SizedBox(height: 10),
+                ],
+                const SizedBox(height: 14),
+                Text(
+                  l10n.pick(
+                    vi: 'Profile thử nghiệm có thể lấy từ Firebase nếu có cấu hình; nếu không sẽ dùng danh sách mặc định.',
+                    en: 'Test profiles can be loaded from Firebase when configured; otherwise fallback presets are used.',
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SandboxPresetTile extends StatelessWidget {
+  const _SandboxPresetTile({
+    required this.preset,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final _SandboxLoginPreset preset;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: enabled
+            ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.6)
+            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              preset.icon,
+              size: 20,
+              color: enabled
+                  ? colorScheme.primary
+                  : colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    preset.title,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(preset.description, style: theme.textTheme.bodySmall),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: enabled ? onTap : null,
+              child: Text(context.l10n.authContinueNow),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1027,7 +1459,10 @@ class _QuickBenefitsCard extends StatelessWidget {
                 ),
                 _BenefitChip(
                   icon: Icons.verified_user_outlined,
-                  label: l10n.authQuickBenefitLive,
+                  label: l10n.pick(
+                    vi: 'Xác thực OTP bảo mật',
+                    en: 'Secure OTP verification',
+                  ),
                 ),
               ],
             ),
@@ -1129,6 +1564,8 @@ class _AuthFormCard extends StatelessWidget {
 
 void _showPrivacyPolicy(BuildContext context) {
   final l10n = context.l10n;
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
   showModalBottomSheet<void>(
     context: context,
     useSafeArea: true,
@@ -1146,43 +1583,66 @@ void _showPrivacyPolicy(BuildContext context) {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                l10n.pick(
-                  vi: 'Chính sách quyền riêng tư',
-                  en: 'Privacy Policy',
-                ),
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer.withValues(
+                        alpha: 0.7,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      Icons.privacy_tip_outlined,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n.pick(
+                        vi: 'Chính sách quyền riêng tư',
+                        en: 'Privacy Policy',
+                      ),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
-              Text(
-                l10n.pick(
-                  vi: 'BeFam chỉ sử dụng số điện thoại hoặc mã định danh trẻ em cho mục đích xác thực và liên kết hồ sơ thành viên thuộc dòng tộc của bạn.',
-                  en: 'BeFam uses your phone number or child identifier only for authentication and linking your member profile within your family clan.',
+              _PolicyInfoTile(
+                icon: Icons.lock_outline,
+                text: l10n.pick(
+                  vi: 'BeFam chỉ sử dụng số điện thoại hoặc mã định danh trẻ em để xác thực và liên kết hồ sơ thành viên.',
+                  en: 'BeFam uses phone number or child identifier only for authentication and profile linking.',
                 ),
-                style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 10),
-              Text(
-                l10n.pick(
-                  vi: 'Dữ liệu gia phả được giới hạn theo quyền truy cập họ tộc/chi. Bạn không thể xem dữ liệu của dòng tộc khác nếu không có quyền.',
-                  en: 'Genealogy data is scoped by clan/branch access controls. You cannot view data from other clans without permission.',
+              _PolicyInfoTile(
+                icon: Icons.admin_panel_settings_outlined,
+                text: l10n.pick(
+                  vi: 'Dữ liệu gia phả được giới hạn theo quyền họ tộc/chi. Không có quyền thì không thể xem dòng tộc khác.',
+                  en: 'Genealogy data is restricted by clan/branch permissions. No permission, no cross-clan access.',
                 ),
-                style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 10),
-              Text(
-                l10n.pick(
+              _PolicyInfoTile(
+                icon: Icons.check_circle_outline,
+                text: l10n.pick(
                   vi: 'Khi tiếp tục đăng nhập, bạn xác nhận đã đọc và đồng ý với việc xử lý dữ liệu theo chính sách này.',
-                  en: 'By continuing sign-in, you confirm that you have read and accepted this data processing policy.',
+                  en: 'By continuing sign-in, you confirm that you have read and accepted this policy.',
                 ),
-                style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(l10n.pick(vi: 'Đã hiểu', en: 'Understood')),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(l10n.pick(vi: 'Đã hiểu', en: 'Understood')),
+                ),
               ),
             ],
           ),
@@ -1190,4 +1650,33 @@ void _showPrivacyPolicy(BuildContext context) {
       );
     },
   );
+}
+
+class _PolicyInfoTile extends StatelessWidget {
+  const _PolicyInfoTile({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+        ],
+      ),
+    );
+  }
 }

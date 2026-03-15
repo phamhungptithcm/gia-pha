@@ -129,8 +129,10 @@ const members = [
     nickName: 'Cong',
     gender: 'male',
     birthDate: '1941-01-10',
+    deathDate: '2021-11-02',
     phoneE164: '+84901110001',
     generation: 2,
+    status: 'deceased',
     jobTitle: 'To truong',
     bio: 'To tien truyen thong cua dong ho demo.',
   }),
@@ -166,7 +168,9 @@ const members = [
     nickName: 'Mai',
     gender: 'female',
     birthDate: '1962-03-14',
+    deathDate: '2024-02-15',
     generation: 3,
+    status: 'deceased',
     jobTitle: 'Co van van hoa',
   }),
   createMember({
@@ -213,7 +217,9 @@ const members = [
     nickName: 'Sang',
     gender: 'female',
     birthDate: '1992-07-07',
+    deathDate: '2025-07-07',
     generation: 4,
+    status: 'deceased',
     jobTitle: 'Giao vien',
   }),
   createMember({
@@ -802,6 +808,106 @@ const invites = [
   },
 ];
 
+const debugLoginProfiles = [
+  {
+    phoneE164: '+84901234567',
+    scenarioKey: 'clan_admin_existing',
+    title: 'Trưởng tộc đã có gia phả',
+    description: 'CLAN_ADMIN đã liên kết thành viên và có dữ liệu gia phả.',
+    memberId: 'member_demo_parent_001',
+    clanId: 'clan_demo_001',
+    branchId: 'branch_demo_001',
+    primaryRole: 'CLAN_ADMIN',
+    accessMode: 'claimed',
+    linkedAuthUid: true,
+    sortOrder: 10,
+    isActive: true,
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    phoneE164: '+84908886655',
+    scenarioKey: 'branch_admin_existing',
+    title: 'Trưởng chi đã có gia phả',
+    description: 'BRANCH_ADMIN đã liên kết và quản lý một chi hiện có.',
+    memberId: 'member_demo_parent_002',
+    clanId: 'clan_demo_001',
+    branchId: 'branch_demo_002',
+    primaryRole: 'BRANCH_ADMIN',
+    accessMode: 'claimed',
+    linkedAuthUid: true,
+    sortOrder: 20,
+    isActive: true,
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    phoneE164: '+84907770011',
+    scenarioKey: 'member_existing',
+    title: 'Thành viên thường đã vào gia phả',
+    description: 'MEMBER đã liên kết hồ sơ để kiểm thử quyền người dùng thường.',
+    memberId: 'member_demo_elder_001',
+    clanId: 'clan_demo_001',
+    branchId: 'branch_demo_001',
+    primaryRole: 'MEMBER',
+    accessMode: 'claimed',
+    linkedAuthUid: true,
+    sortOrder: 30,
+    isActive: true,
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    phoneE164: '+84906660022',
+    scenarioKey: 'user_unlinked',
+    title: 'User chưa vào gia phả nào',
+    description: 'Tài khoản chưa liên kết member/clan để kiểm thử onboarding.',
+    memberId: null,
+    clanId: null,
+    branchId: null,
+    primaryRole: null,
+    accessMode: 'unlinked',
+    linkedAuthUid: false,
+    sortOrder: 40,
+    isActive: true,
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    phoneE164: '+84905550033',
+    scenarioKey: 'branch_admin_unlinked',
+    title: 'Trưởng chi chưa gắn gia phả',
+    description:
+      'Role BRANCH_ADMIN nhưng chưa gắn clan/branch để kiểm thử phân quyền.',
+    memberId: null,
+    clanId: null,
+    branchId: null,
+    primaryRole: 'BRANCH_ADMIN',
+    accessMode: 'unlinked',
+    linkedAuthUid: false,
+    sortOrder: 50,
+    isActive: true,
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    phoneE164: '+84909990001',
+    scenarioKey: 'clan_admin_uninitialized',
+    title: 'Trưởng tộc chưa tạo gia phả',
+    description: 'CLAN_ADMIN có context tạo clan mới nhưng chưa có dữ liệu.',
+    memberId: null,
+    clanId: 'clan_onboarding_001',
+    branchId: null,
+    primaryRole: 'CLAN_ADMIN',
+    accessMode: 'claimed',
+    linkedAuthUid: true,
+    sortOrder: 60,
+    isActive: true,
+    updatedAt: now,
+    createdAt: now,
+  },
+];
+
 async function seed() {
   const batch = db.batch();
 
@@ -828,6 +934,11 @@ async function seed() {
     batch.set(ref, invite, { merge: true });
   }
 
+  for (const profile of debugLoginProfiles) {
+    const ref = db.collection('debug_login_profiles').doc(profile.phoneE164);
+    batch.set(ref, profile, { merge: true });
+  }
+
   await batch.commit();
 
   console.log('Seeded extended demo clan data successfully.');
@@ -837,6 +948,7 @@ async function seed() {
   console.log(`Branches: ${branches.length}`);
   console.log(`Relationships: ${relationships.length}`);
   console.log(`Invites: ${invites.length}`);
+  console.log(`Debug login profiles: ${debugLoginProfiles.length}`);
 }
 
 seed().catch((error) => {

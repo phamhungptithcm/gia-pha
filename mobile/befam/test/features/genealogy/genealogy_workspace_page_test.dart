@@ -90,7 +90,7 @@ void main() {
     );
   });
 
-  testWidgets('renders landing, node cards, connectors, and metrics', (
+  testWidgets('renders landing, node cards, and connectors', (
     tester,
   ) async {
     final repository = DebugGenealogyReadRepository(
@@ -121,7 +121,6 @@ void main() {
     await scrollToTreeWorkspace(tester);
 
     expect(find.byType(CustomPaint), findsWidgets);
-    expect(find.byKey(const Key('tree-metrics-card')), findsOneWidget);
     expect(find.text('Nguyễn Minh'), findsWidgets);
     expect(find.byKey(const Key('genealogy-center-selected')), findsOneWidget);
   });
@@ -211,6 +210,98 @@ void main() {
     await tester.tap(find.byKey(const Key('tree-node-member_demo_child_001')));
     await tester.pumpAndSettle();
 
+    expect(find.text('Bé Minh'), findsWidgets);
+    expect(
+      find.byKey(const Key('genealogy-open-member-detail-action')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('coverage preset renders all clan members across branches', (
+    tester,
+  ) async {
+    final repository = DebugGenealogyReadRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('vi'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Scaffold(
+          body: GenealogyWorkspacePage(
+            session: buildClanAdminSession(),
+            repository: repository,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('tree-preset-coverage')));
+    await tester.pumpAndSettle();
+    await scrollToTreeWorkspace(tester);
+
+    expect(
+      find.byKey(const Key('tree-node-member_demo_parent_001')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('tree-node-member_demo_parent_002')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('tree-node-member_demo_child_001')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('tree-node-member_demo_child_002')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('tree-node-member_demo_elder_001')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('opens member detail page from node info button', (tester) async {
+    final repository = DebugGenealogyReadRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('vi'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Scaffold(
+          body: GenealogyWorkspacePage(
+            session: buildClanAdminSession(),
+            repository: repository,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await scrollToTreeWorkspace(tester);
+    await tester.tap(
+      find.byKey(const Key('tree-node-info-member_demo_child_001')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Chi tiết thành viên'), findsOneWidget);
     expect(find.text('Bé Minh'), findsWidgets);
   });
 }
