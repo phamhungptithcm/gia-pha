@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
+import '../../events/models/event_type.dart';
 import '../models/calendar_date_mode.dart';
 import '../models/calendar_display_mode.dart';
 import '../models/dual_calendar_event.dart';
@@ -1202,6 +1203,25 @@ class _OccurrenceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final event = occurrence.event;
+    final details = <String>[
+      '${_formatDateTime(occurrence.occurrenceDate)} · ${l10n.calendarDateModeLabel(event.dateMode)}${event.isAnnualRecurring ? l10n.pick(vi: ' · hằng năm', en: ' · yearly') : ''}',
+      if (event.eventType == EventType.deathAnniversary &&
+          event.memorialForName.trim().isNotEmpty)
+        l10n.pick(
+          vi: 'Giỗ của: ${event.memorialForName.trim()}',
+          en: 'Memorial for: ${event.memorialForName.trim()}',
+        ),
+      if (event.hostHousehold.trim().isNotEmpty)
+        l10n.pick(
+          vi: 'Nhà/chi: ${event.hostHousehold.trim()}',
+          en: 'Household/branch: ${event.hostHousehold.trim()}',
+        ),
+      if (event.locationAddress.trim().isNotEmpty)
+        l10n.pick(
+          vi: 'Địa chỉ: ${event.locationAddress.trim()}',
+          en: 'Address: ${event.locationAddress.trim()}',
+        ),
+    ];
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
@@ -1214,9 +1234,7 @@ class _OccurrenceRow extends StatelessWidget {
           ),
         ),
         title: Text(event.title),
-        subtitle: Text(
-          '${_formatDateTime(occurrence.occurrenceDate)} · ${l10n.calendarDateModeLabel(event.dateMode)}${event.isAnnualRecurring ? l10n.pick(vi: ' · hằng năm', en: ' · yearly') : ''}',
-        ),
+        subtitle: Text(details.join('\n')),
         trailing: PopupMenuButton<String>(
           onSelected: (value) {
             if (value == 'edit') {
@@ -1436,6 +1454,10 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
 
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _memorialForController = TextEditingController();
+  final _hostHouseholdController = TextEditingController();
+  final _locationAddressController = TextEditingController();
+  EventType _eventType = EventType.deathAnniversary;
   CalendarDateMode _dateMode = CalendarDateMode.solar;
   DateTime _solarDate = DateTime.now();
   TimeOfDay _timeOfDay = const TimeOfDay(hour: 9, minute: 0);
@@ -1461,6 +1483,10 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     if (event != null) {
       _titleController.text = event.title;
       _descriptionController.text = event.description;
+      _eventType = event.eventType;
+      _memorialForController.text = event.memorialForName;
+      _hostHouseholdController.text = event.hostHousehold;
+      _locationAddressController.text = event.locationAddress;
       _dateMode = event.dateMode;
       _solarDate = event.solarDate;
       _timeOfDay = TimeOfDay(
@@ -1492,6 +1518,9 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _memorialForController.dispose();
+    _hostHouseholdController.dispose();
+    _locationAddressController.dispose();
     super.dispose();
   }
 
@@ -1535,6 +1564,69 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                 decoration: InputDecoration(
                   labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
                   border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<EventType>(
+                key: Key('calendar-event-type-dropdown-${_eventType.wireName}'),
+                initialValue: _eventType,
+                decoration: InputDecoration(
+                  labelText: l10n.pick(vi: 'Loại sự kiện', en: 'Event type'),
+                  border: const OutlineInputBorder(),
+                ),
+                items: [
+                  for (final type in EventType.values)
+                    DropdownMenuItem<EventType>(
+                      value: type,
+                      child: Text(l10n.eventTypeLabel(type)),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  setState(() => _eventType = value);
+                },
+              ),
+              if (_eventType.isMemorial) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _memorialForController,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Giỗ của ai', en: 'Memorial for'),
+                    hintText: l10n.pick(
+                      vi: 'Ví dụ: Cụ Nguyễn Văn A',
+                      en: 'Example: Ancestor Nguyen Van A',
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: _hostHouseholdController,
+                decoration: InputDecoration(
+                  labelText: l10n.pick(
+                    vi: 'Nhà/chi tổ chức',
+                    en: 'Host household/branch',
+                  ),
+                  hintText: l10n.pick(
+                    vi: 'Ví dụ: Nhà trưởng chi',
+                    en: 'Example: Main branch house',
+                  ),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _locationAddressController,
+                decoration: InputDecoration(
+                  labelText: l10n.pick(vi: 'Địa chỉ', en: 'Address'),
+                  hintText: l10n.pick(
+                    vi: 'Số nhà, đường, phường/xã, quận/huyện...',
+                    en: 'Street, ward, district...',
+                  ),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 12),
@@ -1749,6 +1841,19 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       );
       return;
     }
+    if (_eventType.isMemorial && _memorialForController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Vui lòng nhập người được giỗ.',
+              en: 'Please provide who this memorial is for.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -1808,6 +1913,12 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         id: source?.id ?? '',
         title: title,
         description: _descriptionController.text.trim(),
+        eventType: _eventType,
+        memorialForName: _eventType.isMemorial
+            ? _memorialForController.text.trim()
+            : '',
+        hostHousehold: _hostHouseholdController.text.trim(),
+        locationAddress: _locationAddressController.text.trim(),
         dateMode: _dateMode,
         solarDate: resolvedSolarDate,
         lunarDate: lunarDate,
