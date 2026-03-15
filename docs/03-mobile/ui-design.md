@@ -28,6 +28,19 @@ to keep the app approachable for both younger and older users.
 - large text compatibility and overflow hardening
 - generous tap targets and legible heading hierarchy
 - reduced cognitive load in home/auth copy
+- icon-only actions include explicit tooltips on core workspace screens
+- workspace loading states include readable progress messaging and live-region
+  semantics via `core/widgets/app_feedback_states.dart`
+- calendar day tiles provide richer semantic labels for solar/lunar context and
+  event counts
+
+## Empty/loading/error audit baseline
+
+- all major workspaces now render explicit loading states instead of spinner-only
+  placeholders
+- no-context and empty states provide user-facing guidance in each module
+- retry actions are available on recoverable error states
+- runtime widget crashes show a fallback card UI instead of a broken frame
 
 ## Content style
 

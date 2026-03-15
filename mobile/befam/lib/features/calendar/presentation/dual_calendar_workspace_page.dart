@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../models/calendar_date_mode.dart';
@@ -75,7 +76,12 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
           ),
           body: SafeArea(
             child: _controller.isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? AppLoadingState(
+                    message: l10n.pick(
+                      vi: 'Đang tải lịch song song...',
+                      en: 'Loading dual calendar...',
+                    ),
+                  )
                 : RefreshIndicator(
                     onRefresh: _controller.refreshAll,
                     child: ListView(
@@ -92,6 +98,17 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                             ),
                             description: message,
                             tone: colorScheme.errorContainer,
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _controller.refreshAll,
+                              icon: const Icon(Icons.refresh),
+                              label: Text(
+                                l10n.pick(vi: 'Thử lại', en: 'Retry'),
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 16),
                         ],
@@ -371,10 +388,8 @@ class _SettingsCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             l10n.pick(
-              vi:
-                  'Theo dõi ngày dương và âm trong cùng một nơi. Chạm vào ngày để xem chi tiết và lời nhắc.',
-              en:
-                  'Track solar and lunar dates in one place. Tap a day to view details and reminders.',
+              vi: 'Theo dõi ngày dương và âm trong cùng một nơi. Chạm vào ngày để xem chi tiết và lời nhắc.',
+              en: 'Track solar and lunar dates in one place. Tap a day to view details and reminders.',
             ),
             style: textTheme.bodyMedium?.copyWith(height: 1.35),
           ),
@@ -579,6 +594,35 @@ class _MonthGrid extends StatelessWidget {
   final ValueChanged<DateTime> onSelectDay;
   final Future<void> Function(DateTime month) onJumpToMonth;
 
+  String _daySemanticsLabel(
+    BuildContext context, {
+    required DateTime day,
+    required LunarDate? lunarDate,
+    required int eventCount,
+    required bool isToday,
+    required bool isSelected,
+    required bool isHoliday,
+  }) {
+    final l10n = context.l10n;
+    final solarLabel = '${_monthName(l10n, day.month)} ${day.day}, ${day.year}';
+    final lunarLabel = lunarDate == null
+        ? l10n.pick(vi: 'Âm lịch chưa có dữ liệu', en: 'Lunar date unavailable')
+        : l10n.pick(
+            vi: 'Âm lịch ${lunarDate.displayLabel}',
+            en: 'Lunar ${lunarDate.displayLabel}',
+          );
+    final eventsLabel = eventCount == 0
+        ? l10n.pick(vi: 'không có sự kiện', en: 'no events')
+        : l10n.pick(vi: '$eventCount sự kiện', en: '$eventCount events');
+    final tags = <String>[
+      if (isToday) l10n.pick(vi: 'hôm nay', en: 'today'),
+      if (isSelected) l10n.pick(vi: 'đã chọn', en: 'selected'),
+      if (isHoliday) l10n.pick(vi: 'ngày lễ', en: 'holiday'),
+    ];
+    final tagText = tags.isEmpty ? '' : ' (${tags.join(', ')})';
+    return '$solarLabel, $lunarLabel, $eventsLabel$tagText';
+  }
+
   @override
   Widget build(BuildContext context) {
     final focusedMonth = controller.focusedMonth;
@@ -638,24 +682,41 @@ class _MonthGrid extends StatelessWidget {
             final eventCount = controller.eventCountForDay(day);
             final isHoliday = isCurrentMonth && controller.isHolidayDay(day);
 
-            return InkWell(
-              key: Key('calendar-day-${_isoDay(day)}'),
-              borderRadius: BorderRadius.circular(14),
-              onTap: () async {
-                if (!isCurrentMonth) {
-                  await onJumpToMonth(DateTime(day.year, day.month));
-                }
-                onSelectDay(day);
-              },
-              child: _DayTile(
+            return Semantics(
+              button: true,
+              selected: isSelected,
+              label: _daySemanticsLabel(
+                context,
                 day: day,
                 lunarDate: lunarDate,
-                isCurrentMonth: isCurrentMonth,
-                isSelected: isSelected,
-                isToday: isToday,
-                isHoliday: isHoliday,
                 eventCount: eventCount,
-                displayMode: controller.displayMode,
+                isToday: isToday,
+                isSelected: isSelected,
+                isHoliday: isHoliday,
+              ),
+              hint: l10n.pick(
+                vi: 'Nhấn để xem chi tiết ngày',
+                en: 'Tap to view day details',
+              ),
+              child: InkWell(
+                key: Key('calendar-day-${_isoDay(day)}'),
+                borderRadius: BorderRadius.circular(14),
+                onTap: () async {
+                  if (!isCurrentMonth) {
+                    await onJumpToMonth(DateTime(day.year, day.month));
+                  }
+                  onSelectDay(day);
+                },
+                child: _DayTile(
+                  day: day,
+                  lunarDate: lunarDate,
+                  isCurrentMonth: isCurrentMonth,
+                  isSelected: isSelected,
+                  isToday: isToday,
+                  isHoliday: isHoliday,
+                  eventCount: eventCount,
+                  displayMode: controller.displayMode,
+                ),
               ),
             );
           },
@@ -706,10 +767,8 @@ class _SelectedDayPanel extends StatelessWidget {
                       en: 'Lunar date unavailable for this day.',
                     )
                   : l10n.pick(
-                      vi:
-                          'Âm lịch ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (tháng nhuận)' : ''}',
-                      en:
-                          'Lunar ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (Leap month)' : ''}',
+                      vi: 'Âm lịch ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (tháng nhuận)' : ''}',
+                      en: 'Lunar ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (Leap month)' : ''}',
                     ),
             ),
             if (holidays.isNotEmpty) ...[
@@ -729,7 +788,10 @@ class _SelectedDayPanel extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               occurrences.isEmpty
-                  ? l10n.pick(vi: 'Không có sự kiện cho ngày này.', en: 'No events for this day.')
+                  ? l10n.pick(
+                      vi: 'Không có sự kiện cho ngày này.',
+                      en: 'No events for this day.',
+                    )
                   : l10n.pick(vi: 'Sự kiện', en: 'Events'),
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
@@ -799,10 +861,8 @@ class _ReminderPanel extends StatelessWidget {
                           Expanded(
                             child: Text(
                               l10n.pick(
-                                vi:
-                                    '${_formatDateTime(reminder.reminderAt)} · trước ${reminder.offsetMinutes} phút',
-                                en:
-                                    '${_formatDateTime(reminder.reminderAt)} · ${reminder.offsetMinutes} min before',
+                                vi: '${_formatDateTime(reminder.reminderAt)} · trước ${reminder.offsetMinutes} phút',
+                                en: '${_formatDateTime(reminder.reminderAt)} · ${reminder.offsetMinutes} min before',
                               ),
                             ),
                           ),
@@ -1462,9 +1522,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   Future<void> _submit() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             context.l10n.pick(

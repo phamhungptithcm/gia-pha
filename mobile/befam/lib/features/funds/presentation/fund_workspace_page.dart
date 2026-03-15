@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/fund_draft.dart';
@@ -57,12 +58,10 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           title: fund == null
               ? l10n.pick(vi: 'Tạo quỹ', en: 'Create fund')
               : l10n.pick(vi: 'Chỉnh sửa quỹ', en: 'Edit fund'),
-          description:
-              l10n.pick(
-                vi: 'Thiết lập hồ sơ quỹ để ghi nhận đóng góp, chi tiêu và theo dõi số dư minh bạch.',
-                en:
-                    'Set up a fund profile for donations, expenses, and transparent balance tracking.',
-              ),
+          description: l10n.pick(
+            vi: 'Thiết lập hồ sơ quỹ để ghi nhận đóng góp, chi tiêu và theo dõi số dư minh bạch.',
+            en: 'Set up a fund profile for donations, expenses, and transparent balance tracking.',
+          ),
           initialDraft: fund == null
               ? FundDraft.empty()
               : FundDraft.fromProfile(fund),
@@ -127,13 +126,19 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           floatingActionButton: _controller.canManageFunds
               ? FloatingActionButton.extended(
                   onPressed: () => _openFundEditor(),
+                  tooltip: l10n.pick(vi: 'Thêm quỹ', en: 'Add fund'),
                   icon: const Icon(Icons.add),
                   label: Text(l10n.pick(vi: 'Thêm quỹ', en: 'Add fund')),
                 )
               : null,
           body: SafeArea(
             child: _controller.isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? AppLoadingState(
+                    message: l10n.pick(
+                      vi: 'Đang tải không gian quỹ...',
+                      en: 'Loading fund workspace...',
+                    ),
+                  )
                 : !_controller.hasClanContext
                 ? _EmptyWorkspace(
                     icon: Icons.lock_outline,
@@ -142,10 +147,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                       en: 'No clan context',
                     ),
                     description: l10n.pick(
-                      vi:
-                          'Liên kết tài khoản này với một họ tộc trước khi xem quỹ và giao dịch.',
-                      en:
-                          'Link this account to a clan before viewing funds and transactions.',
+                      vi: 'Liên kết tài khoản này với một họ tộc trước khi xem quỹ và giao dịch.',
+                      en: 'Link this account to a clan before viewing funds and transactions.',
                     ),
                   )
                 : RefreshIndicator(
@@ -159,10 +162,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                             en: 'Fund ledger workspace',
                           ),
                           description: l10n.pick(
-                            vi:
-                                'Theo dõi đóng góp, chi tiêu, số dư hiện tại và lịch sử theo từng quỹ.',
-                            en:
-                                'Track donations, expenses, running balance, and history across each fund.',
+                            vi: 'Theo dõi đóng góp, chi tiêu, số dư hiện tại và lịch sử theo từng quỹ.',
+                            en: 'Track donations, expenses, running balance, and history across each fund.',
                           ),
                           canManageFunds: _controller.canManageFunds,
                           onPrimaryAction: _controller.canManageFunds
@@ -180,6 +181,17 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                             description: error,
                             tone: colorScheme.errorContainer,
                           ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _controller.refresh,
+                              icon: const Icon(Icons.refresh),
+                              label: Text(
+                                l10n.pick(vi: 'Tải lại', en: 'Retry'),
+                              ),
+                            ),
+                          ),
                           const SizedBox(height: 20),
                         ],
                         if (!_controller.canManageFunds) ...[
@@ -190,10 +202,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                               en: 'Read-only role',
                             ),
                             description: l10n.pick(
-                              vi:
-                                  'Chỉ quản trị cấp họ tộc mới có thể tạo quỹ hoặc ghi giao dịch.',
-                              en:
-                                  'Only clan-level administrators can create funds or post transactions.',
+                              vi: 'Chỉ quản trị cấp họ tộc mới có thể tạo quỹ hoặc ghi giao dịch.',
+                              en: 'Only clan-level administrators can create funds or post transactions.',
                             ),
                             tone: colorScheme.secondaryContainer,
                           ),
@@ -246,10 +256,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                                     en: 'No funds yet',
                                   ),
                                   description: l10n.pick(
-                                    vi:
-                                        'Tạo quỹ đầu tiên để bắt đầu ghi nhận đóng góp và chi tiêu.',
-                                    en:
-                                        'Create the first fund to start recording donations and expenses.',
+                                    vi: 'Tạo quỹ đầu tiên để bắt đầu ghi nhận đóng góp và chi tiêu.',
+                                    en: 'Create the first fund to start recording donations and expenses.',
                                   ),
                                 )
                               : Column(

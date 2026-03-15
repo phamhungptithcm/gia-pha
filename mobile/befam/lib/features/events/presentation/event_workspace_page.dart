@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../../clan/models/branch_profile.dart';
@@ -118,13 +119,19 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
               ? FloatingActionButton.extended(
                   key: const Key('event-create-button'),
                   onPressed: () => _openEventEditor(),
+                  tooltip: l10n.eventCreateAction,
                   icon: const Icon(Icons.add),
                   label: Text(l10n.eventCreateAction),
                 )
               : null,
           body: SafeArea(
             child: _controller.isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? AppLoadingState(
+                    message: l10n.pick(
+                      vi: 'Đang tải không gian sự kiện...',
+                      en: 'Loading event workspace...',
+                    ),
+                  )
                 : !_controller.hasClanContext
                 ? _WorkspaceEmptyState(
                     icon: Icons.lock_outline,
@@ -163,6 +170,15 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                             title: l10n.eventLoadErrorTitle,
                             description: l10n.eventLoadErrorDescription,
                             tone: colorScheme.errorContainer,
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _controller.refresh,
+                              icon: const Icon(Icons.refresh),
+                              label: Text(l10n.eventRefreshAction),
+                            ),
                           ),
                           const SizedBox(height: 20),
                         ],

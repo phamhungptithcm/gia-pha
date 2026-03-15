@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/app_locale_controller.dart';
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -126,20 +127,14 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
               ListTile(
                 leading: const Icon(Icons.image_outlined),
                 title: Text(
-                  l10n.pick(
-                    vi: 'Xem ảnh hiện tại',
-                    en: 'View current photo',
-                  ),
+                  l10n.pick(vi: 'Xem ảnh hiện tại', en: 'View current photo'),
                 ),
                 onTap: () => Navigator.of(context).pop(_AvatarAction.view),
               ),
               ListTile(
                 leading: const Icon(Icons.file_upload_outlined),
                 title: Text(
-                  l10n.pick(
-                    vi: 'Tải ảnh mới',
-                    en: 'Upload new photo',
-                  ),
+                  l10n.pick(vi: 'Tải ảnh mới', en: 'Upload new photo'),
                 ),
                 onTap: () => Navigator.of(context).pop(_AvatarAction.upload),
               ),
@@ -183,10 +178,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
             child: InteractiveViewer(
               minScale: 1,
               maxScale: 4,
-              child: Image.network(
-                profile.avatarUrl!,
-                fit: BoxFit.cover,
-              ),
+              child: Image.network(profile.avatarUrl!, fit: BoxFit.cover),
             ),
           ),
         );
@@ -266,7 +258,12 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
           ),
           body: SafeArea(
             child: _controller.isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? AppLoadingState(
+                    message: l10n.pick(
+                      vi: 'Đang tải hồ sơ...',
+                      en: 'Loading profile...',
+                    ),
+                  )
                 : !_controller.hasMemberContext
                 ? _ProfileEmptyState(
                     icon: Icons.lock_outline,
@@ -305,6 +302,15 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                             title: l10n.profileUpdateErrorTitle,
                             description: _controller.errorMessage!,
                             tone: colorScheme.errorContainer,
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _controller.refresh,
+                              icon: const Icon(Icons.refresh),
+                              label: Text(l10n.profileRefreshAction),
+                            ),
                           ),
                           const SizedBox(height: 20),
                         ],
@@ -1007,10 +1013,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
 }
 
 class _ProfileSectionCard extends StatelessWidget {
-  const _ProfileSectionCard({
-    required this.title,
-    required this.child,
-  });
+  const _ProfileSectionCard({required this.title, required this.child});
 
   final String title;
   final Widget child;

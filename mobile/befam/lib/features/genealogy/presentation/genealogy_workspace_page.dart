@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_member_access_mode.dart';
@@ -84,7 +85,12 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     if (_isLoading && _segment == null) {
-      return const Center(child: CircularProgressIndicator());
+      return AppLoadingState(
+        message: l10n.pick(
+          vi: 'Đang tải cây gia phả...',
+          en: 'Loading family tree...',
+        ),
+      );
     }
 
     if (_error != null && _segment == null) {
@@ -1626,6 +1632,7 @@ class _DepthControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -1641,7 +1648,7 @@ class _DepthControl extends StatelessWidget {
               visualDensity: VisualDensity.compact,
               onPressed: canDecrease ? onDecrease : null,
               icon: const Icon(Icons.remove),
-              tooltip: '-',
+              tooltip: l10n.pick(vi: 'Giảm $label', en: 'Decrease $label'),
             ),
             Text('$label $depth', key: Key('genealogy-depth-$id-value')),
             IconButton(
@@ -1649,7 +1656,7 @@ class _DepthControl extends StatelessWidget {
               visualDensity: VisualDensity.compact,
               onPressed: canIncrease ? onIncrease : null,
               icon: const Icon(Icons.add),
-              tooltip: '+',
+              tooltip: l10n.pick(vi: 'Tăng $label', en: 'Increase $label'),
             ),
           ],
         ),
@@ -1672,6 +1679,7 @@ class _TreeZoomControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.92),
@@ -1688,21 +1696,24 @@ class _TreeZoomControls extends StatelessWidget {
               visualDensity: VisualDensity.compact,
               onPressed: onZoomOut,
               icon: const Icon(Icons.remove),
-              tooltip: '-',
+              tooltip: l10n.pick(vi: 'Thu nhỏ cây', en: 'Zoom out tree'),
             ),
             IconButton(
               key: const Key('tree-zoom-in'),
               visualDensity: VisualDensity.compact,
               onPressed: onZoomIn,
               icon: const Icon(Icons.add),
-              tooltip: '+',
+              tooltip: l10n.pick(vi: 'Phóng to cây', en: 'Zoom in tree'),
             ),
             IconButton(
               key: const Key('tree-zoom-reset'),
               visualDensity: VisualDensity.compact,
               onPressed: onReset,
               icon: const Icon(Icons.filter_center_focus),
-              tooltip: 'Reset',
+              tooltip: l10n.pick(
+                vi: 'Đặt lại vị trí cây',
+                en: 'Reset tree view',
+              ),
             ),
           ],
         ),
