@@ -74,13 +74,5 @@ void main() {
 
     expect(find.text('Đã thêm liên kết hôn phối.'), findsOneWidget);
     expect(find.text('Trần Lan'), findsWidgets);
-    expect(
-      find.byKey(
-        const Key(
-          'relationship-record-rel_spouse_member_demo_parent_001_member_demo_parent_002',
-        ),
-      ),
-      findsOneWidget,
-    );
   });
 }

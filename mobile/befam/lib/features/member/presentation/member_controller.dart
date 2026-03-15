@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/performance_measurement_logger.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../../clan/models/branch_profile.dart';
 import '../models/member_draft.dart';
@@ -59,6 +60,16 @@ class MemberController extends ChangeNotifier {
   bool get isSearching => _isSearching;
   String? get searchError => _searchError;
   bool get hasClanContext => permissions.canViewWorkspace;
+  bool get canAssignRoleManually => permissions.canAssignRoleManually;
+
+  List<String> get assignableCreateRoles => const [
+    GovernanceRoles.member,
+    GovernanceRoles.clanLeader,
+    GovernanceRoles.branchAdmin,
+    GovernanceRoles.treasurer,
+    GovernanceRoles.scholarshipCouncilHead,
+    GovernanceRoles.adminSupport,
+  ];
 
   List<MemberProfile> get _accessibleMembers {
     return _members
@@ -185,6 +196,12 @@ class MemberController extends ChangeNotifier {
       return MemberRepositoryErrorCode.permissionDenied;
     }
 
+    if (memberId == null) {
+      draftToSave = draft.copyWith(
+        primaryRole: resolveCreateRoleForDraft(draft),
+      );
+    }
+
     if (memberId != null) {
       final existing = _members.firstWhereOrNull(
         (member) => member.id == memberId,
@@ -194,7 +211,9 @@ class MemberController extends ChangeNotifier {
       }
 
       if (permissions.canEditAnyMember) {
-        if (!permissions.canManageBranch(resolvedBranchId ?? existing.branchId)) {
+        if (!permissions.canManageBranch(
+          resolvedBranchId ?? existing.branchId,
+        )) {
           return MemberRepositoryErrorCode.permissionDenied;
         }
       } else {
@@ -291,6 +310,73 @@ class MemberController extends ChangeNotifier {
     return _members
         .firstWhereOrNull((member) => member.id == selectedParentId)
         ?.branchId;
+  }
+
+  String resolveCreateRoleForDraft(MemberDraft draft) {
+    if (!canAssignRoleManually) {
+      return resolveAutoRoleForDraft(draft);
+    }
+
+    final normalized = GovernanceRoleMatrix.normalizeRole(draft.primaryRole);
+    if (assignableCreateRoles.contains(normalized)) {
+      return normalized;
+    }
+
+    return GovernanceRoles.member;
+  }
+
+  String resolveAutoRoleForDraft(MemberDraft draft) {
+    final hasSelectedParent =
+        draft.parentIds.firstOrNull?.trim().isNotEmpty ?? false;
+    if (hasSelectedParent) {
+      return GovernanceRoles.member;
+    }
+
+    final resolvedBranchId = _resolveBranchForDraft(draft);
+    final resolvedGeneration = _resolveGenerationForDraft(draft);
+    final normalizedRoles = _members
+        .map((member) => GovernanceRoleMatrix.normalizeRole(member.primaryRole))
+        .toSet();
+    final hasClanLeadership = normalizedRoles.any(
+      (role) =>
+          role == GovernanceRoles.superAdmin ||
+          role == GovernanceRoles.clanAdmin ||
+          role == GovernanceRoles.clanOwner ||
+          role == GovernanceRoles.clanLeader,
+    );
+    if (!hasClanLeadership && resolvedGeneration <= 1) {
+      return GovernanceRoles.clanLeader;
+    }
+
+    if (resolvedBranchId != null && resolvedBranchId.isNotEmpty) {
+      final hasBranchAdmin = _members.any(
+        (member) =>
+            member.branchId == resolvedBranchId &&
+            GovernanceRoleMatrix.normalizeRole(member.primaryRole) ==
+                GovernanceRoles.branchAdmin,
+      );
+      if (!hasBranchAdmin && resolvedGeneration <= 2) {
+        return GovernanceRoles.branchAdmin;
+      }
+    }
+
+    return GovernanceRoles.member;
+  }
+
+  int _resolveGenerationForDraft(MemberDraft draft) {
+    final selectedParentId = draft.parentIds.firstOrNull;
+    if (selectedParentId == null || selectedParentId.isEmpty) {
+      return draft.generation;
+    }
+
+    final selectedParent = _members.firstWhereOrNull(
+      (member) => member.id == selectedParentId,
+    );
+    if (selectedParent == null) {
+      return draft.generation;
+    }
+
+    return selectedParent.generation + 1;
   }
 
   void _trackFiltersUpdated() {

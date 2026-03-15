@@ -105,8 +105,16 @@ class FirebaseFundRepository implements FundRepository {
       session: session,
     );
 
-    final clanId = session.clanId;
-    if (clanId == null || clanId.isEmpty) {
+    final sessionClanId = session.clanId?.trim() ?? '';
+    if (sessionClanId.isEmpty) {
+      throw const FundRepositoryException(
+        FundRepositoryErrorCode.permissionDenied,
+      );
+    }
+    final targetClanId = (draft.clanId ?? '').trim().isEmpty
+        ? sessionClanId
+        : draft.clanId!.trim();
+    if (targetClanId != sessionClanId) {
       throw const FundRepositoryException(
         FundRepositoryErrorCode.permissionDenied,
       );
@@ -134,8 +142,13 @@ class FirebaseFundRepository implements FundRepository {
 
       await docRef.set({
         'id': docRef.id,
-        'clanId': clanId,
+        'clanId': targetClanId,
         'branchId': _nullableTrim(draft.branchId),
+        'appliedMemberIds': draft.appliedMemberIds
+            .map((entry) => entry.trim())
+            .where((entry) => entry.isNotEmpty)
+            .toSet()
+            .toList(growable: false),
         'name': trimmedName,
         'description': draft.description.trim(),
         'fundType': draft.fundType.trim().isEmpty

@@ -12,7 +12,6 @@ import {
   ensureClaimedSession,
   ensureClanAccess,
   stringOrNull,
-  tokenClanIds,
   tokenMemberId,
   tokenPrimaryRole,
 } from '../shared/permissions';
@@ -63,7 +62,9 @@ const usersCollection = db.collection('users');
 const auditLogsCollection = db.collection('auditLogs');
 
 const reviewerRoles = [
+  GOVERNANCE_ROLES.superAdmin,
   GOVERNANCE_ROLES.clanAdmin,
+  'CLAN_LEADER',
   GOVERNANCE_ROLES.branchAdmin,
   GOVERNANCE_ROLES.adminSupport,
   'VICE_LEADER',
@@ -74,12 +75,6 @@ export const searchGenealogyDiscovery = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
-    if (tokenClanIds(auth.token).length > 0) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Genealogy discovery is only available for users who have not joined a clan yet.',
-      );
-    }
 
     const leaderQuery = normalizeSearch(optionalString(request.data, 'leaderQuery'));
     const locationQuery = normalizeSearch(optionalString(request.data, 'locationQuery'));
@@ -113,12 +108,6 @@ export const submitJoinRequest = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
-    if (tokenClanIds(auth.token).length > 0) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Only users without clan membership can submit a join request.',
-      );
-    }
 
     const clanId = requireNonEmptyString(request.data, 'clanId');
     const applicantName = requireNonEmptyString(request.data, 'applicantName');

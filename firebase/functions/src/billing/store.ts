@@ -596,7 +596,15 @@ export async function applyPaymentResult({
 
 export async function resolveBillingAudienceMemberIds(clanId: string): Promise<Array<string>> {
   const snapshot = await membersCollection.where('clanId', '==', clanId).limit(1000).get();
-  const adminRoles = new Set(['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN']);
+  const adminRoles = new Set([
+    'SUPER_ADMIN',
+    'CLAN_ADMIN',
+    'BRANCH_ADMIN',
+    'CLAN_OWNER',
+    'CLAN_LEADER',
+    'VICE_LEADER',
+    'SUPPORTER_OF_LEADER',
+  ]);
   return snapshot.docs
     .filter((doc) => {
       const role = readString(doc.data().primaryRole, '').toUpperCase();

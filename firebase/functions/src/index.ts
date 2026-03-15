@@ -7,8 +7,10 @@ import {
   createInvite,
   issueDebugProfileCustomToken,
   listDebugLoginProfiles,
+  listUserClanContexts,
   registerDeviceToken,
   resolveChildLoginContext,
+  switchActiveClanContext,
 } from './auth/callables';
 import {
   completeCardCheckout,
@@ -69,6 +71,7 @@ export {
   getTreasurerDashboard,
   listJoinRequestsForReview,
   listDebugLoginProfiles,
+  listUserClanContexts,
   loadBillingWorkspace,
   onEventCreated,
   onRelationshipCreated,
@@ -84,6 +87,7 @@ export {
   sendEventReminder,
   submitJoinRequest,
   simulateVnpaySettlement,
+  switchActiveClanContext,
   updateBillingPreferences,
   vnpayPaymentCallback,
 };

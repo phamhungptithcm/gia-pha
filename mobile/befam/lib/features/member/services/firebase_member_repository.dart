@@ -96,14 +96,16 @@ class FirebaseMemberRepository implements MemberRepository {
     final actor = session.memberId ?? session.uid;
     final previousBranchId = existingData['branchId'] as String?;
     final previousParentIds = _stringList(existingData['parentIds']);
-    var resolvedParentIds = _normalizeParentIds(draft.parentIds)
-        .where((id) => id != memberRef.id)
-        .toList(growable: false);
+    var resolvedParentIds = _normalizeParentIds(
+      draft.parentIds,
+    ).where((id) => id != memberRef.id).toList(growable: false);
     var branchId = draft.branchId ?? existingData['branchId'] as String?;
     var generation = draft.generation;
 
     if (resolvedParentIds.isNotEmpty) {
-      final primaryParentSnapshot = await _members.doc(resolvedParentIds.first).get();
+      final primaryParentSnapshot = await _members
+          .doc(resolvedParentIds.first)
+          .get();
       final primaryParentData = primaryParentSnapshot.data();
       if (!primaryParentSnapshot.exists ||
           primaryParentData == null ||
@@ -112,14 +114,16 @@ class FirebaseMemberRepository implements MemberRepository {
           MemberRepositoryErrorCode.permissionDenied,
         );
       }
-      final derivedBranchId = (primaryParentData['branchId'] as String?)?.trim();
+      final derivedBranchId = (primaryParentData['branchId'] as String?)
+          ?.trim();
       if (derivedBranchId == null || derivedBranchId.isEmpty) {
         throw const MemberRepositoryException(
           MemberRepositoryErrorCode.permissionDenied,
         );
       }
       branchId = derivedBranchId;
-      generation = _asPositiveInt(primaryParentData['generation'], fallback: 1) + 1;
+      generation =
+          _asPositiveInt(primaryParentData['generation'], fallback: 1) + 1;
     }
 
     if (branchId == null || branchId.isEmpty || generation <= 0) {
@@ -149,6 +153,9 @@ class FirebaseMemberRepository implements MemberRepository {
       'parentIds': resolvedParentIds,
       'childrenIds': existingData['childrenIds'] ?? const <String>[],
       'spouseIds': existingData['spouseIds'] ?? const <String>[],
+      'siblingOrder': resolvedParentIds.isEmpty
+          ? null
+          : existingData['siblingOrder'] ?? draft.siblingOrder,
       'generation': generation,
       'lineagePath': [clanId, branchId],
       'primaryRole': existingData['primaryRole'] ?? draft.primaryRole,
@@ -170,6 +177,11 @@ class FirebaseMemberRepository implements MemberRepository {
       nextParentIds: resolvedParentIds,
       actor: actor,
     );
+    await _syncSiblingOrder(
+      clanId: clanId,
+      parentIds: {...previousParentIds, ...resolvedParentIds},
+      actor: actor,
+    );
     await _syncBranchCount(clanId, branchId, actor);
     if (previousBranchId != null &&
         previousBranchId.isNotEmpty &&
@@ -178,6 +190,63 @@ class FirebaseMemberRepository implements MemberRepository {
     }
     final updated = await memberRef.get();
     return MemberProfile.fromJson(updated.data()!);
+  }
+
+  Future<void> _syncSiblingOrder({
+    required String clanId,
+    required Set<String> parentIds,
+    required String actor,
+  }) async {
+    for (final parentId in parentIds) {
+      if (parentId.trim().isEmpty) {
+        continue;
+      }
+      final parentSnapshot = await _members.doc(parentId).get();
+      final parentData = parentSnapshot.data();
+      if (!parentSnapshot.exists ||
+          parentData == null ||
+          parentData['clanId'] != clanId) {
+        continue;
+      }
+
+      final childIds = _stringList(parentData['childrenIds']);
+      if (childIds.isEmpty) {
+        continue;
+      }
+
+      final childSnapshots = await Future.wait(
+        childIds.map((childId) => _members.doc(childId).get()),
+      );
+      final rankableChildren =
+          childSnapshots
+              .where((snapshot) => snapshot.exists && snapshot.data() != null)
+              .map((snapshot) => _SiblingRankEntry.fromSnapshot(snapshot))
+              .where((entry) => entry.clanId == clanId)
+              .toList(growable: false)
+            ..sort(_compareSiblingRankEntry);
+      if (rankableChildren.isEmpty) {
+        continue;
+      }
+
+      final batch = _firestore.batch();
+      var hasWrites = false;
+      for (var index = 0; index < rankableChildren.length; index++) {
+        final entry = rankableChildren[index];
+        final nextOrder = index + 1;
+        if (entry.currentSiblingOrder == nextOrder) {
+          continue;
+        }
+        hasWrites = true;
+        batch.set(_members.doc(entry.memberId), {
+          'siblingOrder': nextOrder,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedBy': actor,
+        }, SetOptions(merge: true));
+      }
+      if (hasWrites) {
+        await batch.commit();
+      }
+    }
   }
 
   Future<void> _syncParentLinks({
@@ -365,4 +434,82 @@ int _asPositiveInt(dynamic value, {required int fallback}) {
     return value;
   }
   return fallback;
+}
+
+int? _asPositiveIntOrNull(dynamic value) {
+  if (value is int && value > 0) {
+    return value;
+  }
+  return null;
+}
+
+DateTime? _tryParseIsoDate(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return null;
+  }
+  return DateTime.tryParse(trimmed);
+}
+
+int _compareSiblingRankEntry(_SiblingRankEntry left, _SiblingRankEntry right) {
+  final byBirthDate = _compareNullableDate(left.birthDate, right.birthDate);
+  if (byBirthDate != 0) {
+    return byBirthDate;
+  }
+  final byGeneration = left.generation.compareTo(right.generation);
+  if (byGeneration != 0) {
+    return byGeneration;
+  }
+  final byName = left.fullName.toLowerCase().compareTo(
+    right.fullName.toLowerCase(),
+  );
+  if (byName != 0) {
+    return byName;
+  }
+  return left.memberId.compareTo(right.memberId);
+}
+
+int _compareNullableDate(DateTime? left, DateTime? right) {
+  if (left == null && right == null) {
+    return 0;
+  }
+  if (left == null) {
+    return 1;
+  }
+  if (right == null) {
+    return -1;
+  }
+  return left.compareTo(right);
+}
+
+class _SiblingRankEntry {
+  const _SiblingRankEntry({
+    required this.memberId,
+    required this.clanId,
+    required this.fullName,
+    required this.generation,
+    required this.birthDate,
+    required this.currentSiblingOrder,
+  });
+
+  final String memberId;
+  final String clanId;
+  final String fullName;
+  final int generation;
+  final DateTime? birthDate;
+  final int? currentSiblingOrder;
+
+  factory _SiblingRankEntry.fromSnapshot(
+    DocumentSnapshot<Map<String, dynamic>> snapshot,
+  ) {
+    final data = snapshot.data() ?? const <String, dynamic>{};
+    return _SiblingRankEntry(
+      memberId: snapshot.id,
+      clanId: (data['clanId'] as String?)?.trim() ?? '',
+      fullName: (data['fullName'] as String?)?.trim() ?? snapshot.id,
+      generation: _asPositiveInt(data['generation'], fallback: 1),
+      birthDate: _tryParseIsoDate(data['birthDate'] as String?),
+      currentSiblingOrder: _asPositiveIntOrNull(data['siblingOrder']),
+    );
+  }
 }

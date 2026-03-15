@@ -428,10 +428,7 @@ service cloud.firestore {
       allow read: if
         signedIn() &&
         (
-          (
-            memberAccessModeClaim() == 'unlinked' &&
-            resource.data.isPublic == true
-          ) ||
+          resource.data.isPublic == true ||
           (
             hasClanAccess(resource.data.clanId) &&
             isGovernanceJoinReviewer()

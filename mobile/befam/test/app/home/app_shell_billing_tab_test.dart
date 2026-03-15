@@ -100,9 +100,9 @@ void main() {
     final destinations = tester
         .widgetList<NavigationDestination>(find.byType(NavigationDestination))
         .toList(growable: false);
-    expect(destinations.length, 4);
+    expect(destinations.length, 5);
     expect(destinations[3].label, 'Billing');
-    expect(find.text('Profile'), findsNothing);
+    expect(destinations[4].label, 'Profile');
 
     await tester.tap(find.text('Billing'));
     await tester.pumpAndSettle();

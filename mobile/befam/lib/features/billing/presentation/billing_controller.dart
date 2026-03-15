@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
 import '../services/billing_repository.dart';
@@ -37,6 +38,9 @@ class BillingController extends ChangeNotifier {
   bool get hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
 
   bool get canManageBilling {
+    if (!GovernanceRoleMatrix.isClaimedClanSession(_session)) {
+      return false;
+    }
     final role = (_session.primaryRole ?? '').trim().toUpperCase();
     return role == 'SUPER_ADMIN' ||
         role == 'CLAN_ADMIN' ||
@@ -193,7 +197,9 @@ class BillingController extends ChangeNotifier {
 
   Future<BillingEntitlement?> refreshEntitlement() async {
     try {
-      final entitlement = await _repository.resolveEntitlement(session: _session);
+      final entitlement = await _repository.resolveEntitlement(
+        session: _session,
+      );
       final current = _workspace;
       if (current != null) {
         _workspace = BillingWorkspaceSnapshot(

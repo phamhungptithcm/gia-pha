@@ -21,6 +21,7 @@ class MemberProfile {
     required this.parentIds,
     required this.childrenIds,
     required this.spouseIds,
+    this.siblingOrder,
     required this.generation,
     required this.primaryRole,
     required this.status,
@@ -47,6 +48,7 @@ class MemberProfile {
   final List<String> parentIds;
   final List<String> childrenIds;
   final List<String> spouseIds;
+  final int? siblingOrder;
   final int generation;
   final String primaryRole;
   final String status;
@@ -96,6 +98,7 @@ class MemberProfile {
     List<String>? parentIds,
     List<String>? childrenIds,
     List<String>? spouseIds,
+    int? siblingOrder,
     int? generation,
     String? primaryRole,
     String? status,
@@ -122,6 +125,7 @@ class MemberProfile {
       parentIds: parentIds ?? this.parentIds,
       childrenIds: childrenIds ?? this.childrenIds,
       spouseIds: spouseIds ?? this.spouseIds,
+      siblingOrder: siblingOrder ?? this.siblingOrder,
       generation: generation ?? this.generation,
       primaryRole: primaryRole ?? this.primaryRole,
       status: status ?? this.status,
@@ -151,6 +155,7 @@ class MemberProfile {
       'parentIds': parentIds,
       'childrenIds': childrenIds,
       'spouseIds': spouseIds,
+      'siblingOrder': siblingOrder,
       'generation': generation,
       'primaryRole': primaryRole,
       'status': status,
@@ -184,6 +189,7 @@ class MemberProfile {
       parentIds: _stringList(json['parentIds']),
       childrenIds: _stringList(json['childrenIds']),
       spouseIds: _stringList(json['spouseIds']),
+      siblingOrder: _asPositiveIntOrNull(json['siblingOrder']),
       generation: json['generation'] as int? ?? 1,
       primaryRole: json['primaryRole'] as String? ?? 'MEMBER',
       status: json['status'] as String? ?? 'active',
@@ -205,4 +211,11 @@ List<String> _stringList(dynamic value) {
       .toSet()
       .toList(growable: false)
     ..sort();
+}
+
+int? _asPositiveIntOrNull(dynamic value) {
+  if (value is int && value > 0) {
+    return value;
+  }
+  return null;
 }

@@ -287,10 +287,12 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                     ),
                   )
                 : !_controller.hasMemberContext
-                ? _ProfileEmptyState(
-                    icon: Icons.lock_outline,
-                    title: l10n.profileNoContextTitle,
-                    description: l10n.profileNoContextDescription,
+                ? _ProfileUnlinkedState(
+                    localeController: _localeController,
+                    onOpenSettings: _openSettings,
+                    onLogoutRequested: widget.onLogoutRequested == null
+                        ? null
+                        : _confirmLogout,
                   )
                 : _controller.profile == null
                 ? _ProfileEmptyState(
@@ -1277,6 +1279,102 @@ class _ProfileInfoCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ProfileUnlinkedState extends StatelessWidget {
+  const _ProfileUnlinkedState({
+    required this.localeController,
+    required this.onOpenSettings,
+    this.onLogoutRequested,
+  });
+
+  final AppLocaleController localeController;
+  final VoidCallback onOpenSettings;
+  final VoidCallback? onLogoutRequested;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final selectedLanguageCode = localeController.locale.languageCode;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      children: [
+        _ProfileEmptyState(
+          icon: Icons.lock_outline,
+          title: l10n.profileNoContextTitle,
+          description: l10n.pick(
+            vi: 'Bạn chưa liên kết vào gia phả nào. Bạn vẫn có thể đổi ngôn ngữ, cấu hình ứng dụng và đăng xuất an toàn.',
+            en: 'This account is not linked to a clan yet. You can still change language, configure app preferences, and sign out safely.',
+          ),
+        ),
+        const SizedBox(height: 20),
+        _ProfileSectionCard(
+          title: l10n.profileLanguageSectionTitle,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.profileLanguageSectionDescription,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 10),
+              SegmentedButton<String>(
+                showSelectedIcon: true,
+                segments: [
+                  ButtonSegment<String>(
+                    value: 'vi',
+                    label: Text(l10n.profileLanguageVietnamese),
+                  ),
+                  ButtonSegment<String>(
+                    value: 'en',
+                    label: Text(l10n.profileLanguageEnglish),
+                  ),
+                ],
+                selected: {selectedLanguageCode},
+                onSelectionChanged: (selected) {
+                  if (selected.isEmpty) {
+                    return;
+                  }
+                  unawaited(
+                    localeController.updateLanguageCode(selected.first),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+              Text(
+                selectedLanguageCode == 'vi'
+                    ? l10n.profileLanguageVietnameseSubtitle
+                    : l10n.profileLanguageEnglishSubtitle,
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _ProfileSectionCard(
+          title: l10n.profileSettingsTitle,
+          child: FilledButton.tonalIcon(
+            onPressed: onOpenSettings,
+            icon: const Icon(Icons.settings_outlined),
+            label: Text(l10n.profileOpenSettingsAction),
+          ),
+        ),
+        if (onLogoutRequested != null) ...[
+          const SizedBox(height: 20),
+          _ProfileSectionCard(
+            title: l10n.profileAccountSectionTitle,
+            child: OutlinedButton.icon(
+              onPressed: onLogoutRequested,
+              icon: const Icon(Icons.logout),
+              label: Text(l10n.shellLogout),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

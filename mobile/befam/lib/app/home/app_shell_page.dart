@@ -26,7 +26,10 @@ import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
 import '../../features/auth/models/auth_session.dart';
+import '../../features/auth/models/clan_context_option.dart';
 import '../../features/auth/services/phone_number_formatter.dart';
+import '../../features/auth/services/auth_session_store.dart';
+import '../../features/auth/services/clan_context_service.dart';
 import '../../core/services/app_locale_controller.dart';
 import '../../core/services/governance_role_matrix.dart';
 import '../bootstrap/firebase_setup_status.dart';
@@ -66,15 +69,24 @@ class AppShellPage extends StatefulWidget {
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
   final Set<int> _visitedDestinationIndexes = <int>{0};
+  late AuthSession _activeSession;
   late final GenealogyReadRepository _genealogyRepository;
   late final FundRepository _fundRepository;
   late final BillingRepository _billingRepository;
   late final PushNotificationService _pushNotificationService;
+  late final ClanContextService _clanContextService;
+  final AuthSessionStore _sessionStore = SharedPrefsAuthSessionStore();
   String? _lastOpenedNotificationMessageId;
   bool _showAdBanner = true;
   bool _isResolvingBillingEntitlement = false;
   bool _dismissAdBannerForSession = false;
-  bool get _hasClanContext => (widget.session.clanId ?? '').trim().isNotEmpty;
+  bool _isLoadingClanContexts = false;
+  bool _isSwitchingClanContext = false;
+  List<ClanContextOption> _clanContexts = const [];
+
+  AuthSession get _session => _activeSession;
+
+  bool get _hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
@@ -124,29 +136,36 @@ class _AppShellPageState extends State<AppShellPage> {
       icon: Icons.workspace_premium_outlined,
       selectedIcon: Icons.workspace_premium,
     ),
+    _ShellDestination(
+      id: 'profile',
+      icon: Icons.person_outline,
+      selectedIcon: Icons.person,
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
+    _activeSession = widget.session;
     _genealogyRepository =
         widget.genealogyRepository ??
-        createDefaultGenealogyReadRepository(session: widget.session);
+        createDefaultGenealogyReadRepository(session: _session);
     _fundRepository =
-        widget.fundRepository ??
-        createDefaultFundRepository(session: widget.session);
+        widget.fundRepository ?? createDefaultFundRepository(session: _session);
     _billingRepository =
         widget.billingRepository ??
-        createDefaultBillingRepository(session: widget.session);
+        createDefaultBillingRepository(session: _session);
     _pushNotificationService =
         widget.pushNotificationService ??
-        createDefaultPushNotificationService(session: widget.session);
+        createDefaultPushNotificationService(session: _session);
+    _clanContextService = createDefaultClanContextService(session: _session);
     unawaited(
       _pushNotificationService.start(
-        session: widget.session,
+        session: _session,
         onDeepLink: _handleNotificationDeepLink,
       ),
     );
+    unawaited(_loadClanContexts());
     unawaited(_refreshBillingEntitlement());
   }
 
@@ -154,12 +173,14 @@ class _AppShellPageState extends State<AppShellPage> {
   void didUpdateWidget(covariant AppShellPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session) {
+      _activeSession = widget.session;
       unawaited(
         _pushNotificationService.start(
-          session: widget.session,
+          session: _session,
           onDeepLink: _handleNotificationDeepLink,
         ),
       );
+      unawaited(_loadClanContexts());
       _dismissAdBannerForSession = false;
       unawaited(_refreshBillingEntitlement());
     }
@@ -286,7 +307,7 @@ class _AppShellPageState extends State<AppShellPage> {
     if (_isResolvingBillingEntitlement) {
       return;
     }
-    if (!_hasBillingContext(widget.session)) {
+    if (!_hasBillingContext(_session)) {
       if (mounted) {
         setState(() {
           _showAdBanner = true;
@@ -298,7 +319,7 @@ class _AppShellPageState extends State<AppShellPage> {
     _isResolvingBillingEntitlement = true;
     try {
       final entitlement = await _billingRepository.resolveEntitlement(
-        session: widget.session,
+        session: _session,
       );
       if (!mounted) {
         return;
@@ -320,6 +341,83 @@ class _AppShellPageState extends State<AppShellPage> {
 
   bool _hasBillingContext(AuthSession session) {
     return (session.clanId ?? '').trim().isNotEmpty;
+  }
+
+  Future<void> _loadClanContexts() async {
+    if (_isLoadingClanContexts || !_session.linkedAuthUid) {
+      return;
+    }
+    _isLoadingClanContexts = true;
+    try {
+      final snapshot = await _clanContextService.loadContexts(
+        session: _session,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _activeSession = snapshot.activeSession;
+        _clanContexts = snapshot.contexts;
+      });
+      await _sessionStore.write(_activeSession);
+      await _pushNotificationService.start(
+        session: _session,
+        onDeepLink: _handleNotificationDeepLink,
+      );
+      unawaited(_refreshBillingEntitlement());
+    } catch (_) {
+      // Keep the existing session context if callable is unavailable.
+    } finally {
+      _isLoadingClanContexts = false;
+    }
+  }
+
+  Future<AuthSession?> _switchClanContext(String clanId) async {
+    final normalized = clanId.trim();
+    if (normalized.isEmpty || normalized == (_session.clanId ?? '').trim()) {
+      return _session;
+    }
+    if (_isSwitchingClanContext) {
+      return null;
+    }
+    _isSwitchingClanContext = true;
+    try {
+      final snapshot = await _clanContextService.switchActiveClan(
+        session: _session,
+        clanId: normalized,
+      );
+      if (!mounted) {
+        return null;
+      }
+      setState(() {
+        _activeSession = snapshot.activeSession;
+        _clanContexts = snapshot.contexts;
+        _visitedDestinationIndexes.add(_selectedIndex);
+      });
+      await _sessionStore.write(_activeSession);
+      await _pushNotificationService.start(
+        session: _session,
+        onDeepLink: _handleNotificationDeepLink,
+      );
+      unawaited(_refreshBillingEntitlement());
+      return _activeSession;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick(
+                vi: 'Không thể chuyển gia phả lúc này. Vui lòng thử lại.',
+                en: 'Unable to switch clan right now. Please try again.',
+              ),
+            ),
+          ),
+        );
+      }
+      return null;
+    } finally {
+      _isSwitchingClanContext = false;
+    }
   }
 
   Future<void> _confirmLogoutRequest() async {
@@ -363,9 +461,7 @@ class _AppShellPageState extends State<AppShellPage> {
       _selectedIndex = 0;
     }
     final destination = destinations[_selectedIndex];
-    final sessionTooltip = l10n.authEntryMethodSummary(
-      widget.session.loginMethod,
-    );
+    final sessionTooltip = l10n.authEntryMethodSummary(_session.loginMethod);
     final readinessTooltip = widget.status.isReady
         ? l10n.shellReadinessReady
         : widget.status.errorMessage?.trim().isNotEmpty == true
@@ -373,11 +469,14 @@ class _AppShellPageState extends State<AppShellPage> {
         : l10n.shellReadinessPending;
     final pages = [
       _HomeDashboard(
+        key: ValueKey<String>('home-${_session.clanId ?? 'none'}'),
         status: widget.status,
-        session: widget.session,
+        session: _session,
         clanRepository: widget.clanRepository,
         memberRepository: widget.memberRepository,
         fundRepository: _fundRepository,
+        availableClanContexts: _clanContexts,
+        onSwitchClanContext: _switchClanContext,
         onOpenTreeRequested: () {
           setState(() {
             _selectedIndex = 1;
@@ -391,9 +490,6 @@ class _AppShellPageState extends State<AppShellPage> {
           });
         },
         onOpenProfileRequested: () {
-          if (!_hasClanContext) {
-            return;
-          }
           setState(() {
             _selectedIndex = 4;
             _visitedDestinationIndexes.add(4);
@@ -403,25 +499,31 @@ class _AppShellPageState extends State<AppShellPage> {
       if (_visitedDestinationIndexes.contains(1))
         _hasClanContext
             ? GenealogyWorkspacePage(
-                session: widget.session,
+                key: ValueKey<String>('tree-${_session.clanId ?? 'none'}'),
+                session: _session,
                 repository: _genealogyRepository,
               )
             : GenealogyDiscoveryPage(
-                session: widget.session,
+                key: const ValueKey<String>('tree-discovery'),
+                session: _session,
                 repository: createDefaultGenealogyDiscoveryRepository(
-                  session: widget.session,
+                  session: _session,
                 ),
               )
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(2))
-        const DualCalendarWorkspacePage()
+        KeyedSubtree(
+          key: ValueKey<String>('events-${_session.clanId ?? 'none'}'),
+          child: const DualCalendarWorkspacePage(),
+        )
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(3))
         _hasClanContext
             ? BillingWorkspacePage(
-                session: widget.session,
+                key: ValueKey<String>('billing-${_session.clanId ?? 'none'}'),
+                session: _session,
                 repository: _billingRepository,
                 embeddedInShell: true,
               )
@@ -438,9 +540,10 @@ class _AppShellPageState extends State<AppShellPage> {
               )
       else
         const SizedBox.shrink(),
-      if (_hasClanContext && _visitedDestinationIndexes.contains(4))
+      if (_visitedDestinationIndexes.contains(4))
         ProfileWorkspacePage(
-          session: widget.session,
+          key: ValueKey<String>('profile-${_session.clanId ?? 'none'}'),
+          session: _session,
           memberRepository: widget.memberRepository,
           billingRepository: _billingRepository,
           onBillingStateChanged: () {
@@ -463,11 +566,39 @@ class _AppShellPageState extends State<AppShellPage> {
               child: Tooltip(
                 message: sessionTooltip,
                 child: Icon(
-                  widget.session.loginMethod == AuthEntryMethod.phone
+                  _session.loginMethod == AuthEntryMethod.phone
                       ? Icons.phone_iphone
                       : Icons.child_care,
                 ),
               ),
+            ),
+          if (_isLoadingClanContexts || _isSwitchingClanContext)
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (_clanContexts.length > 1)
+            PopupMenuButton<String>(
+              tooltip: l10n.pick(vi: 'Chọn gia phả', en: 'Select clan'),
+              onSelected: (clanId) {
+                unawaited(_switchClanContext(clanId));
+              },
+              itemBuilder: (context) => [
+                for (final contextOption in _clanContexts)
+                  PopupMenuItem<String>(
+                    value: contextOption.clanId,
+                    child: Text(
+                      contextOption.clanId == (_session.clanId ?? '').trim()
+                          ? '• ${contextOption.clanName}'
+                          : contextOption.clanName,
+                    ),
+                  ),
+              ],
+              icon: const Icon(Icons.account_tree_outlined),
             ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -478,21 +609,31 @@ class _AppShellPageState extends State<AppShellPage> {
               ),
             ),
           ),
-          if (widget.onLogoutRequested != null)
-            PopupMenuButton<String>(
-              tooltip: l10n.shellMoreActions,
-              onSelected: (value) async {
-                if (value == 'logout') {
-                  await _confirmLogoutRequest();
-                }
-              },
-              itemBuilder: (context) => [
+          PopupMenuButton<String>(
+            tooltip: l10n.shellMoreActions,
+            onSelected: (value) async {
+              if (value == 'discover') {
+                _openGenealogyDiscoveryPage();
+                return;
+              }
+              if (value == 'logout') {
+                await _confirmLogoutRequest();
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                value: 'discover',
+                child: Text(
+                  l10n.pick(vi: 'Khám phá gia phả', en: 'Discover genealogies'),
+                ),
+              ),
+              if (widget.onLogoutRequested != null)
                 PopupMenuItem<String>(
                   value: 'logout',
                   child: Text(l10n.shellLogout),
                 ),
-              ],
-            ),
+            ],
+          ),
         ],
       ),
       body: SafeArea(
@@ -532,8 +673,7 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   void _openClanWorkspaceFromBilling() {
-    if (!_hasClanContext &&
-        !GovernanceRoleMatrix.canBootstrapClan(widget.session)) {
+    if (!_hasClanContext && !GovernanceRoleMatrix.canBootstrapClan(_session)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -551,8 +691,23 @@ class _AppShellPageState extends State<AppShellPage> {
       MaterialPageRoute<void>(
         builder: (context) {
           return ClanDetailPage(
-            session: widget.session,
+            session: _session,
             repository: widget.clanRepository,
+          );
+        },
+      ),
+    );
+  }
+
+  void _openGenealogyDiscoveryPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return GenealogyDiscoveryPage(
+            session: _session,
+            repository: createDefaultGenealogyDiscoveryRepository(
+              session: _session,
+            ),
           );
         },
       ),
@@ -685,11 +840,14 @@ class _SponsoredAdBanner extends StatelessWidget {
 
 class _HomeDashboard extends StatelessWidget {
   const _HomeDashboard({
+    super.key,
     required this.status,
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
     required this.fundRepository,
+    required this.availableClanContexts,
+    required this.onSwitchClanContext,
     required this.onOpenTreeRequested,
     required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
@@ -700,6 +858,8 @@ class _HomeDashboard extends StatelessWidget {
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
   final FundRepository fundRepository;
+  final List<ClanContextOption> availableClanContexts;
+  final Future<AuthSession?> Function(String clanId) onSwitchClanContext;
   final VoidCallback onOpenTreeRequested;
   final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
@@ -913,6 +1073,8 @@ class _HomeDashboard extends StatelessWidget {
                 repository: createDefaultScholarshipRepository(
                   session: session,
                 ),
+                availableClanContexts: availableClanContexts,
+                onSwitchClanContext: onSwitchClanContext,
               );
             },
           ),
@@ -928,6 +1090,9 @@ class _HomeDashboard extends StatelessWidget {
               return FundWorkspacePage(
                 session: session,
                 repository: fundRepository,
+                memberRepository: memberRepository,
+                availableClanContexts: availableClanContexts,
+                onSwitchClanContext: onSwitchClanContext,
               );
             },
           ),

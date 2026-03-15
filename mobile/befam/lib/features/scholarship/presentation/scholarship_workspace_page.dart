@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
+import '../../auth/models/clan_context_option.dart';
 import '../models/achievement_submission.dart';
 import '../models/achievement_submission_draft.dart';
 import '../models/award_level.dart';
@@ -20,10 +21,14 @@ class ScholarshipWorkspacePage extends StatefulWidget {
     super.key,
     required this.session,
     required this.repository,
+    this.availableClanContexts = const [],
+    this.onSwitchClanContext,
   });
 
   final AuthSession session;
   final ScholarshipRepository repository;
+  final List<ClanContextOption> availableClanContexts;
+  final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
 
   @override
   State<ScholarshipWorkspacePage> createState() =>
@@ -31,14 +36,55 @@ class ScholarshipWorkspacePage extends StatefulWidget {
 }
 
 class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
-  late final ScholarshipController _controller;
+  late ScholarshipController _controller;
+  late AuthSession _activeSession;
+  bool _isSwitchingClanContext = false;
+
+  AuthSession get _session => _activeSession;
+
+  List<ClanContextOption> get _clanContexts {
+    if (widget.availableClanContexts.isNotEmpty) {
+      return widget.availableClanContexts;
+    }
+    final clanId = (_session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
+      return const [];
+    }
+    return [
+      ClanContextOption(
+        clanId: clanId,
+        clanName: clanId,
+        memberId: (_session.memberId ?? '').trim(),
+        primaryRole: (_session.primaryRole ?? 'MEMBER').trim().toUpperCase(),
+        branchId: _nullIfBlank(_session.branchId),
+        displayName: _nullIfBlank(_session.displayName),
+      ),
+    ];
+  }
 
   @override
   void initState() {
     super.initState();
+    _activeSession = widget.session;
     _controller = ScholarshipController(
       repository: widget.repository,
-      session: widget.session,
+      session: _session,
+    );
+    unawaited(_controller.initialize());
+  }
+
+  @override
+  void didUpdateWidget(covariant ScholarshipWorkspacePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session == widget.session &&
+        oldWidget.repository == widget.repository) {
+      return;
+    }
+    _activeSession = widget.session;
+    _controller.dispose();
+    _controller = ScholarshipController(
+      repository: widget.repository,
+      session: _session,
     );
     unawaited(_controller.initialize());
   }
@@ -275,9 +321,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
       builder: (context) {
         final l10n = context.l10n;
         return AlertDialog(
-          title: Text(
-            l10n.pick(vi: 'Từ chối hồ sơ', en: 'Reject submission'),
-          ),
+          title: Text(l10n.pick(vi: 'Từ chối hồ sơ', en: 'Reject submission')),
           content: TextField(
             key: const Key('scholarship-review-note-input'),
             maxLines: 3,
@@ -314,6 +358,53 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<AuthSession?> _switchClanContext(String clanId) async {
+    final normalizedClanId = clanId.trim();
+    if (normalizedClanId.isEmpty) {
+      return null;
+    }
+    if (normalizedClanId == (_session.clanId ?? '').trim()) {
+      return _session;
+    }
+    final switcher = widget.onSwitchClanContext;
+    if (switcher == null) {
+      return null;
+    }
+    if (_isSwitchingClanContext) {
+      return null;
+    }
+
+    setState(() {
+      _isSwitchingClanContext = true;
+    });
+    try {
+      final switched = await switcher(normalizedClanId);
+      if (switched == null) {
+        return null;
+      }
+      if (!mounted) {
+        return switched;
+      }
+      _activeSession = switched;
+      _controller.dispose();
+      _controller = ScholarshipController(
+        repository: widget.repository,
+        session: _session,
+      );
+      setState(() {});
+      await _controller.initialize();
+      return _session;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSwitchingClanContext = false;
+        });
+      } else {
+        _isSwitchingClanContext = false;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -333,9 +424,40 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
         return Scaffold(
           appBar: AppBar(
             title: Text(
-              l10n.pick(vi: 'Chương trình khuyến học', en: 'Scholarship programs'),
+              l10n.pick(
+                vi: 'Chương trình khuyến học',
+                en: 'Scholarship programs',
+              ),
             ),
             actions: [
+              if (_isSwitchingClanContext)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else if (_clanContexts.length > 1)
+                PopupMenuButton<String>(
+                  tooltip: l10n.pick(vi: 'Chuyển gia phả', en: 'Switch clan'),
+                  onSelected: (clanId) {
+                    unawaited(_switchClanContext(clanId));
+                  },
+                  itemBuilder: (context) => [
+                    for (final option in _clanContexts)
+                      PopupMenuItem<String>(
+                        value: option.clanId,
+                        child: Text(
+                          option.clanId == (_session.clanId ?? '').trim()
+                              ? '• ${option.clanName}'
+                              : option.clanName,
+                        ),
+                      ),
+                  ],
+                  icon: const Icon(Icons.account_tree_outlined),
+                ),
               IconButton(
                 tooltip: l10n.pick(vi: 'Tải lại', en: 'Refresh'),
                 onPressed: _controller.isLoading ? null : _controller.refresh,
@@ -431,6 +553,15 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                               ],
                             ],
                           ),
+                        ),
+                        const SizedBox(height: 16),
+                        _ScholarshipClanScopeCard(
+                          activeClanId: (_session.clanId ?? '').trim(),
+                          clanContexts: _clanContexts,
+                          isSwitching: _isSwitchingClanContext,
+                          onSwitch: widget.onSwitchClanContext == null
+                              ? null
+                              : (clanId) => _switchClanContext(clanId),
                         ),
                         const SizedBox(height: 20),
                         if (_controller.permissions.isReadOnly) ...[
@@ -581,18 +712,16 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                       runSpacing: 8,
                                       children: [
                                         _StatusBadge(
-                                          label:
-                                              l10n.pick(
-                                                vi: 'Trạng thái: ${_programStatusLabel(context, selectedProgram.status)}',
-                                                en: 'Status: ${_programStatusLabel(context, selectedProgram.status)}',
-                                              ),
+                                          label: l10n.pick(
+                                            vi: 'Trạng thái: ${_programStatusLabel(context, selectedProgram.status)}',
+                                            en: 'Status: ${_programStatusLabel(context, selectedProgram.status)}',
+                                          ),
                                         ),
                                         _StatusBadge(
-                                          label:
-                                              l10n.pick(
-                                                vi: 'Năm: ${selectedProgram.year}',
-                                                en: 'Year: ${selectedProgram.year}',
-                                              ),
+                                          label: l10n.pick(
+                                            vi: 'Năm: ${selectedProgram.year}',
+                                            en: 'Year: ${selectedProgram.year}',
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -674,10 +803,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                           actionLabel:
                               _controller.canSubmitAchievements &&
                                   selectedProgram != null
-                              ? l10n.pick(
-                                  vi: 'Hồ sơ mới',
-                                  en: 'New submission',
-                                )
+                              ? l10n.pick(vi: 'Hồ sơ mới', en: 'New submission')
                               : null,
                           actionKey: const Key(
                             'scholarship-open-submission-form-button',
@@ -799,8 +925,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                   ),
                                                 ),
                                               ],
-                                              if (submission
-                                                      .finalDecisionReason
+                                              if (submission.finalDecisionReason
                                                       ?.trim()
                                                       .isNotEmpty ==
                                                   true) ...[
@@ -889,8 +1014,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                       ),
                                                       onPressed:
                                                           _controller
-                                                              .isReviewing
-                                                          || _controller
+                                                                  .isReviewing ||
+                                                              _controller
                                                                   .hasCurrentReviewerVoted(
                                                                     submission,
                                                                   )
@@ -921,8 +1046,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                       ),
                                                       onPressed:
                                                           _controller
-                                                              .isReviewing
-                                                          || _controller
+                                                                  .isReviewing ||
+                                                              _controller
                                                                   .hasCurrentReviewerVoted(
                                                                     submission,
                                                                   )
@@ -970,9 +1095,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                   )
                                 : Column(
                                     children: [
-                                      for (final log in _controller
-                                          .approvalLogs
-                                          .take(25))
+                                      for (final log
+                                          in _controller.approvalLogs.take(25))
                                         ListTile(
                                           key: Key(
                                             'scholarship-approval-log-${log.id}',
@@ -1113,10 +1237,7 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
                       _SectionCard(
                         title: l10n.pick(vi: 'Hồ sơ đề cử', en: 'Submissions'),
                         actionLabel: controller.canSubmitAchievements
-                            ? l10n.pick(
-                                vi: 'Hồ sơ mới',
-                                en: 'New submission',
-                              )
+                            ? l10n.pick(vi: 'Hồ sơ mới', en: 'New submission')
                             : null,
                         actionKey: const Key(
                           'scholarship-detail-open-submission-form-button',
@@ -1173,8 +1294,7 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
                                                 en: 'Council votes: ${submission.approvalCount} approve • ${submission.rejectionCount} reject',
                                               ),
                                             ),
-                                            if (submission
-                                                    .finalDecisionReason
+                                            if (submission.finalDecisionReason
                                                     ?.trim()
                                                     .isNotEmpty ==
                                                 true) ...[
@@ -1902,6 +2022,89 @@ class _SubmissionFormSheetState extends State<_SubmissionFormSheet> {
   }
 }
 
+class _ScholarshipClanScopeCard extends StatelessWidget {
+  const _ScholarshipClanScopeCard({
+    required this.activeClanId,
+    required this.clanContexts,
+    required this.isSwitching,
+    this.onSwitch,
+  });
+
+  final String activeClanId;
+  final List<ClanContextOption> clanContexts;
+  final bool isSwitching;
+  final Future<AuthSession?> Function(String clanId)? onSwitch;
+
+  @override
+  Widget build(BuildContext context) {
+    if (clanContexts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final activeContext = clanContexts.firstWhere(
+      (item) => item.clanId.trim() == activeClanId.trim(),
+      orElse: () => clanContexts.first,
+    );
+    final l10n = context.l10n;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.account_tree_outlined),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.pick(
+                      vi: 'Gia phả đang quản lý khuyến học',
+                      en: 'Scholarship clan scope',
+                    ),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (isSwitching)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: activeContext.clanId,
+              decoration: InputDecoration(
+                labelText: l10n.pick(vi: 'Gia phả', en: 'Clan'),
+              ),
+              items: [
+                for (final option in clanContexts)
+                  DropdownMenuItem<String>(
+                    value: option.clanId,
+                    child: Text(option.clanName),
+                  ),
+              ],
+              onChanged: isSwitching || onSwitch == null
+                  ? null
+                  : (value) {
+                      final resolved = _nullableText(value ?? '');
+                      if (resolved == null) {
+                        return;
+                      }
+                      unawaited(onSwitch!(resolved));
+                    },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.title,
@@ -2027,5 +2230,10 @@ String _approvalDecisionLabel(BuildContext context, String? decision) {
 
 String? _nullableText(String value) {
   final trimmed = value.trim();
+  return trimmed.isEmpty ? null : trimmed;
+}
+
+String? _nullIfBlank(String? value) {
+  final trimmed = value?.trim() ?? '';
   return trimmed.isEmpty ? null : trimmed;
 }

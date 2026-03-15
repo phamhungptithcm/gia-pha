@@ -62,6 +62,22 @@ type MemberSessionContext = {
   linkedAuthUid: boolean;
 };
 
+type LinkedClanContext = {
+  clanId: string;
+  clanName: string;
+  memberId: string;
+  branchId: string | null;
+  primaryRole: string;
+  displayName: string | null;
+  status: string | null;
+};
+
+type ClanRecord = {
+  name?: string | null;
+  slug?: string | null;
+  status?: string | null;
+};
+
 type DebugLoginProfileResponse = {
   scenarioKey: string;
   phoneE164: string;
@@ -89,14 +105,6 @@ const usersCollection = db.collection('users');
 const genealogyDiscoveryCollection = db.collection('genealogyDiscoveryIndex');
 const customTokenSignerServiceAccount =
   'firebase-adminsdk-fbsvc@be-fam-3ab23.iam.gserviceaccount.com';
-
-const clanBootstrapperRoles = new Set<string>([
-  'SUPER_ADMIN',
-  'CLAN_ADMIN',
-  'ADMIN_SUPPORT',
-  'CLAN_OWNER',
-  'CLAN_LEADER',
-]);
 
 export const resolveChildLoginContext = onCall(
   { region: APP_REGION },
@@ -270,13 +278,6 @@ export const bootstrapClanWorkspace = onCall(
     }
 
     const role = normalizeRoleClaim(auth.token.primaryRole);
-    if (!clanBootstrapperRoles.has(role)) {
-      throw new HttpsError(
-        'permission-denied',
-        'Only authorized governance roles can bootstrap a new clan workspace.',
-      );
-    }
-
     const clanName = requireNonEmptyString(request.data, 'name');
     const requestedSlug = optionalString(request.data, 'slug');
     const slug = normalizeSlug(requestedSlug ?? clanName);
@@ -543,6 +544,108 @@ export const listDebugLoginProfiles = onCall(
     });
 
     return { profiles };
+  },
+);
+
+export const listUserClanContexts = onCall(
+  { region: APP_REGION },
+  async (request) => {
+    const auth = requireAuth(request);
+    const contexts = await loadLinkedClanContextsForUid(auth.uid);
+    const activeContext = resolveActiveClanContext({
+      contexts,
+      requestedClanId: null,
+      token: auth.token,
+    });
+
+    return {
+      accessMode: contexts.length > 0 ? 'claimed' : 'unlinked',
+      activeClanId: activeContext?.clanId ?? null,
+      contexts: contexts.map(serializeLinkedClanContext),
+    };
+  },
+);
+
+export const switchActiveClanContext = onCall(
+  { region: APP_REGION },
+  async (request) => {
+    const auth = requireAuth(request);
+    const requestedClanId = requireNonEmptyString(request.data, 'clanId');
+    const contexts = await loadLinkedClanContextsForUid(auth.uid);
+    if (contexts.length == 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This account is not linked to any clan membership yet.',
+      );
+    }
+
+    const activeContext = resolveActiveClanContext({
+      contexts,
+      requestedClanId,
+      token: auth.token,
+    });
+    if (activeContext == null || activeContext.clanId !== requestedClanId) {
+      throw new HttpsError(
+        'permission-denied',
+        'The requested clan is not linked to this account.',
+      );
+    }
+
+    const orderedClanIds = [
+      activeContext.clanId,
+      ...contexts
+        .map((context) => context.clanId)
+        .filter((clanId) => clanId != activeContext.clanId),
+    ];
+
+    const memberContext: MemberSessionContext = {
+      memberId: activeContext.memberId,
+      displayName: activeContext.displayName,
+      clanId: activeContext.clanId,
+      branchId: activeContext.branchId,
+      primaryRole: activeContext.primaryRole,
+      accessMode: 'claimed',
+      linkedAuthUid: true,
+    };
+
+    await applySessionClaims(auth.uid, memberContext, {
+      clanIds: orderedClanIds,
+    });
+
+    await usersCollection.doc(auth.uid).set({
+      uid: auth.uid,
+      memberId: activeContext.memberId,
+      clanId: activeContext.clanId,
+      clanIds: orderedClanIds,
+      branchId: activeContext.branchId ?? '',
+      primaryRole: activeContext.primaryRole,
+      accessMode: 'claimed',
+      linkedAuthUid: true,
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    await writeAuditLog({
+      uid: auth.uid,
+      memberId: activeContext.memberId,
+      clanId: activeContext.clanId,
+      action: 'active_clan_context_switched',
+      entityType: 'clan',
+      entityId: activeContext.clanId,
+      after: {
+        clanId: activeContext.clanId,
+        memberId: activeContext.memberId,
+        primaryRole: activeContext.primaryRole,
+        clanIds: orderedClanIds,
+      },
+    });
+
+    return {
+      accessMode: 'claimed',
+      activeClanId: activeContext.clanId,
+      activeContext: serializeLinkedClanContext(activeContext),
+      contexts: contexts.map(serializeLinkedClanContext),
+    };
   },
 );
 
@@ -1184,19 +1287,197 @@ function buildMemberSessionContext(
   };
 }
 
-async function applySessionClaims(uid: string, context: MemberSessionContext): Promise<void> {
+async function applySessionClaims(
+  uid: string,
+  context: MemberSessionContext,
+  options?: { clanIds?: Array<string> },
+): Promise<void> {
   const auth = getAuth();
   const userRecord = await auth.getUser(uid);
   const existingClaims = userRecord.customClaims ?? {};
+  const explicitClanIds = options?.clanIds ?? [];
+  const normalizedClanIds = explicitClanIds
+    .map((entry) => entry.trim())
+    .filter((entry, index, source) => entry.length > 0 && source.indexOf(entry) == index);
+  const clanIds = normalizedClanIds.length > 0
+    ? normalizedClanIds
+    : context.clanId == null
+      ? []
+      : [context.clanId];
+  const activeClanId = context.clanId ?? clanIds[0] ?? '';
 
   await auth.setCustomUserClaims(uid, {
     ...existingClaims,
-    clanIds: context.clanId == null ? [] : [context.clanId],
+    clanIds: clanIds,
+    clanId: activeClanId,
+    activeClanId,
     memberId: context.memberId ?? '',
     branchId: context.branchId ?? '',
     primaryRole: context.primaryRole ?? 'GUEST',
     memberAccessMode: context.accessMode,
   });
+}
+
+function serializeLinkedClanContext(context: LinkedClanContext) {
+  return {
+    clanId: context.clanId,
+    clanName: context.clanName,
+    memberId: context.memberId,
+    branchId: context.branchId,
+    primaryRole: context.primaryRole,
+    displayName: context.displayName,
+    status: context.status,
+  };
+}
+
+async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedClanContext>> {
+  const snapshot = await membersCollection
+    .where('authUid', '==', uid)
+    .limit(300)
+    .get();
+
+  if (snapshot.empty) {
+    return [];
+  }
+
+  const dedupByClan = new Map<string, LinkedClanContext>();
+  for (const doc of snapshot.docs) {
+    const data = doc.data() as MemberRecord;
+    const clanId = asNullableTrimmedString(data.clanId);
+    if (clanId == null) {
+      continue;
+    }
+
+    const role = normalizeRoleClaim(data.primaryRole) || 'MEMBER';
+    const displayName = resolveMemberDisplayName(data);
+    const branchId = asNullableTrimmedString(data.branchId);
+    const status = asNullableTrimmedString(data.status)?.toLowerCase() ?? null;
+    const candidate: LinkedClanContext = {
+      clanId,
+      clanName: clanId,
+      memberId: doc.id,
+      branchId,
+      primaryRole: role,
+      displayName,
+      status,
+    };
+
+    const existing = dedupByClan.get(clanId);
+    if (existing == null || preferredClanContext(candidate, existing)) {
+      dedupByClan.set(clanId, candidate);
+    }
+  }
+
+  if (dedupByClan.size == 0) {
+    return [];
+  }
+
+  const clanIds = [...dedupByClan.keys()];
+  const clanSnapshots = await Promise.all(
+    clanIds.map((clanId) => clansCollection.doc(clanId).get()),
+  );
+  const clanNameById = new Map<string, string>();
+  for (const snapshot of clanSnapshots) {
+    const data = snapshot.data() as ClanRecord | undefined;
+    const clanName = asNullableTrimmedString(data?.name) ?? snapshot.id;
+    clanNameById.set(snapshot.id, clanName);
+  }
+
+  for (const clanId of clanIds) {
+    const context = dedupByClan.get(clanId);
+    if (context == null) {
+      continue;
+    }
+    dedupByClan.set(clanId, {
+      ...context,
+      clanName: clanNameById.get(clanId) ?? context.clanName,
+    });
+  }
+
+  return [...dedupByClan.values()].sort((left, right) => {
+    const clanCompare = left.clanName
+      .toLowerCase()
+      .localeCompare(right.clanName.toLowerCase());
+    if (clanCompare !== 0) {
+      return clanCompare;
+    }
+    return left.clanId.localeCompare(right.clanId);
+  });
+}
+
+function resolveActiveClanContext({
+  contexts,
+  requestedClanId,
+  token,
+}: {
+  contexts: Array<LinkedClanContext>;
+  requestedClanId: string | null;
+  token: Record<string, unknown>;
+}): LinkedClanContext | null {
+  if (contexts.length === 0) {
+    return null;
+  }
+  const requested = requestedClanId?.trim();
+  if (requested != null && requested.length > 0) {
+    return contexts.find((context) => context.clanId == requested) ?? null;
+  }
+
+  const activeFromToken = optionalString(token, 'activeClanId')?.trim() ??
+    optionalString(token, 'clanId')?.trim();
+  if (activeFromToken != null && activeFromToken.length > 0) {
+    const matched = contexts.find((context) => context.clanId == activeFromToken);
+    if (matched != null) {
+      return matched;
+    }
+  }
+
+  return contexts[0] ?? null;
+}
+
+function preferredClanContext(candidate: LinkedClanContext, current: LinkedClanContext): boolean {
+  const candidateRank = rolePriority(candidate.primaryRole);
+  const currentRank = rolePriority(current.primaryRole);
+  if (candidateRank != currentRank) {
+    return candidateRank > currentRank;
+  }
+
+  const candidateActive = (candidate.status ?? 'active') == 'active';
+  const currentActive = (current.status ?? 'active') == 'active';
+  if (candidateActive != currentActive) {
+    return candidateActive;
+  }
+
+  return candidate.memberId.localeCompare(current.memberId) < 0;
+}
+
+function rolePriority(role: string): number {
+  const normalized = normalizeRoleClaim(role);
+  switch (normalized) {
+    case 'SUPER_ADMIN':
+      return 100;
+    case 'CLAN_ADMIN':
+      return 95;
+    case 'CLAN_OWNER':
+      return 90;
+    case 'CLAN_LEADER':
+      return 85;
+    case 'VICE_LEADER':
+      return 80;
+    case 'SUPPORTER_OF_LEADER':
+      return 75;
+    case 'BRANCH_ADMIN':
+      return 70;
+    case 'ADMIN_SUPPORT':
+      return 65;
+    case 'TREASURER':
+      return 60;
+    case 'SCHOLARSHIP_COUNCIL_HEAD':
+      return 55;
+    case 'MEMBER':
+      return 30;
+    default:
+      return 10;
+  }
 }
 
 async function writeAuditLog({

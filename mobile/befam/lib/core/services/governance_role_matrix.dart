@@ -30,14 +30,6 @@ abstract final class GovernanceRoles {
     adminSupport,
   };
 
-  static const clanBootstrapRoles = <String>{
-    superAdmin,
-    clanAdmin,
-    clanOwner,
-    clanLeader,
-    adminSupport,
-  };
-
   static const scholarshipManagers = <String>{
     superAdmin,
     clanAdmin,
@@ -164,11 +156,6 @@ abstract final class GovernanceRoleMatrix {
 
   static bool canBootstrapClan(AuthSession session) {
     final noClanContext = (session.clanId?.trim().isEmpty ?? true);
-    if (!noClanContext || session.accessMode != AuthMemberAccessMode.unlinked) {
-      return false;
-    }
-    return GovernanceRoles.clanBootstrapRoles.contains(
-      normalizeRole(session.primaryRole),
-    );
+    return noClanContext && session.accessMode == AuthMemberAccessMode.unlinked;
   }
 }

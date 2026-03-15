@@ -301,48 +301,54 @@ class _RelationshipInspectorPanelState
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                IconButton(
-                  tooltip: l10n.relationshipRefreshAction,
-                  onPressed: _isLoading ? null : _loadRelationships,
-                  icon: const Icon(Icons.refresh),
-                ),
               ],
             ),
             const SizedBox(height: 16),
-            if (_permissions.canEditSensitiveRelationships) ...[
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
                 children: [
-                  OutlinedButton.icon(
-                    key: const Key('relationship-add-parent-button'),
-                    onPressed: _isMutating
-                        ? null
-                        : () => _createRelationship(_RelationshipAction.parent),
-                    icon: const Icon(Icons.north_outlined),
-                    label: Text(l10n.relationshipAddParentAction),
+                  _RelationshipIconActionButton(
+                    tooltip: l10n.relationshipRefreshAction,
+                    icon: Icons.refresh,
+                    onPressed: _isLoading ? null : _loadRelationships,
                   ),
-                  OutlinedButton.icon(
-                    key: const Key('relationship-add-child-button'),
-                    onPressed: _isMutating
-                        ? null
-                        : () => _createRelationship(_RelationshipAction.child),
-                    icon: const Icon(Icons.south_outlined),
-                    label: Text(l10n.relationshipAddChildAction),
-                  ),
-                  OutlinedButton.icon(
-                    key: const Key('relationship-add-spouse-button'),
-                    onPressed: _isMutating
-                        ? null
-                        : () => _createRelationship(_RelationshipAction.spouse),
-                    icon: const Icon(Icons.favorite_border),
-                    label: Text(l10n.relationshipAddSpouseAction),
-                  ),
+                  if (_permissions.canEditSensitiveRelationships) ...[
+                    const SizedBox(width: 10),
+                    _RelationshipIconActionButton(
+                      key: const Key('relationship-add-parent-button'),
+                      tooltip: l10n.relationshipAddParentAction,
+                      icon: Icons.north_outlined,
+                      onPressed: _isMutating
+                          ? null
+                          : () =>
+                                _createRelationship(_RelationshipAction.parent),
+                    ),
+                    const SizedBox(width: 10),
+                    _RelationshipIconActionButton(
+                      key: const Key('relationship-add-child-button'),
+                      tooltip: l10n.relationshipAddChildAction,
+                      icon: Icons.south_outlined,
+                      onPressed: _isMutating
+                          ? null
+                          : () =>
+                                _createRelationship(_RelationshipAction.child),
+                    ),
+                    const SizedBox(width: 10),
+                    _RelationshipIconActionButton(
+                      key: const Key('relationship-add-spouse-button'),
+                      tooltip: l10n.relationshipAddSpouseAction,
+                      icon: Icons.favorite_border,
+                      onPressed: _isMutating
+                          ? null
+                          : () =>
+                                _createRelationship(_RelationshipAction.spouse),
+                    ),
+                  ],
                 ],
               ),
-              const SizedBox(height: 16),
-            ],
+            ),
+            const SizedBox(height: 16),
             if (_error != null) ...[
               _RelationshipMessage(
                 title: l10n.relationshipErrorTitle,
@@ -383,36 +389,40 @@ class _RelationshipInspectorPanelState
                 currentMemberId: widget.member.id,
                 memberById: memberById,
               ),
-              const SizedBox(height: 18),
-              Text(
-                l10n.relationshipCanonicalEdgeTitle,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 12),
-              if (_relationships.isEmpty)
-                Text(l10n.relationshipNoEdges)
-              else
-                Column(
-                  children: [
-                    for (final relationship in _relationships)
-                      Padding(
-                        padding: EdgeInsets.only(
-                          bottom: relationship == _relationships.last ? 0 : 12,
-                        ),
-                        child: _RelationshipEdgeCard(
-                          key: Key('relationship-record-${relationship.id}'),
-                          relationship: relationship,
-                          currentMemberId: widget.member.id,
-                          memberById: memberById,
-                        ),
-                      ),
-                  ],
-                ),
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RelationshipIconActionButton extends StatelessWidget {
+  const _RelationshipIconActionButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: Icon(icon),
       ),
     );
   }
@@ -464,60 +474,6 @@ class _RelationshipGroup extends StatelessWidget {
             ],
           ),
       ],
-    );
-  }
-}
-
-class _RelationshipEdgeCard extends StatelessWidget {
-  const _RelationshipEdgeCard({
-    super.key,
-    required this.relationship,
-    required this.currentMemberId,
-    required this.memberById,
-  });
-
-  final RelationshipRecord relationship;
-  final String currentMemberId;
-  final Map<String, MemberProfile> memberById;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final firstName =
-        memberById[relationship.personAId]?.fullName ?? relationship.personAId;
-    final secondName =
-        memberById[relationship.personBId]?.fullName ?? relationship.personBId;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              switch (relationship.type) {
-                RelationshipType.parentChild =>
-                  l10n.relationshipEdgeParentChild,
-                RelationshipType.spouse => l10n.relationshipEdgeSpouse,
-              },
-              style: Theme.of(
-                context,
-              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            Text('$firstName -> $secondName'),
-            const SizedBox(height: 4),
-            Text(
-              '${l10n.relationshipSourceLabel}: ${relationship.source}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

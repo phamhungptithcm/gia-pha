@@ -37,6 +37,14 @@ enum _TreeDisplayPreset { focused, balanced, coverage, custom }
 
 enum _MemberStatusFilter { all, alive, deceased }
 
+enum _GenealogyHonorBadge {
+  giaTruong,
+  dichTonGiaDinh,
+  dichTonChi,
+  dichTonHo,
+  dichTonToc,
+}
+
 class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     with TickerProviderStateMixin {
   static const _nodeWidth = 232.0;
@@ -129,6 +137,11 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
 
     final segment = _segment!;
     final scene = _resolveTreeScene(segment);
+    final siblingOrdersByMember = _resolveSiblingOrders(segment.graph);
+    final honorBadgesByMember = _resolveHonorBadges(
+      segment.graph,
+      siblingOrdersByMember,
+    );
     final filteredRoots = _filteredRootEntries(segment);
     final rootEntriesForSelector = filteredRoots.isEmpty
         ? segment.rootEntries
@@ -219,14 +232,68 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           ),
           const SizedBox(height: 16),
           Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+            ),
             child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Wrap(
-                spacing: 16,
-                runSpacing: 10,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  _DepthControl(
+              padding: const EdgeInsets.all(16),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 640;
+                  final iconOnlyFocus = constraints.maxWidth < 460;
+                  final focusAction = iconOnlyFocus
+                      ? Tooltip(
+                          message: l10n.genealogyFocusMemberTitle,
+                          child: FilledButton.tonal(
+                            key: const Key('genealogy-center-selected'),
+                            onPressed: selectedMember == null
+                                ? null
+                                : () => _centerOnMember(
+                                    memberId: selectedMember.id,
+                                    scene: scene,
+                                    viewport: const Size(1, 1),
+                                    useViewportFromLayout: true,
+                                  ),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(50, 50),
+                              padding: const EdgeInsets.all(12),
+                              shape: const StadiumBorder(),
+                            ),
+                            child: const Icon(Icons.center_focus_strong),
+                          ),
+                        )
+                      : FilledButton.tonalIcon(
+                          key: const Key('genealogy-center-selected'),
+                          onPressed: selectedMember == null
+                              ? null
+                              : () => _centerOnMember(
+                                  memberId: selectedMember.id,
+                                  scene: scene,
+                                  viewport: const Size(1, 1),
+                                  useViewportFromLayout: true,
+                                ),
+                          icon: const Icon(Icons.center_focus_strong),
+                          label: Text(
+                            l10n.genealogyFocusMemberTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                          ),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(164, 50),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: const StadiumBorder(),
+                          ),
+                        );
+
+                  final parentControl = _DepthControl(
                     id: 'parents',
                     label: l10n.relationshipParentsTitle,
                     depth: _ancestorDepth,
@@ -252,8 +319,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                         _invalidateTreeSceneCache();
                       });
                     },
-                  ),
-                  _DepthControl(
+                  );
+                  final childControl = _DepthControl(
                     id: 'children',
                     label: l10n.relationshipChildrenTitle,
                     depth: _descendantDepth,
@@ -279,21 +346,34 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                         _invalidateTreeSceneCache();
                       });
                     },
-                  ),
-                  FilledButton.tonalIcon(
-                    key: const Key('genealogy-center-selected'),
-                    onPressed: selectedMember == null
-                        ? null
-                        : () => _centerOnMember(
-                            memberId: selectedMember.id,
-                            scene: scene,
-                            viewport: const Size(1, 1),
-                            useViewportFromLayout: true,
-                          ),
-                    icon: const Icon(Icons.center_focus_strong),
-                    label: Text(l10n.genealogyFocusMemberTitle),
-                  ),
-                ],
+                  );
+
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        parentControl,
+                        const SizedBox(height: 10),
+                        childControl,
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: focusAction,
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: parentControl),
+                      const SizedBox(width: 12),
+                      Expanded(child: childControl),
+                      const SizedBox(width: 12),
+                      focusAction,
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -343,6 +423,19 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                       key: Key('tree-node-${entry.key}'),
                                       member:
                                           segment.graph.membersById[entry.key]!,
+                                      siblingOrderLabel: _siblingOrderLabel(
+                                        l10n,
+                                        siblingOrdersByMember[entry.key] ??
+                                            segment
+                                                .graph
+                                                .membersById[entry.key]!
+                                                .siblingOrder,
+                                      ),
+                                      honorBadges: _honorBadgeLabels(
+                                        l10n,
+                                        honorBadgesByMember[entry.key] ??
+                                            const [],
+                                      ),
                                       generationLabel:
                                           segment
                                               .graph
@@ -384,6 +477,14 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                             member: member,
                                             graph: segment.graph,
                                             branches: segment.branches,
+                                            siblingOrder:
+                                                siblingOrdersByMember[member
+                                                    .id] ??
+                                                member.siblingOrder,
+                                            honorBadges:
+                                                honorBadgesByMember[member
+                                                    .id] ??
+                                                const [],
                                           ),
                                         );
                                       },
@@ -404,6 +505,14 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                             member: member,
                                             graph: segment.graph,
                                             branches: segment.branches,
+                                            siblingOrder:
+                                                siblingOrdersByMember[member
+                                                    .id] ??
+                                                member.siblingOrder,
+                                            honorBadges:
+                                                honorBadgesByMember[member
+                                                    .id] ??
+                                                const [],
                                           ),
                                         );
                                       },
@@ -967,6 +1076,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required MemberProfile member,
     required GenealogyGraph graph,
     required List<BranchProfile> branches,
+    required int? siblingOrder,
+    required List<_GenealogyHonorBadge> honorBadges,
   }) async {
     final l10n = context.l10n;
     final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
@@ -1014,6 +1125,21 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                       'G${member.generation}',
                 ),
                 _FactLine(
+                  label: l10n.pick(
+                    vi: 'Thứ tự anh/chị/em',
+                    en: 'Sibling order',
+                  ),
+                  value:
+                      _siblingOrderLabel(l10n, siblingOrder) ??
+                      l10n.memberFieldUnset,
+                ),
+                _FactLine(
+                  label: l10n.pick(vi: 'Danh vị', en: 'Honor badges'),
+                  value: _honorBadgeLabels(l10n, honorBadges).isEmpty
+                      ? l10n.memberFieldUnset
+                      : _honorBadgeLabels(l10n, honorBadges).join(' • '),
+                ),
+                _FactLine(
                   label: l10n.genealogyParentCountLabel,
                   value: '${graph.parentsOf(member.id).length}',
                 ),
@@ -1044,6 +1170,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                         member: member,
                         graph: graph,
                         branches: branches,
+                        siblingOrder: siblingOrder,
+                        honorBadges: honorBadges,
                       ),
                     );
                   },
@@ -1067,6 +1195,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required MemberProfile member,
     required GenealogyGraph graph,
     required List<BranchProfile> branches,
+    required int? siblingOrder,
+    required List<_GenealogyHonorBadge> honorBadges,
   }) async {
     final l10n = context.l10n;
     final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
@@ -1092,6 +1222,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           return _GenealogyMemberDetailPage(
             member: member,
             branchName: branchName,
+            siblingOrderLabel: _siblingOrderLabel(l10n, siblingOrder),
+            honorBadges: _honorBadgeLabels(l10n, honorBadges),
             generationLabel:
                 graph.generationLabels[member.id]?.compactLabel ??
                 'G${member.generation}',
@@ -1107,6 +1239,225 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         },
       ),
     );
+  }
+
+  int _compareMembersBySeniority(MemberProfile left, MemberProfile right) {
+    final byBirthDate = _compareNullableDate(
+      _tryParseBirthDate(left.birthDate),
+      _tryParseBirthDate(right.birthDate),
+    );
+    if (byBirthDate != 0) {
+      return byBirthDate;
+    }
+    final byGeneration = left.generation.compareTo(right.generation);
+    if (byGeneration != 0) {
+      return byGeneration;
+    }
+    final byName = left.fullName.toLowerCase().compareTo(
+      right.fullName.toLowerCase(),
+    );
+    if (byName != 0) {
+      return byName;
+    }
+    return left.id.compareTo(right.id);
+  }
+
+  DateTime? _tryParseBirthDate(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(trimmed);
+  }
+
+  int _compareNullableDate(DateTime? left, DateTime? right) {
+    if (left == null && right == null) {
+      return 0;
+    }
+    if (left == null) {
+      return 1;
+    }
+    if (right == null) {
+      return -1;
+    }
+    return left.compareTo(right);
+  }
+
+  String? _siblingOrderLabel(AppLocalizations l10n, int? siblingOrder) {
+    if (siblingOrder == null || siblingOrder <= 0) {
+      return null;
+    }
+    if (siblingOrder == 1) {
+      return l10n.pick(vi: 'Con cả', en: 'First-born child');
+    }
+    return l10n.pick(vi: 'Con thứ $siblingOrder', en: 'Child #$siblingOrder');
+  }
+
+  Map<String, int> _resolveSiblingOrders(GenealogyGraph graph) {
+    final orders = <String, int>{};
+    for (final entry in graph.childMap.entries) {
+      final rankedChildren =
+          entry.value
+              .map((memberId) => graph.membersById[memberId])
+              .whereType<MemberProfile>()
+              .toList(growable: false)
+            ..sort(_compareMembersBySeniority);
+      for (var index = 0; index < rankedChildren.length; index++) {
+        orders[rankedChildren[index].id] = index + 1;
+      }
+    }
+    for (final member in graph.membersById.values) {
+      if (orders.containsKey(member.id)) {
+        continue;
+      }
+      final persisted = member.siblingOrder;
+      if (persisted != null && persisted > 0) {
+        orders[member.id] = persisted;
+      }
+    }
+    return orders;
+  }
+
+  Map<String, List<_GenealogyHonorBadge>> _resolveHonorBadges(
+    GenealogyGraph graph,
+    Map<String, int> siblingOrders,
+  ) {
+    final badges = <String, Set<_GenealogyHonorBadge>>{};
+    void addBadge(String memberId, _GenealogyHonorBadge badge) {
+      badges.putIfAbsent(memberId, () => <_GenealogyHonorBadge>{}).add(badge);
+    }
+
+    final aliveMembers = graph.membersById.values
+        .where(_isMemberAlive)
+        .toList(growable: false);
+    if (aliveMembers.isEmpty) {
+      return const {};
+    }
+
+    final rootCandidates =
+        aliveMembers
+            .where((member) => graph.parentsOf(member.id).isEmpty)
+            .toList(growable: false)
+          ..sort(_compareMembersBySeniority);
+    if (rootCandidates.isNotEmpty) {
+      addBadge(rootCandidates.first.id, _GenealogyHonorBadge.giaTruong);
+    }
+
+    final clanHeirCandidates =
+        aliveMembers
+            .where((member) => graph.parentsOf(member.id).isNotEmpty)
+            .where(
+              (member) =>
+                  (siblingOrders[member.id] ?? member.siblingOrder) == 1,
+            )
+            .toList(growable: false)
+          ..sort(_compareMembersBySeniority);
+    if (clanHeirCandidates.isNotEmpty) {
+      addBadge(clanHeirCandidates.first.id, _GenealogyHonorBadge.dichTonToc);
+    }
+
+    final lineageHeirCandidates = <String, List<MemberProfile>>{};
+    for (final member in clanHeirCandidates) {
+      final lineageKey = _familyNameToken(member.fullName);
+      if (lineageKey == null) {
+        continue;
+      }
+      lineageHeirCandidates
+          .putIfAbsent(lineageKey, () => <MemberProfile>[])
+          .add(member);
+    }
+    for (final entry in lineageHeirCandidates.entries) {
+      final ranked = entry.value..sort(_compareMembersBySeniority);
+      if (ranked.isNotEmpty) {
+        addBadge(ranked.first.id, _GenealogyHonorBadge.dichTonHo);
+      }
+    }
+
+    final branchHeirCandidates = <String, List<MemberProfile>>{};
+    for (final member in clanHeirCandidates) {
+      branchHeirCandidates
+          .putIfAbsent(member.branchId, () => <MemberProfile>[])
+          .add(member);
+    }
+    for (final entry in branchHeirCandidates.entries) {
+      final ranked = entry.value..sort(_compareMembersBySeniority);
+      if (ranked.isNotEmpty) {
+        addBadge(ranked.first.id, _GenealogyHonorBadge.dichTonChi);
+      }
+    }
+
+    for (final entry in graph.childMap.entries) {
+      final rankedChildren =
+          entry.value
+              .map((memberId) => graph.membersById[memberId])
+              .whereType<MemberProfile>()
+              .where(_isMemberAlive)
+              .toList(growable: false)
+            ..sort(_compareMembersBySeniority);
+      if (rankedChildren.isNotEmpty) {
+        addBadge(rankedChildren.first.id, _GenealogyHonorBadge.dichTonGiaDinh);
+      }
+    }
+
+    final priority = {
+      _GenealogyHonorBadge.giaTruong: 0,
+      _GenealogyHonorBadge.dichTonToc: 1,
+      _GenealogyHonorBadge.dichTonHo: 2,
+      _GenealogyHonorBadge.dichTonChi: 3,
+      _GenealogyHonorBadge.dichTonGiaDinh: 4,
+    };
+    return {
+      for (final entry in badges.entries)
+        entry.key: entry.value.toList(growable: false)
+          ..sort(
+            (left, right) =>
+                (priority[left] ?? 99).compareTo(priority[right] ?? 99),
+          ),
+    };
+  }
+
+  List<String> _honorBadgeLabels(
+    AppLocalizations l10n,
+    List<_GenealogyHonorBadge> badges,
+  ) {
+    return badges.map((badge) => _honorBadgeLabel(l10n, badge)).toList();
+  }
+
+  String _honorBadgeLabel(AppLocalizations l10n, _GenealogyHonorBadge badge) {
+    return switch (badge) {
+      _GenealogyHonorBadge.giaTruong => l10n.pick(
+        vi: 'Gia trưởng',
+        en: 'Family patriarch',
+      ),
+      _GenealogyHonorBadge.dichTonGiaDinh => l10n.pick(
+        vi: 'Đích tôn gia đình',
+        en: 'Primary family heir',
+      ),
+      _GenealogyHonorBadge.dichTonChi => l10n.pick(
+        vi: 'Đích tôn chi',
+        en: 'Primary branch heir',
+      ),
+      _GenealogyHonorBadge.dichTonHo => l10n.pick(
+        vi: 'Đích tôn họ',
+        en: 'Primary lineage heir',
+      ),
+      _GenealogyHonorBadge.dichTonToc => l10n.pick(
+        vi: 'Đích tôn tộc',
+        en: 'Primary clan heir',
+      ),
+    };
+  }
+
+  String? _familyNameToken(String? fullName) {
+    final parts = (fullName ?? '')
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return null;
+    }
+    return parts.first.toLowerCase();
   }
 
   GenealogyScopeType _resolveInitialScope(AuthSession session) {
@@ -1488,7 +1839,7 @@ class _SummaryMetricGrid extends StatelessWidget {
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            mainAxisExtent: 138,
+            mainAxisExtent: 142,
           ),
           itemBuilder: (context, index) {
             final item = items[index];
@@ -1512,9 +1863,15 @@ class _SummaryMetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1525,13 +1882,21 @@ class _SummaryMetricCard extends StatelessWidget {
               style: theme.textTheme.labelLarge,
             ),
             const Spacer(),
-            Text(
-              value,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                height: 1.05,
+            SizedBox(
+              width: double.infinity,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.visible,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    height: 1.0,
+                  ),
+                ),
               ),
             ),
           ],
@@ -1567,112 +1932,300 @@ class _ViewControlCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final branchItems = branches.toList(growable: false)
       ..sort((left, right) => left.name.compareTo(right.name));
 
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(26),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.pick(vi: 'Bộ lọc hiển thị cây', en: 'Tree display controls'),
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
+        padding: const EdgeInsets.all(16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final iconOnlyChips = constraints.maxWidth < 460;
+            final denseChips = constraints.maxWidth < 740;
+            final chipDensity = denseChips
+                ? VisualDensity.compact
+                : VisualDensity.standard;
+            final chipPadding = EdgeInsets.symmetric(
+              horizontal: iconOnlyChips ? 10 : 14,
+              vertical: 10,
+            );
+            final selectedChipColor = colorScheme.secondaryContainer;
+            final unselectedChipColor = colorScheme.surfaceContainerHighest;
+            final chipLabelStyle = theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ChoiceChip(
-                  key: const Key('tree-preset-focused'),
-                  selected: displayPreset == _TreeDisplayPreset.focused,
-                  label: Text(l10n.pick(vi: 'Tập trung', en: 'Focused')),
-                  onSelected: (_) =>
-                      onDisplayPresetChanged(_TreeDisplayPreset.focused),
+                Text(
+                  l10n.pick(
+                    vi: 'Bộ lọc hiển thị cây',
+                    en: 'Tree display controls',
+                  ),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                ChoiceChip(
-                  key: const Key('tree-preset-balanced'),
-                  selected: displayPreset == _TreeDisplayPreset.balanced,
-                  label: Text(l10n.pick(vi: 'Cân bằng', en: 'Balanced')),
-                  onSelected: (_) =>
-                      onDisplayPresetChanged(_TreeDisplayPreset.balanced),
+                const SizedBox(height: 10),
+                _horizontalChipRow(
+                  children: [
+                    ChoiceChip(
+                      key: const Key('tree-preset-focused'),
+                      selected: displayPreset == _TreeDisplayPreset.focused,
+                      showCheckmark: !iconOnlyChips,
+                      visualDensity: chipDensity,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      selectedColor: selectedChipColor,
+                      backgroundColor: unselectedChipColor,
+                      side: BorderSide.none,
+                      shape: const StadiumBorder(),
+                      padding: chipPadding,
+                      tooltip: l10n.pick(
+                        vi: 'Hiển thị tập trung quanh thành viên trung tâm',
+                        en: 'Focused view around center member',
+                      ),
+                      label: _chipLabel(
+                        iconOnly: iconOnlyChips,
+                        icon: Icons.filter_center_focus,
+                        label: l10n.pick(vi: 'Tập trung', en: 'Focused'),
+                        style: chipLabelStyle,
+                      ),
+                      onSelected: (_) =>
+                          onDisplayPresetChanged(_TreeDisplayPreset.focused),
+                    ),
+                    ChoiceChip(
+                      key: const Key('tree-preset-balanced'),
+                      selected: displayPreset == _TreeDisplayPreset.balanced,
+                      showCheckmark: !iconOnlyChips,
+                      visualDensity: chipDensity,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      selectedColor: selectedChipColor,
+                      backgroundColor: unselectedChipColor,
+                      side: BorderSide.none,
+                      shape: const StadiumBorder(),
+                      padding: chipPadding,
+                      tooltip: l10n.pick(
+                        vi: 'Hiển thị cân bằng tổ tiên và hậu duệ',
+                        en: 'Balanced ancestors and descendants view',
+                      ),
+                      label: _chipLabel(
+                        iconOnly: iconOnlyChips,
+                        icon: Icons.align_horizontal_center,
+                        label: l10n.pick(vi: 'Cân bằng', en: 'Balanced'),
+                        style: chipLabelStyle,
+                      ),
+                      onSelected: (_) =>
+                          onDisplayPresetChanged(_TreeDisplayPreset.balanced),
+                    ),
+                    ChoiceChip(
+                      key: const Key('tree-preset-coverage'),
+                      selected: displayPreset == _TreeDisplayPreset.coverage,
+                      showCheckmark: !iconOnlyChips,
+                      visualDensity: chipDensity,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      selectedColor: selectedChipColor,
+                      backgroundColor: unselectedChipColor,
+                      side: BorderSide.none,
+                      shape: const StadiumBorder(),
+                      padding: chipPadding,
+                      tooltip: l10n.pick(
+                        vi: 'Hiển thị phủ rộng để thấy nhiều thành viên',
+                        en: 'Coverage mode to show more members',
+                      ),
+                      label: _chipLabel(
+                        iconOnly: iconOnlyChips,
+                        icon: Icons.open_in_full,
+                        label: l10n.pick(vi: 'Độ phủ rộng', en: 'Coverage'),
+                        style: chipLabelStyle,
+                      ),
+                      onSelected: (_) =>
+                          onDisplayPresetChanged(_TreeDisplayPreset.coverage),
+                    ),
+                  ],
                 ),
-                ChoiceChip(
-                  key: const Key('tree-preset-coverage'),
-                  selected: displayPreset == _TreeDisplayPreset.coverage,
-                  label: Text(l10n.pick(vi: 'Độ phủ rộng', en: 'Coverage')),
-                  onSelected: (_) =>
-                      onDisplayPresetChanged(_TreeDisplayPreset.coverage),
+                const SizedBox(height: 10),
+                _horizontalChipRow(
+                  children: [
+                    FilterChip(
+                      key: const Key('tree-status-all'),
+                      selected: statusFilter == _MemberStatusFilter.all,
+                      showCheckmark: !iconOnlyChips,
+                      visualDensity: chipDensity,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      selectedColor: selectedChipColor,
+                      backgroundColor: unselectedChipColor,
+                      side: BorderSide.none,
+                      shape: const StadiumBorder(),
+                      padding: chipPadding,
+                      tooltip: l10n.pick(
+                        vi: 'Hiển thị tất cả thành viên',
+                        en: 'Show all members',
+                      ),
+                      label: _chipLabel(
+                        iconOnly: iconOnlyChips,
+                        icon: Icons.people_outline,
+                        label: l10n.pick(vi: 'Tất cả', en: 'All'),
+                        style: chipLabelStyle,
+                      ),
+                      onSelected: (_) =>
+                          onStatusFilterChanged(_MemberStatusFilter.all),
+                    ),
+                    FilterChip(
+                      key: const Key('tree-status-alive'),
+                      selected: statusFilter == _MemberStatusFilter.alive,
+                      showCheckmark: !iconOnlyChips,
+                      visualDensity: chipDensity,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      selectedColor: selectedChipColor,
+                      backgroundColor: unselectedChipColor,
+                      side: BorderSide.none,
+                      shape: const StadiumBorder(),
+                      padding: chipPadding,
+                      tooltip: l10n.pick(
+                        vi: 'Chỉ hiển thị thành viên còn sống',
+                        en: 'Show alive members only',
+                      ),
+                      label: _chipLabel(
+                        iconOnly: iconOnlyChips,
+                        icon: Icons.favorite_outline,
+                        label: l10n.pick(vi: 'Còn sống', en: 'Alive'),
+                        style: chipLabelStyle,
+                      ),
+                      onSelected: (_) =>
+                          onStatusFilterChanged(_MemberStatusFilter.alive),
+                    ),
+                    FilterChip(
+                      key: const Key('tree-status-deceased'),
+                      selected: statusFilter == _MemberStatusFilter.deceased,
+                      showCheckmark: !iconOnlyChips,
+                      visualDensity: chipDensity,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      selectedColor: selectedChipColor,
+                      backgroundColor: unselectedChipColor,
+                      side: BorderSide.none,
+                      shape: const StadiumBorder(),
+                      padding: chipPadding,
+                      tooltip: l10n.pick(
+                        vi: 'Chỉ hiển thị thành viên đã mất',
+                        en: 'Show deceased members only',
+                      ),
+                      label: _chipLabel(
+                        iconOnly: iconOnlyChips,
+                        icon: Icons.history,
+                        label: l10n.pick(vi: 'Đã mất', en: 'Deceased'),
+                        style: chipLabelStyle,
+                      ),
+                      onSelected: (_) =>
+                          onStatusFilterChanged(_MemberStatusFilter.deceased),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                FilterChip(
-                  key: const Key('tree-status-all'),
-                  selected: statusFilter == _MemberStatusFilter.all,
-                  label: Text(l10n.pick(vi: 'Tất cả', en: 'All')),
-                  onSelected: (_) =>
-                      onStatusFilterChanged(_MemberStatusFilter.all),
-                ),
-                FilterChip(
-                  key: const Key('tree-status-alive'),
-                  selected: statusFilter == _MemberStatusFilter.alive,
-                  label: Text(l10n.pick(vi: 'Còn sống', en: 'Alive')),
-                  onSelected: (_) =>
-                      onStatusFilterChanged(_MemberStatusFilter.alive),
-                ),
-                FilterChip(
-                  key: const Key('tree-status-deceased'),
-                  selected: statusFilter == _MemberStatusFilter.deceased,
-                  label: Text(l10n.pick(vi: 'Đã mất', en: 'Deceased')),
-                  onSelected: (_) =>
-                      onStatusFilterChanged(_MemberStatusFilter.deceased),
-                ),
-              ],
-            ),
-            if (branchItems.length > 1) ...[
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String?>(
-                key: const Key('tree-branch-filter'),
-                initialValue: selectedBranchId,
-                decoration: InputDecoration(
-                  labelText: l10n.pick(vi: 'Lọc theo chi', en: 'Filter branch'),
-                ),
-                items: [
-                  DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text(
-                      l10n.pick(vi: 'Tất cả các chi', en: 'All branches'),
+                if (branchItems.length > 1) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.pick(vi: 'Lọc theo chi', en: 'Filter branch'),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  for (final branch in branchItems)
-                    DropdownMenuItem<String?>(
-                      value: branch.id,
-                      child: Text(branch.name),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String?>(
+                    key: const Key('tree-branch-filter'),
+                    initialValue: selectedBranchId,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: colorScheme.surfaceContainerLowest,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide(color: colorScheme.outline),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide(
+                          color: colorScheme.outlineVariant,
+                        ),
+                      ),
                     ),
+                    items: [
+                      DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text(
+                          l10n.pick(vi: 'Tất cả các chi', en: 'All branches'),
+                        ),
+                      ),
+                      for (final branch in branchItems)
+                        DropdownMenuItem<String?>(
+                          value: branch.id,
+                          child: Text(branch.name),
+                        ),
+                    ],
+                    onChanged: onBranchFilterChanged,
+                  ),
                 ],
-                onChanged: onBranchFilterChanged,
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              l10n.pick(
-                vi: 'Đang hiển thị $visibleMembers/$totalMembers thành viên.',
-                en: 'Showing $visibleMembers/$totalMembers members.',
-              ),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
+                const SizedBox(height: 8),
+                Text(
+                  l10n.pick(
+                    vi: 'Đang hiển thị $visibleMembers/$totalMembers thành viên.',
+                    en: 'Showing $visibleMembers/$totalMembers members.',
+                  ),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            );
+          },
         ),
       ),
+    );
+  }
+
+  Widget _horizontalChipRow({required List<Widget> children}) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var index = 0; index < children.length; index++) ...[
+            if (index > 0) const SizedBox(width: 8),
+            children[index],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _chipLabel({
+    required bool iconOnly,
+    required IconData icon,
+    required String label,
+    TextStyle? style,
+  }) {
+    if (iconOnly) {
+      return Icon(icon, size: 18);
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+          style: style,
+        ),
+      ],
     );
   }
 }
@@ -1699,29 +2252,55 @@ class _DepthControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(14),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
               key: Key('genealogy-depth-$id-decrease'),
               visualDensity: VisualDensity.compact,
+              iconSize: 18,
               onPressed: canDecrease ? onDecrease : null,
-              icon: const Icon(Icons.remove),
+              icon: const Icon(Icons.remove_rounded),
+              color: colorScheme.onSurfaceVariant,
+              style: IconButton.styleFrom(
+                minimumSize: const Size(34, 34),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               tooltip: l10n.pick(vi: 'Giảm $label', en: 'Decrease $label'),
             ),
-            Text('$label $depth', key: Key('genealogy-depth-$id-value')),
+            Expanded(
+              child: Text(
+                '$label $depth',
+                key: Key('genealogy-depth-$id-value'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
             IconButton(
               key: Key('genealogy-depth-$id-increase'),
               visualDensity: VisualDensity.compact,
+              iconSize: 18,
               onPressed: canIncrease ? onIncrease : null,
-              icon: const Icon(Icons.add),
+              icon: const Icon(Icons.add_rounded),
+              color: colorScheme.onSurfaceVariant,
+              style: IconButton.styleFrom(
+                minimumSize: const Size(34, 34),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               tooltip: l10n.pick(vi: 'Tăng $label', en: 'Increase $label'),
             ),
           ],
@@ -1792,6 +2371,8 @@ class _MemberNodeCard extends StatelessWidget {
   const _MemberNodeCard({
     super.key,
     required this.member,
+    required this.siblingOrderLabel,
+    required this.honorBadges,
     required this.generationLabel,
     required this.parentCount,
     required this.childCount,
@@ -1806,6 +2387,8 @@ class _MemberNodeCard extends StatelessWidget {
   });
 
   final MemberProfile member;
+  final String? siblingOrderLabel;
+  final List<String> honorBadges;
   final String generationLabel;
   final int parentCount;
   final int childCount;
@@ -1895,6 +2478,20 @@ class _MemberNodeCard extends StatelessWidget {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
+                        if (siblingOrderLabel != null) ...[
+                          _MiniFactChip(
+                            icon: Icons.format_list_numbered,
+                            label: siblingOrderLabel!,
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        for (final badge in honorBadges.take(2)) ...[
+                          _MiniFactChip(
+                            icon: Icons.workspace_premium_outlined,
+                            label: badge,
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         _MiniFactChip(
                           icon: Icons.layers_outlined,
                           label: generationLabel,
@@ -2105,6 +2702,8 @@ class _GenealogyMemberDetailPage extends StatelessWidget {
   const _GenealogyMemberDetailPage({
     required this.member,
     required this.branchName,
+    required this.siblingOrderLabel,
+    required this.honorBadges,
     required this.generationLabel,
     required this.parentCount,
     required this.childCount,
@@ -2118,6 +2717,8 @@ class _GenealogyMemberDetailPage extends StatelessWidget {
 
   final MemberProfile member;
   final String branchName;
+  final String? siblingOrderLabel;
+  final List<String> honorBadges;
   final String generationLabel;
   final int parentCount;
   final int childCount;
@@ -2185,11 +2786,21 @@ class _GenealogyMemberDetailPage extends StatelessWidget {
                                 icon: Icons.layers_outlined,
                                 label: generationLabel,
                               ),
+                              if (siblingOrderLabel != null)
+                                _MiniFactChip(
+                                  icon: Icons.format_list_numbered,
+                                  label: siblingOrderLabel!,
+                                ),
                               _StatusChip(
                                 isAlive: isAlive,
                                 aliveStatusLabel: aliveStatusLabel,
                                 deceasedStatusLabel: deceasedStatusLabel,
                               ),
+                              for (final badge in honorBadges)
+                                _MiniFactChip(
+                                  icon: Icons.workspace_premium_outlined,
+                                  label: badge,
+                                ),
                             ],
                           ),
                         ],
@@ -2234,6 +2845,19 @@ class _GenealogyMemberDetailPage extends StatelessWidget {
                     _FactLine(
                       label: l10n.memberGenderLabel,
                       value: _memberGenderLabel(l10n, member.gender),
+                    ),
+                    _FactLine(
+                      label: l10n.pick(
+                        vi: 'Thứ tự anh/chị/em',
+                        en: 'Sibling order',
+                      ),
+                      value: siblingOrderLabel ?? l10n.memberFieldUnset,
+                    ),
+                    _FactLine(
+                      label: l10n.pick(vi: 'Danh vị', en: 'Honor badges'),
+                      value: honorBadges.isEmpty
+                          ? l10n.memberFieldUnset
+                          : honorBadges.join(' • '),
                     ),
                     _FactLine(
                       label: l10n.memberBirthDateLabel,

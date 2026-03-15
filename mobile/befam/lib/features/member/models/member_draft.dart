@@ -15,6 +15,7 @@ class MemberDraft {
     required this.addressText,
     required this.jobTitle,
     required this.bio,
+    this.siblingOrder,
     required this.generation,
     required this.socialLinks,
     this.primaryRole = 'MEMBER',
@@ -34,6 +35,7 @@ class MemberDraft {
   final String addressText;
   final String jobTitle;
   final String bio;
+  final int? siblingOrder;
   final int generation;
   final MemberSocialLinks socialLinks;
   final String primaryRole;
@@ -53,6 +55,7 @@ class MemberDraft {
     String? addressText,
     String? jobTitle,
     String? bio,
+    int? siblingOrder,
     int? generation,
     MemberSocialLinks? socialLinks,
     String? primaryRole,
@@ -72,6 +75,7 @@ class MemberDraft {
       addressText: addressText ?? this.addressText,
       jobTitle: jobTitle ?? this.jobTitle,
       bio: bio ?? this.bio,
+      siblingOrder: siblingOrder ?? this.siblingOrder,
       generation: generation ?? this.generation,
       socialLinks: socialLinks ?? this.socialLinks,
       primaryRole: primaryRole ?? this.primaryRole,
@@ -94,6 +98,7 @@ class MemberDraft {
       addressText: '',
       jobTitle: '',
       bio: '',
+      siblingOrder: null,
       generation: 1,
       socialLinks: const MemberSocialLinks(),
     );
@@ -113,6 +118,7 @@ class MemberDraft {
       addressText: profile.addressText ?? '',
       jobTitle: profile.jobTitle ?? '',
       bio: profile.bio ?? '',
+      siblingOrder: profile.siblingOrder,
       generation: profile.generation,
       socialLinks: profile.socialLinks,
       primaryRole: profile.primaryRole,

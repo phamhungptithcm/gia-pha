@@ -67,6 +67,14 @@ class DebugFundRepository implements FundRepository {
         FundRepositoryErrorCode.permissionDenied,
       );
     }
+    final targetClanId = (draft.clanId ?? '').trim().isEmpty
+        ? clanId
+        : draft.clanId!.trim();
+    if (targetClanId != clanId) {
+      throw const FundRepositoryException(
+        FundRepositoryErrorCode.permissionDenied,
+      );
+    }
 
     final normalizedCurrency = CurrencyMinorUnits.normalizeCurrencyCode(
       draft.currency,
@@ -88,8 +96,13 @@ class DebugFundRepository implements FundRepository {
     final existing = _store.funds[resolvedFundId];
     final payload = FundProfile(
       id: resolvedFundId,
-      clanId: clanId,
+      clanId: targetClanId,
       branchId: _nullableTrim(draft.branchId),
+      appliedMemberIds: draft.appliedMemberIds
+          .map((entry) => entry.trim())
+          .where((entry) => entry.isNotEmpty)
+          .toSet()
+          .toList(growable: false),
       name: trimmedName,
       description: draft.description.trim(),
       fundType: draft.fundType.trim().isEmpty
