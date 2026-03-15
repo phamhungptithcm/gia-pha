@@ -1,6 +1,6 @@
 # Data Model
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## Core entities
 
@@ -28,6 +28,10 @@ Planned billing collections for Epic #213:
 - `paymentTransactions`
 - `paymentWebhookEvents`
 - `billingSettings`
+
+Planned subscription fields include `planCode` (`FREE`, `BASE`, `PLUS`,
+`PRO`), `memberCountSnapshot`, `priceVndInclVat`, `expiresAt`,
+`renewalMode`, and `adEntitlement`.
 
 ## Relationship model
 

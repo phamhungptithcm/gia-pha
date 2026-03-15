@@ -1,6 +1,6 @@
 # Roadmap
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## Delivery model
 
@@ -52,11 +52,13 @@ _Last reviewed: March 14, 2026_
 
 ### M7: Tiered subscription billing and payments (next)
 
-- annual tiered pricing by member count with VAT-included display
+- annual plans by member count with VAT-included display:
+  Free (`<=10`), Base (`11-200`), Plus (`201-700`), Pro (`701+`)
 - checkout support for card and VNPay
 - webhook/callback validation and idempotent payment processing
 - subscription lifecycle (activation, renewal, expiry)
 - auto-renew/manual-renew setup and owner/admin reminders
+- ad entitlement model: Free/Base show ads, Plus/Pro ad-free
 - billing history, invoice baseline, and audit logs
 
 ## Planning references

@@ -1,6 +1,6 @@
 # Mobile Architecture
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## App layout
 
@@ -54,3 +54,5 @@ lib/
 
 - subscription management and checkout UX (card + VNPay) for clan owner/admin
   users (Epic #213)
+- plan-based ad entitlement rendering (show ads on Free/Base, suppress ads on
+  Plus/Pro)

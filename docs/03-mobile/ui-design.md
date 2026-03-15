@@ -1,6 +1,6 @@
 # UI Design
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## Design direction
 
@@ -37,7 +37,9 @@ to keep the app approachable for both younger and older users.
 
 Planned billing UX principles:
 
-- transparent tier/price display with VAT-included wording
+- transparent plan/price display with VAT-included wording
 - always-visible subscription expiry for clan owner/admin users
 - clear payment-mode control (auto-renew vs manual)
+- visible ad entitlement label by plan (Free/Base: ads, Plus/Pro: ad-free)
+- ad placements must be non-intrusive and excluded from sensitive flows
 - non-technical error messages for failed checkout/callback states

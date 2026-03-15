@@ -1,6 +1,6 @@
 # Feature Spec
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## Feature status matrix
 
@@ -38,5 +38,6 @@ _Last reviewed: March 14, 2026_
 
 - mobile: Flutter, Android, iOS
 - backend: Firebase Auth, Firestore, Storage, Functions v2, FCM
-- billing (planned): card gateway + VNPay with server-side callback validation
+- billing (planned): Free/Base/Plus/Pro plan engine, card + VNPay checkout,
+  and server-side callback validation
 - CI/CD: GitHub Actions with protected `staging` and `main` delivery model

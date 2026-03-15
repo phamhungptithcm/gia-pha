@@ -1,6 +1,6 @@
 # User Stories
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 This page summarizes the highest-priority user stories already reflected in the
 codebase and release workflow.
@@ -41,13 +41,17 @@ codebase and release workflow.
 - As a clan owner/admin, I can see my current subscription, expiry date, and
   payment mode in one place.
 - As a clan owner/admin, I can purchase an annual subscription with card or
-  VNPay based on member-count pricing tiers.
+  VNPay based on member-count plans (Free/Base/Plus/Pro).
+- As a clan owner/admin, I can see the current ad entitlement for my clan plan
+  (ads on Free/Base, ad-free on Plus/Pro).
 - As a clan owner/admin, I can choose auto-renew or manual renewal.
 - As a clan owner/admin, I receive renewal reminders before expiration.
 - As a clan owner/admin, I can review payment history and references for audit
   and support.
 - As a system, I validate callback signatures and reject tampered payment
   callbacks.
+- As a member on Free/Base plans, I only see non-intrusive ads outside
+  sensitive payment/auth/privacy surfaces.
 
 ## Canonical backlog reference
 

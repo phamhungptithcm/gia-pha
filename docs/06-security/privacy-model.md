@@ -1,6 +1,6 @@
 # Privacy Model
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## Privacy principles
 
@@ -33,6 +33,8 @@ _Last reviewed: March 14, 2026_
 - planned billing model stores only payment references and masked metadata
   (never raw card PAN/CVV)
 - invoice and transaction records are clan-scoped and owner/admin-visible only
+- ad telemetry (if enabled) is aggregated and plan-scoped; no personalized ad
+  profiling is required for billing eligibility
 
 ## Payment data protection model (Epic #213)
 
@@ -45,6 +47,8 @@ _Last reviewed: March 14, 2026_
 - billing audit logs record actor, action, and transaction reference for
   investigation
 - sensitive payment metadata is excluded/redacted from client-visible logs
+- ad entitlement checks use plan metadata only (`FREE/BASE/PLUS/PRO`) and do
+  not require storing sensitive personal attributes
 
 ## Retention and access controls (planned billing)
 

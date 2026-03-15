@@ -1,6 +1,6 @@
 # System Design
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 ## High-level architecture
 
@@ -12,6 +12,7 @@ flowchart TD
     A --> E["Cloud Functions v2 (asia-southeast1)"]
     A --> F["Firebase Cloud Messaging"]
     A --> K["Card/VNPay checkout redirect or SDK flow"]
+    A --> M["Ad SDK/Network (planned, plan-gated)"]
     E --> C
     E --> F
     K --> L["Payment Gateway"]
@@ -29,6 +30,8 @@ flowchart TD
 - Cloud Functions handle cross-document workflows and push fan-out
 - planned billing flow keeps payment verification on server-side callbacks
   before state mutation
+- plan entitlements (including ad eligibility) are resolved server-side and
+  enforced in client UI state
 - Firebase Rules enforce role and clan scope on reads/writes
 
 ## Environment and branch topology

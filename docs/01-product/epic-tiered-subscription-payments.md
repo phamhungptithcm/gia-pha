@@ -1,34 +1,39 @@
 # Tiered Subscription + Payments Epic
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 Source tracking issue: [#213](https://github.com/phamhungptithcm/gia-pha/issues/213)
 
 ## Goal
 
-Implement annual subscription pricing based on family-tree member count, with
-checkout via Card and VNPay, including subscription lifecycle, reminders, and
-access control.
+Implement annual subscription pricing based on family-tree member count using
+Free/Base/Plus/Pro plans, with checkout via Card and VNPay, plus subscription
+lifecycle, reminders, ad entitlements, and access control.
 
 ## Pricing rules (annual, VAT included)
 
-- `< 30` members: free
-- `30 - 200`: 29,000 VND/year
-- `201 - 400`: 59,000 VND/year
-- `401 - 700`: 79,000 VND/year
-- `701 - 1200`: 89,000 VND/year
-- `1201 - 2000`: 119,000 VND/year
-- `2001+`: 199,000 VND/year
+- `<= 10` members: Free
+- `11 - 200`: Base, 49,000 VND/year
+- `201 - 700`: Plus, 89,000 VND/year
+- `701+`: Pro, 119,000 VND/year
+
+## Ads entitlement policy
+
+- Free and Base plans show ads
+- Plus and Pro plans are ad-free
+- ads are blocked on sensitive flows (auth, checkout, payment result, and
+  privacy/consent surfaces)
 
 ## Scope
 
 - pricing engine by `member_count`
-- subscription status UI (plan, expiry date, payment mode)
+- subscription status UI (plan, expiry date, payment mode, ad entitlement)
 - checkout integration: card and VNPay
 - payment callback/webhook validation and processing
 - activation, renewal, expiry, and access gating
 - auto-renew and manual-renew setup
 - reminder delivery before expiry and renewal due date
+- ad entitlement resolution and placement gating by plan
 - payment history, invoice basics, and billing audit logs
 
 ## Subscription visibility
@@ -52,6 +57,8 @@ Clan owner/admin users can always view:
 8. Correct failed/expired handling in UI and permissions.
 9. Secure VNPay callback signature verification.
 10. Complete transaction metadata with gateway references.
+11. Free/Base users see configured ads; Plus/Pro users do not.
+12. No ads are shown in auth, checkout, payment-result, and privacy flows.
 
 ## Child stories
 
@@ -63,7 +70,7 @@ Clan owner/admin users can always view:
 - BILL-006: Callback/webhook validation and processing
 - BILL-007: Auto-renew/manual-renew preference management
 - BILL-008: Renewal/expiry reminder scheduler + notifications
-- BILL-009: Feature gating by subscription state
+- BILL-009: Feature + ad gating by subscription state
 - BILL-010: Payment history and invoice basics
 - BILL-011: Billing audit logs and traceability
 - BILL-012: Billing test suite

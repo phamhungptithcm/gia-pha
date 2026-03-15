@@ -1,6 +1,6 @@
 # Firestore Schema
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 15, 2026_
 
 This page summarizes the active Firestore model used by the mobile app and
 Cloud Functions.
@@ -19,7 +19,8 @@ Cloud Functions.
 
 Planned billing collections (Epic #213):
 
-- `subscriptions`: clan-level plan state, tier, price, expiry, renew mode
+- `subscriptions`: clan-level plan state (`FREE`, `BASE`, `PLUS`, `PRO`),
+  member snapshot, price, ad entitlement, expiry, renew mode
 - `subscriptionInvoices`: invoice summaries for each billing cycle
 - `paymentTransactions`: gateway-level payment intent/settlement records
 - `paymentWebhookEvents`: idempotency and callback verification tracking
