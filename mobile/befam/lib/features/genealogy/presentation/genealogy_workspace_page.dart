@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/services/firebase_services.dart';
 import '../../../core/services/performance_measurement_logger.dart';
 import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/widgets/app_feedback_states.dart';
@@ -11,6 +13,9 @@ import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../../clan/models/branch_profile.dart';
+import '../../clan/models/branch_draft.dart';
+import '../../clan/models/clan_draft.dart';
+import '../../clan/services/clan_repository.dart';
 import '../../member/models/member_profile.dart';
 import '../models/genealogy_graph.dart';
 import '../models/genealogy_read_segment.dart';
@@ -59,11 +64,14 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     defaultSlowThreshold: const Duration(milliseconds: 120),
   );
   AnimationController? _centerAnimController;
+  late final ClanRepository _clanRepository;
 
   late GenealogyScopeType _scopeType;
   GenealogyReadSegment? _segment;
   Object? _error;
   bool _isLoading = true;
+  bool _isSubmittingAddClan = false;
+  bool _isSubmittingAddBranch = false;
 
   String? _rootMemberId;
   String? _selectedMemberId;
@@ -83,6 +91,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     super.initState();
     _scopeType = _resolveInitialScope(widget.session);
     _transformController = TransformationController();
+    _clanRepository = createDefaultClanRepository(session: widget.session);
     unawaited(_load());
   }
 
@@ -176,8 +185,12 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           _ViewControlCard(
             displayPreset: _displayPreset,
             onDisplayPresetChanged: _applyDisplayPreset,
-            onAddGenealogyPressed: _showAddGenealogyPlaceholder,
-            onAddBranchPressed: _showAddBranchPlaceholder,
+            onAddGenealogyPressed: _isSubmittingAddClan
+                ? null
+                : _openAddPrivateGenealogySheet,
+            onAddBranchPressed: _isSubmittingAddBranch
+                ? null
+                : _openAddPrivateBranchSheet,
             statusFilter: _statusFilter,
             onStatusFilterChanged: (value) {
               setState(() {
@@ -587,36 +600,232 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     });
   }
 
-  void _showAddGenealogyPlaceholder() {
+  Future<void> _openAddPrivateGenealogySheet() async {
+    if (_isSubmittingAddClan) {
+      return;
+    }
     final l10n = context.l10n;
-    ScaffoldMessenger.maybeOf(context)
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.pick(
-              vi: 'Sắp có chức năng thêm gia phả trực tiếp trên màn hình này.',
-              en: 'Add genealogy action will be available on this screen soon.',
-            ),
-          ),
-        ),
-      );
+    final initialName = l10n.pick(
+      vi: 'Gia phả riêng ${widget.session.displayName}',
+      en: '${widget.session.displayName} private tree',
+    );
+    final payload = await showModalBottomSheet<_AdditionalClanPayload>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _AdditionalClanSheet(
+        initialName: initialName,
+        initialFounderName: widget.session.displayName,
+      ),
+    );
+    if (payload == null) {
+      return;
+    }
+    await _submitAdditionalClan(payload);
   }
 
-  void _showAddBranchPlaceholder() {
+  Future<void> _submitAdditionalClan(_AdditionalClanPayload payload) async {
+    if (_isSubmittingAddClan) {
+      return;
+    }
     final l10n = context.l10n;
-    ScaffoldMessenger.maybeOf(context)
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.pick(
-              vi: 'Sắp có chức năng thêm nhánh trực tiếp trên màn hình này.',
-              en: 'Add branch action will be available on this screen soon.',
+    setState(() => _isSubmittingAddClan = true);
+    try {
+      if (widget.session.isSandbox) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                l10n.pick(
+                  vi: 'Môi trường thử nghiệm chưa hỗ trợ tạo thêm gia phả riêng.',
+                  en: 'Sandbox mode does not support creating additional private genealogy yet.',
+                ),
+              ),
+            ),
+          );
+        return;
+      }
+
+      final callable = FirebaseServices.functions.httpsCallable(
+        'bootstrapClanWorkspace',
+      );
+      final response = await callable.call(<String, dynamic>{
+        'name': payload.draft.name,
+        'slug': payload.draft.slug,
+        'description': payload.draft.description,
+        'countryCode': payload.draft.countryCode,
+        'founderName': payload.draft.founderName,
+        'logoUrl': payload.draft.logoUrl,
+        'allowExistingClan': true,
+      });
+
+      if (!mounted) {
+        return;
+      }
+      final data = response.data;
+      final createdClanId = data is Map
+          ? (data['clanId'] as String? ?? '')
+          : '';
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              createdClanId.isEmpty
+                  ? l10n.pick(
+                      vi: 'Đã tạo gia phả riêng. Bạn có thể chuyển qua clan mới ở bộ chuyển clan.',
+                      en: 'Private genealogy created. You can switch to it from the clan switcher.',
+                    )
+                  : l10n.pick(
+                      vi: 'Đã tạo gia phả riêng ($createdClanId). Bạn vẫn thuộc gia phả hiện tại.',
+                      en: 'Private genealogy created ($createdClanId). You still remain in the current clan.',
+                    ),
             ),
           ),
+        );
+    } on FirebaseFunctionsException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = switch (error.code) {
+        'already-exists' => l10n.pick(
+          vi: 'Slug gia phả đã tồn tại. Vui lòng đổi slug khác.',
+          en: 'Clan slug already exists. Please use a different slug.',
+        ),
+        'failed-precondition' => l10n.pick(
+          vi: 'Không thể tạo gia phả riêng với trạng thái tài khoản hiện tại.',
+          en: 'Cannot create private genealogy with the current account state.',
+        ),
+        _ =>
+          error.message ??
+              l10n.pick(
+                vi: 'Không thể tạo gia phả riêng lúc này.',
+                en: 'Could not create private genealogy right now.',
+              ),
+      };
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick(
+                vi: 'Không thể tạo gia phả riêng lúc này.',
+                en: 'Could not create private genealogy right now.',
+              ),
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmittingAddClan = false);
+      }
+    }
+  }
+
+  Future<void> _openAddPrivateBranchSheet() async {
+    if (_isSubmittingAddBranch) {
+      return;
+    }
+    if ((widget.session.clanId ?? '').trim().isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick(
+                vi: 'Cần chọn gia phả đang hoạt động trước khi tạo nhánh riêng.',
+                en: 'Please select an active clan before creating a private branch.',
+              ),
+            ),
+          ),
+        );
+      return;
+    }
+
+    final payload = await showModalBottomSheet<_PrivateBranchPayload>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _PrivateBranchSheet(
+        currentMemberId: widget.session.memberId,
+        members: _segment?.members ?? const [],
+      ),
+    );
+    if (payload == null) {
+      return;
+    }
+    await _submitPrivateBranch(payload);
+  }
+
+  Future<void> _submitPrivateBranch(_PrivateBranchPayload payload) async {
+    if (_isSubmittingAddBranch) {
+      return;
+    }
+    setState(() => _isSubmittingAddBranch = true);
+    try {
+      await _clanRepository.saveBranch(
+        session: widget.session,
+        draft: BranchDraft(
+          name: payload.name,
+          code: payload.code,
+          generationLevelHint: payload.generationLevelHint,
+          leaderMemberId: payload.leaderMemberId,
+          viceLeaderMemberId: payload.viceLeaderMemberId,
         ),
       );
+      await _load(allowCached: false);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick(
+                vi: 'Đã tạo nhánh riêng thành công.',
+                en: 'Private branch created successfully.',
+              ),
+            ),
+          ),
+        );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick(
+                vi: 'Không thể tạo nhánh riêng. Vui lòng kiểm tra quyền hoặc thử lại.',
+                en: 'Could not create private branch. Please verify permissions and try again.',
+              ),
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmittingAddBranch = false);
+      }
+    }
   }
 
   void _applyDisplayPreset(_TreeDisplayPreset preset) {
@@ -1515,6 +1724,528 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   }
 }
 
+class _AdditionalClanPayload {
+  const _AdditionalClanPayload({required this.draft});
+
+  final ClanDraft draft;
+}
+
+class _PrivateBranchPayload {
+  const _PrivateBranchPayload({
+    required this.name,
+    required this.code,
+    required this.generationLevelHint,
+    required this.leaderMemberId,
+    required this.viceLeaderMemberId,
+  });
+
+  final String name;
+  final String code;
+  final int generationLevelHint;
+  final String? leaderMemberId;
+  final String? viceLeaderMemberId;
+}
+
+class _AdditionalClanSheet extends StatefulWidget {
+  const _AdditionalClanSheet({
+    required this.initialName,
+    required this.initialFounderName,
+  });
+
+  final String initialName;
+  final String initialFounderName;
+
+  @override
+  State<_AdditionalClanSheet> createState() => _AdditionalClanSheetState();
+}
+
+class _AdditionalClanSheetState extends State<_AdditionalClanSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _slugController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _founderController;
+  late final TextEditingController _countryCodeController;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName);
+    _slugController = TextEditingController();
+    _descriptionController = TextEditingController();
+    _founderController = TextEditingController(text: widget.initialFounderName);
+    _countryCodeController = TextEditingController(text: 'VN');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _slugController.dispose();
+    _descriptionController.dispose();
+    _founderController.dispose();
+    _countryCodeController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_isSubmitting) {
+      return;
+    }
+    final valid = _formKey.currentState?.validate() ?? false;
+    if (!valid) {
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    final name = _nameController.text.trim();
+    final customSlug = _slugController.text.trim();
+    final slug = customSlug.isEmpty
+        ? _normalizeSlugInput(name)
+        : _normalizeSlugInput(customSlug);
+    final draft = ClanDraft(
+      name: name,
+      slug: slug,
+      description: _descriptionController.text.trim(),
+      countryCode: _countryCodeController.text.trim().toUpperCase(),
+      founderName: _founderController.text.trim(),
+      logoUrl: '',
+    );
+    Navigator.of(context).pop(_AdditionalClanPayload(draft: draft));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.pick(
+                    vi: 'Thêm gia phả riêng',
+                    en: 'Create private genealogy',
+                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.pick(
+                    vi: 'Tạo một gia phả độc lập để quản lý nhánh gia đình nhỏ, nhưng vẫn giữ liên kết với gia phả hiện tại.',
+                    en: 'Create an isolated genealogy for your smaller family branch while keeping your current clan membership.',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Tên gia phả',
+                      en: 'Genealogy name',
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return l10n.pick(
+                        vi: 'Vui lòng nhập tên gia phả.',
+                        en: 'Please provide genealogy name.',
+                      );
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _slugController,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Slug (tùy chọn)',
+                      en: 'Slug (optional)',
+                    ),
+                    helperText: l10n.pick(
+                      vi: 'Để trống để hệ thống tự tạo từ tên.',
+                      en: 'Leave empty to auto-generate from name.',
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _descriptionController,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _founderController,
+                        decoration: InputDecoration(
+                          labelText: l10n.pick(
+                            vi: 'Người đại diện',
+                            en: 'Founder',
+                          ),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 108,
+                      child: TextFormField(
+                        controller: _countryCodeController,
+                        decoration: InputDecoration(
+                          labelText: l10n.pick(vi: 'Quốc gia', en: 'Country'),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _isSubmitting
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                        child: Text(l10n.pick(vi: 'Hủy', en: 'Cancel')),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _isSubmitting ? null : _submit,
+                        icon: const Icon(Icons.account_tree_outlined),
+                        label: Text(
+                          l10n.pick(
+                            vi: 'Tạo gia phả riêng',
+                            en: 'Create private tree',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PrivateBranchSheet extends StatefulWidget {
+  const _PrivateBranchSheet({
+    required this.currentMemberId,
+    required this.members,
+  });
+
+  final String? currentMemberId;
+  final List<MemberProfile> members;
+
+  @override
+  State<_PrivateBranchSheet> createState() => _PrivateBranchSheetState();
+}
+
+class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _codeController;
+  late int _generationHint;
+  late bool _setCurrentAsLeader;
+  String? _leaderMemberId;
+  String? _viceLeaderMemberId;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _codeController = TextEditingController();
+    _generationHint = 1;
+    _setCurrentAsLeader = (widget.currentMemberId ?? '').trim().isNotEmpty;
+    _leaderMemberId = _setCurrentAsLeader ? widget.currentMemberId : null;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_isSubmitting) {
+      return;
+    }
+    final valid = _formKey.currentState?.validate() ?? false;
+    if (!valid) {
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    final name = _nameController.text.trim();
+    final rawCode = _codeController.text.trim();
+    final code = rawCode.isEmpty
+        ? _normalizeBranchCodeInput(name)
+        : _normalizeBranchCodeInput(rawCode);
+    final payload = _PrivateBranchPayload(
+      name: name,
+      code: code,
+      generationLevelHint: _generationHint,
+      leaderMemberId: _leaderMemberId,
+      viceLeaderMemberId: _viceLeaderMemberId,
+    );
+    Navigator.of(context).pop(payload);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final sortedMembers = [...widget.members]
+      ..sort(
+        (left, right) =>
+            left.fullName.toLowerCase().compareTo(right.fullName.toLowerCase()),
+      );
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.pick(
+                    vi: 'Thêm nhánh riêng',
+                    en: 'Create private branch',
+                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.pick(
+                    vi: 'Nhánh riêng giúp gia đình nhỏ quản trị thành viên, sự kiện và quỹ độc lập.',
+                    en: 'A private branch helps your small family manage members, events, and funds independently.',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Tên nhánh', en: 'Branch name'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return l10n.pick(
+                        vi: 'Vui lòng nhập tên nhánh.',
+                        en: 'Please provide branch name.',
+                      );
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _codeController,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Mã nhánh', en: 'Branch code'),
+                    helperText: l10n.pick(
+                      vi: 'Để trống để tự tạo mã nhánh.',
+                      en: 'Leave empty to auto-generate branch code.',
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _setCurrentAsLeader,
+                  title: Text(
+                    l10n.pick(
+                      vi: 'Đặt tôi làm trưởng nhánh',
+                      en: 'Set me as branch lead',
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _setCurrentAsLeader = value;
+                      _leaderMemberId = value ? widget.currentMemberId : null;
+                      if (_viceLeaderMemberId == _leaderMemberId) {
+                        _viceLeaderMemberId = null;
+                      }
+                    });
+                  },
+                ),
+                if (!_setCurrentAsLeader) ...[
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _leaderMemberId,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Trưởng nhánh',
+                        en: 'Branch lead',
+                      ),
+                      border: const OutlineInputBorder(),
+                    ),
+                    items: [
+                      DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text(
+                          l10n.pick(vi: 'Chưa chọn', en: 'Not selected'),
+                        ),
+                      ),
+                      for (final member in sortedMembers)
+                        DropdownMenuItem<String?>(
+                          value: member.id,
+                          child: Text(member.fullName),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _leaderMemberId = value;
+                        if (_viceLeaderMemberId == value) {
+                          _viceLeaderMemberId = null;
+                        }
+                      });
+                    },
+                  ),
+                ],
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String?>(
+                  initialValue: _viceLeaderMemberId,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Phó nhánh', en: 'Deputy lead'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: [
+                    DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text(l10n.pick(vi: 'Không có', en: 'None')),
+                    ),
+                    for (final member in sortedMembers)
+                      if (member.id != _leaderMemberId)
+                        DropdownMenuItem<String?>(
+                          value: member.id,
+                          child: Text(member.fullName),
+                        ),
+                  ],
+                  onChanged: (value) {
+                    setState(() => _viceLeaderMemberId = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: _generationHint,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Đời ưu tiên hiển thị',
+                      en: 'Generation hint',
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (var value = 1; value <= 12; value++)
+                      DropdownMenuItem<int>(
+                        value: value,
+                        child: Text('$value'),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() => _generationHint = value);
+                  },
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _isSubmitting
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                        child: Text(l10n.pick(vi: 'Hủy', en: 'Cancel')),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _isSubmitting ? null : _submit,
+                        icon: const Icon(Icons.call_split_outlined),
+                        label: Text(
+                          l10n.pick(vi: 'Tạo nhánh riêng', en: 'Create branch'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _normalizeSlugInput(String value) {
+  final normalized = value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'-+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+  if (normalized.length >= 3) {
+    return normalized;
+  }
+  if (normalized.isEmpty) {
+    return 'gia-pha-rieng';
+  }
+  return normalized.padRight(3, 'x');
+}
+
+String _normalizeBranchCodeInput(String value) {
+  final normalized = value
+      .trim()
+      .toUpperCase()
+      .replaceAll(RegExp(r'[^A-Z0-9]+'), '_')
+      .replaceAll(RegExp(r'_+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+  if (normalized.isNotEmpty) {
+    return normalized;
+  }
+  return 'PRIVATE_BRANCH';
+}
+
 class _LandingCard extends StatelessWidget {
   const _LandingCard({
     required this.scopeType,
@@ -1907,8 +2638,8 @@ class _ViewControlCard extends StatelessWidget {
 
   final _TreeDisplayPreset displayPreset;
   final ValueChanged<_TreeDisplayPreset> onDisplayPresetChanged;
-  final VoidCallback onAddGenealogyPressed;
-  final VoidCallback onAddBranchPressed;
+  final VoidCallback? onAddGenealogyPressed;
+  final VoidCallback? onAddBranchPressed;
   final _MemberStatusFilter statusFilter;
   final ValueChanged<_MemberStatusFilter> onStatusFilterChanged;
   final List<BranchProfile> branches;

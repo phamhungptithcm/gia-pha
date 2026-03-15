@@ -9,6 +9,7 @@ class FundDraft {
     required this.currency,
     this.branchId,
     this.appliedMemberIds = const [],
+    this.treasurerMemberIds = const [],
   });
 
   final String? clanId;
@@ -18,6 +19,7 @@ class FundDraft {
   final String currency;
   final String? branchId;
   final List<String> appliedMemberIds;
+  final List<String> treasurerMemberIds;
 
   factory FundDraft.empty() {
     return const FundDraft(
@@ -37,6 +39,7 @@ class FundDraft {
       currency: profile.currency,
       branchId: profile.branchId,
       appliedMemberIds: profile.appliedMemberIds,
+      treasurerMemberIds: profile.treasurerMemberIds,
     );
   }
 
@@ -50,6 +53,7 @@ class FundDraft {
     String? branchId,
     bool clearBranchId = false,
     List<String>? appliedMemberIds,
+    List<String>? treasurerMemberIds,
   }) {
     return FundDraft(
       clanId: clearClanId ? null : (clanId ?? this.clanId),
@@ -58,10 +62,12 @@ class FundDraft {
       fundType: fundType ?? this.fundType,
       currency: currency ?? this.currency,
       branchId: clearBranchId ? null : (branchId ?? this.branchId),
-      appliedMemberIds:
-          appliedMemberIds == null
-              ? this.appliedMemberIds
-              : List<String>.unmodifiable(appliedMemberIds),
+      appliedMemberIds: appliedMemberIds == null
+          ? this.appliedMemberIds
+          : List<String>.unmodifiable(appliedMemberIds),
+      treasurerMemberIds: treasurerMemberIds == null
+          ? this.treasurerMemberIds
+          : List<String>.unmodifiable(treasurerMemberIds),
     );
   }
 }

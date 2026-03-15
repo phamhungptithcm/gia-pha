@@ -4,6 +4,7 @@ class FundProfile {
     required this.clanId,
     this.branchId,
     this.appliedMemberIds = const [],
+    this.treasurerMemberIds = const [],
     required this.name,
     required this.description,
     required this.fundType,
@@ -16,6 +17,7 @@ class FundProfile {
   final String clanId;
   final String? branchId;
   final List<String> appliedMemberIds;
+  final List<String> treasurerMemberIds;
   final String name;
   final String description;
   final String fundType;
@@ -31,6 +33,7 @@ class FundProfile {
     String? branchId,
     bool clearBranchId = false,
     List<String>? appliedMemberIds,
+    List<String>? treasurerMemberIds,
     String? name,
     String? description,
     String? fundType,
@@ -42,10 +45,12 @@ class FundProfile {
       id: id ?? this.id,
       clanId: clanId ?? this.clanId,
       branchId: clearBranchId ? null : (branchId ?? this.branchId),
-      appliedMemberIds:
-          appliedMemberIds == null
-              ? this.appliedMemberIds
-              : List<String>.unmodifiable(appliedMemberIds),
+      appliedMemberIds: appliedMemberIds == null
+          ? this.appliedMemberIds
+          : List<String>.unmodifiable(appliedMemberIds),
+      treasurerMemberIds: treasurerMemberIds == null
+          ? this.treasurerMemberIds
+          : List<String>.unmodifiable(treasurerMemberIds),
       name: name ?? this.name,
       description: description ?? this.description,
       fundType: fundType ?? this.fundType,
@@ -61,6 +66,7 @@ class FundProfile {
       'clanId': clanId,
       'branchId': branchId,
       'appliedMemberIds': appliedMemberIds,
+      'treasurerMemberIds': treasurerMemberIds,
       'name': name,
       'description': description,
       'fundType': fundType,
@@ -76,6 +82,7 @@ class FundProfile {
       clanId: json['clanId'] as String? ?? '',
       branchId: _nullableString(json['branchId']),
       appliedMemberIds: _asStringList(json['appliedMemberIds']),
+      treasurerMemberIds: _asStringList(json['treasurerMemberIds']),
       name: json['name'] as String? ?? '',
       description: json['description'] as String? ?? '',
       fundType: json['fundType'] as String? ?? 'custom',

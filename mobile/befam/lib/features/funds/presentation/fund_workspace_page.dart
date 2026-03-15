@@ -654,6 +654,26 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     required FundProfile currentFund,
     required String activeClanId,
   }) {
+    final explicitTreasurerIds = currentFund.treasurerMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet();
+    if (explicitTreasurerIds.isNotEmpty) {
+      final names =
+          _cachedMembers
+              .where((member) => member.clanId.trim() == activeClanId)
+              .where((member) => explicitTreasurerIds.contains(member.id))
+              .map((member) => member.displayName.trim())
+              .where((name) => name.isNotEmpty)
+              .toSet()
+              .toList(growable: false)
+            ..sort(
+              (left, right) =>
+                  left.toLowerCase().compareTo(right.toLowerCase()),
+            );
+      return names;
+    }
+
     Iterable<MemberProfile> scoped = _treasurerMembers.where(
       (member) => member.clanId.trim() == activeClanId,
     );
@@ -1086,6 +1106,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
   late String _selectedClanId;
   List<MemberProfile> _members = const [];
   Set<String> _selectedMemberIds = <String>{};
+  Set<String> _selectedTreasurerMemberIds = <String>{};
   bool _isLoadingMembers = false;
   String? _memberLoadError;
   FundRepositoryErrorCode? _submitError;
@@ -1131,6 +1152,10 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
       _selectedClanId = candidateClanId;
     }
     _selectedMemberIds = widget.initialDraft.appliedMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet();
+    _selectedTreasurerMemberIds = widget.initialDraft.treasurerMemberIds
         .map((entry) => entry.trim())
         .where((entry) => entry.isNotEmpty)
         .toSet();
@@ -1187,6 +1212,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
         currency: _currency,
         branchId: _nullIfBlank(_branchIdController.text),
         appliedMemberIds: _selectedMemberIds.toList(growable: false),
+        treasurerMemberIds: _selectedTreasurerMemberIds.toList(growable: false),
       ),
     );
 
@@ -1211,6 +1237,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
       setState(() {
         _members = const [];
         _selectedMemberIds.clear();
+        _selectedTreasurerMemberIds.clear();
         _memberLoadError = null;
       });
       return;
@@ -1233,6 +1260,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
       setState(() {
         _members = members;
         _selectedMemberIds = _selectedMemberIds
+            .where(memberIdSet.contains)
+            .toSet();
+        _selectedTreasurerMemberIds = _selectedTreasurerMemberIds
             .where(memberIdSet.contains)
             .toSet();
         _isLoadingMembers = false;
@@ -1259,8 +1289,151 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
     setState(() {
       _selectedClanId = normalizedClanId;
       _selectedMemberIds.clear();
+      _selectedTreasurerMemberIds.clear();
     });
     await _loadMembersForClan(normalizedClanId);
+  }
+
+  List<MemberProfile> _selectedMembersFor(Set<String> ids) {
+    if (ids.isEmpty) {
+      return const [];
+    }
+    final selected =
+        _members
+            .where((member) => ids.contains(member.id))
+            .toList(growable: false)
+          ..sort(
+            (left, right) => left.displayName.toLowerCase().compareTo(
+              right.displayName.toLowerCase(),
+            ),
+          );
+    return selected;
+  }
+
+  Future<void> _pickMemberIds({
+    required String title,
+    required Set<String> initialSelected,
+    required ValueChanged<Set<String>> onApplied,
+  }) async {
+    final selected = Set<String>.from(initialSelected);
+    String query = '';
+    final result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final normalizedQuery = query.trim().toLowerCase();
+            final filteredMembers = _members
+                .where((member) {
+                  if (normalizedQuery.isEmpty) {
+                    return true;
+                  }
+                  return member.displayName.toLowerCase().contains(
+                        normalizedQuery,
+                      ) ||
+                      member.id.toLowerCase().contains(normalizedQuery);
+                })
+                .toList(growable: false);
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.72,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        hintText: context.l10n.pick(
+                          vi: 'Tìm thành viên...',
+                          en: 'Search members...',
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setModalState(() {
+                          query = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: filteredMembers.isEmpty
+                          ? Center(
+                              child: Text(
+                                context.l10n.pick(
+                                  vi: 'Không tìm thấy thành viên phù hợp.',
+                                  en: 'No matching members found.',
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: filteredMembers.length,
+                              itemBuilder: (context, index) {
+                                final member = filteredMembers[index];
+                                final isChecked = selected.contains(member.id);
+                                return CheckboxListTile(
+                                  value: isChecked,
+                                  title: Text(member.displayName),
+                                  subtitle: Text('ID: ${member.id}'),
+                                  onChanged: (value) {
+                                    setModalState(() {
+                                      if (value == true) {
+                                        selected.add(member.id);
+                                      } else {
+                                        selected.remove(member.id);
+                                      }
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(
+                              context.l10n.pick(vi: 'Hủy', en: 'Cancel'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () =>
+                                Navigator.of(context).pop(selected),
+                            child: Text(
+                              context.l10n.pick(vi: 'Xong', en: 'Done'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (result == null) {
+      return;
+    }
+    onApplied(result);
   }
 
   @override
@@ -1268,6 +1441,10 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
     final insets = MediaQuery.viewInsetsOf(context);
     final theme = Theme.of(context);
     final l10n = context.l10n;
+    final selectedTreasurerMembers = _selectedMembersFor(
+      _selectedTreasurerMemberIds,
+    );
+    final selectedAppliedMembers = _selectedMembersFor(_selectedMemberIds);
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -1439,6 +1616,99 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                 InputDecorator(
                   decoration: InputDecoration(
                     labelText: l10n.pick(
+                      vi: 'Thủ quỹ phụ trách',
+                      en: 'Assigned treasurer',
+                    ),
+                  ),
+                  child: _isLoadingMembers
+                      ? Row(
+                          children: [
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              l10n.pick(
+                                vi: 'Đang tải thành viên...',
+                                en: 'Loading members...',
+                              ),
+                            ),
+                          ],
+                        )
+                      : _memberLoadError != null
+                      ? Text(_memberLoadError!)
+                      : _members.isEmpty
+                      ? Text(
+                          l10n.pick(
+                            vi: 'Không có thành viên khả dụng trong gia phả này.',
+                            en: 'No members available in this clan.',
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.pick(
+                                vi: 'Đã chọn ${_selectedTreasurerMemberIds.length}/${_members.length} thủ quỹ',
+                                en: 'Selected ${_selectedTreasurerMemberIds.length}/${_members.length} treasurers',
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              l10n.pick(
+                                vi: 'Thành viên được chọn sẽ được cấp vai trò Thủ quỹ mặc định.',
+                                en: 'Selected members are granted the Treasurer role by default.',
+                              ),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 10),
+                            OutlinedButton.icon(
+                              key: const Key('fund-treasurer-picker'),
+                              onPressed: () {
+                                unawaited(
+                                  _pickMemberIds(
+                                    title: l10n.pick(
+                                      vi: 'Chọn thủ quỹ',
+                                      en: 'Select treasurers',
+                                    ),
+                                    initialSelected:
+                                        _selectedTreasurerMemberIds,
+                                    onApplied: (picked) {
+                                      setState(() {
+                                        _selectedTreasurerMemberIds = picked;
+                                      });
+                                    },
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.person_search_outlined),
+                              label: Text(
+                                l10n.pick(
+                                  vi: 'Chọn thành viên',
+                                  en: 'Choose members',
+                                ),
+                              ),
+                            ),
+                            if (selectedTreasurerMembers.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final member in selectedTreasurerMembers)
+                                    Chip(label: Text(member.displayName)),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                ),
+                const SizedBox(height: 14),
+                InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
                       vi: 'Áp dụng cho thành viên',
                       en: 'Apply to members',
                     ),
@@ -1479,28 +1749,43 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                               ),
                             ),
                             const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                for (final member in _members)
-                                  FilterChip(
-                                    label: Text(member.displayName),
-                                    selected: _selectedMemberIds.contains(
-                                      member.id,
+                            OutlinedButton.icon(
+                              key: const Key('fund-applied-members-picker'),
+                              onPressed: () {
+                                unawaited(
+                                  _pickMemberIds(
+                                    title: l10n.pick(
+                                      vi: 'Chọn thành viên áp dụng',
+                                      en: 'Select applicable members',
                                     ),
-                                    onSelected: (selected) {
+                                    initialSelected: _selectedMemberIds,
+                                    onApplied: (picked) {
                                       setState(() {
-                                        if (selected) {
-                                          _selectedMemberIds.add(member.id);
-                                        } else {
-                                          _selectedMemberIds.remove(member.id);
-                                        }
+                                        _selectedMemberIds = picked;
                                       });
                                     },
                                   ),
-                              ],
+                                );
+                              },
+                              icon: const Icon(Icons.group_outlined),
+                              label: Text(
+                                l10n.pick(
+                                  vi: 'Chọn thành viên',
+                                  en: 'Choose members',
+                                ),
+                              ),
                             ),
+                            if (selectedAppliedMembers.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final member in selectedAppliedMembers)
+                                    Chip(label: Text(member.displayName)),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                 ),

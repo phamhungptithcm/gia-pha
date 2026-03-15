@@ -270,12 +270,30 @@ export const bootstrapClanWorkspace = onCall(
   async (request) => {
     const auth = requireAuth(request);
     const tokenClanIds = extractTokenClanIds(auth.token);
-    if (tokenClanIds.length > 0) {
+    const allowExistingClan = request.data != null &&
+      typeof request.data === 'object' &&
+      (request.data as Record<string, unknown>).allowExistingClan === true;
+    if (tokenClanIds.length > 0 && !allowExistingClan) {
       throw new HttpsError(
         'failed-precondition',
         'This account is already linked to a clan.',
       );
     }
+    const activeClanIdFromToken = optionalString(auth.token, 'activeClanId')?.trim() ??
+      optionalString(auth.token, 'clanId')?.trim() ??
+      null;
+    const activeMemberIdFromToken = optionalString(auth.token, 'memberId')?.trim() ?? null;
+    const activeBranchIdFromToken = optionalString(auth.token, 'branchId')?.trim() ?? null;
+    const activeRoleFromToken = normalizeRoleClaim(optionalString(auth.token, 'primaryRole'));
+    const activeDisplayNameFromToken = optionalString(auth.token, 'name')?.trim() ??
+      optionalString(auth.token, 'debugDisplayName')?.trim() ??
+      null;
+    const keepExistingActiveContext = allowExistingClan &&
+      tokenClanIds.length > 0 &&
+      activeClanIdFromToken != null &&
+      activeClanIdFromToken.length > 0 &&
+      activeMemberIdFromToken != null &&
+      activeMemberIdFromToken.length > 0;
 
     const role = normalizeRoleClaim(auth.token.primaryRole);
     const clanName = requireNonEmptyString(request.data, 'name');
@@ -310,6 +328,10 @@ export const bootstrapClanWorkspace = onCall(
     const memberRef = membersCollection.doc();
     const userRef = usersCollection.doc(auth.uid);
     const discoveryRef = genealogyDiscoveryCollection.doc(clanRef.id);
+    const clanIdsAfterCreate = [activeClanIdFromToken, ...tokenClanIds, clanRef.id]
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter((entry, index, source) => entry.length > 0 && source.indexOf(entry) === index);
     const now = FieldValue.serverTimestamp();
 
     await db.runTransaction(async (transaction) => {
@@ -380,11 +402,13 @@ export const bootstrapClanWorkspace = onCall(
 
       transaction.set(userRef, {
         uid: auth.uid,
-        memberId: memberRef.id,
-        clanId: clanRef.id,
-        clanIds: [clanRef.id],
-        branchId: branchRef.id,
-        primaryRole: ownerRole,
+        memberId: keepExistingActiveContext ? activeMemberIdFromToken : memberRef.id,
+        clanId: keepExistingActiveContext ? activeClanIdFromToken : clanRef.id,
+        clanIds: clanIdsAfterCreate,
+        branchId: keepExistingActiveContext ? (activeBranchIdFromToken ?? '') : branchRef.id,
+        primaryRole: keepExistingActiveContext
+          ? (activeRoleFromToken || ownerRole)
+          : ownerRole,
         accessMode: 'claimed',
         linkedAuthUid: true,
         updatedAt: now,
@@ -409,27 +433,42 @@ export const bootstrapClanWorkspace = onCall(
       }, { merge: true });
     });
 
-    const context: MemberSessionContext = {
-      memberId: memberRef.id,
-      displayName: ownerDisplayName,
-      clanId: clanRef.id,
-      branchId: branchRef.id,
-      primaryRole: ownerRole,
-      accessMode: 'claimed',
-      linkedAuthUid: true,
-    };
-    await applySessionClaims(auth.uid, context);
+    const context: MemberSessionContext = keepExistingActiveContext
+      ? {
+        memberId: activeMemberIdFromToken,
+        displayName: activeDisplayNameFromToken ?? ownerDisplayName,
+        clanId: activeClanIdFromToken,
+        branchId: activeBranchIdFromToken,
+        primaryRole: activeRoleFromToken || ownerRole,
+        accessMode: 'claimed',
+        linkedAuthUid: true,
+      }
+      : {
+        memberId: memberRef.id,
+        displayName: ownerDisplayName,
+        clanId: clanRef.id,
+        branchId: branchRef.id,
+        primaryRole: ownerRole,
+        accessMode: 'claimed',
+        linkedAuthUid: true,
+      };
+    await applySessionClaims(auth.uid, context, {
+      clanIds: clanIdsAfterCreate,
+    });
     await writeAuditLog({
       uid: auth.uid,
       memberId: memberRef.id,
       clanId: clanRef.id,
-      action: 'clan_workspace_bootstrapped',
+      action: keepExistingActiveContext
+        ? 'clan_workspace_created_additional'
+        : 'clan_workspace_bootstrapped',
       entityType: 'clan',
       entityId: clanRef.id,
       after: {
         branchId: branchRef.id,
         memberId: memberRef.id,
         primaryRole: ownerRole,
+        createdAsAdditional: keepExistingActiveContext,
       },
     });
 
@@ -439,6 +478,7 @@ export const bootstrapClanWorkspace = onCall(
       branchId: branchRef.id,
       memberId: memberRef.id,
       ownerRole,
+      keepExistingActiveContext,
     });
 
     return {
@@ -447,6 +487,9 @@ export const bootstrapClanWorkspace = onCall(
       memberId: memberRef.id,
       primaryRole: ownerRole,
       accessMode: 'claimed',
+      activeClanId: context.clanId,
+      switchedActiveClan: context.clanId === clanRef.id,
+      clanIds: clanIdsAfterCreate,
     };
   },
 );
