@@ -8,6 +8,15 @@ import {
   registerDeviceToken,
   resolveChildLoginContext,
 } from './auth/callables';
+import {
+  completeCardCheckout,
+  createSubscriptionCheckout,
+  loadBillingWorkspace,
+  resolveBillingEntitlement,
+  simulateVnpaySettlement,
+  updateBillingPreferences,
+} from './billing/callables';
+import { cardPaymentCallback, vnpayPaymentCallback } from './billing/webhooks';
 import { APP_REGION } from './config/runtime';
 import { onEventCreated, sendEventReminder } from './events/event-triggers';
 import {
@@ -29,8 +38,8 @@ import {
   assignGovernanceRole,
   getTreasurerDashboard,
 } from './governance/callables';
-import { expireInvitesJob } from './scheduled/jobs';
 import { reviewScholarshipSubmission } from './scholarship/callables';
+import { billingSubscriptionReminderJob, expireInvitesJob } from './scheduled/jobs';
 import { onSubmissionReviewed } from './scholarship/submission-triggers';
 import { onTransactionCreated } from './funds/transaction-triggers';
 
@@ -42,26 +51,35 @@ setGlobalOptions({
 });
 
 export {
+  billingSubscriptionReminderJob,
+  cardPaymentCallback,
   claimMemberRecord,
+  completeCardCheckout,
   createParentChildRelationship,
   createSpouseRelationship,
   createInvite,
+  createSubscriptionCheckout,
   detectDuplicateGenealogy,
   expireInvitesJob,
   assignGovernanceRole,
   getTreasurerDashboard,
   listJoinRequestsForReview,
   listDebugLoginProfiles,
+  loadBillingWorkspace,
   onEventCreated,
   onRelationshipCreated,
   onRelationshipDeleted,
   onSubmissionReviewed,
   onTransactionCreated,
   registerDeviceToken,
+  resolveBillingEntitlement,
   reviewJoinRequest,
   reviewScholarshipSubmission,
   resolveChildLoginContext,
   searchGenealogyDiscovery,
   sendEventReminder,
   submitJoinRequest,
+  simulateVnpaySettlement,
+  updateBillingPreferences,
+  vnpayPaymentCallback,
 };

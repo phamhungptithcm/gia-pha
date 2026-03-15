@@ -13,12 +13,14 @@ Rules are defined in `firebase/firestore.rules` and enforce:
 - server-only writes for critical collections (`transactions`, `auditLogs`,
   `memberSearchIndex`)
 
-Planned billing rule model (Epic #213):
+Billing rule model (Epic #213):
 
 - `subscriptions`, `paymentTransactions`, `subscriptionInvoices`, and
   `paymentWebhookEvents` are server-written only
 - billing reads are limited to clan owner/admin roles in the same `clanId`
 - webhook-event docs are non-readable to regular clients
+- `billingAuditLogs` are read-only for clan billing admin roles and
+  server-written only
 
 ### Key helpers
 

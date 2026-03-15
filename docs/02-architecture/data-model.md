@@ -21,17 +21,18 @@ Primary Firestore collections:
 - `auditLogs`
 - `users` and nested `users/{uid}/deviceTokens`
 
-Planned billing collections for Epic #213:
+Billing collections (Epic #213):
 
 - `subscriptions`
 - `subscriptionInvoices`
 - `paymentTransactions`
 - `paymentWebhookEvents`
 - `billingSettings`
+- `billingAuditLogs`
 
-Planned subscription fields include `planCode` (`FREE`, `BASE`, `PLUS`,
-`PRO`), `memberCountSnapshot`, `priceVndInclVat`, `expiresAt`,
-`renewalMode`, and `adEntitlement`.
+Subscription fields include `planCode` (`FREE`, `BASE`, `PLUS`, `PRO`),
+`memberCount`, `amountVndYear`, `expiresAt`, `paymentMode`, `autoRenew`,
+`nextPaymentDueAt`, and ad entitlement flags (`showAds`, `adFree`).
 
 ## Relationship model
 
@@ -61,7 +62,7 @@ Planned subscription fields include `planCode` (`FREE`, `BASE`, `PLUS`,
   - events by `clanId/branchId + startsAt`
   - notifications by `memberId + createdAt`
 
-Planned billing index profile:
+Billing index profile:
 
 - subscriptions by `clanId + status + expiresAt`
 - payment transactions by `clanId + createdAt`

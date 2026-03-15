@@ -30,7 +30,7 @@ _Last reviewed: March 15, 2026_
 - push token documents store operational metadata needed for routing only
 - notification docs are member-targeted and read-state mutable by recipient
 - storage uploads enforce file type and size limits
-- planned billing model stores only payment references and masked metadata
+- billing model stores only payment references and masked metadata
   (never raw card PAN/CVV)
 - invoice and transaction records are clan-scoped and owner/admin-visible only
 - ad telemetry (if enabled) is aggregated and plan-scoped; no personalized ad
@@ -50,7 +50,7 @@ _Last reviewed: March 15, 2026_
 - ad entitlement checks use plan metadata only (`FREE/BASE/PLUS/PRO`) and do
   not require storing sensitive personal attributes
 
-## Retention and access controls (planned billing)
+## Retention and access controls (billing)
 
 - keep transaction/invoice records for audit and compliance support windows
 - restrict billing read access to clan owner/admin roles

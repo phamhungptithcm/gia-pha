@@ -36,7 +36,7 @@ Operational notes:
 - trigger/callable logs include ids and clan context where available
 - push delivery reports sent/failed/invalid token counts
 
-Planned billing monitoring (Epic #213):
+Billing monitoring (Epic #213):
 
 - checkout initialization success/failure rate
 - webhook signature validation failures

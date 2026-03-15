@@ -63,24 +63,27 @@ and TypeScript.
 - contract tests are implemented under `src/contract-tests/*`
 - `npm test` compiles functions and runs Node test contracts from `lib/contract-tests/*.contract.test.js`
 
-### Planned billing callables and triggers (Epic #213)
+### Billing callables, webhooks, and jobs (Epic #213)
 
+- `resolveBillingEntitlement`:
+  - resolves clan plan and ad entitlement flags for client gating
+- `loadBillingWorkspace`:
+  - returns subscription status, settings, pricing tiers, transaction history,
+    invoices, and billing audit logs for owner/admin UX
+- `updateBillingPreferences`:
+  - persists auto/manual renewal mode and reminder schedule
 - `createSubscriptionCheckout`:
-  - validates clan owner/admin permission
-  - computes plan from `member_count` (`FREE`, `BASE`, `PLUS`, `PRO`)
-  - initializes card/VNPay checkout with VAT-included amount
-- `handleVnpayWebhook`:
-  - validates gateway signature and replay/idempotency constraints
-  - commits transaction + subscription updates atomically
-- `handleCardWebhook`:
-  - verifies provider signature and payment status transition
-  - writes invoice/transaction/audit records
-- `sendSubscriptionRenewalReminders` (scheduled):
-  - finds upcoming expiry windows
-  - emits notification docs and push payloads to owner/admin audience
-- `resolvePlanEntitlements`:
-  - derives ad entitlement from active plan
-  - returns client-safe flags (`showAds`, `adFree`, `planCode`, `expiresAt`)
+  - computes tier from current member count and creates transaction + invoice
+    baseline for Card/VNPay
+- `completeCardCheckout` and `simulateVnpaySettlement`:
+  - finalize payment settlement in callable-driven testing/dev flows
+- `cardPaymentCallback` and `vnpayPaymentCallback`:
+  - validate callback signatures
+  - enforce idempotency via `paymentWebhookEvents`
+  - apply subscription lifecycle updates and emit notification/audit records
+- `billingSubscriptionReminderJob` (scheduled):
+  - scans active/grace subscriptions nearing expiry
+  - delivers renewal reminders to owner/admin audience
 
 ## Supporting modules
 
