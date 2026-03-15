@@ -353,6 +353,13 @@ class _SettingsCard extends StatelessWidget {
     final textTheme = theme.textTheme;
     final textScale = MediaQuery.textScalerOf(context).scale(1);
     final l10n = context.l10n;
+    const displayModes = <CalendarDisplayMode>[
+      CalendarDisplayMode.dual,
+      CalendarDisplayMode.lunarOnly,
+    ];
+    final selectedMode = displayModes.contains(controller.displayMode)
+        ? controller.displayMode
+        : CalendarDisplayMode.dual;
 
     final displayModePicker = Container(
       padding: const EdgeInsets.all(4),
@@ -396,13 +403,13 @@ class _SettingsCard extends StatelessWidget {
             ),
           ),
           segments: [
-            for (final mode in CalendarDisplayMode.values)
+            for (final mode in displayModes)
               ButtonSegment<CalendarDisplayMode>(
                 value: mode,
                 label: Text(l10n.calendarDisplayModeLabel(mode)),
               ),
           ],
-          selected: {controller.displayMode},
+          selected: {selectedMode},
           onSelectionChanged: (selection) {
             final mode = selection.firstOrNull;
             if (mode == null) {
@@ -1314,16 +1321,33 @@ class _DayTile extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxHeight < 64;
-        final veryCompact = constraints.maxHeight < 52 || textScale > 1.35;
-        final showSecondaryLine = !veryCompact && secondaryLabel != null;
-        final showEventBadge =
+        final compact = constraints.maxHeight < 68;
+        final veryCompact = constraints.maxHeight < 58 || textScale > 1.15;
+        final horizontalPadding = compact ? 4.0 : 7.0;
+        final verticalPadding = veryCompact ? 2.0 : (compact ? 3.0 : 6.0);
+        final primaryFontSize = veryCompact ? 13.0 : (compact ? 15.0 : 17.0);
+        final secondaryFontSize = veryCompact ? 8.5 : (compact ? 9.5 : 10.5);
+        final showSecondaryCandidate = !veryCompact && secondaryLabel != null;
+        final showEventBadgeCandidate =
             !veryCompact && eventCount > 0 && textScale <= 1.5;
+        final innerHeight = (constraints.maxHeight - (verticalPadding * 2)).clamp(
+          0.0,
+          999.0,
+        );
+        final baseTextHeight = (primaryFontSize * 1.15);
+        final secondaryTextHeight = (secondaryFontSize * 1.2) + 1;
+        final showSecondaryLine =
+            showSecondaryCandidate &&
+            innerHeight >= (baseTextHeight + secondaryTextHeight + 1);
+        final remainingHeightAfterText =
+            innerHeight - baseTextHeight - (showSecondaryLine ? secondaryTextHeight : 0);
+        final showEventBadge =
+            showEventBadgeCandidate && remainingHeightAfterText >= 14;
 
         return Container(
           padding: EdgeInsets.symmetric(
-            horizontal: compact ? 5 : 7,
-            vertical: compact ? 4 : 6,
+            horizontal: horizontalPadding,
+            vertical: verticalPadding,
           ),
           decoration: BoxDecoration(
             color: background,
@@ -1335,73 +1359,80 @@ class _DayTile extends StatelessWidget {
               width: isSelected ? 1.4 : 0.8,
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          primaryLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.fade,
-                          softWrap: false,
-                          style: TextStyle(
-                            fontSize: compact ? 15 : 17,
-                            fontWeight: FontWeight.w700,
-                            color: foreground,
+              Align(
+                alignment: Alignment.topLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            primaryLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.fade,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontSize: primaryFontSize,
+                              height: 1.05,
+                              fontWeight: FontWeight.w700,
+                              color: foreground,
+                            ),
                           ),
                         ),
-                      ),
-                      if (isToday && !compact) ...[
-                        const SizedBox(width: 3),
-                        Icon(Icons.circle, size: 6, color: colorScheme.primary),
+                        if (isToday && !veryCompact) ...[
+                          const SizedBox(width: 3),
+                          Icon(Icons.circle, size: 6, color: colorScheme.primary),
+                        ],
                       ],
-                    ],
-                  ),
-                  if (showSecondaryLine) ...[
-                    const SizedBox(height: 1),
-                    Text(
-                      secondaryLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: compact ? 9.5 : 10.5,
-                        color: foreground.withValues(alpha: 0.82),
-                        fontWeight: FontWeight.w500,
-                      ),
                     ),
-                  ],
-                ],
-              ),
-              const Spacer(),
-              if (showEventBadge)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(alpha: 0.13),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.event, size: 10, color: colorScheme.primary),
-                      const SizedBox(width: 3),
+                    if (showSecondaryLine) ...[
+                      SizedBox(height: veryCompact ? 0 : 1),
                       Text(
-                        '$eventCount',
+                        secondaryLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: compact ? 9 : 10,
-                          color: foreground,
-                          fontWeight: FontWeight.w700,
+                          fontSize: secondaryFontSize,
+                          height: 1.05,
+                          color: foreground.withValues(alpha: 0.82),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
+                  ],
+                ),
+              ),
+              if (showEventBadge)
+                Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.13),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.event, size: 10, color: colorScheme.primary),
+                        const SizedBox(width: 3),
+                        Text(
+                          '$eventCount',
+                          style: TextStyle(
+                            fontSize: compact ? 9 : 10,
+                            color: foreground,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
             ],

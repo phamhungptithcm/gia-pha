@@ -330,6 +330,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
     FundProfile fund,
     FundTransactionType type,
   ) async {
+    final l10n = context.l10n;
     final didSave = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -338,11 +339,17 @@ class _FundDetailPageState extends State<_FundDetailPage> {
       builder: (context) {
         return _TransactionEditorSheet(
           title: type == FundTransactionType.donation
-              ? 'Record donation'
-              : 'Record expense',
+              ? l10n.pick(vi: 'Ghi nhận đóng góp', en: 'Record donation')
+              : l10n.pick(vi: 'Ghi nhận chi tiêu', en: 'Record expense'),
           description: type == FundTransactionType.donation
-              ? 'Add incoming contributions to this fund.'
-              : 'Log outgoing expenses from this fund.',
+              ? l10n.pick(
+                  vi: 'Thêm khoản đóng góp vào quỹ này.',
+                  en: 'Add incoming contributions to this fund.',
+                )
+              : l10n.pick(
+                  vi: 'Ghi nhận khoản chi từ quỹ này.',
+                  en: 'Log outgoing expenses from this fund.',
+                ),
           initialDraft: FundTransactionDraft.empty(
             fundId: fund.id,
             transactionType: type,
@@ -361,8 +368,8 @@ class _FundDetailPageState extends State<_FundDetailPage> {
         SnackBar(
           content: Text(
             type == FundTransactionType.donation
-                ? 'Donation saved.'
-                : 'Expense saved.',
+                ? l10n.pick(vi: 'Đã lưu khoản đóng góp.', en: 'Donation saved.')
+                : l10n.pick(vi: 'Đã lưu khoản chi.', en: 'Expense saved.'),
           ),
         ),
       );
@@ -379,14 +386,18 @@ class _FundDetailPageState extends State<_FundDetailPage> {
             .firstOrNull;
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
+        final l10n = context.l10n;
 
         if (fund == null) {
-          return const Scaffold(
+          return Scaffold(
             body: SafeArea(
               child: _EmptyWorkspace(
                 icon: Icons.search_off,
-                title: 'Fund not found',
-                description: 'This fund may have been removed or changed.',
+                title: l10n.pick(vi: 'Không tìm thấy quỹ', en: 'Fund not found'),
+                description: l10n.pick(
+                  vi: 'Quỹ này có thể đã bị xóa hoặc thay đổi.',
+                  en: 'This fund may have been removed or changed.',
+                ),
               ),
             ),
           );
@@ -401,7 +412,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
             title: Text(fund.name),
             actions: [
               IconButton(
-                tooltip: 'Refresh',
+                tooltip: l10n.pick(vi: 'Tải lại', en: 'Refresh'),
                 onPressed: widget.controller.isLoading
                     ? null
                     : widget.controller.refresh,
@@ -430,7 +441,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _titleCase(fund.fundType),
+                        _fundTypeLabel(context, fund.fundType),
                         style: theme.textTheme.labelLarge?.copyWith(
                           color: colorScheme.onPrimary,
                           fontWeight: FontWeight.w700,
@@ -438,7 +449,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Running balance',
+                        l10n.pick(vi: 'Số dư hiện tại', en: 'Running balance'),
                         style: theme.textTheme.titleMedium?.copyWith(
                           color: colorScheme.onPrimary.withValues(alpha: 0.9),
                         ),
@@ -477,7 +488,12 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                                 FundTransactionType.donation,
                               ),
                               icon: const Icon(Icons.add_circle_outline),
-                              label: const Text('Add donation'),
+                              label: Text(
+                                l10n.pick(
+                                  vi: 'Thêm đóng góp',
+                                  en: 'Add donation',
+                                ),
+                              ),
                             ),
                             OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
@@ -493,7 +509,9 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                                 FundTransactionType.expense,
                               ),
                               icon: const Icon(Icons.remove_circle_outline),
-                              label: const Text('Add expense'),
+                              label: Text(
+                                l10n.pick(vi: 'Thêm chi tiêu', en: 'Add expense'),
+                              ),
                             ),
                           ],
                         ),
@@ -503,11 +521,11 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                 ),
                 const SizedBox(height: 20),
                 _SectionCard(
-                  title: 'Transaction filters',
+                  title: l10n.pick(vi: 'Bộ lọc giao dịch', en: 'Transaction filters'),
                   actionLabel:
                       widget.controller.filters.query.trim().isNotEmpty ||
                           widget.controller.filters.transactionType != null
-                      ? 'Clear'
+                      ? l10n.pick(vi: 'Xóa lọc', en: 'Clear')
                       : null,
                   onAction:
                       widget.controller.filters.query.trim().isNotEmpty ||
@@ -521,9 +539,12 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                     children: [
                       TextField(
                         controller: _queryController,
-                        decoration: const InputDecoration(
-                          labelText: 'Search note/reference/member',
-                          prefixIcon: Icon(Icons.search),
+                        decoration: InputDecoration(
+                          labelText: l10n.pick(
+                            vi: 'Tìm theo ghi chú/mã tham chiếu/thành viên',
+                            en: 'Search note/reference/member',
+                          ),
+                          prefixIcon: const Icon(Icons.search),
                         ),
                         textInputAction: TextInputAction.search,
                         onChanged: widget.controller.updateQueryFilter,
@@ -531,21 +552,26 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                       const SizedBox(height: 14),
                       DropdownButtonFormField<FundTransactionType?>(
                         initialValue: widget.controller.filters.transactionType,
-                        decoration: const InputDecoration(
-                          labelText: 'Transaction type',
+                        decoration: InputDecoration(
+                          labelText: l10n.pick(
+                            vi: 'Loại giao dịch',
+                            en: 'Transaction type',
+                          ),
                         ),
-                        items: const [
+                        items: [
                           DropdownMenuItem<FundTransactionType?>(
                             value: null,
-                            child: Text('All types'),
+                            child: Text(l10n.pick(vi: 'Tất cả', en: 'All types')),
                           ),
                           DropdownMenuItem<FundTransactionType?>(
                             value: FundTransactionType.donation,
-                            child: Text('Donations'),
+                            child: Text(
+                              l10n.pick(vi: 'Đóng góp', en: 'Donations'),
+                            ),
                           ),
                           DropdownMenuItem<FundTransactionType?>(
                             value: FundTransactionType.expense,
-                            child: Text('Expenses'),
+                            child: Text(l10n.pick(vi: 'Chi tiêu', en: 'Expenses')),
                           ),
                         ],
                         onChanged: widget.controller.updateTypeFilter,
@@ -555,9 +581,9 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                 ),
                 const SizedBox(height: 20),
                 _SectionCard(
-                  title: 'Transaction history',
+                  title: l10n.pick(vi: 'Lịch sử giao dịch', en: 'Transaction history'),
                   actionLabel: widget.controller.canManageFunds
-                      ? 'Donation'
+                      ? l10n.pick(vi: 'Đóng góp', en: 'Donation')
                       : null,
                   onAction: widget.controller.canManageFunds
                       ? () => _openTransactionEditor(
@@ -566,11 +592,16 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                         )
                       : null,
                   child: transactions.isEmpty
-                      ? const _EmptyWorkspace(
+                      ? _EmptyWorkspace(
                           icon: Icons.receipt_long_outlined,
-                          title: 'No transactions',
-                          description:
-                              'Create a donation or expense to populate this ledger.',
+                          title: l10n.pick(
+                            vi: 'Chưa có giao dịch',
+                            en: 'No transactions',
+                          ),
+                          description: l10n.pick(
+                            vi: 'Tạo giao dịch đóng góp hoặc chi tiêu để hiển thị sổ quỹ.',
+                            en: 'Create a donation or expense to populate this ledger.',
+                          ),
                         )
                       : Column(
                           children: [
@@ -699,6 +730,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
   Widget build(BuildContext context) {
     final insets = MediaQuery.viewInsetsOf(context);
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -737,8 +769,11 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   const SizedBox(height: 16),
                   _InfoCard(
                     icon: Icons.error_outline,
-                    title: 'Unable to save fund',
-                    description: _errorMessageForCode(_submitError!),
+                    title: l10n.pick(
+                      vi: 'Không thể lưu quỹ',
+                      en: 'Unable to save fund',
+                    ),
+                    description: _errorMessageForCode(context, _submitError!),
                     tone: theme.colorScheme.errorContainer,
                   ),
                 ],
@@ -746,25 +781,33 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                 TextFormField(
                   key: const Key('fund-name-input'),
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Fund name',
-                    hintText: 'Scholarship Fund',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Tên quỹ', en: 'Fund name'),
+                    hintText: l10n.pick(
+                      vi: 'Quỹ khuyến học',
+                      en: 'Scholarship Fund',
+                    ),
                   ),
                   validator: (value) {
                     return value == null || value.trim().isEmpty
-                        ? 'Fund name is required.'
+                        ? l10n.pick(
+                            vi: 'Tên quỹ là bắt buộc.',
+                            en: 'Fund name is required.',
+                          )
                         : null;
                   },
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: _fundType,
-                  decoration: const InputDecoration(labelText: 'Fund type'),
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Loại quỹ', en: 'Fund type'),
+                  ),
                   items: [
                     for (final type in _fundTypes)
                       DropdownMenuItem<String>(
                         value: type,
-                        child: Text(_titleCase(type)),
+                        child: Text(_fundTypeLabel(context, type)),
                       ),
                   ],
                   onChanged: (value) {
@@ -779,7 +822,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: _currency,
-                  decoration: const InputDecoration(labelText: 'Currency'),
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Tiền tệ', en: 'Currency'),
+                  ),
                   items: [
                     for (final currency in _currencies)
                       DropdownMenuItem<String>(
@@ -800,9 +845,15 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                 TextFormField(
                   key: const Key('fund-branch-id-input'),
                   controller: _branchIdController,
-                  decoration: const InputDecoration(
-                    labelText: 'Branch id (optional)',
-                    hintText: 'branch_demo_001',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Mã chi (tuỳ chọn)',
+                      en: 'Branch id (optional)',
+                    ),
+                    hintText: l10n.pick(
+                      vi: 'chi_demo_001',
+                      en: 'branch_demo_001',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -810,10 +861,12 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   key: const Key('fund-description-input'),
                   controller: _descriptionController,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    hintText:
-                        'Describe who this fund supports and how it is used.',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                    hintText: l10n.pick(
+                      vi: 'Mô tả quỹ hỗ trợ ai và cách sử dụng.',
+                      en: 'Describe who this fund supports and how it is used.',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 22),
@@ -832,8 +885,8 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                         : const Icon(Icons.save_outlined),
                     label: Text(
                       (_isSubmitting || widget.isSaving)
-                          ? 'Saving...'
-                          : 'Save fund',
+                          ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
+                          : l10n.pick(vi: 'Lưu quỹ', en: 'Save fund'),
                     ),
                   ),
                 ),
@@ -968,6 +1021,7 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
   Widget build(BuildContext context) {
     final insets = MediaQuery.viewInsetsOf(context);
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -1006,8 +1060,11 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   const SizedBox(height: 16),
                   _InfoCard(
                     icon: Icons.error_outline,
-                    title: 'Unable to save transaction',
-                    description: _errorMessageForCode(_submitError!),
+                    title: l10n.pick(
+                      vi: 'Không thể lưu giao dịch',
+                      en: 'Unable to save transaction',
+                    ),
+                    description: _errorMessageForCode(context, _submitError!),
                     tone: theme.colorScheme.errorContainer,
                   ),
                 ],
@@ -1019,15 +1076,18 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                     decimal: true,
                   ),
                   decoration: InputDecoration(
-                    labelText: 'Amount',
+                    labelText: l10n.pick(vi: 'Số tiền', en: 'Amount'),
                     hintText: widget.initialDraft.currency == 'VND'
-                        ? '500000'
-                        : '50.00',
+                        ? l10n.pick(vi: '500000', en: '500000')
+                        : l10n.pick(vi: '50.00', en: '50.00'),
                     suffixText: widget.initialDraft.currency,
                   ),
                   validator: (value) {
                     return value == null || value.trim().isEmpty
-                        ? 'Amount is required.'
+                        ? l10n.pick(
+                            vi: 'Số tiền là bắt buộc.',
+                            en: 'Amount is required.',
+                          )
                         : null;
                   },
                 ),
@@ -1036,27 +1096,42 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   key: const Key('fund-transaction-note-input'),
                   controller: _noteController,
                   maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Note',
-                    hintText: 'Tet contribution',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Ghi chú', en: 'Note'),
+                    hintText: l10n.pick(
+                      vi: 'Đóng góp Tết',
+                      en: 'Tet contribution',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   key: const Key('fund-transaction-member-input'),
                   controller: _memberIdController,
-                  decoration: const InputDecoration(
-                    labelText: 'Member id (optional)',
-                    hintText: 'member_demo_parent_001',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Mã thành viên (tuỳ chọn)',
+                      en: 'Member id (optional)',
+                    ),
+                    hintText: l10n.pick(
+                      vi: 'thanh_vien_demo_001',
+                      en: 'member_demo_parent_001',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   key: const Key('fund-transaction-reference-input'),
                   controller: _referenceController,
-                  decoration: const InputDecoration(
-                    labelText: 'Reference (optional)',
-                    hintText: 'RECEIPT-2026-001',
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Mã tham chiếu (tuỳ chọn)',
+                      en: 'Reference (optional)',
+                    ),
+                    hintText: l10n.pick(
+                      vi: 'BIENLAI-2026-001',
+                      en: 'RECEIPT-2026-001',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -1064,11 +1139,14 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   borderRadius: BorderRadius.circular(12),
                   onTap: _pickOccurredDate,
                   child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Occurred date',
-                      suffixIcon: Icon(Icons.calendar_today_outlined),
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Ngày phát sinh',
+                        en: 'Occurred date',
+                      ),
+                      suffixIcon: const Icon(Icons.calendar_today_outlined),
                     ),
-                    child: Text(_formatDate(_occurredAt)),
+                    child: Text(_formatDate(context, _occurredAt)),
                   ),
                 ),
                 const SizedBox(height: 22),
@@ -1092,11 +1170,11 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                           ),
                     label: Text(
                       (_isSubmitting || widget.isSaving)
-                          ? 'Saving...'
+                          ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
                           : widget.initialDraft.transactionType ==
                                 FundTransactionType.donation
-                          ? 'Save donation'
-                          : 'Save expense',
+                          ? l10n.pick(vi: 'Lưu đóng góp', en: 'Save donation')
+                          : l10n.pick(vi: 'Lưu chi tiêu', en: 'Save expense'),
                     ),
                   ),
                 ),
@@ -1155,7 +1233,10 @@ class _FundSummaryCard extends StatelessWidget {
                   ),
                   if (onEdit != null)
                     IconButton(
-                      tooltip: 'Edit fund',
+                      tooltip: context.l10n.pick(
+                        vi: 'Chỉnh sửa quỹ',
+                        en: 'Edit fund',
+                      ),
                       onPressed: onEdit,
                       icon: const Icon(Icons.edit_outlined),
                     ),
@@ -1263,7 +1344,7 @@ class _TransactionRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${transaction.transactionType.label} • ${_formatDate(transaction.occurredAt)}',
+                    '${_transactionTypeLabel(context, transaction.transactionType)} • ${_formatDate(context, transaction.occurredAt)}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   if ((transaction.externalReference ?? '')
@@ -1271,7 +1352,7 @@ class _TransactionRow extends StatelessWidget {
                       .isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      'Ref: ${transaction.externalReference}',
+                      '${context.l10n.pick(vi: 'Mã: ', en: 'Ref: ')}${transaction.externalReference}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -1429,6 +1510,7 @@ class _WorkspaceHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final l10n = context.l10n;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1457,56 +1539,20 @@ class _WorkspaceHero extends StatelessWidget {
               color: colorScheme.onPrimary.withValues(alpha: 0.9),
             ),
           ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _HeroTag(
-                label: canManageFunds ? 'Write enabled' : 'Read-only access',
-                tone: colorScheme.secondaryContainer,
-              ),
-              _HeroTag(
-                label: 'Balance + history',
-                tone: colorScheme.surfaceContainerHighest,
-              ),
-            ],
-          ),
           if (canManageFunds && onPrimaryAction != null) ...[
             const SizedBox(height: 18),
             FilledButton.icon(
               onPressed: onPrimaryAction,
               icon: const Icon(Icons.add),
-              label: const Text('Create first fund'),
+              label: Text(
+                l10n.pick(
+                  vi: 'Tạo quỹ đầu tiên',
+                  en: 'Create first fund',
+                ),
+              ),
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _HeroTag extends StatelessWidget {
-  const _HeroTag({required this.label, required this.tone});
-
-  final String label;
-  final Color tone;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: tone,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Text(
-          label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-        ),
       ),
     );
   }
@@ -1604,11 +1650,28 @@ String _titleCase(String value) {
       .join(' ');
 }
 
-String _formatDate(DateTime value) {
+String _fundTypeLabel(BuildContext context, String fundType) {
+  final l10n = context.l10n;
+  return switch (fundType.trim().toLowerCase()) {
+    'scholarship' => l10n.pick(vi: 'Khuyến học', en: 'Scholarship'),
+    'operations' => l10n.pick(vi: 'Vận hành', en: 'Operations'),
+    'maintenance' => l10n.pick(vi: 'Bảo trì', en: 'Maintenance'),
+    'custom' => l10n.pick(vi: 'Tuỳ chỉnh', en: 'Custom'),
+    _ => _titleCase(fundType),
+  };
+}
+
+String _transactionTypeLabel(BuildContext context, FundTransactionType type) {
+  final l10n = context.l10n;
+  return switch (type) {
+    FundTransactionType.donation => l10n.pick(vi: 'Đóng góp', en: 'Donation'),
+    FundTransactionType.expense => l10n.pick(vi: 'Chi tiêu', en: 'Expense'),
+  };
+}
+
+String _formatDate(BuildContext context, DateTime value) {
   final local = value.toLocal();
-  final month = local.month.toString().padLeft(2, '0');
-  final day = local.day.toString().padLeft(2, '0');
-  return '${local.year}-$month-$day';
+  return MaterialLocalizations.of(context).formatCompactDate(local);
 }
 
 String? _nullIfBlank(String? value) {
@@ -1616,21 +1679,37 @@ String? _nullIfBlank(String? value) {
   return trimmed.isEmpty ? null : trimmed;
 }
 
-String _errorMessageForCode(FundRepositoryErrorCode code) {
+String _errorMessageForCode(BuildContext context, FundRepositoryErrorCode code) {
+  final l10n = context.l10n;
   return switch (code) {
-    FundRepositoryErrorCode.permissionDenied =>
-      'You do not have permission for this action.',
-    FundRepositoryErrorCode.fundNotFound => 'The selected fund was not found.',
-    FundRepositoryErrorCode.invalidCurrency =>
-      'Currency is invalid. Use a 3-letter ISO code like VND or USD.',
-    FundRepositoryErrorCode.invalidAmount =>
-      'Amount is invalid. Check decimal format and value.',
-    FundRepositoryErrorCode.insufficientBalance =>
-      'Expense exceeds available balance.',
-    FundRepositoryErrorCode.validationFailed =>
-      'Submitted data did not pass validation.',
-    FundRepositoryErrorCode.writeFailed =>
-      'Unable to save changes right now. Try again.',
+    FundRepositoryErrorCode.permissionDenied => l10n.pick(
+      vi: 'Bạn không có quyền thực hiện thao tác này.',
+      en: 'You do not have permission for this action.',
+    ),
+    FundRepositoryErrorCode.fundNotFound => l10n.pick(
+      vi: 'Không tìm thấy quỹ đã chọn.',
+      en: 'The selected fund was not found.',
+    ),
+    FundRepositoryErrorCode.invalidCurrency => l10n.pick(
+      vi: 'Tiền tệ không hợp lệ. Hãy dùng mã ISO 3 ký tự như VND hoặc USD.',
+      en: 'Currency is invalid. Use a 3-letter ISO code like VND or USD.',
+    ),
+    FundRepositoryErrorCode.invalidAmount => l10n.pick(
+      vi: 'Số tiền không hợp lệ. Vui lòng kiểm tra định dạng.',
+      en: 'Amount is invalid. Check decimal format and value.',
+    ),
+    FundRepositoryErrorCode.insufficientBalance => l10n.pick(
+      vi: 'Khoản chi vượt quá số dư hiện tại.',
+      en: 'Expense exceeds available balance.',
+    ),
+    FundRepositoryErrorCode.validationFailed => l10n.pick(
+      vi: 'Dữ liệu gửi lên chưa hợp lệ.',
+      en: 'Submitted data did not pass validation.',
+    ),
+    FundRepositoryErrorCode.writeFailed => l10n.pick(
+      vi: 'Không thể lưu thay đổi lúc này. Vui lòng thử lại.',
+      en: 'Unable to save changes right now. Try again.',
+    ),
   };
 }
 

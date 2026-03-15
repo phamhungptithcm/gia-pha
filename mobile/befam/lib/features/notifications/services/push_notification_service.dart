@@ -318,8 +318,11 @@ class FirebasePushNotificationService implements PushNotificationService {
   }
 }
 
-PushNotificationService createDefaultPushNotificationService() {
-  if (RuntimeMode.shouldUseMockBackend) {
+PushNotificationService createDefaultPushNotificationService({
+  AuthSession? session,
+}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return NoopPushNotificationService();
   }
   return FirebasePushNotificationService();

@@ -179,8 +179,9 @@ class MemberController extends ChangeNotifier {
     required MemberDraft draft,
   }) async {
     MemberDraft draftToSave = draft;
+    final resolvedBranchId = _resolveBranchForDraft(draft);
 
-    if (memberId == null && !permissions.canCreateInBranch(draft.branchId)) {
+    if (memberId == null && !permissions.canCreateInBranch(resolvedBranchId)) {
       return MemberRepositoryErrorCode.permissionDenied;
     }
 
@@ -193,13 +194,14 @@ class MemberController extends ChangeNotifier {
       }
 
       if (permissions.canEditAnyMember) {
-        if (!permissions.canManageBranch(draft.branchId ?? existing.branchId)) {
+        if (!permissions.canManageBranch(resolvedBranchId ?? existing.branchId)) {
           return MemberRepositoryErrorCode.permissionDenied;
         }
       } else {
         draftToSave = draft.copyWith(
           branchId: existing.branchId,
           generation: existing.generation,
+          parentIds: existing.parentIds,
         );
       }
     }
@@ -279,6 +281,16 @@ class MemberController extends ChangeNotifier {
             .firstWhereOrNull((branch) => branch.id == branchId)
             ?.name ??
         branchId;
+  }
+
+  String? _resolveBranchForDraft(MemberDraft draft) {
+    final selectedParentId = draft.parentIds.firstOrNull;
+    if (selectedParentId == null || selectedParentId.isEmpty) {
+      return draft.branchId;
+    }
+    return _members
+        .firstWhereOrNull((member) => member.id == selectedParentId)
+        ?.branchId;
   }
 
   void _trackFiltersUpdated() {

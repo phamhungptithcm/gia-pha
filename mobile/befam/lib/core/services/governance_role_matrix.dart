@@ -4,6 +4,8 @@ import '../../features/auth/models/auth_session.dart';
 abstract final class GovernanceRoles {
   static const superAdmin = 'SUPER_ADMIN';
   static const clanAdmin = 'CLAN_ADMIN';
+  static const clanOwner = 'CLAN_OWNER';
+  static const clanLeader = 'CLAN_LEADER';
   static const branchAdmin = 'BRANCH_ADMIN';
   static const treasurer = 'TREASURER';
   static const scholarshipCouncilHead = 'SCHOLARSHIP_COUNCIL_HEAD';
@@ -14,6 +16,8 @@ abstract final class GovernanceRoles {
   static const genealogyManagers = <String>{
     superAdmin,
     clanAdmin,
+    clanOwner,
+    clanLeader,
     branchAdmin,
     adminSupport,
   };
@@ -21,6 +25,16 @@ abstract final class GovernanceRoles {
   static const clanSettingsManagers = <String>{
     superAdmin,
     clanAdmin,
+    clanOwner,
+    clanLeader,
+    adminSupport,
+  };
+
+  static const clanBootstrapRoles = <String>{
+    superAdmin,
+    clanAdmin,
+    clanOwner,
+    clanLeader,
     adminSupport,
   };
 
@@ -146,5 +160,15 @@ abstract final class GovernanceRoleMatrix {
         GovernanceRoles.joinRequestReviewers.contains(
           normalizeRole(session.primaryRole),
         );
+  }
+
+  static bool canBootstrapClan(AuthSession session) {
+    final noClanContext = (session.clanId?.trim().isEmpty ?? true);
+    if (!noClanContext || session.accessMode != AuthMemberAccessMode.unlinked) {
+      return false;
+    }
+    return GovernanceRoles.clanBootstrapRoles.contains(
+      normalizeRole(session.primaryRole),
+    );
   }
 }

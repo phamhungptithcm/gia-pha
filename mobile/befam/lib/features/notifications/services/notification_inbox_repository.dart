@@ -37,8 +37,11 @@ abstract interface class NotificationInboxRepository {
   });
 }
 
-NotificationInboxRepository createDefaultNotificationInboxRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
+NotificationInboxRepository createDefaultNotificationInboxRepository({
+  AuthSession? session,
+}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugNotificationInboxRepository();
   }
 

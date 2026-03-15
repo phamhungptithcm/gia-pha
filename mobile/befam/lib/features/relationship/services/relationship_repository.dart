@@ -45,8 +45,11 @@ abstract interface class RelationshipRepository {
   });
 }
 
-RelationshipRepository createDefaultRelationshipRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
+RelationshipRepository createDefaultRelationshipRepository({
+  AuthSession? session,
+}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugRelationshipRepository(
       store: DebugGenealogyStore.sharedSeeded(),
     );

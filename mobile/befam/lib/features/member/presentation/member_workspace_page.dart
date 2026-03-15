@@ -58,7 +58,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
     );
     _avatarPicker = widget.avatarPicker ?? createDefaultMemberAvatarPicker();
     _relationshipRepository =
-        widget.relationshipRepository ?? createDefaultRelationshipRepository();
+        widget.relationshipRepository ??
+        createDefaultRelationshipRepository(session: widget.session);
     _searchController = TextEditingController();
     unawaited(_controller.initialize());
   }
@@ -81,6 +82,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
           title: member == null
               ? context.l10n.memberAddSheetTitle
               : context.l10n.memberEditSheetTitle,
+          isEditing: member != null,
+          editingMemberId: member?.id,
           allowOrganizationFields:
               member == null ||
               _controller.permissions.canEditOrganizationFields,
@@ -90,6 +93,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                 )
               : MemberDraft.fromProfile(member),
           branches: _controller.visibleBranches,
+          members: _controller.members,
           isSaving: _controller.isSaving,
           onSubmit: (draft) {
             return _controller.saveMember(memberId: member?.id, draft: draft);
@@ -656,17 +660,23 @@ class _MemberDetailPage extends StatelessWidget {
 class _MemberEditorSheet extends StatefulWidget {
   const _MemberEditorSheet({
     required this.title,
+    required this.isEditing,
+    required this.editingMemberId,
     required this.allowOrganizationFields,
     required this.initialDraft,
     required this.branches,
+    required this.members,
     required this.isSaving,
     required this.onSubmit,
   });
 
   final String title;
+  final bool isEditing;
+  final String? editingMemberId;
   final bool allowOrganizationFields;
   final MemberDraft initialDraft;
   final List<BranchProfile> branches;
+  final List<MemberProfile> members;
   final bool isSaving;
   final Future<MemberRepositoryErrorCode?> Function(MemberDraft draft) onSubmit;
 
@@ -691,6 +701,7 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
   late final TextEditingController _linkedinController;
 
   String? _branchId;
+  String? _parentMemberId;
   String? _gender;
   MemberRepositoryErrorCode? _submitError;
   bool _isSubmitting = false;
@@ -734,6 +745,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
       text: widget.initialDraft.socialLinks.linkedin ?? '',
     );
     _branchId = widget.initialDraft.branchId;
+    _parentMemberId = widget.initialDraft.parentIds.isEmpty
+        ? null
+        : widget.initialDraft.parentIds.first;
     _gender = widget.initialDraft.gender;
   }
 
@@ -782,7 +796,8 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
 
     final error = await widget.onSubmit(
       MemberDraft(
-        branchId: _branchId,
+        branchId: _resolvedBranchId,
+        parentIds: _resolvedParentIds,
         fullName: _fullNameController.text.trim(),
         nickName: _nickNameController.text.trim(),
         gender: _gender,
@@ -793,7 +808,7 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
         addressText: _addressController.text.trim(),
         jobTitle: _jobTitleController.text.trim(),
         bio: _bioController.text.trim(),
-        generation: int.parse(_generationController.text.trim()),
+        generation: _resolvedGeneration,
         socialLinks: MemberSocialLinks(
           facebook: _nullIfBlank(_facebookController.text),
           zalo: _nullIfBlank(_zaloController.text),
@@ -823,6 +838,8 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
     final theme = Theme.of(context);
     final l10n = context.l10n;
     final insets = MediaQuery.viewInsetsOf(context);
+    final selectedParent = _memberById(_parentMemberId);
+    final selectedParentBranchName = _branchNameById(selectedParent?.branchId);
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -898,32 +915,72 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: 14),
-                DropdownButtonFormField<String>(
-                  key: const Key('member-branch-input'),
-                  initialValue: _branchId,
-                  decoration: InputDecoration(
-                    labelText: l10n.memberBranchLabel,
-                  ),
-                  items: [
-                    for (final branch in widget.branches)
-                      DropdownMenuItem<String>(
-                        value: branch.id,
-                        child: Text(branch.name),
+                if (widget.isEditing)
+                  DropdownButtonFormField<String>(
+                    key: const Key('member-branch-input'),
+                    initialValue: _branchId,
+                    decoration: InputDecoration(
+                      labelText: l10n.memberBranchLabel,
+                    ),
+                    items: [
+                      for (final branch in widget.branches)
+                        DropdownMenuItem<String>(
+                          value: branch.id,
+                          child: Text(branch.name),
+                        ),
+                    ],
+                    onChanged: widget.allowOrganizationFields
+                        ? (value) {
+                            setState(() {
+                              _branchId = value;
+                            });
+                          }
+                        : null,
+                    validator: (value) {
+                      return value == null || value.isEmpty
+                          ? l10n.memberValidationBranchRequired
+                          : null;
+                    },
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    key: const Key('member-parent-input'),
+                    initialValue: _parentMemberId,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Con của', en: 'Child of'),
+                      hintText: l10n.pick(
+                        vi: 'Chọn cha/mẹ hoặc người giám hộ',
+                        en: 'Choose father/mother or guardian',
                       ),
-                  ],
-                  onChanged: widget.allowOrganizationFields
-                      ? (value) {
-                          setState(() {
-                            _branchId = value;
-                          });
-                        }
-                      : null,
-                  validator: (value) {
-                    return value == null || value.isEmpty
-                        ? l10n.memberValidationBranchRequired
-                        : null;
-                  },
-                ),
+                    ),
+                    items: [
+                      for (final candidate in _parentCandidates)
+                        DropdownMenuItem<String>(
+                          value: candidate.id,
+                          child: Text(
+                            '${candidate.displayName} · ${_branchNameById(candidate.branchId)} · ${l10n.memberGenerationLabel} ${candidate.generation}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _parentMemberId = value;
+                      });
+                    },
+                    validator: (value) {
+                      if (_parentCandidates.isEmpty) {
+                        return null;
+                      }
+                      return value == null || value.trim().isEmpty
+                          ? l10n.pick(
+                              vi: 'Hãy chọn cha/mẹ để hệ thống tự gán chi và đời.',
+                              en: 'Choose a parent so the system can auto-assign branch and generation.',
+                            )
+                          : null;
+                    },
+                  ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
@@ -961,25 +1018,56 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                     ),
                     const SizedBox(width: 14),
                     Expanded(
-                      child: TextFormField(
-                        key: const Key('member-generation-input'),
-                        controller: _generationController,
-                        enabled: widget.allowOrganizationFields,
-                        decoration: InputDecoration(
-                          labelText: l10n.memberGenerationLabel,
-                        ),
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.next,
-                        validator: (value) {
-                          final parsed = int.tryParse(value ?? '');
-                          return parsed == null || parsed <= 0
-                              ? l10n.memberValidationGenerationRequired
-                              : null;
-                        },
-                      ),
+                      child: widget.isEditing
+                          ? TextFormField(
+                              key: const Key('member-generation-input'),
+                              controller: _generationController,
+                              enabled: widget.allowOrganizationFields,
+                              decoration: InputDecoration(
+                                labelText: l10n.memberGenerationLabel,
+                              ),
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.next,
+                              validator: (value) {
+                                final parsed = int.tryParse(value ?? '');
+                                return parsed == null || parsed <= 0
+                                    ? l10n.memberValidationGenerationRequired
+                                    : null;
+                              },
+                            )
+                          : InputDecorator(
+                              key: const Key('member-generation-auto-input'),
+                              decoration: InputDecoration(
+                                labelText: l10n.memberGenerationLabel,
+                              ),
+                              child: Text(
+                                selectedParent == null
+                                    ? '-'
+                                    : '${selectedParent.generation + 1}',
+                              ),
+                            ),
                     ),
                   ],
                 ),
+                if (!widget.isEditing) ...[
+                  const SizedBox(height: 14),
+                  InputDecorator(
+                    key: const Key('member-branch-auto-input'),
+                    decoration: InputDecoration(
+                      labelText: l10n.memberBranchLabel,
+                    ),
+                    child: Text(
+                      selectedParent == null
+                          ? l10n.pick(
+                              vi:
+                                  'Mặc định: ${_branchNameById(_resolvedBranchId)}',
+                              en:
+                                  'Default: ${_branchNameById(_resolvedBranchId)}',
+                            )
+                          : selectedParentBranchName,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Row(
                   children: [
@@ -1137,6 +1225,78 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
         ),
       ),
     );
+  }
+
+  List<MemberProfile> get _parentCandidates {
+    final accessibleBranchIds = widget.branches
+        .map((branch) => branch.id)
+        .where((id) => id.trim().isNotEmpty)
+        .toSet();
+    return widget.members
+        .where((member) => member.id != widget.editingMemberId)
+        .where(
+          (member) =>
+              accessibleBranchIds.isEmpty ||
+              accessibleBranchIds.contains(member.branchId),
+        )
+        .toList(growable: false);
+  }
+
+  MemberProfile? _memberById(String? memberId) {
+    if (memberId == null || memberId.isEmpty) {
+      return null;
+    }
+    for (final member in widget.members) {
+      if (member.id == memberId) {
+        return member;
+      }
+    }
+    return null;
+  }
+
+  List<String> get _resolvedParentIds {
+    if (widget.isEditing) {
+      return widget.initialDraft.parentIds;
+    }
+    final parentId = _parentMemberId?.trim();
+    if (parentId == null || parentId.isEmpty) {
+      return const [];
+    }
+    return [parentId];
+  }
+
+  String? get _resolvedBranchId {
+    if (widget.isEditing) {
+      return _branchId;
+    }
+    final selectedParent = _memberById(_parentMemberId);
+    return selectedParent?.branchId ??
+        _branchId ??
+        (widget.branches.isEmpty ? null : widget.branches.first.id);
+  }
+
+  int get _resolvedGeneration {
+    if (widget.isEditing) {
+      final parsed = int.tryParse(_generationController.text.trim());
+      return parsed ?? widget.initialDraft.generation;
+    }
+    final selectedParent = _memberById(_parentMemberId);
+    if (selectedParent == null) {
+      return widget.initialDraft.generation;
+    }
+    return selectedParent.generation + 1;
+  }
+
+  String _branchNameById(String? branchId) {
+    if (branchId == null || branchId.isEmpty) {
+      return '-';
+    }
+    for (final branch in widget.branches) {
+      if (branch.id == branchId) {
+        return branch.name;
+      }
+    }
+    return branchId;
   }
 }
 
@@ -1652,7 +1812,9 @@ class _StatGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
         final crossAxisCount = constraints.maxWidth > 820 ? 3 : 1;
+        final singleColumnRatio = textScale > 1.15 ? 2.25 : 2.45;
         return GridView.builder(
           itemCount: items.length,
           shrinkWrap: true,
@@ -1661,7 +1823,7 @@ class _StatGrid extends StatelessWidget {
             crossAxisCount: crossAxisCount,
             mainAxisSpacing: 14,
             crossAxisSpacing: 14,
-            childAspectRatio: crossAxisCount == 1 ? 3.2 : 1.65,
+            childAspectRatio: crossAxisCount == 1 ? singleColumnRatio : 1.65,
           ),
           itemBuilder: (context, index) => items[index],
         );
@@ -1698,12 +1860,21 @@ class _StatTile extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 6),
-            Text(label, style: theme.textTheme.bodyMedium),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
           ],
         ),
       ),

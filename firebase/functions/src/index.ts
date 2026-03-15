@@ -2,8 +2,10 @@ import { initializeApp } from 'firebase-admin/app';
 import { setGlobalOptions } from 'firebase-functions/v2/options';
 
 import {
+  bootstrapClanWorkspace,
   claimMemberRecord,
   createInvite,
+  issueDebugProfileCustomToken,
   listDebugLoginProfiles,
   registerDeviceToken,
   resolveChildLoginContext,
@@ -52,12 +54,14 @@ setGlobalOptions({
 
 export {
   billingSubscriptionReminderJob,
+  bootstrapClanWorkspace,
   cardPaymentCallback,
   claimMemberRecord,
   completeCardCheckout,
   createParentChildRelationship,
   createSpouseRelationship,
   createInvite,
+  issueDebugProfileCustomToken,
   createSubscriptionCheckout,
   detectDuplicateGenealogy,
   expireInvitesJob,

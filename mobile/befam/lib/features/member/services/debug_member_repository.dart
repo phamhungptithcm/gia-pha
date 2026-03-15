@@ -69,10 +69,23 @@ class DebugMemberRepository implements MemberRepository {
     final resolvedMemberId =
         memberId ?? 'member_demo_${_store.memberSequence++}';
     final existing = _store.members[resolvedMemberId];
+    var parentIds = _normalizeParentIds(draft.parentIds)
+        .where((id) => id != resolvedMemberId)
+        .toList(growable: false);
+    var branchId = draft.branchId ?? existing?.branchId ?? session.branchId ?? '';
+    var generation = draft.generation;
+    if (parentIds.isNotEmpty) {
+      final primaryParent = _store.members[parentIds.first];
+      if (primaryParent != null) {
+        branchId = primaryParent.branchId;
+        generation = primaryParent.generation + 1;
+      }
+    }
+    final previousParentIds = existing?.parentIds ?? const <String>[];
     final payload = MemberProfile(
       id: resolvedMemberId,
       clanId: clanId,
-      branchId: draft.branchId ?? existing?.branchId ?? session.branchId ?? '',
+      branchId: branchId,
       fullName: draft.fullName.trim(),
       normalizedFullName: draft.fullName.trim().toLowerCase(),
       nickName: draft.nickName.trim(),
@@ -86,10 +99,10 @@ class DebugMemberRepository implements MemberRepository {
       avatarUrl: existing?.avatarUrl,
       bio: _nullableTrim(draft.bio),
       socialLinks: draft.socialLinks,
-      parentIds: existing?.parentIds ?? const [],
+      parentIds: parentIds,
       childrenIds: existing?.childrenIds ?? const [],
       spouseIds: existing?.spouseIds ?? const [],
-      generation: draft.generation,
+      generation: generation <= 0 ? 1 : generation,
       primaryRole: existing?.primaryRole ?? draft.primaryRole,
       status: existing?.status ?? draft.status,
       isMinor: draft.isMinor,
@@ -97,6 +110,11 @@ class DebugMemberRepository implements MemberRepository {
     );
 
     _store.members[resolvedMemberId] = payload;
+    _syncParentLinks(
+      memberId: resolvedMemberId,
+      previousParentIds: previousParentIds,
+      nextParentIds: parentIds,
+    );
     _store.recountBranchMembers(clanId);
     return payload;
   }
@@ -139,6 +157,36 @@ class DebugMemberRepository implements MemberRepository {
       );
     }
   }
+
+  void _syncParentLinks({
+    required String memberId,
+    required List<String> previousParentIds,
+    required List<String> nextParentIds,
+  }) {
+    final previous = previousParentIds.toSet();
+    final next = nextParentIds.toSet();
+    for (final parentId in previous.difference(next)) {
+      final parent = _store.members[parentId];
+      if (parent == null) {
+        continue;
+      }
+      _store.members[parentId] = parent.copyWith(
+        childrenIds: parent.childrenIds
+            .where((childId) => childId != memberId)
+            .toList(growable: false),
+      );
+    }
+    for (final parentId in next.difference(previous)) {
+      final parent = _store.members[parentId];
+      if (parent == null) {
+        continue;
+      }
+      final mergedChildren = {...parent.childrenIds, memberId}.toList(
+        growable: false,
+      );
+      _store.members[parentId] = parent.copyWith(childrenIds: mergedChildren);
+    }
+  }
 }
 
 String? _normalizePhoneOrNull(String input) {
@@ -153,4 +201,12 @@ String? _normalizePhoneOrNull(String input) {
 String? _nullableTrim(String? value) {
   final trimmed = value?.trim();
   return trimmed == null || trimmed.isEmpty ? null : trimmed;
+}
+
+List<String> _normalizeParentIds(List<String> parentIds) {
+  return parentIds
+      .map((id) => id.trim())
+      .where((id) => id.isNotEmpty)
+      .toSet()
+      .toList(growable: false);
 }

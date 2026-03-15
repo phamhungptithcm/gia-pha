@@ -24,8 +24,9 @@ abstract interface class ClanRepository {
   });
 }
 
-ClanRepository createDefaultClanRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
+ClanRepository createDefaultClanRepository({AuthSession? session}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugClanRepository.seeded();
   }
 

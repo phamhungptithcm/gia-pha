@@ -16,8 +16,9 @@ abstract interface class ProfileNotificationPreferencesRepository {
 }
 
 ProfileNotificationPreferencesRepository
-createDefaultProfileNotificationPreferencesRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
+createDefaultProfileNotificationPreferencesRepository({AuthSession? session}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugProfileNotificationPreferencesRepository.shared();
   }
 

@@ -66,9 +66,21 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
     );
 
     if (didSave == true && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(context.l10n.clanSaveSuccess)));
+      final createdFromUnlinkedSession =
+          (widget.session.clanId ?? '').trim().isEmpty &&
+          _controller.permissions.canBootstrapClan;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            createdFromUnlinkedSession
+                ? context.l10n.pick(
+                    vi: 'Đã tạo gia phả mới. Nếu chưa thấy dữ liệu đầy đủ, vui lòng đăng xuất và đăng nhập lại.',
+                    en: 'New clan workspace created. If data is not fully visible yet, please sign out and sign in again.',
+                  )
+                : context.l10n.clanSaveSuccess,
+          ),
+        ),
+      );
     }
   }
 
@@ -121,7 +133,9 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
         builder: (context) {
           return JoinRequestReviewPage(
             session: widget.session,
-            repository: createDefaultGenealogyDiscoveryRepository(),
+            repository: createDefaultGenealogyDiscoveryRepository(
+              session: widget.session,
+            ),
           );
         },
       ),

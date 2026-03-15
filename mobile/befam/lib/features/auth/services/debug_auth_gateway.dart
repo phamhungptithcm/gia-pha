@@ -224,7 +224,9 @@ class DebugAuthGateway implements AuthGateway {
           .doc(phoneE164)
           .get();
       final data = snapshot.data();
-      if (data == null || data['isActive'] == false) {
+      if (data == null ||
+          data['isActive'] == false ||
+          data['isTestUser'] != true) {
         return null;
       }
 

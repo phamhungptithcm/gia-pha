@@ -21,9 +21,12 @@ abstract interface class GenealogyReadRepository {
   });
 }
 
-GenealogyReadRepository createDefaultGenealogyReadRepository() {
+GenealogyReadRepository createDefaultGenealogyReadRepository({
+  AuthSession? session,
+}) {
   final cache = GenealogySegmentCache.shared();
-  if (RuntimeMode.shouldUseMockBackend) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugGenealogyReadRepository(
       store: DebugGenealogyStore.sharedSeeded(),
       cache: cache,

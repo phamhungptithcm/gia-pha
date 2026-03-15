@@ -251,11 +251,12 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _controller,
+      animation: Listenable.merge([_controller, _localeController]),
       builder: (context, _) {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final l10n = context.l10n;
+        final selectedLanguageCode = _localeController.locale.languageCode;
 
         return Scaffold(
           appBar: widget.showAppBar
@@ -403,6 +404,51 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                                     _controller.profile!.bio ??
                                     l10n.memberFieldUnset,
                                 isLast: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _ProfileSectionCard(
+                          title: l10n.profileLanguageSectionTitle,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.profileLanguageSectionDescription,
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 10),
+                              SegmentedButton<String>(
+                                showSelectedIcon: true,
+                                segments: [
+                                  ButtonSegment<String>(
+                                    value: 'vi',
+                                    label: Text(l10n.profileLanguageVietnamese),
+                                  ),
+                                  ButtonSegment<String>(
+                                    value: 'en',
+                                    label: Text(l10n.profileLanguageEnglish),
+                                  ),
+                                ],
+                                selected: {selectedLanguageCode},
+                                onSelectionChanged: (selected) {
+                                  if (selected.isEmpty) {
+                                    return;
+                                  }
+                                  unawaited(
+                                    _localeController.updateLanguageCode(
+                                      selected.first,
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                selectedLanguageCode == 'vi'
+                                    ? l10n.profileLanguageVietnameseSubtitle
+                                    : l10n.profileLanguageEnglishSubtitle,
+                                style: theme.textTheme.bodySmall,
                               ),
                             ],
                           ),

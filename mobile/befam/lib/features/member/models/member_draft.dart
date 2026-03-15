@@ -4,6 +4,7 @@ import 'member_social_links.dart';
 class MemberDraft {
   const MemberDraft({
     required this.branchId,
+    required this.parentIds,
     required this.fullName,
     required this.nickName,
     required this.gender,
@@ -22,6 +23,7 @@ class MemberDraft {
   });
 
   final String? branchId;
+  final List<String> parentIds;
   final String fullName;
   final String nickName;
   final String? gender;
@@ -40,6 +42,7 @@ class MemberDraft {
 
   MemberDraft copyWith({
     String? branchId,
+    List<String>? parentIds,
     String? fullName,
     String? nickName,
     String? gender,
@@ -58,6 +61,7 @@ class MemberDraft {
   }) {
     return MemberDraft(
       branchId: branchId ?? this.branchId,
+      parentIds: parentIds ?? this.parentIds,
       fullName: fullName ?? this.fullName,
       nickName: nickName ?? this.nickName,
       gender: gender ?? this.gender,
@@ -79,6 +83,7 @@ class MemberDraft {
   factory MemberDraft.empty({String? defaultBranchId}) {
     return MemberDraft(
       branchId: defaultBranchId,
+      parentIds: const [],
       fullName: '',
       nickName: '',
       gender: null,
@@ -97,6 +102,7 @@ class MemberDraft {
   factory MemberDraft.fromProfile(MemberProfile profile) {
     return MemberDraft(
       branchId: profile.branchId,
+      parentIds: profile.parentIds,
       fullName: profile.fullName,
       nickName: profile.nickName,
       gender: profile.gender,

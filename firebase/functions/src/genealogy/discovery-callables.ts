@@ -12,6 +12,7 @@ import {
   ensureClaimedSession,
   ensureClanAccess,
   stringOrNull,
+  tokenClanIds,
   tokenMemberId,
   tokenPrimaryRole,
 } from '../shared/permissions';
@@ -72,6 +73,14 @@ const reviewerRoles = [
 export const searchGenealogyDiscovery = onCall(
   { region: APP_REGION },
   async (request) => {
+    const auth = requireAuth(request);
+    if (tokenClanIds(auth.token).length > 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Genealogy discovery is only available for users who have not joined a clan yet.',
+      );
+    }
+
     const leaderQuery = normalizeSearch(optionalString(request.data, 'leaderQuery'));
     const locationQuery = normalizeSearch(optionalString(request.data, 'locationQuery'));
     const query = normalizeSearch(optionalString(request.data, 'query'));
@@ -93,7 +102,7 @@ export const searchGenealogyDiscovery = onCall(
       leaderQuery,
       locationQuery,
       count: results.length,
-      hasAuth: request.auth != null,
+      uid: auth.uid,
     });
 
     return { results };
@@ -103,6 +112,14 @@ export const searchGenealogyDiscovery = onCall(
 export const submitJoinRequest = onCall(
   { region: APP_REGION },
   async (request) => {
+    const auth = requireAuth(request);
+    if (tokenClanIds(auth.token).length > 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Only users without clan membership can submit a join request.',
+      );
+    }
+
     const clanId = requireNonEmptyString(request.data, 'clanId');
     const applicantName = requireNonEmptyString(request.data, 'applicantName');
     const relationshipToFamily = requireNonEmptyString(
@@ -111,10 +128,10 @@ export const submitJoinRequest = onCall(
     );
     const contactInfo = requireNonEmptyString(request.data, 'contactInfo');
     const message = stringOrNull((request.data as Record<string, unknown>)?.message);
-    const applicantUid = request.auth?.uid ?? null;
+    const applicantUid = auth.uid;
     const applicantMemberId = stringOrNull(
       (request.data as Record<string, unknown>)?.applicantMemberId,
-    );
+    ) ?? tokenMemberId(auth.token);
 
     const discoverySnapshot = await discoveryCollection.doc(clanId).get();
     const discovery = discoverySnapshot.data() as DiscoveryRecord | undefined;

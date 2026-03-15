@@ -13,8 +13,6 @@ import '../../../core/services/app_logger.dart';
 import '../../../core/services/app_locale_controller.dart';
 import '../../../l10n/l10n.dart';
 import '../../clan/services/clan_repository.dart';
-import '../../discovery/presentation/genealogy_discovery_page.dart';
-import '../../discovery/services/genealogy_discovery_repository.dart';
 import '../../member/services/member_repository.dart';
 import '../models/auth_entry_method.dart';
 import '../models/pending_otp_challenge.dart';
@@ -84,9 +82,11 @@ class _AuthExperienceState extends State<AuthExperience> {
             status: widget.status,
             session: session,
             clanRepository:
-                widget.clanRepository ?? createDefaultClanRepository(),
+                widget.clanRepository ??
+                createDefaultClanRepository(session: session),
             memberRepository:
-                widget.memberRepository ?? createDefaultMemberRepository(),
+                widget.memberRepository ??
+                createDefaultMemberRepository(session: session),
             localeController: widget.localeController,
             onLogoutRequested: _controller.logout,
           );
@@ -138,7 +138,12 @@ class _AuthScaffold extends StatelessWidget {
               switch (controller.step) {
                 AuthStep.loginMethodSelection => _LoginMethodSelectionCard(
                   isBusy: controller.isBusy,
-                  showSandboxProfiles: kDebugMode,
+                  showSandboxProfiles:
+                      kDebugMode ||
+                      const bool.fromEnvironment(
+                        'BEFAM_ENABLE_TEST_LOGIN_PROFILES',
+                        defaultValue: false,
+                      ),
                   enableAutoBypass: controller.canUseLocalBypass,
                   hasAcceptedPrivacyPolicy: controller.hasAcceptedPrivacyPolicy,
                   onPhoneSelected: () {
@@ -160,18 +165,6 @@ class _AuthScaffold extends StatelessWidget {
                     unawaited(controller.setPrivacyPolicyAccepted(accepted));
                   },
                   onViewPrivacyPolicy: () => _showPrivacyPolicy(context),
-                  onOpenDiscovery: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (context) {
-                          return GenealogyDiscoveryPage(
-                            repository:
-                                createDefaultGenealogyDiscoveryRepository(),
-                          );
-                        },
-                      ),
-                    );
-                  },
                 ),
                 AuthStep.phoneNumber => _PhoneLoginCard(
                   isBusy: controller.isBusy,
@@ -350,7 +343,6 @@ class _LoginMethodSelectionCard extends StatelessWidget {
     required this.onSandboxProfileSelected,
     required this.onPrivacyConsentChanged,
     required this.onViewPrivacyPolicy,
-    required this.onOpenDiscovery,
   });
 
   final bool isBusy;
@@ -363,7 +355,6 @@ class _LoginMethodSelectionCard extends StatelessWidget {
   onSandboxProfileSelected;
   final ValueChanged<bool> onPrivacyConsentChanged;
   final VoidCallback onViewPrivacyPolicy;
-  final VoidCallback onOpenDiscovery;
 
   @override
   Widget build(BuildContext context) {
@@ -398,22 +389,6 @@ class _LoginMethodSelectionCard extends StatelessWidget {
           onPressed: isBusy || !hasAcceptedPrivacyPolicy
               ? null
               : onChildSelected,
-        ),
-        const SizedBox(height: 16),
-        _MethodCard(
-          title: l10n.pick(
-            vi: 'Khám phá gia phả công khai',
-            en: 'Discover public genealogies',
-          ),
-          description: l10n.pick(
-            vi: 'Tìm gia phả theo trưởng tộc hoặc địa phương rồi gửi yêu cầu tham gia trực tiếp.',
-            en: 'Search genealogies by leader or location, then submit a request to join.',
-          ),
-          icon: Icons.travel_explore_outlined,
-          buttonLabel: l10n.pick(vi: 'Tìm gia phả', en: 'Explore now'),
-          onPressed: isBusy || !hasAcceptedPrivacyPolicy
-              ? null
-              : onOpenDiscovery,
         ),
         if (showSandboxProfiles) ...[
           const SizedBox(height: 16),
@@ -556,6 +531,7 @@ class _RemoteSandboxProfile {
     required this.title,
     required this.description,
     required this.isActive,
+    required this.isTestUser,
     required this.sortOrder,
     this.autoOtpCode,
   });
@@ -565,6 +541,7 @@ class _RemoteSandboxProfile {
   final String title;
   final String description;
   final bool isActive;
+  final bool isTestUser;
   final int sortOrder;
   final String? autoOtpCode;
 
@@ -588,6 +565,7 @@ class _RemoteSandboxProfile {
       title: title.isEmpty ? scenarioKey : title,
       description: description.isEmpty ? phone : description,
       isActive: data['isActive'] != false,
+      isTestUser: data['isTestUser'] != false,
       sortOrder: sortOrder,
       autoOtpCode: autoOtpCode,
     );
@@ -731,7 +709,10 @@ class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
     final profiles =
         source
             .where(
-              (profile) => profile.isActive && profile.phoneE164.isNotEmpty,
+              (profile) =>
+                  profile.isActive &&
+                  profile.isTestUser &&
+                  profile.phoneE164.isNotEmpty,
             )
             .toList(growable: false)
           ..sort((left, right) => left.sortOrder.compareTo(right.sortOrder));
@@ -768,12 +749,19 @@ class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
       return;
     }
 
+    AppLogger.info(
+      'Sandbox profile selected (scenario=${preset.scenarioKey}, phone=$phoneE164, hasAutoOtp=${preset.autoOtpCode != null}).',
+    );
+
     setState(() {
       _activeScenarioKey = preset.scenarioKey;
     });
 
     try {
       await widget.onSelected(phoneE164, preset.autoOtpCode);
+      AppLogger.info(
+        'Sandbox profile sign-in flow returned to UI (scenario=${preset.scenarioKey}).',
+      );
     } catch (error, stackTrace) {
       AppLogger.error('Sandbox profile sign-in failed.', error, stackTrace);
       _showSelectionError(selectionFailedMessage);

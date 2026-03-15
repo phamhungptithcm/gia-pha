@@ -44,11 +44,7 @@ class FirebaseFundRepository implements FundRepository {
 
     final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
       _funds.where('clanId', isEqualTo: clanId).get(),
-      _transactions
-          .where('clanId', isEqualTo: clanId)
-          .orderBy('occurredAt', descending: true)
-          .limit(400)
-          .get(),
+      _loadTransactionSnapshot(clanId: clanId),
     ]);
 
     final funds = results[0].docs
@@ -67,9 +63,35 @@ class FirebaseFundRepository implements FundRepository {
           ),
         )
         .sorted((left, right) => right.occurredAt.compareTo(left.occurredAt))
+        .take(400)
         .toList(growable: false);
 
     return FundWorkspaceSnapshot(funds: funds, transactions: transactions);
+  }
+
+  Future<QuerySnapshot<Map<String, dynamic>>> _loadTransactionSnapshot({
+    required String clanId,
+  }) async {
+    final baseQuery = _transactions.where('clanId', isEqualTo: clanId);
+    try {
+      return await baseQuery
+          .orderBy('occurredAt', descending: true)
+          .limit(400)
+          .get();
+    } on FirebaseException catch (error) {
+      if (_isMissingCompositeIndex(error)) {
+        return baseQuery.limit(1200).get();
+      }
+      rethrow;
+    }
+  }
+
+  bool _isMissingCompositeIndex(FirebaseException error) {
+    if (error.code != 'failed-precondition') {
+      return false;
+    }
+    final message = (error.message ?? '').toLowerCase();
+    return message.contains('requires an index');
   }
 
   @override
