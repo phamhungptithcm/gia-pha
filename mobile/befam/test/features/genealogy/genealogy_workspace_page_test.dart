@@ -69,19 +69,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Không gian cây gia phả'), findsOneWidget);
-    expect(
-      find.byKey(const Key('genealogy-summary-members-5')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('genealogy-summary-scope-clan')),
-      findsOneWidget,
-    );
-
+    expect(find.byKey(const Key('tree-preset-focused')), findsOneWidget);
+    expect(find.byKey(const Key('tree-status-all')), findsOneWidget);
     await tester.tap(find.byKey(const Key('genealogy-scope-branch')));
     await tester.pump();
     await tester.pumpAndSettle();
-
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('genealogy-summary-members-3')),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(
       find.byKey(const Key('genealogy-summary-members-3')),
       findsOneWidget,

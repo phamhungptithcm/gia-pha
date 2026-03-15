@@ -8,6 +8,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
+import '../../clan/models/branch_profile.dart';
 import '../../member/models/member_profile.dart';
 import '../models/genealogy_graph.dart';
 import '../models/genealogy_read_segment.dart';
@@ -30,6 +31,10 @@ class GenealogyWorkspacePage extends StatefulWidget {
   State<GenealogyWorkspacePage> createState() => _GenealogyWorkspacePageState();
 }
 
+enum _TreeDisplayPreset { focused, balanced, coverage, custom }
+
+enum _MemberStatusFilter { all, alive, deceased }
+
 class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     with TickerProviderStateMixin {
   static const _nodeWidth = 232.0;
@@ -51,6 +56,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   String? _selectedMemberId;
   int _ancestorDepth = 1;
   int _descendantDepth = 1;
+  _TreeDisplayPreset _displayPreset = _TreeDisplayPreset.focused;
+  _MemberStatusFilter _statusFilter = _MemberStatusFilter.all;
+  String? _branchFilterId;
   _TreeScene? _cachedScene;
   GenealogyReadSegment? _cachedSceneSegment;
   String _cachedSceneRootId = '';
@@ -111,6 +119,10 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
 
     final segment = _segment!;
     final scene = _resolveTreeScene(segment);
+    final filteredRoots = _filteredRootEntries(segment);
+    final rootEntriesForSelector = filteredRoots.isEmpty
+        ? segment.rootEntries
+        : filteredRoots;
     final selectedMember = _selectedMemberId == null
         ? null
         : segment.graph.membersById[_selectedMemberId!];
@@ -130,16 +142,42 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
             onScopeChanged: _updateScope,
             session: widget.session,
           ),
-          if (segment.rootEntries.isNotEmpty) ...[
+          if (rootEntriesForSelector.isNotEmpty) ...[
             const SizedBox(height: 16),
             _RootSelector(
-              rootEntries: segment.rootEntries,
+              rootEntries: rootEntriesForSelector,
               selectedRootId: _rootMemberId,
               resolveMember: (memberId) => segment.graph.membersById[memberId],
               onRootSelected: _setRootMember,
               reasonLabel: (reason) => _rootReasonLabel(l10n, reason),
             ),
           ],
+          const SizedBox(height: 16),
+          _ViewControlCard(
+            displayPreset: _displayPreset,
+            onDisplayPresetChanged: _applyDisplayPreset,
+            statusFilter: _statusFilter,
+            onStatusFilterChanged: (value) {
+              setState(() {
+                _statusFilter = value;
+                _invalidateTreeSceneCache();
+              });
+            },
+            branches: _scopeType == GenealogyScopeType.clan
+                ? segment.branches
+                : const [],
+            selectedBranchId: _scopeType == GenealogyScopeType.clan
+                ? _branchFilterId
+                : null,
+            onBranchFilterChanged: (branchId) {
+              setState(() {
+                _branchFilterId = branchId;
+                _invalidateTreeSceneCache();
+              });
+            },
+            visibleMembers: scene.visibleMemberIds.length,
+            totalMembers: segment.members.length,
+          ),
           const SizedBox(height: 16),
           _SummaryMetricGrid(
             items: [
@@ -187,12 +225,20 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                     onIncrease: () {
                       setState(() {
                         _ancestorDepth += 1;
+                        _displayPreset = _presetForDepths(
+                          _ancestorDepth,
+                          _descendantDepth,
+                        );
                         _invalidateTreeSceneCache();
                       });
                     },
                     onDecrease: () {
                       setState(() {
                         _ancestorDepth = (_ancestorDepth - 1).clamp(1, 24);
+                        _displayPreset = _presetForDepths(
+                          _ancestorDepth,
+                          _descendantDepth,
+                        );
                         _invalidateTreeSceneCache();
                       });
                     },
@@ -206,12 +252,20 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                     onIncrease: () {
                       setState(() {
                         _descendantDepth += 1;
+                        _displayPreset = _presetForDepths(
+                          _ancestorDepth,
+                          _descendantDepth,
+                        );
                         _invalidateTreeSceneCache();
                       });
                     },
                     onDecrease: () {
                       setState(() {
                         _descendantDepth = (_descendantDepth - 1).clamp(1, 24);
+                        _displayPreset = _presetForDepths(
+                          _ancestorDepth,
+                          _descendantDepth,
+                        );
                         _invalidateTreeSceneCache();
                       });
                     },
@@ -364,6 +418,15 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                           peakLayoutMs: scene.layoutProfile.peakMs,
                         ),
                       ),
+                      Positioned(
+                        left: 12,
+                        bottom: 12,
+                        child: _TreeZoomControls(
+                          onZoomIn: _zoomIn,
+                          onZoomOut: _zoomOut,
+                          onReset: _resetTreeViewport,
+                        ),
+                      ),
                     ],
                   );
                 },
@@ -400,6 +463,10 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       setState(() {
         _segment = segment;
         _isLoading = false;
+        if (_branchFilterId != null &&
+            !segment.branches.any((branch) => branch.id == _branchFilterId)) {
+          _branchFilterId = null;
+        }
         _rootMemberId = _rootMemberId ?? initialFocus;
         _selectedMemberId = _selectedMemberId ?? initialFocus;
         _invalidateTreeSceneCache();
@@ -425,6 +492,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       _selectedMemberId = null;
       _ancestorDepth = 1;
       _descendantDepth = 1;
+      _displayPreset = _TreeDisplayPreset.focused;
+      _statusFilter = _MemberStatusFilter.all;
+      _branchFilterId = null;
       _transformController.value = Matrix4.identity();
       _invalidateTreeSceneCache();
     });
@@ -450,11 +520,65 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     setState(() {
       _rootMemberId = memberId;
       _selectedMemberId = memberId;
-      _ancestorDepth = 1;
-      _descendantDepth = 1;
+      if (_displayPreset != _TreeDisplayPreset.custom) {
+        _ancestorDepth = 1;
+        _descendantDepth = 1;
+        _displayPreset = _TreeDisplayPreset.focused;
+      }
       _transformController.value = Matrix4.identity();
       _invalidateTreeSceneCache();
     });
+  }
+
+  void _applyDisplayPreset(_TreeDisplayPreset preset) {
+    setState(() {
+      _displayPreset = preset;
+      switch (preset) {
+        case _TreeDisplayPreset.focused:
+          _ancestorDepth = 1;
+          _descendantDepth = 1;
+        case _TreeDisplayPreset.balanced:
+          _ancestorDepth = 2;
+          _descendantDepth = 2;
+        case _TreeDisplayPreset.coverage:
+          _ancestorDepth = 4;
+          _descendantDepth = 4;
+        case _TreeDisplayPreset.custom:
+          break;
+      }
+      _invalidateTreeSceneCache();
+    });
+  }
+
+  _TreeDisplayPreset _presetForDepths(int ancestorDepth, int descendantDepth) {
+    if (ancestorDepth == 1 && descendantDepth == 1) {
+      return _TreeDisplayPreset.focused;
+    }
+    if (ancestorDepth == 2 && descendantDepth == 2) {
+      return _TreeDisplayPreset.balanced;
+    }
+    if (ancestorDepth == 4 && descendantDepth == 4) {
+      return _TreeDisplayPreset.coverage;
+    }
+    return _TreeDisplayPreset.custom;
+  }
+
+  List<GenealogyRootEntry> _filteredRootEntries(GenealogyReadSegment segment) {
+    final roots = segment.rootEntries
+        .where((entry) {
+          final member = segment.graph.membersById[entry.memberId];
+          if (member == null) {
+            return false;
+          }
+          if (entry.memberId == _selectedMemberId ||
+              entry.memberId == _rootMemberId) {
+            return true;
+          }
+          return _matchesViewFilters(member);
+        })
+        .toList(growable: false);
+
+    return roots;
   }
 
   _TreeScene _resolveTreeScene(GenealogyReadSegment segment) {
@@ -665,7 +789,33 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       visible.addAll(graph.spousesOf(memberId));
     }
 
-    return visible;
+    if (_branchFilterId == null && _statusFilter == _MemberStatusFilter.all) {
+      return visible;
+    }
+
+    final filtered = <String>{};
+    for (final memberId in visible) {
+      final member = graph.membersById[memberId];
+      if (member == null) {
+        continue;
+      }
+      if (_matchesViewFilters(member)) {
+        filtered.add(memberId);
+      }
+    }
+
+    if (rootId.isNotEmpty && visible.contains(rootId)) {
+      filtered.add(rootId);
+    }
+    if (_selectedMemberId != null && visible.contains(_selectedMemberId!)) {
+      filtered.add(_selectedMemberId!);
+    }
+
+    if (filtered.isEmpty && visible.isNotEmpty) {
+      filtered.add(rootId.isNotEmpty ? rootId : visible.first);
+    }
+
+    return filtered;
   }
 
   Map<String, int> _buildRelativeLevels({
@@ -920,6 +1070,38 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     final normalizedStatus = member.status.trim().toLowerCase();
     return normalizedStatus != 'deceased' && normalizedStatus != 'dead';
   }
+
+  bool _matchesViewFilters(MemberProfile member) {
+    final branchMatches =
+        _branchFilterId == null || member.branchId == _branchFilterId;
+    if (!branchMatches) {
+      return false;
+    }
+    return switch (_statusFilter) {
+      _MemberStatusFilter.all => true,
+      _MemberStatusFilter.alive => _isMemberAlive(member),
+      _MemberStatusFilter.deceased => !_isMemberAlive(member),
+    };
+  }
+
+  void _zoomIn() => _scaleTree(1.16);
+
+  void _zoomOut() => _scaleTree(0.86);
+
+  void _resetTreeViewport() {
+    _transformController.value = Matrix4.identity();
+  }
+
+  void _scaleTree(double ratio) {
+    final currentScale = _transformController.value.getMaxScaleOnAxis();
+    final targetScale = (currentScale * ratio).clamp(0.4, 2.8);
+    if ((targetScale - currentScale).abs() < 0.0001) {
+      return;
+    }
+    final factor = targetScale / currentScale;
+    _transformController.value = _transformController.value.clone()
+      ..scaleByDouble(factor, factor, factor, 1);
+  }
 }
 
 class _LandingCard extends StatelessWidget {
@@ -1049,10 +1231,13 @@ class _RootSelector extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final query = searchController.text.trim().toLowerCase();
-            final filtered = rootEntries.where((root) {
-              final name = resolveMember(root.memberId)?.fullName ?? root.memberId;
-              return query.isEmpty || name.toLowerCase().contains(query);
-            }).toList(growable: false);
+            final filtered = rootEntries
+                .where((root) {
+                  final name =
+                      resolveMember(root.memberId)?.fullName ?? root.memberId;
+                  return query.isEmpty || name.toLowerCase().contains(query);
+                })
+                .toList(growable: false);
 
             return Padding(
               padding: EdgeInsets.fromLTRB(
@@ -1119,7 +1304,9 @@ class _RootSelector extends StatelessWidget {
                             trailing: selected
                                 ? Icon(
                                     Icons.check_circle,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   )
                                 : null,
                           );
@@ -1282,6 +1469,142 @@ class _SummaryMetricCard extends StatelessWidget {
   }
 }
 
+class _ViewControlCard extends StatelessWidget {
+  const _ViewControlCard({
+    required this.displayPreset,
+    required this.onDisplayPresetChanged,
+    required this.statusFilter,
+    required this.onStatusFilterChanged,
+    required this.branches,
+    required this.selectedBranchId,
+    required this.onBranchFilterChanged,
+    required this.visibleMembers,
+    required this.totalMembers,
+  });
+
+  final _TreeDisplayPreset displayPreset;
+  final ValueChanged<_TreeDisplayPreset> onDisplayPresetChanged;
+  final _MemberStatusFilter statusFilter;
+  final ValueChanged<_MemberStatusFilter> onStatusFilterChanged;
+  final List<BranchProfile> branches;
+  final String? selectedBranchId;
+  final ValueChanged<String?> onBranchFilterChanged;
+  final int visibleMembers;
+  final int totalMembers;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final branchItems = branches.toList(growable: false)
+      ..sort((left, right) => left.name.compareTo(right.name));
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.pick(vi: 'Bộ lọc hiển thị cây', en: 'Tree display controls'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  key: const Key('tree-preset-focused'),
+                  selected: displayPreset == _TreeDisplayPreset.focused,
+                  label: Text(l10n.pick(vi: 'Tập trung', en: 'Focused')),
+                  onSelected: (_) =>
+                      onDisplayPresetChanged(_TreeDisplayPreset.focused),
+                ),
+                ChoiceChip(
+                  key: const Key('tree-preset-balanced'),
+                  selected: displayPreset == _TreeDisplayPreset.balanced,
+                  label: Text(l10n.pick(vi: 'Cân bằng', en: 'Balanced')),
+                  onSelected: (_) =>
+                      onDisplayPresetChanged(_TreeDisplayPreset.balanced),
+                ),
+                ChoiceChip(
+                  key: const Key('tree-preset-coverage'),
+                  selected: displayPreset == _TreeDisplayPreset.coverage,
+                  label: Text(l10n.pick(vi: 'Độ phủ rộng', en: 'Coverage')),
+                  onSelected: (_) =>
+                      onDisplayPresetChanged(_TreeDisplayPreset.coverage),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                FilterChip(
+                  key: const Key('tree-status-all'),
+                  selected: statusFilter == _MemberStatusFilter.all,
+                  label: Text(l10n.pick(vi: 'Tất cả', en: 'All')),
+                  onSelected: (_) =>
+                      onStatusFilterChanged(_MemberStatusFilter.all),
+                ),
+                FilterChip(
+                  key: const Key('tree-status-alive'),
+                  selected: statusFilter == _MemberStatusFilter.alive,
+                  label: Text(l10n.pick(vi: 'Còn sống', en: 'Alive')),
+                  onSelected: (_) =>
+                      onStatusFilterChanged(_MemberStatusFilter.alive),
+                ),
+                FilterChip(
+                  key: const Key('tree-status-deceased'),
+                  selected: statusFilter == _MemberStatusFilter.deceased,
+                  label: Text(l10n.pick(vi: 'Đã mất', en: 'Deceased')),
+                  onSelected: (_) =>
+                      onStatusFilterChanged(_MemberStatusFilter.deceased),
+                ),
+              ],
+            ),
+            if (branchItems.length > 1) ...[
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String?>(
+                key: const Key('tree-branch-filter'),
+                initialValue: selectedBranchId,
+                decoration: InputDecoration(
+                  labelText: l10n.pick(vi: 'Lọc theo chi', en: 'Filter branch'),
+                ),
+                items: [
+                  DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text(
+                      l10n.pick(vi: 'Tất cả các chi', en: 'All branches'),
+                    ),
+                  ),
+                  for (final branch in branchItems)
+                    DropdownMenuItem<String?>(
+                      value: branch.id,
+                      child: Text(branch.name),
+                    ),
+                ],
+                onChanged: onBranchFilterChanged,
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              l10n.pick(
+                vi: 'Đang hiển thị $visibleMembers/$totalMembers thành viên.',
+                en: 'Showing $visibleMembers/$totalMembers members.',
+              ),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DepthControl extends StatelessWidget {
   const _DepthControl({
     required this.id,
@@ -1327,6 +1650,59 @@ class _DepthControl extends StatelessWidget {
               onPressed: canIncrease ? onIncrease : null,
               icon: const Icon(Icons.add),
               tooltip: '+',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TreeZoomControls extends StatelessWidget {
+  const _TreeZoomControls({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onReset,
+  });
+
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              key: const Key('tree-zoom-out'),
+              visualDensity: VisualDensity.compact,
+              onPressed: onZoomOut,
+              icon: const Icon(Icons.remove),
+              tooltip: '-',
+            ),
+            IconButton(
+              key: const Key('tree-zoom-in'),
+              visualDensity: VisualDensity.compact,
+              onPressed: onZoomIn,
+              icon: const Icon(Icons.add),
+              tooltip: '+',
+            ),
+            IconButton(
+              key: const Key('tree-zoom-reset'),
+              visualDensity: VisualDensity.compact,
+              onPressed: onReset,
+              icon: const Icon(Icons.filter_center_focus),
+              tooltip: 'Reset',
             ),
           ],
         ),
