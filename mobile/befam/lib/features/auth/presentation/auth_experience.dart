@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -607,13 +608,21 @@ class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
   }
 
   Future<List<_RemoteSandboxProfile>> _loadRemoteProfiles() async {
+    if (Firebase.apps.isEmpty) {
+      AppLogger.warning(
+        'Firebase is not initialized; skip loading debug login profiles.',
+      );
+      return const [];
+    }
+    final callableProfiles = await _loadRemoteProfilesFromCallable();
+    if (callableProfiles.isNotEmpty) {
+      return callableProfiles;
+    }
+    return _loadRemoteProfilesFromFirestore();
+  }
+
+  Future<List<_RemoteSandboxProfile>> _loadRemoteProfilesFromCallable() async {
     try {
-      if (Firebase.apps.isEmpty) {
-        AppLogger.warning(
-          'Firebase is not initialized; skip loading debug login profiles.',
-        );
-        return const [];
-      }
       final callable = FirebaseFunctions.instanceFor(
         region: 'asia-southeast1',
       ).httpsCallable('listDebugLoginProfiles');
@@ -634,30 +643,114 @@ class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
         );
         return const [];
       }
-      final profiles =
-          entries
-              .whereType<Map>()
-              .map(
-                (entry) => _RemoteSandboxProfile.fromPayload(
-                  entry.map((key, value) => MapEntry(key.toString(), value)),
-                ),
-              )
-              .where(
-                (profile) => profile.isActive && profile.phoneE164.isNotEmpty,
-              )
-              .toList(growable: false)
-            ..sort((left, right) => left.sortOrder.compareTo(right.sortOrder));
+      final profiles = _normalizeProfiles(
+        entries.whereType<Map>().map(
+          (entry) => _RemoteSandboxProfile.fromPayload(
+            entry.map((key, value) => MapEntry(key.toString(), value)),
+          ),
+        ),
+      );
       AppLogger.info(
-        'Loaded ${profiles.length} debug login profiles from Firebase.',
+        'Loaded ${profiles.length} debug login profiles from callable.',
       );
       return profiles;
     } catch (error, stackTrace) {
       AppLogger.warning(
-        'Failed to load debug login profiles from Firebase.',
+        'Failed to load debug login profiles from callable.',
         error,
         stackTrace,
       );
       return const [];
+    }
+  }
+
+  Future<List<_RemoteSandboxProfile>> _loadRemoteProfilesFromFirestore() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('debug_login_profiles')
+          .get()
+          .timeout(const Duration(seconds: 8));
+      final profiles = _normalizeProfiles(
+        snapshot.docs.map((doc) {
+          final data = doc.data();
+          final payload = Map<String, dynamic>.from(data);
+          payload.putIfAbsent('phoneE164', () => doc.id.trim());
+          payload.putIfAbsent('scenarioKey', () => doc.id.trim());
+          return _RemoteSandboxProfile.fromPayload(payload);
+        }),
+      );
+      AppLogger.info(
+        'Loaded ${profiles.length} debug login profiles from Firestore fallback.',
+      );
+      return profiles;
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Failed to load debug login profiles from Firestore fallback.',
+        error,
+        stackTrace,
+      );
+      return const [];
+    }
+  }
+
+  List<_RemoteSandboxProfile> _normalizeProfiles(
+    Iterable<_RemoteSandboxProfile> source,
+  ) {
+    final profiles =
+        source
+            .where(
+              (profile) => profile.isActive && profile.phoneE164.isNotEmpty,
+            )
+            .toList(growable: false)
+          ..sort((left, right) => left.sortOrder.compareTo(right.sortOrder));
+    return profiles;
+  }
+
+  void _showSelectionError(String message) {
+    if (!mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _onPresetTap(_SandboxLoginPreset preset) async {
+    if (_activeScenarioKey != null || widget.isBusy) {
+      return;
+    }
+
+    final l10n = context.l10n;
+    final invalidPhoneMessage = l10n.pick(
+      vi: 'Profile thử nghiệm chưa có số điện thoại hợp lệ.',
+      en: 'This sandbox profile is missing a valid phone number.',
+    );
+    final selectionFailedMessage = l10n.pick(
+      vi: 'Không thể tiếp tục profile thử nghiệm lúc này. Vui lòng thử lại.',
+      en: 'Could not continue with this sandbox profile right now. Please try again.',
+    );
+
+    final phoneE164 = preset.phoneE164.trim();
+    if (phoneE164.isEmpty) {
+      _showSelectionError(invalidPhoneMessage);
+      return;
+    }
+
+    setState(() {
+      _activeScenarioKey = preset.scenarioKey;
+    });
+
+    try {
+      await widget.onSelected(phoneE164, preset.autoOtpCode);
+    } catch (error, stackTrace) {
+      AppLogger.error('Sandbox profile sign-in failed.', error, stackTrace);
+      _showSelectionError(selectionFailedMessage);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _activeScenarioKey = null;
+        });
+      }
     }
   }
 
@@ -682,28 +775,6 @@ class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
           ),
         )
         .toList(growable: false);
-  }
-
-  Future<void> _onPresetTap(_SandboxLoginPreset preset) async {
-    if (_activeScenarioKey != null || widget.isBusy) {
-      return;
-    }
-
-    setState(() {
-      _activeScenarioKey = preset.scenarioKey;
-    });
-
-    try {
-      await widget.onSelected(preset.phoneE164, preset.autoOtpCode);
-    } catch (error, stackTrace) {
-      AppLogger.error('Sandbox profile sign-in failed.', error, stackTrace);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _activeScenarioKey = null;
-        });
-      }
-    }
   }
 
   @override

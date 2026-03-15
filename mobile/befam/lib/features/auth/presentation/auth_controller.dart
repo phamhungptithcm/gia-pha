@@ -191,6 +191,59 @@ class AuthController extends ChangeNotifier {
     await verifyOtp(otpHint);
   }
 
+  Future<void> requestOtpForScenarioPhone(
+    String phoneE164, {
+    String? autoVerifyCode,
+  }) async {
+    if (isBusy) {
+      return;
+    }
+    if (!_ensurePrivacyPolicyAccepted()) {
+      return;
+    }
+
+    final normalizedPhone = phoneE164.trim();
+    if (normalizedPhone.isEmpty) {
+      error = const AuthIssue(AuthIssueKey.phoneRequired);
+      _emit();
+      return;
+    }
+
+    _clearError();
+    unawaited(
+      _analyticsService.logLoginMethodSelected(
+        AuthEntryMethod.phone,
+        isSandbox: isSandbox,
+      ),
+    );
+
+    await _startOtpRequest(
+      () => _authGateway.requestPhoneOtp(normalizedPhone),
+      method: AuthEntryMethod.phone,
+    );
+
+    final challenge = pendingChallenge;
+    if (session != null || challenge == null) {
+      return;
+    }
+
+    final sanitizedAutoCode = autoVerifyCode
+        ?.replaceAll(RegExp(r'[^0-9]'), '')
+        .trim();
+    if (sanitizedAutoCode != null &&
+        RegExp(r'^\d{6}$').hasMatch(sanitizedAutoCode)) {
+      await verifyOtp(sanitizedAutoCode);
+      return;
+    }
+
+    if (canUseLocalBypass) {
+      final otpHint = challenge.debugOtpHint;
+      if (otpHint != null && RegExp(r'^\d{6}$').hasMatch(otpHint)) {
+        await verifyOtp(otpHint);
+      }
+    }
+  }
+
   Future<void> submitChildIdentifier(String rawChildIdentifier) async {
     final normalized = ChildIdentifierFormatter.normalize(rawChildIdentifier);
     await _startOtpRequest(
