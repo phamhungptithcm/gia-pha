@@ -1,5 +1,5 @@
-import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../../member/models/member_profile.dart';
 
 class RelationshipPermissions {
@@ -14,17 +14,14 @@ class RelationshipPermissions {
   final String? branchScope;
 
   factory RelationshipPermissions.forSession(AuthSession session) {
-    final role = session.primaryRole?.trim().toUpperCase() ?? '';
+    final role = GovernanceRoleMatrix.normalizeRole(session.primaryRole);
     final hasClaimedAdminAccess =
-        session.accessMode == AuthMemberAccessMode.claimed &&
-        session.linkedAuthUid &&
-        (session.clanId?.isNotEmpty ?? false) &&
-        const {'SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN'}.contains(role);
+        GovernanceRoleMatrix.canEditSensitiveRelationships(session);
 
     return RelationshipPermissions(
       canEditSensitiveRelationships: hasClaimedAdminAccess,
       clanScope: session.clanId,
-      branchScope: role == 'BRANCH_ADMIN' ? session.branchId : null,
+      branchScope: role == GovernanceRoles.branchAdmin ? session.branchId : null,
     );
   }
 

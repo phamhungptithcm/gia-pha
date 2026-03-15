@@ -27,6 +27,26 @@ void main() {
     );
   }
 
+  AuthSession buildCouncilSession({
+    required String memberId,
+    required String phoneE164,
+  }) {
+    return AuthSession(
+      uid: 'debug:$phoneE164',
+      loginMethod: AuthEntryMethod.phone,
+      phoneE164: phoneE164,
+      displayName: 'Council Head $memberId',
+      memberId: memberId,
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_001',
+      primaryRole: 'SCHOLARSHIP_COUNCIL_HEAD',
+      accessMode: AuthMemberAccessMode.claimed,
+      linkedAuthUid: true,
+      isSandbox: true,
+      signedInAtIso: DateTime(2026, 3, 14).toIso8601String(),
+    );
+  }
+
   test('loads seeded scholarship workspace', () async {
     final repository = DebugScholarshipRepository.seeded();
     final session = buildClanAdminSession();
@@ -121,33 +141,85 @@ void main() {
     expect(submission.status, 'pending');
   });
 
-  test('approves and rejects submissions', () async {
+  test('finalizes submissions with 2-of-3 council votes', () async {
     final repository = DebugScholarshipRepository.seeded();
-    final session = buildClanAdminSession();
-    final snapshot = await repository.loadWorkspace(session: session);
+    final clanAdminSession = buildClanAdminSession();
+    final councilHeadA = buildCouncilSession(
+      memberId: 'member_council_001',
+      phoneE164: '+84901111001',
+    );
+    final councilHeadB = buildCouncilSession(
+      memberId: 'member_council_002',
+      phoneE164: '+84901111002',
+    );
+    final councilHeadC = buildCouncilSession(
+      memberId: 'member_council_003',
+      phoneE164: '+84901111003',
+    );
+
+    final snapshot = await repository.loadWorkspace(session: clanAdminSession);
 
     final pending = snapshot.submissions.firstWhere(
       (submission) => submission.status == 'pending',
     );
 
-    final approved = await repository.reviewSubmission(
-      session: session,
+    final firstApprovalVote = await repository.reviewSubmission(
+      session: councilHeadA,
       submissionId: pending.id,
       approved: true,
-      reviewNote: 'Strong evidence.',
+      reviewNote: 'First approval vote.',
+    );
+
+    expect(firstApprovalVote.status, 'pending');
+    expect(firstApprovalVote.approvalCount, 1);
+    expect(firstApprovalVote.rejectionCount, 0);
+
+    final approved = await repository.reviewSubmission(
+      session: councilHeadB,
+      submissionId: pending.id,
+      approved: true,
+      reviewNote: 'Second approval vote.',
     );
 
     expect(approved.status, 'approved');
-    expect(approved.reviewNote, 'Strong evidence.');
+    expect(approved.approvalCount, 2);
+    expect(approved.reviewNote, 'Second approval vote.');
+
+    final program = snapshot.programs.first;
+    final awardLevel = snapshot.awardLevels.firstWhere(
+      (item) => item.programId == program.id,
+    );
+    final submissionForRejection = await repository.saveSubmission(
+      session: clanAdminSession,
+      draft: AchievementSubmissionDraft(
+        programId: program.id,
+        awardLevelId: awardLevel.id,
+        studentName: 'Pham Gia Hung',
+        title: 'Need Additional Documents',
+        description: 'Pending evidence review.',
+        evidenceUrls: const ['debug://seed/rejection-case.pdf'],
+      ),
+    );
+
+    final firstRejectionVote = await repository.reviewSubmission(
+      session: councilHeadA,
+      submissionId: submissionForRejection.id,
+      approved: false,
+      reviewNote: 'First rejection vote.',
+    );
+    expect(firstRejectionVote.status, 'pending');
+    expect(firstRejectionVote.approvalCount, 0);
+    expect(firstRejectionVote.rejectionCount, 1);
 
     final rejected = await repository.reviewSubmission(
-      session: session,
-      submissionId: pending.id,
+      session: councilHeadC,
+      submissionId: submissionForRejection.id,
       approved: false,
-      reviewNote: 'Need clearer scanned documents.',
+      reviewNote: 'Second rejection vote.',
     );
 
     expect(rejected.status, 'rejected');
-    expect(rejected.reviewNote, 'Need clearer scanned documents.');
+    expect(rejected.rejectionCount, 2);
+    expect(rejected.reviewNote, 'Second rejection vote.');
   });
 }

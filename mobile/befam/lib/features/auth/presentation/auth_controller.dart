@@ -57,7 +57,8 @@ class AuthController extends ChangeNotifier {
   bool _disposed = false;
 
   bool get isSandbox => _authGateway.isSandbox;
-  bool get canUseLocalBypass => RuntimeMode.shouldBypassPhoneOtp;
+  bool get canUseLocalBypass =>
+      _authGateway.isSandbox && RuntimeMode.shouldBypassPhoneOtp;
 
   Future<void> initialize() async {
     if (_initialized) {
@@ -148,6 +149,7 @@ class AuthController extends ChangeNotifier {
     await _startOtpRequest(
       () => _authGateway.requestPhoneOtp(parsedPhone.e164),
       method: AuthEntryMethod.phone,
+      source: 'phone_input',
     );
   }
 
@@ -174,6 +176,7 @@ class AuthController extends ChangeNotifier {
     await _startOtpRequest(
       () => _authGateway.requestPhoneOtp(phoneE164.trim()),
       method: AuthEntryMethod.phone,
+      source: 'local_bypass',
     );
 
     final challenge = pendingChallenge;
@@ -191,11 +194,75 @@ class AuthController extends ChangeNotifier {
     await verifyOtp(otpHint);
   }
 
+  Future<void> requestOtpForScenarioPhone(
+    String phoneE164, {
+    String? autoVerifyCode,
+  }) async {
+    if (isBusy) {
+      return;
+    }
+    if (!_ensurePrivacyPolicyAccepted()) {
+      return;
+    }
+
+    final normalizedPhone = phoneE164.trim();
+    AppLogger.info(
+      'Scenario OTP request started for $normalizedPhone (autoCode=${autoVerifyCode != null && autoVerifyCode.trim().isNotEmpty}).',
+    );
+    if (normalizedPhone.isEmpty) {
+      error = const AuthIssue(AuthIssueKey.phoneRequired);
+      _emit();
+      return;
+    }
+
+    _clearError();
+    unawaited(
+      _analyticsService.logLoginMethodSelected(
+        AuthEntryMethod.phone,
+        isSandbox: isSandbox,
+      ),
+    );
+
+    await _startOtpRequest(
+      () => _authGateway.requestPhoneOtp(normalizedPhone),
+      method: AuthEntryMethod.phone,
+      source: 'sandbox_profile',
+    );
+
+    final challenge = pendingChallenge;
+    if (session != null || challenge == null) {
+      return;
+    }
+
+    final sanitizedAutoCode = autoVerifyCode
+        ?.replaceAll(RegExp(r'[^0-9]'), '')
+        .trim();
+    if (sanitizedAutoCode != null &&
+        RegExp(r'^\d{6}$').hasMatch(sanitizedAutoCode)) {
+      AppLogger.info(
+        'Scenario OTP auto-verify is enabled for $normalizedPhone.',
+      );
+      await verifyOtp(sanitizedAutoCode);
+      return;
+    }
+
+    if (canUseLocalBypass) {
+      final otpHint = challenge.debugOtpHint;
+      if (otpHint != null && RegExp(r'^\d{6}$').hasMatch(otpHint)) {
+        AppLogger.info(
+          'Scenario OTP fallback using debug hint for $normalizedPhone.',
+        );
+        await verifyOtp(otpHint);
+      }
+    }
+  }
+
   Future<void> submitChildIdentifier(String rawChildIdentifier) async {
     final normalized = ChildIdentifierFormatter.normalize(rawChildIdentifier);
     await _startOtpRequest(
       () => _authGateway.requestChildOtp(normalized),
       method: AuthEntryMethod.child,
+      source: 'child_identifier',
     );
   }
 
@@ -213,11 +280,18 @@ class AuthController extends ChangeNotifier {
       _emit();
       return;
     }
+    AppLogger.info(
+      'OTP verification started (method=${challenge.loginMethod.name}, phone=${challenge.phoneE164}, verificationId=${challenge.verificationId}).',
+    );
 
-    await _runBusy(() async {
-      final newSession = await _authGateway.verifyOtp(challenge, sanitized);
-      await _completeSignIn(newSession);
-    }, method: challenge.loginMethod);
+    await _runBusy(
+      () async {
+        final newSession = await _authGateway.verifyOtp(challenge, sanitized);
+        await _completeSignIn(newSession);
+      },
+      method: challenge.loginMethod,
+      operation: 'verify_otp',
+    );
   }
 
   Future<void> resendOtp() async {
@@ -230,6 +304,7 @@ class AuthController extends ChangeNotifier {
       () => _authGateway.resendOtp(challenge),
       method: challenge.loginMethod,
       isResend: true,
+      source: 'resend',
     );
   }
 
@@ -242,7 +317,7 @@ class AuthController extends ChangeNotifier {
       pendingChallenge = null;
       step = AuthStep.loginMethodSelection;
       _stopCooldown();
-    });
+    }, operation: 'logout');
   }
 
   Future<void> setPrivacyPolicyAccepted(bool accepted) async {
@@ -255,25 +330,46 @@ class AuthController extends ChangeNotifier {
     AuthOtpAction action, {
     required AuthEntryMethod method,
     bool isResend = false,
+    required String source,
   }) async {
-    await _runBusy(() async {
-      final result = await action();
-      await _applyOtpRequestResult(result);
-      await _analyticsService.logOtpRequested(
-        method,
-        isSandbox: isSandbox,
-        isResend: isResend,
-      );
-    }, method: method);
+    final flowId =
+        'otp_${DateTime.now().millisecondsSinceEpoch}_${method.name}_${isResend ? 'resend' : 'send'}';
+    AppLogger.info(
+      '[$flowId] Starting OTP request flow (method=${method.name}, resend=$isResend, source=$source, step=${step.name}, sandbox=$isSandbox).',
+    );
+    await _runBusy(
+      () async {
+        final result = await action();
+        AppLogger.info('[$flowId] OTP request returned from gateway.');
+        await _applyOtpRequestResult(result, flowId: flowId, source: source);
+        await _analyticsService.logOtpRequested(
+          method,
+          isSandbox: isSandbox,
+          isResend: isResend,
+        );
+      },
+      method: method,
+      operation: flowId,
+    );
   }
 
-  Future<void> _applyOtpRequestResult(AuthOtpRequestResult result) async {
+  Future<void> _applyOtpRequestResult(
+    AuthOtpRequestResult result, {
+    required String flowId,
+    required String source,
+  }) async {
     if (result.session case final AuthSession restoredSession) {
+      AppLogger.info(
+        '[$flowId] OTP request resolved directly to session for ${restoredSession.uid} (source=$source).',
+      );
       await _completeSignIn(restoredSession);
       return;
     }
 
     if (result.challenge case final PendingOtpChallenge challenge) {
+      AppLogger.info(
+        '[$flowId] OTP challenge received (method=${challenge.loginMethod.name}, phone=${challenge.phoneE164}, verificationId=${challenge.verificationId}, hasDebugHint=${challenge.debugOtpHint != null}, source=$source).',
+      );
       pendingChallenge = challenge;
       step = AuthStep.otp;
       _startCooldown();
@@ -305,15 +401,25 @@ class AuthController extends ChangeNotifier {
   Future<void> _runBusy(
     Future<void> Function() action, {
     AuthEntryMethod? method,
+    String operation = 'auth_flow',
   }) async {
+    final stopwatch = Stopwatch()..start();
+    AppLogger.info(
+      '[$operation] Busy state entered (step=${step.name}, method=${method?.name ?? 'n/a'}).',
+    );
     isBusy = true;
     error = null;
     _emit();
 
     try {
       await action();
+      AppLogger.info('[$operation] Completed successfully.');
     } catch (error, stackTrace) {
-      AppLogger.error('Authentication flow failed.', error, stackTrace);
+      AppLogger.error(
+        '[$operation] Authentication flow failed (step=${step.name}, method=${method?.name ?? 'n/a'}).',
+        error,
+        stackTrace,
+      );
       this.error = AuthErrorMapper.map(error);
       await _analyticsService.logFailure(
         stage: step.name,
@@ -324,6 +430,10 @@ class AuthController extends ChangeNotifier {
       _emit();
     } finally {
       isBusy = false;
+      stopwatch.stop();
+      AppLogger.info(
+        '[$operation] Busy state exited after ${stopwatch.elapsedMilliseconds}ms.',
+      );
       _emit();
     }
   }
@@ -356,6 +466,9 @@ class AuthController extends ChangeNotifier {
     if (hasAcceptedPrivacyPolicy) {
       return true;
     }
+    AppLogger.warning(
+      'Auth action blocked because privacy policy is not accepted yet.',
+    );
     error = const AuthIssue(AuthIssueKey.privacyPolicyRequired);
     _emit();
     return false;

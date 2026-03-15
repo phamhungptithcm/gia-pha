@@ -384,14 +384,10 @@ void main() {
       find.byKey(const Key('member-nickname-input')),
       'Hải An',
     );
-    await tester.tap(find.byKey(const Key('member-branch-input')));
+    await tester.tap(find.byKey(const Key('member-parent-input')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Chi Trưởng').last);
+    await tester.tap(find.textContaining('Minh ·').first);
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('member-generation-input')),
-      '7',
-    );
     await tester.enterText(
       find.byKey(const Key('member-phone-input')),
       '+84905554444',

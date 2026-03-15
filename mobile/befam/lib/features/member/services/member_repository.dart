@@ -46,8 +46,9 @@ abstract interface class MemberRepository {
   });
 }
 
-MemberRepository createDefaultMemberRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
+MemberRepository createDefaultMemberRepository({AuthSession? session}) {
+  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
+  if (useMockBackend) {
     return DebugMemberRepository(store: DebugGenealogyStore.sharedSeeded());
   }
 

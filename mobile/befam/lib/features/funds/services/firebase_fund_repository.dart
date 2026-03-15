@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/fund_draft.dart';
 import '../models/fund_profile.dart';
@@ -25,6 +26,9 @@ class FirebaseFundRepository implements FundRepository {
   CollectionReference<Map<String, dynamic>> get _transactions =>
       _firestore.collection('transactions');
 
+  CollectionReference<Map<String, dynamic>> get _members =>
+      _firestore.collection('members');
+
   @override
   bool get isSandbox => false;
 
@@ -44,11 +48,7 @@ class FirebaseFundRepository implements FundRepository {
 
     final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
       _funds.where('clanId', isEqualTo: clanId).get(),
-      _transactions
-          .where('clanId', isEqualTo: clanId)
-          .orderBy('occurredAt', descending: true)
-          .limit(400)
-          .get(),
+      _loadTransactionSnapshot(clanId: clanId),
     ]);
 
     final funds = results[0].docs
@@ -67,9 +67,35 @@ class FirebaseFundRepository implements FundRepository {
           ),
         )
         .sorted((left, right) => right.occurredAt.compareTo(left.occurredAt))
+        .take(400)
         .toList(growable: false);
 
     return FundWorkspaceSnapshot(funds: funds, transactions: transactions);
+  }
+
+  Future<QuerySnapshot<Map<String, dynamic>>> _loadTransactionSnapshot({
+    required String clanId,
+  }) async {
+    final baseQuery = _transactions.where('clanId', isEqualTo: clanId);
+    try {
+      return await baseQuery
+          .orderBy('occurredAt', descending: true)
+          .limit(400)
+          .get();
+    } on FirebaseException catch (error) {
+      if (_isMissingCompositeIndex(error)) {
+        return baseQuery.limit(1200).get();
+      }
+      rethrow;
+    }
+  }
+
+  bool _isMissingCompositeIndex(FirebaseException error) {
+    if (error.code != 'failed-precondition') {
+      return false;
+    }
+    final message = (error.message ?? '').toLowerCase();
+    return message.contains('requires an index');
   }
 
   @override
@@ -83,8 +109,16 @@ class FirebaseFundRepository implements FundRepository {
       session: session,
     );
 
-    final clanId = session.clanId;
-    if (clanId == null || clanId.isEmpty) {
+    final sessionClanId = session.clanId?.trim() ?? '';
+    if (sessionClanId.isEmpty) {
+      throw const FundRepositoryException(
+        FundRepositoryErrorCode.permissionDenied,
+      );
+    }
+    final targetClanId = (draft.clanId ?? '').trim().isEmpty
+        ? sessionClanId
+        : draft.clanId!.trim();
+    if (targetClanId != sessionClanId) {
       throw const FundRepositoryException(
         FundRepositoryErrorCode.permissionDenied,
       );
@@ -105,15 +139,26 @@ class FirebaseFundRepository implements FundRepository {
         FundRepositoryErrorCode.validationFailed,
       );
     }
+    final normalizedAppliedMemberIds = draft.appliedMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final normalizedTreasurerMemberIds = draft.treasurerMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
 
     try {
       final docRef = fundId == null ? _funds.doc() : _funds.doc(fundId);
       final existing = await docRef.get();
-
-      await docRef.set({
+      final payload = <String, dynamic>{
         'id': docRef.id,
-        'clanId': clanId,
+        'clanId': targetClanId,
         'branchId': _nullableTrim(draft.branchId),
+        'appliedMemberIds': normalizedAppliedMemberIds,
+        'treasurerMemberIds': normalizedTreasurerMemberIds,
         'name': trimmedName,
         'description': draft.description.trim(),
         'fundType': draft.fundType.trim().isEmpty
@@ -126,14 +171,54 @@ class FirebaseFundRepository implements FundRepository {
         'updatedBy': session.memberId ?? session.uid,
         if (!existing.exists) 'createdAt': FieldValue.serverTimestamp(),
         if (!existing.exists) 'createdBy': session.memberId ?? session.uid,
-      }, SetOptions(merge: true));
+      };
+
+      final canGrantTreasurerRole = GovernanceRoleMatrix.canManageClanSettings(
+        session,
+      );
+      if (!canGrantTreasurerRole || normalizedTreasurerMemberIds.isEmpty) {
+        await docRef.set(payload, SetOptions(merge: true));
+      } else {
+        final memberSnapshots = await Future.wait(
+          normalizedTreasurerMemberIds.map(
+            (memberId) => _members.doc(memberId).get(),
+          ),
+        );
+        final batch = _firestore.batch();
+        batch.set(docRef, payload, SetOptions(merge: true));
+
+        for (final memberSnapshot in memberSnapshots) {
+          if (!memberSnapshot.exists) {
+            continue;
+          }
+          final data = memberSnapshot.data();
+          if (data == null) {
+            continue;
+          }
+          final clanId = _stringOrEmpty(data['clanId']);
+          if (clanId != targetClanId) {
+            continue;
+          }
+          final currentRole = _stringOrEmpty(data['primaryRole']).toUpperCase();
+          if (!_shouldPromoteToTreasurer(currentRole)) {
+            continue;
+          }
+          batch.set(memberSnapshot.reference, {
+            'primaryRole': GovernanceRoles.treasurer,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'updatedBy': session.memberId ?? session.uid,
+          }, SetOptions(merge: true));
+        }
+
+        await batch.commit();
+      }
 
       final refreshed = await docRef.get();
-      final payload = _normalizeFirestoreMap(
+      final normalizedPayload = _normalizeFirestoreMap(
         refreshed.data() ?? {},
         fallbackId: docRef.id,
       );
-      return FundProfile.fromJson(payload);
+      return FundProfile.fromJson(normalizedPayload);
     } on FirebaseException catch (error) {
       throw _mapFirebaseError(error);
     }
@@ -328,4 +413,20 @@ int _coerceInt(Object? value) {
     return int.tryParse(value) ?? 0;
   }
   return 0;
+}
+
+String _stringOrEmpty(Object? value) {
+  return value is String ? value.trim() : '';
+}
+
+bool _shouldPromoteToTreasurer(String role) {
+  final normalized = role.trim().toUpperCase();
+  if (normalized.isEmpty) {
+    return true;
+  }
+  if (normalized == GovernanceRoles.member ||
+      normalized == GovernanceRoles.guest) {
+    return true;
+  }
+  return false;
 }

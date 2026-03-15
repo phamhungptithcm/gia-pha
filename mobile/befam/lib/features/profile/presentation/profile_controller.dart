@@ -19,7 +19,9 @@ class ProfileController extends ChangeNotifier {
        _session = session,
        _notificationPreferencesRepository =
            notificationPreferencesRepository ??
-           createDefaultProfileNotificationPreferencesRepository();
+           createDefaultProfileNotificationPreferencesRepository(
+             session: session,
+           );
 
   final MemberRepository _memberRepository;
   final AuthSession _session;

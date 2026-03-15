@@ -12,6 +12,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  Future<void> pumpUi(WidgetTester tester, {int frames = 24}) async {
+    for (var index = 0; index < frames; index += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+  }
+
   AuthSession buildSession() {
     return AuthSession(
       uid: 'debug:+84901234567',
@@ -54,7 +60,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUi(tester);
 
     pushService.emit(
       const NotificationDeepLink(
@@ -66,7 +72,7 @@ void main() {
         body: 'The family event has a schedule update.',
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUi(tester, frames: 36);
 
     expect(find.byKey(const Key('notification-target-event')), findsOneWidget);
     expect(find.text('event_demo_001'), findsOneWidget);
@@ -88,7 +94,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUi(tester);
 
     pushService.emit(
       const NotificationDeepLink(
@@ -100,7 +106,7 @@ void main() {
         body: 'A scholarship decision has been published.',
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUi(tester, frames: 36);
 
     expect(
       find.byKey(const Key('notification-target-scholarship')),
@@ -123,12 +129,12 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await pumpUi(tester);
 
       await tester.tap(find.text('Profile'));
-      await tester.pumpAndSettle();
+      await pumpUi(tester, frames: 36);
       await tester.tap(find.byTooltip('Open settings'));
-      await tester.pumpAndSettle();
+      await pumpUi(tester, frames: 36);
 
       expect(
         find.byKey(const Key('notification-setting-event-updates')),

@@ -1,5 +1,5 @@
-import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
+import '../../../core/services/governance_role_matrix.dart';
 
 class ClanPermissions {
   const ClanPermissions({
@@ -7,47 +7,34 @@ class ClanPermissions {
     required this.canEditClanSettings,
     required this.canManageBranches,
     required this.canAssignLeadership,
+    required this.canBootstrapClan,
   });
 
   final bool canViewWorkspace;
   final bool canEditClanSettings;
   final bool canManageBranches;
   final bool canAssignLeadership;
+  final bool canBootstrapClan;
 
   bool get isReadOnly =>
       canViewWorkspace && !canEditClanSettings && !canManageBranches;
 
   factory ClanPermissions.forSession(AuthSession session) {
-    final role = session.primaryRole?.trim().toUpperCase() ?? '';
     final hasClanContext = (session.clanId?.isNotEmpty ?? false);
-    final isClaimedAdmin =
-        session.accessMode == AuthMemberAccessMode.claimed &&
-        hasClanContext &&
-        session.linkedAuthUid;
-    final canEditClanSettings =
-        isClaimedAdmin && RoleCaseSet.contains(role, clanSettingsRoles);
-    final canManageBranches =
-        isClaimedAdmin && RoleCaseSet.contains(role, branchManagementRoles);
+    final canBootstrapClan = GovernanceRoleMatrix.canBootstrapClan(session);
+    final canEditClanSettings = hasClanContext
+        ? GovernanceRoleMatrix.canManageClanSettings(session)
+        : canBootstrapClan;
+    final canManageBranches = hasClanContext
+        ? GovernanceRoleMatrix.canManageBranches(session)
+        : false;
 
     return ClanPermissions(
-      canViewWorkspace: hasClanContext,
+      canViewWorkspace: hasClanContext || canBootstrapClan,
       canEditClanSettings: canEditClanSettings,
       canManageBranches: canManageBranches,
       canAssignLeadership: canManageBranches,
+      canBootstrapClan: canBootstrapClan,
     );
-  }
-
-  static const Set<String> clanSettingsRoles = {'SUPER_ADMIN', 'CLAN_ADMIN'};
-
-  static const Set<String> branchManagementRoles = {
-    'SUPER_ADMIN',
-    'CLAN_ADMIN',
-    'BRANCH_ADMIN',
-  };
-}
-
-abstract final class RoleCaseSet {
-  static bool contains(String value, Set<String> haystack) {
-    return haystack.contains(value.toUpperCase());
   }
 }

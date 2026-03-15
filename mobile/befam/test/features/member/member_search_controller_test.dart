@@ -15,16 +15,20 @@ import 'package:befam/features/member/services/member_search_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  AuthSession buildSession() {
+  AuthSession buildSession({
+    String primaryRole = 'CLAN_ADMIN',
+    String memberId = 'm1',
+    String branchId = 'b1',
+  }) {
     return AuthSession(
       uid: 'uid-1',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84901111111',
       displayName: 'Tester',
-      memberId: 'm1',
+      memberId: memberId,
       clanId: 'c1',
-      branchId: 'b1',
-      primaryRole: 'CLAN_ADMIN',
+      branchId: branchId,
+      primaryRole: primaryRole,
       accessMode: AuthMemberAccessMode.claimed,
       linkedAuthUid: true,
       isSandbox: false,
@@ -218,6 +222,101 @@ void main() {
     expect(analytics.retryRequestedEvents, hasLength(1));
     expect(analytics.searchSubmittedEvents, hasLength(1));
   });
+
+  test(
+    'allows manual role selection when creator has assignment permission',
+    () async {
+      final repository = _FakeMemberRepository(
+        members: [
+          buildMember(
+            id: 'leader-1',
+            fullName: 'Clan Leader',
+            branchId: 'b1',
+            generation: 1,
+          ),
+        ],
+      );
+
+      final controller = MemberController(
+        repository: repository,
+        session: buildSession(),
+        searchProvider: const LocalMemberSearchProvider(latency: Duration.zero),
+        searchAnalyticsService: _RecordingSearchAnalyticsService(),
+      );
+
+      await controller.initialize();
+      final draft = MemberDraft.empty(
+        defaultBranchId: 'b1',
+      ).copyWith(generation: 3, primaryRole: 'TREASURER');
+
+      expect(controller.resolveCreateRoleForDraft(draft), 'TREASURER');
+    },
+  );
+
+  test('auto-assigns member role when parent node is selected', () async {
+    final repository = _FakeMemberRepository(
+      members: [
+        buildMember(
+          id: 'parent-1',
+          fullName: 'Parent',
+          branchId: 'b1',
+          generation: 4,
+        ),
+      ],
+    );
+
+    final controller = MemberController(
+      repository: repository,
+      session: buildSession(
+        primaryRole: 'BRANCH_ADMIN',
+        memberId: 'parent-1',
+        branchId: 'b1',
+      ),
+      searchProvider: const LocalMemberSearchProvider(latency: Duration.zero),
+      searchAnalyticsService: _RecordingSearchAnalyticsService(),
+    );
+
+    await controller.initialize();
+    final draft = MemberDraft.empty(
+      defaultBranchId: 'b1',
+    ).copyWith(parentIds: const ['parent-1'], primaryRole: 'CLAN_LEADER');
+
+    expect(controller.resolveCreateRoleForDraft(draft), 'MEMBER');
+  });
+
+  test(
+    'auto-assigns clan leader for first root node when no leadership exists',
+    () async {
+      final repository = _FakeMemberRepository(
+        members: [
+          buildMember(
+            id: 'member-1',
+            fullName: 'Regular Member',
+            branchId: 'b1',
+            generation: 3,
+          ),
+        ],
+      );
+
+      final controller = MemberController(
+        repository: repository,
+        session: buildSession(
+          primaryRole: 'BRANCH_ADMIN',
+          memberId: 'member-1',
+          branchId: 'b1',
+        ),
+        searchProvider: const LocalMemberSearchProvider(latency: Duration.zero),
+        searchAnalyticsService: _RecordingSearchAnalyticsService(),
+      );
+
+      await controller.initialize();
+      final draft = MemberDraft.empty(
+        defaultBranchId: 'b1',
+      ).copyWith(generation: 1);
+
+      expect(controller.resolveCreateRoleForDraft(draft), 'CLAN_LEADER');
+    },
+  );
 }
 
 class _FakeMemberRepository implements MemberRepository {

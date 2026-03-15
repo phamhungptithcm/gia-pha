@@ -58,7 +58,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
     );
     _avatarPicker = widget.avatarPicker ?? createDefaultMemberAvatarPicker();
     _relationshipRepository =
-        widget.relationshipRepository ?? createDefaultRelationshipRepository();
+        widget.relationshipRepository ??
+        createDefaultRelationshipRepository(session: widget.session);
     _searchController = TextEditingController();
     unawaited(_controller.initialize());
   }
@@ -81,6 +82,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
           title: member == null
               ? context.l10n.memberAddSheetTitle
               : context.l10n.memberEditSheetTitle,
+          isEditing: member != null,
+          editingMemberId: member?.id,
           allowOrganizationFields:
               member == null ||
               _controller.permissions.canEditOrganizationFields,
@@ -90,6 +93,11 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                 )
               : MemberDraft.fromProfile(member),
           branches: _controller.visibleBranches,
+          members: _controller.members,
+          canAssignRoleManually:
+              member == null && _controller.canAssignRoleManually,
+          assignableRoles: _controller.assignableCreateRoles,
+          resolveAutoRole: _controller.resolveAutoRoleForDraft,
           isSaving: _controller.isSaving,
           onSubmit: (draft) {
             return _controller.saveMember(memberId: member?.id, draft: draft);
@@ -435,7 +443,10 @@ class _MemberDetailPage extends StatelessWidget {
         final member = controller.memberById(memberId);
         final l10n = context.l10n;
         final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
+        final siblingOrder = member == null
+            ? null
+            : _resolveSiblingOrder(member);
+        final siblingOrderLabel = _siblingOrderLabel(l10n, siblingOrder);
 
         return Scaffold(
           appBar: AppBar(
@@ -517,6 +528,11 @@ class _MemberDetailPage extends StatelessWidget {
                                             member.primaryRole,
                                           ),
                                         ),
+                                        if (siblingOrderLabel != null)
+                                          _ChipPill(
+                                            icon: Icons.format_list_numbered,
+                                            label: siblingOrderLabel,
+                                          ),
                                       ],
                                     ),
                                   ],
@@ -558,6 +574,13 @@ class _MemberDetailPage extends StatelessWidget {
                             _DetailRow(
                               label: l10n.memberGenderLabel,
                               value: _genderLabel(l10n, member.gender),
+                            ),
+                            _DetailRow(
+                              label: l10n.pick(
+                                vi: 'Thứ tự anh/chị/em',
+                                en: 'Sibling order',
+                              ),
+                              value: siblingOrderLabel ?? l10n.memberFieldUnset,
                             ),
                             _DetailRow(
                               label: l10n.memberBirthDateLabel,
@@ -623,27 +646,6 @@ class _MemberDetailPage extends StatelessWidget {
                         repository: relationshipRepository,
                         onRelationshipsChanged: controller.refresh,
                       ),
-                      if (controller.canUploadAvatar(member)) ...[
-                        const SizedBox(height: 20),
-                        Card(
-                          color: colorScheme.secondaryContainer,
-                          child: Padding(
-                            padding: const EdgeInsets.all(18),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.image_outlined),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    l10n.memberAvatarHint,
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
           ),
@@ -651,22 +653,67 @@ class _MemberDetailPage extends StatelessWidget {
       },
     );
   }
+
+  int? _resolveSiblingOrder(MemberProfile member) {
+    final directOrder = member.siblingOrder;
+    if (directOrder != null && directOrder > 0) {
+      return directOrder;
+    }
+
+    final parentIds = member.parentIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    if (parentIds.isEmpty) {
+      return null;
+    }
+
+    final siblings = <MemberProfile>[];
+    for (final candidate in controller.members) {
+      if (candidate.id == member.id) {
+        siblings.add(candidate);
+        continue;
+      }
+      final hasSharedParent = candidate.parentIds.any(parentIds.contains);
+      if (hasSharedParent) {
+        siblings.add(candidate);
+      }
+    }
+    siblings.sort(_compareMembersBySeniority);
+    final index = siblings.indexWhere((entry) => entry.id == member.id);
+    if (index < 0) {
+      return null;
+    }
+    return index + 1;
+  }
 }
 
 class _MemberEditorSheet extends StatefulWidget {
   const _MemberEditorSheet({
     required this.title,
+    required this.isEditing,
+    required this.editingMemberId,
     required this.allowOrganizationFields,
     required this.initialDraft,
     required this.branches,
+    required this.members,
+    required this.canAssignRoleManually,
+    required this.assignableRoles,
+    required this.resolveAutoRole,
     required this.isSaving,
     required this.onSubmit,
   });
 
   final String title;
+  final bool isEditing;
+  final String? editingMemberId;
   final bool allowOrganizationFields;
   final MemberDraft initialDraft;
   final List<BranchProfile> branches;
+  final List<MemberProfile> members;
+  final bool canAssignRoleManually;
+  final List<String> assignableRoles;
+  final String Function(MemberDraft draft) resolveAutoRole;
   final bool isSaving;
   final Future<MemberRepositoryErrorCode?> Function(MemberDraft draft) onSubmit;
 
@@ -691,7 +738,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
   late final TextEditingController _linkedinController;
 
   String? _branchId;
+  String? _parentMemberId;
   String? _gender;
+  String? _selectedPrimaryRole;
   MemberRepositoryErrorCode? _submitError;
   bool _isSubmitting = false;
 
@@ -734,7 +783,18 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
       text: widget.initialDraft.socialLinks.linkedin ?? '',
     );
     _branchId = widget.initialDraft.branchId;
+    _parentMemberId = widget.initialDraft.parentIds.isEmpty
+        ? null
+        : widget.initialDraft.parentIds.first;
     _gender = widget.initialDraft.gender;
+    final initialRole = widget.initialDraft.primaryRole.trim().toUpperCase();
+    if (widget.assignableRoles.contains(initialRole)) {
+      _selectedPrimaryRole = initialRole;
+    } else if (widget.assignableRoles.isNotEmpty) {
+      _selectedPrimaryRole = widget.assignableRoles.first;
+    } else {
+      _selectedPrimaryRole = 'MEMBER';
+    }
   }
 
   @override
@@ -767,7 +827,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
       return;
     }
 
-    controller.text = _formatIsoDate(picked);
+    setState(() {
+      controller.text = _formatIsoDate(picked);
+    });
   }
 
   Future<void> _submit() async {
@@ -780,28 +842,16 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
       _submitError = null;
     });
 
-    final error = await widget.onSubmit(
-      MemberDraft(
-        branchId: _branchId,
-        fullName: _fullNameController.text.trim(),
-        nickName: _nickNameController.text.trim(),
-        gender: _gender,
-        birthDate: _nullIfBlank(_birthDateController.text),
-        deathDate: _nullIfBlank(_deathDateController.text),
-        phoneInput: _phoneController.text.trim(),
-        email: _emailController.text.trim(),
-        addressText: _addressController.text.trim(),
-        jobTitle: _jobTitleController.text.trim(),
-        bio: _bioController.text.trim(),
-        generation: int.parse(_generationController.text.trim()),
-        socialLinks: MemberSocialLinks(
-          facebook: _nullIfBlank(_facebookController.text),
-          zalo: _nullIfBlank(_zaloController.text),
-          linkedin: _nullIfBlank(_linkedinController.text),
-        ),
-        isMinor: widget.initialDraft.isMinor,
-      ),
+    final baseDraft = _composeDraft(
+      primaryRole: _selectedPrimaryRole ?? widget.initialDraft.primaryRole,
     );
+    final resolvedPrimaryRole = widget.isEditing
+        ? widget.initialDraft.primaryRole
+        : widget.canAssignRoleManually
+        ? baseDraft.primaryRole
+        : widget.resolveAutoRole(baseDraft);
+    final draftToSave = baseDraft.copyWith(primaryRole: resolvedPrimaryRole);
+    final error = await widget.onSubmit(draftToSave);
 
     if (!mounted) {
       return;
@@ -823,6 +873,8 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
     final theme = Theme.of(context);
     final l10n = context.l10n;
     final insets = MediaQuery.viewInsetsOf(context);
+    final selectedParent = _memberById(_parentMemberId);
+    final selectedParentBranchName = _branchNameById(selectedParent?.branchId);
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -898,32 +950,72 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: 14),
-                DropdownButtonFormField<String>(
-                  key: const Key('member-branch-input'),
-                  initialValue: _branchId,
-                  decoration: InputDecoration(
-                    labelText: l10n.memberBranchLabel,
-                  ),
-                  items: [
-                    for (final branch in widget.branches)
-                      DropdownMenuItem<String>(
-                        value: branch.id,
-                        child: Text(branch.name),
+                if (widget.isEditing)
+                  DropdownButtonFormField<String>(
+                    key: const Key('member-branch-input'),
+                    initialValue: _branchId,
+                    decoration: InputDecoration(
+                      labelText: l10n.memberBranchLabel,
+                    ),
+                    items: [
+                      for (final branch in widget.branches)
+                        DropdownMenuItem<String>(
+                          value: branch.id,
+                          child: Text(branch.name),
+                        ),
+                    ],
+                    onChanged: widget.allowOrganizationFields
+                        ? (value) {
+                            setState(() {
+                              _branchId = value;
+                            });
+                          }
+                        : null,
+                    validator: (value) {
+                      return value == null || value.isEmpty
+                          ? l10n.memberValidationBranchRequired
+                          : null;
+                    },
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    key: const Key('member-parent-input'),
+                    initialValue: _parentMemberId,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Con của', en: 'Child of'),
+                      hintText: l10n.pick(
+                        vi: 'Chọn cha/mẹ hoặc người giám hộ',
+                        en: 'Choose father/mother or guardian',
                       ),
-                  ],
-                  onChanged: widget.allowOrganizationFields
-                      ? (value) {
-                          setState(() {
-                            _branchId = value;
-                          });
-                        }
-                      : null,
-                  validator: (value) {
-                    return value == null || value.isEmpty
-                        ? l10n.memberValidationBranchRequired
-                        : null;
-                  },
-                ),
+                    ),
+                    items: [
+                      for (final candidate in _parentCandidates)
+                        DropdownMenuItem<String>(
+                          value: candidate.id,
+                          child: Text(
+                            '${candidate.displayName} · ${_branchNameById(candidate.branchId)} · ${l10n.memberGenerationLabel} ${candidate.generation}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _parentMemberId = value;
+                      });
+                    },
+                    validator: (value) {
+                      if (_parentCandidates.isEmpty) {
+                        return null;
+                      }
+                      return value == null || value.trim().isEmpty
+                          ? l10n.pick(
+                              vi: 'Hãy chọn cha/mẹ để hệ thống tự gán chi và đời.',
+                              en: 'Choose a parent so the system can auto-assign branch and generation.',
+                            )
+                          : null;
+                    },
+                  ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
@@ -961,25 +1053,123 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                     ),
                     const SizedBox(width: 14),
                     Expanded(
-                      child: TextFormField(
-                        key: const Key('member-generation-input'),
-                        controller: _generationController,
-                        enabled: widget.allowOrganizationFields,
-                        decoration: InputDecoration(
-                          labelText: l10n.memberGenerationLabel,
-                        ),
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.next,
-                        validator: (value) {
-                          final parsed = int.tryParse(value ?? '');
-                          return parsed == null || parsed <= 0
-                              ? l10n.memberValidationGenerationRequired
-                              : null;
-                        },
-                      ),
+                      child: widget.isEditing
+                          ? TextFormField(
+                              key: const Key('member-generation-input'),
+                              controller: _generationController,
+                              enabled: widget.allowOrganizationFields,
+                              decoration: InputDecoration(
+                                labelText: l10n.memberGenerationLabel,
+                              ),
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.next,
+                              validator: (value) {
+                                final parsed = int.tryParse(value ?? '');
+                                return parsed == null || parsed <= 0
+                                    ? l10n.memberValidationGenerationRequired
+                                    : null;
+                              },
+                            )
+                          : InputDecorator(
+                              key: const Key('member-generation-auto-input'),
+                              decoration: InputDecoration(
+                                labelText: l10n.memberGenerationLabel,
+                              ),
+                              child: Text(
+                                selectedParent == null
+                                    ? '-'
+                                    : '${selectedParent.generation + 1}',
+                              ),
+                            ),
                     ),
                   ],
                 ),
+                if (!widget.isEditing) ...[
+                  const SizedBox(height: 14),
+                  InputDecorator(
+                    key: const Key('member-branch-auto-input'),
+                    decoration: InputDecoration(
+                      labelText: l10n.memberBranchLabel,
+                    ),
+                    child: Text(
+                      selectedParent == null
+                          ? l10n.pick(
+                              vi: 'Mặc định: ${_branchNameById(_resolvedBranchId)}',
+                              en: 'Default: ${_branchNameById(_resolvedBranchId)}',
+                            )
+                          : selectedParentBranchName,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  if (widget.canAssignRoleManually)
+                    DropdownButtonFormField<String>(
+                      key: const Key('member-role-input'),
+                      initialValue: _selectedPrimaryRole,
+                      decoration: InputDecoration(
+                        labelText: l10n.pick(vi: 'Vai trò', en: 'Role'),
+                      ),
+                      items: [
+                        for (final role in widget.assignableRoles)
+                          DropdownMenuItem<String>(
+                            value: role,
+                            child: Text(l10n.roleLabel(role)),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedPrimaryRole = value;
+                        });
+                      },
+                      validator: (value) {
+                        return value == null || value.trim().isEmpty
+                            ? l10n.pick(
+                                vi: 'Hãy chọn vai trò cho thành viên.',
+                                en: 'Please choose a role for this member.',
+                              )
+                            : null;
+                      },
+                    )
+                  else
+                    InputDecorator(
+                      key: const Key('member-role-auto-input'),
+                      decoration: InputDecoration(
+                        labelText: l10n.pick(vi: 'Vai trò', en: 'Role'),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(l10n.roleLabel(_autoResolvedRole)),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.pick(
+                              vi: 'Hệ thống tự gán vai trò theo vị trí nút trong cây gia phả.',
+                              en: 'The system auto-assigns role based on this member node in the genealogy tree.',
+                            ),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 14),
+                  InputDecorator(
+                    key: const Key('member-sibling-order-auto-input'),
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Thứ tự anh/chị/em',
+                        en: 'Sibling order',
+                      ),
+                    ),
+                    child: Text(
+                      _siblingOrderLabel(l10n, _predictedSiblingOrder) ??
+                          l10n.pick(
+                            vi: 'Chọn cha/mẹ để hệ thống tự tính.',
+                            en: 'Choose a parent for automatic calculation.',
+                          ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Row(
                   children: [
@@ -1004,6 +1194,7 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                               ? null
                               : l10n.memberValidationDateInvalid;
                         },
+                        onChanged: (_) => setState(() {}),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -1137,6 +1328,164 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
         ),
       ),
     );
+  }
+
+  MemberDraft _composeDraft({required String primaryRole}) {
+    return MemberDraft(
+      branchId: _resolvedBranchId,
+      parentIds: _resolvedParentIds,
+      fullName: _fullNameController.text.trim(),
+      nickName: _nickNameController.text.trim(),
+      gender: _gender,
+      birthDate: _nullIfBlank(_birthDateController.text),
+      deathDate: _nullIfBlank(_deathDateController.text),
+      phoneInput: _phoneController.text.trim(),
+      email: _emailController.text.trim(),
+      addressText: _addressController.text.trim(),
+      jobTitle: _jobTitleController.text.trim(),
+      bio: _bioController.text.trim(),
+      siblingOrder: _predictedSiblingOrder,
+      generation: _resolvedGeneration,
+      socialLinks: MemberSocialLinks(
+        facebook: _nullIfBlank(_facebookController.text),
+        zalo: _nullIfBlank(_zaloController.text),
+        linkedin: _nullIfBlank(_linkedinController.text),
+      ),
+      primaryRole: primaryRole,
+      status: widget.initialDraft.status,
+      isMinor: widget.initialDraft.isMinor,
+    );
+  }
+
+  String get _autoResolvedRole {
+    final previewDraft = _composeDraft(primaryRole: 'MEMBER');
+    return widget.resolveAutoRole(previewDraft);
+  }
+
+  int? get _predictedSiblingOrder {
+    if (widget.isEditing) {
+      return widget.initialDraft.siblingOrder;
+    }
+    final parentId = _parentMemberId?.trim();
+    if (parentId == null || parentId.isEmpty) {
+      return null;
+    }
+
+    final siblingEntries =
+        <({String id, String name, int generation, DateTime? birthDate})>[
+          for (final member in widget.members)
+            if (member.parentIds.contains(parentId))
+              (
+                id: member.id,
+                name: member.fullName,
+                generation: member.generation,
+                birthDate: _tryParseIsoDate(member.birthDate ?? ''),
+              ),
+          (
+            id: '__draft__',
+            name: _fullNameController.text.trim().isEmpty
+                ? 'draft'
+                : _fullNameController.text.trim(),
+            generation: _resolvedGeneration,
+            birthDate: _tryParseIsoDate(_birthDateController.text.trim()),
+          ),
+        ];
+
+    siblingEntries.sort((left, right) {
+      final byBirthDate = _compareNullableDate(left.birthDate, right.birthDate);
+      if (byBirthDate != 0) {
+        return byBirthDate;
+      }
+      final byGeneration = left.generation.compareTo(right.generation);
+      if (byGeneration != 0) {
+        return byGeneration;
+      }
+      final byName = left.name.toLowerCase().compareTo(
+        right.name.toLowerCase(),
+      );
+      if (byName != 0) {
+        return byName;
+      }
+      return left.id.compareTo(right.id);
+    });
+
+    final index = siblingEntries.indexWhere((entry) => entry.id == '__draft__');
+    if (index < 0) {
+      return null;
+    }
+    return index + 1;
+  }
+
+  List<MemberProfile> get _parentCandidates {
+    final accessibleBranchIds = widget.branches
+        .map((branch) => branch.id)
+        .where((id) => id.trim().isNotEmpty)
+        .toSet();
+    return widget.members
+        .where((member) => member.id != widget.editingMemberId)
+        .where(
+          (member) =>
+              accessibleBranchIds.isEmpty ||
+              accessibleBranchIds.contains(member.branchId),
+        )
+        .toList(growable: false);
+  }
+
+  MemberProfile? _memberById(String? memberId) {
+    if (memberId == null || memberId.isEmpty) {
+      return null;
+    }
+    for (final member in widget.members) {
+      if (member.id == memberId) {
+        return member;
+      }
+    }
+    return null;
+  }
+
+  List<String> get _resolvedParentIds {
+    if (widget.isEditing) {
+      return widget.initialDraft.parentIds;
+    }
+    final parentId = _parentMemberId?.trim();
+    if (parentId == null || parentId.isEmpty) {
+      return const [];
+    }
+    return [parentId];
+  }
+
+  String? get _resolvedBranchId {
+    if (widget.isEditing) {
+      return _branchId;
+    }
+    final selectedParent = _memberById(_parentMemberId);
+    return selectedParent?.branchId ??
+        _branchId ??
+        (widget.branches.isEmpty ? null : widget.branches.first.id);
+  }
+
+  int get _resolvedGeneration {
+    if (widget.isEditing) {
+      final parsed = int.tryParse(_generationController.text.trim());
+      return parsed ?? widget.initialDraft.generation;
+    }
+    final selectedParent = _memberById(_parentMemberId);
+    if (selectedParent == null) {
+      return widget.initialDraft.generation;
+    }
+    return selectedParent.generation + 1;
+  }
+
+  String _branchNameById(String? branchId) {
+    if (branchId == null || branchId.isEmpty) {
+      return '-';
+    }
+    for (final branch in widget.branches) {
+      if (branch.id == branchId) {
+        return branch.name;
+      }
+    }
+    return branchId;
   }
 }
 
@@ -1652,7 +2001,9 @@ class _StatGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
         final crossAxisCount = constraints.maxWidth > 820 ? 3 : 1;
+        final singleColumnRatio = textScale > 1.15 ? 2.25 : 2.45;
         return GridView.builder(
           itemCount: items.length,
           shrinkWrap: true,
@@ -1661,7 +2012,7 @@ class _StatGrid extends StatelessWidget {
             crossAxisCount: crossAxisCount,
             mainAxisSpacing: 14,
             crossAxisSpacing: 14,
-            childAspectRatio: crossAxisCount == 1 ? 3.2 : 1.65,
+            childAspectRatio: crossAxisCount == 1 ? singleColumnRatio : 1.65,
           ),
           itemBuilder: (context, index) => items[index],
         );
@@ -1698,12 +2049,21 @@ class _StatTile extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 6),
-            Text(label, style: theme.textTheme.bodyMedium),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
           ],
         ),
       ),
@@ -1909,6 +2269,50 @@ String _genderLabel(AppLocalizations l10n, String? gender) {
     'other' => l10n.memberGenderOther,
     _ => l10n.memberGenderUnspecified,
   };
+}
+
+String? _siblingOrderLabel(AppLocalizations l10n, int? siblingOrder) {
+  if (siblingOrder == null || siblingOrder <= 0) {
+    return null;
+  }
+  if (siblingOrder == 1) {
+    return l10n.pick(vi: 'Con cả', en: 'First-born child');
+  }
+  return l10n.pick(vi: 'Con thứ $siblingOrder', en: 'Child #$siblingOrder');
+}
+
+int _compareMembersBySeniority(MemberProfile left, MemberProfile right) {
+  final byBirthDate = _compareNullableDate(
+    _tryParseIsoDate(left.birthDate ?? ''),
+    _tryParseIsoDate(right.birthDate ?? ''),
+  );
+  if (byBirthDate != 0) {
+    return byBirthDate;
+  }
+  final byGeneration = left.generation.compareTo(right.generation);
+  if (byGeneration != 0) {
+    return byGeneration;
+  }
+  final byName = left.fullName.toLowerCase().compareTo(
+    right.fullName.toLowerCase(),
+  );
+  if (byName != 0) {
+    return byName;
+  }
+  return left.id.compareTo(right.id);
+}
+
+int _compareNullableDate(DateTime? left, DateTime? right) {
+  if (left == null && right == null) {
+    return 0;
+  }
+  if (left == null) {
+    return 1;
+  }
+  if (right == null) {
+    return -1;
+  }
+  return left.compareTo(right);
 }
 
 bool _isValidIsoDateOrBlank(String? value) {

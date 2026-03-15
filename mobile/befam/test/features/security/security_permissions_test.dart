@@ -49,6 +49,24 @@ void main() {
       expect(permissions.canManageBranches, isFalse);
       expect(permissions.isReadOnly, isTrue);
     });
+
+    test('unlinked member without clan context can bootstrap a new clan', () {
+      final permissions = ClanPermissions.forSession(
+        _session(
+          primaryRole: 'MEMBER',
+          clanId: null,
+          branchId: null,
+          memberId: null,
+          accessMode: AuthMemberAccessMode.unlinked,
+          linkedAuthUid: false,
+        ),
+      );
+
+      expect(permissions.canBootstrapClan, isTrue);
+      expect(permissions.canViewWorkspace, isTrue);
+      expect(permissions.canEditClanSettings, isTrue);
+      expect(permissions.canManageBranches, isFalse);
+    });
   });
 
   group('MemberPermissions', () {
@@ -59,6 +77,7 @@ void main() {
 
       expect(permissions.canCreateMembers, isTrue);
       expect(permissions.canEditAnyMember, isTrue);
+      expect(permissions.canAssignRoleManually, isFalse);
       expect(permissions.canManageBranch('branch-1'), isTrue);
       expect(permissions.canManageBranch('branch-2'), isFalse);
       expect(permissions.canCreateInBranch('branch-2'), isFalse);
@@ -82,16 +101,20 @@ void main() {
       expect(permissions.canViewMember(other, session), isFalse);
     });
 
-    test('super admin can view all members but requires non-empty branch id to manage branch write actions', () {
-      final permissions = MemberPermissions.forSession(
-        _session(primaryRole: 'SUPER_ADMIN'),
-      );
+    test(
+      'super admin can view all members but requires non-empty branch id to manage branch write actions',
+      () {
+        final permissions = MemberPermissions.forSession(
+          _session(primaryRole: 'SUPER_ADMIN'),
+        );
 
-      expect(permissions.canViewAllMembers, isTrue);
-      expect(permissions.canManageBranch('branch-9'), isTrue);
-      expect(permissions.canManageBranch(''), isFalse);
-      expect(permissions.canManageBranch(null), isFalse);
-    });
+        expect(permissions.canViewAllMembers, isTrue);
+        expect(permissions.canAssignRoleManually, isTrue);
+        expect(permissions.canManageBranch('branch-9'), isTrue);
+        expect(permissions.canManageBranch(''), isFalse);
+        expect(permissions.canManageBranch(null), isFalse);
+      },
+    );
   });
 
   group('RelationshipPermissions', () {
@@ -108,24 +131,27 @@ void main() {
       expect(permissions.canMutateBetween(first, third), isFalse);
     });
 
-    test('unlinked session cannot mutate relationships even with admin role', () {
-      final permissions = RelationshipPermissions.forSession(
-        _session(
-          primaryRole: 'CLAN_ADMIN',
-          accessMode: AuthMemberAccessMode.unlinked,
-          linkedAuthUid: false,
-        ),
-      );
+    test(
+      'unlinked session cannot mutate relationships even with admin role',
+      () {
+        final permissions = RelationshipPermissions.forSession(
+          _session(
+            primaryRole: 'CLAN_ADMIN',
+            accessMode: AuthMemberAccessMode.unlinked,
+            linkedAuthUid: false,
+          ),
+        );
 
-      expect(permissions.canEditSensitiveRelationships, isFalse);
-      expect(
-        permissions.canMutateBetween(
-          _member(id: 'm1', branchId: 'branch-1'),
-          _member(id: 'm2', branchId: 'branch-1'),
-        ),
-        isFalse,
-      );
-    });
+        expect(permissions.canEditSensitiveRelationships, isFalse);
+        expect(
+          permissions.canMutateBetween(
+            _member(id: 'm1', branchId: 'branch-1'),
+            _member(id: 'm2', branchId: 'branch-1'),
+          ),
+          isFalse,
+        );
+      },
+    );
   });
 
   group('EventPermissions', () {
@@ -162,13 +188,26 @@ void main() {
       expect(permissions.canReviewQueue, isFalse);
     });
 
-    test('branch admin can manage scholarship programs and review queue', () {
+    test(
+      'branch admin can manage scholarship programs but cannot vote queue',
+      () {
+        final permissions = ScholarshipPermissions.forSession(
+          _session(primaryRole: 'BRANCH_ADMIN'),
+        );
+
+        expect(permissions.canManagePrograms, isTrue);
+        expect(permissions.canReviewQueue, isFalse);
+      },
+    );
+
+    test('scholarship council head can vote queue and view history', () {
       final permissions = ScholarshipPermissions.forSession(
-        _session(primaryRole: 'BRANCH_ADMIN'),
+        _session(primaryRole: 'SCHOLARSHIP_COUNCIL_HEAD'),
       );
 
-      expect(permissions.canManagePrograms, isTrue);
+      expect(permissions.canManagePrograms, isFalse);
       expect(permissions.canReviewQueue, isTrue);
+      expect(permissions.canViewApprovalHistory, isTrue);
     });
   });
 }

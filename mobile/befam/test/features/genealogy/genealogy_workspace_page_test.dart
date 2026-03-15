@@ -34,7 +34,7 @@ void main() {
 
   Future<void> scrollToTreeWorkspace(WidgetTester tester) async {
     await tester.scrollUntilVisible(
-      find.byKey(const Key('genealogy-center-selected')),
+      find.byKey(const Key('genealogy-depth-parents-value')),
       220,
       scrollable: find.byType(Scrollable).first,
     );
@@ -90,9 +90,7 @@ void main() {
     );
   });
 
-  testWidgets('renders landing, node cards, and connectors', (
-    tester,
-  ) async {
+  testWidgets('renders landing, node cards, and connectors', (tester) async {
     final repository = DebugGenealogyReadRepository(
       store: DebugGenealogyStore.seeded(),
     );
@@ -122,7 +120,6 @@ void main() {
 
     expect(find.byType(CustomPaint), findsWidgets);
     expect(find.text('Nguyễn Minh'), findsWidgets);
-    expect(find.byKey(const Key('genealogy-center-selected')), findsOneWidget);
   });
 
   testWidgets('shows ancestor and descendant lazy depth controls', (

@@ -50,7 +50,7 @@ _Last reviewed: March 15, 2026_
 - lunar event creation with yearly recurrence resolution
 - lunar holidays, regional calendar settings, and reminder scheduling
 
-### M7: Tiered subscription billing and payments (next)
+### M7: Tiered subscription billing and payments (completed baseline)
 
 - annual plans by member count with VAT-included display:
   Free (`<=10`), Base (`11-200`), Plus (`201-700`), Pro (`701+`)

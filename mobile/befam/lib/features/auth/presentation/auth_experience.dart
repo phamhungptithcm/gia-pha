@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -79,9 +82,11 @@ class _AuthExperienceState extends State<AuthExperience> {
             status: widget.status,
             session: session,
             clanRepository:
-                widget.clanRepository ?? createDefaultClanRepository(),
+                widget.clanRepository ??
+                createDefaultClanRepository(session: session),
             memberRepository:
-                widget.memberRepository ?? createDefaultMemberRepository(),
+                widget.memberRepository ??
+                createDefaultMemberRepository(session: session),
             localeController: widget.localeController,
             onLogoutRequested: _controller.logout,
           );
@@ -133,7 +138,13 @@ class _AuthScaffold extends StatelessWidget {
               switch (controller.step) {
                 AuthStep.loginMethodSelection => _LoginMethodSelectionCard(
                   isBusy: controller.isBusy,
-                  showLocalBypass: controller.canUseLocalBypass,
+                  showSandboxProfiles:
+                      kDebugMode ||
+                      const bool.fromEnvironment(
+                        'BEFAM_ENABLE_TEST_LOGIN_PROFILES',
+                        defaultValue: false,
+                      ),
+                  enableAutoBypass: controller.canUseLocalBypass,
                   hasAcceptedPrivacyPolicy: controller.hasAcceptedPrivacyPolicy,
                   onPhoneSelected: () {
                     controller.selectLoginMethod(AuthEntryMethod.phone);
@@ -141,7 +152,15 @@ class _AuthScaffold extends StatelessWidget {
                   onChildSelected: () {
                     controller.selectLoginMethod(AuthEntryMethod.child);
                   },
-                  onLocalBypassSelected: controller.signInWithLocalBypassPhone,
+                  onSandboxProfileSelected: (phoneE164, autoOtpCode) {
+                    if (controller.canUseLocalBypass) {
+                      return controller.signInWithLocalBypassPhone(phoneE164);
+                    }
+                    return controller.requestOtpForScenarioPhone(
+                      phoneE164,
+                      autoVerifyCode: autoOtpCode,
+                    );
+                  },
                   onPrivacyConsentChanged: (accepted) {
                     unawaited(controller.setPrivacyPolicyAccepted(accepted));
                   },
@@ -316,107 +335,30 @@ class _AuthMessageCard extends StatelessWidget {
 class _LoginMethodSelectionCard extends StatelessWidget {
   const _LoginMethodSelectionCard({
     required this.isBusy,
-    required this.showLocalBypass,
+    required this.showSandboxProfiles,
+    required this.enableAutoBypass,
     required this.hasAcceptedPrivacyPolicy,
     required this.onPhoneSelected,
     required this.onChildSelected,
-    required this.onLocalBypassSelected,
+    required this.onSandboxProfileSelected,
     required this.onPrivacyConsentChanged,
     required this.onViewPrivacyPolicy,
   });
 
   final bool isBusy;
-  final bool showLocalBypass;
+  final bool showSandboxProfiles;
+  final bool enableAutoBypass;
   final bool hasAcceptedPrivacyPolicy;
   final VoidCallback onPhoneSelected;
   final VoidCallback onChildSelected;
-  final Future<void> Function(String phoneE164) onLocalBypassSelected;
+  final Future<void> Function(String phoneE164, String? autoOtpCode)
+  onSandboxProfileSelected;
   final ValueChanged<bool> onPrivacyConsentChanged;
   final VoidCallback onViewPrivacyPolicy;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final sandboxPresets = <_SandboxLoginPreset>[
-      _SandboxLoginPreset(
-        scenarioKey: 'clan_admin_existing',
-        phoneE164: '+84901234567',
-        title: l10n.pick(
-          vi: 'Trưởng tộc đã có gia phả',
-          en: 'Clan lead in clan',
-        ),
-        description: l10n.pick(
-          vi: 'Role CLAN_ADMIN, đã liên kết thành viên và đã có dữ liệu gia phả.',
-          en: 'CLAN_ADMIN role, linked member, existing clan data.',
-        ),
-        icon: Icons.admin_panel_settings_outlined,
-      ),
-      _SandboxLoginPreset(
-        scenarioKey: 'branch_admin_existing',
-        phoneE164: '+84908886655',
-        title: l10n.pick(
-          vi: 'Trưởng chi đã có gia phả',
-          en: 'Branch lead in clan',
-        ),
-        description: l10n.pick(
-          vi: 'Role BRANCH_ADMIN, đã liên kết vào chi hiện có.',
-          en: 'BRANCH_ADMIN role, linked to an existing branch.',
-        ),
-        icon: Icons.account_tree_outlined,
-      ),
-      _SandboxLoginPreset(
-        scenarioKey: 'member_existing',
-        phoneE164: '+84907770011',
-        title: l10n.pick(
-          vi: 'Thành viên thường đã vào gia phả',
-          en: 'Member already in clan',
-        ),
-        description: l10n.pick(
-          vi: 'Role MEMBER, đã liên kết hồ sơ trong gia phả.',
-          en: 'MEMBER role with a linked profile in clan data.',
-        ),
-        icon: Icons.person_outline,
-      ),
-      _SandboxLoginPreset(
-        scenarioKey: 'user_unlinked',
-        phoneE164: '+84906660022',
-        title: l10n.pick(
-          vi: 'Người dùng chưa vào gia phả nào',
-          en: 'User not in any clan',
-        ),
-        description: l10n.pick(
-          vi: 'Trạng thái unlinked để kiểm thử onboarding ban đầu.',
-          en: 'Unlinked state for first-time onboarding tests.',
-        ),
-        icon: Icons.person_add_alt_1_outlined,
-      ),
-      _SandboxLoginPreset(
-        scenarioKey: 'branch_admin_unlinked',
-        phoneE164: '+84905550033',
-        title: l10n.pick(
-          vi: 'Set role Trưởng chi nhưng chưa gắn gia phả',
-          en: 'Branch lead role without clan',
-        ),
-        description: l10n.pick(
-          vi: 'Role BRANCH_ADMIN nhưng không có clan/branch context.',
-          en: 'BRANCH_ADMIN role with no clan/branch context.',
-        ),
-        icon: Icons.gpp_maybe_outlined,
-      ),
-      _SandboxLoginPreset(
-        scenarioKey: 'clan_admin_uninitialized',
-        phoneE164: '+84909990001',
-        title: l10n.pick(
-          vi: 'Trưởng tộc chưa tạo gia phả',
-          en: 'Clan lead before clan creation',
-        ),
-        description: l10n.pick(
-          vi: 'Role CLAN_ADMIN có context tạo clan nhưng chưa có dữ liệu.',
-          en: 'CLAN_ADMIN role ready to create clan with no seeded profile.',
-        ),
-        icon: Icons.rocket_launch_outlined,
-      ),
-    ];
 
     return Column(
       children: [
@@ -448,15 +390,19 @@ class _LoginMethodSelectionCard extends StatelessWidget {
               ? null
               : onChildSelected,
         ),
-        if (showLocalBypass) ...[
+        if (showSandboxProfiles) ...[
           const SizedBox(height: 16),
           _SandboxEnvironmentCard(
             isBusy: isBusy,
             hasAcceptedPrivacyPolicy: hasAcceptedPrivacyPolicy,
             title: l10n.authSandboxChip,
-            description: l10n.authPhoneHelperSandbox,
-            presets: sandboxPresets,
-            onSelected: onLocalBypassSelected,
+            description: enableAutoBypass
+                ? l10n.authPhoneHelperSandbox
+                : l10n.pick(
+                    vi: 'Dùng profile thử nghiệm từ Firebase thật. Chạm vào một profile để gửi OTP thật theo số đã cấu hình.',
+                    en: 'Use live Firebase test profiles. Tap a profile to request a real OTP for that configured phone.',
+                  ),
+            onSelected: onSandboxProfileSelected,
           ),
         ],
       ],
@@ -567,6 +513,7 @@ class _SandboxLoginPreset {
     required this.title,
     required this.description,
     required this.icon,
+    this.autoOtpCode,
   });
 
   final String scenarioKey;
@@ -574,21 +521,7 @@ class _SandboxLoginPreset {
   final String title;
   final String description;
   final IconData icon;
-
-  _SandboxLoginPreset copyWith({
-    String? phoneE164,
-    String? title,
-    String? description,
-    IconData? icon,
-  }) {
-    return _SandboxLoginPreset(
-      scenarioKey: scenarioKey,
-      phoneE164: phoneE164 ?? this.phoneE164,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      icon: icon ?? this.icon,
-    );
-  }
+  final String? autoOtpCode;
 }
 
 class _RemoteSandboxProfile {
@@ -598,6 +531,9 @@ class _RemoteSandboxProfile {
     required this.title,
     required this.description,
     required this.isActive,
+    required this.isTestUser,
+    required this.sortOrder,
+    this.autoOtpCode,
   });
 
   final String scenarioKey;
@@ -605,22 +541,33 @@ class _RemoteSandboxProfile {
   final String title;
   final String description;
   final bool isActive;
+  final bool isTestUser;
+  final int sortOrder;
+  final String? autoOtpCode;
 
-  factory _RemoteSandboxProfile.fromDoc(
-    String docId,
-    Map<String, dynamic> data,
-  ) {
-    final phone = (data['phoneE164'] as String? ?? docId).trim();
-    final scenarioKey = (data['scenarioKey'] as String? ?? docId).trim();
+  factory _RemoteSandboxProfile.fromPayload(Map<String, dynamic> data) {
+    final phone = (data['phoneE164'] as String? ?? '').trim();
+    final scenarioKey = (data['scenarioKey'] as String? ?? phone).trim();
     final title = (data['title'] as String? ?? scenarioKey).trim();
     final description = (data['description'] as String? ?? phone).trim();
+    final sortOrder = (data['sortOrder'] as num?)?.toInt() ?? 9999;
+    final rawOtpCode =
+        ((data['autoOtpCode'] ?? data['debugOtpCode']) as String?)
+            ?.replaceAll(RegExp(r'[^0-9]'), '')
+            .trim();
+    final autoOtpCode = rawOtpCode != null && rawOtpCode.length == 6
+        ? rawOtpCode
+        : null;
 
     return _RemoteSandboxProfile(
-      scenarioKey: scenarioKey.isEmpty ? docId : scenarioKey,
+      scenarioKey: scenarioKey.isEmpty ? phone : scenarioKey,
       phoneE164: phone,
       title: title.isEmpty ? scenarioKey : title,
       description: description.isEmpty ? phone : description,
       isActive: data['isActive'] != false,
+      isTestUser: data['isTestUser'] != false,
+      sortOrder: sortOrder,
+      autoOtpCode: autoOtpCode,
     );
   }
 }
@@ -631,7 +578,6 @@ class _SandboxEnvironmentCard extends StatefulWidget {
     required this.hasAcceptedPrivacyPolicy,
     required this.title,
     required this.description,
-    required this.presets,
     required this.onSelected,
   });
 
@@ -639,8 +585,7 @@ class _SandboxEnvironmentCard extends StatefulWidget {
   final bool hasAcceptedPrivacyPolicy;
   final String title;
   final String description;
-  final List<_SandboxLoginPreset> presets;
-  final Future<void> Function(String phoneE164) onSelected;
+  final Future<void> Function(String phoneE164, String? autoOtpCode) onSelected;
 
   @override
   State<_SandboxEnvironmentCard> createState() =>
@@ -648,7 +593,17 @@ class _SandboxEnvironmentCard extends StatefulWidget {
 }
 
 class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
-  late final Future<List<_RemoteSandboxProfile>> _remoteProfilesFuture;
+  static const Map<String, IconData> _scenarioIcons = {
+    'clan_admin_existing': Icons.admin_panel_settings_outlined,
+    'branch_admin_existing': Icons.account_tree_outlined,
+    'member_existing': Icons.person_outline,
+    'user_unlinked': Icons.person_add_alt_1_outlined,
+    'branch_admin_unlinked': Icons.gpp_maybe_outlined,
+    'clan_admin_uninitialized': Icons.rocket_launch_outlined,
+  };
+
+  late Future<List<_RemoteSandboxProfile>> _remoteProfilesFuture;
+  String? _activeScenarioKey;
 
   @override
   void initState() {
@@ -656,20 +611,166 @@ class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
     _remoteProfilesFuture = _loadRemoteProfiles();
   }
 
+  void _reloadRemoteProfiles() {
+    setState(() {
+      _remoteProfilesFuture = _loadRemoteProfiles();
+    });
+  }
+
   Future<List<_RemoteSandboxProfile>> _loadRemoteProfiles() async {
+    if (Firebase.apps.isEmpty) {
+      AppLogger.warning(
+        'Firebase is not initialized; skip loading debug login profiles.',
+      );
+      return const [];
+    }
+    final callableProfiles = await _loadRemoteProfilesFromCallable();
+    if (callableProfiles.isNotEmpty) {
+      return callableProfiles;
+    }
+    return _loadRemoteProfilesFromFirestore();
+  }
+
+  Future<List<_RemoteSandboxProfile>> _loadRemoteProfilesFromCallable() async {
+    try {
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'asia-southeast1',
+      ).httpsCallable('listDebugLoginProfiles');
+      final response = await callable
+          .call(<String, dynamic>{})
+          .timeout(const Duration(seconds: 8));
+      final payload = response.data;
+      if (payload is! Map) {
+        AppLogger.warning(
+          'Debug login profile callable returned unexpected payload type.',
+        );
+        return const [];
+      }
+      final entries = payload['profiles'];
+      if (entries is! List) {
+        AppLogger.warning(
+          'Debug login profile callable payload has no profiles array.',
+        );
+        return const [];
+      }
+      final profiles = _normalizeProfiles(
+        entries.whereType<Map>().map(
+          (entry) => _RemoteSandboxProfile.fromPayload(
+            entry.map((key, value) => MapEntry(key.toString(), value)),
+          ),
+        ),
+      );
+      AppLogger.info(
+        'Loaded ${profiles.length} debug login profiles from callable.',
+      );
+      return profiles;
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Failed to load debug login profiles from callable.',
+        error,
+        stackTrace,
+      );
+      return const [];
+    }
+  }
+
+  Future<List<_RemoteSandboxProfile>> _loadRemoteProfilesFromFirestore() async {
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('debug_login_profiles')
-          .orderBy('sortOrder')
-          .get();
-
-      final profiles = snapshot.docs
-          .map((doc) => _RemoteSandboxProfile.fromDoc(doc.id, doc.data()))
-          .where((profile) => profile.isActive && profile.phoneE164.isNotEmpty)
-          .toList(growable: false);
+          .get()
+          .timeout(const Duration(seconds: 8));
+      final profiles = _normalizeProfiles(
+        snapshot.docs.map((doc) {
+          final data = doc.data();
+          final payload = Map<String, dynamic>.from(data);
+          payload.putIfAbsent('phoneE164', () => doc.id.trim());
+          payload.putIfAbsent('scenarioKey', () => doc.id.trim());
+          return _RemoteSandboxProfile.fromPayload(payload);
+        }),
+      );
+      AppLogger.info(
+        'Loaded ${profiles.length} debug login profiles from Firestore fallback.',
+      );
       return profiles;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Failed to load debug login profiles from Firestore fallback.',
+        error,
+        stackTrace,
+      );
       return const [];
+    }
+  }
+
+  List<_RemoteSandboxProfile> _normalizeProfiles(
+    Iterable<_RemoteSandboxProfile> source,
+  ) {
+    final profiles =
+        source
+            .where(
+              (profile) =>
+                  profile.isActive &&
+                  profile.isTestUser &&
+                  profile.phoneE164.isNotEmpty,
+            )
+            .toList(growable: false)
+          ..sort((left, right) => left.sortOrder.compareTo(right.sortOrder));
+    return profiles;
+  }
+
+  void _showSelectionError(String message) {
+    if (!mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _onPresetTap(_SandboxLoginPreset preset) async {
+    if (_activeScenarioKey != null || widget.isBusy) {
+      return;
+    }
+
+    final l10n = context.l10n;
+    final invalidPhoneMessage = l10n.pick(
+      vi: 'Profile thử nghiệm chưa có số điện thoại hợp lệ.',
+      en: 'This sandbox profile is missing a valid phone number.',
+    );
+    final selectionFailedMessage = l10n.pick(
+      vi: 'Không thể tiếp tục profile thử nghiệm lúc này. Vui lòng thử lại.',
+      en: 'Could not continue with this sandbox profile right now. Please try again.',
+    );
+
+    final phoneE164 = preset.phoneE164.trim();
+    if (phoneE164.isEmpty) {
+      _showSelectionError(invalidPhoneMessage);
+      return;
+    }
+
+    AppLogger.info(
+      'Sandbox profile selected (scenario=${preset.scenarioKey}, phone=$phoneE164, hasAutoOtp=${preset.autoOtpCode != null}).',
+    );
+
+    setState(() {
+      _activeScenarioKey = preset.scenarioKey;
+    });
+
+    try {
+      await widget.onSelected(phoneE164, preset.autoOtpCode);
+      AppLogger.info(
+        'Sandbox profile sign-in flow returned to UI (scenario=${preset.scenarioKey}).',
+      );
+    } catch (error, stackTrace) {
+      AppLogger.error('Sandbox profile sign-in failed.', error, stackTrace);
+      _showSelectionError(selectionFailedMessage);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _activeScenarioKey = null;
+        });
+      }
     }
   }
 
@@ -677,39 +778,23 @@ class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
     List<_RemoteSandboxProfile> remote,
   ) {
     if (remote.isEmpty) {
-      return widget.presets;
+      return const [];
     }
 
-    final fallbackByScenario = {
-      for (final preset in widget.presets) preset.scenarioKey: preset,
-    };
-    final resolved = <_SandboxLoginPreset>[];
-    final usedScenarioKeys = <String>{};
-
-    for (final profile in remote) {
-      final fallback = fallbackByScenario[profile.scenarioKey];
-      if (fallback != null) {
-        resolved.add(fallback.copyWith(phoneE164: profile.phoneE164));
-        usedScenarioKeys.add(profile.scenarioKey);
-        continue;
-      }
-      resolved.add(
-        _SandboxLoginPreset(
-          scenarioKey: profile.scenarioKey,
-          phoneE164: profile.phoneE164,
-          title: profile.title,
-          description: profile.description,
-          icon: Icons.person_pin_circle_outlined,
-        ),
-      );
-    }
-
-    for (final fallback in widget.presets) {
-      if (!usedScenarioKeys.contains(fallback.scenarioKey)) {
-        resolved.add(fallback);
-      }
-    }
-    return resolved;
+    return remote
+        .map(
+          (profile) => _SandboxLoginPreset(
+            scenarioKey: profile.scenarioKey,
+            phoneE164: profile.phoneE164,
+            title: profile.title,
+            description: profile.description,
+            icon:
+                _scenarioIcons[profile.scenarioKey] ??
+                Icons.person_pin_circle_outlined,
+            autoOtpCode: profile.autoOtpCode,
+          ),
+        )
+        .toList(growable: false);
   }
 
   @override
@@ -749,21 +834,54 @@ class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
                   const LinearProgressIndicator(minHeight: 3),
                 ],
                 const SizedBox(height: 16),
-                for (var index = 0; index < presets.length; index++) ...[
-                  _SandboxPresetTile(
-                    preset: presets[index],
-                    enabled: widget.hasAcceptedPrivacyPolicy && !widget.isBusy,
-                    onTap: () {
-                      unawaited(widget.onSelected(presets[index].phoneE164));
-                    },
+                if (presets.isEmpty && !isLoading) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: colorScheme.outlineVariant),
+                    ),
+                    child: Text(
+                      l10n.pick(
+                        vi: 'Chưa có profile thử nghiệm trong Firebase. Hãy seed collection debug_login_profiles để tiếp tục.',
+                        en: 'No sandbox profiles found in Firebase. Seed debug_login_profiles to continue.',
+                      ),
+                      style: theme.textTheme.bodyMedium,
+                    ),
                   ),
-                  if (index < presets.length - 1) const SizedBox(height: 10),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: _reloadRemoteProfiles,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: Text(
+                        l10n.pick(vi: 'Tải lại profile', en: 'Reload profiles'),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  for (var index = 0; index < presets.length; index++) ...[
+                    _SandboxPresetTile(
+                      preset: presets[index],
+                      enabled:
+                          widget.hasAcceptedPrivacyPolicy &&
+                          !widget.isBusy &&
+                          _activeScenarioKey == null,
+                      isSubmitting:
+                          _activeScenarioKey == presets[index].scenarioKey,
+                      onTap: () => unawaited(_onPresetTap(presets[index])),
+                    ),
+                    if (index < presets.length - 1) const SizedBox(height: 10),
+                  ],
                 ],
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 Text(
                   l10n.pick(
-                    vi: 'Profile thử nghiệm có thể lấy từ Firebase nếu có cấu hình; nếu không sẽ dùng danh sách mặc định.',
-                    en: 'Test profiles can be loaded from Firebase when configured; otherwise fallback presets are used.',
+                    vi: 'Danh sách thử nghiệm được tải trực tiếp từ Firebase.',
+                    en: 'Sandbox profiles are loaded directly from Firebase.',
                   ),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurface.withValues(alpha: 0.7),
@@ -782,11 +900,13 @@ class _SandboxPresetTile extends StatelessWidget {
   const _SandboxPresetTile({
     required this.preset,
     required this.enabled,
+    required this.isSubmitting,
     required this.onTap,
   });
 
   final _SandboxLoginPreset preset;
   final bool enabled;
+  final bool isSubmitting;
   final VoidCallback onTap;
 
   @override
@@ -833,7 +953,12 @@ class _SandboxPresetTile extends StatelessWidget {
             const SizedBox(width: 8),
             FilledButton.tonal(
               onPressed: enabled ? onTap : null,
-              child: Text(context.l10n.authContinueNow),
+              child: isSubmitting
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(context.l10n.authContinueNow),
             ),
           ],
         ),

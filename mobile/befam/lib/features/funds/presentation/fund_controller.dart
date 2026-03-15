@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/fund_draft.dart';
 import '../models/fund_profile.dart';
@@ -37,12 +38,9 @@ class FundController extends ChangeNotifier {
 
   bool get hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
 
-  bool get canManageFunds {
-    final role = _session.primaryRole?.trim().toUpperCase();
-    return role == 'SUPER_ADMIN' ||
-        role == 'CLAN_ADMIN' ||
-        role == 'BRANCH_ADMIN';
-  }
+  bool get canViewFunds => GovernanceRoleMatrix.canViewFinance(_session);
+
+  bool get canManageFunds => GovernanceRoleMatrix.canManageFinance(_session);
 
   FundProfile? get selectedFund {
     if (_selectedFundId == null || _selectedFundId!.isEmpty) {
@@ -71,6 +69,16 @@ class FundController extends ChangeNotifier {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
+
+    if (!canViewFunds) {
+      _errorMessage = 'permission_denied';
+      _funds = const [];
+      _transactions = const [];
+      _selectedFundId = null;
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
 
     try {
       final snapshot = await _repository.loadWorkspace(session: _session);

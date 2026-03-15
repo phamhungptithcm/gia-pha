@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 
 import '../../../core/services/debug_genealogy_store.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/fund_draft.dart';
 import '../models/fund_profile.dart';
@@ -67,6 +68,14 @@ class DebugFundRepository implements FundRepository {
         FundRepositoryErrorCode.permissionDenied,
       );
     }
+    final targetClanId = (draft.clanId ?? '').trim().isEmpty
+        ? clanId
+        : draft.clanId!.trim();
+    if (targetClanId != clanId) {
+      throw const FundRepositoryException(
+        FundRepositoryErrorCode.permissionDenied,
+      );
+    }
 
     final normalizedCurrency = CurrencyMinorUnits.normalizeCurrencyCode(
       draft.currency,
@@ -83,13 +92,25 @@ class DebugFundRepository implements FundRepository {
         FundRepositoryErrorCode.validationFailed,
       );
     }
+    final normalizedAppliedMemberIds = draft.appliedMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final normalizedTreasurerMemberIds = draft.treasurerMemberIds
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
 
     final resolvedFundId = fundId ?? 'fund_demo_${_store.fundSequence++}';
     final existing = _store.funds[resolvedFundId];
     final payload = FundProfile(
       id: resolvedFundId,
-      clanId: clanId,
+      clanId: targetClanId,
       branchId: _nullableTrim(draft.branchId),
+      appliedMemberIds: normalizedAppliedMemberIds,
+      treasurerMemberIds: normalizedTreasurerMemberIds,
       name: trimmedName,
       description: draft.description.trim(),
       fundType: draft.fundType.trim().isEmpty
@@ -101,6 +122,21 @@ class DebugFundRepository implements FundRepository {
     );
 
     _store.funds[resolvedFundId] = payload;
+    if (GovernanceRoleMatrix.canManageClanSettings(session)) {
+      for (final memberId in normalizedTreasurerMemberIds) {
+        final member = _store.members[memberId];
+        if (member == null || member.clanId != targetClanId) {
+          continue;
+        }
+        final role = GovernanceRoleMatrix.normalizeRole(member.primaryRole);
+        if (role != GovernanceRoles.member && role != GovernanceRoles.guest) {
+          continue;
+        }
+        _store.members[memberId] = member.copyWith(
+          primaryRole: GovernanceRoles.treasurer,
+        );
+      }
+    }
     return payload;
   }
 

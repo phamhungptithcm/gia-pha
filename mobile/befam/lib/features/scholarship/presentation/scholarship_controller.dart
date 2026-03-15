@@ -5,6 +5,7 @@ import '../models/achievement_submission.dart';
 import '../models/achievement_submission_draft.dart';
 import '../models/award_level.dart';
 import '../models/award_level_draft.dart';
+import '../models/scholarship_approval_log_entry.dart';
 import '../models/scholarship_program.dart';
 import '../models/scholarship_program_draft.dart';
 import '../services/scholarship_permissions.dart';
@@ -30,6 +31,8 @@ class ScholarshipController extends ChangeNotifier {
   List<ScholarshipProgram> _programs = const [];
   List<AwardLevel> _awardLevels = const [];
   List<AchievementSubmission> _submissions = const [];
+  List<ScholarshipApprovalLogEntry> _approvalLogs = const [];
+  List<String> _councilHeadMemberIds = const [];
   Map<String, String> _memberNamesById = const {};
   String? _selectedProgramId;
 
@@ -41,6 +44,8 @@ class ScholarshipController extends ChangeNotifier {
   List<ScholarshipProgram> get programs => _programs;
   List<AwardLevel> get awardLevels => _awardLevels;
   List<AchievementSubmission> get submissions => _submissions;
+  List<ScholarshipApprovalLogEntry> get approvalLogs => _approvalLogs;
+  List<String> get councilHeadMemberIds => _councilHeadMemberIds;
   String? get selectedProgramId => _selectedProgramId;
 
   ScholarshipProgram? get selectedProgram {
@@ -90,6 +95,15 @@ class ScholarshipController extends ChangeNotifier {
   bool get canCreateAwardLevels => permissions.canManagePrograms;
   bool get canSubmitAchievements => permissions.canSubmitSubmissions;
   bool get canReviewSubmissions => permissions.canReviewQueue;
+  bool get canViewApprovalHistory => permissions.canViewApprovalHistory;
+
+  bool hasCurrentReviewerVoted(AchievementSubmission submission) {
+    final memberId = _session.memberId?.trim() ?? '';
+    if (memberId.isEmpty) {
+      return false;
+    }
+    return submission.approvalVotes.any((vote) => vote.memberId == memberId);
+  }
 
   String memberName(String memberId) {
     final resolved = _memberNamesById[memberId];
@@ -134,6 +148,8 @@ class ScholarshipController extends ChangeNotifier {
       _programs = snapshot.programs;
       _awardLevels = snapshot.awardLevels;
       _submissions = snapshot.submissions;
+      _approvalLogs = snapshot.approvalLogs;
+      _councilHeadMemberIds = snapshot.councilHeadMemberIds;
       _memberNamesById = snapshot.memberNamesById;
 
       final currentSelected = _selectedProgramId;
@@ -148,6 +164,8 @@ class ScholarshipController extends ChangeNotifier {
       _programs = const [];
       _awardLevels = const [];
       _submissions = const [];
+      _approvalLogs = const [];
+      _councilHeadMemberIds = const [];
       _memberNamesById = const {};
       _selectedProgramId = null;
     } finally {

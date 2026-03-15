@@ -78,6 +78,7 @@ extension AppLocalizationsX on AppLocalizations {
       'home' => shellHomeLabel,
       'tree' => shellTreeLabel,
       'events' => shellEventsLabel,
+      'billing' => pick(vi: 'Gói', en: 'Billing'),
       'profile' => shellProfileLabel,
       _ => shellHomeLabel,
     };
@@ -88,6 +89,7 @@ extension AppLocalizationsX on AppLocalizations {
       'home' => shellHomeTitle,
       'tree' => shellTreeTitle,
       'events' => shellEventsTitle,
+      'billing' => pick(vi: 'Gói dịch vụ', en: 'Billing'),
       'profile' => shellProfileTitle,
       _ => shellHomeTitle,
     };
@@ -97,7 +99,15 @@ extension AppLocalizationsX on AppLocalizations {
     return switch (role?.trim().toUpperCase()) {
       'SUPER_ADMIN' => roleSuperAdmin,
       'CLAN_ADMIN' => roleClanAdmin,
+      'CLAN_OWNER' => pick(vi: 'Chủ tộc', en: 'Clan owner'),
+      'CLAN_LEADER' => pick(vi: 'Trưởng tộc', en: 'Clan leader'),
       'BRANCH_ADMIN' => roleBranchAdmin,
+      'TREASURER' => pick(vi: 'Thủ quỹ', en: 'Treasurer'),
+      'SCHOLARSHIP_COUNCIL_HEAD' => pick(
+        vi: 'Trưởng hội đồng học bổng',
+        en: 'Scholarship Council Head',
+      ),
+      'ADMIN_SUPPORT' => pick(vi: 'Hỗ trợ quản trị', en: 'Admin/Support Staff'),
       'MEMBER' => roleMember,
       null || '' => roleUnknown,
       _ => roleUnknown,
@@ -150,14 +160,14 @@ extension AppLocalizationsX on AppLocalizations {
 
   String calendarDisplayModeLabel(CalendarDisplayMode mode) {
     return switch (mode) {
-      CalendarDisplayMode.dual => pick(vi: 'Song song', en: 'Dual'),
+      CalendarDisplayMode.dual => pick(vi: 'Lịch Dương', en: 'Solar calendar'),
       CalendarDisplayMode.solarOnly => pick(
         vi: 'Chỉ dương lịch',
         en: 'Solar only',
       ),
       CalendarDisplayMode.lunarOnly => pick(
-        vi: 'Chỉ âm lịch',
-        en: 'Lunar only',
+        vi: 'Lịch Âm',
+        en: 'Lunar calendar',
       ),
     };
   }

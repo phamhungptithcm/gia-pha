@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../features/billing/presentation/billing_workspace_page.dart';
+import '../../features/billing/services/billing_repository.dart';
 import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
 import '../../features/calendar/presentation/dual_calendar_workspace_page.dart';
@@ -11,6 +13,8 @@ import '../../features/funds/presentation/fund_workspace_page.dart';
 import '../../features/funds/services/fund_repository.dart';
 import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
+import '../../features/discovery/presentation/genealogy_discovery_page.dart';
+import '../../features/discovery/services/genealogy_discovery_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/services/member_repository.dart';
 import '../../features/notifications/presentation/notification_target_page.dart';
@@ -22,8 +26,12 @@ import '../../l10n/l10n.dart';
 import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
 import '../../features/auth/models/auth_session.dart';
+import '../../features/auth/models/clan_context_option.dart';
 import '../../features/auth/services/phone_number_formatter.dart';
+import '../../features/auth/services/auth_session_store.dart';
+import '../../features/auth/services/clan_context_service.dart';
 import '../../core/services/app_locale_controller.dart';
+import '../../core/services/governance_role_matrix.dart';
 import '../bootstrap/firebase_setup_status.dart';
 import '../models/app_shortcut.dart';
 import 'app_shortcuts.dart';
@@ -37,6 +45,7 @@ class AppShellPage extends StatefulWidget {
     required this.memberRepository,
     this.fundRepository,
     this.genealogyRepository,
+    this.billingRepository,
     this.pushNotificationService,
     this.localeController,
     this.onLogoutRequested,
@@ -48,6 +57,7 @@ class AppShellPage extends StatefulWidget {
   final MemberRepository memberRepository;
   final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
+  final BillingRepository? billingRepository;
   final PushNotificationService? pushNotificationService;
   final AppLocaleController? localeController;
   final Future<void> Function()? onLogoutRequested;
@@ -59,10 +69,24 @@ class AppShellPage extends StatefulWidget {
 class _AppShellPageState extends State<AppShellPage> {
   int _selectedIndex = 0;
   final Set<int> _visitedDestinationIndexes = <int>{0};
+  late AuthSession _activeSession;
   late final GenealogyReadRepository _genealogyRepository;
   late final FundRepository _fundRepository;
+  late final BillingRepository _billingRepository;
   late final PushNotificationService _pushNotificationService;
+  late final ClanContextService _clanContextService;
+  final AuthSessionStore _sessionStore = SharedPrefsAuthSessionStore();
   String? _lastOpenedNotificationMessageId;
+  bool _showAdBanner = true;
+  bool _isResolvingBillingEntitlement = false;
+  bool _dismissAdBannerForSession = false;
+  bool _isLoadingClanContexts = false;
+  bool _isSwitchingClanContext = false;
+  List<ClanContextOption> _clanContexts = const [];
+
+  AuthSession get _session => _activeSession;
+
+  bool get _hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
@@ -81,6 +105,38 @@ class _AppShellPageState extends State<AppShellPage> {
       selectedIcon: Icons.event,
     ),
     _ShellDestination(
+      id: 'billing',
+      icon: Icons.workspace_premium_outlined,
+      selectedIcon: Icons.workspace_premium,
+    ),
+    _ShellDestination(
+      id: 'profile',
+      icon: Icons.person_outline,
+      selectedIcon: Icons.person,
+    ),
+  ];
+  static const List<_ShellDestination> _unlinkedDestinations = [
+    _ShellDestination(
+      id: 'home',
+      icon: Icons.space_dashboard_outlined,
+      selectedIcon: Icons.space_dashboard,
+    ),
+    _ShellDestination(
+      id: 'tree',
+      icon: Icons.travel_explore_outlined,
+      selectedIcon: Icons.travel_explore,
+    ),
+    _ShellDestination(
+      id: 'events',
+      icon: Icons.event_outlined,
+      selectedIcon: Icons.event,
+    ),
+    _ShellDestination(
+      id: 'billing',
+      icon: Icons.workspace_premium_outlined,
+      selectedIcon: Icons.workspace_premium,
+    ),
+    _ShellDestination(
       id: 'profile',
       icon: Icons.person_outline,
       selectedIcon: Icons.person,
@@ -90,30 +146,43 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void initState() {
     super.initState();
+    _activeSession = widget.session;
     _genealogyRepository =
-        widget.genealogyRepository ?? createDefaultGenealogyReadRepository();
-    _fundRepository = widget.fundRepository ?? createDefaultFundRepository();
+        widget.genealogyRepository ??
+        createDefaultGenealogyReadRepository(session: _session);
+    _fundRepository =
+        widget.fundRepository ?? createDefaultFundRepository(session: _session);
+    _billingRepository =
+        widget.billingRepository ??
+        createDefaultBillingRepository(session: _session);
     _pushNotificationService =
         widget.pushNotificationService ??
-        createDefaultPushNotificationService();
+        createDefaultPushNotificationService(session: _session);
+    _clanContextService = createDefaultClanContextService(session: _session);
     unawaited(
       _pushNotificationService.start(
-        session: widget.session,
+        session: _session,
         onDeepLink: _handleNotificationDeepLink,
       ),
     );
+    unawaited(_loadClanContexts());
+    unawaited(_refreshBillingEntitlement());
   }
 
   @override
   void didUpdateWidget(covariant AppShellPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session) {
+      _activeSession = widget.session;
       unawaited(
         _pushNotificationService.start(
-          session: widget.session,
+          session: _session,
           onDeepLink: _handleNotificationDeepLink,
         ),
       );
+      unawaited(_loadClanContexts());
+      _dismissAdBannerForSession = false;
+      unawaited(_refreshBillingEntitlement());
     }
   }
 
@@ -234,6 +303,123 @@ class _AppShellPageState extends State<AppShellPage> {
     };
   }
 
+  Future<void> _refreshBillingEntitlement() async {
+    if (_isResolvingBillingEntitlement) {
+      return;
+    }
+    if (!_hasBillingContext(_session)) {
+      if (mounted) {
+        setState(() {
+          _showAdBanner = true;
+        });
+      }
+      return;
+    }
+
+    _isResolvingBillingEntitlement = true;
+    try {
+      final entitlement = await _billingRepository.resolveEntitlement(
+        session: _session,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _showAdBanner = entitlement.showAds;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _showAdBanner = true;
+      });
+    } finally {
+      _isResolvingBillingEntitlement = false;
+    }
+  }
+
+  bool _hasBillingContext(AuthSession session) {
+    return (session.clanId ?? '').trim().isNotEmpty;
+  }
+
+  Future<void> _loadClanContexts() async {
+    if (_isLoadingClanContexts || !_session.linkedAuthUid) {
+      return;
+    }
+    _isLoadingClanContexts = true;
+    try {
+      final snapshot = await _clanContextService.loadContexts(
+        session: _session,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _activeSession = snapshot.activeSession;
+        _clanContexts = snapshot.contexts;
+      });
+      await _sessionStore.write(_activeSession);
+      await _pushNotificationService.start(
+        session: _session,
+        onDeepLink: _handleNotificationDeepLink,
+      );
+      unawaited(_refreshBillingEntitlement());
+    } catch (_) {
+      // Keep the existing session context if callable is unavailable.
+    } finally {
+      _isLoadingClanContexts = false;
+    }
+  }
+
+  Future<AuthSession?> _switchClanContext(String clanId) async {
+    final normalized = clanId.trim();
+    if (normalized.isEmpty || normalized == (_session.clanId ?? '').trim()) {
+      return _session;
+    }
+    if (_isSwitchingClanContext) {
+      return null;
+    }
+    _isSwitchingClanContext = true;
+    try {
+      final snapshot = await _clanContextService.switchActiveClan(
+        session: _session,
+        clanId: normalized,
+      );
+      if (!mounted) {
+        return null;
+      }
+      setState(() {
+        _activeSession = snapshot.activeSession;
+        _clanContexts = snapshot.contexts;
+        _visitedDestinationIndexes.add(_selectedIndex);
+      });
+      await _sessionStore.write(_activeSession);
+      await _pushNotificationService.start(
+        session: _session,
+        onDeepLink: _handleNotificationDeepLink,
+      );
+      unawaited(_refreshBillingEntitlement());
+      return _activeSession;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick(
+                vi: 'Không thể chuyển gia phả lúc này. Vui lòng thử lại.',
+                en: 'Unable to switch clan right now. Please try again.',
+              ),
+            ),
+          ),
+        );
+      }
+      return null;
+    } finally {
+      _isSwitchingClanContext = false;
+    }
+  }
+
   Future<void> _confirmLogoutRequest() async {
     if (widget.onLogoutRequested == null) {
       return;
@@ -268,10 +454,14 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final destination = _destinations[_selectedIndex];
-    final sessionTooltip = l10n.authEntryMethodSummary(
-      widget.session.loginMethod,
-    );
+    final destinations = _hasClanContext
+        ? _destinations
+        : _unlinkedDestinations;
+    if (_selectedIndex >= destinations.length) {
+      _selectedIndex = 0;
+    }
+    final destination = destinations[_selectedIndex];
+    final sessionTooltip = l10n.authEntryMethodSummary(_session.loginMethod);
     final readinessTooltip = widget.status.isReady
         ? l10n.shellReadinessReady
         : widget.status.errorMessage?.trim().isNotEmpty == true
@@ -279,42 +469,86 @@ class _AppShellPageState extends State<AppShellPage> {
         : l10n.shellReadinessPending;
     final pages = [
       _HomeDashboard(
+        key: ValueKey<String>('home-${_session.clanId ?? 'none'}'),
         status: widget.status,
-        session: widget.session,
+        session: _session,
         clanRepository: widget.clanRepository,
         memberRepository: widget.memberRepository,
         fundRepository: _fundRepository,
+        availableClanContexts: _clanContexts,
+        onSwitchClanContext: _switchClanContext,
         onOpenTreeRequested: () {
           setState(() {
             _selectedIndex = 1;
+            _visitedDestinationIndexes.add(1);
           });
         },
         onOpenEventsRequested: () {
           setState(() {
             _selectedIndex = 2;
+            _visitedDestinationIndexes.add(2);
           });
         },
         onOpenProfileRequested: () {
           setState(() {
-            _selectedIndex = 3;
+            _selectedIndex = 4;
+            _visitedDestinationIndexes.add(4);
           });
         },
       ),
       if (_visitedDestinationIndexes.contains(1))
-        GenealogyWorkspacePage(
-          session: widget.session,
-          repository: _genealogyRepository,
-        )
+        _hasClanContext
+            ? GenealogyWorkspacePage(
+                key: ValueKey<String>('tree-${_session.clanId ?? 'none'}'),
+                session: _session,
+                repository: _genealogyRepository,
+              )
+            : GenealogyDiscoveryPage(
+                key: const ValueKey<String>('tree-discovery'),
+                session: _session,
+                repository: createDefaultGenealogyDiscoveryRepository(
+                  session: _session,
+                ),
+              )
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(2))
-        const DualCalendarWorkspacePage()
+        KeyedSubtree(
+          key: ValueKey<String>('events-${_session.clanId ?? 'none'}'),
+          child: DualCalendarWorkspacePage(session: _session),
+        )
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(3))
+        _hasClanContext
+            ? BillingWorkspacePage(
+                key: ValueKey<String>('billing-${_session.clanId ?? 'none'}'),
+                session: _session,
+                repository: _billingRepository,
+                embeddedInShell: true,
+              )
+            : _UnlinkedBillingWorkspace(
+                onOpenDiscovery: () {
+                  setState(() {
+                    _selectedIndex = 1;
+                    _visitedDestinationIndexes.add(1);
+                  });
+                },
+                onCreateClanWorkspace: () {
+                  _openClanWorkspaceFromBilling();
+                },
+              )
+      else
+        const SizedBox.shrink(),
+      if (_visitedDestinationIndexes.contains(4))
         ProfileWorkspacePage(
-          session: widget.session,
+          key: ValueKey<String>('profile-${_session.clanId ?? 'none'}'),
+          session: _session,
           memberRepository: widget.memberRepository,
+          billingRepository: _billingRepository,
+          onBillingStateChanged: () {
+            unawaited(_refreshBillingEntitlement());
+          },
           localeController: widget.localeController,
           onLogoutRequested: widget.onLogoutRequested,
         )
@@ -332,11 +566,39 @@ class _AppShellPageState extends State<AppShellPage> {
               child: Tooltip(
                 message: sessionTooltip,
                 child: Icon(
-                  widget.session.loginMethod == AuthEntryMethod.phone
+                  _session.loginMethod == AuthEntryMethod.phone
                       ? Icons.phone_iphone
                       : Icons.child_care,
                 ),
               ),
+            ),
+          if (_isLoadingClanContexts || _isSwitchingClanContext)
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (_clanContexts.length > 1)
+            PopupMenuButton<String>(
+              tooltip: l10n.pick(vi: 'Chọn gia phả', en: 'Select clan'),
+              onSelected: (clanId) {
+                unawaited(_switchClanContext(clanId));
+              },
+              itemBuilder: (context) => [
+                for (final contextOption in _clanContexts)
+                  PopupMenuItem<String>(
+                    value: contextOption.clanId,
+                    child: Text(
+                      contextOption.clanId == (_session.clanId ?? '').trim()
+                          ? '• ${contextOption.clanName}'
+                          : contextOption.clanName,
+                    ),
+                  ),
+              ],
+              icon: const Icon(Icons.account_tree_outlined),
             ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -347,42 +609,230 @@ class _AppShellPageState extends State<AppShellPage> {
               ),
             ),
           ),
-          if (widget.onLogoutRequested != null)
-            PopupMenuButton<String>(
-              tooltip: l10n.shellMoreActions,
-              onSelected: (value) async {
-                if (value == 'logout') {
-                  await _confirmLogoutRequest();
-                }
-              },
-              itemBuilder: (context) => [
+          PopupMenuButton<String>(
+            tooltip: l10n.shellMoreActions,
+            onSelected: (value) async {
+              if (value == 'discover') {
+                _openGenealogyDiscoveryPage();
+                return;
+              }
+              if (value == 'logout') {
+                await _confirmLogoutRequest();
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                value: 'discover',
+                child: Text(
+                  l10n.pick(vi: 'Khám phá gia phả', en: 'Discover genealogies'),
+                ),
+              ),
+              if (widget.onLogoutRequested != null)
                 PopupMenuItem<String>(
                   value: 'logout',
                   child: Text(l10n.shellLogout),
                 ),
-              ],
-            ),
+            ],
+          ),
         ],
       ),
       body: SafeArea(
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-            _visitedDestinationIndexes.add(index);
-          });
-        },
-        destinations: [
-          for (final destination in _destinations)
-            NavigationDestination(
-              icon: Icon(destination.icon),
-              selectedIcon: Icon(destination.selectedIcon),
-              label: l10n.shellDestinationLabel(destination.id),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_showAdBanner && !_dismissAdBannerForSession)
+            _SponsoredAdBanner(
+              onClose: () {
+                setState(() {
+                  _dismissAdBannerForSession = true;
+                });
+              },
             ),
+          NavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (index) {
+              setState(() {
+                _selectedIndex = index;
+                _visitedDestinationIndexes.add(index);
+              });
+            },
+            destinations: [
+              for (final destination in destinations)
+                NavigationDestination(
+                  icon: Icon(destination.icon),
+                  selectedIcon: Icon(destination.selectedIcon),
+                  label: l10n.shellDestinationLabel(destination.id),
+                ),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  void _openClanWorkspaceFromBilling() {
+    if (!_hasClanContext && !GovernanceRoleMatrix.canBootstrapClan(_session)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Tài khoản này chưa có quyền khởi tạo gia phả mới. Vui lòng liên hệ quản trị.',
+              en: 'This account is not allowed to bootstrap a new clan workspace. Please contact an administrator.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return ClanDetailPage(
+            session: _session,
+            repository: widget.clanRepository,
+          );
+        },
+      ),
+    );
+  }
+
+  void _openGenealogyDiscoveryPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return GenealogyDiscoveryPage(
+            session: _session,
+            repository: createDefaultGenealogyDiscoveryRepository(
+              session: _session,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _UnlinkedBillingWorkspace extends StatelessWidget {
+  const _UnlinkedBillingWorkspace({
+    required this.onOpenDiscovery,
+    required this.onCreateClanWorkspace,
+  });
+
+  final VoidCallback onOpenDiscovery;
+  final VoidCallback onCreateClanWorkspace;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final colorScheme = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.workspace_premium_outlined,
+                      color: colorScheme.primary,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l10n.pick(
+                          vi: 'Gói dịch vụ & thanh toán',
+                          en: 'Subscription & billing',
+                        ),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  l10n.pick(
+                    vi: 'Bạn chưa liên kết vào gia phả nào. Hãy tìm gia phả để tham gia hoặc tạo gia phả mới để sử dụng gói dịch vụ.',
+                    en: 'You are not linked to a clan yet. Discover a genealogy to join, or create a new clan workspace before using billing.',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: onOpenDiscovery,
+                  icon: const Icon(Icons.travel_explore_outlined),
+                  label: Text(
+                    l10n.pick(vi: 'Tìm gia phả', en: 'Discover genealogies'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: onCreateClanWorkspace,
+                  icon: const Icon(Icons.apartment_outlined),
+                  label: Text(
+                    l10n.pick(
+                      vi: 'Tạo gia phả mới',
+                      en: 'Create clan workspace',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SponsoredAdBanner extends StatelessWidget {
+  const _SponsoredAdBanner({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: colorScheme.tertiaryContainer.withValues(alpha: 0.88),
+      child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              Icons.campaign_outlined,
+              color: colorScheme.onTertiaryContainer,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                l10n.pick(
+                  vi: 'Quảng cáo nhẹ đang hiển thị trong gói Free/Base. Nâng cấp Plus/Pro để tắt hoàn toàn quảng cáo.',
+                  en: 'Light ads are active on Free/Base plans. Upgrade to Plus/Pro for a fully ad-free experience.',
+                ),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onTertiaryContainer,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
+              onPressed: onClose,
+              icon: const Icon(Icons.close),
+              color: colorScheme.onTertiaryContainer,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -390,11 +840,14 @@ class _AppShellPageState extends State<AppShellPage> {
 
 class _HomeDashboard extends StatelessWidget {
   const _HomeDashboard({
+    super.key,
     required this.status,
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
     required this.fundRepository,
+    required this.availableClanContexts,
+    required this.onSwitchClanContext,
     required this.onOpenTreeRequested,
     required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
@@ -405,9 +858,26 @@ class _HomeDashboard extends StatelessWidget {
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
   final FundRepository fundRepository;
+  final List<ClanContextOption> availableClanContexts;
+  final Future<AuthSession?> Function(String clanId) onSwitchClanContext;
   final VoidCallback onOpenTreeRequested;
   final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
+  bool get _hasClanContext => (session.clanId ?? '').trim().isNotEmpty;
+
+  List<AppShortcut> get _availableShortcuts {
+    if (_hasClanContext) {
+      return bootstrapShortcuts;
+    }
+    return bootstrapShortcuts
+        .where(
+          (shortcut) =>
+              shortcut.id == 'tree' ||
+              shortcut.id == 'clan' ||
+              shortcut.id == 'events',
+        )
+        .toList(growable: false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -479,7 +949,7 @@ class _HomeDashboard extends StatelessWidget {
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: bootstrapShortcuts.length,
+          itemCount: _availableShortcuts.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 16,
@@ -487,7 +957,7 @@ class _HomeDashboard extends StatelessWidget {
             childAspectRatio: 1.24,
           ),
           itemBuilder: (context, index) {
-            final shortcut = bootstrapShortcuts[index];
+            final shortcut = _availableShortcuts[index];
             return _ShortcutCard(
               shortcut: shortcut,
               onTap: _onShortcutTap(context, shortcut.id),
@@ -549,8 +1019,28 @@ class _HomeDashboard extends StatelessWidget {
   }
 
   VoidCallback? _onShortcutTap(BuildContext context, String shortcutId) {
+    if (!_hasClanContext &&
+        shortcutId != 'tree' &&
+        shortcutId != 'clan' &&
+        shortcutId != 'events') {
+      return null;
+    }
     return switch (shortcutId) {
       'clan' => () {
+        if (!_hasClanContext &&
+            !GovernanceRoleMatrix.canBootstrapClan(session)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.pick(
+                  vi: 'Tài khoản này chưa có quyền khởi tạo gia phả mới. Vui lòng liên hệ quản trị.',
+                  en: 'This account is not allowed to bootstrap a new clan workspace. Please contact an administrator.',
+                ),
+              ),
+            ),
+          );
+          return;
+        }
         Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (context) {
@@ -580,7 +1070,11 @@ class _HomeDashboard extends StatelessWidget {
             builder: (context) {
               return ScholarshipWorkspacePage(
                 session: session,
-                repository: createDefaultScholarshipRepository(),
+                repository: createDefaultScholarshipRepository(
+                  session: session,
+                ),
+                availableClanContexts: availableClanContexts,
+                onSwitchClanContext: onSwitchClanContext,
               );
             },
           ),
@@ -596,6 +1090,9 @@ class _HomeDashboard extends StatelessWidget {
               return FundWorkspacePage(
                 session: session,
                 repository: fundRepository,
+                memberRepository: memberRepository,
+                availableClanContexts: availableClanContexts,
+                onSwitchClanContext: onSwitchClanContext,
               );
             },
           ),
@@ -814,13 +1311,13 @@ class _UpcomingEventSection extends StatefulWidget {
 }
 
 class _UpcomingEventSectionState extends State<_UpcomingEventSection> {
-  late final EventRepository _eventRepository;
+  late EventRepository _eventRepository;
   late Future<_UpcomingEventData?> _upcomingFuture;
 
   @override
   void initState() {
     super.initState();
-    _eventRepository = createDefaultEventRepository();
+    _eventRepository = createDefaultEventRepository(session: widget.session);
     _upcomingFuture = _loadUpcomingEvent();
   }
 
@@ -828,6 +1325,7 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection> {
   void didUpdateWidget(covariant _UpcomingEventSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session) {
+      _eventRepository = createDefaultEventRepository(session: widget.session);
       _upcomingFuture = _loadUpcomingEvent();
     }
   }
@@ -1018,8 +1516,8 @@ class _MemberAccessCard extends StatelessWidget {
       AuthMemberAccessMode.unlinked => (
         l10n.shellMemberAccessUnlinkedTitle,
         l10n.pick(
-          vi: 'Tài khoản chưa liên kết hồ sơ thành viên. Bạn có thể thiết lập trong mục Hồ sơ.',
-          en: 'This account is not linked to a member profile yet. You can set it up in Profile.',
+          vi: 'Tài khoản chưa liên kết vào gia phả nào. Bạn có thể khám phá gia phả, tạo gia phả mới (nếu đủ quyền), hoặc dùng lịch sự kiện.',
+          en: 'This account is not linked to any clan yet. You can discover genealogies, create a clan workspace (if your role allows), or use events.',
         ),
         Icons.info_outline,
         colorScheme.surfaceContainerHighest,

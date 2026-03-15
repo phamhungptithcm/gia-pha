@@ -43,6 +43,7 @@ void main() {
         session: session,
         draft: const MemberDraft(
           branchId: 'branch_demo_001',
+          parentIds: <String>[],
           fullName: 'Phạm Gia Hưng',
           nickName: 'Gia Hưng',
           gender: 'male',
@@ -104,6 +105,7 @@ void main() {
         session: session,
         draft: const MemberDraft(
           branchId: 'branch_demo_001',
+          parentIds: <String>[],
           fullName: 'Trùng số điện thoại',
           nickName: '',
           gender: null,

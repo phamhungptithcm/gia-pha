@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
+import '../../discovery/presentation/join_request_review_page.dart';
+import '../../discovery/services/genealogy_discovery_repository.dart';
 import '../models/branch_draft.dart';
 import '../models/branch_profile.dart';
 import '../models/clan_draft.dart';
@@ -63,9 +66,21 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
     );
 
     if (didSave == true && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(context.l10n.clanSaveSuccess)));
+      final createdFromUnlinkedSession =
+          (widget.session.clanId ?? '').trim().isEmpty &&
+          _controller.permissions.canBootstrapClan;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            createdFromUnlinkedSession
+                ? context.l10n.pick(
+                    vi: 'Đã tạo gia phả mới. Nếu chưa thấy dữ liệu đầy đủ, vui lòng đăng xuất và đăng nhập lại.',
+                    en: 'New clan workspace created. If data is not fully visible yet, please sign out and sign in again.',
+                  )
+                : context.l10n.clanSaveSuccess,
+          ),
+        ),
+      );
     }
   }
 
@@ -108,6 +123,25 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
     );
   }
 
+  bool get _canReviewJoinRequests {
+    return GovernanceRoleMatrix.canReviewJoinRequests(widget.session);
+  }
+
+  void _openJoinRequestReview() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return JoinRequestReviewPage(
+            session: widget.session,
+            repository: createDefaultGenealogyDiscoveryRepository(
+              session: widget.session,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -121,6 +155,15 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
           appBar: AppBar(
             title: Text(l10n.clanDetailTitle),
             actions: [
+              if (_canReviewJoinRequests)
+                IconButton(
+                  tooltip: l10n.pick(
+                    vi: 'Duyệt yêu cầu tham gia',
+                    en: 'Review join requests',
+                  ),
+                  onPressed: _openJoinRequestReview,
+                  icon: const Icon(Icons.fact_check_outlined),
+                ),
               IconButton(
                 tooltip: l10n.clanRefreshAction,
                 onPressed: _controller.isLoading ? null : _controller.refresh,

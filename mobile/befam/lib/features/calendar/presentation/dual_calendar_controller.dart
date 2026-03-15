@@ -101,9 +101,14 @@ class DualCalendarController extends ChangeNotifier {
 
     try {
       final settings = await _settingsStore.load();
-      _displayMode = settings.displayMode;
+      final migratedDisplayMode =
+          settings.displayMode == CalendarDisplayMode.solarOnly
+          ? CalendarDisplayMode.dual
+          : settings.displayMode;
+      _displayMode = migratedDisplayMode;
       _region = CalendarRegion.vietnam;
-      if (settings.region != CalendarRegion.vietnam) {
+      if (settings.region != CalendarRegion.vietnam ||
+          settings.displayMode != migratedDisplayMode) {
         await _settingsStore.save(
           CalendarSettings(region: _region, displayMode: _displayMode),
         );

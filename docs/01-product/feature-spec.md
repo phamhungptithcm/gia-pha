@@ -23,7 +23,7 @@ _Last reviewed: March 15, 2026_
 | Push token registration | Live | Callable-first with Firestore fallback |
 | Push delivery backend | Live | Notification docs + FCM multicast delivery |
 | Notification inbox UI | Partial | Inbox list, mark-read, pagination, and destination placeholders are live; full destination screens are pending |
-| Subscription + billing | Planned | Epic [#213](https://github.com/phamhungptithcm/gia-pha/issues/213) |
+| Subscription + billing | Live | Epic [#213](https://github.com/phamhungptithcm/gia-pha/issues/213) implemented (Free/Base/Plus/Pro, Card/VNPay, reminders, history, audit logs) |
 
 ## Functional guardrails
 
@@ -31,13 +31,13 @@ _Last reviewed: March 15, 2026_
 - role-based writes for sensitive actions (`CLAN_ADMIN`, `BRANCH_ADMIN`)
 - child login access mode tracked as distinct session context
 - immutable audit-style records for relationship and auth-link actions
-- planned billing guardrails include signed gateway callbacks, webhook
-  idempotency, and owner/admin-only billing visibility
+- billing guardrails include signed gateway callbacks, webhook idempotency,
+  server-only webhook event writes, and owner/admin billing workspace visibility
 
 ## Technical compatibility
 
 - mobile: Flutter, Android, iOS
 - backend: Firebase Auth, Firestore, Storage, Functions v2, FCM
-- billing (planned): Free/Base/Plus/Pro plan engine, card + VNPay checkout,
-  and server-side callback validation
+- billing: Free/Base/Plus/Pro plan engine, card + VNPay checkout, reminder
+  scheduling, and server-side callback validation
 - CI/CD: GitHub Actions with protected `staging` and `main` delivery model
