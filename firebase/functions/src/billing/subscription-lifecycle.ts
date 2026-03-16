@@ -12,6 +12,7 @@ type NullableDate = Date | null;
 export type BillingSubscriptionRecord = {
   id: string;
   clanId: string;
+  ownerUid: string;
   planCode: BillingPlanCode;
   status: SubscriptionStatus;
   memberCount: number;
@@ -93,6 +94,7 @@ export function buildEntitlement({
 
 export function createSubscriptionDraft({
   clanId,
+  ownerUid,
   tier,
   memberCount,
   paymentMode,
@@ -103,6 +105,7 @@ export function createSubscriptionDraft({
   now = new Date(),
 }: {
   clanId: string;
+  ownerUid: string;
   tier: BillingTierPricing;
   memberCount: number;
   paymentMode: PaymentMode;
@@ -113,8 +116,9 @@ export function createSubscriptionDraft({
   now?: Date;
 }): BillingSubscriptionRecord {
   return {
-    id: clanId,
+    id: `${clanId}__${ownerUid}`,
     clanId,
+    ownerUid,
     planCode: tier.planCode,
     status,
     memberCount,
