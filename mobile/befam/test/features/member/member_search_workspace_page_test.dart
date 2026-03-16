@@ -138,12 +138,15 @@ void main() {
     );
     await scrollToSearchSection(
       tester,
-      find.byKey(const Key('members-branch-filter-wrap')),
+      find.byKey(const Key('members-branch-filter-dropdown')),
     );
 
-    expect(find.byKey(const Key('members-branch-filter-wrap')), findsOneWidget);
     expect(
-      find.byKey(const Key('members-generation-filter-wrap')),
+      find.byKey(const Key('members-branch-filter-dropdown')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('members-generation-filter-dropdown')),
       findsOneWidget,
     );
     expect(find.byKey(const Key('member-search-result-m1')), findsOneWidget);

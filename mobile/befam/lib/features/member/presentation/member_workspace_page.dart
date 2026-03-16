@@ -3144,11 +3144,15 @@ class _WorkspaceHero extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
-    final activeContext = clanContexts.firstWhere(
-      (item) => item.clanId.trim() == activeClanId.trim(),
-      orElse: () => clanContexts.first,
-    );
-    final activeClanValue = activeContext.clanId.trim();
+    final activeClanValue = clanContexts.isEmpty
+        ? ''
+        : clanContexts
+              .firstWhere(
+                (item) => item.clanId.trim() == activeClanId.trim(),
+                orElse: () => clanContexts.first,
+              )
+              .clanId
+              .trim();
     final selectorFillColor = colorScheme.onPrimary.withValues(alpha: 0.2);
     final selectorBorderColor = colorScheme.onPrimary.withValues(alpha: 0.3);
 
