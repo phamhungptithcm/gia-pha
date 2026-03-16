@@ -201,7 +201,6 @@ export const resolveBillingEntitlement = onCall(
       uid: auth.uid,
       token: auth.token,
       data: request.data,
-      requireManageRole: true,
     });
 
     const ensured = await ensureSubscriptionForClan({
