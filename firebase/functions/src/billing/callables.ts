@@ -8,6 +8,7 @@ import {
   countClanMembers,
   buildEntitlementFromSubscription,
   createPendingCheckout,
+  expireStalePendingTransactions,
   ensureSubscriptionForClan,
   resolveBillingAudienceMemberIds,
   upsertBillingSettings,
@@ -16,6 +17,7 @@ import {
 import {
   BILLING_PRICING_TIERS,
   rankPlanCode,
+  resolveEffectivePlanCode,
   resolvePlanByMemberCount,
   type BillingPlanCode,
   type PaymentMethod,
@@ -31,6 +33,14 @@ import {
   tokenClanIds,
   type AuthToken,
 } from '../shared/permissions';
+import {
+  buildVnpayQueryString,
+  createVnpaySignature,
+  formatVnpayTimestampGmt7,
+  normalizeVnpayIpAddress,
+  normalizeVnpayLocale,
+  normalizeVnpayOrderInfo,
+} from './vnpay';
 
 const subscriptionsCollection = db.collection('subscriptions');
 const transactionsCollection = db.collection('paymentTransactions');
@@ -52,10 +62,22 @@ export const resolveBillingEntitlement = onCall(
     }
     ensureClanAccess(auth.token, clanId);
 
-    const ensured = await ensureSubscriptionForClan({
+    let ensured = await ensureSubscriptionForClan({
       clanId,
       actorUid: auth.uid,
     });
+    const staleSweep = await expireStalePendingTransactions({ clanId });
+    if (staleSweep.expiredCount > 0) {
+      ensured = await ensureSubscriptionForClan({
+        clanId,
+        actorUid: auth.uid,
+      });
+      logInfo('resolveBillingEntitlement refreshed after timeout sweep', {
+        uid: auth.uid,
+        clanId,
+        timedOutTransactions: staleSweep.transactionIds,
+      });
+    }
     const entitlement = buildEntitlementFromSubscription(ensured.subscription);
 
     return {
@@ -80,10 +102,22 @@ export const loadBillingWorkspace = onCall(
     }
     ensureClanAccess(auth.token, clanId);
 
-    const ensured = await ensureSubscriptionForClan({
+    const staleSweep = await expireStalePendingTransactions({ clanId });
+    let ensured = await ensureSubscriptionForClan({
       clanId,
       actorUid: auth.uid,
     });
+    if (staleSweep.expiredCount > 0) {
+      ensured = await ensureSubscriptionForClan({
+        clanId,
+        actorUid: auth.uid,
+      });
+      logInfo('loadBillingWorkspace refreshed after timeout sweep', {
+        uid: auth.uid,
+        clanId,
+        timedOutTransactions: staleSweep.transactionIds,
+      });
+    }
     const [transactionsSnapshot, invoicesSnapshot, auditSnapshot] = await Promise.all([
       transactionsCollection
         .where('clanId', '==', clanId)
@@ -187,6 +221,11 @@ export const createSubscriptionCheckout = onCall(
     }
     ensureClanAccess(auth.token, clanId);
 
+    await expireStalePendingTransactions({ clanId });
+    const ensured = await ensureSubscriptionForClan({
+      clanId,
+      actorUid: auth.uid,
+    });
     const paymentMethod = normalizePaymentMethod(request.data);
     const requestedPlanCode = normalizeRequestedPlanCode(request.data);
     if (requestedPlanCode != null) {
@@ -199,6 +238,23 @@ export const createSubscriptionCheckout = onCall(
         );
       }
     }
+    const effectivePlanCode = resolveEffectivePlanCode({
+      memberCount: ensured.memberCount,
+      currentPlanCode: ensured.subscription.planCode,
+      requestedPlanCode,
+    });
+    const currentPlanRank = rankPlanCode(ensured.subscription.planCode);
+    const nextPlanRank = rankPlanCode(effectivePlanCode);
+    const isActiveOrGrace =
+      ensured.entitlement.status === 'active' ||
+      ensured.entitlement.status === 'grace_period';
+    if (isActiveOrGrace && currentPlanRank > 0 && nextPlanRank <= currentPlanRank) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Current subscription is still valid. Only higher-tier upgrades are allowed.',
+      );
+    }
+
     const checkout = await createPendingCheckout({
       clanId,
       actorUid: auth.uid,
@@ -212,14 +268,22 @@ export const createSubscriptionCheckout = onCall(
       checkoutUrl = '';
       requiresManualConfirmation = false;
     } else if (paymentMethod === 'vnpay') {
+      const locale = normalizeVnpayLocale(
+        readString(request.data, 'locale') ?? process.env.VNPAY_LOCALE ?? 'vn',
+      );
+      const orderInfo = buildVnpayOrderInfo({
+        planCode: checkout.tier.planCode,
+        memberCount: checkout.memberCount,
+        note: readString(request.data, 'orderNote'),
+      });
       checkoutUrl = buildVnpayCheckoutUrl({
         transactionId: checkout.transaction.id,
         amountVnd: checkout.transaction.amountVnd,
-        orderInfo: `BeFam ${checkout.tier.planCode} annual subscription`,
-        returnUrl:
-          readString(request.data, 'returnUrl') ??
-          process.env.VNPAY_RETURN_URL ??
-          'https://example.com/billing/vnpay-return',
+        orderInfo,
+        returnUrl: resolveVnpayReturnUrl(readString(request.data, 'returnUrl')),
+        clientIp: resolveVnpayClientIpAddress(request.rawRequest),
+        locale,
+        bankCode: normalizeVnpayBankCode(readString(request.data, 'bankCode')),
       });
     } else {
       checkoutUrl = buildCardCheckoutHintUrl({
@@ -459,6 +523,41 @@ function normalizeRequestedPlanCode(data: unknown): BillingPlanCode | null {
   );
 }
 
+function normalizeVnpayBankCode(rawValue: string | null): string | null {
+  if (rawValue == null) {
+    return null;
+  }
+  const normalized = rawValue.trim().toUpperCase();
+  if (normalized.length === 0) {
+    return null;
+  }
+  if (!/^[A-Z0-9_]{2,32}$/.test(normalized)) {
+    throw new HttpsError(
+      'invalid-argument',
+      'bankCode must match VNPay bank code format.',
+    );
+  }
+  return normalized;
+}
+
+function buildVnpayOrderInfo({
+  planCode,
+  memberCount,
+  note,
+}: {
+  planCode: BillingPlanCode;
+  memberCount: number;
+  note: string | null;
+}): string {
+  const base = `BeFam ${planCode} ${memberCount} members annual`;
+  if (note == null || note.trim().length === 0) {
+    return base;
+  }
+  const trimmedNote = note.trim().replaceAll(/\s+/g, ' ');
+  const limited = trimmedNote.slice(0, 120);
+  return `${base} - ${limited}`;
+}
+
 function readReminderDays(data: unknown): Array<number> | undefined {
   if (data == null || typeof data !== 'object') {
     return undefined;
@@ -551,25 +650,41 @@ function buildVnpayCheckoutUrl({
   amountVnd,
   orderInfo,
   returnUrl,
+  clientIp,
+  locale,
+  bankCode,
 }: {
   transactionId: string;
   amountVnd: number;
   orderInfo: string;
   returnUrl: string;
+  clientIp: string;
+  locale: 'vn' | 'en';
+  bankCode: string | null;
 }): string {
   const tmnCode = process.env.VNPAY_TMNCODE?.trim() ?? '';
   const hashSecret = process.env.VNPAY_HASH_SECRET?.trim() ?? '';
   if (tmnCode.length === 0 || hashSecret.length === 0) {
-    const fallback = new URL(
-      process.env.BILLING_VNPAY_FALLBACK_URL ?? 'https://example.com/billing/vnpay',
+    const fallbackBase = process.env.BILLING_VNPAY_FALLBACK_URL?.trim();
+    if (fallbackBase != null && fallbackBase.length > 0) {
+      const fallback = new URL(fallbackBase);
+      fallback.searchParams.set('transactionId', transactionId);
+      fallback.searchParams.set('amountVnd', `${amountVnd}`);
+      return fallback.toString();
+    }
+    throw new HttpsError(
+      'failed-precondition',
+      'VNPay sandbox is not configured. Set VNPAY_TMNCODE and VNPAY_HASH_SECRET.',
     );
-    fallback.searchParams.set('transactionId', transactionId);
-    fallback.searchParams.set('amountVnd', `${amountVnd}`);
-    return fallback.toString();
   }
 
   const now = new Date();
-  const createDate = formatVnpTimestamp(now);
+  const createDate = formatVnpayTimestampGmt7(now);
+  const expireDate = formatVnpayTimestampGmt7(
+    new Date(now.getTime() + parsePositiveInteger(process.env.VNPAY_EXPIRE_MINUTES, 15) * 60_000),
+  );
+  const gatewayBase =
+    process.env.VNPAY_PAYMENT_URL?.trim() ?? 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
   const params: Record<string, string> = {
     vnp_Version: '2.1.0',
     vnp_Command: 'pay',
@@ -577,30 +692,96 @@ function buildVnpayCheckoutUrl({
     vnp_Amount: `${Math.max(0, Math.trunc(amountVnd)) * 100}`,
     vnp_CurrCode: 'VND',
     vnp_TxnRef: transactionId,
-    vnp_OrderInfo: orderInfo,
-    vnp_OrderType: 'billpayment',
-    vnp_Locale: 'vn',
+    vnp_OrderInfo: normalizeVnpayOrderInfo(orderInfo),
+    vnp_OrderType: process.env.VNPAY_ORDER_TYPE?.trim() || 'other',
+    vnp_Locale: locale,
     vnp_ReturnUrl: returnUrl,
-    vnp_IpAddr: '127.0.0.1',
+    vnp_IpAddr: clientIp,
     vnp_CreateDate: createDate,
+    vnp_ExpireDate: expireDate,
+    ...(bankCode == null ? {} : { vnp_BankCode: bankCode }),
   };
 
-  const queryString = Object.keys(params)
-    .sort()
-    .map((key) => `${key}=${encodeURIComponent(params[key])}`)
-    .join('&');
-  const secureHash = createHmac('sha512', hashSecret).update(queryString).digest('hex');
-  return `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?${queryString}&vnp_SecureHash=${secureHash}`;
+  const queryString = buildVnpayQueryString(params);
+  const secureHash = createVnpaySignature(params, hashSecret);
+  const separator = gatewayBase.includes('?') ? '&' : '?';
+  return `${gatewayBase}${separator}${queryString}&vnp_SecureHash=${secureHash}`;
 }
 
-function formatVnpTimestamp(value: Date): string {
-  const year = value.getUTCFullYear();
-  const month = `${value.getUTCMonth() + 1}`.padStart(2, '0');
-  const day = `${value.getUTCDate()}`.padStart(2, '0');
-  const hour = `${value.getUTCHours()}`.padStart(2, '0');
-  const minute = `${value.getUTCMinutes()}`.padStart(2, '0');
-  const second = `${value.getUTCSeconds()}`.padStart(2, '0');
-  return `${year}${month}${day}${hour}${minute}${second}`;
+function resolveVnpayReturnUrl(explicitUrl: string | null): string {
+  const candidate =
+    explicitUrl?.trim() ||
+    process.env.VNPAY_RETURN_URL?.trim() ||
+    resolveDefaultVnpayReturnUrl();
+  if (candidate.length === 0) {
+    throw new HttpsError(
+      'failed-precondition',
+      'VNPAY_RETURN_URL is not configured and no default callback URL can be derived.',
+    );
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw new HttpsError('invalid-argument', 'returnUrl must be a valid absolute URL.');
+  }
+
+  const isLocalhost =
+    parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '::1';
+  if (!isLocalhost && parsed.protocol !== 'https:') {
+    throw new HttpsError('invalid-argument', 'returnUrl must use HTTPS for VNPay.');
+  }
+
+  parsed.search = '';
+  parsed.hash = '';
+  return parsed.toString();
+}
+
+function resolveDefaultVnpayReturnUrl(): string {
+  const projectId = (process.env.GCLOUD_PROJECT ?? process.env.GCP_PROJECT ?? '').trim();
+  if (projectId.length === 0) {
+    return '';
+  }
+  return `https://${APP_REGION}-${projectId}.cloudfunctions.net/vnpayPaymentCallback`;
+}
+
+function resolveVnpayClientIpAddress(rawRequest: unknown): string {
+  if (rawRequest == null || typeof rawRequest !== 'object') {
+    return '127.0.0.1';
+  }
+
+  const request = rawRequest as {
+    ip?: unknown;
+    headers?: Record<string, unknown>;
+    socket?: { remoteAddress?: unknown };
+  };
+  const forwarded = readHeaderValue(request.headers?.['x-forwarded-for']);
+  const directIp = normalizeUnknownString(request.ip);
+  const remoteAddress = normalizeUnknownString(request.socket?.remoteAddress);
+  return normalizeVnpayIpAddress(forwarded || directIp || remoteAddress || '127.0.0.1');
+}
+
+function readHeaderValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+    return value[0].trim();
+  }
+  return '';
+}
+
+function normalizeUnknownString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function parsePositiveInteger(rawValue: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(rawValue ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
 }
 
 function formatVnd(amount: number): string {

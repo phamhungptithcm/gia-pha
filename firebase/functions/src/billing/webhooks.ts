@@ -1,5 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 
+import type { Response } from 'express';
 import { onRequest } from 'firebase-functions/v2/https';
 
 import { APP_REGION } from '../config/runtime';
@@ -9,7 +10,11 @@ import {
   resolveBillingAudienceMemberIds,
 } from './store';
 import { notifyMembers } from '../notifications/push-delivery';
+import { db } from '../shared/firestore';
 import { logError, logInfo, logWarn } from '../shared/logger';
+import { validateVnpaySignature } from './vnpay';
+
+const transactionsCollection = db.collection('paymentTransactions');
 
 export const vnpayPaymentCallback = onRequest(
   { region: APP_REGION },
@@ -22,7 +27,10 @@ export const vnpayPaymentCallback = onRequest(
     const params = normalizeQueryParams(request.query);
     const transactionId = params.vnp_TxnRef ?? '';
     if (transactionId.length === 0) {
-      response.status(400).json({ ok: false, message: 'vnp_TxnRef is required' });
+      respondVnpay(response, {
+        rspCode: '01',
+        message: 'Order not found',
+      });
       return;
     }
 
@@ -37,11 +45,12 @@ export const vnpayPaymentCallback = onRequest(
       transactionId,
       payloadHash,
       validSignature: signatureValid,
-      rawPayload: params,
+      rawPayload: sanitizeVnpayPayload(params),
     });
     if (webhookEvent.alreadyProcessed) {
-      response.status(200).json({
-        ok: true,
+      respondVnpay(response, {
+        rspCode: '02',
+        message: 'Order already confirmed',
         idempotent: true,
         transactionId,
       });
@@ -53,16 +62,52 @@ export const vnpayPaymentCallback = onRequest(
         transactionId,
         externalEventId,
       });
-      response.status(401).json({
-        ok: false,
-        message: 'Invalid VNPay signature',
+      respondVnpay(response, {
+        rspCode: '97',
+        message: 'Invalid Checksum',
+      });
+      return;
+    }
+
+    const transactionSnapshot = await transactionsCollection.doc(transactionId).get();
+    if (!transactionSnapshot.exists) {
+      respondVnpay(response, {
+        rspCode: '01',
+        message: 'Order not found',
+      });
+      return;
+    }
+    const transactionData = transactionSnapshot.data() ?? {};
+    const currentPaymentStatus = normalizeString(transactionData.paymentStatus);
+    if (currentPaymentStatus === 'succeeded') {
+      respondVnpay(response, {
+        rspCode: '02',
+        message: 'Order already confirmed',
+      });
+      return;
+    }
+
+    const callbackAmount = parseInteger(params.vnp_Amount);
+    const expectedAmount = Math.max(0, Math.trunc(readNumber(transactionData.amountVnd) * 100));
+    if (callbackAmount == null || expectedAmount !== callbackAmount) {
+      logWarn('vnpay callback amount mismatch', {
+        transactionId,
+        callbackAmount,
+        expectedAmount,
+      });
+      respondVnpay(response, {
+        rspCode: '04',
+        message: 'Invalid amount',
       });
       return;
     }
 
     const responseCode = params.vnp_ResponseCode ?? '';
-    const paymentStatus =
-      responseCode === '00' ? 'succeeded' : responseCode === '24' ? 'canceled' : 'failed';
+    const transactionStatus = params.vnp_TransactionStatus ?? '';
+    const paymentStatus = normalizeVnpayPaymentStatus({
+      responseCode,
+      transactionStatus,
+    });
 
     try {
       const result = await applyPaymentResult({
@@ -85,9 +130,11 @@ export const vnpayPaymentCallback = onRequest(
         transactionId,
         paymentStatus,
         responseCode,
+        transactionStatus,
       });
-      response.status(200).json({
-        ok: true,
+      respondVnpay(response, {
+        rspCode: '00',
+        message: 'Confirm Success',
         transactionId,
         paymentStatus,
       });
@@ -96,9 +143,9 @@ export const vnpayPaymentCallback = onRequest(
         transactionId,
         error: `${error}`,
       });
-      response.status(500).json({
-        ok: false,
-        message: 'Could not process VNPay callback',
+      respondVnpay(response, {
+        rspCode: '99',
+        message: 'Unknown error',
       });
     }
   },
@@ -130,7 +177,7 @@ export const cardPaymentCallback = onRequest(
       transactionId,
       payloadHash,
       validSignature: signatureValid,
-      rawPayload: payload,
+      rawPayload: sanitizeCardPayload(payload),
     });
     if (webhookEvent.alreadyProcessed) {
       response.status(200).json({
@@ -204,6 +251,39 @@ function mergeCardPayload(query: unknown, body: unknown): CardPayload {
   };
 }
 
+function sanitizeVnpayPayload(params: Record<string, string>): Record<string, unknown> {
+  const keepKeys = [
+    'vnp_TmnCode',
+    'vnp_TxnRef',
+    'vnp_TransactionNo',
+    'vnp_Amount',
+    'vnp_BankCode',
+    'vnp_BankTranNo',
+    'vnp_CardType',
+    'vnp_PayDate',
+    'vnp_ResponseCode',
+    'vnp_TransactionStatus',
+    'vnp_TransactionType',
+    'vnp_PayType',
+  ];
+  const output: Record<string, unknown> = {};
+  for (const key of keepKeys) {
+    const value = params[key];
+    if (value != null && value.trim().length > 0) {
+      output[key] = value.trim();
+    }
+  }
+  return output;
+}
+
+function sanitizeCardPayload(payload: CardPayload): Record<string, unknown> {
+  return {
+    transactionId: payload.transactionId,
+    status: payload.status,
+    gatewayReference: payload.gatewayReference,
+  };
+}
+
 function normalizeCardStatus(status: string): 'succeeded' | 'failed' | 'canceled' {
   const normalized = status.trim().toLowerCase();
   if (normalized === 'success' || normalized === 'succeeded' || normalized === 'paid') {
@@ -243,19 +323,44 @@ function normalizeQueryParams(query: unknown): Record<string, string> {
 }
 
 export function isValidVnpaySignature(params: Record<string, string>): boolean {
-  const secureHash = params.vnp_SecureHash;
   const hashSecret = process.env.VNPAY_HASH_SECRET?.trim() ?? '';
-  if (secureHash == null || secureHash.length === 0 || hashSecret.length === 0) {
+  if (hashSecret.length === 0) {
     return false;
   }
+  return validateVnpaySignature(params, hashSecret);
+}
 
-  const canonical = Object.entries(params)
-    .filter(([key]) => key !== 'vnp_SecureHash' && key !== 'vnp_SecureHashType')
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-    .join('&');
-  const expected = createHmac('sha512', hashSecret).update(canonical).digest('hex');
-  return safeEqual(expected, secureHash);
+function normalizeVnpayPaymentStatus({
+  responseCode,
+  transactionStatus,
+}: {
+  responseCode: string;
+  transactionStatus: string;
+}): 'succeeded' | 'failed' | 'canceled' {
+  if (responseCode === '00' && (transactionStatus.length === 0 || transactionStatus === '00')) {
+    return 'succeeded';
+  }
+  if (responseCode === '24') {
+    return 'canceled';
+  }
+  return 'failed';
+}
+
+function respondVnpay(
+  response: Response,
+  payload: {
+    rspCode: string;
+    message: string;
+    httpStatus?: number;
+    [key: string]: unknown;
+  },
+): void {
+  const { rspCode, message, httpStatus = 200, ...extra } = payload;
+  response.status(httpStatus).json({
+    RspCode: rspCode,
+    Message: message,
+    ...extra,
+  });
 }
 
 async function notifyBillingWebhookResult({
@@ -311,6 +416,27 @@ function safeEqual(left: string, right: string): boolean {
 
 function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function parseInteger(value: string | undefined): number | null {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return parsed;
+}
+
+function readNumber(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return 0;
 }
 
 function sha256(value: string): string {

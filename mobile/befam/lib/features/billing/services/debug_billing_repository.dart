@@ -128,6 +128,9 @@ class DebugBillingRepository implements BillingRepository {
     required String paymentMethod,
     String? requestedPlanCode,
     String? returnUrl,
+    String? locale,
+    String? orderNote,
+    String? bankCode,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 140));
     final clanId = _clanIdOf(session);
@@ -203,14 +206,17 @@ class DebugBillingRepository implements BillingRepository {
     );
     state.invoices.insert(0, invoice);
 
+    final shouldApplyImmediately = tier.planCode == 'FREE';
     state.subscription = BillingSubscription(
       id: state.subscription.id,
       clanId: clanId,
-      planCode: tier.planCode,
-      status: tier.planCode == 'FREE' ? 'active' : 'pending_payment',
+      planCode: shouldApplyImmediately ? tier.planCode : state.subscription.planCode,
+      status: shouldApplyImmediately ? 'active' : state.subscription.status,
       memberCount: state.memberCount,
-      amountVndYear: tier.priceVndYear,
-      vatIncluded: true,
+      amountVndYear: shouldApplyImmediately
+          ? tier.priceVndYear
+          : state.subscription.amountVndYear,
+      vatIncluded: shouldApplyImmediately ? true : state.subscription.vatIncluded,
       paymentMode: state.settings.paymentMode,
       autoRenew: state.settings.autoRenew,
       startsAtIso: state.subscription.startsAtIso,
@@ -237,7 +243,7 @@ class DebugBillingRepository implements BillingRepository {
       actorUid: session.uid,
     );
 
-    if (tier.planCode == 'FREE') {
+    if (shouldApplyImmediately) {
       _applySuccessfulPayment(
         state,
         transactionId: transactionId,
@@ -246,7 +252,13 @@ class DebugBillingRepository implements BillingRepository {
     }
 
     final checkoutUrl = method == 'vnpay'
-        ? 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?txn=$transactionId'
+        ? _buildDebugVnpayUrl(
+            transactionId: transactionId,
+            amountVnd: tier.priceVndYear,
+            locale: locale,
+            orderNote: orderNote,
+            bankCode: bankCode,
+          )
         : 'https://example.com/billing/card?txn=$transactionId';
 
     return BillingCheckoutResult(
@@ -262,6 +274,29 @@ class DebugBillingRepository implements BillingRepository {
       subscription: state.subscription,
       entitlement: state.entitlement,
     );
+  }
+
+  String _buildDebugVnpayUrl({
+    required String transactionId,
+    required int amountVnd,
+    String? locale,
+    String? orderNote,
+    String? bankCode,
+  }) {
+    final url = Uri.parse('https://sandbox.vnpayment.vn/paymentv2/vpcpay.html')
+        .replace(
+          queryParameters: {
+            'txn': transactionId,
+            'amount': '$amountVnd',
+            if (locale != null && locale.trim().isNotEmpty)
+              'locale': locale.trim().toLowerCase(),
+            if (orderNote != null && orderNote.trim().isNotEmpty)
+              'note': orderNote.trim(),
+            if (bankCode != null && bankCode.trim().isNotEmpty)
+              'bankCode': bankCode.trim().toUpperCase(),
+          },
+        );
+    return url.toString();
   }
 
   @override
