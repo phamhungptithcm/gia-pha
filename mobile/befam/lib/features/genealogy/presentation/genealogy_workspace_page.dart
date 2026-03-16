@@ -1,25 +1,29 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/performance_measurement_logger.dart';
-import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
-import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../../clan/models/branch_profile.dart';
 import '../../clan/models/branch_draft.dart';
 import '../../clan/models/clan_draft.dart';
 import '../../clan/services/clan_repository.dart';
 import '../../member/models/member_profile.dart';
+import '../../member/presentation/member_workspace_page.dart';
+import '../../member/services/member_repository.dart';
 import '../models/genealogy_graph.dart';
 import '../models/genealogy_read_segment.dart';
-import '../models/genealogy_root_entry.dart';
 import '../models/genealogy_scope.dart';
 import '../services/genealogy_graph_algorithms.dart';
 import '../services/genealogy_read_repository.dart';
@@ -38,10 +42,6 @@ class GenealogyWorkspacePage extends StatefulWidget {
   State<GenealogyWorkspacePage> createState() => _GenealogyWorkspacePageState();
 }
 
-enum _TreeDisplayPreset { focused, balanced, coverage, custom }
-
-enum _MemberStatusFilter { all, alive, deceased }
-
 enum _GenealogyHonorBadge {
   giaTruong,
   dichTonGiaDinh,
@@ -52,12 +52,16 @@ enum _GenealogyHonorBadge {
 
 class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     with TickerProviderStateMixin {
+  static const _minTreeScale = 0.22;
+  static const _maxTreeScale = 2.8;
   static const _nodeWidth = 232.0;
   static const _nodeHeight = 146.0;
-  static const _rowSpacing = 128.0;
-  static const _columnSpacing = 48.0;
+  static const _rowSpacing = 136.0;
+  static const _columnSpacing = 58.0;
   static const _canvasPadding = 40.0;
 
+  final GlobalKey _treePrintBoundaryKey = GlobalKey();
+  final GlobalKey _treeCanvasPrintBoundaryKey = GlobalKey();
   late final TransformationController _transformController;
   final _layoutProfiler = _TreeLayoutProfiler(windowSize: 20);
   final _performanceLogger = PerformanceMeasurementLogger(
@@ -72,24 +76,19 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   bool _isLoading = true;
   bool _isSubmittingAddClan = false;
   bool _isSubmittingAddBranch = false;
+  bool _showAddFabMenu = false;
+  bool _shouldAutoFitTree = true;
 
   String? _rootMemberId;
   String? _selectedMemberId;
-  int _ancestorDepth = 1;
-  int _descendantDepth = 1;
-  _TreeDisplayPreset _displayPreset = _TreeDisplayPreset.focused;
-  _MemberStatusFilter _statusFilter = _MemberStatusFilter.all;
-  String? _branchFilterId;
   _TreeScene? _cachedScene;
   GenealogyReadSegment? _cachedSceneSegment;
   String _cachedSceneRootId = '';
-  int _cachedSceneAncestorDepth = 1;
-  int _cachedSceneDescendantDepth = 1;
 
   @override
   void initState() {
     super.initState();
-    _scopeType = _resolveInitialScope(widget.session);
+    _scopeType = GenealogyScopeType.clan;
     _transformController = TransformationController();
     _clanRepository = createDefaultClanRepository(session: widget.session);
     unawaited(_load());
@@ -146,359 +145,274 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
 
     final segment = _segment!;
     final scene = _resolveTreeScene(segment);
+    final relativeLevelsByCurrentUser = _resolveRelativeLevelsByCurrentUser(
+      segment.graph,
+    );
     final siblingOrdersByMember = _resolveSiblingOrders(segment.graph);
     final honorBadgesByMember = _resolveHonorBadges(
       segment.graph,
       siblingOrdersByMember,
     );
-    final filteredRoots = _filteredRootEntries(segment);
-    final rootEntriesForSelector = filteredRoots.isEmpty
-        ? segment.rootEntries
-        : filteredRoots;
-    final canExpandAncestors = _hasHiddenAncestors(segment.graph, scene);
-    final canExpandDescendants = _hasHiddenDescendants(segment.graph, scene);
 
-    return RefreshIndicator(
-      onRefresh: () => _load(allowCached: false),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-        children: [
-          _LandingCard(
-            scopeType: _scopeType,
-            isLoading: _isLoading,
-            isFromCache: segment.fromCache,
-            onRefresh: _isLoading ? null : () => _load(allowCached: false),
-            onScopeChanged: _updateScope,
-            session: widget.session,
-          ),
-          if (rootEntriesForSelector.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _RootSelector(
-              rootEntries: rootEntriesForSelector,
-              selectedRootId: _rootMemberId,
-              resolveMember: (memberId) => segment.graph.membersById[memberId],
-              onRootSelected: _setRootMember,
-              reasonLabel: (reason) => _rootReasonLabel(l10n, reason),
-            ),
-          ],
-          const SizedBox(height: 16),
-          _ViewControlCard(
-            displayPreset: _displayPreset,
-            onDisplayPresetChanged: _applyDisplayPreset,
-            onAddGenealogyPressed: _isSubmittingAddClan
-                ? null
-                : _openAddPrivateGenealogySheet,
-            onAddBranchPressed: _isSubmittingAddBranch
-                ? null
-                : _openAddPrivateBranchSheet,
-            statusFilter: _statusFilter,
-            onStatusFilterChanged: (value) {
-              setState(() {
-                _statusFilter = value;
-                _invalidateTreeSceneCache();
-              });
-            },
-            branches: _scopeType == GenealogyScopeType.clan
-                ? segment.branches
-                : const [],
-            selectedBranchId: _scopeType == GenealogyScopeType.clan
-                ? _branchFilterId
-                : null,
-            onBranchFilterChanged: (branchId) {
-              setState(() {
-                _branchFilterId = branchId;
-                _invalidateTreeSceneCache();
-              });
-            },
-            visibleMembers: scene.visibleMemberIds.length,
-            totalMembers: segment.members.length,
-          ),
-          const SizedBox(height: 16),
-          _SummaryMetricGrid(
-            items: [
-              _SummaryMetricItem(
-                key: Key('genealogy-summary-members-${segment.members.length}'),
-                label: l10n.genealogySummaryMembers,
-                value: '${segment.members.length}',
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: () => _load(allowCached: false),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+            children: [
+              _LandingCard(
+                scopeType: _scopeType,
+                isLoading: _isLoading,
+                isFromCache: segment.fromCache,
+                onRefresh: _isLoading ? null : () => _load(allowCached: false),
+                onScopeChanged: _updateScope,
+                allowBranchScope: false,
+                session: widget.session,
+                memberCount: segment.graph.membersById.length,
+                branchCount: segment.branches.length,
               ),
-              _SummaryMetricItem(
-                key: Key(
-                  'genealogy-summary-relationships-${segment.relationships.length}',
-                ),
-                label: l10n.genealogySummaryRelationships,
-                value: '${segment.relationships.length}',
-              ),
-              _SummaryMetricItem(
-                key: Key(
-                  'genealogy-summary-roots-${segment.rootEntries.length}',
-                ),
-                label: l10n.genealogySummaryRoots,
-                value: '${segment.rootEntries.length}',
-              ),
-              _SummaryMetricItem(
-                key: Key('genealogy-summary-scope-${segment.scope.type.name}'),
-                label: l10n.genealogySummaryScope,
-                value: _scopeLabel(l10n, segment.scope.type),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(26),
-              side: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 640;
-
-                  final parentControl = _DepthControl(
-                    id: 'parents',
-                    label: l10n.relationshipParentsTitle,
-                    depth: _ancestorDepth,
-                    canIncrease: canExpandAncestors,
-                    canDecrease: _ancestorDepth > 1,
-                    onIncrease: () {
-                      setState(() {
-                        _ancestorDepth += 1;
-                        _displayPreset = _presetForDepths(
-                          _ancestorDepth,
-                          _descendantDepth,
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 620,
+                child: RepaintBoundary(
+                  key: _treePrintBoundaryKey,
+                  child: Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final viewport = Size(
+                          constraints.maxWidth,
+                          constraints.maxHeight,
                         );
-                        _invalidateTreeSceneCache();
-                      });
-                    },
-                    onDecrease: () {
-                      setState(() {
-                        _ancestorDepth = (_ancestorDepth - 1).clamp(1, 24);
-                        _displayPreset = _presetForDepths(
-                          _ancestorDepth,
-                          _descendantDepth,
-                        );
-                        _invalidateTreeSceneCache();
-                      });
-                    },
-                  );
-                  final childControl = _DepthControl(
-                    id: 'children',
-                    label: l10n.relationshipChildrenTitle,
-                    depth: _descendantDepth,
-                    canIncrease: canExpandDescendants,
-                    canDecrease: _descendantDepth > 1,
-                    onIncrease: () {
-                      setState(() {
-                        _descendantDepth += 1;
-                        _displayPreset = _presetForDepths(
-                          _ancestorDepth,
-                          _descendantDepth,
-                        );
-                        _invalidateTreeSceneCache();
-                      });
-                    },
-                    onDecrease: () {
-                      setState(() {
-                        _descendantDepth = (_descendantDepth - 1).clamp(1, 24);
-                        _displayPreset = _presetForDepths(
-                          _ancestorDepth,
-                          _descendantDepth,
-                        );
-                        _invalidateTreeSceneCache();
-                      });
-                    },
-                  );
-
-                  if (compact) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        parentControl,
-                        const SizedBox(height: 10),
-                        childControl,
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    children: [
-                      Expanded(child: parentControl),
-                      const SizedBox(width: 12),
-                      Expanded(child: childControl),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 620,
-            child: Card(
-              clipBehavior: Clip.antiAlias,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final viewport = Size(
-                    constraints.maxWidth,
-                    constraints.maxHeight,
-                  );
-                  return Stack(
-                    children: [
-                      Positioned.fill(
-                        child: InteractiveViewer(
-                          transformationController: _transformController,
-                          constrained: false,
-                          boundaryMargin: const EdgeInsets.all(220),
-                          minScale: 0.4,
-                          maxScale: 2.8,
-                          child: SizedBox(
-                            width: scene.canvasSize.width,
-                            height: scene.canvasSize.height,
-                            child: Stack(
-                              children: [
-                                Positioned.fill(
-                                  child: CustomPaint(
-                                    key: const Key('tree-connectors'),
-                                    painter: _TreeConnectorPainter(
-                                      parentChildEdges: scene.parentChildEdges,
-                                      spouseEdges: scene.spouseEdges,
-                                      nodeRects: scene.nodeRects,
-                                      selectedMemberId: _selectedMemberId,
+                        if (_shouldAutoFitTree && scene.nodeRects.isNotEmpty) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted || !_shouldAutoFitTree) {
+                              return;
+                            }
+                            _shouldAutoFitTree = false;
+                            _fitTreeToViewport(
+                              scene: scene,
+                              viewport: viewport,
+                              focusMemberId: _rootMemberId,
+                            );
+                          });
+                        }
+                        return Stack(
+                          children: [
+                            Positioned.fill(
+                              child: InteractiveViewer(
+                                transformationController: _transformController,
+                                constrained: false,
+                                boundaryMargin: const EdgeInsets.all(220),
+                                minScale: _minTreeScale,
+                                maxScale: _maxTreeScale,
+                                child: RepaintBoundary(
+                                  key: _treeCanvasPrintBoundaryKey,
+                                  child: SizedBox(
+                                    width: scene.canvasSize.width,
+                                    height: scene.canvasSize.height,
+                                    child: Stack(
+                                      children: [
+                                        Positioned.fill(
+                                          child: CustomPaint(
+                                            key: const Key('tree-connectors'),
+                                            painter: _TreeConnectorPainter(
+                                              parentChildEdges:
+                                                  scene.parentChildEdges,
+                                              nodeRects: scene.nodeRects,
+                                              selectedMemberId:
+                                                  _selectedMemberId,
+                                            ),
+                                          ),
+                                        ),
+                                        for (final entry
+                                            in scene.nodeRects.entries)
+                                          Positioned(
+                                            left: entry.value.left,
+                                            top: entry.value.top,
+                                            width: entry.value.width,
+                                            height: entry.value.height,
+                                            child: _MemberNodeCard(
+                                              key: Key(
+                                                'tree-node-${entry.key}',
+                                              ),
+                                              member: segment
+                                                  .graph
+                                                  .membersById[entry.key]!,
+                                              siblingOrderLabel:
+                                                  _siblingOrderLabel(
+                                                    l10n,
+                                                    siblingOrdersByMember[entry
+                                                            .key] ??
+                                                        segment
+                                                            .graph
+                                                            .membersById[entry
+                                                                .key]!
+                                                            .siblingOrder,
+                                                  ),
+                                              honorBadges: _honorBadgeLabels(
+                                                l10n,
+                                                honorBadgesByMember[entry
+                                                        .key] ??
+                                                    const [],
+                                              ),
+                                              generationLabel:
+                                                  _memberGenerationLabelForDisplay(
+                                                    l10n: l10n,
+                                                    generation: segment
+                                                        .graph
+                                                        .membersById[entry.key]!
+                                                        .generation,
+                                                    relativeLevel:
+                                                        relativeLevelsByCurrentUser[entry
+                                                            .key],
+                                                    compact: true,
+                                                  ),
+                                              parentCount: segment.graph
+                                                  .parentsOf(entry.key)
+                                                  .length,
+                                              childCount: segment.graph
+                                                  .childrenOf(entry.key)
+                                                  .length,
+                                              spouseCount: segment.graph
+                                                  .spousesOf(entry.key)
+                                                  .length,
+                                              isAlive: _isMemberAlive(
+                                                segment.graph.membersById[entry
+                                                    .key]!,
+                                              ),
+                                              aliveStatusLabel: l10n
+                                                  .genealogyMemberAliveStatus,
+                                              deceasedStatusLabel: l10n
+                                                  .genealogyMemberDeceasedStatus,
+                                              isSelected:
+                                                  _selectedMemberId ==
+                                                  entry.key,
+                                              onTap: () {
+                                                final member = segment
+                                                    .graph
+                                                    .membersById[entry.key]!;
+                                                setState(() {
+                                                  _selectedMemberId = member.id;
+                                                });
+                                                _centerOnMember(
+                                                  memberId: member.id,
+                                                  scene: scene,
+                                                  viewport: viewport,
+                                                );
+                                                unawaited(
+                                                  _openMemberDetailSheet(
+                                                    member: member,
+                                                    graph: segment.graph,
+                                                    branches: segment.branches,
+                                                    siblingOrder:
+                                                        siblingOrdersByMember[member
+                                                            .id] ??
+                                                        member.siblingOrder,
+                                                    honorBadges:
+                                                        honorBadgesByMember[member
+                                                            .id] ??
+                                                        const [],
+                                                    relativeLevelsByCurrentUser:
+                                                        relativeLevelsByCurrentUser,
+                                                  ),
+                                                );
+                                              },
+                                              onViewMemberInfo: () {
+                                                final member = segment
+                                                    .graph
+                                                    .membersById[entry.key]!;
+                                                setState(() {
+                                                  _selectedMemberId = member.id;
+                                                });
+                                                _centerOnMember(
+                                                  memberId: member.id,
+                                                  scene: scene,
+                                                  viewport: viewport,
+                                                );
+                                                unawaited(
+                                                  _openMemberDetailPage(
+                                                    member: member,
+                                                    graph: segment.graph,
+                                                    branches: segment.branches,
+                                                    siblingOrder:
+                                                        siblingOrdersByMember[member
+                                                            .id] ??
+                                                        member.siblingOrder,
+                                                    honorBadges:
+                                                        honorBadgesByMember[member
+                                                            .id] ??
+                                                        const [],
+                                                    relativeLevelsByCurrentUser:
+                                                        relativeLevelsByCurrentUser,
+                                                  ),
+                                                );
+                                              },
+                                              viewInfoTooltip: l10n
+                                                  .genealogyViewMemberInfoAction,
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
                                 ),
-                                for (final entry in scene.nodeRects.entries)
-                                  Positioned(
-                                    left: entry.value.left,
-                                    top: entry.value.top,
-                                    width: entry.value.width,
-                                    height: entry.value.height,
-                                    child: _MemberNodeCard(
-                                      key: Key('tree-node-${entry.key}'),
-                                      member:
-                                          segment.graph.membersById[entry.key]!,
-                                      siblingOrderLabel: _siblingOrderLabel(
-                                        l10n,
-                                        siblingOrdersByMember[entry.key] ??
-                                            segment
-                                                .graph
-                                                .membersById[entry.key]!
-                                                .siblingOrder,
-                                      ),
-                                      honorBadges: _honorBadgeLabels(
-                                        l10n,
-                                        honorBadgesByMember[entry.key] ??
-                                            const [],
-                                      ),
-                                      generationLabel:
-                                          segment
-                                              .graph
-                                              .generationLabels[entry.key]
-                                              ?.compactLabel ??
-                                          'G${segment.graph.membersById[entry.key]!.generation}',
-                                      parentCount: segment.graph
-                                          .parentsOf(entry.key)
-                                          .length,
-                                      childCount: segment.graph
-                                          .childrenOf(entry.key)
-                                          .length,
-                                      spouseCount: segment.graph
-                                          .spousesOf(entry.key)
-                                          .length,
-                                      isAlive: _isMemberAlive(
-                                        segment.graph.membersById[entry.key]!,
-                                      ),
-                                      aliveStatusLabel:
-                                          l10n.genealogyMemberAliveStatus,
-                                      deceasedStatusLabel:
-                                          l10n.genealogyMemberDeceasedStatus,
-                                      isSelected:
-                                          _selectedMemberId == entry.key,
-                                      onTap: () {
-                                        final member = segment
-                                            .graph
-                                            .membersById[entry.key]!;
-                                        setState(() {
-                                          _selectedMemberId = member.id;
-                                        });
-                                        _centerOnMember(
-                                          memberId: member.id,
-                                          scene: scene,
-                                          viewport: viewport,
-                                        );
-                                        unawaited(
-                                          _openMemberDetailSheet(
-                                            member: member,
-                                            graph: segment.graph,
-                                            branches: segment.branches,
-                                            siblingOrder:
-                                                siblingOrdersByMember[member
-                                                    .id] ??
-                                                member.siblingOrder,
-                                            honorBadges:
-                                                honorBadgesByMember[member
-                                                    .id] ??
-                                                const [],
-                                          ),
-                                        );
-                                      },
-                                      onViewMemberInfo: () {
-                                        final member = segment
-                                            .graph
-                                            .membersById[entry.key]!;
-                                        setState(() {
-                                          _selectedMemberId = member.id;
-                                        });
-                                        _centerOnMember(
-                                          memberId: member.id,
-                                          scene: scene,
-                                          viewport: viewport,
-                                        );
-                                        unawaited(
-                                          _openMemberDetailPage(
-                                            member: member,
-                                            graph: segment.graph,
-                                            branches: segment.branches,
-                                            siblingOrder:
-                                                siblingOrdersByMember[member
-                                                    .id] ??
-                                                member.siblingOrder,
-                                            honorBadges:
-                                                honorBadgesByMember[member
-                                                    .id] ??
-                                                const [],
-                                          ),
-                                        );
-                                      },
-                                      viewInfoTooltip:
-                                          l10n.genealogyViewMemberInfoAction,
-                                    ),
-                                  ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        left: 12,
-                        bottom: 12,
-                        child: _TreeZoomControls(
-                          onZoomIn: _zoomIn,
-                          onZoomOut: _zoomOut,
-                          onReset: _resetTreeViewport,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                            Positioned(
+                              left: 12,
+                              top: 12,
+                              child: _TreeZoomControls(
+                                onZoomIn: _zoomIn,
+                                onZoomOut: _zoomOut,
+                                onReset: _resetTreeViewport,
+                                onPrint: _printTree,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          right: 20,
+          bottom: 20,
+          child: _AddActionFab(
+            isMenuOpen: _showAddFabMenu,
+            canAddGenealogy: !_isSubmittingAddClan,
+            canAddBranch: !_isSubmittingAddBranch,
+            canAddMember: true,
+            onToggleMenu: () {
+              setState(() {
+                _showAddFabMenu = !_showAddFabMenu;
+              });
+            },
+            onAddGenealogy: () async {
+              setState(() {
+                _showAddFabMenu = false;
+              });
+              await _openAddPrivateGenealogySheet();
+            },
+            onAddBranch: () async {
+              setState(() {
+                _showAddFabMenu = false;
+              });
+              await _openAddPrivateBranchSheet();
+            },
+            onAddMember: () async {
+              setState(() {
+                _showAddFabMenu = false;
+              });
+              await _openAddMemberWorkspace();
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -527,12 +441,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       setState(() {
         _segment = segment;
         _isLoading = false;
-        if (_branchFilterId != null &&
-            !segment.branches.any((branch) => branch.id == _branchFilterId)) {
-          _branchFilterId = null;
-        }
         _rootMemberId = _rootMemberId ?? initialFocus;
         _selectedMemberId = _selectedMemberId ?? initialFocus;
+        _shouldAutoFitTree = true;
         _invalidateTreeSceneCache();
       });
 
@@ -553,6 +464,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   }
 
   void _updateScope(GenealogyScopeType value) {
+    if (value != GenealogyScopeType.clan) {
+      return;
+    }
     if (_scopeType == value) {
       return;
     }
@@ -560,12 +474,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       _scopeType = value;
       _rootMemberId = null;
       _selectedMemberId = null;
-      _ancestorDepth = 1;
-      _descendantDepth = 1;
-      _displayPreset = _TreeDisplayPreset.focused;
-      _statusFilter = _MemberStatusFilter.all;
-      _branchFilterId = null;
       _transformController.value = Matrix4.identity();
+      _shouldAutoFitTree = true;
       _invalidateTreeSceneCache();
     });
     unawaited(_load());
@@ -584,20 +494,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       return segment.members.first.id;
     }
     return '';
-  }
-
-  void _setRootMember(String memberId) {
-    setState(() {
-      _rootMemberId = memberId;
-      _selectedMemberId = memberId;
-      if (_displayPreset != _TreeDisplayPreset.custom) {
-        _ancestorDepth = 1;
-        _descendantDepth = 1;
-        _displayPreset = _TreeDisplayPreset.focused;
-      }
-      _transformController.value = Matrix4.identity();
-      _invalidateTreeSceneCache();
-    });
   }
 
   Future<void> _openAddPrivateGenealogySheet() async {
@@ -828,55 +724,33 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     }
   }
 
-  void _applyDisplayPreset(_TreeDisplayPreset preset) {
-    setState(() {
-      _displayPreset = preset;
-      switch (preset) {
-        case _TreeDisplayPreset.focused:
-          _ancestorDepth = 1;
-          _descendantDepth = 1;
-        case _TreeDisplayPreset.balanced:
-          _ancestorDepth = 2;
-          _descendantDepth = 2;
-        case _TreeDisplayPreset.coverage:
-          _ancestorDepth = 4;
-          _descendantDepth = 4;
-        case _TreeDisplayPreset.custom:
-          break;
+  Future<void> _openAddMemberWorkspace() async {
+    if ((widget.session.clanId ?? '').trim().isEmpty) {
+      if (!mounted) {
+        return;
       }
-      _invalidateTreeSceneCache();
-    });
-  }
-
-  _TreeDisplayPreset _presetForDepths(int ancestorDepth, int descendantDepth) {
-    if (ancestorDepth == 1 && descendantDepth == 1) {
-      return _TreeDisplayPreset.focused;
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick(
+                vi: 'Cần chọn gia phả đang hoạt động trước khi thêm thành viên.',
+                en: 'Please select an active clan before adding a member.',
+              ),
+            ),
+          ),
+        );
+      return;
     }
-    if (ancestorDepth == 2 && descendantDepth == 2) {
-      return _TreeDisplayPreset.balanced;
-    }
-    if (ancestorDepth == 4 && descendantDepth == 4) {
-      return _TreeDisplayPreset.coverage;
-    }
-    return _TreeDisplayPreset.custom;
-  }
-
-  List<GenealogyRootEntry> _filteredRootEntries(GenealogyReadSegment segment) {
-    final roots = segment.rootEntries
-        .where((entry) {
-          final member = segment.graph.membersById[entry.memberId];
-          if (member == null) {
-            return false;
-          }
-          if (entry.memberId == _selectedMemberId ||
-              entry.memberId == _rootMemberId) {
-            return true;
-          }
-          return _matchesViewFilters(member);
-        })
-        .toList(growable: false);
-
-    return roots;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => MemberWorkspacePage(
+          session: widget.session,
+          repository: createDefaultMemberRepository(session: widget.session),
+        ),
+      ),
+    );
   }
 
   _TreeScene _resolveTreeScene(GenealogyReadSegment segment) {
@@ -884,9 +758,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     final canReuse =
         _cachedScene != null &&
         identical(_cachedSceneSegment, segment) &&
-        _cachedSceneRootId == rootId &&
-        _cachedSceneAncestorDepth == _ancestorDepth &&
-        _cachedSceneDescendantDepth == _descendantDepth;
+        _cachedSceneRootId == rootId;
     if (canReuse) {
       return _cachedScene!;
     }
@@ -895,8 +767,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     _cachedScene = scene;
     _cachedSceneSegment = segment;
     _cachedSceneRootId = rootId;
-    _cachedSceneAncestorDepth = _ancestorDepth;
-    _cachedSceneDescendantDepth = _descendantDepth;
     return scene;
   }
 
@@ -948,6 +818,15 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     }
 
     final sortedLevels = idsByLevel.keys.toList()..sort();
+    final optimizedRows = _optimizeRowOrdering(
+      sortedLevels: sortedLevels,
+      idsByLevel: idsByLevel,
+      graph: graph,
+      levels: levels,
+    );
+    for (final entry in optimizedRows.entries) {
+      idsByLevel[entry.key] = entry.value;
+    }
     final maxColumns = idsByLevel.values.fold<int>(
       1,
       (current, list) => list.length > current ? list.length : current,
@@ -1034,96 +913,100 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     );
   }
 
+  Map<int, List<String>> _optimizeRowOrdering({
+    required List<int> sortedLevels,
+    required Map<int, List<String>> idsByLevel,
+    required GenealogyGraph graph,
+    required Map<String, int> levels,
+  }) {
+    final orderedByLevel = <int, List<String>>{};
+    for (final level in sortedLevels) {
+      final row = List<String>.from(idsByLevel[level] ?? const []);
+      row.sort((left, right) {
+        final leftAnchor = _memberAnchorIndex(
+          memberId: left,
+          graph: graph,
+          levels: levels,
+          orderedByLevel: orderedByLevel,
+        );
+        final rightAnchor = _memberAnchorIndex(
+          memberId: right,
+          graph: graph,
+          levels: levels,
+          orderedByLevel: orderedByLevel,
+        );
+        if (leftAnchor != null && rightAnchor != null) {
+          final byAnchor = leftAnchor.compareTo(rightAnchor);
+          if (byAnchor != 0) {
+            return byAnchor;
+          }
+        } else if (leftAnchor != null) {
+          return -1;
+        } else if (rightAnchor != null) {
+          return 1;
+        }
+
+        final leftMember = graph.membersById[left]!;
+        final rightMember = graph.membersById[right]!;
+        final byGeneration = leftMember.generation.compareTo(
+          rightMember.generation,
+        );
+        if (byGeneration != 0) {
+          return byGeneration;
+        }
+        return leftMember.fullName.compareTo(rightMember.fullName);
+      });
+      orderedByLevel[level] = row;
+    }
+    return orderedByLevel;
+  }
+
+  double? _memberAnchorIndex({
+    required String memberId,
+    required GenealogyGraph graph,
+    required Map<String, int> levels,
+    required Map<int, List<String>> orderedByLevel,
+  }) {
+    final anchors = <double>[];
+    for (final parentId in graph.parentsOf(memberId)) {
+      final parentLevel = levels[parentId];
+      if (parentLevel == null) {
+        continue;
+      }
+      final parentRow = orderedByLevel[parentLevel];
+      if (parentRow == null) {
+        continue;
+      }
+      final index = parentRow.indexOf(parentId);
+      if (index >= 0) {
+        anchors.add(index.toDouble());
+      }
+    }
+    for (final spouseId in graph.spousesOf(memberId)) {
+      final spouseLevel = levels[spouseId];
+      if (spouseLevel == null) {
+        continue;
+      }
+      final spouseRow = orderedByLevel[spouseLevel];
+      if (spouseRow == null) {
+        continue;
+      }
+      final index = spouseRow.indexOf(spouseId);
+      if (index >= 0) {
+        anchors.add(index.toDouble());
+      }
+    }
+    if (anchors.isEmpty) {
+      return null;
+    }
+    return anchors.reduce((sum, value) => sum + value) / anchors.length;
+  }
+
   Set<String> _buildVisibleMemberIds({
     required GenealogyGraph graph,
     required String rootId,
   }) {
-    final allMembers = graph.membersById.keys.toSet();
-    if (rootId.isEmpty || !graph.membersById.containsKey(rootId)) {
-      return _applyVisibilityFilters(allMembers, rootId: rootId);
-    }
-
-    final visibleFromFocus = <String>{rootId};
-    var ancestors = <String>{rootId};
-    for (var level = 0; level < _ancestorDepth; level++) {
-      final next = <String>{};
-      for (final memberId in ancestors) {
-        for (final parentId in graph.parentsOf(memberId)) {
-          if (visibleFromFocus.add(parentId)) {
-            next.add(parentId);
-          }
-          visibleFromFocus.addAll(graph.spousesOf(parentId));
-        }
-      }
-      ancestors = next;
-      if (ancestors.isEmpty) {
-        break;
-      }
-    }
-
-    var descendants = <String>{rootId};
-    for (var level = 0; level < _descendantDepth; level++) {
-      final next = <String>{};
-      for (final memberId in descendants) {
-        for (final childId in graph.childrenOf(memberId)) {
-          if (visibleFromFocus.add(childId)) {
-            next.add(childId);
-          }
-          visibleFromFocus.addAll(graph.spousesOf(childId));
-        }
-      }
-      descendants = next;
-      if (descendants.isEmpty) {
-        break;
-      }
-    }
-
-    for (final memberId in visibleFromFocus.toList()) {
-      visibleFromFocus.addAll(graph.spousesOf(memberId));
-    }
-
-    final shouldShowScopeCoverage =
-        _displayPreset == _TreeDisplayPreset.coverage;
-    final baseVisible = shouldShowScopeCoverage ? allMembers : visibleFromFocus;
-    return _applyVisibilityFilters(baseVisible, rootId: rootId);
-  }
-
-  Set<String> _applyVisibilityFilters(
-    Set<String> baseVisible, {
-    required String rootId,
-  }) {
-    if (_branchFilterId == null && _statusFilter == _MemberStatusFilter.all) {
-      return baseVisible;
-    }
-
-    final graph = _segment?.graph;
-    if (graph == null) {
-      return baseVisible;
-    }
-
-    final filtered = <String>{};
-    for (final memberId in baseVisible) {
-      final member = graph.membersById[memberId];
-      if (member == null) {
-        continue;
-      }
-      if (_matchesViewFilters(member)) {
-        filtered.add(memberId);
-      }
-    }
-
-    if (rootId.isNotEmpty && baseVisible.contains(rootId)) {
-      filtered.add(rootId);
-    }
-    if (_selectedMemberId != null && baseVisible.contains(_selectedMemberId!)) {
-      filtered.add(_selectedMemberId!);
-    }
-
-    if (filtered.isEmpty && baseVisible.isNotEmpty) {
-      filtered.add(rootId.isNotEmpty ? rootId : baseVisible.first);
-    }
-
-    return filtered;
+    return graph.membersById.keys.toSet();
   }
 
   Map<String, int> _buildRelativeLevels({
@@ -1186,28 +1069,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     return levels;
   }
 
-  bool _hasHiddenAncestors(GenealogyGraph graph, _TreeScene scene) {
-    for (final memberId in scene.visibleMemberIds) {
-      if (graph
-          .parentsOf(memberId)
-          .any((parent) => !scene.visibleMemberIds.contains(parent))) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  bool _hasHiddenDescendants(GenealogyGraph graph, _TreeScene scene) {
-    for (final memberId in scene.visibleMemberIds) {
-      if (graph
-          .childrenOf(memberId)
-          .any((child) => !scene.visibleMemberIds.contains(child))) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   void _centerOnMember({
     required String memberId,
     required _TreeScene scene,
@@ -1228,8 +1089,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     }
 
     final scale = _transformController.value.getMaxScaleOnAxis().clamp(
-      0.4,
-      2.8,
+      _minTreeScale,
+      _maxTreeScale,
     );
     final target = Matrix4.identity()
       ..translateByDouble(
@@ -1240,21 +1101,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       )
       ..scaleByDouble(scale, scale, scale, 1);
 
-    _centerAnimController?.dispose();
-    _centerAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 260),
-    );
-    final tween = Matrix4Tween(begin: _transformController.value, end: target);
-    final animation = CurvedAnimation(
-      parent: _centerAnimController!,
-      curve: Curves.easeOutCubic,
-    );
-    _centerAnimController!
-      ..addListener(() {
-        _transformController.value = tween.evaluate(animation);
-      })
-      ..forward();
+    _animateTransformTo(target, duration: const Duration(milliseconds: 260));
   }
 
   Future<void> _openMemberDetailSheet({
@@ -1263,6 +1110,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required List<BranchProfile> branches,
     required int? siblingOrder,
     required List<_GenealogyHonorBadge> honorBadges,
+    required Map<String, int?> relativeLevelsByCurrentUser,
   }) async {
     final l10n = context.l10n;
     final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
@@ -1273,6 +1121,60 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       graph: graph,
       memberId: member.id,
     );
+    final statusLabel = _isMemberAlive(member)
+        ? l10n.genealogyMemberAliveStatus
+        : l10n.genealogyMemberDeceasedStatus;
+    final generationLabel = _memberGenerationLabelForDisplay(
+      l10n: l10n,
+      generation: member.generation,
+      relativeLevel: relativeLevelsByCurrentUser[member.id],
+      compact: true,
+    );
+    final siblingLabel =
+        _siblingOrderLabel(l10n, siblingOrder) ?? l10n.memberFieldUnset;
+    final honorBadgeLabels = _honorBadgeLabels(l10n, honorBadges);
+    final honorBadgeLabel = honorBadgeLabels.isEmpty
+        ? l10n.memberFieldUnset
+        : honorBadgeLabels.join(' • ');
+
+    final compactFacts = <_CompactFactItem>[
+      _CompactFactItem(
+        label: l10n.genealogyMemberStatusLabel,
+        value: statusLabel,
+      ),
+      _CompactFactItem(
+        label: l10n.pick(vi: 'Đời trong gia phả', en: 'Generation'),
+        value: generationLabel,
+      ),
+      _CompactFactItem(
+        label: l10n.pick(vi: 'Thứ bậc anh/chị/em', en: 'Sibling order'),
+        value: siblingLabel,
+      ),
+      _CompactFactItem(
+        label: l10n.pick(vi: 'Vai trò trong họ', en: 'Honor badges'),
+        value: honorBadgeLabel,
+      ),
+      _CompactFactItem(
+        label: l10n.pick(vi: 'Số cha/mẹ', en: 'Parents'),
+        value: '${graph.parentsOf(member.id).length}',
+      ),
+      _CompactFactItem(
+        label: l10n.pick(vi: 'Số con', en: 'Children'),
+        value: '${graph.childrenOf(member.id).length}',
+      ),
+      _CompactFactItem(
+        label: l10n.pick(vi: 'Số vợ/chồng', en: 'Spouses'),
+        value: '${graph.spousesOf(member.id).length}',
+      ),
+      _CompactFactItem(
+        label: l10n.pick(vi: 'Tổng con cháu', en: 'Descendants'),
+        value: '${descendants.length}',
+      ),
+      _CompactFactItem(
+        label: l10n.pick(vi: 'Số đời tổ tiên', en: 'Ancestry depth'),
+        value: '${ancestry.length}',
+      ),
+    ];
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -1286,88 +1188,64 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  member.fullName,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                if (member.nickName.trim().isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(member.nickName, style: theme.textTheme.bodyLarge),
-                ],
-                const SizedBox(height: 14),
-                _FactLine(
-                  label: l10n.genealogyMemberStatusLabel,
-                  value: _isMemberAlive(member)
-                      ? l10n.genealogyMemberAliveStatus
-                      : l10n.genealogyMemberDeceasedStatus,
-                ),
-                _FactLine(
-                  label: l10n.genealogyGenerationLabel,
-                  value:
-                      graph.generationLabels[member.id]?.compactLabel ??
-                      'G${member.generation}',
-                ),
-                _FactLine(
-                  label: l10n.pick(
-                    vi: 'Thứ tự anh/chị/em',
-                    en: 'Sibling order',
-                  ),
-                  value:
-                      _siblingOrderLabel(l10n, siblingOrder) ??
-                      l10n.memberFieldUnset,
-                ),
-                _FactLine(
-                  label: l10n.pick(vi: 'Danh vị', en: 'Honor badges'),
-                  value: _honorBadgeLabels(l10n, honorBadges).isEmpty
-                      ? l10n.memberFieldUnset
-                      : _honorBadgeLabels(l10n, honorBadges).join(' • '),
-                ),
-                _FactLine(
-                  label: l10n.genealogyParentCountLabel,
-                  value: '${graph.parentsOf(member.id).length}',
-                ),
-                _FactLine(
-                  label: l10n.genealogyChildCountLabel,
-                  value: '${graph.childrenOf(member.id).length}',
-                ),
-                _FactLine(
-                  label: l10n.genealogySpouseCountLabel,
-                  value: '${graph.spousesOf(member.id).length}',
-                ),
-                _FactLine(
-                  label: l10n.genealogyDescendantCountLabel,
-                  value: '${descendants.length}',
-                ),
-                _FactLine(
-                  label: l10n.genealogyAncestryPathTitle,
-                  value: '${ancestry.length}',
-                  isLast: true,
-                ),
-                const SizedBox(height: 16),
-                FilledButton.tonalIcon(
-                  key: const Key('genealogy-open-member-detail-action'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    unawaited(
-                      _openMemberDetailPage(
-                        member: member,
-                        graph: graph,
-                        branches: branches,
-                        siblingOrder: siblingOrder,
-                        honorBadges: honorBadges,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            member.fullName,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (member.nickName.trim().isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              member.nickName,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.open_in_new),
-                  label: Text(
-                    l10n.pick(
-                      vi: 'Mở chi tiết thành viên',
-                      en: 'Open member details',
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      key: const Key('genealogy-open-member-detail-action'),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        minimumSize: const Size(0, 34),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        unawaited(
+                          _openMemberDetailPage(
+                            member: member,
+                            graph: graph,
+                            branches: branches,
+                            siblingOrder: siblingOrder,
+                            honorBadges: honorBadges,
+                            relativeLevelsByCurrentUser:
+                                relativeLevelsByCurrentUser,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: Text(l10n.pick(vi: 'Xem chi tiết', en: 'Details')),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 12),
+                _CompactFactGrid(items: compactFacts),
               ],
             ),
           ),
@@ -1382,6 +1260,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required List<BranchProfile> branches,
     required int? siblingOrder,
     required List<_GenealogyHonorBadge> honorBadges,
+    required Map<String, int?> relativeLevelsByCurrentUser,
   }) async {
     final l10n = context.l10n;
     final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
@@ -1409,9 +1288,11 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
             branchName: branchName,
             siblingOrderLabel: _siblingOrderLabel(l10n, siblingOrder),
             honorBadges: _honorBadgeLabels(l10n, honorBadges),
-            generationLabel:
-                graph.generationLabels[member.id]?.compactLabel ??
-                'G${member.generation}',
+            generationLabel: _memberGenerationLabelForDisplay(
+              l10n: l10n,
+              generation: member.generation,
+              relativeLevel: relativeLevelsByCurrentUser[member.id],
+            ),
             ancestryCount: ancestry.length,
             descendantCount: descendants.length,
             parentCount: graph.parentsOf(member.id).length,
@@ -1473,9 +1354,88 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       return null;
     }
     if (siblingOrder == 1) {
-      return l10n.pick(vi: 'Con cả', en: 'First-born child');
+      return l10n.pick(vi: 'Con trưởng', en: 'First-born child');
     }
     return l10n.pick(vi: 'Con thứ $siblingOrder', en: 'Child #$siblingOrder');
+  }
+
+  String _memberGenerationLabelForDisplay({
+    required AppLocalizations l10n,
+    required int generation,
+    required int? relativeLevel,
+    bool compact = false,
+  }) {
+    final base = compact
+        ? l10n.pick(vi: 'Đời $generation', en: 'Gen $generation')
+        : l10n.pick(vi: 'Đời thứ $generation', en: 'Generation $generation');
+    if (relativeLevel == null) {
+      return base;
+    }
+    final relativeTitle = _relativeGenerationTitle(
+      l10n: l10n,
+      relativeLevel: relativeLevel,
+    );
+    return compact
+        ? '$base • $relativeTitle'
+        : l10n.pick(
+            vi: '$base ($relativeTitle so với bạn)',
+            en: '$base ($relativeTitle relative to you)',
+          );
+  }
+
+  Map<String, int?> _resolveRelativeLevelsByCurrentUser(GenealogyGraph graph) {
+    final fallback = {
+      for (final entry in graph.generationLabels.entries)
+        entry.key: entry.value.relativeLevel,
+    };
+    final viewerId = widget.session.memberId?.trim();
+    if (viewerId == null ||
+        viewerId.isEmpty ||
+        !graph.membersById.containsKey(viewerId)) {
+      return fallback;
+    }
+
+    final labels = GenealogyGraphAlgorithms.buildGenerationLabels(
+      membersById: graph.membersById,
+      parentMap: graph.parentMap,
+      childMap: graph.childMap,
+      spouseMap: graph.spouseMap,
+      focusMemberId: viewerId,
+    );
+    return {
+      for (final entry in labels.entries) entry.key: entry.value.relativeLevel,
+    };
+  }
+
+  String _relativeGenerationTitle({
+    required AppLocalizations l10n,
+    required int relativeLevel,
+  }) {
+    switch (relativeLevel) {
+      case -4:
+        return l10n.pick(vi: 'Cụ kỵ', en: 'Great-great-grandparent');
+      case -3:
+        return l10n.pick(vi: 'Cụ', en: 'Great-grandparent');
+      case -2:
+        return l10n.pick(vi: 'Ông/Bà', en: 'Grandparents');
+      case -1:
+        return l10n.pick(vi: 'Cha/Mẹ', en: 'Parents');
+      case 0:
+        return l10n.pick(vi: 'Tôi', en: 'Me');
+      case 1:
+        return l10n.pick(vi: 'Con', en: 'Child');
+      case 2:
+        return l10n.pick(vi: 'Cháu', en: 'Grandchild');
+      case 3:
+        return l10n.pick(vi: 'Chắt', en: 'Great-grandchild');
+      case 4:
+        return l10n.pick(vi: 'Chít', en: 'Great-great-grandchild');
+      default:
+        if (relativeLevel < -4) {
+          return l10n.pick(vi: 'Tổ tiên xa', en: 'Distant ancestor');
+        }
+        return l10n.pick(vi: 'Hậu duệ xa', en: 'Distant descendant');
+    }
   }
 
   Map<String, int> _resolveSiblingOrders(GenealogyGraph graph) {
@@ -1645,43 +1605,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     return parts.first.toLowerCase();
   }
 
-  GenealogyScopeType _resolveInitialScope(AuthSession session) {
-    final role = GovernanceRoleMatrix.normalizeRole(session.primaryRole);
-    if (role == GovernanceRoles.superAdmin ||
-        role == GovernanceRoles.clanAdmin ||
-        role == GovernanceRoles.adminSupport) {
-      return GenealogyScopeType.clan;
-    }
-    if (session.branchId != null && session.branchId!.isNotEmpty) {
-      return GenealogyScopeType.branch;
-    }
-    if (session.accessMode == AuthMemberAccessMode.claimed &&
-        session.branchId != null &&
-        session.branchId!.isNotEmpty) {
-      return GenealogyScopeType.branch;
-    }
-    return GenealogyScopeType.clan;
-  }
-
-  String _rootReasonLabel(AppLocalizations l10n, GenealogyRootReason reason) {
-    return switch (reason) {
-      GenealogyRootReason.currentMember =>
-        l10n.genealogyRootReasonCurrentMember,
-      GenealogyRootReason.clanRoot => l10n.genealogyRootReasonClanRoot,
-      GenealogyRootReason.scopeRoot => l10n.genealogyRootReasonScopeRoot,
-      GenealogyRootReason.branchLeader => l10n.genealogyRootReasonBranchLeader,
-      GenealogyRootReason.branchViceLeader =>
-        l10n.genealogyRootReasonBranchViceLeader,
-    };
-  }
-
-  String _scopeLabel(AppLocalizations l10n, GenealogyScopeType scopeType) {
-    return switch (scopeType) {
-      GenealogyScopeType.clan => l10n.genealogyScopeClan,
-      GenealogyScopeType.branch => l10n.genealogyScopeBranch,
-    };
-  }
-
   bool _isMemberAlive(MemberProfile member) {
     final deathDate = member.deathDate?.trim() ?? '';
     if (deathDate.isNotEmpty) {
@@ -1691,36 +1614,147 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     return normalizedStatus != 'deceased' && normalizedStatus != 'dead';
   }
 
-  bool _matchesViewFilters(MemberProfile member) {
-    final branchMatches =
-        _branchFilterId == null || member.branchId == _branchFilterId;
-    if (!branchMatches) {
-      return false;
-    }
-    return switch (_statusFilter) {
-      _MemberStatusFilter.all => true,
-      _MemberStatusFilter.alive => _isMemberAlive(member),
-      _MemberStatusFilter.deceased => !_isMemberAlive(member),
-    };
-  }
-
   void _zoomIn() => _scaleTree(1.16);
 
   void _zoomOut() => _scaleTree(0.86);
 
   void _resetTreeViewport() {
-    _transformController.value = Matrix4.identity();
+    setState(() {
+      _shouldAutoFitTree = true;
+    });
+  }
+
+  Future<void> _printTree() async {
+    final l10n = context.l10n;
+    try {
+      final boundaryContext = _treeCanvasPrintBoundaryKey.currentContext;
+      final boundary =
+          boundaryContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) {
+        throw StateError('Tree canvas print boundary is not ready.');
+      }
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.6);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        throw StateError('Could not encode tree image.');
+      }
+      final bytes = byteData.buffer.asUint8List();
+      final printableImage = pw.MemoryImage(bytes);
+      await Printing.layoutPdf(
+        onLayout: (format) async {
+          final prefersLandscape = image.width >= image.height;
+          final pageFormat = prefersLandscape ? format.landscape : format;
+          final pdf = pw.Document();
+          pdf.addPage(
+            pw.Page(
+              pageFormat: pageFormat,
+              margin: const pw.EdgeInsets.all(8),
+              build: (context) {
+                return pw.Center(
+                  child: pw.Image(printableImage, fit: pw.BoxFit.contain),
+                );
+              },
+            ),
+          );
+          return pdf.save();
+        },
+      );
+      image.dispose();
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick(
+                vi: 'Chưa thể in cây lúc này. Vui lòng thử lại sau.',
+                en: 'Could not print the tree right now. Please try again.',
+              ),
+            ),
+          ),
+        );
+    }
   }
 
   void _scaleTree(double ratio) {
     final currentScale = _transformController.value.getMaxScaleOnAxis();
-    final targetScale = (currentScale * ratio).clamp(0.4, 2.8);
+    final targetScale = (currentScale * ratio).clamp(
+      _minTreeScale,
+      _maxTreeScale,
+    );
     if ((targetScale - currentScale).abs() < 0.0001) {
       return;
     }
     final factor = targetScale / currentScale;
     _transformController.value = _transformController.value.clone()
       ..scaleByDouble(factor, factor, factor, 1);
+  }
+
+  void _fitTreeToViewport({
+    required _TreeScene scene,
+    required Size viewport,
+    String? focusMemberId,
+  }) {
+    if (viewport.width <= 0 || viewport.height <= 0) {
+      return;
+    }
+
+    const fitPadding = 24.0;
+    final availableWidth = math.max(1.0, viewport.width - (fitPadding * 2));
+    final availableHeight = math.max(1.0, viewport.height - (fitPadding * 2));
+    final fitScale = math.min(
+      availableWidth / scene.canvasSize.width,
+      availableHeight / scene.canvasSize.height,
+    );
+    final targetScale = fitScale.clamp(_minTreeScale, _maxTreeScale);
+    final contentWidth = scene.canvasSize.width * targetScale;
+    final contentHeight = scene.canvasSize.height * targetScale;
+
+    final focusedRect = focusMemberId == null
+        ? null
+        : scene.nodeRects[focusMemberId];
+    final preferredDx = focusedRect == null
+        ? (viewport.width - contentWidth) / 2
+        : (viewport.width / 2) -
+              ((focusedRect.left + (focusedRect.width / 2)) * targetScale);
+    final minDx = viewport.width - contentWidth - fitPadding;
+    final maxDx = fitPadding;
+    final dx = (contentWidth + (fitPadding * 2) <= viewport.width)
+        ? (viewport.width - contentWidth) / 2
+        : preferredDx.clamp(minDx, maxDx).toDouble();
+
+    final preferredDy = (viewport.height - contentHeight) / 2;
+    final minDy = viewport.height - contentHeight - fitPadding;
+    final maxDy = fitPadding;
+    final dy = (contentHeight + (fitPadding * 2) <= viewport.height)
+        ? preferredDy
+        : preferredDy.clamp(minDy, maxDy).toDouble();
+
+    final target = Matrix4.identity()
+      ..translateByDouble(dx, dy, 0, 1)
+      ..scaleByDouble(targetScale, targetScale, targetScale, 1);
+    _animateTransformTo(target, duration: const Duration(milliseconds: 320));
+  }
+
+  void _animateTransformTo(Matrix4 target, {required Duration duration}) {
+    _centerAnimController?.dispose();
+    _centerAnimController = AnimationController(
+      vsync: this,
+      duration: duration,
+    );
+    final tween = Matrix4Tween(begin: _transformController.value, end: target);
+    final animation = CurvedAnimation(
+      parent: _centerAnimController!,
+      curve: Curves.easeOutCubic,
+    );
+    _centerAnimController!
+      ..addListener(() {
+        _transformController.value = tween.evaluate(animation);
+      })
+      ..forward();
   }
 }
 
@@ -2263,7 +2297,10 @@ class _LandingCard extends StatelessWidget {
     required this.isFromCache,
     required this.onRefresh,
     required this.onScopeChanged,
+    required this.allowBranchScope,
     required this.session,
+    required this.memberCount,
+    required this.branchCount,
   });
 
   final GenealogyScopeType scopeType;
@@ -2271,7 +2308,10 @@ class _LandingCard extends StatelessWidget {
   final bool isFromCache;
   final VoidCallback? onRefresh;
   final ValueChanged<GenealogyScopeType> onScopeChanged;
+  final bool allowBranchScope;
   final AuthSession session;
+  final int memberCount;
+  final int branchCount;
 
   @override
   Widget build(BuildContext context) {
@@ -2321,803 +2361,160 @@ class _LandingCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            l10n.genealogyWorkspaceDescription,
-            style: theme.textTheme.bodyLarge,
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Wrap(
-            spacing: 12,
+            spacing: 10,
             runSpacing: 10,
             children: [
-              ChoiceChip(
-                key: const Key('genealogy-scope-clan'),
-                label: Text(l10n.genealogyScopeClan),
-                selected: scopeType == GenealogyScopeType.clan,
-                onSelected: (_) => onScopeChanged(GenealogyScopeType.clan),
-              ),
-              if (session.branchId != null && session.branchId!.isNotEmpty)
-                ChoiceChip(
-                  key: const Key('genealogy-scope-branch'),
-                  label: Text(l10n.genealogyScopeBranch),
-                  selected: scopeType == GenealogyScopeType.branch,
-                  onSelected: (_) => onScopeChanged(GenealogyScopeType.branch),
+              _LandingInfoChip(
+                icon: Icons.visibility_outlined,
+                label: l10n.pick(
+                  vi: 'Đang xem: ${scopeType == GenealogyScopeType.clan ? 'Cả họ' : 'Chi hiện tại'}',
+                  en: 'Viewing: ${scopeType == GenealogyScopeType.clan ? 'Whole clan' : 'Current branch'}',
                 ),
+              ),
+              _LandingInfoChip(
+                icon: Icons.groups_2_outlined,
+                label: l10n.pick(
+                  vi: '$memberCount thành viên',
+                  en: '$memberCount members',
+                ),
+              ),
+              _LandingInfoChip(
+                icon: Icons.account_tree_outlined,
+                label: l10n.pick(
+                  vi: '$branchCount chi',
+                  en: '$branchCount branches',
+                ),
+              ),
             ],
           ),
+          const SizedBox(height: 16),
+          if (allowBranchScope)
+            Wrap(
+              spacing: 12,
+              runSpacing: 10,
+              children: [
+                ChoiceChip(
+                  key: const Key('genealogy-scope-clan'),
+                  label: Text(l10n.genealogyScopeClan),
+                  selected: scopeType == GenealogyScopeType.clan,
+                  onSelected: (_) => onScopeChanged(GenealogyScopeType.clan),
+                ),
+                if (session.branchId != null && session.branchId!.isNotEmpty)
+                  ChoiceChip(
+                    key: const Key('genealogy-scope-branch'),
+                    label: Text(l10n.genealogyScopeBranch),
+                    selected: scopeType == GenealogyScopeType.branch,
+                    onSelected: (_) =>
+                        onScopeChanged(GenealogyScopeType.branch),
+                  ),
+              ],
+            ),
         ],
       ),
     );
   }
 }
 
-class _RootSelector extends StatelessWidget {
-  const _RootSelector({
-    required this.rootEntries,
-    required this.selectedRootId,
-    required this.resolveMember,
-    required this.onRootSelected,
-    required this.reasonLabel,
-  });
+class _LandingInfoChip extends StatelessWidget {
+  const _LandingInfoChip({required this.icon, required this.label});
 
-  final List<GenealogyRootEntry> rootEntries;
-  final String? selectedRootId;
-  final MemberProfile? Function(String memberId) resolveMember;
-  final ValueChanged<String> onRootSelected;
-  final String Function(GenealogyRootReason reason) reasonLabel;
-
-  Future<void> _openRootPicker(BuildContext context) async {
-    final l10n = context.l10n;
-    final searchController = TextEditingController();
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final query = searchController.text.trim().toLowerCase();
-            final filtered = rootEntries
-                .where((root) {
-                  final name =
-                      resolveMember(root.memberId)?.fullName ?? root.memberId;
-                  return query.isEmpty || name.toLowerCase().contains(query);
-                })
-                .toList(growable: false);
-
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                MediaQuery.viewInsetsOf(context).bottom + 20,
-              ),
-              child: SizedBox(
-                height: MediaQuery.sizeOf(context).height * 0.65,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.pick(
-                        vi: 'Chọn điểm vào gốc',
-                        en: 'Choose root entry',
-                      ),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: searchController,
-                      onChanged: (_) => setModalState(() {}),
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.search),
-                        labelText: l10n.pick(
-                          vi: 'Tìm theo tên thành viên',
-                          en: 'Search member name',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final root = filtered[index];
-                          final name =
-                              resolveMember(root.memberId)?.fullName ??
-                              root.memberId;
-                          final selected = selectedRootId == root.memberId;
-                          return ListTile(
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              onRootSelected(root.memberId);
-                            },
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                            ),
-                            title: Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              root.reasons.map(reasonLabel).join(', '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: selected
-                                ? Icon(
-                                    Icons.check_circle,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                  )
-                                : null,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-    searchController.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = context.l10n;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    context.l10n.genealogyRootEntriesTitle,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () => _openRootPicker(context),
-                  icon: const Icon(Icons.manage_search),
-                  label: Text(
-                    l10n.pick(
-                      vi: 'Xem tất cả (${rootEntries.length})',
-                      en: 'View all (${rootEntries.length})',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final root in rootEntries) ...[
-                    FilterChip(
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                      selected: selectedRootId == root.memberId,
-                      label: Text(
-                        resolveMember(root.memberId)?.fullName ?? root.memberId,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onSelected: (_) => onRootSelected(root.memberId),
-                      tooltip: root.reasons.map(reasonLabel).join(', '),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SummaryMetricItem {
-  const _SummaryMetricItem({
-    this.key,
-    required this.label,
-    required this.value,
-  });
-
-  final Key? key;
+  final IconData icon;
   final String label;
-  final String value;
-}
-
-class _SummaryMetricGrid extends StatelessWidget {
-  const _SummaryMetricGrid({required this.items});
-
-  final List<_SummaryMetricItem> items;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth >= 760 ? 4 : 2;
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            mainAxisExtent: 142,
-          ),
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return KeyedSubtree(
-              key: item.key,
-              child: _SummaryMetricCard(label: item.label, value: item.value),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _SummaryMetricCard extends StatelessWidget {
-  const _SummaryMetricCard({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: colorScheme.outlineVariant),
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 240),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: colorScheme.primary),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelLarge,
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.visible,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    height: 1.0,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _ViewControlCard extends StatelessWidget {
-  const _ViewControlCard({
-    required this.displayPreset,
-    required this.onDisplayPresetChanged,
-    required this.onAddGenealogyPressed,
-    required this.onAddBranchPressed,
-    required this.statusFilter,
-    required this.onStatusFilterChanged,
-    required this.branches,
-    required this.selectedBranchId,
-    required this.onBranchFilterChanged,
-    required this.visibleMembers,
-    required this.totalMembers,
+class _AddActionFab extends StatelessWidget {
+  const _AddActionFab({
+    required this.isMenuOpen,
+    required this.canAddGenealogy,
+    required this.canAddBranch,
+    required this.canAddMember,
+    required this.onToggleMenu,
+    required this.onAddGenealogy,
+    required this.onAddBranch,
+    required this.onAddMember,
   });
 
-  final _TreeDisplayPreset displayPreset;
-  final ValueChanged<_TreeDisplayPreset> onDisplayPresetChanged;
-  final VoidCallback? onAddGenealogyPressed;
-  final VoidCallback? onAddBranchPressed;
-  final _MemberStatusFilter statusFilter;
-  final ValueChanged<_MemberStatusFilter> onStatusFilterChanged;
-  final List<BranchProfile> branches;
-  final String? selectedBranchId;
-  final ValueChanged<String?> onBranchFilterChanged;
-  final int visibleMembers;
-  final int totalMembers;
+  final bool isMenuOpen;
+  final bool canAddGenealogy;
+  final bool canAddBranch;
+  final bool canAddMember;
+  final VoidCallback onToggleMenu;
+  final Future<void> Function() onAddGenealogy;
+  final Future<void> Function() onAddBranch;
+  final Future<void> Function() onAddMember;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final branchItems = branches.toList(growable: false)
-      ..sort((left, right) => left.name.compareTo(right.name));
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(26),
-        side: BorderSide(color: colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final iconOnlyChips = constraints.maxWidth < 460;
-            final denseChips = constraints.maxWidth < 740;
-            final chipDensity = denseChips
-                ? VisualDensity.compact
-                : VisualDensity.standard;
-            final chipPadding = EdgeInsets.symmetric(
-              horizontal: iconOnlyChips ? 10 : 14,
-              vertical: 10,
-            );
-            final selectedChipColor = colorScheme.secondaryContainer;
-            final unselectedChipColor = colorScheme.surfaceContainerHighest;
-            final chipLabelStyle = theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            );
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.pick(
-                    vi: 'Bộ lọc hiển thị cây',
-                    en: 'Tree display controls',
-                  ),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _chipRow(
-                  iconOnly: iconOnlyChips,
-                  children: [
-                    ChoiceChip(
-                      key: const Key('tree-preset-focused'),
-                      selected: displayPreset == _TreeDisplayPreset.focused,
-                      showCheckmark: !iconOnlyChips,
-                      visualDensity: chipDensity,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      selectedColor: selectedChipColor,
-                      backgroundColor: unselectedChipColor,
-                      side: BorderSide.none,
-                      shape: const StadiumBorder(),
-                      padding: chipPadding,
-                      tooltip: l10n.pick(
-                        vi: 'Hiển thị tập trung quanh thành viên trung tâm',
-                        en: 'Focused view around center member',
-                      ),
-                      label: _chipLabel(
-                        iconOnly: iconOnlyChips,
-                        icon: Icons.filter_center_focus,
-                        label: l10n.pick(vi: 'Tập trung', en: 'Focused'),
-                        style: chipLabelStyle,
-                      ),
-                      onSelected: (_) =>
-                          onDisplayPresetChanged(_TreeDisplayPreset.focused),
-                    ),
-                    ChoiceChip(
-                      key: const Key('tree-preset-balanced'),
-                      selected: displayPreset == _TreeDisplayPreset.balanced,
-                      showCheckmark: !iconOnlyChips,
-                      visualDensity: chipDensity,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      selectedColor: selectedChipColor,
-                      backgroundColor: unselectedChipColor,
-                      side: BorderSide.none,
-                      shape: const StadiumBorder(),
-                      padding: chipPadding,
-                      tooltip: l10n.pick(
-                        vi: 'Hiển thị cân bằng tổ tiên và hậu duệ',
-                        en: 'Balanced ancestors and descendants view',
-                      ),
-                      label: _chipLabel(
-                        iconOnly: iconOnlyChips,
-                        icon: Icons.align_horizontal_center,
-                        label: l10n.pick(vi: 'Cân bằng', en: 'Balanced'),
-                        style: chipLabelStyle,
-                      ),
-                      onSelected: (_) =>
-                          onDisplayPresetChanged(_TreeDisplayPreset.balanced),
-                    ),
-                    ChoiceChip(
-                      key: const Key('tree-preset-coverage'),
-                      selected: displayPreset == _TreeDisplayPreset.coverage,
-                      showCheckmark: !iconOnlyChips,
-                      visualDensity: chipDensity,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      selectedColor: selectedChipColor,
-                      backgroundColor: unselectedChipColor,
-                      side: BorderSide.none,
-                      shape: const StadiumBorder(),
-                      padding: chipPadding,
-                      tooltip: l10n.pick(
-                        vi: 'Hiển thị phủ rộng để thấy nhiều thành viên',
-                        en: 'Coverage mode to show more members',
-                      ),
-                      label: _chipLabel(
-                        iconOnly: iconOnlyChips,
-                        icon: Icons.open_in_full,
-                        label: l10n.pick(vi: 'Độ phủ rộng', en: 'Coverage'),
-                        style: chipLabelStyle,
-                      ),
-                      onSelected: (_) =>
-                          onDisplayPresetChanged(_TreeDisplayPreset.coverage),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _chipRow(
-                  iconOnly: iconOnlyChips,
-                  children: [
-                    FilterChip(
-                      key: const Key('tree-status-all'),
-                      selected: statusFilter == _MemberStatusFilter.all,
-                      showCheckmark: !iconOnlyChips,
-                      visualDensity: chipDensity,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      selectedColor: selectedChipColor,
-                      backgroundColor: unselectedChipColor,
-                      side: BorderSide.none,
-                      shape: const StadiumBorder(),
-                      padding: chipPadding,
-                      tooltip: l10n.pick(
-                        vi: 'Hiển thị tất cả thành viên',
-                        en: 'Show all members',
-                      ),
-                      label: _chipLabel(
-                        iconOnly: iconOnlyChips,
-                        icon: Icons.people_outline,
-                        label: l10n.pick(vi: 'Tất cả', en: 'All'),
-                        style: chipLabelStyle,
-                      ),
-                      onSelected: (_) =>
-                          onStatusFilterChanged(_MemberStatusFilter.all),
-                    ),
-                    FilterChip(
-                      key: const Key('tree-status-alive'),
-                      selected: statusFilter == _MemberStatusFilter.alive,
-                      showCheckmark: !iconOnlyChips,
-                      visualDensity: chipDensity,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      selectedColor: selectedChipColor,
-                      backgroundColor: unselectedChipColor,
-                      side: BorderSide.none,
-                      shape: const StadiumBorder(),
-                      padding: chipPadding,
-                      tooltip: l10n.pick(
-                        vi: 'Chỉ hiển thị thành viên còn sống',
-                        en: 'Show alive members only',
-                      ),
-                      label: _chipLabel(
-                        iconOnly: iconOnlyChips,
-                        icon: Icons.favorite_outline,
-                        label: l10n.pick(vi: 'Còn sống', en: 'Alive'),
-                        style: chipLabelStyle,
-                      ),
-                      onSelected: (_) =>
-                          onStatusFilterChanged(_MemberStatusFilter.alive),
-                    ),
-                    FilterChip(
-                      key: const Key('tree-status-deceased'),
-                      selected: statusFilter == _MemberStatusFilter.deceased,
-                      showCheckmark: !iconOnlyChips,
-                      visualDensity: chipDensity,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      selectedColor: selectedChipColor,
-                      backgroundColor: unselectedChipColor,
-                      side: BorderSide.none,
-                      shape: const StadiumBorder(),
-                      padding: chipPadding,
-                      tooltip: l10n.pick(
-                        vi: 'Chỉ hiển thị thành viên đã mất',
-                        en: 'Show deceased members only',
-                      ),
-                      label: _chipLabel(
-                        iconOnly: iconOnlyChips,
-                        icon: Icons.history,
-                        label: l10n.pick(vi: 'Đã mất', en: 'Deceased'),
-                        style: chipLabelStyle,
-                      ),
-                      onSelected: (_) =>
-                          onStatusFilterChanged(_MemberStatusFilter.deceased),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                LayoutBuilder(
-                  builder: (context, actionConstraints) {
-                    final compactActions = actionConstraints.maxWidth < 560;
-                    final addGenealogyLabel = l10n.pick(
-                      vi: 'Thêm gia phả',
-                      en: 'Add genealogy',
-                    );
-                    final addBranchLabel = l10n.pick(
-                      vi: 'Thêm nhánh',
-                      en: 'Add branch',
-                    );
-
-                    final addGenealogyButton = FilledButton.tonalIcon(
-                      key: const Key('genealogy-action-add-tree'),
-                      onPressed: onAddGenealogyPressed,
-                      icon: const Icon(Icons.account_tree_outlined),
-                      label: Text(
-                        addGenealogyLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                      ),
-                    );
-                    final addBranchButton = OutlinedButton.icon(
-                      key: const Key('genealogy-action-add-branch'),
-                      onPressed: onAddBranchPressed,
-                      icon: const Icon(Icons.call_split_outlined),
-                      label: Text(
-                        addBranchLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                      ),
-                    );
-
-                    if (compactActions) {
-                      return Column(
-                        children: [
-                          SizedBox(
-                            width: double.infinity,
-                            child: addGenealogyButton,
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: addBranchButton,
-                          ),
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      children: [
-                        Expanded(child: addGenealogyButton),
-                        const SizedBox(width: 8),
-                        Expanded(child: addBranchButton),
-                      ],
-                    );
-                  },
-                ),
-                if (branchItems.length > 1) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.pick(vi: 'Lọc theo chi', en: 'Filter branch'),
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String?>(
-                    key: const Key('tree-branch-filter'),
-                    initialValue: selectedBranchId,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: colorScheme.surfaceContainerLowest,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(color: colorScheme.outline),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(
-                          color: colorScheme.outlineVariant,
-                        ),
-                      ),
-                    ),
-                    items: [
-                      DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text(
-                          l10n.pick(vi: 'Tất cả các chi', en: 'All branches'),
-                        ),
-                      ),
-                      for (final branch in branchItems)
-                        DropdownMenuItem<String?>(
-                          value: branch.id,
-                          child: Text(branch.name),
-                        ),
-                    ],
-                    onChanged: onBranchFilterChanged,
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Text(
-                  l10n.pick(
-                    vi: 'Đang hiển thị $visibleMembers/$totalMembers thành viên.',
-                    en: 'Showing $visibleMembers/$totalMembers members.',
-                  ),
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _chipRow({required bool iconOnly, required List<Widget> children}) {
-    if (iconOnly) {
-      return _equalChipRow(children: children);
-    }
-    return _horizontalChipRow(children: children);
-  }
-
-  Widget _equalChipRow({required List<Widget> children}) {
-    return Row(
-      children: [
-        for (var index = 0; index < children.length; index++) ...[
-          Expanded(
-            child: SizedBox(width: double.infinity, child: children[index]),
-          ),
-          if (index < children.length - 1) const SizedBox(width: 8),
-        ],
-      ],
-    );
-  }
-
-  Widget _horizontalChipRow({required List<Widget> children}) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var index = 0; index < children.length; index++) ...[
-            if (index > 0) const SizedBox(width: 8),
-            children[index],
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _chipLabel({
-    required bool iconOnly,
-    required IconData icon,
-    required String label,
-    TextStyle? style,
-  }) {
-    if (iconOnly) {
-      return Icon(icon, size: 18);
-    }
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          softWrap: false,
-          style: style,
+        if (isMenuOpen) ...[
+          FloatingActionButton.extended(
+            heroTag: 'genealogy-add-tree-fab',
+            onPressed: canAddGenealogy
+                ? () => unawaited(onAddGenealogy())
+                : null,
+            icon: const Icon(Icons.account_tree_outlined),
+            label: Text(l10n.pick(vi: 'Thêm gia phả', en: 'Add genealogy')),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton.extended(
+            heroTag: 'genealogy-add-branch-fab',
+            onPressed: canAddBranch ? () => unawaited(onAddBranch()) : null,
+            icon: const Icon(Icons.call_split_outlined),
+            label: Text(l10n.pick(vi: 'Thêm nhánh', en: 'Add branch')),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton.extended(
+            heroTag: 'genealogy-add-member-fab',
+            onPressed: canAddMember ? () => unawaited(onAddMember()) : null,
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+            label: Text(l10n.memberAddAction),
+          ),
+          const SizedBox(height: 10),
+        ],
+        FloatingActionButton(
+          heroTag: 'genealogy-main-add-fab',
+          onPressed: onToggleMenu,
+          tooltip: l10n.pick(vi: 'Thêm mới', en: 'Add'),
+          child: Icon(isMenuOpen ? Icons.close : Icons.add),
         ),
       ],
-    );
-  }
-}
-
-class _DepthControl extends StatelessWidget {
-  const _DepthControl({
-    required this.id,
-    required this.label,
-    required this.depth,
-    required this.canIncrease,
-    required this.canDecrease,
-    required this.onIncrease,
-    required this.onDecrease,
-  });
-
-  final String id;
-  final String label;
-  final int depth;
-  final bool canIncrease;
-  final bool canDecrease;
-  final VoidCallback onIncrease;
-  final VoidCallback onDecrease;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            IconButton(
-              key: Key('genealogy-depth-$id-decrease'),
-              visualDensity: VisualDensity.compact,
-              iconSize: 18,
-              onPressed: canDecrease ? onDecrease : null,
-              icon: const Icon(Icons.remove_rounded),
-              color: colorScheme.onSurfaceVariant,
-              style: IconButton.styleFrom(
-                minimumSize: const Size(34, 34),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              tooltip: l10n.pick(vi: 'Giảm $label', en: 'Decrease $label'),
-            ),
-            Expanded(
-              child: Text(
-                '$label $depth',
-                key: Key('genealogy-depth-$id-value'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.1,
-                ),
-              ),
-            ),
-            IconButton(
-              key: Key('genealogy-depth-$id-increase'),
-              visualDensity: VisualDensity.compact,
-              iconSize: 18,
-              onPressed: canIncrease ? onIncrease : null,
-              icon: const Icon(Icons.add_rounded),
-              color: colorScheme.onSurfaceVariant,
-              style: IconButton.styleFrom(
-                minimumSize: const Size(34, 34),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              tooltip: l10n.pick(vi: 'Tăng $label', en: 'Increase $label'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -3127,11 +2524,13 @@ class _TreeZoomControls extends StatelessWidget {
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onReset,
+    required this.onPrint,
   });
 
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onReset;
+  final VoidCallback onPrint;
 
   @override
   Widget build(BuildContext context) {
@@ -3171,6 +2570,13 @@ class _TreeZoomControls extends StatelessWidget {
                 vi: 'Đặt lại vị trí cây',
                 en: 'Reset tree view',
               ),
+            ),
+            IconButton(
+              key: const Key('tree-print'),
+              visualDensity: VisualDensity.compact,
+              onPressed: onPrint,
+              icon: const Icon(Icons.print_outlined),
+              tooltip: l10n.pick(vi: 'In cây gia phả', en: 'Print family tree'),
             ),
           ],
         ),
@@ -3405,71 +2811,248 @@ class _MiniFactChip extends StatelessWidget {
 class _TreeConnectorPainter extends CustomPainter {
   const _TreeConnectorPainter({
     required this.parentChildEdges,
-    required this.spouseEdges,
     required this.nodeRects,
     required this.selectedMemberId,
   });
 
   final List<_TreeEdge> parentChildEdges;
-  final List<_TreeEdge> spouseEdges;
   final Map<String, Rect> nodeRects;
   final String? selectedMemberId;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final haloPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5.2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = const Color(0xFFF8FAFC);
     final parentPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
+      ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
       ..color = const Color(0xFF6B7280);
-    final spousePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFB45309);
     final selectedPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.4
       ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
       ..color = const Color(0xFF2563EB);
 
+    final parentsByChild = <String, Set<String>>{};
     for (final edge in parentChildEdges) {
-      final parentRect = nodeRects[edge.fromId];
-      final childRect = nodeRects[edge.toId];
-      if (parentRect == null || childRect == null) {
+      parentsByChild.putIfAbsent(edge.toId, () => <String>{}).add(edge.fromId);
+    }
+    final childrenByParentGroup = <String, List<String>>{};
+    final parentsForGroup = <String, List<String>>{};
+    for (final entry in parentsByChild.entries) {
+      final childId = entry.key;
+      final childRect = nodeRects[childId];
+      if (childRect == null) {
         continue;
       }
-      final start = Offset(parentRect.center.dx, parentRect.bottom);
-      final end = Offset(childRect.center.dx, childRect.top);
-      final midY = (start.dy + end.dy) / 2;
-      final path = Path()
-        ..moveTo(start.dx, start.dy)
-        ..lineTo(start.dx, midY)
-        ..lineTo(end.dx, midY)
-        ..lineTo(end.dx, end.dy);
-      final highlight =
-          edge.fromId == selectedMemberId || edge.toId == selectedMemberId;
-      canvas.drawPath(path, highlight ? selectedPaint : parentPaint);
+      final sortedParents =
+          entry.value.where(nodeRects.containsKey).toList(growable: false)
+            ..sort((left, right) {
+              final leftRect = nodeRects[left]!;
+              final rightRect = nodeRects[right]!;
+              return leftRect.center.dx.compareTo(rightRect.center.dx);
+            });
+      if (sortedParents.isEmpty) {
+        continue;
+      }
+      final groupKey = sortedParents.join('|');
+      childrenByParentGroup
+          .putIfAbsent(groupKey, () => <String>[])
+          .add(childId);
+      parentsForGroup[groupKey] = sortedParents;
     }
 
-    for (final edge in spouseEdges) {
-      final leftRect = nodeRects[edge.fromId];
-      final rightRect = nodeRects[edge.toId];
-      if (leftRect == null || rightRect == null) {
+    void drawSegment(Offset from, Offset to, Paint paint) {
+      canvas.drawLine(from, to, haloPaint);
+      canvas.drawLine(from, to, paint);
+    }
+
+    final orderedGroupKeys = childrenByParentGroup.keys.toList(growable: false)
+      ..sort((left, right) {
+        final leftParents = parentsForGroup[left];
+        final rightParents = parentsForGroup[right];
+        if (leftParents == null || leftParents.isEmpty) {
+          return 1;
+        }
+        if (rightParents == null || rightParents.isEmpty) {
+          return -1;
+        }
+        final leftRect = nodeRects[leftParents.first];
+        final rightRect = nodeRects[rightParents.first];
+        if (leftRect == null || rightRect == null) {
+          return 0;
+        }
+        return leftRect.center.dx.compareTo(rightRect.center.dx);
+      });
+
+    for (final groupKey in orderedGroupKeys) {
+      final parentIds = parentsForGroup[groupKey];
+      final childIds = childrenByParentGroup[groupKey];
+      if (parentIds == null ||
+          parentIds.isEmpty ||
+          childIds == null ||
+          childIds.isEmpty) {
         continue;
       }
-      final start = Offset(leftRect.right, leftRect.center.dy);
-      final end = Offset(rightRect.left, rightRect.center.dy);
-      final highlight =
-          edge.fromId == selectedMemberId || edge.toId == selectedMemberId;
-      canvas.drawLine(start, end, highlight ? selectedPaint : spousePaint);
+
+      final childAnchors = <({String childId, double x, double top})>[];
+      for (final childId in childIds) {
+        final childRect = nodeRects[childId];
+        if (childRect == null) {
+          continue;
+        }
+        childAnchors.add((
+          childId: childId,
+          x: childRect.center.dx,
+          top: childRect.top - 2,
+        ));
+      }
+      if (childAnchors.isEmpty) {
+        continue;
+      }
+      childAnchors.sort((left, right) => left.x.compareTo(right.x));
+
+      final parentAnchors = <({String parentId, double x, double bottom})>[];
+      for (final parentId in parentIds) {
+        final parentRect = nodeRects[parentId];
+        if (parentRect == null) {
+          continue;
+        }
+        parentAnchors.add((
+          parentId: parentId,
+          x: parentRect.center.dx,
+          bottom: parentRect.bottom + 2,
+        ));
+      }
+      if (parentAnchors.isEmpty) {
+        continue;
+      }
+      parentAnchors.sort((left, right) => left.x.compareTo(right.x));
+
+      final minChildTop = childAnchors
+          .map((anchor) => anchor.top)
+          .reduce(math.min);
+      final firstChildX = childAnchors.first.x;
+      final lastChildX = childAnchors.last.x;
+      final childCenterX = (firstChildX + lastChildX) / 2;
+
+      final hasSelectedParent = parentAnchors.any(
+        (anchor) => anchor.parentId == selectedMemberId,
+      );
+      final hasSelectedChild = childAnchors.any(
+        (anchor) => anchor.childId == selectedMemberId,
+      );
+
+      final maxParentBottom = parentAnchors
+          .map((anchor) => anchor.bottom)
+          .reduce(math.max);
+
+      var joinY = maxParentBottom;
+      if (parentAnchors.length > 1) {
+        joinY = maxParentBottom + 16;
+        final maxJoinY = minChildTop - 30;
+        if (joinY > maxJoinY) {
+          joinY = (maxParentBottom + minChildTop) / 2;
+        }
+      }
+      if (joinY >= minChildTop) {
+        joinY = (maxParentBottom + minChildTop) / 2;
+      }
+
+      final sharedPaint = hasSelectedParent || hasSelectedChild
+          ? selectedPaint
+          : parentPaint;
+      final parentCenterX = (parentAnchors.first.x + parentAnchors.last.x) / 2;
+
+      for (final parent in parentAnchors) {
+        if ((joinY - parent.bottom).abs() > 0.5) {
+          drawSegment(
+            Offset(parent.x, parent.bottom),
+            Offset(parent.x, joinY),
+            sharedPaint,
+          );
+        }
+      }
+      if (parentAnchors.length > 1) {
+        drawSegment(
+          Offset(parentAnchors.first.x, joinY),
+          Offset(parentAnchors.last.x, joinY),
+          sharedPaint,
+        );
+      }
+
+      final trunkX = childAnchors.length == 1
+          ? childAnchors.first.x
+          : childCenterX;
+      if ((trunkX - parentCenterX).abs() > 0.5) {
+        drawSegment(
+          Offset(parentCenterX, joinY),
+          Offset(trunkX, joinY),
+          sharedPaint,
+        );
+      }
+
+      if (childAnchors.length == 1) {
+        final onlyChild = childAnchors.first;
+        final edgePaint =
+            hasSelectedParent || onlyChild.childId == selectedMemberId
+            ? selectedPaint
+            : parentPaint;
+        drawSegment(
+          Offset(trunkX, joinY),
+          Offset(trunkX, onlyChild.top),
+          edgePaint,
+        );
+        continue;
+      }
+
+      var splitY = joinY + ((minChildTop - joinY) * 0.42);
+      final minSplitY = joinY + 18;
+      final maxSplitY = minChildTop - 18;
+      if (minSplitY <= maxSplitY) {
+        splitY = splitY.clamp(minSplitY, maxSplitY).toDouble();
+      } else {
+        splitY = (joinY + minChildTop) / 2;
+      }
+
+      if ((splitY - joinY).abs() > 0.5) {
+        drawSegment(Offset(trunkX, joinY), Offset(trunkX, splitY), sharedPaint);
+      }
+
+      final splitLeftX = math.min(firstChildX, trunkX);
+      final splitRightX = math.max(lastChildX, trunkX);
+      if ((splitRightX - splitLeftX).abs() > 0.5) {
+        drawSegment(
+          Offset(splitLeftX, splitY),
+          Offset(splitRightX, splitY),
+          sharedPaint,
+        );
+      }
+
+      for (final anchor in childAnchors) {
+        final childSelected = anchor.childId == selectedMemberId;
+        final edgePaint = hasSelectedParent || childSelected
+            ? selectedPaint
+            : parentPaint;
+        drawSegment(
+          Offset(anchor.x, splitY),
+          Offset(anchor.x, anchor.top),
+          edgePaint,
+        );
+      }
     }
   }
 
   @override
   bool shouldRepaint(covariant _TreeConnectorPainter oldDelegate) {
     return oldDelegate.parentChildEdges != parentChildEdges ||
-        oldDelegate.spouseEdges != spouseEdges ||
         oldDelegate.nodeRects != nodeRects ||
         oldDelegate.selectedMemberId != selectedMemberId;
   }
@@ -3504,6 +3087,84 @@ class _FactLine extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactFactItem {
+  const _CompactFactItem({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _CompactFactGrid extends StatelessWidget {
+  const _CompactFactGrid({required this.items});
+
+  final List<_CompactFactItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth >= 620 ? 3 : 2;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: items.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            mainAxisExtent: 62,
+          ),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _CompactFactCard(item: item);
+          },
+        );
+      },
+    );
+  }
+}
+
+class _CompactFactCard extends StatelessWidget {
+  const _CompactFactCard({required this.item});
+
+  final _CompactFactItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Text(
+            item.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            item.value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -3660,13 +3321,16 @@ class _GenealogyMemberDetailPage extends StatelessWidget {
                     ),
                     _FactLine(
                       label: l10n.pick(
-                        vi: 'Thứ tự anh/chị/em',
+                        vi: 'Thứ bậc anh/chị/em',
                         en: 'Sibling order',
                       ),
                       value: siblingOrderLabel ?? l10n.memberFieldUnset,
                     ),
                     _FactLine(
-                      label: l10n.pick(vi: 'Danh vị', en: 'Honor badges'),
+                      label: l10n.pick(
+                        vi: 'Vai trò trong họ',
+                        en: 'Honor badges',
+                      ),
                       value: honorBadges.isEmpty
                           ? l10n.memberFieldUnset
                           : honorBadges.join(' • '),
@@ -3714,23 +3378,26 @@ class _GenealogyMemberDetailPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     _FactLine(
-                      label: l10n.genealogyParentCountLabel,
+                      label: l10n.pick(vi: 'Số cha/mẹ', en: 'Parents'),
                       value: '$parentCount',
                     ),
                     _FactLine(
-                      label: l10n.genealogyChildCountLabel,
+                      label: l10n.pick(vi: 'Số con', en: 'Children'),
                       value: '$childCount',
                     ),
                     _FactLine(
-                      label: l10n.genealogySpouseCountLabel,
+                      label: l10n.pick(vi: 'Số vợ/chồng', en: 'Spouses'),
                       value: '$spouseCount',
                     ),
                     _FactLine(
-                      label: l10n.genealogyDescendantCountLabel,
+                      label: l10n.pick(vi: 'Tổng con cháu', en: 'Descendants'),
                       value: '$descendantCount',
                     ),
                     _FactLine(
-                      label: l10n.genealogyAncestryPathTitle,
+                      label: l10n.pick(
+                        vi: 'Số đời tổ tiên',
+                        en: 'Ancestry depth',
+                      ),
                       value: '$ancestryCount',
                       isLast: true,
                     ),

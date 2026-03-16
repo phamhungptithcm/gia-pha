@@ -74,10 +74,8 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   }
 
   Future<void> _savePreferences() async {
-    final mode = _paymentModeDraft;
-    if (mode == null) {
-      return;
-    }
+    final mode =
+        _paymentModeDraft ?? (_autoRenewDraft ? 'auto_renew' : 'manual');
     await _controller.updatePreferences(
       paymentMode: mode,
       autoRenew: _autoRenewDraft,
@@ -307,6 +305,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
               children: [
                 DropdownButtonFormField<String>(
                   key: const Key('billing-plan-selector'),
+                  isExpanded: true,
                   initialValue: selectedTier.planCode,
                   decoration: InputDecoration(
                     labelText: l10n.pick(
@@ -314,12 +313,25 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       en: 'Select plan',
                     ),
                   ),
+                  selectedItemBuilder: (context) {
+                    return [
+                      for (final tier in selectablePlans)
+                        Text(
+                          _localizedPlanName(tier.planCode, l10n),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ];
+                  },
                   items: [
                     for (final tier in selectablePlans)
                       DropdownMenuItem<String>(
                         value: tier.planCode,
                         child: Text(
-                          '${tier.planCode} • ${_memberRangeLabel(tier, l10n)}',
+                          '${_localizedPlanName(tier.planCode, l10n)} • ${_memberRangeLabel(tier, l10n)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
                         ),
                       ),
                   ],
@@ -475,36 +487,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SegmentedButton<String>(
-                  showSelectedIcon: true,
-                  segments: [
-                    ButtonSegment<String>(
-                      value: 'manual',
-                      label: Text(l10n.pick(vi: 'Thủ công', en: 'Manual')),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'auto_renew',
-                      label: Text(l10n.pick(vi: 'Tự động', en: 'Auto renew')),
-                    ),
-                  ],
-                  selected: {
-                    _paymentModeDraft ?? workspace.settings.paymentMode,
-                  },
-                  onSelectionChanged: canManage
-                      ? (selected) {
-                          if (selected.isEmpty) {
-                            return;
-                          }
-                          setState(() {
-                            _paymentModeDraft = selected.first;
-                            if (_paymentModeDraft == 'auto_renew') {
-                              _autoRenewDraft = true;
-                            }
-                          });
-                        }
-                      : null,
-                ),
-                const SizedBox(height: 10),
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   value: _autoRenewDraft,
@@ -512,9 +494,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       ? (value) {
                           setState(() {
                             _autoRenewDraft = value;
-                            if (value) {
-                              _paymentModeDraft = 'auto_renew';
-                            }
+                            _paymentModeDraft = value ? 'auto_renew' : 'manual';
                           });
                         }
                       : null,
@@ -602,7 +582,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                             '${tx.paymentMethod.toUpperCase()} • ${_formatVnd(tx.amountVnd)}',
                           ),
                           subtitle: Text(
-                            '${tx.planCode} • ${_humanizeStatus(tx.paymentStatus, l10n)}',
+                            '${_localizedPlanName(tx.planCode, l10n)} • ${_humanizeStatus(tx.paymentStatus, l10n)}',
                           ),
                           trailing: Text(
                             _dateLabel(tx.paidAtIso ?? tx.createdAtIso, l10n),
@@ -631,7 +611,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                           dense: true,
                           contentPadding: EdgeInsets.zero,
                           title: Text(
-                            '${invoice.planCode} • ${_formatVnd(invoice.amountVnd)}',
+                            '${_localizedPlanName(invoice.planCode, l10n)} • ${_formatVnd(invoice.amountVnd)}',
                           ),
                           subtitle: Text(
                             '${l10n.pick(vi: 'Trạng thái', en: 'Status')}: '
@@ -691,7 +671,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       radius: 16,
                       child: Text(tier.planCode.substring(0, 1)),
                     ),
-                    title: Text(tier.planCode),
+                    title: Text(_localizedPlanName(tier.planCode, l10n)),
                     subtitle: Text(
                       '${_memberRangeLabel(tier, l10n)} • '
                       '${tier.showAds ? l10n.pick(vi: 'Có quảng cáo', en: 'Ads on') : l10n.pick(vi: 'Không quảng cáo', en: 'No ads')}',
@@ -776,7 +756,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       radius: 16,
                       child: Text(tier.planCode.substring(0, 1)),
                     ),
-                    title: Text(tier.planCode),
+                    title: Text(_localizedPlanName(tier.planCode, l10n)),
                     subtitle: Text(
                       '${_memberRangeLabel(tier, l10n)} • '
                       '${tier.showAds ? l10n.pick(vi: 'Có quảng cáo', en: 'Ads on') : l10n.pick(vi: 'Không quảng cáo', en: 'No ads')}',
@@ -1020,6 +1000,7 @@ class _SubscriptionHeroCard extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final planLabel = _localizedPlanName(planCode, l10n);
     final statusLabel = switch (status) {
       'active' => l10n.pick(vi: 'Đang hoạt động', en: 'Active'),
       'grace_period' => l10n.pick(vi: 'Ân hạn', en: 'Grace period'),
@@ -1047,7 +1028,7 @@ class _SubscriptionHeroCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                planCode,
+                planLabel,
                 style: theme.textTheme.headlineSmall?.copyWith(
                   color: colorScheme.onPrimary,
                   fontWeight: FontWeight.w800,
@@ -1277,7 +1258,11 @@ class _InfoCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
-                  Text(description),
+                  Text(
+                    description,
+                    maxLines: 6,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
@@ -1396,6 +1381,22 @@ String _formatVnd(int amount) {
   return '${amount.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} VND';
 }
 
+String _localizedPlanName(String planCode, AppLocalizations l10n) {
+  switch (planCode.trim().toUpperCase()) {
+    case 'FREE':
+      return l10n.pick(vi: 'Miễn phí', en: 'Free');
+    case 'BASE':
+      return l10n.pick(vi: 'Cơ bản', en: 'Base');
+    case 'PLUS':
+      return l10n.pick(vi: 'Nâng cao', en: 'Plus');
+    case 'PRO':
+      return l10n.pick(vi: 'Chuyên nghiệp', en: 'Pro');
+    default:
+      final normalized = planCode.trim();
+      return normalized.isEmpty ? planCode : normalized.toUpperCase();
+  }
+}
+
 String _friendlyErrorMessage(String? raw, AppLocalizations l10n) {
   final fallback = l10n.pick(
     vi: 'Hãy thử tải lại sau.',
@@ -1411,6 +1412,12 @@ String _friendlyErrorMessage(String? raw, AppLocalizations l10n) {
       .map((line) => line.trim())
       .firstWhere((line) => line.isNotEmpty, orElse: () => normalized);
   final lower = firstLine.toLowerCase();
+  if (normalized.contains('#0') || normalized.contains('package:')) {
+    return l10n.pick(
+      vi: 'Dịch vụ gói đang gặp sự cố tạm thời. Vui lòng thử lại sau.',
+      en: 'Billing service is temporarily unavailable. Please retry later.',
+    );
+  }
 
   if (lower.contains('firebase_functions/not-found') ||
       lower.contains(' not found')) {
@@ -1432,8 +1439,8 @@ String _friendlyErrorMessage(String? raw, AppLocalizations l10n) {
     );
   }
 
-  if (firstLine.length > 180) {
-    return '${firstLine.substring(0, 180)}...';
+  if (firstLine.length > 120) {
+    return '${firstLine.substring(0, 120)}...';
   }
   return firstLine;
 }

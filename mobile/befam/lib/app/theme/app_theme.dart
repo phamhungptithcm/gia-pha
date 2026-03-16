@@ -40,15 +40,36 @@ abstract final class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
       textTheme: textTheme.copyWith(
+        headlineLarge: textTheme.headlineLarge?.copyWith(
+          fontSize: 28,
+          fontWeight: FontWeight.w800,
+          height: 1.28,
+        ),
+        headlineMedium: textTheme.headlineMedium?.copyWith(
+          fontSize: 24,
+          fontWeight: FontWeight.w800,
+          height: 1.3,
+        ),
         displaySmall: textTheme.displaySmall?.copyWith(
           fontWeight: FontWeight.w800,
         ),
         headlineSmall: textTheme.headlineSmall?.copyWith(
+          fontSize: 20,
           fontWeight: FontWeight.w800,
+          height: 1.32,
         ),
-        titleLarge: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-        bodyLarge: textTheme.bodyLarge?.copyWith(height: 1.5),
-        bodyMedium: textTheme.bodyMedium?.copyWith(height: 1.5),
+        titleLarge: textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          fontSize: 20,
+          height: 1.35,
+        ),
+        titleMedium: textTheme.titleMedium?.copyWith(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          height: 1.36,
+        ),
+        bodyLarge: textTheme.bodyLarge?.copyWith(fontSize: 16, height: 1.5),
+        bodyMedium: textTheme.bodyMedium?.copyWith(fontSize: 16, height: 1.5),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: colorScheme.surface.withValues(alpha: 0.97),

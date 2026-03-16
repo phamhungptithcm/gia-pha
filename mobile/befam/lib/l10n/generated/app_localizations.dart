@@ -473,13 +473,13 @@ abstract class AppLocalizations {
   /// No description provided for @shellHomeLabel.
   ///
   /// In vi, this message translates to:
-  /// **'Trang chủ'**
+  /// **'Trang'**
   String get shellHomeLabel;
 
   /// No description provided for @shellHomeTitle.
   ///
   /// In vi, this message translates to:
-  /// **'Bảng điều khiển khởi tạo'**
+  /// **'Trang tổng quan'**
   String get shellHomeTitle;
 
   /// No description provided for @shellTreeLabel.

@@ -32,6 +32,10 @@ function uniqueSorted(values) {
   return [...new Set(values.filter(Boolean))].sort();
 }
 
+function ts(value) {
+  return Timestamp.fromDate(new Date(value));
+}
+
 function createMember({
   id,
   branchId,
@@ -42,7 +46,7 @@ function createMember({
   deathDate = null,
   phoneE164 = null,
   email = null,
-  addressText = 'Viet Nam',
+  addressText = 'Việt Nam',
   jobTitle = null,
   bio = null,
   generation,
@@ -66,7 +70,7 @@ function createMember({
     addressText,
     jobTitle,
     avatarUrl: null,
-    bio: bio ?? `Thanh vien demo ${fullName}.`,
+    bio: bio ?? `Thành viên demo ${fullName}.`,
     socialLinks: {
       facebook: null,
       zalo: null,
@@ -125,371 +129,374 @@ const members = [
   createMember({
     id: 'member_demo_ancestor_001',
     branchId: 'branch_demo_001',
-    fullName: 'Le Thanh Cong',
-    nickName: 'Cong',
+    fullName: 'Lê Thành Công',
+    nickName: 'Công',
     gender: 'male',
     birthDate: '1941-01-10',
     deathDate: '2021-11-02',
     phoneE164: '+84901110001',
     generation: 2,
     status: 'deceased',
-    jobTitle: 'To truong',
-    bio: 'To tien truyen thong cua dong ho demo.',
+    jobTitle: 'Tộc trưởng',
+    bio: 'Tổ tiên truyền thống của dòng họ demo.',
   }),
   createMember({
     id: 'member_demo_ancestor_002',
     branchId: 'branch_demo_001',
-    fullName: 'Pham Hanh Phuc',
-    nickName: 'Phuc',
+    fullName: 'Phạm Hạnh Phúc',
+    nickName: 'Phúc',
     gender: 'female',
     birthDate: '1944-04-18',
     deathDate: '2022-05-01',
     generation: 2,
     status: 'deceased',
-    jobTitle: 'Noi tro',
-    bio: 'To tien da mat, dung de demo trang thai da mat.',
+    jobTitle: 'Nội trợ',
+    bio: 'Tổ tiên đã mất, dùng để demo trạng thái đã mất.',
   }),
   createMember({
     id: 'member_demo_elder_001',
     branchId: 'branch_demo_001',
-    fullName: 'Ong Bao',
+    fullName: 'Ông Bảo',
     nickName: '',
     gender: 'male',
     birthDate: '1960-11-01',
     phoneE164: '+84907770000',
     generation: 3,
-    jobTitle: 'Co van ho toc',
-    bio: 'Thanh vien lon tuoi ho tro kiem thu danh sach.',
+    jobTitle: 'Cố vấn họ tộc',
+    bio: 'Thành viên lớn tuổi hỗ trợ kiểm thử danh sách.',
+    authUid: 'debug_phone_84907770011',
   }),
   createMember({
     id: 'member_demo_elder_spouse_001',
     branchId: 'branch_demo_001',
-    fullName: 'Ba Mai',
+    fullName: 'Bà Mai',
     nickName: 'Mai',
     gender: 'female',
     birthDate: '1962-03-14',
     deathDate: '2024-02-15',
     generation: 3,
     status: 'deceased',
-    jobTitle: 'Co van van hoa',
+    jobTitle: 'Cố vấn văn hóa',
   }),
   createMember({
     id: 'member_demo_parent_001',
     branchId: 'branch_demo_001',
-    fullName: 'Nguyen Minh',
+    fullName: 'Nguyễn Minh',
     nickName: 'Minh',
     gender: 'male',
     birthDate: '1988-02-14',
     phoneE164: '+84901234567',
     email: 'minh@befam.vn',
-    addressText: 'Da Nang, Viet Nam',
+    addressText: 'Đà Nẵng, Việt Nam',
     generation: 4,
     primaryRole: 'CLAN_ADMIN',
-    jobTitle: 'Clan Coordinator',
-    bio: 'Dieu phoi khoi tao khong gian ho toc mau cho BeFam.',
+    jobTitle: 'Điều phối họ tộc',
+    bio: 'Điều phối khởi tạo không gian họ tộc mẫu cho BeFam.',
+    authUid: 'debug_phone_84901234567',
   }),
   createMember({
     id: 'member_demo_spouse_001',
     branchId: 'branch_demo_001',
-    fullName: 'Nguyen Thi Giau',
-    nickName: 'Giau',
+    fullName: 'Nguyễn Thị Giàu',
+    nickName: 'Giàu',
     gender: 'female',
     birthDate: '1989-08-23',
     phoneE164: '+84901112233',
     generation: 4,
-    jobTitle: 'Tai chinh gia dinh',
+    jobTitle: 'Tài chính gia đình',
   }),
   createMember({
     id: 'member_demo_uncle_001',
     branchId: 'branch_demo_001',
-    fullName: 'Le Dai Gia',
-    nickName: 'Dai Gia',
+    fullName: 'Lê Đại Gia',
+    nickName: 'Đại Gia',
     gender: 'male',
     birthDate: '1991-05-17',
     phoneE164: '+84905550001',
     generation: 4,
-    jobTitle: 'Doanh nhan',
+    jobTitle: 'Doanh nhân',
   }),
   createMember({
     id: 'member_demo_uncle_spouse_001',
     branchId: 'branch_demo_001',
-    fullName: 'Pham Thi Sang',
+    fullName: 'Phạm Thị Sang',
     nickName: 'Sang',
     gender: 'female',
     birthDate: '1992-07-07',
     deathDate: '2025-07-07',
     generation: 4,
     status: 'deceased',
-    jobTitle: 'Giao vien',
+    jobTitle: 'Giáo viên',
   }),
   createMember({
     id: 'member_demo_parent_002',
     branchId: 'branch_demo_002',
-    fullName: 'Tran Lan',
-    nickName: 'Lan',
-    gender: 'female',
+    fullName: 'Trần Văn Long',
+    nickName: 'Long',
+    gender: 'male',
     birthDate: '1990-07-21',
     phoneE164: '+84908886655',
-    email: 'lan@befam.vn',
-    addressText: 'Hue, Viet Nam',
+    email: 'long@befam.vn',
+    addressText: 'Huế, Việt Nam',
     generation: 4,
     primaryRole: 'BRANCH_ADMIN',
-    jobTitle: 'Branch Lead',
-    bio: 'Dieu phoi hoat dong thanh vien theo chi.',
+    jobTitle: 'Trưởng chi phụ',
+    bio: 'Trưởng chi phụ, điều phối hoạt động thành viên theo nam hệ.',
+    authUid: 'debug_phone_84908886655',
   }),
   createMember({
     id: 'member_demo_spouse_002',
     branchId: 'branch_demo_002',
-    fullName: 'Pham Van Quy',
-    nickName: 'Quy',
-    gender: 'male',
+    fullName: 'Phạm Thị Quyên',
+    nickName: 'Quyên',
+    gender: 'female',
     birthDate: '1989-10-01',
     phoneE164: '+84903334444',
     generation: 4,
-    jobTitle: 'Ky su',
+    jobTitle: 'Kỹ sư',
   }),
   createMember({
     id: 'member_demo_aunt_001',
     branchId: 'branch_demo_002',
-    fullName: 'Le Thi Hoa',
+    fullName: 'Lê Thị Hoa',
     nickName: 'Hoa',
     gender: 'female',
     birthDate: '1993-06-19',
     phoneE164: '+84905550002',
     generation: 4,
-    jobTitle: 'Dieu duong',
+    jobTitle: 'Điều dưỡng',
   }),
   createMember({
     id: 'member_demo_aunt_spouse_001',
     branchId: 'branch_demo_002',
-    fullName: 'Le Van Vinh',
+    fullName: 'Lê Văn Vinh',
     nickName: 'Vinh',
     gender: 'male',
     birthDate: '1992-12-20',
     generation: 4,
-    jobTitle: 'Ke toan',
+    jobTitle: 'Kế toán',
   }),
   createMember({
     id: 'member_demo_branch3_lead_001',
     branchId: 'branch_demo_003',
-    fullName: 'Nguyen Van Dai',
-    nickName: 'Dai',
+    fullName: 'Nguyễn Văn Đại',
+    nickName: 'Đại',
     gender: 'male',
     birthDate: '1996-02-25',
     phoneE164: '+84906660001',
     generation: 5,
     primaryRole: 'BRANCH_ADMIN',
-    jobTitle: 'Branch 3 Lead',
+    jobTitle: 'Trưởng chi 3',
   }),
   createMember({
     id: 'member_demo_branch3_spouse_001',
     branchId: 'branch_demo_003',
-    fullName: 'Pham Thi Vy',
+    fullName: 'Phạm Thị Vy',
     nickName: 'Vy',
     gender: 'female',
     birthDate: '1997-11-11',
     generation: 5,
-    jobTitle: 'Ban to chuc',
+    jobTitle: 'Ban tổ chức',
   }),
   createMember({
     id: 'member_demo_branch4_lead_001',
     branchId: 'branch_demo_004',
-    fullName: 'Nguyen Van Su',
-    nickName: 'Su',
+    fullName: 'Nguyễn Văn Sử',
+    nickName: 'Sử',
     gender: 'male',
     birthDate: '1997-04-16',
     phoneE164: '+84907770111',
     generation: 5,
     primaryRole: 'BRANCH_ADMIN',
-    jobTitle: 'Branch 4 Lead',
+    jobTitle: 'Trưởng chi 4',
   }),
   createMember({
     id: 'member_demo_branch4_spouse_001',
     branchId: 'branch_demo_004',
-    fullName: 'Le Thi Hoang',
-    nickName: 'Hoang',
+    fullName: 'Lê Thị Hoàng',
+    nickName: 'Hoàng',
     gender: 'female',
     birthDate: '1998-09-04',
     generation: 5,
-    jobTitle: 'Noi vu',
+    jobTitle: 'Nội vụ',
   }),
   createMember({
     id: 'member_demo_child_001',
     branchId: 'branch_demo_001',
-    fullName: 'Be Minh',
-    nickName: 'Minh nho',
+    fullName: 'Bé Minh',
+    nickName: 'Minh nhỏ',
     gender: 'male',
     birthDate: '2017-04-12',
     generation: 6,
     isMinor: true,
-    jobTitle: 'Hoc sinh',
-    bio: 'Thanh vien tre em dung cho luong OTP phu huynh.',
+    jobTitle: 'Học sinh',
+    bio: 'Thành viên trẻ em dùng cho luồng OTP phụ huynh.',
   }),
   createMember({
     id: 'member_demo_child_002',
     branchId: 'branch_demo_002',
-    fullName: 'Be Lan',
-    nickName: 'Lan nho',
+    fullName: 'Bé Lan',
+    nickName: 'Lan nhỏ',
     gender: 'female',
     birthDate: '2016-09-09',
     generation: 6,
     isMinor: true,
-    jobTitle: 'Hoc sinh',
-    bio: 'Thanh vien tre em mau cho kiem thu quyen doc.',
+    jobTitle: 'Học sinh',
+    bio: 'Thành viên trẻ em mẫu cho kiểm thử quyền đọc.',
   }),
   createMember({
     id: 'member_demo_child_003',
     branchId: 'branch_demo_001',
-    fullName: 'Nguyen Thi Dinh',
-    nickName: 'Dinh',
+    fullName: 'Nguyễn Thị Đinh',
+    nickName: 'Đinh',
     gender: 'female',
     birthDate: '2015-03-22',
     generation: 6,
     isMinor: true,
-    jobTitle: 'Hoc sinh',
+    jobTitle: 'Học sinh',
   }),
   createMember({
     id: 'member_demo_child_004',
     branchId: 'branch_demo_002',
-    fullName: 'Le Van Nhat',
-    nickName: 'Nhat',
+    fullName: 'Lê Văn Nhật',
+    nickName: 'Nhật',
     gender: 'male',
     birthDate: '2014-07-14',
     generation: 6,
     isMinor: true,
-    jobTitle: 'Hoc sinh',
+    jobTitle: 'Học sinh',
   }),
   createMember({
     id: 'member_demo_cousin_001',
     branchId: 'branch_demo_001',
-    fullName: 'Pham Thi Loi',
-    nickName: 'Loi',
+    fullName: 'Phạm Thị Lợi',
+    nickName: 'Lợi',
     gender: 'female',
     birthDate: '2012-08-19',
     generation: 6,
     isMinor: true,
-    jobTitle: 'Hoc sinh',
+    jobTitle: 'Học sinh',
   }),
   createMember({
     id: 'member_demo_cousin_002',
     branchId: 'branch_demo_001',
-    fullName: 'Nguyen Thi Hong',
-    nickName: 'Hong',
+    fullName: 'Nguyễn Thị Hồng',
+    nickName: 'Hồng',
     gender: 'female',
     birthDate: '2011-12-09',
     generation: 6,
     isMinor: true,
-    jobTitle: 'Hoc sinh',
+    jobTitle: 'Học sinh',
   }),
   createMember({
     id: 'member_demo_cousin_003',
     branchId: 'branch_demo_002',
-    fullName: 'Tran Van An',
+    fullName: 'Trần Văn An',
     nickName: 'An',
     gender: 'male',
     birthDate: '2010-06-03',
     generation: 6,
     isMinor: true,
-    jobTitle: 'Hoc sinh',
+    jobTitle: 'Học sinh',
   }),
   createMember({
     id: 'member_demo_branch3_member_001',
     branchId: 'branch_demo_003',
-    fullName: 'Le Van Vu',
-    nickName: 'Vu',
+    fullName: 'Lê Văn Vũ',
+    nickName: 'Vũ',
     gender: 'male',
     birthDate: '2011-10-18',
     generation: 6,
     isMinor: true,
-    jobTitle: 'Hoc sinh',
+    jobTitle: 'Học sinh',
   }),
   createMember({
     id: 'member_demo_branch3_member_spouse_001',
     branchId: 'branch_demo_003',
-    fullName: 'Tran Thi Tuoi',
-    nickName: 'Tuoi',
+    fullName: 'Trần Thị Tươi',
+    nickName: 'Tươi',
     gender: 'female',
     birthDate: '2011-11-08',
     generation: 6,
     isMinor: true,
-    jobTitle: 'Hoc sinh',
+    jobTitle: 'Học sinh',
   }),
   createMember({
     id: 'member_demo_branch4_child_002',
     branchId: 'branch_demo_004',
-    fullName: 'Nguyen Thi Van',
-    nickName: 'Van',
+    fullName: 'Nguyễn Thị Vân',
+    nickName: 'Vân',
     gender: 'female',
     birthDate: '2012-02-01',
     generation: 6,
     isMinor: true,
-    jobTitle: 'Hoc sinh',
+    jobTitle: 'Học sinh',
   }),
   createMember({
     id: 'member_demo_branch3_child_001',
     branchId: 'branch_demo_003',
-    fullName: 'Le Van Ky',
-    nickName: 'Ky',
+    fullName: 'Lê Văn Kỳ',
+    nickName: 'Kỳ',
     gender: 'male',
     birthDate: '2021-05-20',
     generation: 7,
     isMinor: true,
-    jobTitle: 'Tre em',
+    jobTitle: 'Trẻ em',
   }),
   createMember({
     id: 'member_demo_branch3_child_002',
     branchId: 'branch_demo_003',
-    fullName: 'Le Thi Dieu',
-    nickName: 'Dieu',
+    fullName: 'Lê Thị Diệu',
+    nickName: 'Diệu',
     gender: 'female',
     birthDate: '2023-09-15',
     generation: 7,
     isMinor: true,
-    jobTitle: 'Tre em',
+    jobTitle: 'Trẻ em',
   }),
   createMember({
     id: 'member_demo_branch4_child_001',
     branchId: 'branch_demo_004',
-    fullName: 'Le Van Khoa',
+    fullName: 'Lê Văn Khoa',
     nickName: 'Khoa',
     gender: 'male',
     birthDate: '2020-01-30',
     generation: 7,
     isMinor: true,
-    jobTitle: 'Tre em',
+    jobTitle: 'Trẻ em',
   }),
   createMember({
     id: 'member_demo_branch4_child_spouse_001',
     branchId: 'branch_demo_004',
-    fullName: 'Nguyen Thi Nhu',
-    nickName: 'Nhu',
+    fullName: 'Nguyễn Thị Như',
+    nickName: 'Như',
     gender: 'female',
     birthDate: '2020-03-12',
     generation: 7,
     isMinor: true,
-    jobTitle: 'Tre em',
+    jobTitle: 'Trẻ em',
   }),
   createMember({
     id: 'member_demo_branch3_grandchild_001',
     branchId: 'branch_demo_003',
-    fullName: 'Nguyen Thi Anh',
+    fullName: 'Nguyễn Thị Anh',
     nickName: 'Anh',
     gender: 'female',
     birthDate: '2025-12-02',
     generation: 8,
     isMinor: true,
-    jobTitle: 'So sinh',
+    jobTitle: 'Sơ sinh',
   }),
   createMember({
     id: 'member_demo_branch4_grandchild_001',
     branchId: 'branch_demo_004',
-    fullName: 'Nguyen Nhu Anh',
-    nickName: 'Nhu Anh',
+    fullName: 'Nguyễn Như Anh',
+    nickName: 'Như Anh',
     gender: 'female',
     birthDate: '2026-01-04',
     generation: 9,
     isMinor: true,
-    jobTitle: 'So sinh',
+    jobTitle: 'Sơ sinh',
   }),
 ];
 
@@ -618,7 +625,7 @@ const branches = [
   {
     id: 'branch_demo_001',
     clanId,
-    name: 'Chi Truong',
+    name: 'Chi Trưởng',
     code: 'CT01',
     leaderMemberId: 'member_demo_parent_001',
     viceLeaderMemberId: 'member_demo_parent_002',
@@ -633,7 +640,7 @@ const branches = [
   {
     id: 'branch_demo_002',
     clanId,
-    name: 'Chi Phu',
+    name: 'Chi Phụ',
     code: 'CP02',
     leaderMemberId: 'member_demo_parent_002',
     viceLeaderMemberId: 'member_demo_elder_001',
@@ -648,7 +655,7 @@ const branches = [
   {
     id: 'branch_demo_003',
     clanId,
-    name: 'Chi Thanh Dat',
+    name: 'Chi Thành Đạt',
     code: 'CTD03',
     leaderMemberId: 'member_demo_branch3_lead_001',
     viceLeaderMemberId: 'member_demo_uncle_001',
@@ -663,10 +670,10 @@ const branches = [
   {
     id: 'branch_demo_004',
     clanId,
-    name: 'Chi Hanh Phuc',
+    name: 'Chi Hạnh Phúc',
     code: 'CHP04',
     leaderMemberId: 'member_demo_branch4_lead_001',
-    viceLeaderMemberId: 'member_demo_aunt_001',
+    viceLeaderMemberId: 'member_demo_aunt_spouse_001',
     generationLevelHint: 5,
     status: 'active',
     memberCount: 0,
@@ -677,6 +684,71 @@ const branches = [
   },
 ];
 
+function assertMaleLineConstraints({ members, branches }) {
+  const maleOnlyRoles = new Set([
+    'CLAN_ADMIN',
+    'BRANCH_ADMIN',
+    'CLAN_LEADER',
+    'VICE_LEADER',
+    'SUPPORTER_OF_LEADER',
+  ]);
+  const maleTitlePatterns = [
+    /to truong/i,
+    /truong toc/i,
+    /truong chi/i,
+    /dich ton/i,
+    /tộc trưởng/i,
+    /trưởng tộc/i,
+    /trưởng chi/i,
+    /đích tôn/i,
+  ];
+  const memberById = new Map(members.map((member) => [member.id, member]));
+  const violations = [];
+
+  for (const member of members) {
+    const gender = (member.gender ?? '').toLowerCase();
+    const primaryRole = (member.primaryRole ?? '').toUpperCase();
+    const leadershipText = `${member.jobTitle ?? ''} ${member.bio ?? ''}`;
+    const hasMaleLeadershipRole = maleOnlyRoles.has(primaryRole);
+    const hasMaleOnlyLeadershipTitle = maleTitlePatterns.some((pattern) =>
+      pattern.test(leadershipText),
+    );
+    if ((hasMaleLeadershipRole || hasMaleOnlyLeadershipTitle) && gender !== 'male') {
+      violations.push(
+        `member:${member.id} role:${primaryRole || 'none'} gender:${member.gender ?? 'null'}`,
+      );
+    }
+  }
+
+  for (const branch of branches) {
+    for (const roleField of ['leaderMemberId', 'viceLeaderMemberId']) {
+      const memberId = branch[roleField];
+      if (memberId == null) {
+        continue;
+      }
+      const member = memberById.get(memberId);
+      if (member == null) {
+        violations.push(`branch:${branch.id} ${roleField}:${memberId} missing-member`);
+        continue;
+      }
+      const gender = (member.gender ?? '').toLowerCase();
+      if (gender !== 'male') {
+        violations.push(
+          `branch:${branch.id} ${roleField}:${memberId} gender:${member.gender ?? 'null'}`,
+        );
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    throw new Error(
+      `Male-line leadership constraint violated:\\n${violations.join('\\n')}`,
+    );
+  }
+}
+
+assertMaleLineConstraints({ members: normalizedMembers, branches });
+
 for (const branch of branches) {
   branch.memberCount = normalizedMembers.filter(
     (member) => member.branchId === branch.id,
@@ -685,12 +757,12 @@ for (const branch of branches) {
 
 const clan = {
   id: clanId,
-  name: 'Ho toc BeFam',
+  name: 'Họ tộc BeFam',
   slug: 'ho-toc-befam',
   description:
-    'Khong gian demo nhieu the he de kiem thu kham pha cay gia pha tren du lieu lon.',
+    'Không gian demo nhiều thế hệ để kiểm thử khám phá cây gia phả trên dữ liệu lớn.',
   countryCode: 'VN',
-  founderName: 'Nguyen Minh to',
+  founderName: 'Nguyễn Minh tổ',
   logoUrl: '',
   status: 'active',
   memberCount: normalizedMembers.length,
@@ -866,8 +938,8 @@ const debugLoginProfiles = [
   {
     phoneE164: '+84906660022',
     scenarioKey: 'user_unlinked',
-    title: 'User chưa vào gia phả nào',
-    description: 'Tài khoản chưa liên kết member/clan để kiểm thử onboarding.',
+    title: 'Người dùng chưa vào gia phả nào',
+    description: 'Tài khoản chưa liên kết thành viên/họ tộc để kiểm thử luồng bắt đầu.',
     memberId: null,
     clanId: null,
     branchId: null,
@@ -885,8 +957,7 @@ const debugLoginProfiles = [
     phoneE164: '+84905550033',
     scenarioKey: 'branch_admin_unlinked',
     title: 'Trưởng chi chưa gắn gia phả',
-    description:
-      'Role BRANCH_ADMIN nhưng chưa gắn clan/branch để kiểm thử phân quyền.',
+    description: 'Vai trò BRANCH_ADMIN nhưng chưa gắn họ tộc/chi để kiểm thử phân quyền.',
     memberId: null,
     clanId: null,
     branchId: null,
@@ -904,7 +975,7 @@ const debugLoginProfiles = [
     phoneE164: '+84909990001',
     scenarioKey: 'clan_admin_uninitialized',
     title: 'Trưởng tộc chưa tạo gia phả',
-    description: 'CLAN_ADMIN có context tạo clan mới nhưng chưa có dữ liệu.',
+    description: 'CLAN_ADMIN có ngữ cảnh tạo họ tộc mới nhưng chưa có dữ liệu.',
     memberId: null,
     clanId: 'clan_onboarding_001',
     branchId: null,
@@ -917,6 +988,794 @@ const debugLoginProfiles = [
     isTestUser: true,
     updatedAt: now,
     createdAt: now,
+  },
+];
+
+const fundTransactions = [
+  {
+    id: 'txn_demo_001',
+    fundId: 'fund_demo_scholarship',
+    clanId,
+    branchId: null,
+    transactionType: 'donation',
+    amountMinor: 3000000,
+    currency: 'VND',
+    memberId: 'member_demo_parent_001',
+    externalReference: null,
+    occurredAt: ts('2026-01-12T02:00:00.000Z'),
+    note: 'Chiến dịch đóng góp Tết',
+    receiptUrl: null,
+    createdAt: ts('2026-01-12T02:05:00.000Z'),
+    createdBy: 'member_demo_parent_001',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+  },
+  {
+    id: 'txn_demo_002',
+    fundId: 'fund_demo_scholarship',
+    clanId,
+    branchId: null,
+    transactionType: 'expense',
+    amountMinor: 500000,
+    currency: 'VND',
+    memberId: 'member_demo_parent_001',
+    externalReference: null,
+    occurredAt: ts('2026-02-10T07:00:00.000Z'),
+    note: 'Đợt chi học bổng lần 1',
+    receiptUrl: null,
+    createdAt: ts('2026-02-10T07:02:00.000Z'),
+    createdBy: 'member_demo_parent_001',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+  },
+  {
+    id: 'txn_demo_003',
+    fundId: 'fund_demo_operations',
+    clanId,
+    branchId: null,
+    transactionType: 'donation',
+    amountMinor: 1000000,
+    currency: 'VND',
+    memberId: 'member_demo_parent_002',
+    externalReference: 'OPS-2026-01',
+    occurredAt: ts('2026-01-20T03:00:00.000Z'),
+    note: 'Đóng góp quỹ vận hành',
+    receiptUrl: null,
+    createdAt: ts('2026-01-20T03:01:00.000Z'),
+    createdBy: 'member_demo_parent_002',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+  },
+  {
+    id: 'txn_demo_004',
+    fundId: 'fund_demo_operations',
+    clanId,
+    branchId: null,
+    transactionType: 'expense',
+    amountMinor: 150000,
+    currency: 'VND',
+    memberId: 'member_demo_parent_002',
+    externalReference: null,
+    occurredAt: ts('2026-02-01T08:00:00.000Z'),
+    note: 'Chi phí hậu cần lễ giỗ',
+    receiptUrl: null,
+    createdAt: ts('2026-02-01T08:01:00.000Z'),
+    createdBy: 'member_demo_parent_002',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+  },
+];
+
+const fundBalanceById = new Map();
+for (const transaction of fundTransactions) {
+  const signedAmount =
+    transaction.transactionType === 'expense'
+      ? -transaction.amountMinor
+      : transaction.amountMinor;
+  fundBalanceById.set(
+    transaction.fundId,
+    (fundBalanceById.get(transaction.fundId) ?? 0) + signedAmount,
+  );
+}
+
+const funds = [
+  {
+    id: 'fund_demo_scholarship',
+    clanId,
+    branchId: null,
+    appliedMemberIds: [
+      'member_demo_child_001',
+      'member_demo_child_002',
+      'member_demo_child_003',
+      'member_demo_child_004',
+    ],
+    treasurerMemberIds: ['member_demo_parent_001', 'member_demo_parent_002'],
+    name: 'Quỹ Khuyến học',
+    description: 'Hỗ trợ hậu duệ với học bổng thường niên.',
+    fundType: 'scholarship',
+    currency: 'VND',
+    balanceMinor: fundBalanceById.get('fund_demo_scholarship') ?? 0,
+    status: 'active',
+    createdAt: now,
+    createdBy: 'seed-script',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+  },
+  {
+    id: 'fund_demo_operations',
+    clanId,
+    branchId: null,
+    appliedMemberIds: [],
+    treasurerMemberIds: ['member_demo_parent_002'],
+    name: 'Quỹ Vận hành họ tộc',
+    description: 'Chi trả nghi lễ và hoạt động chung của họ tộc.',
+    fundType: 'operations',
+    currency: 'VND',
+    balanceMinor: fundBalanceById.get('fund_demo_operations') ?? 0,
+    status: 'active',
+    createdAt: now,
+    createdBy: 'seed-script',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+  },
+];
+
+const events = [
+  {
+    id: 'event_demo_memorial_001',
+    clanId,
+    branchId: 'branch_demo_001',
+    title: 'Giỗ cụ tổ mùa xuân',
+    description: 'Lễ giỗ thường niên tại từ đường chi trưởng.',
+    eventType: 'death_anniversary',
+    targetMemberId: 'member_demo_elder_001',
+    locationName: 'Từ đường chi trưởng',
+    locationAddress: 'Quảng Nam, Việt Nam',
+    startsAt: ts('2026-04-04T02:00:00.000Z'),
+    endsAt: ts('2026-04-04T05:30:00.000Z'),
+    timezone: 'Asia/Ho_Chi_Minh',
+    isRecurring: true,
+    recurrenceRule: 'FREQ=YEARLY',
+    reminderOffsetsMinutes: [10080, 1440, 120],
+    visibility: 'clan',
+    status: 'scheduled',
+    createdAt: now,
+    createdBy: 'seed-script',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+  },
+  {
+    id: 'event_demo_gathering_001',
+    clanId,
+    branchId: 'branch_demo_002',
+    title: 'Họp mặt đầu hè',
+    description: 'Họp mặt toàn chi để cập nhật kế hoạch học bổng và quỹ.',
+    eventType: 'clan_gathering',
+    targetMemberId: null,
+    locationName: 'Nhà văn hóa chi phụ',
+    locationAddress: 'Huế, Việt Nam',
+    startsAt: ts('2026-05-12T01:00:00.000Z'),
+    endsAt: ts('2026-05-12T04:00:00.000Z'),
+    timezone: 'Asia/Ho_Chi_Minh',
+    isRecurring: false,
+    recurrenceRule: null,
+    reminderOffsetsMinutes: [1440, 120],
+    visibility: 'clan',
+    status: 'scheduled',
+    createdAt: now,
+    createdBy: 'seed-script',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+  },
+  {
+    id: 'event_demo_lunar_birthday_001',
+    clanId,
+    branchId: 'branch_demo_001',
+    title: 'Sinh nhật bà nội (âm lịch)',
+    description: 'Sự kiện lặp lại theo âm lịch để test dual-calendar.',
+    eventType: 'birthday',
+    targetMemberId: 'member_demo_elder_spouse_001',
+    locationName: 'Nhà trưởng chi',
+    locationAddress: 'Đà Nẵng, Việt Nam',
+    startsAt: ts('2026-07-19T11:00:00.000Z'),
+    endsAt: ts('2026-07-19T13:00:00.000Z'),
+    timezone: 'Asia/Ho_Chi_Minh',
+    isRecurring: true,
+    recurrenceRule: 'FREQ=YEARLY',
+    reminderOffsetsMinutes: [10080, 1440],
+    visibility: 'clan',
+    status: 'scheduled',
+    dateType: 'lunar',
+    lunarMonth: 6,
+    lunarDay: 5,
+    isLeapMonth: false,
+    createdAt: now,
+    createdBy: 'seed-script',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+  },
+];
+
+const scholarshipPrograms = [
+  {
+    id: 'scholarship_program_demo_2026',
+    clanId,
+    title: 'Học bổng hậu duệ 2026',
+    description: 'Chương trình học bổng thường niên cho hậu duệ đạt thành tích.',
+    year: 2026,
+    status: 'open',
+    submissionOpenAt: ts('2026-01-01T00:00:00.000Z'),
+    submissionCloseAt: ts('2026-08-31T23:59:59.000Z'),
+    reviewCloseAt: ts('2026-09-30T23:59:59.000Z'),
+    createdAt: now,
+    createdBy: 'seed-script',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+  },
+];
+
+const awardLevels = [
+  {
+    id: 'award_level_demo_gold',
+    programId: 'scholarship_program_demo_2026',
+    clanId,
+    name: 'Giải Vàng',
+    description: 'Dành cho thành tích xuất sắc cấp tỉnh trở lên.',
+    sortOrder: 10,
+    rewardType: 'cash',
+    rewardAmountMinor: 5000000,
+    criteriaText: 'GPA >= 3.8 hoặc giải học sinh giỏi cấp tỉnh/quốc gia.',
+    status: 'active',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'award_level_demo_silver',
+    programId: 'scholarship_program_demo_2026',
+    clanId,
+    name: 'Giải Bạc',
+    description: 'Dành cho thành tích học tập tốt cấp trường.',
+    sortOrder: 20,
+    rewardType: 'cash',
+    rewardAmountMinor: 3000000,
+    criteriaText: 'GPA >= 3.4 và hạnh kiểm tốt.',
+    status: 'active',
+    createdAt: now,
+    updatedAt: now,
+  },
+];
+
+const achievementSubmissions = [
+  {
+    id: 'submission_demo_001',
+    programId: 'scholarship_program_demo_2026',
+    awardLevelId: 'award_level_demo_gold',
+    clanId,
+    memberId: 'member_demo_parent_001',
+    studentNameSnapshot: 'Bé Minh',
+    title: 'Thành tích học kỳ I',
+    description: 'Hồ sơ đề nghị học bổng cho học kỳ I năm học 2026.',
+    evidenceUrls: ['https://example.com/evidence/minh-hoc-ky-1.pdf'],
+    status: 'pending',
+    reviewNote: null,
+    reviewedBy: null,
+    reviewedAt: null,
+    approvalVotes: [],
+    finalDecisionReason: null,
+    createdAt: ts('2026-02-12T03:00:00.000Z'),
+    createdBy: 'member_demo_parent_001',
+    updatedAt: ts('2026-02-12T03:00:00.000Z'),
+    updatedBy: 'member_demo_parent_001',
+  },
+  {
+    id: 'submission_demo_002',
+    programId: 'scholarship_program_demo_2026',
+    awardLevelId: 'award_level_demo_silver',
+    clanId,
+    memberId: 'member_demo_parent_002',
+    studentNameSnapshot: 'Bé Lan',
+    title: 'Thành tích cuối năm',
+    description: 'Đề nghị học bổng cho kết quả cuối năm 2026.',
+    evidenceUrls: ['https://example.com/evidence/lan-cuoi-nam.pdf'],
+    status: 'approved',
+    reviewNote: 'Hồ sơ đầy đủ và đạt tiêu chí.',
+    reviewedBy: 'member_demo_parent_001',
+    reviewedAt: ts('2026-03-05T10:15:00.000Z'),
+    approvalVotes: [
+      {
+        memberId: 'member_demo_parent_001',
+        decision: 'approve',
+        note: 'Đồng ý',
+        createdAt: ts('2026-03-05T10:00:00.000Z'),
+      },
+    ],
+    finalDecisionReason: 'Đạt đủ phiếu chấp thuận.',
+    createdAt: ts('2026-02-28T08:00:00.000Z'),
+    createdBy: 'member_demo_parent_002',
+    updatedAt: ts('2026-03-05T10:15:00.000Z'),
+    updatedBy: 'member_demo_parent_001',
+  },
+];
+
+const scholarshipApprovalLogs = [
+  {
+    id: 'sch_log_demo_001',
+    clanId,
+    submissionId: 'submission_demo_002',
+    action: 'submission_reviewed',
+    decision: 'approve',
+    actorMemberId: 'member_demo_parent_001',
+    actorRole: 'CLAN_ADMIN',
+    note: 'Đủ điều kiện cấp học bổng.',
+    createdAt: ts('2026-03-05T10:15:00.000Z'),
+  },
+  {
+    id: 'sch_log_demo_002',
+    clanId,
+    submissionId: 'submission_demo_001',
+    action: 'submission_created',
+    decision: null,
+    actorMemberId: 'member_demo_parent_001',
+    actorRole: 'CLAN_ADMIN',
+    note: 'Hồ sơ mới được nộp.',
+    createdAt: ts('2026-02-12T03:00:00.000Z'),
+  },
+];
+
+const billingSettingsDocs = [
+  {
+    id: clanId,
+    clanId,
+    paymentMode: 'manual',
+    autoRenew: false,
+    reminderDaysBefore: [30, 14, 7, 3, 1],
+    updatedAt: now,
+    updatedBy: 'seed-script',
+    createdAt: now,
+    createdBy: 'seed-script',
+  },
+];
+
+const subscriptions = [
+  {
+    id: clanId,
+    clanId,
+    planCode: 'BASE',
+    status: 'active',
+    memberCount: normalizedMembers.length,
+    amountVndYear: 49000,
+    vatIncluded: true,
+    paymentMode: 'manual',
+    autoRenew: false,
+    showAds: true,
+    adFree: false,
+    startsAt: ts('2026-01-01T00:00:00.000Z'),
+    expiresAt: ts('2027-01-01T00:00:00.000Z'),
+    nextPaymentDueAt: ts('2027-01-01T00:00:00.000Z'),
+    graceEndsAt: null,
+    lastPaymentMethod: 'vnpay',
+    lastTransactionId: 'paytxn_demo_001',
+    lastInvoiceId: 'invoice_demo_001',
+    updatedAt: now,
+    updatedBy: 'seed-script',
+    createdAt: now,
+    createdBy: 'seed-script',
+  },
+];
+
+const paymentTransactions = [
+  {
+    id: 'paytxn_demo_001',
+    clanId,
+    subscriptionId: clanId,
+    invoiceId: 'invoice_demo_001',
+    paymentMethod: 'vnpay',
+    paymentStatus: 'succeeded',
+    planCode: 'BASE',
+    memberCount: normalizedMembers.length,
+    amountVnd: 49000,
+    vatIncluded: true,
+    currency: 'VND',
+    gatewayReference: 'VNPAY-DEMO-001',
+    gatewayPayloadHash: null,
+    provider: 'vnpay',
+    createdAt: ts('2026-01-01T00:01:00.000Z'),
+    paidAt: ts('2026-01-01T00:03:00.000Z'),
+    failedAt: null,
+    updatedAt: now,
+    updatedBy: 'seed-script',
+    createdBy: 'seed-script',
+  },
+];
+
+const subscriptionInvoices = [
+  {
+    id: 'invoice_demo_001',
+    clanId,
+    subscriptionId: clanId,
+    transactionId: 'paytxn_demo_001',
+    planCode: 'BASE',
+    amountVnd: 49000,
+    vatIncluded: true,
+    currency: 'VND',
+    status: 'paid',
+    periodStart: ts('2026-01-01T00:00:00.000Z'),
+    periodEnd: ts('2027-01-01T00:00:00.000Z'),
+    issuedAt: ts('2026-01-01T00:01:00.000Z'),
+    paidAt: ts('2026-01-01T00:03:00.000Z'),
+    createdAt: ts('2026-01-01T00:01:00.000Z'),
+    updatedAt: now,
+    updatedBy: 'seed-script',
+    createdBy: 'seed-script',
+  },
+];
+
+const billingAuditLogs = [
+  {
+    id: 'billing_audit_demo_bootstrap',
+    clanId,
+    actorUid: 'seed-script',
+    action: 'subscription_bootstrapped',
+    entityType: 'subscription',
+    entityId: clanId,
+    before: null,
+    after: {
+      planCode: 'BASE',
+      status: 'active',
+      memberCount: normalizedMembers.length,
+    },
+    createdAt: ts('2026-01-01T00:00:00.000Z'),
+  },
+  {
+    id: 'billing_audit_demo_payment',
+    clanId,
+    actorUid: 'seed-script',
+    action: 'payment_succeeded',
+    entityType: 'paymentTransaction',
+    entityId: 'paytxn_demo_001',
+    before: { status: 'pending' },
+    after: { status: 'succeeded', provider: 'vnpay' },
+    createdAt: ts('2026-01-01T00:03:00.000Z'),
+  },
+];
+
+const notifications = [
+  {
+    id: 'notif_demo_event_001',
+    clanId,
+    memberId: 'member_demo_parent_001',
+    type: 'event_reminder',
+    title: 'Sự kiện sắp diễn ra',
+    body: 'Lễ giỗ cụ tổ sẽ bắt đầu vào ngày mai.',
+    isRead: false,
+    createdAt: ts('2026-04-03T02:00:00.000Z'),
+    data: {
+      target: 'event',
+      eventId: 'event_demo_memorial_001',
+      id: 'event_demo_memorial_001',
+    },
+  },
+  {
+    id: 'notif_demo_scholarship_001',
+    clanId,
+    memberId: 'member_demo_parent_002',
+    type: 'scholarship_review',
+    title: 'Hồ sơ học bổng đã được duyệt',
+    body: 'Hồ sơ thành tích cuối năm đã được phê duyệt.',
+    isRead: false,
+    createdAt: ts('2026-03-05T10:20:00.000Z'),
+    data: {
+      target: 'scholarship',
+      submissionId: 'submission_demo_002',
+      id: 'submission_demo_002',
+    },
+  },
+  {
+    id: 'notif_demo_billing_001',
+    clanId,
+    memberId: 'member_demo_parent_001',
+    type: 'billing_payment_succeeded',
+    title: 'Thanh toán gói dịch vụ thành công',
+    body: 'Gói BASE đã được gia hạn đến 2027-01-01.',
+    isRead: true,
+    createdAt: ts('2026-01-01T00:05:00.000Z'),
+    data: {
+      target: 'generic',
+      transactionId: 'paytxn_demo_001',
+      result: 'success',
+    },
+  },
+];
+
+const lunarHolidays = [
+  {
+    id: 'lunar_holiday_new_year',
+    name: 'Tết Nguyên Đán',
+    lunarMonth: 1,
+    lunarDay: 1,
+    regions: ['CN', 'VN', 'KR'],
+    colorHex: '#EF5350',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'lunar_holiday_lantern',
+    name: 'Rằm tháng Giêng',
+    lunarMonth: 1,
+    lunarDay: 15,
+    regions: ['CN', 'VN', 'KR'],
+    colorHex: '#FFA726',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'lunar_holiday_dragon_boat',
+    name: 'Tết Đoan Ngọ',
+    lunarMonth: 5,
+    lunarDay: 5,
+    regions: ['CN', 'VN', 'KR'],
+    colorHex: '#43A047',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'lunar_holiday_mid_autumn',
+    name: 'Tết Trung Thu',
+    lunarMonth: 8,
+    lunarDay: 15,
+    regions: ['CN', 'VN', 'KR'],
+    colorHex: '#5C6BC0',
+    createdAt: now,
+    updatedAt: now,
+  },
+];
+
+const discoveryEntries = [
+  {
+    id: clanId,
+    clanId,
+    genealogyName: clan.name,
+    genealogyNameNormalized: normalizeName(clan.name),
+    leaderName: 'Nguyễn Minh',
+    leaderNameNormalized: normalizeName('Nguyễn Minh'),
+    provinceCity: 'Đà Nẵng',
+    provinceCityNormalized: normalizeName('Đà Nẵng'),
+    summary: clan.description,
+    memberCount: normalizedMembers.length,
+    branchCount: branches.length,
+    isPublic: true,
+    createdAt: now,
+    updatedAt: now,
+  },
+];
+
+const governanceRoleAssignments = [
+  {
+    id: 'governance_assignment_demo_001',
+    clanId,
+    memberId: 'member_demo_parent_002',
+    previousRole: 'MEMBER',
+    nextRole: 'BRANCH_ADMIN',
+    actorMemberId: 'member_demo_parent_001',
+    actorRole: 'CLAN_ADMIN',
+    reason: 'Khởi tạo phân quyền mẫu để kiểm thử quản trị.',
+    createdAt: now,
+  },
+];
+
+const userProfiles = [
+  {
+    uid: 'debug_phone_84901234567',
+    memberId: 'member_demo_parent_001',
+    clanId,
+    clanIds: [clanId],
+    branchId: 'branch_demo_001',
+    primaryRole: 'CLAN_ADMIN',
+    accessMode: 'claimed',
+    linkedAuthUid: true,
+    calendarRegion: 'VN',
+    calendarDisplayMode: 'dual',
+    languageCode: 'vi',
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    uid: 'debug_phone_84908886655',
+    memberId: 'member_demo_parent_002',
+    clanId,
+    clanIds: [clanId],
+    branchId: 'branch_demo_002',
+    primaryRole: 'BRANCH_ADMIN',
+    accessMode: 'claimed',
+    linkedAuthUid: true,
+    calendarRegion: 'VN',
+    calendarDisplayMode: 'dual',
+    languageCode: 'vi',
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    uid: 'debug_phone_84907770011',
+    memberId: 'member_demo_elder_001',
+    clanId,
+    clanIds: [clanId],
+    branchId: 'branch_demo_001',
+    primaryRole: 'MEMBER',
+    accessMode: 'claimed',
+    linkedAuthUid: true,
+    calendarRegion: 'VN',
+    calendarDisplayMode: 'dual',
+    languageCode: 'vi',
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    uid: 'debug_phone_84905550033',
+    memberId: null,
+    clanId: null,
+    clanIds: [],
+    branchId: null,
+    primaryRole: 'BRANCH_ADMIN',
+    accessMode: 'unlinked',
+    linkedAuthUid: false,
+    calendarRegion: 'VN',
+    calendarDisplayMode: 'dual',
+    languageCode: 'vi',
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    uid: 'debug_phone_84906660022',
+    memberId: null,
+    clanId: null,
+    clanIds: [],
+    branchId: null,
+    primaryRole: 'GUEST',
+    accessMode: 'unlinked',
+    linkedAuthUid: false,
+    calendarRegion: 'VN',
+    calendarDisplayMode: 'dual',
+    languageCode: 'vi',
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    uid: 'debug_phone_84909990001',
+    memberId: null,
+    clanId: null,
+    clanIds: [],
+    branchId: null,
+    primaryRole: 'CLAN_ADMIN',
+    accessMode: 'claimed',
+    linkedAuthUid: true,
+    calendarRegion: 'VN',
+    calendarDisplayMode: 'dual',
+    languageCode: 'vi',
+    updatedAt: now,
+    createdAt: now,
+  },
+];
+
+const notificationPreferences = [
+  {
+    uid: 'debug_phone_84901234567',
+    id: 'notifications',
+    memberId: 'member_demo_parent_001',
+    clanId,
+    branchId: 'branch_demo_001',
+    eventReminders: true,
+    scholarshipUpdates: true,
+    fundTransactions: true,
+    systemNotices: true,
+    quietHoursEnabled: false,
+    updatedBy: 'seed-script',
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    uid: 'debug_phone_84908886655',
+    id: 'notifications',
+    memberId: 'member_demo_parent_002',
+    clanId,
+    branchId: 'branch_demo_002',
+    eventReminders: true,
+    scholarshipUpdates: true,
+    fundTransactions: true,
+    systemNotices: true,
+    quietHoursEnabled: false,
+    updatedBy: 'seed-script',
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    uid: 'debug_phone_84907770011',
+    id: 'notifications',
+    memberId: 'member_demo_elder_001',
+    clanId,
+    branchId: 'branch_demo_001',
+    eventReminders: true,
+    scholarshipUpdates: false,
+    fundTransactions: false,
+    systemNotices: true,
+    quietHoursEnabled: true,
+    updatedBy: 'seed-script',
+    updatedAt: now,
+    createdAt: now,
+  },
+];
+
+const subscriptionPackages = [
+  {
+    id: 'FREE',
+    planCode: 'FREE',
+    displayName: 'Miễn phí',
+    minMembers: 0,
+    maxMembers: 10,
+    priceVndYear: 0,
+    currency: 'VND',
+    billingCycle: 'yearly',
+    vatIncluded: true,
+    showAds: true,
+    adFree: false,
+    isActive: true,
+    sortOrder: 1,
+    source: 'seed-demo',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'BASE',
+    planCode: 'BASE',
+    displayName: 'Cơ bản',
+    minMembers: 11,
+    maxMembers: 200,
+    priceVndYear: 49000,
+    currency: 'VND',
+    billingCycle: 'yearly',
+    vatIncluded: true,
+    showAds: true,
+    adFree: false,
+    isActive: true,
+    sortOrder: 2,
+    source: 'seed-demo',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'PLUS',
+    planCode: 'PLUS',
+    displayName: 'Nâng cao',
+    minMembers: 201,
+    maxMembers: 700,
+    priceVndYear: 89000,
+    currency: 'VND',
+    billingCycle: 'yearly',
+    vatIncluded: true,
+    showAds: false,
+    adFree: true,
+    isActive: true,
+    sortOrder: 3,
+    source: 'seed-demo',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'PRO',
+    planCode: 'PRO',
+    displayName: 'Chuyên nghiệp',
+    minMembers: 701,
+    maxMembers: null,
+    priceVndYear: 119000,
+    currency: 'VND',
+    billingCycle: 'yearly',
+    vatIncluded: true,
+    showAds: false,
+    adFree: true,
+    isActive: true,
+    sortOrder: 4,
+    source: 'seed-demo',
+    createdAt: now,
+    updatedAt: now,
   },
 ];
 
@@ -951,6 +1810,105 @@ async function seed() {
     batch.set(ref, profile, { merge: true });
   }
 
+  for (const fund of funds) {
+    const ref = db.collection('funds').doc(fund.id);
+    batch.set(ref, fund, { merge: true });
+  }
+
+  for (const transaction of fundTransactions) {
+    const ref = db.collection('transactions').doc(transaction.id);
+    batch.set(ref, transaction, { merge: true });
+  }
+
+  for (const event of events) {
+    const ref = db.collection('events').doc(event.id);
+    batch.set(ref, event, { merge: true });
+  }
+
+  for (const program of scholarshipPrograms) {
+    const ref = db.collection('scholarshipPrograms').doc(program.id);
+    batch.set(ref, program, { merge: true });
+  }
+
+  for (const awardLevel of awardLevels) {
+    const ref = db.collection('awardLevels').doc(awardLevel.id);
+    batch.set(ref, awardLevel, { merge: true });
+  }
+
+  for (const submission of achievementSubmissions) {
+    const ref = db.collection('achievementSubmissions').doc(submission.id);
+    batch.set(ref, submission, { merge: true });
+  }
+
+  for (const entry of scholarshipApprovalLogs) {
+    const ref = db.collection('scholarshipApprovalLogs').doc(entry.id);
+    batch.set(ref, entry, { merge: true });
+  }
+
+  for (const settings of billingSettingsDocs) {
+    const ref = db.collection('billingSettings').doc(settings.id);
+    batch.set(ref, settings, { merge: true });
+  }
+
+  for (const subscription of subscriptions) {
+    const ref = db.collection('subscriptions').doc(subscription.id);
+    batch.set(ref, subscription, { merge: true });
+  }
+
+  for (const transaction of paymentTransactions) {
+    const ref = db.collection('paymentTransactions').doc(transaction.id);
+    batch.set(ref, transaction, { merge: true });
+  }
+
+  for (const invoice of subscriptionInvoices) {
+    const ref = db.collection('subscriptionInvoices').doc(invoice.id);
+    batch.set(ref, invoice, { merge: true });
+  }
+
+  for (const log of billingAuditLogs) {
+    const ref = db.collection('billingAuditLogs').doc(log.id);
+    batch.set(ref, log, { merge: true });
+  }
+
+  for (const notification of notifications) {
+    const ref = db.collection('notifications').doc(notification.id);
+    batch.set(ref, notification, { merge: true });
+  }
+
+  for (const holiday of lunarHolidays) {
+    const ref = db.collection('lunar_holidays').doc(holiday.id);
+    batch.set(ref, holiday, { merge: true });
+  }
+
+  for (const entry of discoveryEntries) {
+    const ref = db.collection('genealogyDiscoveryIndex').doc(entry.id);
+    batch.set(ref, entry, { merge: true });
+  }
+
+  for (const assignment of governanceRoleAssignments) {
+    const ref = db.collection('governanceRoleAssignments').doc(assignment.id);
+    batch.set(ref, assignment, { merge: true });
+  }
+
+  for (const user of userProfiles) {
+    const ref = db.collection('users').doc(user.uid);
+    batch.set(ref, user, { merge: true });
+  }
+
+  for (const preferences of notificationPreferences) {
+    const ref = db
+      .collection('users')
+      .doc(preferences.uid)
+      .collection('preferences')
+      .doc('notifications');
+    batch.set(ref, preferences, { merge: true });
+  }
+
+  for (const plan of subscriptionPackages) {
+    const ref = db.collection('subscriptionPackages').doc(plan.id);
+    batch.set(ref, plan, { merge: true });
+  }
+
   await batch.commit();
 
   console.log('Seeded extended demo clan data successfully.');
@@ -961,6 +1919,25 @@ async function seed() {
   console.log(`Relationships: ${relationships.length}`);
   console.log(`Invites: ${invites.length}`);
   console.log(`Debug login profiles: ${debugLoginProfiles.length}`);
+  console.log(`Funds: ${funds.length}`);
+  console.log(`Fund transactions: ${fundTransactions.length}`);
+  console.log(`Events: ${events.length}`);
+  console.log(`Scholarship programs: ${scholarshipPrograms.length}`);
+  console.log(`Award levels: ${awardLevels.length}`);
+  console.log(`Achievement submissions: ${achievementSubmissions.length}`);
+  console.log(`Scholarship approval logs: ${scholarshipApprovalLogs.length}`);
+  console.log(`Billing settings docs: ${billingSettingsDocs.length}`);
+  console.log(`Subscriptions: ${subscriptions.length}`);
+  console.log(`Payment transactions: ${paymentTransactions.length}`);
+  console.log(`Subscription invoices: ${subscriptionInvoices.length}`);
+  console.log(`Billing audit logs: ${billingAuditLogs.length}`);
+  console.log(`Notifications: ${notifications.length}`);
+  console.log(`Lunar holidays: ${lunarHolidays.length}`);
+  console.log(`Discovery entries: ${discoveryEntries.length}`);
+  console.log(`Governance role assignments: ${governanceRoleAssignments.length}`);
+  console.log(`Users: ${userProfiles.length}`);
+  console.log(`Notification preferences: ${notificationPreferences.length}`);
+  console.log(`Subscription packages: ${subscriptionPackages.length}`);
 }
 
 seed().catch((error) => {

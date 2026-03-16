@@ -221,10 +221,10 @@ class AppLocalizationsVi extends AppLocalizations {
   String get authEntryMethodChildInline => 'mã trẻ em';
 
   @override
-  String get shellHomeLabel => 'Trang chủ';
+  String get shellHomeLabel => 'Trang';
 
   @override
-  String get shellHomeTitle => 'Bảng điều khiển khởi tạo';
+  String get shellHomeTitle => 'Trang tổng quan';
 
   @override
   String get shellTreeLabel => 'Gia phả';
