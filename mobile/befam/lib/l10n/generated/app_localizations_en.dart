@@ -224,7 +224,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shellHomeLabel => 'Home';
 
   @override
-  String get shellHomeTitle => 'Bootstrap dashboard';
+  String get shellHomeTitle => 'Family dashboard';
 
   @override
   String get shellTreeLabel => 'Tree';

@@ -62,7 +62,7 @@ class DebugAuthGateway implements AuthGateway {
     ),
     '+84908886655': MemberAccessContext(
       memberId: 'member_demo_parent_002',
-      displayName: 'Tran Lan',
+      displayName: 'Tran Van Long',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_002',
       primaryRole: 'BRANCH_ADMIN',

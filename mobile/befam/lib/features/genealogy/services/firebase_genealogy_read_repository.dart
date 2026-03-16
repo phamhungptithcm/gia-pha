@@ -55,7 +55,7 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
     if (allowCached) {
       final cached = _cache.read(scope);
       if (cached != null) {
-        return cached;
+        return _retargetCachedSegment(cached: cached, session: session);
       }
     }
 
@@ -126,7 +126,7 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
     if (allowCached) {
       final cached = _cache.read(scope);
       if (cached != null) {
-        return cached;
+        return _retargetCachedSegment(cached: cached, session: session);
       }
     }
 
@@ -198,5 +198,27 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
     );
     _cache.write(segment);
     return segment;
+  }
+
+  GenealogyReadSegment _retargetCachedSegment({
+    required GenealogyReadSegment cached,
+    required AuthSession session,
+  }) {
+    final graph = GenealogyGraphAlgorithms.buildAdjacencyMap(
+      members: cached.members,
+      relationships: cached.relationships,
+      focusMemberId: session.memberId,
+    );
+    return cached.copyWith(
+      graph: graph,
+      rootEntries: buildGenealogyRootEntries(
+        scope: cached.scope,
+        session: session,
+        members: cached.members,
+        branches: cached.branches,
+        parentMap: graph.parentMap,
+      ),
+      fromCache: true,
+    );
   }
 }

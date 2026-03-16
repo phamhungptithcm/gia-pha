@@ -45,7 +45,7 @@ class DebugGenealogyReadRepository implements GenealogyReadRepository {
     if (allowCached) {
       final cached = _cache.read(scope);
       if (cached != null) {
-        return cached;
+        return _retargetCachedSegment(cached: cached, session: session);
       }
     }
 
@@ -92,7 +92,10 @@ class DebugGenealogyReadRepository implements GenealogyReadRepository {
         resolvedBranchId == null ||
         resolvedBranchId.isEmpty) {
       return GenealogyReadSegment.empty(
-        GenealogyScope.branch(clanId: clanId ?? '', branchId: resolvedBranchId ?? ''),
+        GenealogyScope.branch(
+          clanId: clanId ?? '',
+          branchId: resolvedBranchId ?? '',
+        ),
       );
     }
 
@@ -103,7 +106,7 @@ class DebugGenealogyReadRepository implements GenealogyReadRepository {
     if (allowCached) {
       final cached = _cache.read(scope);
       if (cached != null) {
-        return cached;
+        return _retargetCachedSegment(cached: cached, session: session);
       }
     }
 
@@ -117,9 +120,7 @@ class DebugGenealogyReadRepository implements GenealogyReadRepository {
         .toList(growable: false);
     final memberIds = members.map((member) => member.id).toSet();
     final branch = _store.branches[resolvedBranchId];
-    final branches = [
-      if (branch != null && branch.clanId == clanId) branch,
-    ];
+    final branches = [if (branch != null && branch.clanId == clanId) branch];
     final relationships = _store.relationships.values
         .where(
           (relationship) =>
@@ -170,5 +171,27 @@ class DebugGenealogyReadRepository implements GenealogyReadRepository {
     );
     _cache.write(segment);
     return segment;
+  }
+
+  GenealogyReadSegment _retargetCachedSegment({
+    required GenealogyReadSegment cached,
+    required AuthSession session,
+  }) {
+    final graph = GenealogyGraphAlgorithms.buildAdjacencyMap(
+      members: cached.members,
+      relationships: cached.relationships,
+      focusMemberId: session.memberId,
+    );
+    return cached.copyWith(
+      graph: graph,
+      rootEntries: buildGenealogyRootEntries(
+        scope: cached.scope,
+        session: session,
+        members: cached.members,
+        branches: cached.branches,
+        parentMap: graph.parentMap,
+      ),
+      fromCache: true,
+    );
   }
 }

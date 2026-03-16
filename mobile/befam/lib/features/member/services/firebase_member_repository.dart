@@ -86,7 +86,11 @@ class FirebaseMemberRepository implements MemberRepository {
     }
 
     final normalizedPhone = _normalizePhoneOrNull(draft.phoneInput);
-    await _ensureUniquePhone(normalizedPhone, memberId);
+    await _ensureUniquePhone(
+      clanId: clanId,
+      phoneE164: normalizedPhone,
+      memberId: memberId,
+    );
 
     final memberRef = memberId == null
         ? _members.doc()
@@ -357,12 +361,17 @@ class FirebaseMemberRepository implements MemberRepository {
     }
   }
 
-  Future<void> _ensureUniquePhone(String? phoneE164, String? memberId) async {
+  Future<void> _ensureUniquePhone({
+    required String clanId,
+    required String? phoneE164,
+    required String? memberId,
+  }) async {
     if (phoneE164 == null) {
       return;
     }
 
     final duplicates = await _members
+        .where('clanId', isEqualTo: clanId)
         .where('phoneE164', isEqualTo: phoneE164)
         .limit(3)
         .get();

@@ -237,6 +237,11 @@ class DualCalendarController extends ChangeNotifier {
     );
   }
 
+  Future<LunarDate> resolveSolarToLunar({required DateTime solarDate}) {
+    final normalized = DateTime(solarDate.year, solarDate.month, solarDate.day);
+    return _conversionEngine.solarToLunar(normalized, region: _region);
+  }
+
   Future<void> saveEvent({
     String? eventId,
     required DualCalendarEvent event,

@@ -294,7 +294,7 @@ void main() {
       await openMembersWorkspace(tester);
 
       expect(find.text('Hồ sơ thành viên'), findsOneWidget);
-      expect(find.byKey(const Key('member-add-button')), findsOneWidget);
+      expect(find.byKey(const Key('member-add-fab')), findsOneWidget);
       expect(
         find.byKey(const Key('member-row-member_demo_parent_001')),
         findsOneWidget,
@@ -373,7 +373,11 @@ void main() {
     await loginWithPhone(tester);
     await openMembersWorkspace(tester);
 
-    await tester.tap(find.byKey(const Key('member-add-button')));
+    await tester.tap(find.byKey(const Key('member-add-fab')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-phone-lookup-skip')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Thông tin chính').first);
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -384,14 +388,25 @@ void main() {
       find.byKey(const Key('member-nickname-input')),
       'Hải An',
     );
-    await tester.tap(find.byKey(const Key('member-parent-input')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('Minh ·').first);
-    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('member-phone-input')),
       '+84905554444',
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Quan hệ').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-parent-picker-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(
+        const Key('member-parent-picker-father-member_demo_parent_001'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-parent-picker-done')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Thông tin thêm').first);
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('member-job-title-input')),
       'Điều phối viên thành viên',
@@ -404,6 +419,72 @@ void main() {
     expect(find.text('Đã lưu hồ sơ thành viên.'), findsOneWidget);
     expect(find.text('Phạm Hải An'), findsWidgets);
   });
+
+  testWidgets(
+    'filters parent candidates to people at least 15 years older when birth date is set',
+    (tester) async {
+      await pumpAuthApp(
+        tester,
+        locale: const Locale('vi'),
+        clanRepository: DebugClanRepository.seeded(),
+        memberRepository: DebugMemberRepository.seeded(),
+      );
+
+      await loginWithPhone(tester);
+      await openMembersWorkspace(tester);
+
+      await tester.tap(find.byKey(const Key('member-add-fab')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('member-phone-lookup-skip')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Thông tin chính').first);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('member-birth-date-input')),
+        '2000-01-01',
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Quan hệ').first);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('member-parent-picker-button')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('chỉ hiển thị người lớn hơn tối thiểu 15 tuổi'),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(
+          const Key('member-parent-picker-father-member_demo_elder_001'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(
+          const Key('member-parent-picker-father-member_demo_parent_001'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.byKey(
+          const Key('member-parent-picker-father-member_demo_parent_002'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.byKey(
+          const Key('member-parent-picker-mother-member_demo_child_002'),
+        ),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const Key('member-parent-picker-cancel')));
+      await tester.pumpAndSettle();
+    },
+  );
 
   testWidgets('keeps the member workspace limited for child access', (
     tester,
@@ -419,7 +500,7 @@ void main() {
     await openMembersWorkspace(tester);
 
     expect(find.text('Bạn đang ở chế độ chỉ xem'), findsOneWidget);
-    expect(find.byKey(const Key('member-add-button')), findsNothing);
+    expect(find.byKey(const Key('member-add-fab')), findsNothing);
     expect(
       find.byKey(const Key('member-row-member_demo_child_001')),
       findsOneWidget,

@@ -71,7 +71,7 @@ class DebugClanRepository implements ClanRepository {
         ),
         'member_demo_parent_002': const ClanMemberSummary(
           id: 'member_demo_parent_002',
-          fullName: 'Trần Lan',
+          fullName: 'Trần Văn Long',
           branchId: 'branch_demo_002',
           primaryRole: 'BRANCH_ADMIN',
           phoneE164: '+84908886655',

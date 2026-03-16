@@ -34,14 +34,14 @@ void main() {
 
   Future<void> scrollToTreeWorkspace(WidgetTester tester) async {
     await tester.scrollUntilVisible(
-      find.byKey(const Key('genealogy-depth-parents-value')),
+      find.byKey(const Key('tree-zoom-in')),
       220,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
   }
 
-  testWidgets('renders the genealogy workspace and switches scope', (
+  testWidgets('renders the genealogy workspace without legacy summary boxes', (
     tester,
   ) async {
     final repository = DebugGenealogyReadRepository(
@@ -69,25 +69,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Không gian cây gia phả'), findsOneWidget);
-    expect(find.byKey(const Key('tree-preset-focused')), findsOneWidget);
-    expect(find.byKey(const Key('tree-status-all')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('genealogy-scope-branch')));
-    await tester.pump();
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('genealogy-summary-members-3')),
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const Key('genealogy-summary-members-3')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('genealogy-summary-scope-branch')),
-      findsOneWidget,
-    );
+    expect(find.text('Chế độ hiển thị mặc định'), findsNothing);
+    expect(find.byKey(const Key('genealogy-scope-clan')), findsNothing);
+    await scrollToTreeWorkspace(tester);
+    expect(find.byKey(const Key('tree-zoom-in')), findsOneWidget);
   });
 
   testWidgets('renders landing, node cards, and connectors', (tester) async {
@@ -122,9 +107,7 @@ void main() {
     expect(find.text('Nguyễn Minh'), findsWidgets);
   });
 
-  testWidgets('shows ancestor and descendant lazy depth controls', (
-    tester,
-  ) async {
+  testWidgets('shows zoom, reset, and print controls', (tester) async {
     final repository = DebugGenealogyReadRepository(
       store: DebugGenealogyStore.seeded(),
     );
@@ -151,31 +134,10 @@ void main() {
 
     await scrollToTreeWorkspace(tester);
 
-    expect(
-      find.byKey(const Key('genealogy-depth-parents-value')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('genealogy-depth-children-value')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('genealogy-depth-parents-increase')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('genealogy-depth-children-increase')),
-      findsOneWidget,
-    );
-
-    final parentDepthText = tester.widget<Text>(
-      find.byKey(const Key('genealogy-depth-parents-value')),
-    );
-    final childDepthText = tester.widget<Text>(
-      find.byKey(const Key('genealogy-depth-children-value')),
-    );
-    expect(parentDepthText.data, contains('1'));
-    expect(childDepthText.data, contains('1'));
+    expect(find.byKey(const Key('tree-zoom-out')), findsOneWidget);
+    expect(find.byKey(const Key('tree-zoom-in')), findsOneWidget);
+    expect(find.byKey(const Key('tree-zoom-reset')), findsOneWidget);
+    expect(find.byKey(const Key('tree-print')), findsOneWidget);
   });
 
   testWidgets('opens member detail sheet from node tap', (tester) async {
@@ -214,7 +176,7 @@ void main() {
     );
   });
 
-  testWidgets('coverage preset renders all clan members across branches', (
+  testWidgets('default view renders all clan members across branches', (
     tester,
   ) async {
     final repository = DebugGenealogyReadRepository(
@@ -241,8 +203,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('tree-preset-coverage')));
-    await tester.pumpAndSettle();
     await scrollToTreeWorkspace(tester);
 
     expect(
