@@ -109,35 +109,37 @@ void main() {
     expect(find.text('Free/Base plans show light ads.'), findsNothing);
   });
 
-  testWidgets('unlinked shell still shows billing tab and CTA actions', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _ShellTestApp(
-        child: AppShellPage(
-          status: buildReadyStatus(),
-          session: buildUnlinkedSession(),
-          clanRepository: DebugClanRepository.seeded(),
-          memberRepository: DebugMemberRepository.seeded(),
-          pushNotificationService: _NoopPushNotificationService(),
+  testWidgets(
+    'unlinked shell opens personal billing workspace in billing tab',
+    (tester) async {
+      await tester.pumpWidget(
+        _ShellTestApp(
+          child: AppShellPage(
+            status: buildReadyStatus(),
+            session: buildUnlinkedSession(),
+            clanRepository: DebugClanRepository.seeded(),
+            memberRepository: DebugMemberRepository.seeded(),
+            pushNotificationService: _NoopPushNotificationService(),
+          ),
         ),
-      ),
-    );
-    await pumpUi(tester);
+      );
+      await pumpUi(tester);
 
-    final destinations = tester
-        .widgetList<NavigationDestination>(find.byType(NavigationDestination))
-        .toList(growable: false);
-    expect(destinations.length, 5);
-    expect(destinations[3].label, 'Billing');
-    expect(destinations[4].label, 'Profile');
+      final destinations = tester
+          .widgetList<NavigationDestination>(find.byType(NavigationDestination))
+          .toList(growable: false);
+      expect(destinations.length, 5);
+      expect(destinations[3].label, 'Billing');
+      expect(destinations[4].label, 'Profile');
 
-    await tester.tap(find.text('Billing'));
-    await pumpUi(tester, frames: 36);
+      await tester.tap(find.text('Billing'));
+      await pumpUi(tester, frames: 36);
 
-    expect(find.text('Discover genealogies'), findsOneWidget);
-    expect(find.text('Create clan workspace'), findsOneWidget);
-  });
+      expect(find.text('Checkout & renewal'), findsOneWidget);
+      expect(find.text('Discover genealogies'), findsNothing);
+      expect(find.text('Create clan workspace'), findsNothing);
+    },
+  );
 }
 
 class _NoopPushNotificationService implements PushNotificationService {

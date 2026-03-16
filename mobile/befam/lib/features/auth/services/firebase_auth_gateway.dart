@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
+import '../../../core/services/app_environment.dart';
 import '../models/auth_issue.dart';
 import '../models/auth_entry_method.dart';
 import '../models/auth_member_access_mode.dart';
@@ -25,7 +26,9 @@ class FirebaseAuthGateway implements AuthGateway {
   }) : _auth = auth ?? FirebaseAuth.instance,
        _functions =
            functions ??
-           FirebaseFunctions.instanceFor(region: 'asia-southeast1'),
+           FirebaseFunctions.instanceFor(
+             region: AppEnvironment.firebaseFunctionsRegion,
+           ),
        _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseAuth _auth;

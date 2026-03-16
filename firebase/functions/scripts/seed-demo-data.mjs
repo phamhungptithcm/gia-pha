@@ -5,8 +5,18 @@ import { readFileSync } from 'node:fs';
 import { applicationDefault, cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
-const projectId = process.env.FIREBASE_PROJECT_ID || 'be-fam-3ab23';
+const projectId =
+  process.env.FIREBASE_PROJECT_ID ||
+  process.env.GOOGLE_CLOUD_PROJECT ||
+  process.env.GCLOUD_PROJECT ||
+  '';
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+if (!projectId) {
+  throw new Error(
+    "Missing FIREBASE_PROJECT_ID (or GOOGLE_CLOUD_PROJECT/GCLOUD_PROJECT) for seed script.",
+  );
+}
 
 const credential = serviceAccountJson
   ? cert(JSON.parse(readFileSync(serviceAccountJson, 'utf8')))

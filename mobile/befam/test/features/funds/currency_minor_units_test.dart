@@ -30,5 +30,13 @@ void main() {
       CurrencyMinorUnits.formatMinorUnits(amountMinor: -1535, currency: 'USD'),
       '-15.35 USD',
     );
+    expect(
+      CurrencyMinorUnits.formatMinorUnits(
+        amountMinor: 3350000,
+        currency: 'VND',
+        locale: 'vi',
+      ),
+      '3.350.000 VND',
+    );
   });
 }

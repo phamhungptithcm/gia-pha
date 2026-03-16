@@ -1,3 +1,4 @@
+import '../../../core/services/app_environment.dart';
 import 'event_type.dart';
 
 class EventRecord {
@@ -126,7 +127,7 @@ class EventRecord {
       locationAddress: json['locationAddress'] as String? ?? '',
       startsAt: startsAt ?? DateTime.now().toUtc(),
       endsAt: _parseDateTime(json['endsAt']),
-      timezone: json['timezone'] as String? ?? 'Asia/Ho_Chi_Minh',
+      timezone: json['timezone'] as String? ?? AppEnvironment.defaultTimezone,
       isRecurring: json['isRecurring'] as bool? ?? false,
       recurrenceRule: _nullableTrim(json['recurrenceRule']),
       reminderOffsetsMinutes: _offsetList(json['reminderOffsetsMinutes']),

@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../core/services/app_environment.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
@@ -22,7 +23,9 @@ class FirebaseClanRepository implements ClanRepository {
   }) : _firestore = firestore ?? FirebaseServices.firestore,
        _functions =
            functions ??
-           FirebaseFunctions.instanceFor(region: 'asia-southeast1'),
+           FirebaseFunctions.instanceFor(
+             region: AppEnvironment.firebaseFunctionsRegion,
+           ),
        _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _firestore;

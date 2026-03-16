@@ -1,5 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../../../core/services/app_environment.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../auth/models/auth_session.dart';
@@ -12,7 +13,10 @@ class FirebaseGenealogyDiscoveryRepository
     implements GenealogyDiscoveryRepository {
   FirebaseGenealogyDiscoveryRepository({FirebaseFunctions? functions})
     : _functions =
-          functions ?? FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+          functions ??
+          FirebaseFunctions.instanceFor(
+            region: AppEnvironment.firebaseFunctionsRegion,
+          );
 
   final FirebaseFunctions _functions;
 

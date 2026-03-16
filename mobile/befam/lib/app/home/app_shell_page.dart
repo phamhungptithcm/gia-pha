@@ -448,6 +448,22 @@ class _AppShellPageState extends State<AppShellPage> {
     }
   }
 
+  Future<void> _updateSessionFromProfile(AuthSession session) async {
+    if (!mounted || session == _activeSession) {
+      return;
+    }
+    setState(() {
+      _activeSession = session;
+      _visitedDestinationIndexes.add(_selectedIndex);
+    });
+    await _sessionStore.write(_activeSession);
+    await _pushNotificationService.start(
+      session: _session,
+      onDeepLink: _handleNotificationDeepLink,
+    );
+    unawaited(_refreshBillingEntitlement());
+  }
+
   Future<void> _confirmLogoutRequest() async {
     if (widget.onLogoutRequested == null) {
       return;
@@ -551,25 +567,14 @@ class _AppShellPageState extends State<AppShellPage> {
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(3))
-        _hasClanContext
-            ? BillingWorkspacePage(
-                key: ValueKey<String>('billing-${_session.clanId ?? 'none'}'),
-                session: _session,
-                repository: _billingRepository,
-                embeddedInShell: true,
-              )
-            : _UnlinkedBillingWorkspace(
-                onOpenDiscovery: () {
-                  setState(() {
-                    _selectedIndex = 1;
-                    _visitedDestinationIndexes.add(1);
-                  });
-                  _syncAdBannerAutoHideTimer();
-                },
-                onCreateClanWorkspace: () {
-                  _openClanWorkspaceFromBilling();
-                },
-              )
+        BillingWorkspacePage(
+          key: ValueKey<String>(
+            'billing-${_session.clanId ?? 'none'}-${_session.uid}',
+          ),
+          session: _session,
+          repository: _billingRepository,
+          embeddedInShell: true,
+        )
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(4))
@@ -583,6 +588,9 @@ class _AppShellPageState extends State<AppShellPage> {
           },
           localeController: widget.localeController,
           onLogoutRequested: widget.onLogoutRequested,
+          onSessionUpdated: (session) {
+            unawaited(_updateSessionFromProfile(session));
+          },
         )
       else
         const SizedBox.shrink(),
@@ -712,33 +720,6 @@ class _AppShellPageState extends State<AppShellPage> {
     );
   }
 
-  void _openClanWorkspaceFromBilling() {
-    if (!_hasClanContext && !GovernanceRoleMatrix.canBootstrapClan(_session)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.pick(
-              vi: 'Tài khoản này chưa có quyền khởi tạo gia phả mới. Vui lòng liên hệ quản trị.',
-              en: 'This account is not allowed to bootstrap a new clan workspace. Please contact an administrator.',
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) {
-          return ClanDetailPage(
-            session: _session,
-            repository: widget.clanRepository,
-          );
-        },
-      ),
-    );
-  }
-
   void _openGenealogyDiscoveryPage() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -751,83 +732,6 @@ class _AppShellPageState extends State<AppShellPage> {
           );
         },
       ),
-    );
-  }
-}
-
-class _UnlinkedBillingWorkspace extends StatelessWidget {
-  const _UnlinkedBillingWorkspace({
-    required this.onOpenDiscovery,
-    required this.onCreateClanWorkspace,
-  });
-
-  final VoidCallback onOpenDiscovery;
-  final VoidCallback onCreateClanWorkspace;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final colorScheme = Theme.of(context).colorScheme;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.workspace_premium_outlined,
-                      color: colorScheme.primary,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        l10n.pick(
-                          vi: 'Gói dịch vụ & thanh toán',
-                          en: 'Subscription & billing',
-                        ),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  l10n.pick(
-                    vi: 'Bạn chưa liên kết vào gia phả nào. Hãy tìm gia phả để tham gia hoặc tạo gia phả mới để sử dụng gói dịch vụ.',
-                    en: 'You are not linked to a clan yet. Discover a genealogy to join, or create a new clan workspace before using billing.',
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: onOpenDiscovery,
-                  icon: const Icon(Icons.travel_explore_outlined),
-                  label: Text(
-                    l10n.pick(vi: 'Tìm gia phả', en: 'Discover genealogies'),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: onCreateClanWorkspace,
-                  icon: const Icon(Icons.apartment_outlined),
-                  label: Text(
-                    l10n.pick(
-                      vi: 'Tạo gia phả mới',
-                      en: 'Create clan workspace',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1083,6 +987,8 @@ class _HomeDashboard extends StatelessWidget {
               return ClanDetailPage(
                 session: session,
                 repository: clanRepository,
+                availableClanContexts: availableClanContexts,
+                onSwitchClanContext: onSwitchClanContext,
               );
             },
           ),

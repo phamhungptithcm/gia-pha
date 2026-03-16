@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 
+import '../../../core/services/app_environment.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/governance_role_matrix.dart';
@@ -129,7 +130,7 @@ class FirebaseEventRepository implements EventRepository {
       'startsAt': draft.startsAt.toUtc(),
       'endsAt': draft.endsAt?.toUtc(),
       'timezone': draft.timezone.trim().isEmpty
-          ? 'Asia/Ho_Chi_Minh'
+          ? AppEnvironment.defaultTimezone
           : draft.timezone.trim(),
       'isRecurring': draft.isRecurring,
       'recurrenceRule': recurrenceRule,

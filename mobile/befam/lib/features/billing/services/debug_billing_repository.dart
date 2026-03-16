@@ -21,6 +21,7 @@ class DebugBillingRepository implements BillingRepository {
   static int _transactionSequence = 1;
   static int _invoiceSequence = 1;
   static int _auditSequence = 1;
+  static const Duration _pendingTimeout = Duration(minutes: 20);
 
   @override
   bool get isSandbox => true;
@@ -32,6 +33,7 @@ class DebugBillingRepository implements BillingRepository {
     await Future<void>.delayed(const Duration(milliseconds: 120));
     final clanId = _clanIdOf(session);
     final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    _expireStalePendingTransactions(state);
     _syncStateWithMemberCount(state, clanId);
     return state.toSnapshot();
   }
@@ -43,6 +45,7 @@ class DebugBillingRepository implements BillingRepository {
     await Future<void>.delayed(const Duration(milliseconds: 90));
     final clanId = _clanIdOf(session);
     final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    _expireStalePendingTransactions(state);
     _syncStateWithMemberCount(state, clanId);
     return state.toViewerSummary();
   }
@@ -54,6 +57,7 @@ class DebugBillingRepository implements BillingRepository {
     await Future<void>.delayed(const Duration(milliseconds: 60));
     final clanId = _clanIdOf(session);
     final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    _expireStalePendingTransactions(state);
     _syncStateWithMemberCount(state, clanId);
     return state.entitlement;
   }
@@ -132,6 +136,7 @@ class DebugBillingRepository implements BillingRepository {
     await Future<void>.delayed(const Duration(milliseconds: 140));
     final clanId = _clanIdOf(session);
     final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    _expireStalePendingTransactions(state);
     _syncStateWithMemberCount(state, clanId);
 
     final method = paymentMethod.trim().toLowerCase();
@@ -162,6 +167,16 @@ class DebugBillingRepository implements BillingRepository {
       }
       tier = requestedTier;
     }
+    final canRenewCurrentPlan = _canRenewCurrentPlan(state.subscription);
+    final selectedPlanRank = _rankPlanCode(tier.planCode);
+    if (selectedPlanRank == _rankPlanCode(state.subscription.planCode) &&
+        !canRenewCurrentPlan) {
+      throw const BillingRepositoryException(
+        BillingRepositoryErrorCode.invalidArgument,
+        'Current plan is not in renewal window yet.',
+      );
+    }
+
     final now = DateTime.now().toUtc();
     final transactionId = 'txn_debug_${_transactionSequence++}';
     final invoiceId = 'inv_debug_${_invoiceSequence++}';
@@ -203,13 +218,20 @@ class DebugBillingRepository implements BillingRepository {
     );
     state.invoices.insert(0, invoice);
 
+    final keepCurrentPlanUntilPaid = tier.planCode != 'FREE';
     state.subscription = BillingSubscription(
       id: state.subscription.id,
       clanId: clanId,
-      planCode: tier.planCode,
-      status: tier.planCode == 'FREE' ? 'active' : 'pending_payment',
+      planCode: keepCurrentPlanUntilPaid
+          ? state.subscription.planCode
+          : tier.planCode,
+      status: keepCurrentPlanUntilPaid
+          ? state.subscription.status
+          : (tier.planCode == 'FREE' ? 'active' : 'pending_payment'),
       memberCount: state.memberCount,
-      amountVndYear: tier.priceVndYear,
+      amountVndYear: keepCurrentPlanUntilPaid
+          ? state.subscription.amountVndYear
+          : tier.priceVndYear,
       vatIncluded: true,
       paymentMode: state.settings.paymentMode,
       autoRenew: state.settings.autoRenew,
@@ -222,7 +244,7 @@ class DebugBillingRepository implements BillingRepository {
       updatedAtIso: now.toIso8601String(),
     );
     state.entitlement = _buildEntitlement(
-      planCode: tier.planCode,
+      planCode: state.subscription.planCode,
       status: state.subscription.status,
       expiresAtIso: state.subscription.expiresAtIso,
       nextPaymentDueAtIso: state.subscription.nextPaymentDueAtIso,
@@ -246,7 +268,7 @@ class DebugBillingRepository implements BillingRepository {
     }
 
     final checkoutUrl = method == 'vnpay'
-        ? 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?txn=$transactionId'
+        ? 'https://example.com/billing/vnpay?transactionId=$transactionId&amountVnd=${tier.priceVndYear}'
         : 'https://example.com/billing/card?txn=$transactionId';
 
     return BillingCheckoutResult(
@@ -424,6 +446,70 @@ class DebugBillingRepository implements BillingRepository {
     return transaction;
   }
 
+  void _expireStalePendingTransactions(_DebugBillingState state) {
+    final now = DateTime.now().toUtc();
+    final expiredAt = now.subtract(_pendingTimeout);
+    for (var index = 0; index < state.transactions.length; index += 1) {
+      final tx = state.transactions[index];
+      if (!_isPendingPaymentStatus(tx.paymentStatus)) {
+        continue;
+      }
+      final createdAt = DateTime.tryParse(tx.createdAtIso ?? '')?.toUtc();
+      if (createdAt == null || createdAt.isAfter(expiredAt)) {
+        continue;
+      }
+
+      state.transactions[index] = BillingPaymentTransaction(
+        id: tx.id,
+        clanId: tx.clanId,
+        subscriptionId: tx.subscriptionId,
+        invoiceId: tx.invoiceId,
+        paymentMethod: tx.paymentMethod,
+        paymentStatus: 'canceled',
+        planCode: tx.planCode,
+        memberCount: tx.memberCount,
+        amountVnd: tx.amountVnd,
+        vatIncluded: tx.vatIncluded,
+        currency: tx.currency,
+        gatewayReference: tx.gatewayReference,
+        createdAtIso: tx.createdAtIso,
+        paidAtIso: null,
+        failedAtIso: now.toIso8601String(),
+      );
+
+      final invoiceIndex = state.invoices.indexWhere(
+        (item) => item.id == tx.invoiceId,
+      );
+      if (invoiceIndex >= 0) {
+        final invoice = state.invoices[invoiceIndex];
+        state.invoices[invoiceIndex] = BillingInvoice(
+          id: invoice.id,
+          clanId: invoice.clanId,
+          subscriptionId: invoice.subscriptionId,
+          transactionId: invoice.transactionId,
+          planCode: invoice.planCode,
+          amountVnd: invoice.amountVnd,
+          vatIncluded: invoice.vatIncluded,
+          currency: invoice.currency,
+          status: 'void',
+          periodStartIso: invoice.periodStartIso,
+          periodEndIso: invoice.periodEndIso,
+          issuedAtIso: invoice.issuedAtIso,
+          paidAtIso: null,
+        );
+      }
+
+      _writeAudit(
+        state,
+        clanId: state.clanId,
+        action: 'payment_canceled_timeout',
+        entityType: 'paymentTransaction',
+        entityId: tx.id,
+        actorUid: 'system:billing_pending_timeout',
+      );
+    }
+  }
+
   void _applySuccessfulPayment(
     _DebugBillingState state, {
     required String transactionId,
@@ -431,6 +517,19 @@ class DebugBillingRepository implements BillingRepository {
   }) {
     final now = DateTime.now().toUtc();
     final transaction = _findTransaction(state, transactionId);
+    final txStatus = transaction.paymentStatus.trim().toLowerCase();
+    if (txStatus == 'canceled' || txStatus == 'cancelled') {
+      throw const BillingRepositoryException(
+        BillingRepositoryErrorCode.failedPrecondition,
+        'Transaction timed out and was canceled.',
+      );
+    }
+    if (txStatus == 'failed') {
+      throw const BillingRepositoryException(
+        BillingRepositoryErrorCode.failedPrecondition,
+        'Transaction is already marked as failed.',
+      );
+    }
     final txIndex = state.transactions.indexWhere(
       (item) => item.id == transactionId,
     );
@@ -475,14 +574,19 @@ class DebugBillingRepository implements BillingRepository {
       );
     }
 
-    final startsAt = now;
+    final existingExpiry = DateTime.tryParse(
+      state.subscription.expiresAtIso ?? '',
+    )?.toUtc();
+    final startsAt = existingExpiry != null && existingExpiry.isAfter(now)
+        ? existingExpiry
+        : now;
     final expiresAt = DateTime.utc(
-      now.year + 1,
-      now.month,
-      now.day,
-      now.hour,
-      now.minute,
-      now.second,
+      startsAt.year + 1,
+      startsAt.month,
+      startsAt.day,
+      startsAt.hour,
+      startsAt.minute,
+      startsAt.second,
     );
     state.subscription = BillingSubscription(
       id: state.subscription.id,
@@ -539,6 +643,11 @@ class DebugBillingRepository implements BillingRepository {
         createdAtIso: DateTime.now().toUtc().toIso8601String(),
       ),
     );
+  }
+
+  bool _isPendingPaymentStatus(String status) {
+    final normalized = status.trim().toLowerCase();
+    return normalized == 'pending' || normalized == 'created';
   }
 
   int _memberCountForClan(String clanId) {
@@ -635,6 +744,29 @@ class DebugBillingRepository implements BillingRepository {
     }
   }
 
+  bool _canRenewCurrentPlan(BillingSubscription subscription) {
+    final planCode = subscription.planCode.trim().toUpperCase();
+    if (planCode == 'FREE') {
+      return false;
+    }
+    final status = subscription.status.trim().toLowerCase();
+    if (status == 'expired' || status == 'grace_period') {
+      return true;
+    }
+    if (status != 'active') {
+      return false;
+    }
+    final expiresAtIso = subscription.expiresAtIso;
+    if (expiresAtIso == null || expiresAtIso.trim().isEmpty) {
+      return false;
+    }
+    final expiresAt = DateTime.tryParse(expiresAtIso)?.toUtc();
+    if (expiresAt == null) {
+      return false;
+    }
+    return expiresAt.difference(DateTime.now().toUtc()).inDays <= 30;
+  }
+
   BillingEntitlement _buildEntitlement({
     required String planCode,
     required String status,
@@ -658,13 +790,17 @@ class DebugBillingRepository implements BillingRepository {
 
   String _clanIdOf(AuthSession session) {
     final clanId = (session.clanId ?? '').trim();
-    if (clanId.isEmpty) {
+    if (clanId.isNotEmpty) {
+      return clanId;
+    }
+    final uid = session.uid.trim();
+    if (uid.isEmpty) {
       throw const BillingRepositoryException(
         BillingRepositoryErrorCode.failedPrecondition,
-        'No clan context available for billing.',
+        'Missing authenticated user for billing scope.',
       );
     }
-    return clanId;
+    return 'user_scope__$uid';
   }
 }
 

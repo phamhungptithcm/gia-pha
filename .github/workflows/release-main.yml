@@ -110,11 +110,21 @@ jobs:
         run: flutter gen-l10n
 
       - name: Build Android release APK
+        env:
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+          BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
         run: |
+          befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
+          befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           flutter build apk \
             --release \
             --build-name "${{ needs.prepare-release.outputs.version }}" \
-            --build-number "${{ needs.prepare-release.outputs.build_number }}"
+            --build-number "${{ needs.prepare-release.outputs.build_number }}" \
+            --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
+            --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
+            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}"
 
       - name: Upload Android release APK
         uses: actions/upload-artifact@v4
@@ -152,12 +162,22 @@ jobs:
         run: flutter gen-l10n
 
       - name: Build iOS release archive without codesigning
+        env:
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+          BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
         run: |
+          befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
+          befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           flutter build ipa \
             --release \
             --no-codesign \
             --build-name "${{ needs.prepare-release.outputs.version }}" \
-            --build-number "${{ needs.prepare-release.outputs.build_number }}"
+            --build-number "${{ needs.prepare-release.outputs.build_number }}" \
+            --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
+            --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
+            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}"
 
       - name: Package unsigned iOS release archive
         env:

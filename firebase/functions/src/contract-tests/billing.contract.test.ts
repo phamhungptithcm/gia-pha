@@ -38,6 +38,15 @@ test('billing contract: auto + upgrade keeps higher plan and blocks lower-than-m
     'PLUS',
   );
 
+  assert.equal(
+    resolveEffectivePlanCode({
+      memberCount: 120,
+      currentPlanCode: 'PRO',
+      requestedPlanCode: 'BASE',
+    }),
+    'BASE',
+  );
+
   assert.throws(() =>
     resolveEffectivePlanCode({
       memberCount: 60,
@@ -94,6 +103,7 @@ test('billing contract: lifecycle status normalizes by expiry and grace period',
 
 test('billing contract: VNPay callback signature is validated', () => {
   process.env.VNPAY_HASH_SECRET = 'contract-test-secret';
+  process.env.VNPAY_TMNCODE = 'DEMO1234';
 
   const params: Record<string, string> = {
     vnp_Amount: '4900000',
@@ -121,6 +131,10 @@ test('billing contract: VNPay callback signature is validated', () => {
 
   assert.equal(isValidVnpaySignature(params), true);
 
+  params.vnp_TmnCode = 'WRONG_TMNCODE';
+  assert.equal(isValidVnpaySignature(params), false);
+
+  params.vnp_TmnCode = 'DEMO1234';
   params.vnp_SecureHash = `${params.vnp_SecureHash.substring(0, 30)}broken`;
   assert.equal(isValidVnpaySignature(params), false);
 });

@@ -2,9 +2,20 @@ import { createHmac } from 'node:crypto';
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { APP_REGION } from '../config/runtime';
+import {
+  APP_REGION,
+  BILLING_ALLOW_MANUAL_SETTLEMENT,
+  getBillingWebhookSecret,
+  getVnpayHashSecret,
+  getVnpayTmnCode,
+} from '../config/runtime';
+import {
+  loadBillingRuntimeConfig,
+  type BillingRuntimeConfig,
+} from '../config/runtime-overrides';
 import {
   applyPaymentResult,
+  cancelStalePendingTransactionsRun,
   countClanMembers,
   buildEntitlementFromSubscription,
   createPendingCheckout,
@@ -26,6 +37,7 @@ import { db } from '../shared/firestore';
 import { notifyMembers } from '../notifications/push-delivery';
 import { logInfo } from '../shared/logger';
 import {
+  ensureAnyRole,
   ensureClaimedSession,
   ensureClanAccess,
   tokenClanIds,
@@ -33,33 +45,165 @@ import {
 } from '../shared/permissions';
 
 const subscriptionsCollection = db.collection('subscriptions');
+const clansCollection = db.collection('clans');
 const transactionsCollection = db.collection('paymentTransactions');
 const invoicesCollection = db.collection('subscriptionInvoices');
 const billingAuditLogsCollection = db.collection('billingAuditLogs');
+const BILLING_ADMIN_ROLES = [
+  'SUPER_ADMIN',
+  'CLAN_ADMIN',
+  'BRANCH_ADMIN',
+  'CLAN_OWNER',
+  'CLAN_LEADER',
+  'VICE_LEADER',
+  'SUPPORTER_OF_LEADER',
+];
 
 function scopedBillingDocId(clanId: string, ownerUid: string): string {
   return `${clanId}__${ownerUid}`;
+}
+
+function personalBillingScopeId(uid: string): string {
+  return `user_scope__${uid.trim()}`;
+}
+
+function isPersonalBillingScope(scopeId: string, uid: string): boolean {
+  return scopeId.trim() === personalBillingScopeId(uid);
+}
+
+function resolveBillingScopeId(uid: string, token: AuthToken, data: unknown): string {
+  const clanIds = tokenClanIds(token);
+  const dataClanId = readString(data, 'clanId');
+  const dataOwnerUid = readString(data, 'ownerUid');
+  const personalScopeId = personalBillingScopeId(uid);
+  if (dataOwnerUid != null && dataOwnerUid === uid) {
+    return personalScopeId;
+  }
+  if (dataClanId != null && dataClanId.length > 0) {
+    if (dataClanId === personalScopeId) {
+      return personalScopeId;
+    }
+    if (!clanIds.includes(dataClanId)) {
+      throw new HttpsError(
+        'permission-denied',
+        'This session does not have access to the requested clan.',
+      );
+    }
+    return dataClanId;
+  }
+  if (clanIds.length > 0) {
+    return clanIds[0];
+  }
+  return personalScopeId;
+}
+
+function ensureBillingScopeAccess({
+  uid,
+  token,
+  scopeId,
+}: {
+  uid: string;
+  token: AuthToken;
+  scopeId: string;
+}): void {
+  if (isPersonalBillingScope(scopeId, uid)) {
+    return;
+  }
+  ensureClaimedSession(token);
+  ensureClanAccess(token, scopeId);
+  ensureAnyRole(
+    token,
+    BILLING_ADMIN_ROLES,
+    'This role cannot access billing administration actions.',
+  );
+}
+
+type BillingScopeContext = {
+  clanId: string;
+  ownerUid: string;
+};
+
+async function resolveBillingScopeContext({
+  uid,
+  token,
+  data,
+}: {
+  uid: string;
+  token: AuthToken;
+  data: unknown;
+}): Promise<BillingScopeContext> {
+  const scopeId = resolveBillingScopeId(uid, token, data);
+  ensureBillingScopeAccess({
+    uid,
+    token,
+    scopeId,
+  });
+  if (isPersonalBillingScope(scopeId, uid)) {
+    return {
+      clanId: scopeId,
+      ownerUid: uid,
+    };
+  }
+  return {
+    clanId: scopeId,
+    ownerUid: await resolveClanBillingOwnerUid(scopeId),
+  };
+}
+
+async function resolveClanBillingOwnerUid(clanId: string): Promise<string> {
+  const snapshot = await clansCollection.doc(clanId).get();
+  if (!snapshot.exists) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Clan billing scope is not configured yet.',
+    );
+  }
+  const data = snapshot.data() ?? {};
+  const billingOwnerUid = normalizeString(data.billingOwnerUid);
+  const ownerUid = normalizeString(data.ownerUid);
+  const resolved = billingOwnerUid.length > 0 ? billingOwnerUid : ownerUid;
+  if (resolved.length === 0) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Clan billing owner is missing.',
+    );
+  }
+  return resolved;
+}
+
+function ensureManualSettlementAllowed(token: AuthToken): void {
+  if (!BILLING_ALLOW_MANUAL_SETTLEMENT) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Manual settlement is disabled in this environment.',
+    );
+  }
+  ensureAnyRole(
+    token,
+    ['SUPER_ADMIN'],
+    'Manual settlement is restricted to super admins.',
+  );
 }
 
 export const resolveBillingEntitlement = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
-    ensureClaimedSession(auth.token);
-    const clanId = resolveClanId(auth.token, request.data);
-    if (clanId.length === 0) {
-      throw new HttpsError('failed-precondition', 'No clan context is available.');
-    }
-    ensureClanAccess(auth.token, clanId);
+    const scope = await resolveBillingScopeContext({
+      uid: auth.uid,
+      token: auth.token,
+      data: request.data,
+    });
 
     const ensured = await ensureSubscriptionForClan({
-      clanId,
+      clanId: scope.clanId,
+      ownerUid: scope.ownerUid,
       actorUid: auth.uid,
     });
     const entitlement = buildEntitlementFromSubscription(ensured.subscription);
 
     return {
-      clanId,
+      clanId: scope.clanId,
       subscription: serializeSubscription(ensured.subscription),
       entitlement,
       pricingTiers: BILLING_PRICING_TIERS,
@@ -73,37 +217,46 @@ export const loadBillingWorkspace = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
-    ensureClaimedSession(auth.token);
-    const clanId = resolveClanId(auth.token, request.data);
-    if (clanId.length === 0) {
-      throw new HttpsError('failed-precondition', 'No clan context is available.');
-    }
-    ensureClanAccess(auth.token, clanId);
+    const scope = await resolveBillingScopeContext({
+      uid: auth.uid,
+      token: auth.token,
+      data: request.data,
+    });
+
+    const runtimeConfig = await loadBillingRuntimeConfig();
+    await cancelStalePendingTransactionsRun({
+      source: 'system:billing_pending_timeout',
+      clanId: scope.clanId,
+      ownerUid: scope.ownerUid,
+      timeoutMinutes: runtimeConfig.pendingTimeoutMinutes,
+      limit: runtimeConfig.pendingTimeoutLimit,
+    });
 
     const ensured = await ensureSubscriptionForClan({
-      clanId,
+      clanId: scope.clanId,
+      ownerUid: scope.ownerUid,
       actorUid: auth.uid,
     });
     const [transactionsSnapshot, invoicesSnapshot, auditSnapshot] = await Promise.all([
       transactionsCollection
-        .where('clanId', '==', clanId)
+        .where('clanId', '==', scope.clanId)
         .orderBy('createdAt', 'desc')
         .limit(50)
         .get(),
       invoicesCollection
-        .where('clanId', '==', clanId)
+        .where('clanId', '==', scope.clanId)
         .orderBy('createdAt', 'desc')
         .limit(24)
         .get(),
       billingAuditLogsCollection
-        .where('clanId', '==', clanId)
+        .where('clanId', '==', scope.clanId)
         .orderBy('createdAt', 'desc')
         .limit(40)
         .get(),
     ]);
 
     return {
-      clanId,
+      clanId: scope.clanId,
       subscription: serializeSubscription(ensured.subscription),
       entitlement: buildEntitlementFromSubscription(ensured.subscription),
       settings: ensured.settings,
@@ -129,27 +282,26 @@ export const updateBillingPreferences = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
-    ensureClaimedSession(auth.token);
-    const clanId = resolveClanId(auth.token, request.data);
-    if (clanId.length === 0) {
-      throw new HttpsError('failed-precondition', 'No clan context is available.');
-    }
-    ensureClanAccess(auth.token, clanId);
+    const scope = await resolveBillingScopeContext({
+      uid: auth.uid,
+      token: auth.token,
+      data: request.data,
+    });
 
     const paymentMode = normalizePaymentModeFromInput(request.data);
     const autoRenew = readBoolean(request.data, 'autoRenew', paymentMode === 'auto_renew');
     const reminderDaysBefore = readReminderDays(request.data);
 
     const settings = await upsertBillingSettings({
-      clanId,
-      ownerUid: auth.uid,
+      clanId: scope.clanId,
+      ownerUid: scope.ownerUid,
       paymentMode,
       autoRenew,
       reminderDaysBefore,
       actorUid: auth.uid,
     });
 
-    await subscriptionsCollection.doc(scopedBillingDocId(clanId, auth.uid)).set(
+    await subscriptionsCollection.doc(scopedBillingDocId(scope.clanId, scope.ownerUid)).set(
       {
         paymentMode: settings.paymentMode,
         autoRenew: settings.autoRenew,
@@ -160,11 +312,11 @@ export const updateBillingPreferences = onCall(
     );
 
     await writeBillingAuditLog({
-      clanId,
+      clanId: scope.clanId,
       actorUid: auth.uid,
       action: 'billing_preferences_updated',
       entityType: 'billingSettings',
-      entityId: clanId,
+      entityId: scope.clanId,
       after: {
         paymentMode: settings.paymentMode,
         autoRenew: settings.autoRenew,
@@ -180,17 +332,24 @@ export const createSubscriptionCheckout = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
-    ensureClaimedSession(auth.token);
-    const clanId = resolveClanId(auth.token, request.data);
-    if (clanId.length === 0) {
-      throw new HttpsError('failed-precondition', 'No clan context is available.');
-    }
-    ensureClanAccess(auth.token, clanId);
+    const scope = await resolveBillingScopeContext({
+      uid: auth.uid,
+      token: auth.token,
+      data: request.data,
+    });
 
     const paymentMethod = normalizePaymentMethod(request.data);
+    const runtimeConfig = await loadBillingRuntimeConfig();
+    await cancelStalePendingTransactionsRun({
+      source: 'system:billing_pending_timeout',
+      clanId: scope.clanId,
+      ownerUid: scope.ownerUid,
+      timeoutMinutes: runtimeConfig.pendingTimeoutMinutes,
+      limit: runtimeConfig.pendingTimeoutLimit,
+    });
     const requestedPlanCode = normalizeRequestedPlanCode(request.data);
     if (requestedPlanCode != null) {
-      const memberCount = await countClanMembers(clanId);
+      const memberCount = await countClanMembers(scope.clanId);
       const minimumPlanCode = resolvePlanByMemberCount(memberCount).planCode;
       if (rankPlanCode(requestedPlanCode) < rankPlanCode(minimumPlanCode)) {
         throw new HttpsError(
@@ -199,12 +358,46 @@ export const createSubscriptionCheckout = onCall(
         );
       }
     }
-    const checkout = await createPendingCheckout({
-      clanId,
+    const ensured = await ensureSubscriptionForClan({
+      clanId: scope.clanId,
+      ownerUid: scope.ownerUid,
       actorUid: auth.uid,
-      paymentMethod,
-      requestedPlanCode: requestedPlanCode ?? undefined,
     });
+    const selectedPlanCode = requestedPlanCode ?? ensured.subscription.planCode;
+    const selectedRank = rankPlanCode(selectedPlanCode);
+    const canRenewCurrent = canRenewCurrentPlan(ensured.subscription, new Date());
+    if (
+      selectedRank === rankPlanCode(ensured.subscription.planCode) &&
+      !canRenewCurrent
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Current subscription is not eligible for this payment option yet.',
+      );
+    }
+
+    let checkout;
+    try {
+      checkout = await createPendingCheckout({
+        clanId: scope.clanId,
+        ownerUid: scope.ownerUid,
+        actorUid: auth.uid,
+        paymentMethod,
+        requestedPlanCode: requestedPlanCode ?? undefined,
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.toLowerCase().includes('renewal window') ||
+          error.message.toLowerCase().includes('downgrade'))
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Current subscription is not eligible for this payment option yet.',
+        );
+      }
+      throw error;
+    }
 
     let checkoutUrl = '';
     let requiresManualConfirmation = false;
@@ -212,25 +405,38 @@ export const createSubscriptionCheckout = onCall(
       checkoutUrl = '';
       requiresManualConfirmation = false;
     } else if (paymentMethod === 'vnpay') {
-      checkoutUrl = buildVnpayCheckoutUrl({
+      const vnpayCheckout = buildVnpayCheckoutUrl({
         transactionId: checkout.transaction.id,
         amountVnd: checkout.transaction.amountVnd,
         orderInfo: `BeFam ${checkout.tier.planCode} annual subscription`,
         returnUrl:
-          readString(request.data, 'returnUrl') ??
-          process.env.VNPAY_RETURN_URL ??
-          'https://example.com/billing/vnpay-return',
+          readString(request.data, 'returnUrl') ?? runtimeConfig.vnpayReturnUrl,
+        runtimeConfig,
       });
+      if (!vnpayCheckout.ready) {
+        throw new HttpsError(
+          'failed-precondition',
+          'VNPay checkout is not configured yet.',
+        );
+      }
+      checkoutUrl = vnpayCheckout.url;
     } else {
       checkoutUrl = buildCardCheckoutHintUrl({
         transactionId: checkout.transaction.id,
+        runtimeConfig,
       });
+      if (checkoutUrl.length === 0) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Card checkout is not configured yet.',
+        );
+      }
       requiresManualConfirmation = true;
     }
 
     logInfo('createSubscriptionCheckout created', {
       uid: auth.uid,
-      clanId,
+      clanId: scope.clanId,
       paymentMethod,
       transactionId: checkout.transaction.id,
       planCode: checkout.tier.planCode,
@@ -238,7 +444,7 @@ export const createSubscriptionCheckout = onCall(
     });
 
     return {
-      clanId,
+      clanId: scope.clanId,
       paymentMethod,
       planCode: checkout.tier.planCode,
       amountVnd: checkout.transaction.amountVnd,
@@ -257,12 +463,12 @@ export const completeCardCheckout = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
-    ensureClaimedSession(auth.token);
-    const clanId = resolveClanId(auth.token, request.data);
-    if (clanId.length === 0) {
-      throw new HttpsError('failed-precondition', 'No clan context is available.');
-    }
-    ensureClanAccess(auth.token, clanId);
+    const scope = await resolveBillingScopeContext({
+      uid: auth.uid,
+      token: auth.token,
+      data: request.data,
+    });
+    ensureManualSettlementAllowed(auth.token);
 
     const transactionId = readString(request.data, 'transactionId');
     if (transactionId == null || transactionId.length === 0) {
@@ -274,11 +480,11 @@ export const completeCardCheckout = onCall(
       throw new HttpsError('not-found', 'transaction not found.');
     }
     const txClanId = normalizeString(txSnapshot.data()?.clanId);
-    if (txClanId !== clanId) {
+    if (txClanId !== scope.clanId) {
       throw new HttpsError('permission-denied', 'transaction clan mismatch.');
     }
     const txOwnerUid = normalizeString(txSnapshot.data()?.subscriptionOwnerUid);
-    if (txOwnerUid.length > 0 && txOwnerUid !== auth.uid) {
+    if (txOwnerUid.length > 0 && txOwnerUid !== scope.ownerUid) {
       throw new HttpsError('permission-denied', 'transaction owner mismatch.');
     }
 
@@ -292,7 +498,7 @@ export const completeCardCheckout = onCall(
     });
 
     await notifyBillingResult({
-      clanId,
+      clanId: scope.clanId,
       approved: true,
       amountVnd: Number(payment.transaction.amountVnd),
       transactionId,
@@ -315,12 +521,12 @@ export const simulateVnpaySettlement = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
-    ensureClaimedSession(auth.token);
-    const clanId = resolveClanId(auth.token, request.data);
-    if (clanId.length === 0) {
-      throw new HttpsError('failed-precondition', 'No clan context is available.');
-    }
-    ensureClanAccess(auth.token, clanId);
+    const scope = await resolveBillingScopeContext({
+      uid: auth.uid,
+      token: auth.token,
+      data: request.data,
+    });
+    ensureManualSettlementAllowed(auth.token);
 
     const transactionId = readString(request.data, 'transactionId');
     if (transactionId == null || transactionId.length === 0) {
@@ -332,11 +538,11 @@ export const simulateVnpaySettlement = onCall(
       throw new HttpsError('not-found', 'transaction not found.');
     }
     const txClanId = normalizeString(txSnapshot.data()?.clanId);
-    if (txClanId !== clanId) {
+    if (txClanId !== scope.clanId) {
       throw new HttpsError('permission-denied', 'transaction clan mismatch.');
     }
     const txOwnerUid = normalizeString(txSnapshot.data()?.subscriptionOwnerUid);
-    if (txOwnerUid.length > 0 && txOwnerUid !== auth.uid) {
+    if (txOwnerUid.length > 0 && txOwnerUid !== scope.ownerUid) {
       throw new HttpsError('permission-denied', 'transaction owner mismatch.');
     }
 
@@ -350,7 +556,7 @@ export const simulateVnpaySettlement = onCall(
     });
 
     await notifyBillingResult({
-      clanId,
+      clanId: scope.clanId,
       approved: true,
       amountVnd: Number(payment.transaction.amountVnd),
       transactionId,
@@ -405,19 +611,31 @@ async function notifyBillingResult({
   });
 }
 
-function resolveClanId(token: AuthToken, data: unknown): string {
-  const clanIds = tokenClanIds(token);
-  const dataClanId = readString(data, 'clanId');
-  if (dataClanId != null && dataClanId.length > 0) {
-    if (!clanIds.includes(dataClanId)) {
-      throw new HttpsError(
-        'permission-denied',
-        'This session does not have access to the requested clan.',
-      );
-    }
-    return dataClanId;
+function canRenewCurrentPlan(
+  subscription: {
+    planCode?: unknown;
+    status?: unknown;
+    expiresAt?: unknown;
+  },
+  now: Date,
+): boolean {
+  const planCode = normalizeString(subscription.planCode).toUpperCase();
+  if (planCode === 'FREE') {
+    return false;
   }
-  return clanIds[0] ?? '';
+  const status = normalizeString(subscription.status).toLowerCase();
+  if (status === 'expired' || status === 'grace_period') {
+    return true;
+  }
+  if (status !== 'active') {
+    return false;
+  }
+  const expiresAt = subscription.expiresAt;
+  if (!(expiresAt instanceof Date)) {
+    return false;
+  }
+  const daysToExpire = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  return daysToExpire <= 30;
 }
 
 function normalizePaymentMethod(data: unknown): PaymentMethod {
@@ -530,20 +748,29 @@ function normalizeFirestoreJson(source: Record<string, unknown>): Record<string,
 }
 
 function createPayloadHash(payload: Record<string, unknown>): string {
-  return createHmac('sha256', process.env.BILLING_WEBHOOK_SECRET ?? 'billing-local-secret')
+  return createHmac('sha256', getBillingWebhookSecret())
     .update(JSON.stringify(payload))
     .digest('hex');
 }
 
 function buildCardCheckoutHintUrl({
   transactionId,
+  runtimeConfig,
 }: {
   transactionId: string;
+  runtimeConfig: BillingRuntimeConfig;
 }): string {
-  const base = process.env.BILLING_CARD_CHECKOUT_URL_BASE ?? 'https://example.com/billing/card';
-  const url = new URL(base);
-  url.searchParams.set('transactionId', transactionId);
-  return url.toString();
+  const base = normalizeHttpUrl(runtimeConfig.cardCheckoutUrlBase);
+  if (base == null) {
+    return '';
+  }
+  try {
+    const url = new URL(base);
+    url.searchParams.set('transactionId', transactionId);
+    return url.toString();
+  } catch {
+    return '';
+  }
 }
 
 function buildVnpayCheckoutUrl({
@@ -551,25 +778,61 @@ function buildVnpayCheckoutUrl({
   amountVnd,
   orderInfo,
   returnUrl,
+  runtimeConfig,
 }: {
   transactionId: string;
   amountVnd: number;
   orderInfo: string;
   returnUrl: string;
-}): string {
-  const tmnCode = process.env.VNPAY_TMNCODE?.trim() ?? '';
-  const hashSecret = process.env.VNPAY_HASH_SECRET?.trim() ?? '';
-  if (tmnCode.length === 0 || hashSecret.length === 0) {
-    const fallback = new URL(
-      process.env.BILLING_VNPAY_FALLBACK_URL ?? 'https://example.com/billing/vnpay',
-    );
-    fallback.searchParams.set('transactionId', transactionId);
-    fallback.searchParams.set('amountVnd', `${amountVnd}`);
-    return fallback.toString();
+  runtimeConfig: BillingRuntimeConfig;
+}): {
+  ready: boolean;
+  url: string;
+} {
+  const tmnCode = getVnpayTmnCode();
+  const hashSecret = getVnpayHashSecret();
+  const normalizedReturnUrl =
+    normalizeHttpUrl(returnUrl) ?? normalizeHttpUrl(runtimeConfig.vnpayReturnUrl);
+  if (
+    tmnCode.length === 0 ||
+    hashSecret.length === 0 ||
+    normalizedReturnUrl == null
+  ) {
+    const fallback = normalizeHttpUrl(runtimeConfig.vnpayFallbackUrl);
+    if (fallback == null) {
+      return {
+        ready: false,
+        url: '',
+      };
+    }
+    try {
+      const url = new URL(fallback);
+      url.searchParams.set('transactionId', transactionId);
+      url.searchParams.set('amountVnd', `${amountVnd}`);
+      return {
+        ready: true,
+        url: url.toString(),
+      };
+    } catch {
+      return {
+        ready: false,
+        url: '',
+      };
+    }
+  }
+
+  const gatewayBaseUrl = normalizeHttpUrl(runtimeConfig.vnpayGatewayBaseUrl);
+  if (gatewayBaseUrl == null) {
+    return {
+      ready: false,
+      url: '',
+    };
   }
 
   const now = new Date();
   const createDate = formatVnpTimestamp(now);
+  const locale = normalizeString(runtimeConfig.vnpayLocale) || 'vn';
+  const ipAddress = normalizeString(runtimeConfig.vnpayIpAddress) || '127.0.0.1';
   const params: Record<string, string> = {
     vnp_Version: '2.1.0',
     vnp_Command: 'pay',
@@ -579,9 +842,9 @@ function buildVnpayCheckoutUrl({
     vnp_TxnRef: transactionId,
     vnp_OrderInfo: orderInfo,
     vnp_OrderType: 'billpayment',
-    vnp_Locale: 'vn',
-    vnp_ReturnUrl: returnUrl,
-    vnp_IpAddr: '127.0.0.1',
+    vnp_Locale: locale,
+    vnp_ReturnUrl: normalizedReturnUrl,
+    vnp_IpAddr: ipAddress,
     vnp_CreateDate: createDate,
   };
 
@@ -590,7 +853,28 @@ function buildVnpayCheckoutUrl({
     .map((key) => `${key}=${encodeURIComponent(params[key])}`)
     .join('&');
   const secureHash = createHmac('sha512', hashSecret).update(queryString).digest('hex');
-  return `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?${queryString}&vnp_SecureHash=${secureHash}`;
+  const gateway = new URL(gatewayBaseUrl);
+  const base = `${gateway.origin}${gateway.pathname}`;
+  return {
+    ready: true,
+    url: `${base}?${queryString}&vnp_SecureHash=${secureHash}`,
+  };
+}
+
+function normalizeHttpUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return null;
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 function formatVnpTimestamp(value: Date): string {

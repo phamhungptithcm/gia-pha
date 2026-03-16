@@ -1,9 +1,11 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:collection/collection.dart';
 
+import '../../../core/services/app_environment.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
@@ -18,11 +20,18 @@ class FirebaseMemberRepository implements MemberRepository {
   FirebaseMemberRepository({
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
+    FirebaseFunctions? functions,
   }) : _firestore = firestore ?? FirebaseServices.firestore,
-       _storage = storage ?? FirebaseServices.storage;
+       _storage = storage ?? FirebaseServices.storage,
+       _functions =
+           functions ??
+           FirebaseFunctions.instanceFor(
+             region: AppEnvironment.firebaseFunctionsRegion,
+           );
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+  final FirebaseFunctions _functions;
 
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
@@ -86,15 +95,22 @@ class FirebaseMemberRepository implements MemberRepository {
     }
 
     final normalizedPhone = _normalizePhoneOrNull(draft.phoneInput);
+    if (memberId == null) {
+      return _createMemberViaCallable(
+        session: session,
+        clanId: clanId,
+        draft: draft,
+        normalizedPhone: normalizedPhone,
+      );
+    }
+
     await _ensureUniquePhone(
       clanId: clanId,
       phoneE164: normalizedPhone,
       memberId: memberId,
     );
 
-    final memberRef = memberId == null
-        ? _members.doc()
-        : _members.doc(memberId);
+    final memberRef = _members.doc(memberId);
     final existing = await memberRef.get();
     final existingData = existing.data() ?? const <String, dynamic>{};
     final actor = session.memberId ?? session.uid;
@@ -194,6 +210,69 @@ class FirebaseMemberRepository implements MemberRepository {
     }
     final updated = await memberRef.get();
     return MemberProfile.fromJson(updated.data()!);
+  }
+
+  Future<MemberProfile> _createMemberViaCallable({
+    required AuthSession session,
+    required String clanId,
+    required MemberDraft draft,
+    required String? normalizedPhone,
+  }) async {
+    final callable = _functions.httpsCallable('createClanMember');
+    try {
+      final response = await callable.call(<String, dynamic>{
+        'clanId': clanId,
+        'branchId': draft.branchId,
+        'parentIds': draft.parentIds,
+        'fullName': draft.fullName.trim(),
+        'nickName': draft.nickName.trim(),
+        'gender': _nullableTrim(draft.gender),
+        'birthDate': _nullableTrim(draft.birthDate),
+        'deathDate': _nullableTrim(draft.deathDate),
+        'phoneE164': normalizedPhone,
+        'email': _nullableTrim(draft.email),
+        'addressText': _nullableTrim(draft.addressText),
+        'jobTitle': _nullableTrim(draft.jobTitle),
+        'bio': _nullableTrim(draft.bio),
+        'siblingOrder': draft.siblingOrder,
+        'generation': draft.generation,
+        'socialLinks': draft.socialLinks.toJson(),
+        'primaryRole': draft.primaryRole,
+        'status': draft.status,
+        'isMinor': draft.isMinor,
+      });
+
+      final data = response.data;
+      if (data is Map) {
+        final member = data['member'];
+        if (member is Map) {
+          return MemberProfile.fromJson(Map<String, dynamic>.from(member));
+        }
+      }
+      throw const MemberRepositoryException(
+        MemberRepositoryErrorCode.permissionDenied,
+      );
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code == 'already-exists') {
+        throw const MemberRepositoryException(
+          MemberRepositoryErrorCode.duplicatePhone,
+        );
+      }
+      if (error.code == 'resource-exhausted') {
+        throw const MemberRepositoryException(
+          MemberRepositoryErrorCode.planLimitExceeded,
+        );
+      }
+      if (error.code == 'permission-denied') {
+        throw const MemberRepositoryException(
+          MemberRepositoryErrorCode.permissionDenied,
+        );
+      }
+      throw MemberRepositoryException(
+        MemberRepositoryErrorCode.permissionDenied,
+        error.message,
+      );
+    }
   }
 
   Future<void> _syncSiblingOrder({

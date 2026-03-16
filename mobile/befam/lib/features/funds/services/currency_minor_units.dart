@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 class CurrencyMinorUnits {
   CurrencyMinorUnits._();
 
@@ -76,25 +78,21 @@ class CurrencyMinorUnits {
   static String formatMinorUnits({
     required int amountMinor,
     required String currency,
+    String? locale,
   }) {
     final normalizedCurrency = normalizeCurrencyCode(currency);
     final fractionDigits = minorUnitsFor(normalizedCurrency);
-    final negative = amountMinor < 0;
-    final absoluteMinor = amountMinor.abs();
-
-    if (fractionDigits == 0) {
-      final whole = _groupThousands(absoluteMinor.toString());
-      return '${negative ? '-' : ''}$whole $normalizedCurrency';
-    }
-
+    final resolvedLocale = (locale ?? '').trim().isEmpty
+        ? Intl.getCurrentLocale()
+        : locale!.trim();
     final divisor = _pow10(fractionDigits);
-    final wholePart = absoluteMinor ~/ divisor;
-    final fractionPart = absoluteMinor % divisor;
+    final value = amountMinor / divisor;
 
-    final wholeText = _groupThousands(wholePart.toString());
-    final fractionText = fractionPart.toString().padLeft(fractionDigits, '0');
+    final formatter = NumberFormat.decimalPattern(resolvedLocale)
+      ..minimumFractionDigits = fractionDigits
+      ..maximumFractionDigits = fractionDigits;
 
-    return '${negative ? '-' : ''}$wholeText.$fractionText $normalizedCurrency';
+    return '${formatter.format(value)} $normalizedCurrency';
   }
 
   static int _pow10(int exponent) {
@@ -103,33 +101,5 @@ class CurrencyMinorUnits {
       value *= 10;
     }
     return value;
-  }
-
-  static String _groupThousands(String digits) {
-    if (digits.length <= 3) {
-      return digits;
-    }
-
-    final buffer = StringBuffer();
-    final firstGroup = digits.length % 3;
-    var offset = 0;
-
-    if (firstGroup != 0) {
-      buffer.write(digits.substring(0, firstGroup));
-      offset = firstGroup;
-      if (offset < digits.length) {
-        buffer.write(',');
-      }
-    }
-
-    while (offset < digits.length) {
-      buffer.write(digits.substring(offset, offset + 3));
-      offset += 3;
-      if (offset < digits.length) {
-        buffer.write(',');
-      }
-    }
-
-    return buffer.toString();
   }
 }

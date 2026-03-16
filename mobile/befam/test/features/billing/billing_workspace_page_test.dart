@@ -10,9 +10,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  AuthSession buildSession({String primaryRole = 'CLAN_ADMIN'}) {
+  AuthSession buildSession({
+    String uid = 'debug:+84901234567',
+    String primaryRole = 'CLAN_ADMIN',
+  }) {
     return AuthSession(
-      uid: 'debug:+84901234567',
+      uid: uid,
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84901234567',
       displayName: 'Nguyen Minh',
@@ -27,11 +30,29 @@ void main() {
     );
   }
 
+  AuthSession buildNoClanSession({String uid = 'debug:no-clan-billing'}) {
+    return AuthSession(
+      uid: uid,
+      loginMethod: AuthEntryMethod.phone,
+      phoneE164: '+84900000000',
+      displayName: 'No Clan User',
+      memberId: null,
+      clanId: null,
+      branchId: null,
+      primaryRole: 'MEMBER',
+      accessMode: AuthMemberAccessMode.unlinked,
+      linkedAuthUid: false,
+      isSandbox: true,
+      signedInAtIso: DateTime(2026, 3, 15).toIso8601String(),
+    );
+  }
+
   Future<void> pumpBillingPage(
     WidgetTester tester, {
     AuthSession? session,
     DebugBillingRepository? repository,
     Locale locale = const Locale('vi'),
+    Future<bool> Function(Uri uri)? externalUrlLauncher,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -46,6 +67,7 @@ void main() {
         home: BillingWorkspacePage(
           session: session ?? buildSession(),
           repository: repository ?? DebugBillingRepository.shared(),
+          externalUrlLauncher: externalUrlLauncher ?? ((_) async => true),
         ),
       ),
     );
@@ -96,21 +118,68 @@ void main() {
     expect(find.text('Lịch sử thanh toán'), findsOneWidget);
   });
 
-  testWidgets('creates card checkout and displays latest checkout card', (
+  testWidgets('no-clan user can load personal billing workspace and checkout', (
+    tester,
+  ) async {
+    await pumpBillingPage(tester, session: buildNoClanSession());
+
+    expect(find.text('Gói cá nhân của bạn'), findsNothing);
+    expect(find.text('Thanh toán & gia hạn'), findsOneWidget);
+    final vnpayButton = find.byKey(const Key('billing-open-vnpay-form-button'));
+    await tester.scrollUntilVisible(
+      vnpayButton,
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(vnpayButton, findsOneWidget);
+  });
+
+  testWidgets('creates VNPay checkout and opens pending transaction detail', (
     tester,
   ) async {
     seedPaidTier();
-    await pumpBillingPage(tester);
+    await pumpBillingPage(
+      tester,
+      session: buildSession(uid: 'debug:billing-vnpay-checkout'),
+    );
 
-    final cardButton = find.byKey(const Key('billing-checkout-card-button'));
-    expect(cardButton, findsOneWidget);
+    final vnpayButton = find.byKey(const Key('billing-open-vnpay-form-button'));
+    expect(vnpayButton, findsOneWidget);
 
-    await tester.tap(cardButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 600));
+    await tester.scrollUntilVisible(
+      vnpayButton,
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(vnpayButton);
+    await tester.pumpAndSettle();
+    await tester.tap(vnpayButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('billing-vnpay-submit-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Thanh toán chưa hoàn tất'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const Key('billing-payment-failed-back-button')),
+    );
+    await tester.pumpAndSettle();
 
-    expect(find.text('Phiên thanh toán mới nhất'), findsOneWidget);
-    expect(find.textContaining('Mã giao dịch'), findsOneWidget);
+    expect(find.text('Phiên thanh toán mới nhất'), findsNothing);
+    expect(find.text('Giao dịch đang chờ xử lý'), findsOneWidget);
+    final firstPendingCard = find.byKey(
+      const Key('billing-pending-transaction-item-0'),
+    );
+    await tester.scrollUntilVisible(
+      firstPendingCard,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(firstPendingCard);
+    await tester.pumpAndSettle();
+    await tester.tap(firstPendingCard);
+    await tester.pumpAndSettle();
+    expect(find.text('Chi tiết giao dịch chờ'), findsOneWidget);
+    expect(find.text('Mã giao dịch'), findsOneWidget);
+    expect(find.textContaining('Đánh dấu VNPay'), findsNothing);
   });
 
   testWidgets('saves billing preference changes', (tester) async {
@@ -125,11 +194,37 @@ void main() {
     );
     await tester.ensureVisible(saveButton);
     await tester.pumpAndSettle();
-    await tester.tap(saveButton, warnIfMissed: false);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('Đã lưu cài đặt thanh toán.'), findsOneWidget);
+    final saveBeforeChange = tester.widget<FilledButton>(saveButton);
+    expect(saveBeforeChange.onPressed, isNull);
+
+    final reminderChip = find.byKey(const Key('billing-reminder-chip-30'));
+    await tester.scrollUntilVisible(
+      reminderChip,
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(reminderChip);
+    await tester.pumpAndSettle();
+    await tester.tap(reminderChip, warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    final saveAfterChange = tester.widget<FilledButton>(saveButton);
+    expect(saveAfterChange.onPressed, isNotNull);
+
+    await tester.scrollUntilVisible(
+      saveButton,
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(saveButton);
+    await tester.pumpAndSettle();
+    await tester.tap(saveButton);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    final saveAfterPersist = tester.widget<FilledButton>(saveButton);
+    expect(saveAfterPersist.onPressed, isNull);
   });
 
   testWidgets('viewer mode shows summary only and hides manager actions', (
@@ -143,9 +238,8 @@ void main() {
     );
 
     expect(find.text('Chế độ xem'), findsOneWidget);
-    expect(find.byKey(const Key('billing-checkout-card-button')), findsNothing);
     expect(
-      find.byKey(const Key('billing-checkout-vnpay-button')),
+      find.byKey(const Key('billing-open-vnpay-form-button')),
       findsNothing,
     );
     expect(
@@ -163,44 +257,100 @@ void main() {
     (tester) async {
       seedPlusTier();
       final repository = DebugBillingRepository.shared();
-      final session = buildSession(primaryRole: 'CLAN_ADMIN');
+      final session = buildSession(
+        uid: 'debug:billing-upgrade-only',
+        primaryRole: 'CLAN_ADMIN',
+      );
 
       await pumpBillingPage(tester, session: session, repository: repository);
 
       final selector = find.byKey(const Key('billing-plan-selector'));
       expect(selector, findsOneWidget);
 
-      await tester.tap(selector);
-      await tester.pump(const Duration(milliseconds: 350));
-
-      expect(find.textContaining('Miễn phí •'), findsNothing);
-      expect(find.textContaining('Cơ bản •'), findsNothing);
-      expect(find.textContaining('Nâng cao •'), findsWidgets);
-      expect(find.textContaining('Chuyên nghiệp •'), findsWidgets);
-
-      await tester.tap(find.textContaining('Chuyên nghiệp •').last);
-      await tester.pump(const Duration(milliseconds: 350));
-
-      await tester.tap(find.byKey(const Key('billing-checkout-card-button')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
+      final vnpayButton = find.byKey(
+        const Key('billing-open-vnpay-form-button'),
+      );
+      await tester.scrollUntilVisible(
+        vnpayButton,
+        280,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(vnpayButton);
+      await tester.pumpAndSettle();
+      await tester.tap(vnpayButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('billing-vnpay-submit-button')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('billing-payment-failed-back-button')),
+      );
+      await tester.pumpAndSettle();
 
       final snapshot = await tester.runAsync(
         () => repository.loadWorkspace(session: session),
       );
       expect(snapshot, isNotNull);
-      expect(snapshot!.subscription.planCode, 'PRO');
-      expect(snapshot.subscription.status, 'pending_payment');
+      expect(snapshot!.subscription.planCode, 'PLUS');
+      expect(snapshot.subscription.status, 'expired');
+    },
+  );
+
+  testWidgets(
+    'shows downgrade warning when selected tier is below current member minimum',
+    (tester) async {
+      seedPlusTier(); // member count >= 201, minimum tier PLUS
+      await pumpBillingPage(
+        tester,
+        session: buildSession(uid: 'debug:billing-downgrade-guard'),
+      );
+
+      final selector = find.byKey(const Key('billing-plan-selector'));
+      expect(selector, findsOneWidget);
+      await tester.scrollUntilVisible(
+        selector,
+        280,
+        scrollable: find.byType(Scrollable).first,
+      );
+      final baseOption = find.byKey(const Key('billing-plan-option-base'));
+      expect(baseOption, findsOneWidget);
+      expect(find.byKey(const Key('billing-plan-option-plus')), findsOneWidget);
+      expect(find.byKey(const Key('billing-plan-option-pro')), findsOneWidget);
+
+      await tester.tap(baseOption);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Không thể hạ xuống gói này'), findsOneWidget);
+      expect(
+        find.byKey(const Key('billing-open-vnpay-form-button')),
+        findsNothing,
+      );
     },
   );
 
   testWidgets('localizes statuses and audit labels in English', (tester) async {
     seedPaidTier();
-    await pumpBillingPage(tester, locale: const Locale('en'));
+    await pumpBillingPage(
+      tester,
+      locale: const Locale('en'),
+      session: buildSession(uid: 'debug:billing-en-localization'),
+    );
 
-    await tester.tap(find.byKey(const Key('billing-checkout-card-button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 700));
+    final vnpayButton = find.byKey(const Key('billing-open-vnpay-form-button'));
+    await tester.scrollUntilVisible(
+      vnpayButton,
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(vnpayButton);
+    await tester.pumpAndSettle();
+    await tester.tap(vnpayButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('billing-vnpay-submit-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('billing-payment-failed-back-button')),
+    );
+    await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
       find.text('Payment history'),
