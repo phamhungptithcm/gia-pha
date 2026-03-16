@@ -38,9 +38,12 @@ class FundWorkspacePage extends StatefulWidget {
 }
 
 class _FundWorkspacePageState extends State<FundWorkspacePage> {
+  static const int _fundBatchSize = 10;
+
   late FundController _controller;
   late AuthSession _activeSession;
   late MemberRepository _memberRepository;
+  late final ScrollController _workspaceScrollController;
   bool _isSwitchingClanContext = false;
   String _cachedMembersClanId = '';
   List<MemberProfile> _cachedMembers = const [];
@@ -50,6 +53,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
   bool _hasResolvedTreasurers = false;
   bool _treasurerLookupFailed = false;
   int _treasurerRequestToken = 0;
+  int _visibleFundCount = _fundBatchSize;
+  String _fundListSeed = '';
 
   AuthSession get _session => _activeSession;
 
@@ -68,6 +73,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       repository: widget.repository,
       session: _session,
     );
+    _workspaceScrollController = ScrollController()
+      ..addListener(_handleWorkspaceScroll);
     unawaited(_controller.initialize());
     unawaited(_refreshTreasurerRoster(force: true));
   }
@@ -102,8 +109,49 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
 
   @override
   void dispose() {
+    _workspaceScrollController
+      ..removeListener(_handleWorkspaceScroll)
+      ..dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleWorkspaceScroll() {
+    if (!_workspaceScrollController.hasClients) {
+      return;
+    }
+    final position = _workspaceScrollController.position;
+    if (position.pixels < position.maxScrollExtent - 240) {
+      return;
+    }
+    _loadMoreFundsIfNeeded();
+  }
+
+  void _syncVisibleFundWindow(List<FundProfile> funds) {
+    final firstId = funds.isEmpty ? '' : funds.first.id;
+    final lastId = funds.isEmpty ? '' : funds.last.id;
+    final seed = '${funds.length}|$firstId|$lastId';
+    if (_fundListSeed == seed) {
+      if (_visibleFundCount > funds.length) {
+        _visibleFundCount = funds.length;
+      }
+      return;
+    }
+    _fundListSeed = seed;
+    _visibleFundCount = funds.length < _fundBatchSize
+        ? funds.length
+        : _fundBatchSize;
+  }
+
+  void _loadMoreFundsIfNeeded() {
+    final total = _controller.funds.length;
+    if (_visibleFundCount >= total) {
+      return;
+    }
+    setState(() {
+      final next = _visibleFundCount + _fundBatchSize;
+      _visibleFundCount = next < total ? next : total;
+    });
   }
 
   Future<void> _openFundEditor({FundProfile? fund}) async {
@@ -343,11 +391,19 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         final colorScheme = theme.colorScheme;
         final currentFund = _controller.selectedFund;
         final hasFunds = _controller.funds.isNotEmpty;
+        final listBottomPadding =
+            (_controller.canManageFunds ? 120.0 : 32.0) +
+            MediaQuery.paddingOf(context).bottom;
         final displayCurrency =
             currentFund?.currency ??
             (_controller.funds.isNotEmpty
                 ? _controller.funds.first.currency
                 : 'VND');
+        _syncVisibleFundWindow(_controller.funds);
+        final visibleFunds = _controller.funds
+            .take(_visibleFundCount)
+            .toList(growable: false);
+        final hasMoreFunds = visibleFunds.length < _controller.funds.length;
 
         return Scaffold(
           appBar: AppBar(
@@ -381,15 +437,6 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                   ],
                   icon: const Icon(Icons.account_tree_outlined),
                 ),
-              IconButton(
-                tooltip: l10n.pick(vi: 'Tải lại', en: 'Refresh'),
-                onPressed: _controller.isLoading
-                    ? null
-                    : () {
-                        unawaited(_refreshWorkspace());
-                      },
-                icon: const Icon(Icons.refresh),
-              ),
             ],
           ),
           floatingActionButton: _controller.canManageFunds
@@ -422,24 +469,36 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                 : RefreshIndicator(
                     onRefresh: _refreshWorkspace,
                     child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                      controller: _workspaceScrollController,
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        16,
+                        20,
+                        listBottomPadding,
+                      ),
                       children: [
                         _WorkspaceHero(
                           title: l10n.pick(
                             vi: 'Không gian sổ quỹ',
                             en: 'Fund ledger workspace',
                           ),
-                          description: l10n.pick(
-                            vi: 'Theo dõi đóng góp, chi tiêu, số dư hiện tại và lịch sử theo từng quỹ.',
-                            en: 'Track donations, expenses, running balance, and history across each fund.',
-                          ),
+                          description: hasFunds
+                              ? l10n.pick(
+                                  vi: 'Theo dõi số dư và biến động theo từng quỹ.',
+                                  en: 'Monitor balances and movement across funds.',
+                                )
+                              : l10n.pick(
+                                  vi: 'Theo dõi đóng góp, chi tiêu, số dư hiện tại và lịch sử theo từng quỹ.',
+                                  en: 'Track donations, expenses, running balance, and history across each fund.',
+                                ),
                           canManageFunds: _controller.canManageFunds,
+                          compact: hasFunds,
                           onPrimaryAction:
                               _controller.canManageFunds && !hasFunds
                               ? () => _openFundEditor()
                               : null,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         _ClanScopeCard(
                           activeClanId: (_session.clanId ?? '').trim(),
                           clanContexts: _clanContexts,
@@ -448,7 +507,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                               ? null
                               : (clanId) => _switchClanContext(clanId),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         if (_controller.errorMessage case final error?) ...[
                           _InfoCard(
                             icon: Icons.error_outline,
@@ -474,110 +533,116 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                           ),
                           const SizedBox(height: 20),
                         ],
-                        if (!_controller.canManageFunds) ...[
-                          _InfoCard(
-                            icon: Icons.visibility_outlined,
-                            title: l10n.pick(
-                              vi: 'Vai trò chỉ xem',
-                              en: 'Read-only role',
+                        if (_controller.canManageFunds &&
+                            currentFund != null &&
+                            _treasurerSummaryLabel(
+                              context,
+                              currentFund: currentFund,
+                            ).trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: Text(
+                              l10n.pick(
+                                vi: 'Thủ quỹ hiện tại: ${_treasurerSummaryLabel(context, currentFund: currentFund)}',
+                                en: 'Current treasurer: ${_treasurerSummaryLabel(context, currentFund: currentFund)}',
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                            description: l10n.pick(
-                              vi: 'Chỉ quản trị cấp họ tộc mới có thể tạo quỹ hoặc ghi giao dịch.',
-                              en: 'Only clan-level administrators can create funds or post transactions.',
-                            ),
-                            tone: colorScheme.secondaryContainer,
                           ),
-                          const SizedBox(height: 20),
-                        ] else ...[
-                          _InfoCard(
-                            icon: Icons.edit_note_outlined,
-                            title: l10n.pick(
-                              vi: 'Quyền truy cập',
-                              en: 'Access level',
-                            ),
-                            description: l10n.pick(
-                              vi: 'Bạn có quyền ghi sổ. Thủ quỹ hiện tại: ${_treasurerSummaryLabel(context, currentFund: currentFund)}.',
-                              en: 'You have write access. Active treasurer: ${_treasurerSummaryLabel(context, currentFund: currentFund)}.',
-                            ),
-                            tone: colorScheme.secondaryContainer,
-                          ),
-                          const SizedBox(height: 20),
-                        ],
                         if (hasFunds) ...[
                           _StatRow(
                             items: [
                               _StatTile(
                                 label: l10n.pick(vi: 'Số dư', en: 'Balance'),
-                                value: CurrencyMinorUnits.formatMinorUnits(
+                                value: _formatMoney(
+                                  context,
                                   amountMinor: _totalBalanceMinor(),
                                   currency: displayCurrency,
                                 ),
                                 icon: Icons.account_balance_wallet_outlined,
-                                valueMaxLines: 2,
                               ),
                               _StatTile(
                                 label: l10n.pick(
                                   vi: 'Thu tháng này',
                                   en: 'This month income',
                                 ),
-                                value: CurrencyMinorUnits.formatMinorUnits(
+                                value: _formatMoney(
+                                  context,
                                   amountMinor: _donationThisMonthMinor(),
                                   currency: displayCurrency,
                                 ),
-                                icon: Icons.call_received_outlined,
-                                valueMaxLines: 2,
+                                icon: Icons.south_west_rounded,
+                                iconBackgroundColor:
+                                    colorScheme.primaryContainer,
+                                valueColor: colorScheme.primary,
                               ),
                               _StatTile(
                                 label: l10n.pick(
                                   vi: 'Chi tháng này',
                                   en: 'This month expense',
                                 ),
-                                value: CurrencyMinorUnits.formatMinorUnits(
+                                value: _formatMoney(
+                                  context,
                                   amountMinor: _expenseThisMonthMinor(),
                                   currency: displayCurrency,
                                 ),
-                                icon: Icons.call_made_outlined,
-                                valueMaxLines: 2,
+                                icon: Icons.north_east_rounded,
+                                iconBackgroundColor: colorScheme.errorContainer,
+                                valueColor: colorScheme.error,
                               ),
                             ],
                           ),
                           const SizedBox(height: 20),
-                          _SectionCard(
-                            title: l10n.pick(
-                              vi: 'Danh sách quỹ',
-                              en: 'Fund list',
+                          Text(
+                            l10n.pick(vi: 'Danh sách quỹ', en: 'Fund list'),
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
                             ),
-                            child: Column(
-                              children: [
-                                for (
-                                  var i = 0;
-                                  i < _controller.funds.length;
-                                  i++
-                                )
-                                  Padding(
-                                    padding: EdgeInsets.only(
-                                      bottom: i == _controller.funds.length - 1
-                                          ? 0
-                                          : 14,
-                                    ),
-                                    child: _FundSummaryCard(
-                                      fund: _controller.funds[i],
-                                      memberCountLabel:
-                                          _memberCountLabelForFund(
-                                            context,
-                                            _controller.funds[i],
-                                          ),
-                                      onTap: () =>
-                                          _openFundDetail(_controller.funds[i]),
-                                      onEdit: _controller.canManageFunds
-                                          ? () => _openFundEditor(
-                                              fund: _controller.funds[i],
-                                            )
-                                          : null,
-                                    ),
+                          ),
+                          const SizedBox(height: 12),
+                          Column(
+                            children: [
+                              for (var i = 0; i < visibleFunds.length; i++)
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom:
+                                        i == visibleFunds.length - 1 &&
+                                            !hasMoreFunds
+                                        ? 0
+                                        : 14,
                                   ),
-                              ],
-                            ),
+                                  child: _FundSummaryCard(
+                                    key: Key('fund-row-${visibleFunds[i].id}'),
+                                    fund: visibleFunds[i],
+                                    memberCountLabel: _memberCountLabelForFund(
+                                      context,
+                                      visibleFunds[i],
+                                    ),
+                                    onTap: () =>
+                                        _openFundDetail(visibleFunds[i]),
+                                    onEdit: _controller.canManageFunds
+                                        ? () => _openFundEditor(
+                                            fund: visibleFunds[i],
+                                          )
+                                        : null,
+                                  ),
+                                ),
+                              if (hasMoreFunds)
+                                _InfoCard(
+                                  icon: Icons.unfold_more_outlined,
+                                  title: l10n.pick(
+                                    vi: 'Đang tải thêm quỹ',
+                                    en: 'Loading more funds',
+                                  ),
+                                  description: l10n.pick(
+                                    vi: 'Đã hiển thị ${visibleFunds.length}/${_controller.funds.length}. Kéo xuống để tải thêm.',
+                                    en: 'Showing ${visibleFunds.length}/${_controller.funds.length}. Scroll to load more.',
+                                  ),
+                                  tone: colorScheme.surfaceContainerHighest,
+                                ),
+                            ],
                           ),
                         ],
                       ],
@@ -744,6 +809,18 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           );
     return names;
   }
+
+  String _formatMoney(
+    BuildContext context, {
+    required int amountMinor,
+    required String currency,
+  }) {
+    return CurrencyMinorUnits.formatMinorUnits(
+      amountMinor: amountMinor,
+      currency: currency,
+      locale: Localizations.localeOf(context).toLanguageTag(),
+    );
+  }
 }
 
 class _FundDetailPage extends StatefulWidget {
@@ -906,7 +983,8 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        CurrencyMinorUnits.formatMinorUnits(
+                        _formatMoneyText(
+                          context,
                           amountMinor: fund.balanceMinor,
                           currency: fund.currency,
                         ),
@@ -1134,6 +1212,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
   String? _memberLoadError;
   FundRepositoryErrorCode? _submitError;
   bool _isSubmitting = false;
+  int _editorStep = 0;
 
   static const _fundTypes = [
     'scholarship',
@@ -1193,6 +1272,42 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
     _descriptionController.dispose();
     _branchIdController.dispose();
     super.dispose();
+  }
+
+  bool _validateStepOne({required bool showSnackBar}) {
+    final l10n = context.l10n;
+    if (_selectedClanId.trim().isEmpty) {
+      if (showSnackBar) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick(
+                vi: 'Hãy chọn gia phả quản lý trước khi tiếp tục.',
+                en: 'Choose a target clan before continuing.',
+              ),
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+
+    if (_nameController.text.trim().isEmpty) {
+      if (showSnackBar) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick(
+                vi: 'Tên quỹ là bắt buộc.',
+                en: 'Fund name is required.',
+              ),
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+    return true;
   }
 
   Future<void> _submit() async {
@@ -1653,338 +1768,424 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   ),
                 ],
                 const SizedBox(height: 18),
-                if (widget.availableClanContexts.isNotEmpty)
-                  DropdownButtonFormField<String>(
-                    key: const Key('fund-clan-selector'),
-                    initialValue: _selectedClanId.isEmpty
-                        ? null
-                        : _selectedClanId,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(
-                        vi: 'Gia phả quản lý',
-                        en: 'Target clan',
+                _FundEditorStepIndicator(
+                  currentStep: _editorStep,
+                  labels: [
+                    l10n.pick(vi: 'Hồ sơ quỹ', en: 'Fund profile'),
+                    l10n.pick(vi: 'Thành viên', en: 'Members'),
+                  ],
+                  onStepSelected: (step) {
+                    if (step == 1 && !_validateStepOne(showSnackBar: true)) {
+                      return;
+                    }
+                    setState(() => _editorStep = step);
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (_editorStep == 0) ...[
+                  if (widget.availableClanContexts.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      key: const Key('fund-clan-selector'),
+                      initialValue: _selectedClanId.isEmpty
+                          ? null
+                          : _selectedClanId,
+                      decoration: InputDecoration(
+                        labelText: l10n.pick(
+                          vi: 'Gia phả quản lý',
+                          en: 'Target clan',
+                        ),
+                      ),
+                      items: [
+                        for (final contextOption
+                            in widget.availableClanContexts)
+                          DropdownMenuItem<String>(
+                            value: contextOption.clanId,
+                            child: Text(contextOption.clanName),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        unawaited(_handleClanChanged(value));
+                      },
+                    )
+                  else
+                    InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: l10n.pick(vi: 'Gia phả', en: 'Clan'),
+                      ),
+                      child: Text(
+                        l10n.pick(
+                          vi: 'Gia phả hiện tại',
+                          en: 'Current genealogy',
+                        ),
                       ),
                     ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('fund-name-input'),
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Tên quỹ', en: 'Fund name'),
+                      hintText: l10n.pick(
+                        vi: 'Quỹ khuyến học',
+                        en: 'Scholarship Fund',
+                      ),
+                    ),
+                    validator: (value) {
+                      return value == null || value.trim().isEmpty
+                          ? l10n.pick(
+                              vi: 'Tên quỹ là bắt buộc.',
+                              en: 'Fund name is required.',
+                            )
+                          : null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: _fundType,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Loại quỹ', en: 'Fund type'),
+                    ),
                     items: [
-                      for (final contextOption in widget.availableClanContexts)
+                      for (final type in _fundTypes)
                         DropdownMenuItem<String>(
-                          value: contextOption.clanId,
-                          child: Text(contextOption.clanName),
+                          value: type,
+                          child: Text(_fundTypeLabel(context, type)),
                         ),
                     ],
                     onChanged: (value) {
-                      unawaited(_handleClanChanged(value));
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _fundType = value;
+                      });
                     },
-                  )
-                else
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: _currency,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Tiền tệ', en: 'Currency'),
+                    ),
+                    items: [
+                      for (final currency in _currencies)
+                        DropdownMenuItem<String>(
+                          value: currency,
+                          child: Text(currency),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _currency = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('fund-branch-id-input'),
+                    controller: _branchIdController,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Mã chi (tuỳ chọn)',
+                        en: 'Branch id (optional)',
+                      ),
+                      hintText: l10n.pick(
+                        vi: 'chi_demo_001',
+                        en: 'branch_demo_001',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('fund-description-input'),
+                    controller: _descriptionController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                      hintText: l10n.pick(
+                        vi: 'Mô tả quỹ hỗ trợ ai và cách sử dụng.',
+                        en: 'Describe who this fund supports and how it is used.',
+                      ),
+                    ),
+                  ),
+                ],
+                if (_editorStep == 1) ...[
+                  _InfoCard(
+                    icon: Icons.groups_outlined,
+                    title: l10n.pick(
+                      vi: 'Bước 2: Gán thành viên',
+                      en: 'Step 2: Assign members',
+                    ),
+                    description: l10n.pick(
+                      vi: 'Chọn thủ quỹ phụ trách và danh sách thành viên áp dụng cho quỹ này.',
+                      en: 'Select treasurers and members who belong to this fund.',
+                    ),
+                    tone: theme.colorScheme.surfaceContainerHighest,
+                    compact: true,
+                  ),
+                  const SizedBox(height: 14),
                   InputDecorator(
                     decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Gia phả', en: 'Clan'),
-                    ),
-                    child: Text(
-                      l10n.pick(
-                        vi: 'Gia phả hiện tại',
-                        en: 'Current genealogy',
+                      labelText: l10n.pick(
+                        vi: 'Thủ quỹ phụ trách',
+                        en: 'Assigned treasurer',
                       ),
                     ),
-                  ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  key: const Key('fund-name-input'),
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Tên quỹ', en: 'Fund name'),
-                    hintText: l10n.pick(
-                      vi: 'Quỹ khuyến học',
-                      en: 'Scholarship Fund',
-                    ),
-                  ),
-                  validator: (value) {
-                    return value == null || value.trim().isEmpty
-                        ? l10n.pick(
-                            vi: 'Tên quỹ là bắt buộc.',
-                            en: 'Fund name is required.',
+                    child: _isLoadingMembers
+                        ? Row(
+                            children: [
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                l10n.pick(
+                                  vi: 'Đang tải thành viên...',
+                                  en: 'Loading members...',
+                                ),
+                              ),
+                            ],
                           )
-                        : null;
-                  },
-                ),
-                const SizedBox(height: 14),
-                DropdownButtonFormField<String>(
-                  initialValue: _fundType,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Loại quỹ', en: 'Fund type'),
-                  ),
-                  items: [
-                    for (final type in _fundTypes)
-                      DropdownMenuItem<String>(
-                        value: type,
-                        child: Text(_fundTypeLabel(context, type)),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    setState(() {
-                      _fundType = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 14),
-                DropdownButtonFormField<String>(
-                  initialValue: _currency,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Tiền tệ', en: 'Currency'),
-                  ),
-                  items: [
-                    for (final currency in _currencies)
-                      DropdownMenuItem<String>(
-                        value: currency,
-                        child: Text(currency),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    setState(() {
-                      _currency = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  key: const Key('fund-branch-id-input'),
-                  controller: _branchIdController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
-                      vi: 'Mã chi (tuỳ chọn)',
-                      en: 'Branch id (optional)',
-                    ),
-                    hintText: l10n.pick(
-                      vi: 'chi_demo_001',
-                      en: 'branch_demo_001',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  key: const Key('fund-description-input'),
-                  controller: _descriptionController,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
-                    hintText: l10n.pick(
-                      vi: 'Mô tả quỹ hỗ trợ ai và cách sử dụng.',
-                      en: 'Describe who this fund supports and how it is used.',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
-                      vi: 'Thủ quỹ phụ trách',
-                      en: 'Assigned treasurer',
-                    ),
-                  ),
-                  child: _isLoadingMembers
-                      ? Row(
-                          children: [
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                        : _memberLoadError != null
+                        ? Text(_memberLoadError!)
+                        : _members.isEmpty
+                        ? Text(
+                            l10n.pick(
+                              vi: 'Không có thành viên khả dụng trong gia phả này.',
+                              en: 'No members available in this clan.',
                             ),
-                            const SizedBox(width: 10),
-                            Text(
-                              l10n.pick(
-                                vi: 'Đang tải thành viên...',
-                                en: 'Loading members...',
-                              ),
-                            ),
-                          ],
-                        )
-                      : _memberLoadError != null
-                      ? Text(_memberLoadError!)
-                      : _members.isEmpty
-                      ? Text(
-                          l10n.pick(
-                            vi: 'Không có thành viên khả dụng trong gia phả này.',
-                            en: 'No members available in this clan.',
-                          ),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              l10n.pick(
-                                vi: 'Đã chọn ${_selectedTreasurerMemberIds.length}/${_members.length} thủ quỹ',
-                                en: 'Selected ${_selectedTreasurerMemberIds.length}/${_members.length} treasurers',
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              l10n.pick(
-                                vi: 'Thành viên được chọn sẽ được cấp vai trò Thủ quỹ mặc định.',
-                                en: 'Selected members are granted the Treasurer role by default.',
-                              ),
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 10),
-                            OutlinedButton.icon(
-                              key: const Key('fund-treasurer-picker'),
-                              onPressed: () {
-                                unawaited(
-                                  _pickMemberIds(
-                                    title: l10n.pick(
-                                      vi: 'Chọn thủ quỹ',
-                                      en: 'Select treasurers',
-                                    ),
-                                    initialSelected:
-                                        _selectedTreasurerMemberIds,
-                                    onApplied: (picked) {
-                                      setState(() {
-                                        _selectedTreasurerMemberIds = picked;
-                                      });
-                                    },
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.person_search_outlined),
-                              label: Text(
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
                                 l10n.pick(
-                                  vi: 'Chọn thành viên',
-                                  en: 'Choose members',
+                                  vi: 'Đã chọn ${_selectedTreasurerMemberIds.length}/${_members.length} thủ quỹ',
+                                  en: 'Selected ${_selectedTreasurerMemberIds.length}/${_members.length} treasurers',
                                 ),
                               ),
-                            ),
-                            if (selectedTreasurerMembers.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  for (final member in selectedTreasurerMembers)
-                                    Chip(
-                                      label: Text(
-                                        '${member.fullName} • ${_memberKinshipBadge(member, context)}',
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                ),
-                const SizedBox(height: 14),
-                InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
-                      vi: 'Áp dụng cho thành viên',
-                      en: 'Apply to members',
-                    ),
-                  ),
-                  child: _isLoadingMembers
-                      ? Row(
-                          children: [
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              l10n.pick(
-                                vi: 'Đang tải thành viên...',
-                                en: 'Loading members...',
-                              ),
-                            ),
-                          ],
-                        )
-                      : _memberLoadError != null
-                      ? Text(_memberLoadError!)
-                      : _members.isEmpty
-                      ? Text(
-                          l10n.pick(
-                            vi: 'Không có thành viên khả dụng trong gia phả này.',
-                            en: 'No members available in this clan.',
-                          ),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              l10n.pick(
-                                vi: 'Đã chọn ${_selectedMemberIds.length}/${_members.length} thành viên',
-                                en: 'Selected ${_selectedMemberIds.length}/${_members.length} members',
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            OutlinedButton.icon(
-                              key: const Key('fund-applied-members-picker'),
-                              onPressed: () {
-                                unawaited(
-                                  _pickMemberIds(
-                                    title: l10n.pick(
-                                      vi: 'Chọn thành viên áp dụng',
-                                      en: 'Select applicable members',
-                                    ),
-                                    initialSelected: _selectedMemberIds,
-                                    onApplied: (picked) {
-                                      setState(() {
-                                        _selectedMemberIds = picked;
-                                      });
-                                    },
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.group_outlined),
-                              label: Text(
+                              const SizedBox(height: 8),
+                              Text(
                                 l10n.pick(
-                                  vi: 'Chọn thành viên',
-                                  en: 'Choose members',
+                                  vi: 'Thành viên được chọn sẽ được cấp vai trò Thủ quỹ mặc định.',
+                                  en: 'Selected members are granted the Treasurer role by default.',
+                                ),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                key: const Key('fund-treasurer-picker'),
+                                onPressed: () {
+                                  unawaited(
+                                    _pickMemberIds(
+                                      title: l10n.pick(
+                                        vi: 'Chọn thủ quỹ',
+                                        en: 'Select treasurers',
+                                      ),
+                                      initialSelected:
+                                          _selectedTreasurerMemberIds,
+                                      onApplied: (picked) {
+                                        setState(() {
+                                          _selectedTreasurerMemberIds = picked;
+                                        });
+                                      },
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.person_search_outlined),
+                                label: Text(
+                                  l10n.pick(
+                                    vi: 'Chọn thành viên',
+                                    en: 'Choose members',
+                                  ),
                                 ),
                               ),
-                            ),
-                            if (selectedAppliedMembers.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  for (final member in selectedAppliedMembers)
-                                    Chip(
-                                      label: Text(
-                                        '${member.fullName} • ${_memberKinshipBadge(member, context)}',
+                              if (selectedTreasurerMembers.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final member
+                                        in selectedTreasurerMembers)
+                                      Chip(
+                                        label: Text(
+                                          '${member.fullName} • ${_memberKinshipBadge(member, context)}',
+                                        ),
                                       ),
-                                    ),
-                                ],
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                  ),
+                  const SizedBox(height: 14),
+                  InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Áp dụng cho thành viên',
+                        en: 'Apply to members',
+                      ),
+                    ),
+                    child: _isLoadingMembers
+                        ? Row(
+                            children: [
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                l10n.pick(
+                                  vi: 'Đang tải thành viên...',
+                                  en: 'Loading members...',
+                                ),
                               ),
                             ],
-                          ],
-                        ),
-                ),
+                          )
+                        : _memberLoadError != null
+                        ? Text(_memberLoadError!)
+                        : _members.isEmpty
+                        ? Text(
+                            l10n.pick(
+                              vi: 'Không có thành viên khả dụng trong gia phả này.',
+                              en: 'No members available in this clan.',
+                            ),
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.pick(
+                                  vi: 'Đã chọn ${_selectedMemberIds.length}/${_members.length} thành viên',
+                                  en: 'Selected ${_selectedMemberIds.length}/${_members.length} members',
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                key: const Key('fund-applied-members-picker'),
+                                onPressed: () {
+                                  unawaited(
+                                    _pickMemberIds(
+                                      title: l10n.pick(
+                                        vi: 'Chọn thành viên áp dụng',
+                                        en: 'Select applicable members',
+                                      ),
+                                      initialSelected: _selectedMemberIds,
+                                      onApplied: (picked) {
+                                        setState(() {
+                                          _selectedMemberIds = picked;
+                                        });
+                                      },
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.group_outlined),
+                                label: Text(
+                                  l10n.pick(
+                                    vi: 'Chọn thành viên',
+                                    en: 'Choose members',
+                                  ),
+                                ),
+                              ),
+                              if (selectedAppliedMembers.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final member in selectedAppliedMembers)
+                                      Chip(
+                                        label: Text(
+                                          '${member.fullName} • ${_memberKinshipBadge(member, context)}',
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                  ),
+                ],
                 const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: (_isSubmitting || widget.isSaving)
-                        ? null
-                        : _submit,
-                    icon: (_isSubmitting || widget.isSaving)
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: Text(
-                      (_isSubmitting || widget.isSaving)
-                          ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
-                          : l10n.pick(vi: 'Lưu quỹ', en: 'Save fund'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        key: Key(
+                          _editorStep == 0
+                              ? 'fund-editor-cancel-button'
+                              : 'fund-editor-back-step-button',
+                        ),
+                        onPressed: (_isSubmitting || widget.isSaving)
+                            ? null
+                            : _editorStep == 0
+                            ? () => Navigator.of(context).pop()
+                            : () {
+                                setState(() => _editorStep = 0);
+                              },
+                        icon: Icon(
+                          _editorStep == 0
+                              ? Icons.close_outlined
+                              : Icons.arrow_back_outlined,
+                        ),
+                        label: Text(
+                          _editorStep == 0
+                              ? l10n.profileCancelAction
+                              : l10n.pick(vi: 'Quay lại', en: 'Back'),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: Key(
+                          _editorStep == 0
+                              ? 'fund-editor-next-step-button'
+                              : 'fund-save-button',
+                        ),
+                        onPressed: (_isSubmitting || widget.isSaving)
+                            ? null
+                            : _editorStep == 0
+                            ? () {
+                                if (_validateStepOne(showSnackBar: true)) {
+                                  setState(() => _editorStep = 1);
+                                }
+                              }
+                            : _submit,
+                        icon: (_isSubmitting || widget.isSaving)
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                _editorStep == 0
+                                    ? Icons.arrow_forward_outlined
+                                    : Icons.save_outlined,
+                              ),
+                        label: Text(
+                          (_isSubmitting || widget.isSaving)
+                              ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
+                              : _editorStep == 0
+                              ? l10n.pick(vi: 'Tiếp tục', en: 'Continue')
+                              : l10n.pick(vi: 'Lưu quỹ', en: 'Save fund'),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -2285,6 +2486,7 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
 
 class _FundSummaryCard extends StatelessWidget {
   const _FundSummaryCard({
+    super.key,
     required this.fund,
     this.memberCountLabel,
     required this.onTap,
@@ -2323,7 +2525,7 @@ class _FundSummaryCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _titleCase(fund.fundType),
+                          _fundTypeLabel(context, fund.fundType),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                         if (memberCountLabel != null &&
@@ -2340,6 +2542,10 @@ class _FundSummaryCard extends StatelessWidget {
                   ),
                   if (onEdit != null)
                     IconButton(
+                      constraints: const BoxConstraints.tightFor(
+                        width: 44,
+                        height: 44,
+                      ),
                       tooltip: context.l10n.pick(
                         vi: 'Chỉnh sửa quỹ',
                         en: 'Edit fund',
@@ -2373,7 +2579,8 @@ class _FundSummaryCard extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        CurrencyMinorUnits.formatMinorUnits(
+                        _formatMoneyText(
+                          context,
                           amountMinor: fund.balanceMinor,
                           currency: fund.currency,
                         ),
@@ -2439,7 +2646,7 @@ class _TransactionRow extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        '${isDonation ? '+' : '-'}${CurrencyMinorUnits.formatMinorUnits(amountMinor: transaction.amountMinor, currency: transaction.currency)}',
+                        '${isDonation ? '+' : '-'}${_formatMoneyText(context, amountMinor: transaction.amountMinor, currency: transaction.currency)}',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: isDonation
                               ? colorScheme.primary
@@ -2607,19 +2814,21 @@ class _InfoCard extends StatelessWidget {
     required this.title,
     required this.description,
     required this.tone,
+    this.compact = false,
   });
 
   final IconData icon;
   final String title;
   final String description;
   final Color tone;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       color: tone,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(compact ? 14 : 18),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2688,12 +2897,14 @@ class _WorkspaceHero extends StatelessWidget {
     required this.title,
     required this.description,
     required this.canManageFunds,
+    this.compact = false,
     this.onPrimaryAction,
   });
 
   final String title;
   final String description;
   final bool canManageFunds;
+  final bool compact;
   final VoidCallback? onPrimaryAction;
 
   @override
@@ -2703,7 +2914,7 @@ class _WorkspaceHero extends StatelessWidget {
     final l10n = context.l10n;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(compact ? 18 : 24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [colorScheme.primary, colorScheme.primaryContainer],
@@ -2717,17 +2928,27 @@ class _WorkspaceHero extends StatelessWidget {
         children: [
           Text(
             title,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: colorScheme.onPrimary,
-              fontWeight: FontWeight.w800,
-            ),
+            style:
+                (compact
+                        ? theme.textTheme.titleLarge
+                        : theme.textTheme.headlineSmall)
+                    ?.copyWith(
+                      color: colorScheme.onPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: compact ? 8 : 10),
           Text(
             description,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onPrimary.withValues(alpha: 0.9),
-            ),
+            maxLines: compact ? 2 : null,
+            overflow: compact ? TextOverflow.ellipsis : TextOverflow.visible,
+            style:
+                (compact
+                        ? theme.textTheme.bodyMedium
+                        : theme.textTheme.bodyLarge)
+                    ?.copyWith(
+                      color: colorScheme.onPrimary.withValues(alpha: 0.9),
+                    ),
           ),
           if (canManageFunds && onPrimaryAction != null) ...[
             const SizedBox(height: 18),
@@ -2741,6 +2962,134 @@ class _WorkspaceHero extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _FundEditorStepIndicator extends StatelessWidget {
+  const _FundEditorStepIndicator({
+    required this.currentStep,
+    required this.labels,
+    required this.onStepSelected,
+  });
+
+  final int currentStep;
+  final List<String> labels;
+  final ValueChanged<int> onStepSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    if (labels.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final safeStep = currentStep.clamp(0, labels.length - 1);
+    const nodeSize = 34.0;
+    const indicatorHeight = 64.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cellWidth = constraints.maxWidth / labels.length;
+        final lineInset = cellWidth / 2;
+        final segmentCount = labels.length - 1;
+        final progress = segmentCount <= 0 ? 1.0 : safeStep / segmentCount;
+
+        return SizedBox(
+          height: indicatorHeight,
+          child: Stack(
+            children: [
+              if (labels.length > 1)
+                Positioned(
+                  left: lineInset,
+                  right: lineInset,
+                  top: (nodeSize / 2) - 1.5,
+                  child: Container(
+                    height: 3,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      color: colorScheme.outlineVariant,
+                    ),
+                  ),
+                ),
+              if (labels.length > 1)
+                Positioned(
+                  left: lineInset,
+                  right: lineInset,
+                  top: (nodeSize / 2) - 1.5,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: progress,
+                      child: Container(
+                        height: 3,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(999),
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Row(
+                children: [
+                  for (var index = 0; index < labels.length; index++)
+                    Expanded(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => onStepSelected(index),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  width: nodeSize,
+                                  height: nodeSize,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: index <= safeStep
+                                        ? colorScheme.primary
+                                        : colorScheme.surfaceContainerHighest,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: textTheme.titleSmall?.copyWith(
+                                      color: index <= safeStep
+                                          ? colorScheme.onPrimary
+                                          : colorScheme.onSurfaceVariant,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  labels[index],
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textTheme.titleSmall?.copyWith(
+                                    fontWeight: index == safeStep
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -2780,13 +3129,15 @@ class _StatTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
-    this.valueMaxLines = 1,
+    this.iconBackgroundColor,
+    this.valueColor,
   });
 
   final String label;
   final String value;
   final IconData icon;
-  final int valueMaxLines;
+  final Color? iconBackgroundColor;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -2798,7 +3149,8 @@ class _StatTile extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: colorScheme.primaryContainer,
+              backgroundColor:
+                  iconBackgroundColor ?? colorScheme.primaryContainer,
               radius: 22,
               child: Icon(icon, size: 20),
             ),
@@ -2812,11 +3164,12 @@ class _StatTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     value,
-                    maxLines: valueMaxLines,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    softWrap: valueMaxLines > 1,
+                    softWrap: false,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
+                      color: valueColor,
                     ),
                   ),
                 ],
@@ -2827,6 +3180,18 @@ class _StatTile extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatMoneyText(
+  BuildContext context, {
+  required int amountMinor,
+  required String currency,
+}) {
+  return CurrencyMinorUnits.formatMinorUnits(
+    amountMinor: amountMinor,
+    currency: currency,
+    locale: Localizations.localeOf(context).toLanguageTag(),
+  );
 }
 
 String _titleCase(String value) {

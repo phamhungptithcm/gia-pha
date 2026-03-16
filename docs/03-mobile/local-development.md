@@ -121,6 +121,14 @@ Optional debug sandbox values:
 
 - OTP: `123456`
 - child identifiers: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
+- Functions region override:
+  `--dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION=asia-southeast1`
+- App timezone default override:
+  `--dart-define=BEFAM_DEFAULT_TIMEZONE=Asia/Ho_Chi_Minh`
+- Checkout host blocklist override:
+  `--dart-define=BEFAM_INVALID_CHECKOUT_HOSTS=example.com`
+- compile-time environment constants are defined in:
+  `mobile/befam/lib/core/services/app_environment.dart`
 
 ## Firebase project
 

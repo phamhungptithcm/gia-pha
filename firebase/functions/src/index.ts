@@ -28,6 +28,7 @@ import {
   createParentChildRelationship,
   createSpouseRelationship,
 } from './genealogy/callables';
+import { createClanMember } from './members/callables';
 import {
   detectDuplicateGenealogy,
   listJoinRequestsForReview,
@@ -44,7 +45,11 @@ import {
   getTreasurerDashboard,
 } from './governance/callables';
 import { reviewScholarshipSubmission } from './scholarship/callables';
-import { billingSubscriptionReminderJob, expireInvitesJob } from './scheduled/jobs';
+import {
+  billingPendingTimeoutJob,
+  billingSubscriptionReminderJob,
+  expireInvitesJob,
+} from './scheduled/jobs';
 import { onSubmissionReviewed } from './scholarship/submission-triggers';
 import { onTransactionCreated } from './funds/transaction-triggers';
 
@@ -56,6 +61,7 @@ setGlobalOptions({
 });
 
 export {
+  billingPendingTimeoutJob,
   billingSubscriptionReminderJob,
   bootstrapClanWorkspace,
   cardPaymentCallback,
@@ -64,6 +70,7 @@ export {
   createParentChildRelationship,
   createSpouseRelationship,
   createInvite,
+  createClanMember,
   issueDebugProfileCustomToken,
   createSubscriptionCheckout,
   detectDuplicateGenealogy,

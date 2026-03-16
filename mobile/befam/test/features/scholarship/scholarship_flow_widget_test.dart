@@ -91,6 +91,8 @@ void main() {
   testWidgets('supports create forms and evidence upload', (tester) async {
     await pumpScholarshipWorkspace(tester);
 
+    await tester.tap(find.byKey(const Key('scholarship-main-add-fab')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('scholarship-create-program-fab')));
     await tester.pumpAndSettle();
 

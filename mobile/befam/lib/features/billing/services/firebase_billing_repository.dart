@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
@@ -24,14 +25,10 @@ class FirebaseBillingRepository implements BillingRepository {
   Future<BillingWorkspaceSnapshot> loadWorkspace({
     required AuthSession session,
   }) async {
-    final clanId = _sessionClanId(session);
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: _firestore,
-      session: session,
-    );
-    final result = await _call('loadBillingWorkspace').call({
-      'clanId': clanId,
-    });
+    await _ensureSessionDocumentBestEffort(session);
+    final result = await _call(
+      'loadBillingWorkspace',
+    ).call(_scopePayload(session));
     return _parseWorkspace(result.data);
   }
 
@@ -40,17 +37,14 @@ class FirebaseBillingRepository implements BillingRepository {
     required AuthSession session,
   }) async {
     final clanId = _sessionClanId(session);
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: _firestore,
-      session: session,
-    );
-    final result = await _call('resolveBillingEntitlement').call({
-      'clanId': clanId,
-    });
+    await _ensureSessionDocumentBestEffort(session);
+    final result = await _call(
+      'resolveBillingEntitlement',
+    ).call(_scopePayload(session));
     final map = _asMap(result.data);
-    final pricing = _asList(map['pricingTiers'])
-        .map((item) => _parsePricing(_asMap(item)))
-        .toList(growable: false);
+    final pricing = _asList(
+      map['pricingTiers'],
+    ).map((item) => _parsePricing(_asMap(item))).toList(growable: false);
     return BillingViewerSummary(
       clanId: _readString(map, 'clanId', fallback: clanId),
       subscription: _parseSubscription(_asMap(map['subscription'])),
@@ -64,14 +58,10 @@ class FirebaseBillingRepository implements BillingRepository {
   Future<BillingEntitlement> resolveEntitlement({
     required AuthSession session,
   }) async {
-    final clanId = _sessionClanId(session);
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: _firestore,
-      session: session,
-    );
-    final result = await _call('resolveBillingEntitlement').call({
-      'clanId': clanId,
-    });
+    await _ensureSessionDocumentBestEffort(session);
+    final result = await _call(
+      'resolveBillingEntitlement',
+    ).call(_scopePayload(session));
     final map = _asMap(result.data);
     return _parseEntitlement(_asMap(map['entitlement']));
   }
@@ -83,20 +73,17 @@ class FirebaseBillingRepository implements BillingRepository {
     required bool autoRenew,
     List<int>? reminderDaysBefore,
   }) async {
-    final clanId = _sessionClanId(session);
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: _firestore,
-      session: session,
-    );
+    await _ensureSessionDocumentBestEffort(session);
     final payload = <String, dynamic>{
-      'clanId': clanId,
       'paymentMode': paymentMode,
       'autoRenew': autoRenew,
       ...?reminderDaysBefore == null
           ? null
           : {'reminderDaysBefore': reminderDaysBefore},
     };
-    final result = await _call('updateBillingPreferences').call(payload);
+    final result = await _call(
+      'updateBillingPreferences',
+    ).call(_scopePayload(session, payload));
     return _parseSettings(_asMap(result.data));
   }
 
@@ -108,18 +95,17 @@ class FirebaseBillingRepository implements BillingRepository {
     String? returnUrl,
   }) async {
     final clanId = _sessionClanId(session);
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: _firestore,
-      session: session,
-    );
-    final result = await _call('createSubscriptionCheckout').call({
-      'clanId': clanId,
+    await _ensureSessionDocumentBestEffort(session);
+    final payload = <String, dynamic>{
       'paymentMethod': paymentMethod,
       if (requestedPlanCode != null && requestedPlanCode.trim().isNotEmpty)
         'requestedPlanCode': requestedPlanCode.trim().toUpperCase(),
       if (returnUrl != null && returnUrl.trim().isNotEmpty)
         'returnUrl': returnUrl.trim(),
-    });
+    };
+    final result = await _call(
+      'createSubscriptionCheckout',
+    ).call(_scopePayload(session, payload));
     final map = _asMap(result.data);
     return BillingCheckoutResult(
       clanId: _readString(map, 'clanId', fallback: clanId),
@@ -145,15 +131,10 @@ class FirebaseBillingRepository implements BillingRepository {
     required AuthSession session,
     required String transactionId,
   }) async {
-    final clanId = _sessionClanId(session);
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: _firestore,
-      session: session,
-    );
-    await _call('completeCardCheckout').call({
-      'clanId': clanId,
-      'transactionId': transactionId.trim(),
-    });
+    await _ensureSessionDocumentBestEffort(session);
+    await _call(
+      'completeCardCheckout',
+    ).call(_scopePayload(session, {'transactionId': transactionId.trim()}));
   }
 
   @override
@@ -161,15 +142,38 @@ class FirebaseBillingRepository implements BillingRepository {
     required AuthSession session,
     required String transactionId,
   }) async {
-    final clanId = _sessionClanId(session);
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: _firestore,
-      session: session,
-    );
-    await _call('simulateVnpaySettlement').call({
-      'clanId': clanId,
-      'transactionId': transactionId.trim(),
-    });
+    await _ensureSessionDocumentBestEffort(session);
+    await _call(
+      'simulateVnpaySettlement',
+    ).call(_scopePayload(session, {'transactionId': transactionId.trim()}));
+  }
+
+  Future<void> _ensureSessionDocumentBestEffort(AuthSession session) async {
+    try {
+      await FirebaseSessionAccessSync.ensureUserSessionDocument(
+        firestore: _firestore,
+        session: session,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[billing] user session sync skipped: $error');
+      debugPrintStack(
+        stackTrace: stackTrace,
+        label: '[billing] session sync stack',
+      );
+    }
+  }
+
+  Map<String, dynamic> _scopePayload(
+    AuthSession session, [
+    Map<String, dynamic>? payload,
+  ]) {
+    final clanId = (session.clanId ?? '').trim();
+    final uid = session.uid.trim();
+    final base = <String, dynamic>{...?payload};
+    if (clanId.isNotEmpty) {
+      return <String, dynamic>{'clanId': clanId, ...base};
+    }
+    return <String, dynamic>{'ownerUid': uid, ...base};
   }
 
   HttpsCallable _call(String name) {
@@ -178,18 +182,18 @@ class FirebaseBillingRepository implements BillingRepository {
 
   BillingWorkspaceSnapshot _parseWorkspace(Object? raw) {
     final map = _asMap(raw);
-    final pricing = _asList(map['pricingTiers'])
-        .map((item) => _parsePricing(_asMap(item)))
-        .toList(growable: false);
-    final transactions = _asList(map['transactions'])
-        .map((item) => _parseTransaction(_asMap(item)))
-        .toList(growable: false);
-    final invoices = _asList(map['invoices'])
-        .map((item) => _parseInvoice(_asMap(item)))
-        .toList(growable: false);
-    final auditLogs = _asList(map['auditLogs'])
-        .map((item) => _parseAuditLog(_asMap(item)))
-        .toList(growable: false);
+    final pricing = _asList(
+      map['pricingTiers'],
+    ).map((item) => _parsePricing(_asMap(item))).toList(growable: false);
+    final transactions = _asList(
+      map['transactions'],
+    ).map((item) => _parseTransaction(_asMap(item))).toList(growable: false);
+    final invoices = _asList(
+      map['invoices'],
+    ).map((item) => _parseInvoice(_asMap(item))).toList(growable: false);
+    final auditLogs = _asList(
+      map['auditLogs'],
+    ).map((item) => _parseAuditLog(_asMap(item))).toList(growable: false);
 
     return BillingWorkspaceSnapshot(
       clanId: _readString(map, 'clanId'),
@@ -312,13 +316,17 @@ class FirebaseBillingRepository implements BillingRepository {
 
   String _sessionClanId(AuthSession session) {
     final clanId = (session.clanId ?? '').trim();
-    if (clanId.isEmpty) {
+    if (clanId.isNotEmpty) {
+      return clanId;
+    }
+    final uid = session.uid.trim();
+    if (uid.isEmpty) {
       throw const BillingRepositoryException(
         BillingRepositoryErrorCode.failedPrecondition,
-        'No clan context available for billing.',
+        'Missing authenticated user for billing scope.',
       );
     }
-    return clanId;
+    return 'user_scope__$uid';
   }
 
   Map<String, dynamic> _asMap(Object? raw) {
@@ -326,9 +334,7 @@ class FirebaseBillingRepository implements BillingRepository {
       return raw;
     }
     if (raw is Map) {
-      return raw.map(
-        (key, value) => MapEntry(key.toString(), value),
-      );
+      return raw.map((key, value) => MapEntry(key.toString(), value));
     }
     return const {};
   }
@@ -394,7 +400,11 @@ class FirebaseBillingRepository implements BillingRepository {
     return null;
   }
 
-  bool _readBool(Map<String, dynamic> map, String key, {bool fallback = false}) {
+  bool _readBool(
+    Map<String, dynamic> map,
+    String key, {
+    bool fallback = false,
+  }) {
     final value = map[key];
     if (value is bool) {
       return value;
@@ -416,24 +426,25 @@ class FirebaseBillingRepository implements BillingRepository {
     if (raw is! List) {
       return const [30, 14, 7, 3, 1];
     }
-    final values = raw
-        .map((item) {
-          if (item is int) {
-            return item;
-          }
-          if (item is num) {
-            return item.toInt();
-          }
-          if (item is String) {
-            return int.tryParse(item);
-          }
-          return null;
-        })
-        .whereType<int>()
-        .where((value) => value > 0 && value <= 60)
-        .toSet()
-        .toList(growable: false)
-      ..sort((left, right) => right.compareTo(left));
+    final values =
+        raw
+            .map((item) {
+              if (item is int) {
+                return item;
+              }
+              if (item is num) {
+                return item.toInt();
+              }
+              if (item is String) {
+                return int.tryParse(item);
+              }
+              return null;
+            })
+            .whereType<int>()
+            .where((value) => value > 0 && value <= 60)
+            .toSet()
+            .toList(growable: false)
+          ..sort((left, right) => right.compareTo(left));
     return values.isEmpty ? const [30, 14, 7, 3, 1] : values;
   }
 

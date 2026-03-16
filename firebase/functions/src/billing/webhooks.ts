@@ -2,7 +2,13 @@ import { createHash, createHmac } from 'node:crypto';
 
 import { onRequest } from 'firebase-functions/v2/https';
 
-import { APP_REGION } from '../config/runtime';
+import {
+  APP_REGION,
+  getBillingWebhookSecret,
+  getCardWebhookSecret,
+  getVnpayHashSecret,
+  getVnpayTmnCode,
+} from '../config/runtime';
 import {
   applyPaymentResult,
   recordPaymentWebhookEvent,
@@ -31,23 +37,6 @@ export const vnpayPaymentCallback = onRequest(
     const externalEventId =
       params.vnp_TransactionNo ?? params.vnp_TxnRef ?? `${Date.now()}`;
 
-    const webhookEvent = await recordPaymentWebhookEvent({
-      provider: 'vnpay',
-      externalEventId,
-      transactionId,
-      payloadHash,
-      validSignature: signatureValid,
-      rawPayload: params,
-    });
-    if (webhookEvent.alreadyProcessed) {
-      response.status(200).json({
-        ok: true,
-        idempotent: true,
-        transactionId,
-      });
-      return;
-    }
-
     if (!signatureValid) {
       logWarn('vnpay callback rejected due to invalid signature', {
         transactionId,
@@ -56,6 +45,23 @@ export const vnpayPaymentCallback = onRequest(
       response.status(401).json({
         ok: false,
         message: 'Invalid VNPay signature',
+      });
+      return;
+    }
+
+    const webhookEvent = await recordPaymentWebhookEvent({
+      provider: 'vnpay',
+      externalEventId,
+      transactionId,
+      payloadHash,
+      validSignature: true,
+      rawPayload: params,
+    });
+    if (webhookEvent.alreadyProcessed) {
+      response.status(200).json({
+        ok: true,
+        idempotent: true,
+        transactionId,
       });
       return;
     }
@@ -124,12 +130,17 @@ export const cardPaymentCallback = onRequest(
     const payloadHash = sha256(JSON.stringify(payload));
     const signatureValid = isValidCardSignature(payload);
 
+    if (!signatureValid) {
+      response.status(401).json({ ok: false, message: 'Invalid card callback signature' });
+      return;
+    }
+
     const webhookEvent = await recordPaymentWebhookEvent({
       provider: 'card',
       externalEventId,
       transactionId,
       payloadHash,
-      validSignature: signatureValid,
+      validSignature: true,
       rawPayload: payload,
     });
     if (webhookEvent.alreadyProcessed) {
@@ -138,11 +149,6 @@ export const cardPaymentCallback = onRequest(
         idempotent: true,
         transactionId,
       });
-      return;
-    }
-
-    if (!signatureValid) {
-      response.status(401).json({ ok: false, message: 'Invalid card callback signature' });
       return;
     }
 
@@ -216,7 +222,7 @@ function normalizeCardStatus(status: string): 'succeeded' | 'failed' | 'canceled
 }
 
 function isValidCardSignature(payload: CardPayload): boolean {
-  const secret = process.env.CARD_WEBHOOK_SECRET ?? process.env.BILLING_WEBHOOK_SECRET;
+  const secret = getCardWebhookSecret() || getBillingWebhookSecret();
   if (secret == null || secret.trim().length === 0) {
     return false;
   }
@@ -244,8 +250,13 @@ function normalizeQueryParams(query: unknown): Record<string, string> {
 
 export function isValidVnpaySignature(params: Record<string, string>): boolean {
   const secureHash = params.vnp_SecureHash;
-  const hashSecret = process.env.VNPAY_HASH_SECRET?.trim() ?? '';
+  const hashSecret = getVnpayHashSecret();
+  const expectedTmnCode = normalizeString(getVnpayTmnCode());
+  const callbackTmnCode = normalizeString(params.vnp_TmnCode);
   if (secureHash == null || secureHash.length === 0 || hashSecret.length === 0) {
+    return false;
+  }
+  if (expectedTmnCode.length > 0 && callbackTmnCode !== expectedTmnCode) {
     return false;
   }
 

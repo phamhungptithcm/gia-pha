@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:collection/collection.dart';
 
+import '../../../core/services/app_environment.dart';
 import '../../../core/services/debug_genealogy_store.dart';
 import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
@@ -125,7 +126,7 @@ class DebugEventRepository implements EventRepository {
       startsAt: draft.startsAt.toUtc(),
       endsAt: draft.endsAt?.toUtc(),
       timezone: draft.timezone.trim().isEmpty
-          ? 'Asia/Ho_Chi_Minh'
+          ? AppEnvironment.defaultTimezone
           : draft.timezone.trim(),
       isRecurring: draft.isRecurring,
       recurrenceRule: recurrenceRule,
@@ -240,7 +241,7 @@ class DebugEventRepository implements EventRepository {
         locationAddress: 'Quang Nam, Viet Nam',
         startsAt: DateTime.utc(2026, 4, 4, 2, 0),
         endsAt: DateTime.utc(2026, 4, 4, 5, 30),
-        timezone: 'Asia/Ho_Chi_Minh',
+        timezone: AppEnvironment.defaultTimezone,
         isRecurring: true,
         recurrenceRule: 'FREQ=YEARLY',
         reminderOffsetsMinutes: const [10080, 1440, 120],
@@ -260,7 +261,7 @@ class DebugEventRepository implements EventRepository {
         locationAddress: 'Hue, Viet Nam',
         startsAt: DateTime.utc(2026, 5, 12, 1, 0),
         endsAt: DateTime.utc(2026, 5, 12, 4, 0),
-        timezone: 'Asia/Ho_Chi_Minh',
+        timezone: AppEnvironment.defaultTimezone,
         isRecurring: false,
         recurrenceRule: null,
         reminderOffsetsMinutes: const [1440, 120],

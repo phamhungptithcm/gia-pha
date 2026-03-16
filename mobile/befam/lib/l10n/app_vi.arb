@@ -425,6 +425,7 @@
   "memberSandboxChip": "Dữ liệu sandbox cục bộ",
   "memberLiveChip": "Dữ liệu Firestore trực tiếp",
   "memberDuplicatePhoneError": "Số điện thoại này đã thuộc về một hồ sơ thành viên khác.",
+  "memberPlanLimitExceededError": "Gói hiện tại đã đạt giới hạn thành viên. Vui lòng nâng cấp gói để thêm thành viên mới.",
   "memberPermissionDeniedError": "Phiên hiện tại không có quyền thay đổi hồ sơ thành viên này.",
   "memberAvatarUploadError": "BeFam chưa thể tải ảnh đại diện lên lúc này.",
   "relationshipInspectorTitle": "Quan hệ gia đình",

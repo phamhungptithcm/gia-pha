@@ -1182,6 +1182,10 @@ class AppLocalizationsVi extends AppLocalizations {
       'Số điện thoại này đã thuộc về một hồ sơ thành viên khác.';
 
   @override
+  String get memberPlanLimitExceededError =>
+      'Gói hiện tại đã đạt giới hạn thành viên. Vui lòng nâng cấp gói để thêm thành viên mới.';
+
+  @override
   String get memberPermissionDeniedError =>
       'Phiên hiện tại không có quyền thay đổi hồ sơ thành viên này.';
 

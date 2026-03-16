@@ -2246,6 +2246,12 @@ abstract class AppLocalizations {
   /// **'Số điện thoại này đã thuộc về một hồ sơ thành viên khác.'**
   String get memberDuplicatePhoneError;
 
+  /// No description provided for @memberPlanLimitExceededError.
+  ///
+  /// In vi, this message translates to:
+  /// **'Gói hiện tại đã đạt giới hạn thành viên. Vui lòng nâng cấp gói để thêm thành viên mới.'**
+  String get memberPlanLimitExceededError;
+
   /// No description provided for @memberPermissionDeniedError.
   ///
   /// In vi, this message translates to:

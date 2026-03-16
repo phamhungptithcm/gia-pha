@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
@@ -7,11 +8,13 @@ import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
+import '../../auth/services/auth_session_store.dart';
 import '../../billing/presentation/billing_workspace_page.dart';
 import '../../billing/services/billing_repository.dart';
 import '../../member/models/member_profile.dart';
 import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/profile_notification_preferences_repository.dart';
 import '../models/profile_draft.dart';
 import 'profile_controller.dart';
@@ -27,6 +30,7 @@ class ProfileWorkspacePage extends StatefulWidget {
     this.billingRepository,
     this.onBillingStateChanged,
     this.onLogoutRequested,
+    this.onSessionUpdated,
     this.showAppBar = false,
   });
 
@@ -39,6 +43,7 @@ class ProfileWorkspacePage extends StatefulWidget {
   final BillingRepository? billingRepository;
   final VoidCallback? onBillingStateChanged;
   final Future<void> Function()? onLogoutRequested;
+  final ValueChanged<AuthSession>? onSessionUpdated;
   final bool showAppBar;
 
   @override
@@ -49,7 +54,11 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
   late final ProfileController _controller;
   late final MemberAvatarPicker _avatarPicker;
   late final AppLocaleController _localeController;
+  late final SharedPrefsAuthSessionStore _sessionStore;
+  late final _UnlinkedProfileDraftStore _unlinkedProfileStore;
   late final bool _ownsLocaleController;
+  ProfileDraft? _unlinkedDraft;
+  bool _isSavingUnlinkedProfile = false;
 
   @override
   void initState() {
@@ -62,9 +71,20 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     );
     _avatarPicker = widget.avatarPicker ?? createDefaultMemberAvatarPicker();
     _localeController = widget.localeController ?? AppLocaleController();
+    _sessionStore = SharedPrefsAuthSessionStore();
+    _unlinkedProfileStore = const _UnlinkedProfileDraftStore();
     _ownsLocaleController = widget.localeController == null;
     unawaited(_localeController.load());
     unawaited(_controller.initialize());
+    unawaited(_loadUnlinkedDraft());
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileWorkspacePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session.uid != widget.session.uid) {
+      unawaited(_loadUnlinkedDraft());
+    }
   }
 
   @override
@@ -96,6 +116,118 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.profileUpdateSuccess)));
+    }
+  }
+
+  ProfileDraft _fallbackUnlinkedDraft(AuthSession session) {
+    return ProfileDraft(
+      fullName: session.displayName.trim(),
+      nickName: '',
+      phoneInput: session.phoneE164.trim(),
+      email: '',
+      addressText: '',
+      jobTitle: '',
+      bio: '',
+      facebook: '',
+      zalo: '',
+      linkedin: '',
+    );
+  }
+
+  Future<void> _loadUnlinkedDraft() async {
+    final draft = await _unlinkedProfileStore.read(
+      sessionUid: widget.session.uid,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _unlinkedDraft = draft;
+    });
+  }
+
+  Future<void> _openUnlinkedEditor() async {
+    final l10n = context.l10n;
+    final didSave = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return _ProfileEditorSheet(
+          initialDraft:
+              _unlinkedDraft ?? _fallbackUnlinkedDraft(widget.session),
+          isSaving: _isSavingUnlinkedProfile,
+          onSubmit: _saveUnlinkedProfileDraft,
+        );
+      },
+    );
+
+    if (didSave == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.profileUpdateSuccess)));
+    }
+  }
+
+  Future<MemberRepositoryErrorCode?> _saveUnlinkedProfileDraft(
+    ProfileDraft draft,
+  ) async {
+    if (_isSavingUnlinkedProfile) {
+      return MemberRepositoryErrorCode.permissionDenied;
+    }
+    setState(() {
+      _isSavingUnlinkedProfile = true;
+    });
+
+    try {
+      final fullName = _trimOrFallback(
+        draft.fullName,
+        widget.session.displayName,
+      );
+      final phoneInput = _trimOrFallback(
+        draft.phoneInput,
+        widget.session.phoneE164,
+      );
+      final normalizedDraft = ProfileDraft(
+        fullName: fullName,
+        nickName: draft.nickName.trim(),
+        phoneInput: phoneInput,
+        email: draft.email.trim(),
+        addressText: draft.addressText.trim(),
+        jobTitle: draft.jobTitle.trim(),
+        bio: draft.bio.trim(),
+        facebook: draft.facebook.trim(),
+        zalo: draft.zalo.trim(),
+        linkedin: draft.linkedin.trim(),
+      );
+      await _unlinkedProfileStore.write(
+        sessionUid: widget.session.uid,
+        draft: normalizedDraft,
+      );
+      final updatedSession = widget.session.copyWith(
+        displayName: fullName,
+        phoneE164: phoneInput,
+      );
+      await _sessionStore.write(updatedSession);
+      widget.onSessionUpdated?.call(updatedSession);
+      if (!mounted) {
+        return null;
+      }
+      setState(() {
+        _unlinkedDraft = normalizedDraft;
+      });
+      return null;
+    } catch (_) {
+      return MemberRepositoryErrorCode.permissionDenied;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingUnlinkedProfile = false;
+        });
+      } else {
+        _isSavingUnlinkedProfile = false;
+      }
     }
   }
 
@@ -288,6 +420,12 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                   )
                 : !_controller.hasMemberContext
                 ? _ProfileUnlinkedState(
+                    session: widget.session,
+                    draft:
+                        _unlinkedDraft ??
+                        _fallbackUnlinkedDraft(widget.session),
+                    onEditProfile: _openUnlinkedEditor,
+                    isSavingProfile: _isSavingUnlinkedProfile,
                     localeController: _localeController,
                     onOpenSettings: _openSettings,
                     onLogoutRequested: widget.onLogoutRequested == null
@@ -1285,11 +1423,19 @@ class _ProfileInfoCard extends StatelessWidget {
 
 class _ProfileUnlinkedState extends StatelessWidget {
   const _ProfileUnlinkedState({
+    required this.session,
+    required this.draft,
+    required this.onEditProfile,
+    required this.isSavingProfile,
     required this.localeController,
     required this.onOpenSettings,
     this.onLogoutRequested,
   });
 
+  final AuthSession session;
+  final ProfileDraft draft;
+  final VoidCallback onEditProfile;
+  final bool isSavingProfile;
   final AppLocaleController localeController;
   final VoidCallback onOpenSettings;
   final VoidCallback? onLogoutRequested;
@@ -1298,17 +1444,83 @@ class _ProfileUnlinkedState extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final selectedLanguageCode = localeController.locale.languageCode;
+    final fullName = _displayOrFallback(
+      draft.fullName,
+      fallback: session.displayName,
+      l10n: l10n,
+    );
+    final phone = _displayOrFallback(
+      draft.phoneInput,
+      fallback: session.phoneE164,
+      l10n: l10n,
+    );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
-        _ProfileEmptyState(
-          icon: Icons.lock_outline,
-          title: l10n.profileNoContextTitle,
+        _ProfileInfoCard(
+          icon: Icons.person_outline,
+          title: l10n.pick(
+            vi: 'Hồ sơ tài khoản chưa liên kết',
+            en: 'Unlinked account profile',
+          ),
           description: l10n.pick(
-            vi: 'Bạn chưa liên kết vào gia phả nào. Bạn vẫn có thể đổi ngôn ngữ, cấu hình ứng dụng và đăng xuất an toàn.',
-            en: 'This account is not linked to a clan yet. You can still change language, configure app preferences, and sign out safely.',
+            vi: 'Bạn chưa liên kết vào gia phả nào, nhưng vẫn có thể cập nhật thông tin cá nhân để dùng cho các bước tạo/tham gia sau này.',
+            en: 'This account is not linked to a clan yet, but you can still update personal details for future create/join steps.',
+          ),
+          tone: colorScheme.secondaryContainer,
+        ),
+        const SizedBox(height: 20),
+        _ProfileSectionCard(
+          title: l10n.profileDetailsSectionTitle,
+          child: Column(
+            children: [
+              _ProfileDetailRow(
+                label: l10n.memberFullNameLabel,
+                value: fullName,
+              ),
+              _ProfileDetailRow(
+                label: l10n.memberNicknameLabel,
+                value: _displayOrFallback(draft.nickName, l10n: l10n),
+              ),
+              _ProfileDetailRow(label: l10n.memberPhoneLabel, value: phone),
+              _ProfileDetailRow(
+                label: l10n.memberEmailLabel,
+                value: _displayOrFallback(draft.email, l10n: l10n),
+              ),
+              _ProfileDetailRow(
+                label: l10n.memberJobTitleLabel,
+                value: _displayOrFallback(draft.jobTitle, l10n: l10n),
+              ),
+              _ProfileDetailRow(
+                label: l10n.memberAddressLabel,
+                value: _displayOrFallback(draft.addressText, l10n: l10n),
+              ),
+              _ProfileDetailRow(
+                label: l10n.memberBioLabel,
+                value: _displayOrFallback(draft.bio, l10n: l10n),
+                isLast: true,
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.tonalIcon(
+                  onPressed: isSavingProfile ? null : onEditProfile,
+                  icon: isSavingProfile
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.edit_outlined),
+                  label: Text(
+                    l10n.pick(vi: 'Cập nhật thông tin', en: 'Update profile'),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 20),
@@ -1379,6 +1591,84 @@ class _ProfileUnlinkedState extends StatelessWidget {
   }
 }
 
+String _displayOrFallback(
+  String value, {
+  required AppLocalizations l10n,
+  String? fallback,
+}) {
+  final trimmed = value.trim();
+  if (trimmed.isNotEmpty) {
+    return trimmed;
+  }
+  final fallbackTrimmed = (fallback ?? '').trim();
+  if (fallbackTrimmed.isNotEmpty) {
+    return fallbackTrimmed;
+  }
+  return l10n.memberFieldUnset;
+}
+
+class _UnlinkedProfileDraftStore {
+  const _UnlinkedProfileDraftStore();
+
+  static const String _draftKeyPrefix = 'befam.profile.unlinkedDraft';
+
+  Future<ProfileDraft?> read({required String sessionUid}) async {
+    final preferences = await SharedPreferences.getInstance();
+    final raw = preferences.getString(_keyForUid(sessionUid));
+    if (raw == null || raw.trim().isEmpty) {
+      return null;
+    }
+    try {
+      final payload = jsonDecode(raw) as Map<String, dynamic>;
+      return ProfileDraft(
+        fullName: _asText(payload['fullName']),
+        nickName: _asText(payload['nickName']),
+        phoneInput: _asText(payload['phoneInput']),
+        email: _asText(payload['email']),
+        addressText: _asText(payload['addressText']),
+        jobTitle: _asText(payload['jobTitle']),
+        bio: _asText(payload['bio']),
+        facebook: _asText(payload['facebook']),
+        zalo: _asText(payload['zalo']),
+        linkedin: _asText(payload['linkedin']),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> write({
+    required String sessionUid,
+    required ProfileDraft draft,
+  }) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      _keyForUid(sessionUid),
+      jsonEncode({
+        'fullName': draft.fullName,
+        'nickName': draft.nickName,
+        'phoneInput': draft.phoneInput,
+        'email': draft.email,
+        'addressText': draft.addressText,
+        'jobTitle': draft.jobTitle,
+        'bio': draft.bio,
+        'facebook': draft.facebook,
+        'zalo': draft.zalo,
+        'linkedin': draft.linkedin,
+      }),
+    );
+  }
+
+  String _keyForUid(String sessionUid) {
+    final normalized = sessionUid.trim();
+    return '$_draftKeyPrefix.${normalized.isEmpty ? 'unknown' : normalized}';
+  }
+}
+
+String _asText(Object? value) {
+  return value is String ? value : '';
+}
+
 class _ProfileEmptyState extends StatelessWidget {
   const _ProfileEmptyState({
     required this.icon,
@@ -1429,10 +1719,20 @@ String _memberErrorMessage(
 ) {
   return switch (code) {
     MemberRepositoryErrorCode.duplicatePhone => l10n.memberDuplicatePhoneError,
+    MemberRepositoryErrorCode.planLimitExceeded =>
+      l10n.memberPlanLimitExceededError,
     MemberRepositoryErrorCode.permissionDenied =>
       l10n.memberPermissionDeniedError,
     MemberRepositoryErrorCode.memberNotFound => l10n.memberNotFoundDescription,
     MemberRepositoryErrorCode.avatarUploadFailed =>
       l10n.memberAvatarUploadError,
   };
+}
+
+String _trimOrFallback(String value, String fallback) {
+  final trimmed = value.trim();
+  if (trimmed.isNotEmpty) {
+    return trimmed;
+  }
+  return fallback.trim();
 }

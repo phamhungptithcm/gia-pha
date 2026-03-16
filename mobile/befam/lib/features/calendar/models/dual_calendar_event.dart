@@ -1,3 +1,4 @@
+import '../../../core/services/app_environment.dart';
 import 'calendar_date_mode.dart';
 import '../../events/models/event_type.dart';
 import 'event_notification_audience.dart';
@@ -141,7 +142,7 @@ class DualCalendarEvent {
             ? json['notificationAudience'] as Map<String, dynamic>
             : null,
       ),
-      timezone: json['timezone'] as String? ?? 'Asia/Ho_Chi_Minh',
+      timezone: json['timezone'] as String? ?? AppEnvironment.defaultTimezone,
       createdAt: _parseDateTime(json['createdAt']) ?? DateTime.now(),
       updatedAt: _parseDateTime(json['updatedAt']) ?? DateTime.now(),
     );

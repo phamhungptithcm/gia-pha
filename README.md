@@ -162,10 +162,27 @@ One-time cloud provisioning status:
 Prepared production CI/CD artifacts:
 
 - `.github/workflows/deploy-firebase.yml`
+- `firebase/functions/.env.example`
 - GitHub environment: `production`
 - GitHub environment variable: `FIREBASE_PROJECT_ID=be-fam-3ab23`
 - GitHub environment variable: `FIREBASE_FUNCTIONS_REGION=asia-southeast1`
+- GitHub environment variable: `APP_TIMEZONE=Asia/Ho_Chi_Minh`
+- optional GitHub environment variables for billing runtime:
+  `BILLING_PENDING_TIMEOUT_MINUTES`,
+  `BILLING_PENDING_TIMEOUT_LIMIT`,
+  `BILLING_CARD_CHECKOUT_URL_BASE`,
+  `BILLING_VNPAY_FALLBACK_URL`,
+  `BILLING_VNPAY_GATEWAY_BASE_URL`,
+  `VNPAY_RETURN_URL`,
+  `BILLING_VNPAY_IP_ADDRESS`,
+  `BILLING_VNPAY_LOCALE`
 - GitHub environment secret: `FIREBASE_SERVICE_ACCOUNT`
+- GitHub environment secrets: `BILLING_WEBHOOK_SECRET`, `CARD_WEBHOOK_SECRET`,
+  `VNPAY_TMNCODE`, `VNPAY_HASH_SECRET`
+- deploy workflow also syncs non-secret runtime overrides to Firestore at
+  `runtimeConfig/global` so values can be updated per deploy without code edits
+- setup helper script: `scripts/setup_github_production_config.sh`
+- full runbook: `docs/05-devops/production-configuration.md`
 
 Current production blocker:
 

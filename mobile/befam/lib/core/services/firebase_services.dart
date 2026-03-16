@@ -5,14 +5,17 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import 'app_environment.dart';
+
 class FirebaseServices {
   FirebaseServices._();
 
   static FirebaseAuth get auth => FirebaseAuth.instance;
   static FirebaseAnalytics get analytics => FirebaseAnalytics.instance;
   static FirebaseFirestore get firestore => FirebaseFirestore.instance;
-  static FirebaseFunctions get functions =>
-      FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+  static FirebaseFunctions get functions => FirebaseFunctions.instanceFor(
+    region: AppEnvironment.firebaseFunctionsRegion,
+  );
   static FirebaseStorage get storage => FirebaseStorage.instance;
   static FirebaseMessaging get messaging => FirebaseMessaging.instance;
 

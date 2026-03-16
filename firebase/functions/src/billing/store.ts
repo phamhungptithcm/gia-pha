@@ -10,6 +10,7 @@ import {
 import {
   BILLING_PRICING_TIERS,
   computeRenewalWindow,
+  rankPlanCode,
   resolveEffectivePlanCode,
   resolvePlanByMemberCount,
   type BillingPlanCode,
@@ -20,7 +21,7 @@ import {
   type SubscriptionStatus,
 } from './pricing';
 import { db } from '../shared/firestore';
-import { logInfo, logWarn } from '../shared/logger';
+import { logWarn } from '../shared/logger';
 
 type NullableDate = Date | null;
 
@@ -195,28 +196,30 @@ export async function loadSubscription({
 
 export async function ensureSubscriptionForClan({
   clanId,
-  actorUid,
+  ownerUid,
+  actorUid = ownerUid,
   now = new Date(),
 }: {
   clanId: string;
-  actorUid: string;
+  ownerUid: string;
+  actorUid?: string;
   now?: Date;
 }): Promise<EnsureSubscriptionResult> {
   const scopedSubscriptionId = scopedBillingDocId({
     clanId,
-    ownerUid: actorUid,
+    ownerUid,
   });
   const [memberCount, settings, existing] = await Promise.all([
     countClanMembers(clanId),
-    loadBillingSettings(clanId, actorUid),
-    loadSubscription({ clanId, ownerUid: actorUid }),
+    loadBillingSettings(clanId, ownerUid),
+    loadSubscription({ clanId, ownerUid }),
   ]);
   const minimumTier = resolvePlanByMemberCount(memberCount);
 
   if (existing == null) {
     const seeded = seedSubscription({
       clanId,
-      ownerUid: actorUid,
+      ownerUid,
       tier: minimumTier,
       memberCount,
       settings,
@@ -260,17 +263,12 @@ export async function ensureSubscriptionForClan({
     graceEndsAt: existing.graceEndsAt,
     now,
   });
-  const effectivePlanCode = resolveEffectivePlanCode({
-    memberCount,
-    currentPlanCode: existing.planCode,
-  });
-  const targetTier = resolveTierByPlanCode(effectivePlanCode);
-  const nextPlanCode = targetTier.planCode;
+  const targetTier = resolveTierByPlanCode(existing.planCode);
   const updated: BillingSubscriptionRecord = {
     ...existing,
-    planCode: nextPlanCode,
+    planCode: existing.planCode,
     status: normalizeStatusForPlan({
-      planCode: nextPlanCode,
+      planCode: existing.planCode,
       currentStatus: normalizedStatus,
     }),
     memberCount,
@@ -302,13 +300,15 @@ export async function ensureSubscriptionForClan({
 
 export async function createPendingCheckout({
   clanId,
-  actorUid,
+  ownerUid,
+  actorUid = ownerUid,
   paymentMethod,
   requestedPlanCode,
   now = new Date(),
 }: {
   clanId: string;
-  actorUid: string;
+  ownerUid: string;
+  actorUid?: string;
   paymentMethod: PaymentMethod;
   requestedPlanCode?: BillingPlanCode;
   now?: Date;
@@ -319,7 +319,12 @@ export async function createPendingCheckout({
   transaction: BillingTransactionRecord;
   invoice: BillingInvoiceRecord;
 }> {
-  const ensured = await ensureSubscriptionForClan({ clanId, actorUid, now });
+  const ensured = await ensureSubscriptionForClan({
+    clanId,
+    ownerUid,
+    actorUid,
+    now,
+  });
   const { memberCount, subscription } = ensured;
   const effectivePlanCode = resolveEffectivePlanCode({
     memberCount,
@@ -327,6 +332,13 @@ export async function createPendingCheckout({
     requestedPlanCode: requestedPlanCode ?? null,
   });
   const tier = resolveTierByPlanCode(effectivePlanCode);
+  const selectedRank = rankPlanCode(tier.planCode);
+  const canRenewCurrent = canRenewCurrentPlan(subscription, now);
+  if (selectedRank === rankPlanCode(subscription.planCode) && !canRenewCurrent) {
+    throw new Error(
+      'Current subscription is not in renewal window yet.',
+    );
+  }
 
   const transactionRef = transactionsCollection.doc();
   const invoiceRef = invoicesCollection.doc();
@@ -335,7 +347,7 @@ export async function createPendingCheckout({
   const transaction: BillingTransactionRecord = {
     id: transactionRef.id,
     clanId,
-    subscriptionOwnerUid: actorUid,
+    subscriptionOwnerUid: ownerUid,
     subscriptionId: subscription.id,
     invoiceId: invoiceRef.id,
     paymentMethod,
@@ -355,7 +367,7 @@ export async function createPendingCheckout({
   const invoice: BillingInvoiceRecord = {
     id: invoiceRef.id,
     clanId,
-    subscriptionOwnerUid: actorUid,
+    subscriptionOwnerUid: ownerUid,
     subscriptionId: subscription.id,
     transactionId: transaction.id,
     planCode: tier.planCode,
@@ -385,17 +397,22 @@ export async function createPendingCheckout({
     createdBy: actorUid,
     updatedBy: actorUid,
   });
+  const keepCurrentPlanUntilPaid = tier.planCode !== 'FREE';
   batch.set(
     subscriptionsCollection.doc(subscription.id),
     {
       id: subscription.id,
       clanId,
-      ownerUid: actorUid,
-      planCode: tier.planCode,
+      ownerUid,
+      planCode: keepCurrentPlanUntilPaid ? subscription.planCode : tier.planCode,
       memberCount,
-      amountVndYear: tier.priceVndYear,
-      vatIncluded: tier.vatIncluded,
-      status: tier.planCode === 'FREE' ? 'active' : 'pending_payment',
+      amountVndYear: keepCurrentPlanUntilPaid
+        ? subscription.amountVndYear
+        : tier.priceVndYear,
+      vatIncluded: keepCurrentPlanUntilPaid
+        ? subscription.vatIncluded
+        : tier.vatIncluded,
+      status: keepCurrentPlanUntilPaid ? subscription.status : 'active',
       lastTransactionId: transaction.id,
       lastInvoiceId: invoice.id,
       lastPaymentMethod: paymentMethod,
@@ -422,17 +439,108 @@ export async function createPendingCheckout({
 
   const checkoutSubscription: BillingSubscriptionRecord = {
     ...subscription,
-    planCode: tier.planCode,
+    planCode: keepCurrentPlanUntilPaid ? subscription.planCode : tier.planCode,
     memberCount,
-    amountVndYear: tier.priceVndYear,
-    vatIncluded: tier.vatIncluded,
-    status: tier.planCode === 'FREE' ? 'active' : 'pending_payment',
+    amountVndYear: keepCurrentPlanUntilPaid
+      ? subscription.amountVndYear
+      : tier.priceVndYear,
+    vatIncluded: keepCurrentPlanUntilPaid
+      ? subscription.vatIncluded
+      : tier.vatIncluded,
+    status: keepCurrentPlanUntilPaid ? subscription.status : 'active',
     lastPaymentMethod: paymentMethod,
     lastTransactionId: transaction.id,
     updatedAt: now,
   };
 
   return { tier, memberCount, subscription: checkoutSubscription, transaction, invoice };
+}
+
+export async function cancelStalePendingTransactionsRun({
+  source,
+  now = new Date(),
+  timeoutMinutes = 20,
+  clanId,
+  ownerUid,
+  limit = 300,
+}: {
+  source: string;
+  now?: Date;
+  timeoutMinutes?: number;
+  clanId?: string;
+  ownerUid?: string;
+  limit?: number;
+}): Promise<{
+  scanned: number;
+  canceled: number;
+  skippedFresh: number;
+  skippedScopeMismatch: number;
+  failed: number;
+}> {
+  const safeTimeoutMinutes = Math.max(1, Math.min(180, Math.trunc(timeoutMinutes)));
+  const timeoutMs = safeTimeoutMinutes * 60 * 1000;
+  const scopeClanId = (clanId ?? '').trim();
+  const scopeOwnerUid = (ownerUid ?? '').trim();
+
+  const snapshot = await transactionsCollection
+    .where('paymentStatus', 'in', ['pending', 'created'])
+    .limit(Math.max(1, Math.min(1000, Math.trunc(limit))))
+    .get();
+
+  let canceled = 0;
+  let skippedFresh = 0;
+  let skippedScopeMismatch = 0;
+  let failed = 0;
+
+  for (const doc of snapshot.docs) {
+    const tx = mapTransaction(doc.id, doc.data() ?? {});
+    if (
+      (scopeClanId.length > 0 && tx.clanId !== scopeClanId) ||
+      (scopeOwnerUid.length > 0 && tx.subscriptionOwnerUid !== scopeOwnerUid)
+    ) {
+      skippedScopeMismatch += 1;
+      continue;
+    }
+    if (!isPendingPaymentStatus(tx.paymentStatus)) {
+      continue;
+    }
+    const createdAt = tx.createdAt;
+    if (createdAt == null) {
+      skippedFresh += 1;
+      continue;
+    }
+    if (now.getTime() - createdAt.getTime() < timeoutMs) {
+      skippedFresh += 1;
+      continue;
+    }
+
+    try {
+      await applyPaymentResult({
+        transactionId: tx.id,
+        provider: 'system_timeout',
+        gatewayReference: `TIMEOUT-${safeTimeoutMinutes}M-${tx.id.slice(0, 8)}`,
+        paymentStatus: 'canceled',
+        payloadHash: `timeout:${tx.id}:${now.toISOString()}`,
+        actorUid: source,
+        now,
+      });
+      canceled += 1;
+    } catch (error) {
+      failed += 1;
+      logWarn('cancelStalePendingTransactionsRun failed for transaction', {
+        transactionId: tx.id,
+        error: `${error}`,
+      });
+    }
+  }
+
+  return {
+    scanned: snapshot.size,
+    canceled,
+    skippedFresh,
+    skippedScopeMismatch,
+    failed,
+  };
 }
 
 export async function recordPaymentWebhookEvent({
@@ -452,24 +560,27 @@ export async function recordPaymentWebhookEvent({
 }): Promise<{ id: string; alreadyProcessed: boolean }> {
   const key = `${provider}:${externalEventId}`;
   const ref = webhookEventsCollection.doc(key);
-  const existing = await ref.get();
-  if (existing.exists) {
-    return { id: key, alreadyProcessed: true };
+  try {
+    await ref.create({
+      id: key,
+      provider,
+      externalEventId,
+      transactionId,
+      payloadHash,
+      validSignature,
+      rawPayload,
+      processedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { id: key, alreadyProcessed: false };
+  } catch (error) {
+    const code = (error as { code?: unknown }).code;
+    const message = `${error}`.toLowerCase();
+    if (code === 6 || code === 'already-exists' || message.includes('already exists')) {
+      return { id: key, alreadyProcessed: true };
+    }
+    throw error;
   }
-
-  await ref.set({
-    id: key,
-    provider,
-    externalEventId,
-    transactionId,
-    payloadHash,
-    validSignature,
-    rawPayload,
-    processedAt: FieldValue.serverTimestamp(),
-    createdAt: FieldValue.serverTimestamp(),
-  });
-
-  return { id: key, alreadyProcessed: false };
 }
 
 export async function applyPaymentResult({
@@ -501,7 +612,19 @@ export async function applyPaymentResult({
   }
 
   const transactionData = mapTransaction(transactionId, txnSnapshot.data() ?? {});
-  if (transactionData.paymentStatus === 'succeeded' && paymentStatus === 'succeeded') {
+  if (
+    transactionData.paymentStatus == 'succeeded' ||
+    transactionData.paymentStatus == 'failed' ||
+    transactionData.paymentStatus == 'canceled'
+  ) {
+    if (
+      transactionData.paymentStatus == 'canceled' &&
+      paymentStatus == 'succeeded'
+    ) {
+      throw new Error(
+        `payment transaction ${transactionId} was canceled and cannot be marked as succeeded`,
+      );
+    }
     const subscription = await loadSubscription({
       clanId: transactionData.clanId,
       ownerUid: transactionData.subscriptionOwnerUid,
@@ -514,7 +637,6 @@ export async function applyPaymentResult({
       subscription,
     };
   }
-
   const invoiceRef = invoicesCollection.doc(transactionData.invoiceId);
   const subscriptionRef = subscriptionsCollection.doc(transactionData.subscriptionId);
 
@@ -561,7 +683,7 @@ export async function applyPaymentResult({
     }
 
     if (paymentStatus === 'succeeded') {
-      const tier = resolvePlanByMemberCount(transactionData.memberCount);
+      const tier = resolveTierByPlanCode(transactionData.planCode);
       const anchorStart = existingSubscription?.expiresAt != null &&
           existingSubscription.expiresAt.getTime() > now.getTime()
         ? existingSubscription.expiresAt
@@ -603,10 +725,15 @@ export async function applyPaymentResult({
         { merge: true },
       );
     } else {
+      const keepCurrentEntitlement = existingSubscription != null &&
+        isSubscriptionValidForUpgradeOnly(existingSubscription, now);
+      const nextStatus = keepCurrentEntitlement
+        ? existingSubscription!.status
+        : 'expired';
       tx.set(
         subscriptionRef,
         {
-          status: 'expired',
+          status: nextStatus,
           updatedAt: FieldValue.serverTimestamp(),
           updatedBy: actorUid,
         },
@@ -743,6 +870,43 @@ function normalizeStatusForPlan({
     return currentStatus;
   }
   return 'expired';
+}
+
+function isSubscriptionValidForUpgradeOnly(
+  subscription: BillingSubscriptionRecord,
+  now: Date,
+): boolean {
+  if (subscription.status !== 'active' && subscription.status !== 'grace_period') {
+    return false;
+  }
+  if (subscription.expiresAt == null) {
+    return true;
+  }
+  return subscription.expiresAt.getTime() > now.getTime();
+}
+
+function canRenewCurrentPlan(
+  subscription: BillingSubscriptionRecord,
+  now: Date,
+): boolean {
+  if (subscription.planCode === 'FREE') {
+    return false;
+  }
+  if (subscription.status === 'expired' || subscription.status === 'grace_period') {
+    return true;
+  }
+  if (subscription.status !== 'active') {
+    return false;
+  }
+  if (subscription.expiresAt == null) {
+    return false;
+  }
+  const daysToExpire = (subscription.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  return daysToExpire <= 30;
+}
+
+function isPendingPaymentStatus(status: PaymentStatus): boolean {
+  return status === 'pending' || status === 'created';
 }
 
 function seedSubscription({

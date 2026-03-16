@@ -425,6 +425,7 @@
   "memberSandboxChip": "Local sandbox data",
   "memberLiveChip": "Live Firestore data",
   "memberDuplicatePhoneError": "That phone number already belongs to another member profile.",
+  "memberPlanLimitExceededError": "Your current subscription has reached its member limit. Upgrade the plan to add more members.",
   "memberPermissionDeniedError": "The current session does not have permission to change this member profile.",
   "memberAvatarUploadError": "BeFam could not upload the avatar right now.",
   "relationshipInspectorTitle": "Family relationships",

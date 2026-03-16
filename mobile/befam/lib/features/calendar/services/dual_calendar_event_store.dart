@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/services/app_environment.dart';
 import '../../events/models/event_type.dart';
 import '../models/calendar_date_mode.dart';
 import '../models/dual_calendar_event.dart';
@@ -200,7 +201,7 @@ class SharedPrefsDualCalendarEventStore implements DualCalendarEventStore {
         isAnnualRecurring: true,
         recurrencePolicy: LunarRecurrencePolicy.firstOccurrence,
         reminderOffsetsMinutes: const [10080, 1440, 120],
-        timezone: 'Asia/Ho_Chi_Minh',
+        timezone: AppEnvironment.defaultTimezone,
         createdAt: now,
         updatedAt: now,
       ),
@@ -218,7 +219,7 @@ class SharedPrefsDualCalendarEventStore implements DualCalendarEventStore {
         isAnnualRecurring: false,
         recurrencePolicy: LunarRecurrencePolicy.firstOccurrence,
         reminderOffsetsMinutes: const [1440, 180],
-        timezone: 'Asia/Ho_Chi_Minh',
+        timezone: AppEnvironment.defaultTimezone,
         createdAt: now,
         updatedAt: now,
       ),

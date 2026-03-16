@@ -4,6 +4,9 @@ The repository uses GitHub Actions to validate pull requests, promote approved w
 releases, close delivered backlog items after production, and publish the MkDocs site
 to GitHub Pages.
 
+For full runtime vars/secrets setup and release-time config checks, see:
+`05-devops/production-configuration.md`.
+
 ## Workflows
 
 ### `branch-ci.yml`
@@ -89,6 +92,12 @@ Release flow:
 8. build and push the Firebase tooling image to `ghcr.io/phamhungptithcm/befam-firebase-tools`
 9. create or update the GitHub release and attach the Android APK plus the unsigned iOS archive
 
+Mobile release builds also inject environment-specific `--dart-define` values for:
+
+- `BEFAM_FIREBASE_FUNCTIONS_REGION`
+- `BEFAM_DEFAULT_TIMEZONE`
+- `BEFAM_INVALID_CHECKOUT_HOSTS`
+
 Current iOS release note:
 
 - the pipeline publishes an unsigned `xcarchive` because Apple signing credentials are not configured in GitHub Actions yet
@@ -136,6 +145,21 @@ mkdocs serve
   - secret `FIREBASE_SERVICE_ACCOUNT`
   - variable `FIREBASE_PROJECT_ID`
   - variable `FIREBASE_FUNCTIONS_REGION`
+  - variable `APP_TIMEZONE`
+  - secret `BILLING_WEBHOOK_SECRET`
+  - secret `VNPAY_TMNCODE`
+  - secret `VNPAY_HASH_SECRET`
+  - optional secret `CARD_WEBHOOK_SECRET`
+  - optional variable `DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT`
+  - optional variables:
+    `BILLING_PENDING_TIMEOUT_MINUTES`,
+    `BILLING_PENDING_TIMEOUT_LIMIT`,
+    `BILLING_CARD_CHECKOUT_URL_BASE`,
+    `BILLING_VNPAY_FALLBACK_URL`,
+    `BILLING_VNPAY_GATEWAY_BASE_URL`,
+    `VNPAY_RETURN_URL`,
+    `BILLING_VNPAY_IP_ADDRESS`,
+    `BILLING_VNPAY_LOCALE`
 
 ## Firebase provisioning status
 
@@ -152,6 +176,9 @@ Current deploy expectations:
 - Functions deploy from `firebase/functions` after a successful build
 - GitHub `production` environment must keep valid service-account credentials
   and required project variables
+- deploy workflow generates `firebase/functions/.env.<projectId>` from CI vars/secrets
+- deploy workflow also syncs non-secret runtime overrides into
+  Firestore document `runtimeConfig/global`
 
 If a deploy fails on Cloud Build/Run or related Google APIs, verify billing and
 service enablement in the Firebase/GCP project before retrying CI.
