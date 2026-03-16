@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
 import test from 'node:test';
 
 import { isValidVnpaySignature } from '../billing/webhooks';
+import { createVnpaySignature } from '../billing/vnpay';
 import {
   canAccessPremiumFeatures,
   resolveEffectivePlanCode,
@@ -110,17 +110,39 @@ test('billing contract: VNPay callback signature is validated', () => {
     vnp_Version: '2.1.0',
   };
 
-  const canonical = Object.entries(params)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-    .join('&');
-
-  params.vnp_SecureHash = createHmac('sha512', process.env.VNPAY_HASH_SECRET)
-    .update(canonical)
-    .digest('hex');
+  params.vnp_SecureHash = createVnpaySignature(
+    params,
+    process.env.VNPAY_HASH_SECRET as string,
+    'encoded',
+  );
 
   assert.equal(isValidVnpaySignature(params), true);
 
   params.vnp_SecureHash = `${params.vnp_SecureHash.substring(0, 30)}broken`;
   assert.equal(isValidVnpaySignature(params), false);
+});
+
+test('billing contract: VNPay callback supports raw signature mode', () => {
+  process.env.VNPAY_HASH_SECRET = 'contract-test-secret';
+
+  const params: Record<string, string> = {
+    vnp_Amount: '4900000',
+    vnp_Command: 'pay',
+    vnp_CreateDate: '20260315120000',
+    vnp_CurrCode: 'VND',
+    vnp_OrderInfo: 'Thanh toan don hang 5',
+    vnp_ResponseCode: '00',
+    vnp_TmnCode: 'DEMO1234',
+    vnp_TransactionNo: '15190022',
+    vnp_TxnRef: 'txn_contract_002',
+    vnp_Version: '2.1.0',
+  };
+
+  params.vnp_SecureHash = createVnpaySignature(
+    params,
+    process.env.VNPAY_HASH_SECRET as string,
+    'raw',
+  );
+
+  assert.equal(isValidVnpaySignature(params), true);
 });
