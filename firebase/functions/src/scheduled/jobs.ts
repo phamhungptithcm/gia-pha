@@ -1,13 +1,23 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
-import { APP_REGION, APP_TIMEZONE } from '../config/runtime';
+import {
+  APP_REGION,
+  APP_TIMEZONE,
+  BILLING_PENDING_TIMEOUT_JOB_SCHEDULE,
+  BILLING_PENDING_TIMEOUT_LIMIT,
+  BILLING_PENDING_TIMEOUT_MINUTES,
+  BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE,
+  EXPIRE_INVITES_JOB_SCHEDULE,
+} from '../config/runtime';
+import { loadBillingRuntimeConfig } from '../config/runtime-overrides';
 import { expireInvitesJobRun } from './invite-expiration';
 import { logInfo } from '../shared/logger';
 import { sendSubscriptionRemindersRun } from '../billing/subscription-reminders';
+import { cancelStalePendingTransactionsRun } from '../billing/store';
 
 export const expireInvitesJob = onSchedule(
   {
-    schedule: '0 * * * *',
+    schedule: EXPIRE_INVITES_JOB_SCHEDULE,
     region: APP_REGION,
     timeZone: APP_TIMEZONE,
   },
@@ -21,7 +31,7 @@ export const expireInvitesJob = onSchedule(
 
 export const billingSubscriptionReminderJob = onSchedule(
   {
-    schedule: '0 7 * * *',
+    schedule: BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE,
     region: APP_REGION,
     timeZone: APP_TIMEZONE,
   },
@@ -30,5 +40,30 @@ export const billingSubscriptionReminderJob = onSchedule(
       source: 'function:billingSubscriptionReminderJob',
     });
     logInfo('billingSubscriptionReminderJob tick complete', result);
+  },
+);
+
+export const billingPendingTimeoutJob = onSchedule(
+  {
+    schedule: BILLING_PENDING_TIMEOUT_JOB_SCHEDULE,
+    region: APP_REGION,
+    timeZone: APP_TIMEZONE,
+  },
+  async () => {
+    let timeoutMinutes = BILLING_PENDING_TIMEOUT_MINUTES;
+    let limit = BILLING_PENDING_TIMEOUT_LIMIT;
+    try {
+      const runtimeConfig = await loadBillingRuntimeConfig();
+      timeoutMinutes = runtimeConfig.pendingTimeoutMinutes;
+      limit = runtimeConfig.pendingTimeoutLimit;
+    } catch {
+      // Keep environment defaults if runtime overrides cannot be loaded.
+    }
+    const result = await cancelStalePendingTransactionsRun({
+      source: 'system:billing_pending_timeout_job',
+      timeoutMinutes,
+      limit,
+    });
+    logInfo('billingPendingTimeoutJob tick complete', result);
   },
 );

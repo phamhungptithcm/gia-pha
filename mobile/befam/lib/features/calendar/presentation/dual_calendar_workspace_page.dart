@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/app_environment.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -142,11 +143,6 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                           onPreviousMonth: _controller.goToPreviousMonth,
                           onNextMonth: _controller.goToNextMonth,
                           onPickMonthYear: _openMonthYearPicker,
-                          onToday: () {
-                            final now = DateTime.now();
-                            _controller.jumpToMonth(now);
-                            _controller.selectDay(now);
-                          },
                         ),
                         const SizedBox(height: 12),
                         _MonthGrid(
@@ -575,14 +571,12 @@ class _MonthHeader extends StatelessWidget {
     required this.onPreviousMonth,
     required this.onNextMonth,
     required this.onPickMonthYear,
-    required this.onToday,
   });
 
   final String label;
   final Future<void> Function() onPreviousMonth;
   final Future<void> Function() onNextMonth;
   final Future<void> Function() onPickMonthYear;
-  final VoidCallback onToday;
 
   @override
   Widget build(BuildContext context) {
@@ -657,14 +651,6 @@ class _MonthHeader extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.tonal(
-                  onPressed: onToday,
-                  child: Text(l10n.pick(vi: 'Hôm nay', en: 'Today')),
-                ),
-              ),
             ],
           );
         }
@@ -683,11 +669,6 @@ class _MonthHeader extends StatelessWidget {
               tooltip: l10n.pick(vi: 'Tháng sau', en: 'Next month'),
               icon: Icons.chevron_right,
               onPressed: () => unawaited(onNextMonth()),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.tonal(
-              onPressed: onToday,
-              child: Text(l10n.pick(vi: 'Hôm nay', en: 'Today')),
             ),
           ],
         );
@@ -3299,7 +3280,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         reminderOffsetsMinutes: _reminderOffsets.toList(growable: false)
           ..sort((left, right) => right.compareTo(left)),
         notificationAudience: notificationAudience,
-        timezone: source?.timezone ?? 'Asia/Ho_Chi_Minh',
+        timezone: source?.timezone ?? AppEnvironment.defaultTimezone,
         createdAt: source?.createdAt ?? now,
         updatedAt: now,
       );
@@ -3341,81 +3322,84 @@ class _EventEditorStepIndicator extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 560;
-        final itemWidth = compact
-            ? (constraints.maxWidth - 8) / 2
-            : (constraints.maxWidth - 8 * (labels.length - 1)) / labels.length;
-
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (var index = 0; index < labels.length; index++)
-              SizedBox(
-                width: itemWidth,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => onStepSelected(index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: index == currentStep
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < labels.length; index += 1) ...[
+          if (index > 0)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  height: 2,
+                  color: index <= currentStep
+                      ? colorScheme.primary
+                      : colorScheme.outlineVariant,
+                ),
+              ),
+            ),
+          Expanded(
+            flex: 2,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => onStepSelected(index),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 32,
+                        height: 32,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: index <= currentStep
                               ? colorScheme.primary
-                              : colorScheme.outlineVariant,
-                        ),
-                        color: index == currentStep
-                            ? colorScheme.secondaryContainer
-                            : colorScheme.surfaceContainerLow,
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 12,
-                            backgroundColor: index == currentStep
+                              : colorScheme.surfaceContainerHighest,
+                          border: Border.all(
+                            color: index <= currentStep
                                 ? colorScheme.primary
-                                : colorScheme.surfaceContainerHighest,
-                            foregroundColor: index == currentStep
+                                : colorScheme.outlineVariant,
+                          ),
+                        ),
+                        child: Text(
+                          '${index + 1}',
+                          style: textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: index <= currentStep
                                 ? colorScheme.onPrimary
                                 : colorScheme.onSurfaceVariant,
-                            child: Text(
-                              '${index + 1}',
-                              style: textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              labels[index],
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.labelLarge?.copyWith(
-                                fontWeight: index == currentStep
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        labels[index],
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: index == currentStep
+                              ? FontWeight.w800
+                              : FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-          ],
-        );
-      },
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

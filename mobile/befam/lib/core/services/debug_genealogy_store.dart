@@ -1,3 +1,4 @@
+import 'app_environment.dart';
 import '../../features/clan/models/branch_profile.dart';
 import '../../features/events/models/event_record.dart';
 import '../../features/events/models/event_type.dart';
@@ -316,7 +317,7 @@ class DebugGenealogyStore {
           locationAddress: 'Quang Nam, Viet Nam',
           startsAt: DateTime.utc(2026, 4, 4, 2, 0),
           endsAt: DateTime.utc(2026, 4, 4, 5, 30),
-          timezone: 'Asia/Ho_Chi_Minh',
+          timezone: AppEnvironment.defaultTimezone,
           isRecurring: true,
           recurrenceRule: 'FREQ=YEARLY',
           reminderOffsetsMinutes: [10080, 1440, 120],
@@ -336,7 +337,7 @@ class DebugGenealogyStore {
           locationAddress: 'Hue, Viet Nam',
           startsAt: DateTime.utc(2026, 5, 12, 1, 0),
           endsAt: DateTime.utc(2026, 5, 12, 4, 0),
-          timezone: 'Asia/Ho_Chi_Minh',
+          timezone: AppEnvironment.defaultTimezone,
           isRecurring: false,
           recurrenceRule: null,
           reminderOffsetsMinutes: [1440, 120],

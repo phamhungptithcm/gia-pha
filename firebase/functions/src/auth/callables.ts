@@ -11,7 +11,10 @@ import {
   type CallableRequest,
 } from 'firebase-functions/v2/https';
 
-import { APP_REGION } from '../config/runtime';
+import {
+  APP_REGION,
+  DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT,
+} from '../config/runtime';
 import { db } from '../shared/firestore';
 import { requireAuth } from '../shared/errors';
 import { logInfo, logWarn } from '../shared/logger';
@@ -138,8 +141,13 @@ const auditLogsCollection = db.collection('auditLogs');
 const debugLoginProfilesCollection = db.collection('debug_login_profiles');
 const usersCollection = db.collection('users');
 const genealogyDiscoveryCollection = db.collection('genealogyDiscoveryIndex');
-const customTokenSignerServiceAccount =
-  'firebase-adminsdk-fbsvc@be-fam-3ab23.iam.gserviceaccount.com';
+const debugTokenCallableOptions: {
+  region: string;
+  serviceAccount?: string;
+} = { region: APP_REGION };
+if (DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT.length > 0) {
+  debugTokenCallableOptions.serviceAccount = DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT;
+}
 
 export const resolveChildLoginContext = onCall(
   { region: APP_REGION },
@@ -791,10 +799,7 @@ export const switchActiveClanContext = onCall(
 );
 
 export const issueDebugProfileCustomToken = onCall(
-  {
-    region: APP_REGION,
-    serviceAccount: customTokenSignerServiceAccount,
-  },
+  debugTokenCallableOptions,
   async (request): Promise<DebugProfileTokenResponse> => {
     const phoneE164 = requireNonEmptyString(request.data, 'phoneE164').trim();
     const snapshot = await debugLoginProfilesCollection.doc(phoneE164).get();

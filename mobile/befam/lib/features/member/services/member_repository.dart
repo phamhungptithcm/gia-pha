@@ -11,6 +11,7 @@ import '../models/member_workspace_snapshot.dart';
 
 enum MemberRepositoryErrorCode {
   duplicatePhone,
+  planLimitExceeded,
   permissionDenied,
   memberNotFound,
   avatarUploadFailed,

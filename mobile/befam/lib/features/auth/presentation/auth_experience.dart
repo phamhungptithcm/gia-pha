@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 
 import '../../../app/bootstrap/firebase_setup_status.dart';
 import '../../../app/home/app_shell_page.dart';
+import '../../../core/services/app_environment.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/app_locale_controller.dart';
 import '../../../l10n/l10n.dart';
@@ -724,7 +725,7 @@ class _SandboxEnvironmentCardState extends State<_SandboxEnvironmentCard> {
   Future<List<_RemoteSandboxProfile>> _loadRemoteProfilesFromCallable() async {
     try {
       final callable = FirebaseFunctions.instanceFor(
-        region: 'asia-southeast1',
+        region: AppEnvironment.firebaseFunctionsRegion,
       ).httpsCallable('listDebugLoginProfiles');
       final response = await callable
           .call(<String, dynamic>{})

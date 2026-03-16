@@ -1185,6 +1185,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'That phone number already belongs to another member profile.';
 
   @override
+  String get memberPlanLimitExceededError =>
+      'Your current subscription has reached its member limit. Upgrade the plan to add more members.';
+
+  @override
   String get memberPermissionDeniedError =>
       'The current session does not have permission to change this member profile.';
 

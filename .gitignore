@@ -10,3 +10,6 @@ firebase-debug.log
 firebase-debug.*.log
 firebase/functions/lib/
 firebase/functions/node_modules/
+firebase/functions/.env
+firebase/functions/.env.*
+!firebase/functions/.env.example

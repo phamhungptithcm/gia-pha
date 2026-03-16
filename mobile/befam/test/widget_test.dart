@@ -27,12 +27,19 @@ void main() {
     Locale? locale,
     ClanRepository? clanRepository,
     MemberRepository? memberRepository,
+    Size viewportSize = const Size(1200, 2000),
+    double textScaleFactor = 1.0,
   }) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.physicalSize = viewportSize;
+    tester.binding.platformDispatcher.textScaleFactorTestValue =
+        textScaleFactor;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(
+      tester.binding.platformDispatcher.clearTextScaleFactorTestValue,
+    );
 
     await tester.pumpWidget(
       BeFamApp(
@@ -245,7 +252,7 @@ void main() {
 
     expect(find.text('Chưa có hồ sơ họ tộc'), findsOneWidget);
 
-    await tester.tap(find.text('Tạo hồ sơ').first);
+    await tester.tap(find.byKey(const Key('clan-edit-fab')));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -267,6 +274,28 @@ void main() {
     expect(find.text('Họ Nguyễn Văn'), findsWidgets);
     expect(find.text('Đã lưu hồ sơ họ tộc.'), findsOneWidget);
   });
+
+  testWidgets(
+    'renders the clan workspace without overflow on small viewport and large text',
+    (tester) async {
+      await pumpAuthApp(
+        tester,
+        locale: const Locale('vi'),
+        clanRepository: DebugClanRepository.seeded(),
+      );
+
+      await loginWithPhone(tester);
+      await tester.tap(find.byKey(const Key('shortcut-clan')));
+      await tester.pumpAndSettle();
+
+      tester.view.physicalSize = const Size(320, 568);
+      tester.binding.platformDispatcher.textScaleFactorTestValue = 1.35;
+      await tester.pumpAndSettle();
+
+      expect(find.text('Quản lý họ tộc'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('keeps the clan workspace read-only for child access', (
     tester,

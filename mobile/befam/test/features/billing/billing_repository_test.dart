@@ -23,6 +23,23 @@ void main() {
     );
   }
 
+  AuthSession buildNoClanSession({String uid = 'debug:billing_repo_no_clan'}) {
+    return AuthSession(
+      uid: uid,
+      loginMethod: AuthEntryMethod.phone,
+      phoneE164: '+84900000000',
+      displayName: 'No Clan User',
+      memberId: null,
+      clanId: null,
+      branchId: null,
+      primaryRole: 'MEMBER',
+      accessMode: AuthMemberAccessMode.unlinked,
+      linkedAuthUid: false,
+      isSandbox: true,
+      signedInAtIso: DateTime(2026, 3, 15).toIso8601String(),
+    );
+  }
+
   void seedClanMembers({required String clanId, required int count}) {
     final store = DebugGenealogyStore.sharedSeeded();
     final template = store.members['member_demo_parent_001']!;
@@ -55,6 +72,27 @@ void main() {
       expect(snapshot.subscription.planCode, 'FREE');
       expect(snapshot.entitlement.showAds, isTrue);
       expect(snapshot.pricingTiers, isNotEmpty);
+    },
+  );
+
+  test(
+    'debug billing repository supports personal scope when user has no clan',
+    () async {
+      final repository = DebugBillingRepository.shared();
+      final session = buildNoClanSession();
+      final snapshot = await repository.loadWorkspace(session: session);
+
+      expect(snapshot.clanId, 'user_scope__${session.uid}');
+      expect(snapshot.memberCount, 0);
+      expect(snapshot.subscription.planCode, 'FREE');
+
+      final checkout = await repository.createCheckout(
+        session: session,
+        paymentMethod: 'vnpay',
+        requestedPlanCode: 'BASE',
+      );
+      expect(checkout.planCode, 'BASE');
+      expect(checkout.amountVnd, 49000);
     },
   );
 
@@ -104,7 +142,7 @@ void main() {
   );
 
   test(
-    'debug billing repository uses requestedPlanCode and marks subscription pending_payment on checkout',
+    'debug billing repository keeps current subscription until requested plan is paid',
     () async {
       const clanId = 'clan_billing_repo_requested_plan';
       seedClanMembers(clanId: clanId, count: 90); // minimum BASE
@@ -117,13 +155,13 @@ void main() {
       );
 
       expect(checkout.planCode, 'PLUS');
-      expect(checkout.subscription.status, 'pending_payment');
+      expect(checkout.subscription.status, 'expired');
 
       final snapshot = await repository.loadWorkspace(
         session: buildSession(clanId: clanId),
       );
-      expect(snapshot.subscription.planCode, 'PLUS');
-      expect(snapshot.subscription.status, 'pending_payment');
+      expect(snapshot.subscription.planCode, 'BASE');
+      expect(snapshot.subscription.status, 'expired');
     },
   );
 
@@ -148,6 +186,36 @@ void main() {
           ),
         ),
       );
+    },
+  );
+
+  test(
+    'debug billing repository allows downgrade when member count fits target tier',
+    () async {
+      const clanId = 'clan_billing_repo_downgrade_allowed';
+      seedClanMembers(clanId: clanId, count: 220); // minimum PLUS
+
+      final repository = DebugBillingRepository.shared();
+      final upgradeCheckout = await repository.createCheckout(
+        session: buildSession(clanId: clanId),
+        paymentMethod: 'card',
+        requestedPlanCode: 'PRO',
+      );
+      await repository.completeCardCheckout(
+        session: buildSession(clanId: clanId),
+        transactionId: upgradeCheckout.transactionId,
+      );
+
+      seedClanMembers(clanId: clanId, count: 120); // minimum BASE
+      final downgradeCheckout = await repository.createCheckout(
+        session: buildSession(clanId: clanId),
+        paymentMethod: 'vnpay',
+        requestedPlanCode: 'BASE',
+      );
+
+      expect(downgradeCheckout.planCode, 'BASE');
+      expect(downgradeCheckout.amountVnd, 49000);
+      expect(downgradeCheckout.subscription.planCode, 'PRO');
     },
   );
 

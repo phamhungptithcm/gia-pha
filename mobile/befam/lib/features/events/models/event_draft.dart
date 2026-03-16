@@ -1,3 +1,4 @@
+import '../../../core/services/app_environment.dart';
 import 'event_record.dart';
 import 'event_type.dart';
 
@@ -102,7 +103,7 @@ class EventDraft {
       locationAddress: '',
       startsAt: nextHour,
       endsAt: nextHour.add(const Duration(hours: 2)),
-      timezone: 'Asia/Ho_Chi_Minh',
+      timezone: AppEnvironment.defaultTimezone,
       isRecurring: false,
       recurrenceRule: null,
       reminderOffsetsMinutes: const [1440, 120],

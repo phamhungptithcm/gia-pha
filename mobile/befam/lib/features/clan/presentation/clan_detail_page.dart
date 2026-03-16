@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../auth/models/auth_session.dart';
+import '../../auth/models/clan_context_option.dart';
 import '../../discovery/presentation/join_request_review_page.dart';
 import '../../discovery/services/genealogy_discovery_repository.dart';
 import '../models/branch_draft.dart';
@@ -21,26 +23,42 @@ class ClanDetailPage extends StatefulWidget {
     super.key,
     required this.session,
     required this.repository,
+    this.availableClanContexts = const [],
+    this.onSwitchClanContext,
   });
 
   final AuthSession session;
   final ClanRepository repository;
+  final List<ClanContextOption> availableClanContexts;
+  final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
 
   @override
   State<ClanDetailPage> createState() => _ClanDetailPageState();
 }
 
 class _ClanDetailPageState extends State<ClanDetailPage> {
-  late final ClanController _controller;
+  late ClanController _controller;
+  late AuthSession _session;
+  bool _isSwitchingClanContext = false;
+  bool _isHeroDescriptionExpanded = false;
+  bool _isProfileDetailsExpanded = false;
+
+  static final Map<String, String> _lastSelectedClanByUid = <String, String>{};
 
   @override
   void initState() {
     super.initState();
-    _controller = ClanController(
-      repository: widget.repository,
-      session: widget.session,
-    );
+    _session = widget.session;
+    final currentClanId = (_session.clanId ?? '').trim();
+    if (currentClanId.isNotEmpty) {
+      _lastSelectedClanByUid[_session.uid] = currentClanId;
+    }
+    _controller = _createController(_session);
     unawaited(_controller.initialize());
+  }
+
+  ClanController _createController(AuthSession session) {
+    return ClanController(repository: widget.repository, session: session);
   }
 
   @override
@@ -67,7 +85,7 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
 
     if (didSave == true && mounted) {
       final createdFromUnlinkedSession =
-          (widget.session.clanId ?? '').trim().isEmpty &&
+          (_session.clanId ?? '').trim().isEmpty &&
           _controller.permissions.canBootstrapClan;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -124,7 +142,7 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
   }
 
   bool get _canReviewJoinRequests {
-    return GovernanceRoleMatrix.canReviewJoinRequests(widget.session);
+    return GovernanceRoleMatrix.canReviewJoinRequests(_session);
   }
 
   void _openJoinRequestReview() {
@@ -132,14 +150,115 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
       MaterialPageRoute<void>(
         builder: (context) {
           return JoinRequestReviewPage(
-            session: widget.session,
+            session: _session,
             repository: createDefaultGenealogyDiscoveryRepository(
-              session: widget.session,
+              session: _session,
             ),
           );
         },
       ),
     );
+  }
+
+  List<ClanContextOption> get _clanContexts {
+    final options = widget.availableClanContexts;
+    if (options.isNotEmpty) {
+      return options;
+    }
+    final clanId = (_session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
+      return const [];
+    }
+    return [
+      ClanContextOption(
+        clanId: clanId,
+        clanName: _controller.clan?.name ?? clanId,
+        memberId: (_session.memberId ?? '').trim(),
+        primaryRole: (_session.primaryRole ?? 'MEMBER').trim().isEmpty
+            ? 'MEMBER'
+            : _session.primaryRole!.trim().toUpperCase(),
+        branchId: (_session.branchId ?? '').trim().isEmpty
+            ? null
+            : _session.branchId!.trim(),
+        displayName: _session.displayName,
+      ),
+    ];
+  }
+
+  Future<void> _openClanSwitcher() async {
+    if (_clanContexts.length < 2 ||
+        _isSwitchingClanContext ||
+        widget.onSwitchClanContext == null) {
+      return;
+    }
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) {
+        return _ClanContextPickerSheet(
+          activeClanId:
+              _lastSelectedClanByUid[_session.uid] ??
+              (_session.clanId ?? '').trim(),
+          contexts: _clanContexts,
+          roleLabelBuilder: (role) => context.l10n.roleLabel(role),
+          statusLabelBuilder: (status) =>
+              _contextStatusLabel(context.l10n, status),
+          memberCountLabelBuilder: (option) {
+            final activeClanId = (_session.clanId ?? '').trim();
+            if (option.clanId.trim() == activeClanId) {
+              final count =
+                  _controller.clan?.memberCount ?? _controller.members.length;
+              return context.l10n.pick(
+                vi: '$count thành viên',
+                en: '$count members',
+              );
+            }
+            return context.l10n.pick(vi: 'Thành viên: --', en: 'Members: --');
+          },
+        );
+      },
+    );
+    if (!mounted || selected == null) {
+      return;
+    }
+    await _switchClanContext(selected);
+  }
+
+  Future<void> _switchClanContext(String clanId) async {
+    final normalized = clanId.trim();
+    if (normalized.isEmpty || normalized == (_session.clanId ?? '').trim()) {
+      return;
+    }
+    final switcher = widget.onSwitchClanContext;
+    if (switcher == null) {
+      return;
+    }
+    if (_isSwitchingClanContext) {
+      return;
+    }
+    setState(() => _isSwitchingClanContext = true);
+    try {
+      final switched = await switcher(normalized);
+      if (!mounted || switched == null) {
+        return;
+      }
+      _lastSelectedClanByUid[switched.uid] = normalized;
+      final previous = _controller;
+      final next = _createController(switched);
+      setState(() {
+        _session = switched;
+        _controller = next;
+        _isHeroDescriptionExpanded = false;
+        _isProfileDetailsExpanded = false;
+      });
+      previous.dispose();
+      await _controller.initialize();
+    } finally {
+      if (mounted) {
+        setState(() => _isSwitchingClanContext = false);
+      }
+    }
   }
 
   @override
@@ -150,6 +269,7 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final l10n = context.l10n;
+        final profileRows = _profileRows();
 
         return Scaffold(
           appBar: AppBar(
@@ -190,6 +310,21 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
+                        if (_clanContexts.length > 1) ...[
+                          _ClanContextSwitcherCard(
+                            activeClanId: (_session.clanId ?? '').trim(),
+                            activeClanName:
+                                _controller.clan?.name ??
+                                l10n.pick(
+                                  vi: 'Chưa chọn gia phả',
+                                  en: 'No clan',
+                                ),
+                            isEnabled: widget.onSwitchClanContext != null,
+                            isSwitching: _isSwitchingClanContext,
+                            onTap: _openClanSwitcher,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                         _WorkspaceHero(
                           title:
                               _controller.clan?.name ??
@@ -198,15 +333,13 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                               _controller.clan?.description.isNotEmpty == true
                               ? _controller.clan!.description
                               : l10n.clanCreateFirstDescription,
-                          canEditClanSettings:
-                              _controller.permissions.canEditClanSettings,
-                          onPrimaryAction:
-                              _controller.permissions.canEditClanSettings
-                              ? _openClanEditor
-                              : null,
-                          primaryActionLabel: _controller.clan == null
-                              ? l10n.clanCreateAction
-                              : l10n.clanEditAction,
+                          isDescriptionExpanded: _isHeroDescriptionExpanded,
+                          onToggleDescription: () {
+                            setState(() {
+                              _isHeroDescriptionExpanded =
+                                  !_isHeroDescriptionExpanded;
+                            });
+                          },
                         ),
                         const SizedBox(height: 20),
                         if (_controller.errorMessage != null) ...[
@@ -239,73 +372,61 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                           ),
                           const SizedBox(height: 20),
                         ],
-                        _StatRow(
+                        _QuickStatsGrid(
                           items: [
-                            _StatTile(
+                            _QuickStatCard(
                               label: l10n.clanStatBranches,
                               value: '${_controller.branches.length}',
                               icon: Icons.account_tree_outlined,
                             ),
-                            _StatTile(
+                            _QuickStatCard(
                               label: l10n.clanStatMembers,
                               value:
                                   '${_controller.clan?.memberCount ?? _controller.members.length}',
                               icon: Icons.groups_2_outlined,
-                            ),
-                            _StatTile(
-                              label: l10n.clanStatYourRole,
-                              value: l10n.roleLabel(widget.session.primaryRole),
-                              icon: Icons.verified_user_outlined,
                             ),
                           ],
                         ),
                         const SizedBox(height: 20),
                         _SectionCard(
                           title: l10n.clanProfileSectionTitle,
-                          actionLabel:
-                              _controller.permissions.canEditClanSettings
-                              ? (_controller.clan == null
-                                    ? l10n.clanCreateAction
-                                    : l10n.clanEditAction)
-                              : null,
-                          onAction: _controller.permissions.canEditClanSettings
-                              ? _openClanEditor
-                              : null,
                           child: _controller.clan == null
                               ? _EmptySection(
                                   icon: Icons.domain_add_outlined,
                                   title: l10n.clanProfileEmptyTitle,
                                   description: l10n.clanProfileEmptyDescription,
                                 )
-                              : _ProfileSummary(
-                                  rows: [
-                                    _SummaryRowData(
-                                      label: l10n.clanFieldName,
-                                      value: _controller.clan!.name,
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _ProfileSummary(
+                                      rows: profileRows,
+                                      expanded: _isProfileDetailsExpanded,
+                                      collapsedCount: 3,
                                     ),
-                                    _SummaryRowData(
-                                      label: l10n.clanFieldSlug,
-                                      value: _controller.clan!.slug,
-                                    ),
-                                    _SummaryRowData(
-                                      label: l10n.clanFieldCountry,
-                                      value: _controller.clan!.countryCode,
-                                    ),
-                                    _SummaryRowData(
-                                      label: l10n.clanFieldFounder,
-                                      value:
-                                          _controller.clan!.founderName.isEmpty
-                                          ? l10n.clanFieldUnset
-                                          : _controller.clan!.founderName,
-                                    ),
-                                    _SummaryRowData(
-                                      label: l10n.clanFieldDescription,
-                                      value:
-                                          _controller.clan!.description.isEmpty
-                                          ? l10n.clanFieldUnset
-                                          : _controller.clan!.description,
-                                      isLast: true,
-                                    ),
+                                    if (profileRows.length > 3)
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: TextButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _isProfileDetailsExpanded =
+                                                  !_isProfileDetailsExpanded;
+                                            });
+                                          },
+                                          child: Text(
+                                            _isProfileDetailsExpanded
+                                                ? l10n.pick(
+                                                    vi: 'Thu gọn',
+                                                    en: 'Collapse',
+                                                  )
+                                                : l10n.pick(
+                                                    vi: 'Xem thêm',
+                                                    en: 'View more',
+                                                  ),
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                         ),
@@ -319,9 +440,9 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                               ? () => _openBranchEditor()
                               : null,
                           footer: _controller.branches.isNotEmpty
-                              ? Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: TextButton.icon(
+                              ? SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
                                     onPressed: _openBranchList,
                                     icon: const Icon(Icons.list_alt_outlined),
                                     label: Text(l10n.clanOpenBranchListAction),
@@ -373,13 +494,56 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                                   ],
                                 ),
                         ),
+                        const SizedBox(height: 80),
                       ],
                     ),
                   ),
           ),
+          floatingActionButton: _controller.permissions.canEditClanSettings
+              ? FloatingActionButton(
+                  key: const Key('clan-edit-fab'),
+                  onPressed: _openClanEditor,
+                  tooltip: _controller.clan == null
+                      ? l10n.clanCreateAction
+                      : l10n.clanEditAction,
+                  child: Icon(
+                    _controller.clan == null ? Icons.add : Icons.edit_outlined,
+                  ),
+                )
+              : null,
         );
       },
     );
+  }
+
+  List<_SummaryRowData> _profileRows() {
+    final l10n = context.l10n;
+    if (_controller.clan == null) {
+      return const [];
+    }
+    final clan = _controller.clan!;
+    return [
+      _SummaryRowData(label: l10n.clanFieldName, value: clan.name),
+      _SummaryRowData(label: l10n.clanFieldSlug, value: clan.slug),
+      _SummaryRowData(
+        label: l10n.clanFieldCountry,
+        value: clan.countryCode.trim().isEmpty
+            ? l10n.clanFieldUnset
+            : clan.countryCode,
+      ),
+      _SummaryRowData(
+        label: l10n.clanFieldFounder,
+        value: clan.founderName.isEmpty
+            ? l10n.clanFieldUnset
+            : clan.founderName,
+      ),
+      _SummaryRowData(
+        label: l10n.clanFieldDescription,
+        value: clan.description.isEmpty
+            ? l10n.clanFieldUnset
+            : clan.description,
+      ),
+    ];
   }
 }
 
@@ -387,77 +551,60 @@ class _WorkspaceHero extends StatelessWidget {
   const _WorkspaceHero({
     required this.title,
     required this.description,
-    required this.canEditClanSettings,
-    required this.primaryActionLabel,
-    this.onPrimaryAction,
+    required this.isDescriptionExpanded,
+    required this.onToggleDescription,
   });
 
   final String title;
   final String description;
-  final bool canEditClanSettings;
-  final String primaryActionLabel;
-  final VoidCallback? onPrimaryAction;
+  final bool isDescriptionExpanded;
+  final VoidCallback onToggleDescription;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
-
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colorScheme.primary, colorScheme.primaryContainer],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
+        color: colorScheme.primaryContainer.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _HeroChip(
-                label: canEditClanSettings
-                    ? l10n.clanPermissionEditor
-                    : l10n.clanPermissionViewer,
-                icon: canEditClanSettings
-                    ? Icons.edit_note_outlined
-                    : Icons.visibility_outlined,
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
           Text(
             title,
             style: theme.textTheme.headlineSmall?.copyWith(
-              color: colorScheme.onPrimary,
+              color: colorScheme.onPrimaryContainer,
               fontWeight: FontWeight.w800,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Text(
             description,
+            maxLines: isDescriptionExpanded ? null : 2,
+            overflow: isDescriptionExpanded ? null : TextOverflow.ellipsis,
             style: theme.textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onPrimary.withValues(alpha: 0.9),
+              color: colorScheme.onPrimaryContainer.withValues(alpha: 0.9),
             ),
           ),
-          if (onPrimaryAction != null) ...[
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: onPrimaryAction,
-              icon: const Icon(Icons.auto_fix_high_outlined),
-              style: FilledButton.styleFrom(
-                backgroundColor: colorScheme.onPrimary,
-                foregroundColor: colorScheme.primary,
+          if (description.trim().length > 80)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: onToggleDescription,
+                child: Text(
+                  isDescriptionExpanded
+                      ? l10n.pick(vi: 'Thu gọn', en: 'Collapse')
+                      : l10n.pick(vi: 'Xem thêm', en: 'View more'),
+                  style: TextStyle(color: colorScheme.onPrimaryContainer),
+                ),
               ),
-              label: Text(primaryActionLabel),
             ),
-          ],
         ],
       ),
     );
@@ -482,10 +629,15 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -504,6 +656,9 @@ class _SectionCard extends StatelessWidget {
                   TextButton.icon(
                     onPressed: onAction,
                     icon: const Icon(Icons.add_circle_outline),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(44, 44),
+                    ),
                     label: Text(actionLabel!),
                   ),
               ],
@@ -534,9 +689,14 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Card(
       color: tone,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Row(
@@ -566,35 +726,47 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
-class _StatRow extends StatelessWidget {
-  const _StatRow({required this.items});
+class _QuickStatsGrid extends StatelessWidget {
+  const _QuickStatsGrid({required this.items});
 
-  final List<_StatTile> items;
+  final List<_QuickStatCard> items;
 
   @override
   Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    if (items.length == 1) {
+      return items.first;
+    }
+    if (items.length == 2) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: items[0]),
+          const SizedBox(width: 12),
+          Expanded(child: items[1]),
+        ],
+      );
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth > 820 ? 3 : 1;
-        return GridView.builder(
-          itemCount: items.length,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            mainAxisSpacing: 14,
-            crossAxisSpacing: 14,
-            childAspectRatio: crossAxisCount == 1 ? 3.2 : 1.65,
-          ),
-          itemBuilder: (context, index) => items[index],
+        const spacing = 12.0;
+        final tileWidth = (constraints.maxWidth - spacing) / 2;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final item in items) SizedBox(width: tileWidth, child: item),
+          ],
         );
       },
     );
   }
 }
 
-class _StatTile extends StatelessWidget {
-  const _StatTile({
+class _QuickStatCard extends StatelessWidget {
+  const _QuickStatCard({
     required this.label,
     required this.value,
     required this.icon,
@@ -611,22 +783,33 @@ class _StatTile extends StatelessWidget {
 
     return Card(
       color: colorScheme.secondaryContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               value,
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 6),
-            Text(label, style: theme.textTheme.bodyMedium),
+            Text(
+              label,
+              style: theme.textTheme.bodyMedium,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
@@ -634,32 +817,198 @@ class _StatTile extends StatelessWidget {
   }
 }
 
-class _ProfileSummary extends StatelessWidget {
-  const _ProfileSummary({required this.rows});
+class _ClanContextSwitcherCard extends StatelessWidget {
+  const _ClanContextSwitcherCard({
+    required this.activeClanId,
+    required this.activeClanName,
+    required this.isEnabled,
+    required this.isSwitching,
+    required this.onTap,
+  });
 
-  final List<_SummaryRowData> rows;
+  final String activeClanId;
+  final String activeClanName;
+  final bool isEnabled;
+  final bool isSwitching;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: isSwitching || !isEnabled ? null : onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              const Icon(Icons.account_tree_outlined),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.pick(vi: 'Gia phả hiện tại', en: 'Current clan'),
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      activeClanName,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (activeClanId.isNotEmpty)
+                      Text(
+                        activeClanId,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (isSwitching)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                const Icon(Icons.expand_more),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ClanContextPickerSheet extends StatelessWidget {
+  const _ClanContextPickerSheet({
+    required this.activeClanId,
+    required this.contexts,
+    required this.roleLabelBuilder,
+    required this.statusLabelBuilder,
+    required this.memberCountLabelBuilder,
+  });
+
+  final String activeClanId;
+  final List<ClanContextOption> contexts;
+  final String Function(String? role) roleLabelBuilder;
+  final String Function(String? status) statusLabelBuilder;
+  final String Function(ClanContextOption option) memberCountLabelBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        children: [
+          Text(
+            l10n.pick(vi: 'Chọn gia phả', en: 'Switch clan'),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.pick(
+              vi: 'Mỗi tài khoản có thể thuộc nhiều gia phả. Chọn một gia phả để tiếp tục.',
+              en: 'Your account can belong to multiple clans. Pick one to continue.',
+            ),
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 14),
+          for (final option in contexts)
+            Card(
+              child: ListTile(
+                minVerticalPadding: 10,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                onTap: () => Navigator.of(context).pop(option.clanId),
+                leading: Icon(
+                  option.clanId.trim() == activeClanId.trim()
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                ),
+                title: Text(
+                  option.clanName.trim().isEmpty
+                      ? option.clanId
+                      : option.clanName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '${roleLabelBuilder(option.primaryRole)} · '
+                    '${memberCountLabelBuilder(option)} · '
+                    '${statusLabelBuilder(option.status)}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileSummary extends StatelessWidget {
+  const _ProfileSummary({
+    required this.rows,
+    required this.expanded,
+    required this.collapsedCount,
+  });
+
+  final List<_SummaryRowData> rows;
+  final bool expanded;
+  final int collapsedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleRows = expanded
+        ? rows
+        : rows.take(collapsedCount).toList(growable: false);
     return Column(
       children: [
-        for (final row in rows)
-          _SummaryRow(label: row.label, value: row.value, isLast: row.isLast),
+        for (var index = 0; index < visibleRows.length; index += 1)
+          _SummaryRow(
+            label: visibleRows[index].label,
+            value: visibleRows[index].value,
+            isLast: index == visibleRows.length - 1,
+          ),
       ],
     );
   }
 }
 
 class _SummaryRowData {
-  const _SummaryRowData({
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
+  const _SummaryRowData({required this.label, required this.value});
 
   final String label;
   final String value;
-  final bool isLast;
 }
 
 class _SummaryRow extends StatelessWidget {
@@ -676,25 +1025,49 @@ class _SummaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 132,
-            child: Text(
-              label,
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 420;
+        return Padding(
+          padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+          child: isCompact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(value, style: theme.textTheme.bodyMedium),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 132,
+                      child: Text(
+                        label,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        value,
+                        style: theme.textTheme.bodyMedium,
+                        softWrap: true,
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -752,10 +1125,19 @@ class _BranchPreviewCard extends StatelessWidget {
                   ),
                 ),
                 if (canEdit && onEdit != null)
-                  IconButton(
-                    tooltip: l10n.clanEditBranchAction,
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit_outlined),
+                  PopupMenuButton<String>(
+                    tooltip: l10n.pick(vi: 'Tùy chọn', en: 'Options'),
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        onEdit?.call();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Text(l10n.clanEditBranchAction),
+                      ),
+                    ],
                   ),
               ],
             ),
@@ -799,6 +1181,8 @@ class _MiniPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final maxWidth = MediaQuery.sizeOf(context).width - 120;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -813,40 +1197,13 @@ class _MiniPill extends StatelessWidget {
           children: [
             Icon(icon, size: 16),
             const SizedBox(width: 8),
-            Text(label),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroChip extends StatelessWidget {
-  const _HeroChip({required this.label, required this.icon});
-
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.onPrimary.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: colorScheme.onPrimary),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: colorScheme.onPrimary,
-                fontWeight: FontWeight.w700,
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: Text(
+                label,
+                style: textTheme.bodyLarge,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -854,6 +1211,16 @@ class _HeroChip extends StatelessWidget {
       ),
     );
   }
+}
+
+String _contextStatusLabel(AppLocalizations l10n, String? status) {
+  final normalized = status?.trim().toLowerCase() ?? '';
+  return switch (normalized) {
+    'active' || 'enabled' || '' => l10n.pick(vi: 'Đang dùng', en: 'Active'),
+    'pending' => l10n.pick(vi: 'Chờ kích hoạt', en: 'Pending'),
+    'suspended' || 'disabled' => l10n.pick(vi: 'Tạm ngưng', en: 'Suspended'),
+    _ => l10n.pick(vi: 'Đang dùng', en: 'Active'),
+  };
 }
 
 class _EmptySection extends StatelessWidget {

@@ -38,6 +38,14 @@ class BillingController extends ChangeNotifier {
   bool get hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
 
   bool get canManageBilling {
+    if (_session.uid.trim().isEmpty) {
+      return false;
+    }
+    if (!hasClanContext) {
+      // Personal billing scope: authenticated users can manage their own plan
+      // before joining any clan.
+      return true;
+    }
     if (!GovernanceRoleMatrix.isClaimedClanSession(_session)) {
       return false;
     }
@@ -79,10 +87,12 @@ class BillingController extends ChangeNotifier {
       _errorMessage = error.toString();
       _workspace = null;
       _viewerSummary = null;
+      debugPrint('[billing] refresh repository error: $error');
     } catch (error) {
       _errorMessage = error.toString();
       _workspace = null;
       _viewerSummary = null;
+      debugPrint('[billing] refresh unexpected error: $error');
     } finally {
       _isLoading = false;
       notifyListeners();

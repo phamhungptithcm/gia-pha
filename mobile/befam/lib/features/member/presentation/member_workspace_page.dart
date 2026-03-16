@@ -49,12 +49,17 @@ class MemberWorkspacePage extends StatefulWidget {
 }
 
 class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
+  static const int _memberBatchSize = 20;
+
   late MemberController _controller;
   late AuthSession _activeSession;
   late final MemberAvatarPicker _avatarPicker;
   late final TextEditingController _searchController;
+  late final ScrollController _scrollController;
   late RelationshipRepository _relationshipRepository;
   bool _isSwitchingClanContext = false;
+  int _visibleMemberCount = _memberBatchSize;
+  String _memberListSeed = '';
 
   AuthSession get _session => _activeSession;
 
@@ -77,6 +82,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
         widget.relationshipRepository ??
         createDefaultRelationshipRepository(session: _session);
     _searchController = TextEditingController();
+    _scrollController = ScrollController()..addListener(_handleWorkspaceScroll);
     unawaited(_controller.initialize());
   }
 
@@ -115,9 +121,54 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
 
   @override
   void dispose() {
+    _scrollController
+      ..removeListener(_handleWorkspaceScroll)
+      ..dispose();
     _searchController.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleWorkspaceScroll() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    final position = _scrollController.position;
+    if (position.pixels < position.maxScrollExtent - 260) {
+      return;
+    }
+    _loadMoreMembersIfNeeded();
+  }
+
+  void _syncVisibleMemberWindow(List<MemberProfile> members) {
+    final filters = _controller.filters;
+    final firstId = members.isEmpty ? '' : members.first.id;
+    final lastId = members.isEmpty ? '' : members.last.id;
+    final seed =
+        '${members.length}|$firstId|$lastId|'
+        '${filters.query.trim().toLowerCase()}|'
+        '${filters.branchId ?? ''}|${filters.generation ?? ''}';
+    if (seed == _memberListSeed) {
+      if (_visibleMemberCount > members.length) {
+        _visibleMemberCount = members.length;
+      }
+      return;
+    }
+    _memberListSeed = seed;
+    _visibleMemberCount = members.length < _memberBatchSize
+        ? members.length
+        : _memberBatchSize;
+  }
+
+  void _loadMoreMembersIfNeeded() {
+    final total = _controller.filteredMembers.length;
+    if (_visibleMemberCount >= total) {
+      return;
+    }
+    setState(() {
+      final next = _visibleMemberCount + _memberBatchSize;
+      _visibleMemberCount = next < total ? next : total;
+    });
   }
 
   Future<void> _openMemberEditor({MemberProfile? member}) async {
@@ -411,6 +462,12 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
             _controller.filters.query.trim().isNotEmpty ||
             _controller.filters.branchId != null ||
             _controller.filters.generation != null;
+        final filteredMembers = _controller.filteredMembers;
+        _syncVisibleMemberWindow(filteredMembers);
+        final visibleMembers = filteredMembers
+            .take(_visibleMemberCount)
+            .toList(growable: false);
+        final hasMoreMembers = visibleMembers.length < filteredMembers.length;
 
         return Scaffold(
           appBar: AppBar(
@@ -457,6 +514,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                 : RefreshIndicator(
                     onRefresh: _controller.refresh,
                     child: ListView(
+                      controller: _scrollController,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
                         _WorkspaceHero(
@@ -510,24 +568,28 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                             ),
                             _StatTile(
                               label: l10n.memberStatVisible,
-                              value: '${_controller.filteredMembers.length}',
+                              value: '${filteredMembers.length}',
                               icon: Icons.filter_alt_outlined,
                             ),
                           ],
                         ),
                         const SizedBox(height: 20),
                         if (_controller.selfMember case final selfMember?) ...[
-                          _SectionCard(
-                            title: l10n.memberOwnProfileTitle,
-                            child: _MemberSummaryCard(
-                              member: selfMember,
-                              branchName: _controller.branchName(
-                                selfMember.branchId,
-                              ),
-                              roleLabel: l10n.roleLabel(selfMember.primaryRole),
-                              showRoleBadge: true,
-                              onTap: () => _openMemberDetail(selfMember),
+                          Text(
+                            l10n.memberOwnProfileTitle,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
                             ),
+                          ),
+                          const SizedBox(height: 12),
+                          _MemberSummaryCard(
+                            member: selfMember,
+                            branchName: _controller.branchName(
+                              selfMember.branchId,
+                            ),
+                            roleLabel: l10n.roleLabel(selfMember.primaryRole),
+                            showRoleBadge: true,
+                            onTap: () => _openMemberDetail(selfMember),
                           ),
                           const SizedBox(height: 20),
                         ],
@@ -552,109 +614,128 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        _SectionCard(
-                          title: l10n.memberListSectionTitle,
-                          child: _controller.isSearching
-                              ? _SearchStateCard(
-                                  key: const Key('member-search-loading-state'),
-                                  icon: Icons.search,
-                                  title: l10n.memberSearchLabel,
-                                  description: l10n.memberSearchHint,
-                                  trailing: const Padding(
-                                    padding: EdgeInsets.only(top: 4),
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
+                        Text(
+                          l10n.memberListSectionTitle,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _controller.isSearching
+                            ? _SearchStateCard(
+                                key: const Key('member-search-loading-state'),
+                                icon: Icons.search,
+                                title: l10n.memberSearchLabel,
+                                description: l10n.memberSearchHint,
+                                trailing: const Padding(
+                                  padding: EdgeInsets.only(top: 4),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
                                   ),
-                                )
-                              : _controller.searchError != null
-                              ? _SearchStateCard(
-                                  key: const Key('member-search-error-state'),
-                                  icon: Icons.wifi_tethering_error_outlined,
-                                  title: l10n.memberLoadErrorTitle,
-                                  description: l10n.memberLoadErrorDescription,
-                                  trailing: TextButton.icon(
-                                    key: const Key(
-                                      'member-search-retry-action',
-                                    ),
-                                    onPressed: _controller.retrySearch,
-                                    icon: const Icon(Icons.refresh),
-                                    label: Text(l10n.memberRefreshAction),
-                                  ),
-                                )
-                              : _controller.filteredMembers.isEmpty
-                              ? _SearchStateCard(
-                                  key: const Key('member-search-empty-state'),
-                                  icon: Icons.person_search_outlined,
-                                  title: hasActiveFilters
-                                      ? l10n.memberSearchLabel
-                                      : l10n.memberListEmptyTitle,
-                                  description: hasActiveFilters
-                                      ? l10n.memberSearchHint
-                                      : l10n.memberListEmptyDescription,
-                                  trailing: hasActiveFilters
-                                      ? TextButton.icon(
-                                          onPressed: () {
-                                            _searchController.clear();
-                                            _controller.updateSearchQuery('');
-                                            _controller.updateBranchFilter(
-                                              null,
-                                            );
-                                            _controller.updateGenerationFilter(
-                                              null,
-                                            );
-                                          },
-                                          icon: const Icon(
-                                            Icons.filter_alt_off_outlined,
-                                          ),
-                                          label: Text(
-                                            l10n.memberClearFiltersAction,
-                                          ),
-                                        )
-                                      : null,
-                                )
-                              : Column(
-                                  children: [
-                                    for (final member
-                                        in _controller.filteredMembers)
-                                      Padding(
-                                        padding: EdgeInsets.only(
-                                          bottom:
-                                              member ==
-                                                  _controller
-                                                      .filteredMembers
-                                                      .last
-                                              ? 0
-                                              : 14,
+                                ),
+                              )
+                            : _controller.searchError != null
+                            ? _SearchStateCard(
+                                key: const Key('member-search-error-state'),
+                                icon: Icons.wifi_tethering_error_outlined,
+                                title: l10n.memberLoadErrorTitle,
+                                description: l10n.memberLoadErrorDescription,
+                                trailing: TextButton.icon(
+                                  key: const Key('member-search-retry-action'),
+                                  onPressed: _controller.retrySearch,
+                                  icon: const Icon(Icons.refresh),
+                                  label: Text(l10n.memberRefreshAction),
+                                ),
+                              )
+                            : filteredMembers.isEmpty
+                            ? _SearchStateCard(
+                                key: const Key('member-search-empty-state'),
+                                icon: Icons.person_search_outlined,
+                                title: hasActiveFilters
+                                    ? l10n.memberSearchLabel
+                                    : l10n.memberListEmptyTitle,
+                                description: hasActiveFilters
+                                    ? l10n.memberSearchHint
+                                    : l10n.memberListEmptyDescription,
+                                trailing: hasActiveFilters
+                                    ? TextButton.icon(
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          _controller.updateSearchQuery('');
+                                          _controller.updateBranchFilter(null);
+                                          _controller.updateGenerationFilter(
+                                            null,
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.filter_alt_off_outlined,
                                         ),
-                                        child: KeyedSubtree(
-                                          key: Key(
-                                            'member-search-result-${member.id}',
+                                        label: Text(
+                                          l10n.memberClearFiltersAction,
+                                        ),
+                                      )
+                                    : null,
+                              )
+                            : Column(
+                                children: [
+                                  for (final member in visibleMembers)
+                                    Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom: member == visibleMembers.last
+                                            ? 0
+                                            : 14,
+                                      ),
+                                      child: KeyedSubtree(
+                                        key: Key(
+                                          'member-search-result-${member.id}',
+                                        ),
+                                        child: _MemberSummaryCard(
+                                          key: Key('member-row-${member.id}'),
+                                          member: member,
+                                          branchName: _controller.branchName(
+                                            member.branchId,
                                           ),
-                                          child: _MemberSummaryCard(
-                                            key: Key('member-row-${member.id}'),
-                                            member: member,
-                                            branchName: _controller.branchName(
-                                              member.branchId,
-                                            ),
-                                            roleLabel: l10n.roleLabel(
-                                              member.primaryRole,
-                                            ),
-                                            showRoleBadge:
-                                                member.primaryRole
-                                                    .trim()
-                                                    .toUpperCase() !=
-                                                'MEMBER',
-                                            highlightQuery:
-                                                _controller.filters.query,
-                                            onTap: () =>
-                                                _openMemberDetail(member),
+                                          roleLabel: l10n.roleLabel(
+                                            member.primaryRole,
+                                          ),
+                                          showRoleBadge:
+                                              member.primaryRole
+                                                  .trim()
+                                                  .toUpperCase() !=
+                                              'MEMBER',
+                                          highlightQuery:
+                                              _controller.filters.query,
+                                          onTap: () =>
+                                              _openMemberDetail(member),
+                                        ),
+                                      ),
+                                    ),
+                                  if (hasMoreMembers) ...[
+                                    const SizedBox(height: 14),
+                                    _SearchStateCard(
+                                      icon: Icons.unfold_more_outlined,
+                                      title: l10n.pick(
+                                        vi: 'Đang tải thêm thành viên',
+                                        en: 'Loading more members',
+                                      ),
+                                      description: l10n.pick(
+                                        vi: 'Đã hiển thị ${visibleMembers.length}/${filteredMembers.length}. Kéo xuống để tải thêm.',
+                                        en: 'Showing ${visibleMembers.length}/${filteredMembers.length}. Scroll down to load more.',
+                                      ),
+                                      trailing: TextButton.icon(
+                                        onPressed: _loadMoreMembersIfNeeded,
+                                        icon: const Icon(Icons.expand_more),
+                                        label: Text(
+                                          l10n.pick(
+                                            vi: 'Tải thêm',
+                                            en: 'Load more',
                                           ),
                                         ),
                                       ),
+                                    ),
                                   ],
-                                ),
-                        ),
+                                ],
+                              ),
                       ],
                     ),
                   ),
@@ -2757,81 +2838,123 @@ class _MemberEditorStepIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    const circleSize = 34.0;
+    const connectorThickness = 3.0;
+    const connectorHorizontalInset = 16.0;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 560;
-        final itemWidth = compact
-            ? (constraints.maxWidth - 8) / 2
-            : (constraints.maxWidth - 16) / 3;
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: circleSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (labels.length > 1)
+                Positioned.fill(
+                  child: Row(
+                    children: [
+                      for (var index = 0; index < labels.length - 1; index++)
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              height: connectorThickness,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: connectorHorizontalInset,
+                              ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                color: index < currentStep
+                                    ? colorScheme.primary
+                                    : colorScheme.outlineVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              Row(
+                children: [
+                  for (var index = 0; index < labels.length; index++)
+                    Expanded(
+                      child: Center(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            key: Key('member-editor-step-${index + 1}-circle'),
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => onStepSelected(index),
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                width: circleSize,
+                                height: circleSize,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: index <= currentStep
+                                      ? colorScheme.primary
+                                      : colorScheme.surfaceContainerHighest,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '${index + 1}',
+                                  style: textTheme.titleSmall?.copyWith(
+                                    color: index <= currentStep
+                                        ? colorScheme.onPrimary
+                                        : colorScheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
           children: [
-            for (var index = 0; index < labels.length; index++)
-              SizedBox(
-                width: itemWidth,
+            for (var index = 0; index < labels.length; index++) ...[
+              Expanded(
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
+                    key: Key('member-editor-step-${index + 1}-label'),
+                    borderRadius: BorderRadius.circular(8),
                     onTap: () => onStepSelected(index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
+                    child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                        horizontal: 4,
+                        vertical: 2,
                       ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: index == currentStep
-                              ? colorScheme.primary
-                              : colorScheme.outlineVariant,
+                      child: Text(
+                        labels[index],
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.labelLarge?.copyWith(
+                          fontWeight: index == currentStep
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                         ),
-                        color: index == currentStep
-                            ? colorScheme.secondaryContainer
-                            : colorScheme.surfaceContainerLow,
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 12,
-                            backgroundColor: index == currentStep
-                                ? colorScheme.primary
-                                : colorScheme.surfaceContainerHighest,
-                            foregroundColor: index == currentStep
-                                ? colorScheme.onPrimary
-                                : colorScheme.onSurfaceVariant,
-                            child: Text(
-                              '${index + 1}',
-                              style: textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              labels[index],
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.labelLarge?.copyWith(
-                                fontWeight: index == currentStep
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ),
                 ),
               ),
+            ],
           ],
-        );
-      },
+        ),
+      ],
     );
   }
 }
@@ -3707,6 +3830,8 @@ String _memberRepositoryErrorMessage(
 ) {
   return switch (error) {
     MemberRepositoryErrorCode.duplicatePhone => l10n.memberDuplicatePhoneError,
+    MemberRepositoryErrorCode.planLimitExceeded =>
+      l10n.memberPlanLimitExceededError,
     MemberRepositoryErrorCode.permissionDenied =>
       l10n.memberPermissionDeniedError,
     MemberRepositoryErrorCode.memberNotFound => l10n.memberNotFoundDescription,
