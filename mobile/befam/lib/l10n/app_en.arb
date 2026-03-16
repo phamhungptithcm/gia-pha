@@ -85,7 +85,7 @@
   "authEntryMethodPhoneInline": "phone login",
   "authEntryMethodChildInline": "child access",
   "shellHomeLabel": "Home",
-  "shellHomeTitle": "Bootstrap dashboard",
+  "shellHomeTitle": "Family dashboard",
   "shellTreeLabel": "Tree",
   "shellTreeTitle": "Family tree",
   "shellEventsLabel": "Events",

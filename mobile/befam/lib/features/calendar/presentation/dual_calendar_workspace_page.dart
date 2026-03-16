@@ -130,10 +130,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                           ),
                           const SizedBox(height: 16),
                         ],
-                        _SettingsCard(
-                          controller: _controller,
-                          onCreateEvent: _openCreateEventSheet,
-                        ),
+                        _SettingsCard(controller: _controller),
                         const SizedBox(height: 16),
                         _MonthHeader(
                           label: _monthHeaderLabel(
@@ -191,6 +188,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
           members: _members,
           branches: _branches,
           isRecipientsLoading: _isLoadingMembers,
+          viewerMemberId: widget.session?.memberId,
         );
       },
     );
@@ -227,6 +225,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
           members: _members,
           branches: _branches,
           isRecipientsLoading: _isLoadingMembers,
+          viewerMemberId: widget.session?.memberId,
         );
       },
     );
@@ -414,17 +413,15 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
 }
 
 class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({required this.controller, required this.onCreateEvent});
+  const _SettingsCard({required this.controller});
 
   final DualCalendarController controller;
-  final VoidCallback onCreateEvent;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = theme.textTheme;
-    final textScale = MediaQuery.textScalerOf(context).scale(1);
     final l10n = context.l10n;
     const displayModes = <CalendarDisplayMode>[
       CalendarDisplayMode.dual,
@@ -546,42 +543,7 @@ class _SettingsCard extends StatelessWidget {
             style: textTheme.bodyMedium?.copyWith(height: 1.35),
           ),
           const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 640 || textScale > 1.1;
-              if (compact) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    displayModePicker,
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: onCreateEvent,
-                      icon: const Icon(Icons.add),
-                      label: Text(
-                        l10n.pick(vi: 'Tạo sự kiện', en: 'Create event'),
-                      ),
-                    ),
-                  ],
-                );
-              }
-              return Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  displayModePicker,
-                  OutlinedButton.icon(
-                    onPressed: onCreateEvent,
-                    icon: const Icon(Icons.add),
-                    label: Text(
-                      l10n.pick(vi: 'Tạo sự kiện', en: 'Create event'),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
+          displayModePicker,
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -1553,6 +1515,7 @@ class _EventEditorSheet extends StatefulWidget {
     required this.members,
     required this.branches,
     required this.isRecipientsLoading,
+    required this.viewerMemberId,
     this.editingEvent,
   });
 
@@ -1561,6 +1524,7 @@ class _EventEditorSheet extends StatefulWidget {
   final List<MemberProfile> members;
   final List<BranchProfile> branches;
   final bool isRecipientsLoading;
+  final String? viewerMemberId;
   final DualCalendarEvent? editingEvent;
 
   @override
@@ -1595,9 +1559,23 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   final Set<EventNotificationAudienceExcludeRule> _excludeRules =
       <EventNotificationAudienceExcludeRule>{};
   bool _isSubmitting = false;
+  int _editorStep = 0;
   DateTime? _previewSolarDate;
   String? _previewError;
   int _previewRevision = 0;
+  LunarDate? _solarPreviewLunarDate;
+  String? _solarPreviewError;
+  int _solarPreviewRevision = 0;
+
+  String? _selectedMemorialMemberId;
+  String? _selectedHostMemberId;
+  final Set<String> _selectedMemorialMemberIds = <String>{};
+  final Set<String> _selectedHostMemberIds = <String>{};
+  DateTime? _selectedMemorialDeathDate;
+  LunarDate? _selectedMemorialDeathLunarDate;
+  String? _selectedMemorialDateError;
+  int _memorialDateRevision = 0;
+  bool _isResolvingMemorialDate = false;
 
   @override
   void initState() {
@@ -1646,8 +1624,64 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         _audienceMode == EventNotificationAudienceMode.branchAll) {
       _audienceBranchId = widget.branches.first.id;
     }
+    if (_audienceMode == EventNotificationAudienceMode.named) {
+      _audienceMode = EventNotificationAudienceMode.clanAll;
+      _audienceBranchId = null;
+      _includeMemberIds.clear();
+    }
+
+    _selectedMemorialMemberIds
+      ..clear()
+      ..addAll(
+        _memberIdsByNames(
+          _memorialForController.text,
+          candidates: _deceasedMembers,
+        ),
+      );
+    if (_selectedMemorialMemberIds.isNotEmpty) {
+      _selectedMemorialMemberId = _pickDefaultMemorialMemberId(
+        _selectedMemorialMemberIds,
+      );
+    } else {
+      _selectedMemorialMemberId = _memberIdByName(
+        _memorialForController.text,
+        candidates: _deceasedMembers,
+      );
+      if (_selectedMemorialMemberId != null) {
+        _selectedMemorialMemberIds.add(_selectedMemorialMemberId!);
+      }
+    }
+
+    _selectedHostMemberIds
+      ..clear()
+      ..addAll(
+        _memberIdsByNames(
+          _hostHouseholdController.text,
+          candidates: _aliveMembers,
+        ),
+      );
+    if (_selectedHostMemberIds.isNotEmpty) {
+      _selectedHostMemberId = _pickDefaultHostMemberId(_selectedHostMemberIds);
+    } else {
+      _selectedHostMemberId = _memberIdByName(
+        _hostHouseholdController.text,
+        candidates: _aliveMembers,
+      );
+      if (_selectedHostMemberId != null) {
+        _selectedHostMemberIds.add(_selectedHostMemberId!);
+      }
+    }
 
     _refreshLunarPreview();
+    _refreshSolarLunarPreview();
+    if (_eventType.isMemorial && _selectedMemorialMemberId != null) {
+      unawaited(
+        _onMemorialMemberChanged(
+          _selectedMemorialMemberId,
+          memorialForNameOverride: _memorialForController.text.trim(),
+        ),
+      );
+    }
   }
 
   @override
@@ -1685,330 +1719,454 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
-                key: const Key('calendar-event-title-field'),
-                controller: _titleController,
-                decoration: InputDecoration(
-                  labelText: l10n.pick(vi: 'Tiêu đề', en: 'Title'),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _descriptionController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<EventType>(
-                key: Key('calendar-event-type-dropdown-${_eventType.wireName}'),
-                initialValue: _eventType,
-                decoration: InputDecoration(
-                  labelText: l10n.pick(vi: 'Loại sự kiện', en: 'Event type'),
-                  border: const OutlineInputBorder(),
-                ),
-                items: [
-                  for (final type in EventType.values)
-                    DropdownMenuItem<EventType>(
-                      value: type,
-                      child: Text(l10n.eventTypeLabel(type)),
-                    ),
+              _EventEditorStepIndicator(
+                currentStep: _editorStep,
+                labels: [
+                  l10n.pick(vi: 'Nội dung', en: 'Content'),
+                  l10n.pick(vi: 'Người nhận', en: 'Audience'),
                 ],
-                onChanged: (value) {
-                  if (value == null) {
+                onStepSelected: (step) {
+                  if (step == 1 &&
+                      !_validateStepOneInputs(showSnackBar: true)) {
                     return;
                   }
-                  setState(() => _eventType = value);
+                  setState(() => _editorStep = step);
                 },
               ),
-              if (_eventType.isMemorial) ...[
+              const SizedBox(height: 16),
+              if (_editorStep == 0) ...[
+                TextField(
+                  key: const Key('calendar-event-title-field'),
+                  controller: _titleController,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Tiêu đề', en: 'Title'),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 TextField(
-                  controller: _memorialForController,
+                  controller: _descriptionController,
+                  maxLines: 3,
                   decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Giỗ của ai', en: 'Memorial for'),
-                    hintText: l10n.pick(
-                      vi: 'Ví dụ: Cụ Nguyễn Văn A',
-                      en: 'Example: Ancestor Nguyen Van A',
-                    ),
-                    border: const OutlineInputBorder(),
+                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                    border: OutlineInputBorder(),
                   ),
                 ),
-              ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: _hostHouseholdController,
-                decoration: InputDecoration(
-                  labelText: l10n.pick(
-                    vi: 'Nhà/chi tổ chức',
-                    en: 'Host household/branch',
+                const SizedBox(height: 12),
+                DropdownButtonFormField<EventType>(
+                  key: Key(
+                    'calendar-event-type-dropdown-${_eventType.wireName}',
                   ),
-                  hintText: l10n.pick(
-                    vi: 'Ví dụ: Nhà trưởng chi',
-                    en: 'Example: Main branch house',
-                  ),
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _locationAddressController,
-                decoration: InputDecoration(
-                  labelText: l10n.pick(vi: 'Địa chỉ', en: 'Address'),
-                  hintText: l10n.pick(
-                    vi: 'Số nhà, đường, phường/xã, quận/huyện...',
-                    en: 'Street, ward, district...',
-                  ),
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SegmentedButton<CalendarDateMode>(
-                showSelectedIcon: false,
-                segments: [
-                  for (final mode in CalendarDateMode.values)
-                    ButtonSegment<CalendarDateMode>(
-                      value: mode,
-                      label: Text(l10n.calendarDateModeLabel(mode)),
-                    ),
-                ],
-                selected: {_dateMode},
-                onSelectionChanged: (selection) {
-                  final mode = selection.firstOrNull;
-                  if (mode == null) {
-                    return;
-                  }
-                  setState(() {
-                    _dateMode = mode;
-                  });
-                  _refreshLunarPreview();
-                },
-              ),
-              const SizedBox(height: 12),
-              if (_dateMode == CalendarDateMode.solar)
-                _SolarDateEditor(
-                  solarDate: _solarDate,
-                  timeOfDay: _timeOfDay,
-                  onPickDate: _pickSolarDate,
-                  onPickTime: _pickTime,
-                )
-              else
-                _LunarDateEditor(
-                  lunarYear: _lunarYear,
-                  lunarMonth: _lunarMonth,
-                  lunarDay: _lunarDay,
-                  isLeapMonth: _isLeapMonth,
-                  recurrencePolicy: _recurrencePolicy,
-                  previewSolarDate: _previewSolarDate,
-                  previewError: _previewError,
-                  onYearChanged: (value) {
-                    setState(() => _lunarYear = value);
-                    _refreshLunarPreview();
-                  },
-                  onMonthChanged: (value) {
-                    setState(() => _lunarMonth = value);
-                    _refreshLunarPreview();
-                  },
-                  onDayChanged: (value) {
-                    setState(() => _lunarDay = value);
-                    _refreshLunarPreview();
-                  },
-                  onLeapChanged: (value) {
-                    setState(() => _isLeapMonth = value);
-                    _refreshLunarPreview();
-                  },
-                  onPolicyChanged: (value) {
-                    setState(() => _recurrencePolicy = value);
-                    _refreshLunarPreview();
-                  },
-                ),
-              const SizedBox(height: 12),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  l10n.pick(vi: 'Lặp lại hằng năm', en: 'Repeat annually'),
-                ),
-                value: _isAnnualRecurring,
-                onChanged: (value) {
-                  setState(() => _isAnnualRecurring = value);
-                },
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l10n.pick(
-                  vi: 'Người nhận thông báo',
-                  en: 'Notification recipients',
-                ),
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                l10n.pick(
-                  vi: 'Chọn nhóm nhận để hệ thống gửi lời nhắc đúng đối tượng.',
-                  en: 'Choose who should receive reminders for this event.',
-                ),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              if (widget.isRecipientsLoading) ...[
-                const SizedBox(height: 8),
-                const LinearProgressIndicator(minHeight: 2),
-              ],
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _audienceMode = EventNotificationAudienceMode.clanAll;
-                        _audienceBranchId = null;
-                        _includeMemberIds.clear();
-                      });
-                    },
-                    icon: const Icon(Icons.groups_outlined),
-                    label: Text(l10n.pick(vi: 'Toàn tộc', en: 'All clan')),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: widget.branches.isEmpty
-                        ? null
-                        : () {
-                            setState(() {
-                              _audienceMode =
-                                  EventNotificationAudienceMode.branchAll;
-                              _audienceBranchId =
-                                  _audienceBranchId ?? widget.branches.first.id;
-                              _includeMemberIds.clear();
-                            });
-                          },
-                    icon: const Icon(Icons.account_tree_outlined),
-                    label: Text(l10n.pick(vi: 'Toàn chi', en: 'All branch')),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: widget.members.isEmpty
-                        ? null
-                        : _applyLeaderViceQuickRecipients,
-                    icon: const Icon(Icons.shield_outlined),
-                    label: Text(
-                      l10n.pick(vi: 'Trưởng + phó', en: 'Lead + deputy'),
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: widget.members.isEmpty
-                        ? null
-                        : () {
-                            setState(() {
-                              _audienceMode =
-                                  EventNotificationAudienceMode.named;
-                              _excludeMemberIds.clear();
-                              _excludeRules.clear();
-                            });
-                          },
-                    icon: const Icon(Icons.person_search_outlined),
-                    label: Text(l10n.pick(vi: 'Đích danh', en: 'Named only')),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              SegmentedButton<EventNotificationAudienceMode>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: EventNotificationAudienceMode.clanAll,
-                    label: Text(l10n.pick(vi: 'Toàn tộc', en: 'All clan')),
-                  ),
-                  ButtonSegment(
-                    value: EventNotificationAudienceMode.branchAll,
-                    label: Text(l10n.pick(vi: 'Toàn chi', en: 'All branch')),
-                  ),
-                  ButtonSegment(
-                    value: EventNotificationAudienceMode.named,
-                    label: Text(l10n.pick(vi: 'Đích danh', en: 'Named')),
-                  ),
-                ],
-                selected: {_audienceMode},
-                onSelectionChanged: (selection) {
-                  final mode = selection.firstOrNull;
-                  if (mode == null) {
-                    return;
-                  }
-                  setState(() {
-                    _audienceMode = mode;
-                    if (_audienceMode !=
-                        EventNotificationAudienceMode.branchAll) {
-                      _audienceBranchId = null;
-                    } else if (widget.branches.isNotEmpty) {
-                      _audienceBranchId ??= widget.branches.first.id;
-                    }
-                  });
-                },
-              ),
-              if (_audienceMode == EventNotificationAudienceMode.branchAll) ...[
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String?>(
-                  initialValue: _audienceBranchId,
+                  initialValue: _eventType,
                   decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Chọn chi', en: 'Select branch'),
+                    labelText: l10n.pick(vi: 'Loại sự kiện', en: 'Event type'),
                     border: const OutlineInputBorder(),
                   ),
                   items: [
-                    for (final branch in widget.branches)
-                      DropdownMenuItem<String?>(
-                        value: branch.id,
-                        child: Text(branch.name),
+                    for (final type in EventType.values)
+                      DropdownMenuItem<EventType>(
+                        value: type,
+                        child: Text(l10n.eventTypeLabel(type)),
                       ),
                   ],
                   onChanged: (value) {
-                    setState(() => _audienceBranchId = value);
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _eventType = value;
+                      if (!_eventType.isMemorial) {
+                        _selectedMemorialMemberId = null;
+                        _selectedMemorialMemberIds.clear();
+                        _memorialForController.clear();
+                        _selectedMemorialDeathDate = null;
+                        _selectedMemorialDeathLunarDate = null;
+                        _selectedMemorialDateError = null;
+                        _isResolvingMemorialDate = false;
+                      }
+                    });
                   },
                 ),
-              ],
-              if (_audienceMode == EventNotificationAudienceMode.named) ...[
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: widget.members.isEmpty
-                      ? null
-                      : () => _pickMemberIds(
-                          title: l10n.pick(
-                            vi: 'Chọn người nhận đích danh',
-                            en: 'Pick named recipients',
+                if (_eventType.isMemorial) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _deceasedMembers.isEmpty
+                          ? null
+                          : () => _pickMemberIds(
+                              title: l10n.pick(
+                                vi: 'Chọn người được giỗ',
+                                en: 'Pick memorial members',
+                              ),
+                              initialSelected: _selectedMemorialMemberIds,
+                              candidateMembers: _deceasedMembers,
+                              onApplied: (picked) => unawaited(
+                                _applyMemorialMemberSelection(picked),
+                              ),
+                            ),
+                      icon: const Icon(Icons.history_edu_outlined),
+                      label: Text(
+                        _selectedMemorialMemberIds.isEmpty
+                            ? l10n.pick(vi: 'Giỗ của ai', en: 'Memorial for')
+                            : l10n.pick(
+                                vi: 'Đã chọn ${_selectedMemorialMemberIds.length}/${_deceasedMembers.length} thành viên',
+                                en: 'Selected ${_selectedMemorialMemberIds.length}/${_deceasedMembers.length} members',
+                              ),
+                      ),
+                    ),
+                  ),
+                  if (_selectedMemorialMemberIds.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final memberId
+                            in _selectedMemorialMemberIds.toList()..sort())
+                          InputChip(
+                            label: Text(_memberLabel(memberId)),
+                            onDeleted: () => unawaited(
+                              _applyMemorialMemberSelection(
+                                Set<String>.from(_selectedMemorialMemberIds)
+                                  ..remove(memberId),
+                              ),
+                            ),
                           ),
-                          initialSelected: _includeMemberIds,
-                          onApplied: (picked) {
-                            setState(() {
-                              _includeMemberIds
-                                ..clear()
-                                ..addAll(picked);
-                            });
-                          },
+                      ],
+                    ),
+                  ],
+                  if (_selectedMemorialMemberIds.length > 1 &&
+                      (_selectedMemorialMemberId?.trim().isNotEmpty ?? false))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        l10n.pick(
+                          vi: 'Mặc định đang dùng ngày mất của ${_memberLabel(_selectedMemorialMemberId!)}. Bạn có thể đổi bằng cách chọn lại danh sách.',
+                          en: 'Default now follows ${_memberLabel(_selectedMemorialMemberId!)} death date. You can change it by updating the selection.',
                         ),
-                  icon: const Icon(Icons.group_add_outlined),
-                  label: Text(
-                    l10n.pick(vi: 'Chọn người nhận', en: 'Pick recipients'),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  if (_deceasedMembers.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        l10n.pick(
+                          vi: 'Chưa có thành viên đã mất để chọn giỗ.',
+                          en: 'No deceased members available for memorial.',
+                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  if ((_selectedMemorialDeathDate != null) ||
+                      _isResolvingMemorialDate ||
+                      (_selectedMemorialDateError?.isNotEmpty == true))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: _MemorialDateInfoCard(
+                        solarDeathDate: _selectedMemorialDeathDate,
+                        lunarDeathDate: _selectedMemorialDeathLunarDate,
+                        isLoading: _isResolvingMemorialDate,
+                        error: _selectedMemorialDateError,
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _aliveMembers.isEmpty
+                        ? null
+                        : () => _pickMemberIds(
+                            title: l10n.pick(
+                              vi: 'Chọn nhà của ai',
+                              en: 'Pick host households',
+                            ),
+                            initialSelected: _selectedHostMemberIds,
+                            candidateMembers: _aliveMembers,
+                            onApplied: _applyHostMemberSelection,
+                          ),
+                    icon: const Icon(Icons.home_outlined),
+                    label: Text(
+                      _selectedHostMemberIds.isEmpty
+                          ? l10n.pick(vi: 'Nhà của ai', en: 'Hosted by')
+                          : l10n.pick(
+                              vi: 'Đã chọn ${_selectedHostMemberIds.length}/${_aliveMembers.length} thành viên',
+                              en: 'Selected ${_selectedHostMemberIds.length}/${_aliveMembers.length} members',
+                            ),
+                    ),
                   ),
                 ),
-                if (_includeMemberIds.isNotEmpty) ...[
+                if (_selectedHostMemberIds.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final memberId in _includeMemberIds.toList()..sort())
+                      for (final memberId
+                          in _selectedHostMemberIds.toList()..sort())
                         InputChip(
                           label: Text(_memberLabel(memberId)),
                           onDeleted: () {
-                            setState(() {
-                              _includeMemberIds.remove(memberId);
-                            });
+                            _applyHostMemberSelection(
+                              Set<String>.from(_selectedHostMemberIds)
+                                ..remove(memberId),
+                            );
                           },
                         ),
                     ],
                   ),
                 ],
+                if (_aliveMembers.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      l10n.pick(
+                        vi: 'Chưa có thành viên còn sống để chọn nhà tổ chức.',
+                        en: 'No active members available for host household.',
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _locationAddressController,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Địa chỉ', en: 'Address'),
+                    hintText: l10n.pick(
+                      vi: 'Số nhà, đường, phường/xã, quận/huyện...',
+                      en: 'Street, ward, district...',
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<CalendarDateMode>(
+                  showSelectedIcon: false,
+                  segments: [
+                    for (final mode in CalendarDateMode.values)
+                      ButtonSegment<CalendarDateMode>(
+                        value: mode,
+                        label: Text(l10n.calendarDateModeLabel(mode)),
+                      ),
+                  ],
+                  selected: {_dateMode},
+                  onSelectionChanged: (selection) {
+                    final mode = selection.firstOrNull;
+                    if (mode == null) {
+                      return;
+                    }
+                    setState(() {
+                      _dateMode = mode;
+                      if (_eventType.isMemorial &&
+                          _selectedMemorialDeathDate != null) {
+                        if (_dateMode == CalendarDateMode.solar) {
+                          final death = _selectedMemorialDeathDate!;
+                          _solarDate = DateTime(
+                            death.year,
+                            death.month,
+                            death.day,
+                            _solarDate.hour,
+                            _solarDate.minute,
+                          );
+                        } else if (_selectedMemorialDeathLunarDate != null) {
+                          final deathLunar = _selectedMemorialDeathLunarDate!;
+                          _lunarYear = deathLunar.year;
+                          _lunarMonth = deathLunar.month;
+                          _lunarDay = deathLunar.day;
+                          _isLeapMonth = deathLunar.isLeapMonth;
+                        }
+                      }
+                    });
+                    _refreshLunarPreview();
+                    _refreshSolarLunarPreview();
+                  },
+                ),
+                const SizedBox(height: 12),
+                if (_dateMode == CalendarDateMode.solar)
+                  _SolarDateEditor(
+                    solarDate: _solarDate,
+                    timeOfDay: _timeOfDay,
+                    previewLunarDate: _solarPreviewLunarDate,
+                    previewError: _solarPreviewError,
+                    onPickDate: _pickSolarDate,
+                    onPickTime: _pickTime,
+                  )
+                else
+                  _LunarDateEditor(
+                    lunarYear: _lunarYear,
+                    lunarMonth: _lunarMonth,
+                    lunarDay: _lunarDay,
+                    isLeapMonth: _isLeapMonth,
+                    recurrencePolicy: _recurrencePolicy,
+                    previewSolarDate: _previewSolarDate,
+                    previewError: _previewError,
+                    onYearChanged: (value) {
+                      setState(() => _lunarYear = value);
+                      _refreshLunarPreview();
+                    },
+                    onMonthChanged: (value) {
+                      setState(() => _lunarMonth = value);
+                      _refreshLunarPreview();
+                    },
+                    onDayChanged: (value) {
+                      setState(() => _lunarDay = value);
+                      _refreshLunarPreview();
+                    },
+                    onLeapChanged: (value) {
+                      setState(() => _isLeapMonth = value);
+                      _refreshLunarPreview();
+                    },
+                    onPolicyChanged: (value) {
+                      setState(() => _recurrencePolicy = value);
+                      _refreshLunarPreview();
+                    },
+                  ),
+                const SizedBox(height: 12),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    l10n.pick(vi: 'Lặp lại hằng năm', en: 'Repeat annually'),
+                  ),
+                  value: _isAnnualRecurring,
+                  onChanged: (value) {
+                    setState(() => _isAnnualRecurring = value);
+                  },
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                    icon: const Icon(Icons.save_as_outlined),
+                    label: Text(l10n.pick(vi: 'Lưu nháp', en: 'Save draft')),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () {
+                            if (_validateStepOneInputs(showSnackBar: true)) {
+                              setState(() => _editorStep = 1);
+                            }
+                          },
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(l10n.pick(vi: 'Tiếp tục', en: 'Continue')),
+                  ),
+                ),
               ] else ...[
+                Text(
+                  l10n.pick(
+                    vi: 'Người nhận thông báo',
+                    en: 'Notification recipients',
+                  ),
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                if (widget.isRecipientsLoading) ...[
+                  const SizedBox(height: 8),
+                  const LinearProgressIndicator(minHeight: 2),
+                ],
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _audienceMode = EventNotificationAudienceMode.clanAll;
+                          _audienceBranchId = null;
+                          _includeMemberIds.clear();
+                        });
+                      },
+                      icon: const Icon(Icons.groups_outlined),
+                      label: Text(l10n.pick(vi: 'Toàn tộc', en: 'All clan')),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: widget.branches.isEmpty
+                          ? null
+                          : () {
+                              setState(() {
+                                _audienceMode =
+                                    EventNotificationAudienceMode.branchAll;
+                                _audienceBranchId =
+                                    _audienceBranchId ??
+                                    widget.branches.first.id;
+                                _includeMemberIds.clear();
+                              });
+                            },
+                      icon: const Icon(Icons.account_tree_outlined),
+                      label: Text(l10n.pick(vi: 'Toàn chi', en: 'All branch')),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: widget.members.isEmpty
+                          ? null
+                          : _applyLeaderViceQuickRecipients,
+                      icon: const Icon(Icons.shield_outlined),
+                      label: Text(
+                        l10n.pick(vi: 'Trưởng + phó', en: 'Lead + deputy'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SegmentedButton<EventNotificationAudienceMode>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(
+                      value: EventNotificationAudienceMode.clanAll,
+                      label: Text(l10n.pick(vi: 'Toàn tộc', en: 'All clan')),
+                    ),
+                    ButtonSegment(
+                      value: EventNotificationAudienceMode.branchAll,
+                      label: Text(l10n.pick(vi: 'Toàn chi', en: 'All branch')),
+                    ),
+                  ],
+                  selected: {_audienceMode},
+                  onSelectionChanged: (selection) {
+                    final mode = selection.firstOrNull;
+                    if (mode == null) {
+                      return;
+                    }
+                    setState(() {
+                      _audienceMode = mode;
+                      if (_audienceMode !=
+                          EventNotificationAudienceMode.branchAll) {
+                        _audienceBranchId = null;
+                      } else if (widget.branches.isNotEmpty) {
+                        _audienceBranchId ??= widget.branches.first.id;
+                      }
+                    });
+                  },
+                ),
+                if (_audienceMode ==
+                    EventNotificationAudienceMode.branchAll) ...[
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _audienceBranchId,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Chọn chi', en: 'Select branch'),
+                      border: const OutlineInputBorder(),
+                    ),
+                    items: [
+                      for (final branch in widget.branches)
+                        DropdownMenuItem<String?>(
+                          value: branch.id,
+                          child: Text(branch.name),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      setState(() => _audienceBranchId = value);
+                    },
+                  ),
+                ],
                 const SizedBox(height: 10),
                 Text(
                   l10n.pick(
@@ -2094,7 +2252,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                   icon: const Icon(Icons.person_remove_outlined),
                   label: Text(
                     l10n.pick(
-                      vi: 'Loại trừ đích danh',
+                      vi: 'Loại trừ người cụ thể',
                       en: 'Exclude named members',
                     ),
                   ),
@@ -2117,99 +2275,118 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                     ],
                   ),
                 ],
-              ],
-              const SizedBox(height: 8),
-              Builder(
-                builder: (context) {
-                  final recipients = _resolvedRecipientsPreview();
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.pick(
-                            vi: 'Sẽ gửi cho ${recipients.length} thành viên',
-                            en: 'Will notify ${recipients.length} members',
-                          ),
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
+                const SizedBox(height: 8),
+                Builder(
+                  builder: (context) {
+                    final recipients = _resolvedRecipientsPreview();
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
                         ),
-                        if (recipients.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            recipients
-                                .take(5)
-                                .map((m) => m.fullName)
-                                .join(', '),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ],
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l10n.pick(vi: 'Mốc lời nhắc', en: 'Reminder offsets'),
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final offset in _presetReminderOffsets)
-                    FilterChip(
-                      selected: _reminderOffsets.contains(offset),
-                      label: Text(_offsetLabel(l10n, offset)),
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _reminderOffsets.add(offset);
-                          } else {
-                            _reminderOffsets.remove(offset);
-                          }
-                        });
-                      },
-                    ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _isSubmitting
-                          ? null
-                          : () => Navigator.of(context).pop(false),
-                      child: Text(l10n.pick(vi: 'Hủy', en: 'Cancel')),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      key: const Key('calendar-event-save-button'),
-                      onPressed: _isSubmitting ? null : _submit,
-                      child: Text(
-                        _isSubmitting
-                            ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
-                            : l10n.pick(vi: 'Lưu', en: 'Save'),
                       ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.pick(
+                              vi: 'Đã chọn gửi cho ${recipients.length} người',
+                              en: 'Will notify ${recipients.length} members',
+                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          if (recipients.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              recipients
+                                  .take(5)
+                                  .map((m) => m.fullName)
+                                  .join(', '),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton(
+                                onPressed: () =>
+                                    _openRecipientsPreview(recipients),
+                                child: Text(
+                                  l10n.pick(
+                                    vi: 'Xem danh sách',
+                                    en: 'View list',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.pick(vi: 'Mốc lời nhắc', en: 'Reminder offsets'),
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final offset in _presetReminderOffsets)
+                      FilterChip(
+                        selected: _reminderOffsets.contains(offset),
+                        label: Text(_offsetLabel(l10n, offset)),
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _reminderOffsets.add(offset);
+                            } else {
+                              _reminderOffsets.remove(offset);
+                            }
+                          });
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => setState(() => _editorStep = 0),
+                    icon: const Icon(Icons.arrow_back),
+                    label: Text(l10n.pick(vi: 'Quay lại', en: 'Back')),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    key: const Key('calendar-event-save-button'),
+                    onPressed: _isSubmitting ? null : _submit,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: Text(
+                      _isSubmitting
+                          ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
+                          : l10n.pick(vi: 'Lưu', en: 'Save'),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ],
           ),
         ),
@@ -2236,6 +2413,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         _solarDate.minute,
       );
     });
+    _refreshSolarLunarPreview();
   }
 
   Future<void> _pickTime() async {
@@ -2247,6 +2425,306 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       return;
     }
     setState(() => _timeOfDay = picked);
+  }
+
+  bool _validateStepOneInputs({required bool showSnackBar}) {
+    final l10n = context.l10n;
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      if (showSnackBar) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick(
+                vi: 'Thiếu thông tin: Cần nhập tiêu đề sự kiện.',
+                en: 'Missing info: Please enter an event title.',
+              ),
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+    if (_eventType.isMemorial && _memorialForController.text.trim().isEmpty) {
+      if (showSnackBar) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick(
+                vi: 'Thiếu thông tin: Cần chọn người được giỗ.',
+                en: 'Missing info: Please select memorial recipient.',
+              ),
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _openRecipientsPreview(List<MemberProfile> recipients) async {
+    final l10n = context.l10n;
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) {
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          children: [
+            Text(
+              l10n.pick(vi: 'Danh sách người nhận', en: 'Recipient list'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            for (final member in recipients)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.person_outline),
+                title: Text(member.fullName),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _applyMemorialMemberSelection(Set<String> picked) async {
+    final validIds = picked
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty && _memberById(id) != null)
+        .where((id) => _deceasedMembers.any((member) => member.id == id))
+        .toSet();
+
+    if (validIds.isEmpty) {
+      await _onMemorialMemberChanged(null);
+      return;
+    }
+
+    final defaultMemberId = _pickDefaultMemorialMemberId(validIds);
+    final names = _memberNamesForDisplay(validIds);
+    await _onMemorialMemberChanged(
+      defaultMemberId,
+      memorialForNameOverride: names,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _selectedMemorialMemberIds
+        ..clear()
+        ..addAll(validIds);
+      _selectedMemorialMemberId = defaultMemberId;
+      _memorialForController.text = names;
+    });
+  }
+
+  void _applyHostMemberSelection(Set<String> picked) {
+    final validIds = picked
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty && _memberById(id) != null)
+        .where((id) => _aliveMembers.any((member) => member.id == id))
+        .toSet();
+
+    if (validIds.isEmpty) {
+      setState(() {
+        _selectedHostMemberIds.clear();
+        _selectedHostMemberId = null;
+        _hostHouseholdController.clear();
+      });
+      return;
+    }
+
+    final defaultMemberId = _pickDefaultHostMemberId(validIds);
+    setState(() {
+      _selectedHostMemberIds
+        ..clear()
+        ..addAll(validIds);
+      _selectedHostMemberId = defaultMemberId;
+      _hostHouseholdController.text = _memberNamesForDisplay(validIds);
+    });
+  }
+
+  String? _pickDefaultMemorialMemberId(Set<String> selectedIds) {
+    final selectedMembers = _deceasedMembers
+        .where((member) => selectedIds.contains(member.id))
+        .toList(growable: false);
+    if (selectedMembers.isEmpty) {
+      return null;
+    }
+    final sorted = [...selectedMembers]
+      ..sort((left, right) {
+        final leftDeath = _tryParseIsoDate(left.deathDate);
+        final rightDeath = _tryParseIsoDate(right.deathDate);
+        if (leftDeath == null && rightDeath == null) {
+          return left.fullName.compareTo(right.fullName);
+        }
+        if (leftDeath == null) {
+          return 1;
+        }
+        if (rightDeath == null) {
+          return -1;
+        }
+        final dateComparison = leftDeath.compareTo(rightDeath);
+        if (dateComparison != 0) {
+          return dateComparison;
+        }
+        return left.fullName.compareTo(right.fullName);
+      });
+    return sorted.first.id;
+  }
+
+  String? _pickDefaultHostMemberId(Set<String> selectedIds) {
+    final selectedMembers = _aliveMembers
+        .where((member) => selectedIds.contains(member.id))
+        .toList(growable: false);
+    if (selectedMembers.isEmpty) {
+      return null;
+    }
+    final sorted = [...selectedMembers]
+      ..sort((left, right) => left.fullName.compareTo(right.fullName));
+    return sorted.first.id;
+  }
+
+  String _memberNamesForDisplay(Set<String> selectedIds) {
+    final names =
+        selectedIds
+            .map(_memberLabel)
+            .map((name) => name.trim())
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList(growable: false)
+          ..sort();
+    return names.join(', ');
+  }
+
+  Future<void> _onMemorialMemberChanged(
+    String? memberId, {
+    String? memorialForNameOverride,
+  }) async {
+    final normalizedMemberId = memberId?.trim();
+    if (normalizedMemberId == null || normalizedMemberId.isEmpty) {
+      setState(() {
+        _selectedMemorialMemberId = null;
+        _selectedMemorialMemberIds.clear();
+        _memorialForController.clear();
+        _selectedMemorialDeathDate = null;
+        _selectedMemorialDeathLunarDate = null;
+        _selectedMemorialDateError = null;
+        _isResolvingMemorialDate = false;
+      });
+      return;
+    }
+
+    final member = _memberById(normalizedMemberId);
+    if (member == null) {
+      return;
+    }
+
+    final deathDate = _tryParseIsoDate(member.deathDate);
+    final revision = ++_memorialDateRevision;
+    final normalizedOverride = memorialForNameOverride?.trim() ?? '';
+    setState(() {
+      _selectedMemorialMemberId = member.id;
+      _selectedMemorialMemberIds.add(member.id);
+      _memorialForController.text = normalizedOverride.isNotEmpty
+          ? normalizedOverride
+          : member.fullName;
+      _selectedMemorialDeathDate = deathDate;
+      _selectedMemorialDeathLunarDate = null;
+      _selectedMemorialDateError = deathDate == null
+          ? context.l10n.pick(
+              vi: 'Hồ sơ chưa có ngày mất hợp lệ (YYYY-MM-DD).',
+              en: 'Member profile has no valid death date (YYYY-MM-DD).',
+            )
+          : null;
+      _isResolvingMemorialDate = deathDate != null;
+      if (deathDate != null && _dateMode == CalendarDateMode.solar) {
+        _solarDate = DateTime(
+          deathDate.year,
+          deathDate.month,
+          deathDate.day,
+          _solarDate.hour,
+          _solarDate.minute,
+        );
+      }
+    });
+    _refreshSolarLunarPreview();
+
+    if (deathDate == null) {
+      return;
+    }
+
+    try {
+      final lunarDate = await widget.controller.resolveSolarToLunar(
+        solarDate: deathDate,
+      );
+      if (!mounted || revision != _memorialDateRevision) {
+        return;
+      }
+      setState(() {
+        _selectedMemorialDeathLunarDate = lunarDate;
+        _selectedMemorialDateError = null;
+        _isResolvingMemorialDate = false;
+        if (_dateMode == CalendarDateMode.lunar) {
+          _lunarYear = lunarDate.year;
+          _lunarMonth = lunarDate.month;
+          _lunarDay = lunarDate.day;
+          _isLeapMonth = lunarDate.isLeapMonth;
+        }
+      });
+      _refreshLunarPreview();
+    } catch (_) {
+      if (!mounted || revision != _memorialDateRevision) {
+        return;
+      }
+      setState(() {
+        _isResolvingMemorialDate = false;
+        _selectedMemorialDateError = context.l10n.pick(
+          vi: 'Không thể quy đổi ngày mất sang âm lịch lúc này.',
+          en: 'Could not resolve death date to lunar date.',
+        );
+      });
+    }
+  }
+
+  Future<void> _refreshSolarLunarPreview() async {
+    final revision = ++_solarPreviewRevision;
+
+    if (_dateMode != CalendarDateMode.solar) {
+      setState(() {
+        _solarPreviewLunarDate = null;
+        _solarPreviewError = null;
+      });
+      return;
+    }
+
+    try {
+      final lunarDate = await widget.controller.resolveSolarToLunar(
+        solarDate: _solarDate,
+      );
+      if (!mounted || revision != _solarPreviewRevision) {
+        return;
+      }
+      setState(() {
+        _solarPreviewLunarDate = lunarDate;
+        _solarPreviewError = null;
+      });
+    } catch (_) {
+      if (!mounted || revision != _solarPreviewRevision) {
+        return;
+      }
+      setState(() {
+        _solarPreviewLunarDate = null;
+        _solarPreviewError = context.l10n.pick(
+          vi: 'Không thể quy đổi ngày dương sang âm lịch.',
+          en: 'Could not resolve the selected solar date to lunar date.',
+        );
+      });
+    }
   }
 
   Future<void> _refreshLunarPreview() async {
@@ -2309,13 +2787,127 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     );
   }
 
-  String _memberLabel(String memberId) {
-    for (final member in widget.members) {
-      if (member.id == memberId) {
-        return member.fullName;
+  List<MemberProfile> get _deceasedMembers {
+    final members = widget.members
+        .where((member) => !_isMemberAlive(member))
+        .toList(growable: false);
+    return _sortedMembersByName(members);
+  }
+
+  List<MemberProfile> get _aliveMembers {
+    final members = widget.members
+        .where(_isMemberAlive)
+        .toList(growable: false);
+    return _sortedMembersByName(members);
+  }
+
+  String? _memberIdByName(
+    String rawName, {
+    required List<MemberProfile> candidates,
+  }) {
+    final normalized = rawName.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    for (final member in candidates) {
+      if (member.fullName.trim().toLowerCase() == normalized ||
+          member.displayName.trim().toLowerCase() == normalized) {
+        return member.id;
       }
     }
-    return memberId;
+    return null;
+  }
+
+  Set<String> _memberIdsByNames(
+    String rawNames, {
+    required List<MemberProfile> candidates,
+  }) {
+    final ids = <String>{};
+    final parts = rawNames
+        .split(RegExp(r'[,;\n]'))
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    for (final part in parts) {
+      final id = _memberIdByName(part, candidates: candidates);
+      if (id != null) {
+        ids.add(id);
+      }
+    }
+    if (ids.isEmpty) {
+      final fallback = _memberIdByName(rawNames, candidates: candidates);
+      if (fallback != null) {
+        ids.add(fallback);
+      }
+    }
+    return ids;
+  }
+
+  MemberProfile? _memberById(String? memberId) {
+    final normalized = (memberId ?? '').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    for (final member in widget.members) {
+      if (member.id == normalized) {
+        return member;
+      }
+    }
+    return null;
+  }
+
+  String _memberLabel(String memberId) {
+    return _memberById(memberId)?.fullName ?? memberId;
+  }
+
+  String _memberKinshipBadge(MemberProfile member, AppLocalizations l10n) {
+    final viewer = _memberById(widget.viewerMemberId);
+    if (viewer == null) {
+      return l10n.pick(
+        vi: 'Đời ${member.generation}',
+        en: 'Generation ${member.generation}',
+      );
+    }
+
+    final relativeGeneration = member.generation - viewer.generation;
+    switch (relativeGeneration) {
+      case -4:
+        return l10n.pick(vi: 'Cụ kỵ', en: 'Great-great-grandparent');
+      case -3:
+        return l10n.pick(vi: 'Cụ', en: 'Great-grandparent');
+      case -2:
+        return l10n.pick(vi: 'Ông/Bà', en: 'Grandparents');
+      case -1:
+        return l10n.pick(vi: 'Cha/Mẹ', en: 'Parents');
+      case 0:
+        return l10n.pick(vi: 'Tôi', en: 'Me');
+      case 1:
+        return l10n.pick(vi: 'Con', en: 'Child');
+      case 2:
+        return l10n.pick(vi: 'Cháu', en: 'Grandchild');
+      case 3:
+        return l10n.pick(vi: 'Chắt', en: 'Great-grandchild');
+      case 4:
+        return l10n.pick(vi: 'Chít', en: 'Great-great-grandchild');
+      default:
+        if (relativeGeneration < -4) {
+          return l10n.pick(vi: 'Tổ tiên xa', en: 'Distant ancestor');
+        }
+        return l10n.pick(vi: 'Hậu duệ xa', en: 'Distant descendant');
+    }
+  }
+
+  String? _memberDeathDateCaption(MemberProfile member, AppLocalizations l10n) {
+    final deathDate = _tryParseIsoDate(member.deathDate);
+    if (deathDate == null) {
+      return null;
+    }
+    final day = deathDate.day.toString().padLeft(2, '0');
+    final month = deathDate.month.toString().padLeft(2, '0');
+    return l10n.pick(
+      vi: 'Ngày mất: $day/$month/${deathDate.year}',
+      en: 'Passed away: $month/$day/${deathDate.year}',
+    );
   }
 
   void _applyLeaderViceQuickRecipients() {
@@ -2340,12 +2932,17 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     }
 
     setState(() {
-      _audienceMode = EventNotificationAudienceMode.named;
-      _includeMemberIds
-        ..clear()
-        ..addAll(selectedIds);
+      _audienceMode = branchScoped
+          ? EventNotificationAudienceMode.branchAll
+          : EventNotificationAudienceMode.clanAll;
+      if (!branchScoped) {
+        _audienceBranchId = null;
+      }
+      _includeMemberIds.clear();
       _excludeMemberIds.clear();
-      _excludeRules.clear();
+      _excludeRules
+        ..clear()
+        ..add(EventNotificationAudienceExcludeRule.nonLeaderOrVice);
     });
   }
 
@@ -2393,9 +2990,13 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   Future<void> _pickMemberIds({
     required String title,
     required Set<String> initialSelected,
+    List<MemberProfile>? candidateMembers,
     required ValueChanged<Set<String>> onApplied,
   }) async {
     final selected = Set<String>.from(initialSelected);
+    final sourceMembers = _sortedMembersByName(
+      candidateMembers ?? widget.members,
+    );
     String query = '';
     final result = await showModalBottomSheet<Set<String>>(
       context: context,
@@ -2405,7 +3006,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final filteredMembers = widget.members
+            final filteredMembers = sourceMembers
                 .where((member) {
                   if (query.trim().isEmpty) {
                     return true;
@@ -2460,17 +3061,62 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                               itemBuilder: (context, index) {
                                 final member = filteredMembers[index];
                                 final isChecked = selected.contains(member.id);
+                                final kinshipBadge = _memberKinshipBadge(
+                                  member,
+                                  context.l10n,
+                                );
+                                final deathDateCaption =
+                                    _memberDeathDateCaption(
+                                      member,
+                                      context.l10n,
+                                    );
                                 return CheckboxListTile(
                                   value: isChecked,
+                                  controlAffinity:
+                                      ListTileControlAffinity.trailing,
                                   title: Text(member.fullName),
-                                  subtitle: member.branchId.trim().isEmpty
-                                      ? null
-                                      : Text(
-                                          context.l10n.pick(
-                                            vi: 'Mã: ${member.id}',
-                                            en: 'ID: ${member.id}',
+                                  subtitle: Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.secondaryContainer,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            kinshipBadge,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
                                           ),
                                         ),
+                                        if (deathDateCaption != null) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            deathDateCaption,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
                                   onChanged: (value) {
                                     setModalState(() {
                                       if (value == true) {
@@ -2541,8 +3187,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         SnackBar(
           content: Text(
             context.l10n.pick(
-              vi: 'Vui lòng nhập người được giỗ.',
-              en: 'Please provide who this memorial is for.',
+              vi: 'Vui lòng chọn người được giỗ.',
+              en: 'Please select who this memorial is for.',
             ),
           ),
         ),
@@ -2679,22 +3325,123 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   }
 }
 
+class _EventEditorStepIndicator extends StatelessWidget {
+  const _EventEditorStepIndicator({
+    required this.currentStep,
+    required this.labels,
+    required this.onStepSelected,
+  });
+
+  final int currentStep;
+  final List<String> labels;
+  final ValueChanged<int> onStepSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 560;
+        final itemWidth = compact
+            ? (constraints.maxWidth - 8) / 2
+            : (constraints.maxWidth - 8 * (labels.length - 1)) / labels.length;
+
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var index = 0; index < labels.length; index++)
+              SizedBox(
+                width: itemWidth,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => onStepSelected(index),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: index == currentStep
+                              ? colorScheme.primary
+                              : colorScheme.outlineVariant,
+                        ),
+                        color: index == currentStep
+                            ? colorScheme.secondaryContainer
+                            : colorScheme.surfaceContainerLow,
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 12,
+                            backgroundColor: index == currentStep
+                                ? colorScheme.primary
+                                : colorScheme.surfaceContainerHighest,
+                            foregroundColor: index == currentStep
+                                ? colorScheme.onPrimary
+                                : colorScheme.onSurfaceVariant,
+                            child: Text(
+                              '${index + 1}',
+                              style: textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              labels[index],
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.labelLarge?.copyWith(
+                                fontWeight: index == currentStep
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _SolarDateEditor extends StatelessWidget {
   const _SolarDateEditor({
     required this.solarDate,
     required this.timeOfDay,
+    required this.previewLunarDate,
+    required this.previewError,
     required this.onPickDate,
     required this.onPickTime,
   });
 
   final DateTime solarDate;
   final TimeOfDay timeOfDay;
+  final LunarDate? previewLunarDate;
+  final String? previewError;
   final VoidCallback onPickDate;
   final VoidCallback onPickTime;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
@@ -2717,7 +3464,91 @@ class _SolarDateEditor extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 10),
+        if (previewLunarDate != null)
+          Text(
+            l10n.pick(
+              vi: 'Ngày âm tương ứng: ${_formatLunarDateLocalized(l10n, previewLunarDate!)}',
+              en: 'Equivalent lunar date: ${_formatLunarDateLocalized(l10n, previewLunarDate!)}',
+            ),
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        if (previewError != null)
+          Text(
+            previewError!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
       ],
+    );
+  }
+}
+
+class _MemorialDateInfoCard extends StatelessWidget {
+  const _MemorialDateInfoCard({
+    required this.solarDeathDate,
+    required this.lunarDeathDate,
+    required this.isLoading,
+    required this.error,
+  });
+
+  final DateTime? solarDeathDate;
+  final LunarDate? lunarDeathDate;
+  final bool isLoading;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.pick(vi: 'Thông tin ngày mất', en: 'Death date details'),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (solarDeathDate != null)
+            Text(
+              l10n.pick(
+                vi: 'Dương lịch: ${_formatDate(solarDeathDate!)}',
+                en: 'Solar: ${_formatDate(solarDeathDate!)}',
+              ),
+            ),
+          if (lunarDeathDate != null)
+            Text(
+              l10n.pick(
+                vi: 'Âm lịch: ${_formatLunarDateLocalized(l10n, lunarDeathDate!)}',
+                en: 'Lunar: ${_formatLunarDateLocalized(l10n, lunarDeathDate!)}',
+              ),
+            ),
+          if (isLoading) ...[
+            const SizedBox(height: 6),
+            const LinearProgressIndicator(minHeight: 2),
+          ],
+          if (error != null && error!.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(error!, style: TextStyle(color: theme.colorScheme.error)),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            l10n.pick(
+              vi: 'Hệ thống lưu ngày mất theo chuẩn dương lịch và tự quy đổi âm/dương để bạn đối chiếu.',
+              en: 'The system stores death dates in solar format and auto-converts lunar/solar for cross-checking.',
+            ),
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2946,6 +3777,50 @@ String _monthName(AppLocalizations l10n, int month) {
   return names[month - 1];
 }
 
+DateTime? _tryParseIsoDate(String? value) {
+  final normalized = (value ?? '').trim();
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(normalized);
+  if (match == null) {
+    return null;
+  }
+
+  final year = int.tryParse(match.group(1)!);
+  final month = int.tryParse(match.group(2)!);
+  final day = int.tryParse(match.group(3)!);
+  if (year == null || month == null || day == null) {
+    return null;
+  }
+
+  final parsed = DateTime(year, month, day);
+  if (parsed.year != year || parsed.month != month || parsed.day != day) {
+    return null;
+  }
+  return parsed;
+}
+
+List<MemberProfile> _sortedMembersByName(List<MemberProfile> members) {
+  final sorted = List<MemberProfile>.from(members);
+  sorted.sort((left, right) {
+    final byName = left.fullName.toLowerCase().compareTo(
+      right.fullName.toLowerCase(),
+    );
+    if (byName != 0) {
+      return byName;
+    }
+    return left.id.compareTo(right.id);
+  });
+  return sorted;
+}
+
+String _formatLunarDateLocalized(AppLocalizations l10n, LunarDate lunarDate) {
+  if (l10n.localeName.toLowerCase().startsWith('vi')) {
+    final leapLabel = lunarDate.isLeapMonth ? ' (tháng nhuận)' : '';
+    return '${lunarDate.day}/${lunarDate.month}/${lunarDate.year}$leapLabel';
+  }
+  final leapLabel = lunarDate.isLeapMonth ? ' (leap month)' : '';
+  return '${lunarDate.month}/${lunarDate.day}/${lunarDate.year}$leapLabel';
+}
+
 String _isoDay(DateTime value) {
   final month = value.month.toString().padLeft(2, '0');
   final day = value.day.toString().padLeft(2, '0');
@@ -2996,7 +3871,7 @@ String _audienceSummaryLabel(
       en: 'All branch',
     ),
     EventNotificationAudienceMode.named => l10n.pick(
-      vi: 'Đích danh',
+      vi: 'Người cụ thể',
       en: 'Named',
     ),
   };

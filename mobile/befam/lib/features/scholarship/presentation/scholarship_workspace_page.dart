@@ -465,6 +465,17 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
               ),
             ],
           ),
+          floatingActionButton: _controller.canCreatePrograms
+              ? FloatingActionButton(
+                  key: const Key('scholarship-create-program-fab'),
+                  onPressed: _controller.isSaving ? null : _openProgramForm,
+                  tooltip: l10n.pick(
+                    vi: 'Tạo chương trình',
+                    en: 'Create program',
+                  ),
+                  child: const Icon(Icons.add),
+                )
+              : null,
           body: SafeArea(
             child: _controller.isLoading
                 ? AppLoadingState(
@@ -533,24 +544,6 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                   ),
                                 ),
                               ),
-                              if (_controller.canCreatePrograms) ...[
-                                const SizedBox(height: 16),
-                                FilledButton.icon(
-                                  key: const Key(
-                                    'scholarship-open-program-form-button',
-                                  ),
-                                  onPressed: _controller.isSaving
-                                      ? null
-                                      : _openProgramForm,
-                                  icon: const Icon(Icons.add),
-                                  label: Text(
-                                    l10n.pick(
-                                      vi: 'Tạo chương trình',
-                                      en: 'Create program',
-                                    ),
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
                         ),
@@ -620,18 +613,6 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                             vi: 'Danh sách chương trình',
                             en: 'Program list',
                           ),
-                          actionLabel: _controller.canCreatePrograms
-                              ? l10n.pick(
-                                  vi: 'Chương trình mới',
-                                  en: 'New program',
-                                )
-                              : null,
-                          actionKey: const Key(
-                            'scholarship-open-program-form-button-inline',
-                          ),
-                          onAction: _controller.canCreatePrograms
-                              ? _openProgramForm
-                              : null,
                           child: _controller.programs.isEmpty
                               ? _InlineEmpty(
                                   message: l10n.pick(
@@ -683,443 +664,455 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                   ],
                                 ),
                         ),
-                        const SizedBox(height: 16),
-                        _SectionCard(
-                          title: l10n.pick(
-                            vi: 'Chi tiết chương trình',
-                            en: 'Program detail',
-                          ),
-                          child: selectedProgram == null
-                              ? _InlineEmpty(
-                                  message: l10n.pick(
-                                    vi: 'Chọn một chương trình để xem mức thưởng và hồ sơ.',
-                                    en: 'Select a scholarship program to inspect award levels and submissions.',
-                                  ),
-                                )
-                              : Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      selectedProgram.title,
-                                      style: theme.textTheme.titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        _StatusBadge(
-                                          label: l10n.pick(
-                                            vi: 'Trạng thái: ${_programStatusLabel(context, selectedProgram.status)}',
-                                            en: 'Status: ${_programStatusLabel(context, selectedProgram.status)}',
-                                          ),
-                                        ),
-                                        _StatusBadge(
-                                          label: l10n.pick(
-                                            vi: 'Năm: ${selectedProgram.year}',
-                                            en: 'Year: ${selectedProgram.year}',
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (selectedProgram
-                                        .description
-                                        .isNotEmpty) ...[
-                                      const SizedBox(height: 12),
-                                      Text(selectedProgram.description),
-                                    ],
-                                  ],
-                                ),
-                        ),
-                        const SizedBox(height: 16),
-                        _SectionCard(
-                          title: l10n.pick(
-                            vi: 'Danh sách mức thưởng',
-                            en: 'Award level list',
-                          ),
-                          actionLabel:
-                              _controller.canCreateAwardLevels &&
-                                  selectedProgram != null
-                              ? l10n.pick(
-                                  vi: 'Thêm mức thưởng',
-                                  en: 'Add award level',
-                                )
-                              : null,
-                          actionKey: const Key(
-                            'scholarship-open-award-form-button',
-                          ),
-                          onAction:
-                              _controller.canCreateAwardLevels &&
-                                  selectedProgram != null
-                              ? () => _openAwardLevelForm(selectedProgram.id)
-                              : null,
-                          child: selectedProgram == null
-                              ? _InlineEmpty(
-                                  message: l10n.pick(
-                                    vi: 'Vui lòng chọn chương trình trước.',
-                                    en: 'Choose a program first.',
-                                  ),
-                                )
-                              : selectedProgramAwardLevels.isEmpty
-                              ? _InlineEmpty(
-                                  message: l10n.pick(
-                                    vi: 'Chưa có mức thưởng. Hãy thêm ít nhất một mức để thành viên nộp hồ sơ.',
-                                    en: 'No award levels yet. Add at least one so members can submit.',
-                                  ),
-                                )
-                              : Column(
-                                  children: [
-                                    for (final awardLevel
-                                        in selectedProgramAwardLevels)
-                                      ListTile(
-                                        key: Key(
-                                          'scholarship-award-level-${awardLevel.id}',
-                                        ),
-                                        contentPadding: EdgeInsets.zero,
-                                        leading: const Icon(
-                                          Icons.workspace_premium_outlined,
-                                        ),
-                                        title: Text(awardLevel.name),
-                                        subtitle: Text(
-                                          '${_rewardTypeLabel(context, awardLevel.rewardType)} • '
-                                          '${awardLevel.rewardAmountMinor}',
-                                        ),
-                                        trailing: Text(
-                                          '#${awardLevel.sortOrder}',
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                        ),
-                        const SizedBox(height: 16),
-                        _SectionCard(
-                          title: l10n.pick(
-                            vi: 'Tạo hồ sơ đề cử',
-                            en: 'Submission create form',
-                          ),
-                          actionLabel:
-                              _controller.canSubmitAchievements &&
-                                  selectedProgram != null
-                              ? l10n.pick(vi: 'Hồ sơ mới', en: 'New submission')
-                              : null,
-                          actionKey: const Key(
-                            'scholarship-open-submission-form-button',
-                          ),
-                          onAction:
-                              _controller.canSubmitAchievements &&
-                                  selectedProgram != null
-                              ? () => _openSubmissionForm(selectedProgram.id)
-                              : null,
-                          child: selectedProgram == null
-                              ? _InlineEmpty(
-                                  message: l10n.pick(
-                                    vi: 'Vui lòng chọn chương trình trước.',
-                                    en: 'Choose a program first.',
-                                  ),
-                                )
-                              : !_controller.canSubmitAchievements
-                              ? _InlineEmpty(
-                                  message: l10n.pick(
-                                    vi: 'Phiên đăng nhập hiện tại không có quyền nộp hồ sơ khuyến học.',
-                                    en: 'Your session cannot submit scholarship achievements.',
-                                  ),
-                                )
-                              : Text(
-                                  l10n.pick(
-                                    vi: 'Dùng nút Hồ sơ mới để đính kèm minh chứng và gửi xét duyệt.',
-                                    en: 'Use New submission to attach evidence and send the request for review.',
-                                  ),
-                                ),
-                        ),
-                        const SizedBox(height: 16),
-                        _SectionCard(
-                          title: l10n.pick(
-                            vi: 'Danh sách hồ sơ',
-                            en: 'Submissions',
-                          ),
-                          child: selectedProgram == null
-                              ? _InlineEmpty(
-                                  message: l10n.pick(
-                                    vi: 'Vui lòng chọn chương trình trước.',
-                                    en: 'Choose a program first.',
-                                  ),
-                                )
-                              : selectedProgramSubmissions.isEmpty
-                              ? _InlineEmpty(
-                                  message: l10n.pick(
-                                    vi: 'Chưa có hồ sơ nào trong chương trình này.',
-                                    en: 'No submissions in this program yet.',
-                                  ),
-                                )
-                              : Column(
-                                  children: [
-                                    for (final submission
-                                        in selectedProgramSubmissions)
-                                      Card(
-                                        key: Key(
-                                          'scholarship-submission-${submission.id}',
-                                        ),
-                                        margin: const EdgeInsets.only(
-                                          bottom: 12,
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(12),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      submission.title,
-                                                      style: theme
-                                                          .textTheme
-                                                          .titleSmall
-                                                          ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.w700,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  _StatusBadge(
-                                                    label: submission.status
-                                                        .toUpperCase(),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Text(
-                                                l10n.pick(
-                                                  vi: 'Học sinh: ${submission.studentNameSnapshot}',
-                                                  en: 'Student: ${submission.studentNameSnapshot}',
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                l10n.pick(
-                                                  vi: 'Số tệp minh chứng: ${submission.evidenceUrls.length}',
-                                                  en: 'Evidence files: ${submission.evidenceUrls.length}',
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                l10n.pick(
-                                                  vi: 'Phiếu hội đồng: ${submission.approvalCount} thuận • ${submission.rejectionCount} chống',
-                                                  en: 'Council votes: ${submission.approvalCount} approve • ${submission.rejectionCount} reject',
-                                                ),
-                                              ),
-                                              if (submission.reviewNote !=
-                                                      null &&
-                                                  submission.reviewNote!
-                                                      .trim()
-                                                      .isNotEmpty) ...[
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  l10n.pick(
-                                                    vi: 'Ghi chú xét duyệt: ${submission.reviewNote}',
-                                                    en: 'Review note: ${submission.reviewNote}',
-                                                  ),
-                                                ),
-                                              ],
-                                              if (submission.finalDecisionReason
-                                                      ?.trim()
-                                                      .isNotEmpty ==
-                                                  true) ...[
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  l10n.pick(
-                                                    vi: 'Lý do kết luận: ${submission.finalDecisionReason}',
-                                                    en: 'Final reason: ${submission.finalDecisionReason}',
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                        ),
-                        const SizedBox(height: 16),
-                        _SectionCard(
-                          title: l10n.pick(
-                            vi: 'Hàng đợi xét duyệt',
-                            en: 'Review queue',
-                          ),
-                          child: !_controller.canReviewSubmissions
-                              ? _InlineEmpty(
-                                  message: l10n.pick(
-                                    vi: 'Phiên đăng nhập hiện tại không có quyền xét duyệt hồ sơ.',
-                                    en: 'Your session cannot review scholarship submissions.',
-                                  ),
-                                )
-                              : reviewQueue.isEmpty
-                              ? _InlineEmpty(
-                                  message: l10n.pick(
-                                    vi: 'Không có hồ sơ chờ trong hàng đợi xét duyệt.',
-                                    en: 'No pending submissions in the review queue.',
-                                  ),
-                                )
-                              : Column(
-                                  children: [
-                                    for (final submission in reviewQueue)
-                                      Card(
-                                        key: Key(
-                                          'scholarship-review-item-${submission.id}',
-                                        ),
-                                        margin: const EdgeInsets.only(
-                                          bottom: 12,
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(12),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                submission.title,
-                                                style: theme
-                                                    .textTheme
-                                                    .titleSmall
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
-                                              ),
-                                              const SizedBox(height: 6),
-                                              Text(
-                                                l10n.pick(
-                                                  vi: 'Thành viên: ${_controller.memberName(submission.memberId)}',
-                                                  en: 'Member: ${_controller.memberName(submission.memberId)}',
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                l10n.pick(
-                                                  vi: 'Quy tắc 2/3 hội đồng • ${submission.approvalCount}/2 phiếu duyệt',
-                                                  en: '2-of-3 council rule • ${submission.approvalCount}/2 approvals',
-                                                ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: OutlinedButton.icon(
-                                                      key: Key(
-                                                        'scholarship-approve-${submission.id}',
-                                                      ),
-                                                      onPressed:
-                                                          _controller
-                                                                  .isReviewing ||
-                                                              _controller
-                                                                  .hasCurrentReviewerVoted(
-                                                                    submission,
-                                                                  )
-                                                          ? null
-                                                          : () {
-                                                              _reviewSubmission(
-                                                                submission:
-                                                                    submission,
-                                                                approved: true,
-                                                              );
-                                                            },
-                                                      icon: const Icon(
-                                                        Icons.check,
-                                                      ),
-                                                      label: Text(
-                                                        l10n.pick(
-                                                          vi: 'Duyệt',
-                                                          en: 'Approve',
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  Expanded(
-                                                    child: FilledButton.tonalIcon(
-                                                      key: Key(
-                                                        'scholarship-reject-${submission.id}',
-                                                      ),
-                                                      onPressed:
-                                                          _controller
-                                                                  .isReviewing ||
-                                                              _controller
-                                                                  .hasCurrentReviewerVoted(
-                                                                    submission,
-                                                                  )
-                                                          ? null
-                                                          : () {
-                                                              _reviewSubmission(
-                                                                submission:
-                                                                    submission,
-                                                                approved: false,
-                                                              );
-                                                            },
-                                                      icon: const Icon(
-                                                        Icons.close,
-                                                      ),
-                                                      label: Text(
-                                                        l10n.pick(
-                                                          vi: 'Từ chối',
-                                                          en: 'Reject',
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                        ),
-                        if (_controller.canViewApprovalHistory) ...[
+                        if (_controller.programs.isNotEmpty) ...[
                           const SizedBox(height: 16),
                           _SectionCard(
                             title: l10n.pick(
-                              vi: 'Nhật ký xét duyệt',
-                              en: 'Approval activity log',
+                              vi: 'Chi tiết chương trình',
+                              en: 'Program detail',
                             ),
-                            child: _controller.approvalLogs.isEmpty
+                            child: selectedProgram == null
                                 ? _InlineEmpty(
                                     message: l10n.pick(
-                                      vi: 'Chưa có hoạt động xét duyệt nào cho gia phả này.',
-                                      en: 'No approval activity yet for this clan.',
+                                      vi: 'Chọn một chương trình để xem mức thưởng và hồ sơ.',
+                                      en: 'Select a scholarship program to inspect award levels and submissions.',
+                                    ),
+                                  )
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        selectedProgram.title,
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          _StatusBadge(
+                                            label: l10n.pick(
+                                              vi: 'Trạng thái: ${_programStatusLabel(context, selectedProgram.status)}',
+                                              en: 'Status: ${_programStatusLabel(context, selectedProgram.status)}',
+                                            ),
+                                          ),
+                                          _StatusBadge(
+                                            label: l10n.pick(
+                                              vi: 'Năm: ${selectedProgram.year}',
+                                              en: 'Year: ${selectedProgram.year}',
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      if (selectedProgram
+                                          .description
+                                          .isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        Text(selectedProgram.description),
+                                      ],
+                                    ],
+                                  ),
+                          ),
+                          const SizedBox(height: 16),
+                          _SectionCard(
+                            title: l10n.pick(
+                              vi: 'Danh sách mức thưởng',
+                              en: 'Award level list',
+                            ),
+                            actionLabel:
+                                _controller.canCreateAwardLevels &&
+                                    selectedProgram != null
+                                ? l10n.pick(
+                                    vi: 'Thêm mức thưởng',
+                                    en: 'Add award level',
+                                  )
+                                : null,
+                            actionKey: const Key(
+                              'scholarship-open-award-form-button',
+                            ),
+                            onAction:
+                                _controller.canCreateAwardLevels &&
+                                    selectedProgram != null
+                                ? () => _openAwardLevelForm(selectedProgram.id)
+                                : null,
+                            child: selectedProgram == null
+                                ? _InlineEmpty(
+                                    message: l10n.pick(
+                                      vi: 'Vui lòng chọn chương trình trước.',
+                                      en: 'Choose a program first.',
+                                    ),
+                                  )
+                                : selectedProgramAwardLevels.isEmpty
+                                ? _InlineEmpty(
+                                    message: l10n.pick(
+                                      vi: 'Chưa có mức thưởng. Hãy thêm ít nhất một mức để thành viên nộp hồ sơ.',
+                                      en: 'No award levels yet. Add at least one so members can submit.',
                                     ),
                                   )
                                 : Column(
                                     children: [
-                                      for (final log
-                                          in _controller.approvalLogs.take(25))
+                                      for (final awardLevel
+                                          in selectedProgramAwardLevels)
                                         ListTile(
                                           key: Key(
-                                            'scholarship-approval-log-${log.id}',
+                                            'scholarship-award-level-${awardLevel.id}',
                                           ),
                                           contentPadding: EdgeInsets.zero,
-                                          leading: Icon(
-                                            log.action == 'finalized'
-                                                ? Icons.flag_outlined
-                                                : Icons.how_to_vote_outlined,
+                                          leading: const Icon(
+                                            Icons.workspace_premium_outlined,
                                           ),
-                                          title: Text(
-                                            '${_approvalActionLabel(context, log.action)} • ${_approvalDecisionLabel(context, log.decision)}',
-                                          ),
+                                          title: Text(awardLevel.name),
                                           subtitle: Text(
-                                            l10n.pick(
-                                              vi: 'Hồ sơ ${log.submissionId} • ${_controller.memberName(log.actorMemberId)}',
-                                              en: 'Submission ${log.submissionId} • ${_controller.memberName(log.actorMemberId)}',
+                                            '${_rewardTypeLabel(context, awardLevel.rewardType)} • '
+                                            '${awardLevel.rewardAmountMinor}',
+                                          ),
+                                          trailing: Text(
+                                            '#${awardLevel.sortOrder}',
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                          ),
+                          const SizedBox(height: 16),
+                          _SectionCard(
+                            title: l10n.pick(
+                              vi: 'Tạo hồ sơ đề cử',
+                              en: 'Submission create form',
+                            ),
+                            actionLabel:
+                                _controller.canSubmitAchievements &&
+                                    selectedProgram != null
+                                ? l10n.pick(
+                                    vi: 'Hồ sơ mới',
+                                    en: 'New submission',
+                                  )
+                                : null,
+                            actionKey: const Key(
+                              'scholarship-open-submission-form-button',
+                            ),
+                            onAction:
+                                _controller.canSubmitAchievements &&
+                                    selectedProgram != null
+                                ? () => _openSubmissionForm(selectedProgram.id)
+                                : null,
+                            child: selectedProgram == null
+                                ? _InlineEmpty(
+                                    message: l10n.pick(
+                                      vi: 'Vui lòng chọn chương trình trước.',
+                                      en: 'Choose a program first.',
+                                    ),
+                                  )
+                                : !_controller.canSubmitAchievements
+                                ? _InlineEmpty(
+                                    message: l10n.pick(
+                                      vi: 'Phiên đăng nhập hiện tại không có quyền nộp hồ sơ khuyến học.',
+                                      en: 'Your session cannot submit scholarship achievements.',
+                                    ),
+                                  )
+                                : Text(
+                                    l10n.pick(
+                                      vi: 'Dùng nút Hồ sơ mới để đính kèm minh chứng và gửi xét duyệt.',
+                                      en: 'Use New submission to attach evidence and send the request for review.',
+                                    ),
+                                  ),
+                          ),
+                          const SizedBox(height: 16),
+                          _SectionCard(
+                            title: l10n.pick(
+                              vi: 'Danh sách hồ sơ',
+                              en: 'Submissions',
+                            ),
+                            child: selectedProgram == null
+                                ? _InlineEmpty(
+                                    message: l10n.pick(
+                                      vi: 'Vui lòng chọn chương trình trước.',
+                                      en: 'Choose a program first.',
+                                    ),
+                                  )
+                                : selectedProgramSubmissions.isEmpty
+                                ? _InlineEmpty(
+                                    message: l10n.pick(
+                                      vi: 'Chưa có hồ sơ nào trong chương trình này.',
+                                      en: 'No submissions in this program yet.',
+                                    ),
+                                  )
+                                : Column(
+                                    children: [
+                                      for (final submission
+                                          in selectedProgramSubmissions)
+                                        Card(
+                                          key: Key(
+                                            'scholarship-submission-${submission.id}',
+                                          ),
+                                          margin: const EdgeInsets.only(
+                                            bottom: 12,
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(12),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        submission.title,
+                                                        style: theme
+                                                            .textTheme
+                                                            .titleSmall
+                                                            ?.copyWith(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                    _StatusBadge(
+                                                      label: submission.status
+                                                          .toUpperCase(),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  l10n.pick(
+                                                    vi: 'Học sinh: ${submission.studentNameSnapshot}',
+                                                    en: 'Student: ${submission.studentNameSnapshot}',
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  l10n.pick(
+                                                    vi: 'Số tệp minh chứng: ${submission.evidenceUrls.length}',
+                                                    en: 'Evidence files: ${submission.evidenceUrls.length}',
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  l10n.pick(
+                                                    vi: 'Phiếu hội đồng: ${submission.approvalCount} thuận • ${submission.rejectionCount} chống',
+                                                    en: 'Council votes: ${submission.approvalCount} approve • ${submission.rejectionCount} reject',
+                                                  ),
+                                                ),
+                                                if (submission.reviewNote !=
+                                                        null &&
+                                                    submission.reviewNote!
+                                                        .trim()
+                                                        .isNotEmpty) ...[
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    l10n.pick(
+                                                      vi: 'Ghi chú xét duyệt: ${submission.reviewNote}',
+                                                      en: 'Review note: ${submission.reviewNote}',
+                                                    ),
+                                                  ),
+                                                ],
+                                                if (submission
+                                                        .finalDecisionReason
+                                                        ?.trim()
+                                                        .isNotEmpty ==
+                                                    true) ...[
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    l10n.pick(
+                                                      vi: 'Lý do kết luận: ${submission.finalDecisionReason}',
+                                                      en: 'Final reason: ${submission.finalDecisionReason}',
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
                                             ),
                                           ),
                                         ),
                                     ],
                                   ),
                           ),
+                          const SizedBox(height: 16),
+                          _SectionCard(
+                            title: l10n.pick(
+                              vi: 'Hàng đợi xét duyệt',
+                              en: 'Review queue',
+                            ),
+                            child: !_controller.canReviewSubmissions
+                                ? _InlineEmpty(
+                                    message: l10n.pick(
+                                      vi: 'Vai trò hiện tại chưa có quyền xét duyệt hồ sơ.',
+                                      en: 'Your session cannot review scholarship submissions.',
+                                    ),
+                                  )
+                                : reviewQueue.isEmpty
+                                ? _InlineEmpty(
+                                    message: l10n.pick(
+                                      vi: 'Không có hồ sơ chờ trong hàng đợi xét duyệt.',
+                                      en: 'No pending submissions in the review queue.',
+                                    ),
+                                  )
+                                : Column(
+                                    children: [
+                                      for (final submission in reviewQueue)
+                                        Card(
+                                          key: Key(
+                                            'scholarship-review-item-${submission.id}',
+                                          ),
+                                          margin: const EdgeInsets.only(
+                                            bottom: 12,
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(12),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  submission.title,
+                                                  style: theme
+                                                      .textTheme
+                                                      .titleSmall
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  l10n.pick(
+                                                    vi: 'Thành viên: ${_controller.memberName(submission.memberId)}',
+                                                    en: 'Member: ${_controller.memberName(submission.memberId)}',
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  l10n.pick(
+                                                    vi: 'Quy tắc 2/3 hội đồng • ${submission.approvalCount}/2 phiếu duyệt',
+                                                    en: '2-of-3 council rule • ${submission.approvalCount}/2 approvals',
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 10),
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: OutlinedButton.icon(
+                                                        key: Key(
+                                                          'scholarship-approve-${submission.id}',
+                                                        ),
+                                                        onPressed:
+                                                            _controller
+                                                                    .isReviewing ||
+                                                                _controller
+                                                                    .hasCurrentReviewerVoted(
+                                                                      submission,
+                                                                    )
+                                                            ? null
+                                                            : () {
+                                                                _reviewSubmission(
+                                                                  submission:
+                                                                      submission,
+                                                                  approved:
+                                                                      true,
+                                                                );
+                                                              },
+                                                        icon: const Icon(
+                                                          Icons.check,
+                                                        ),
+                                                        label: Text(
+                                                          l10n.pick(
+                                                            vi: 'Duyệt',
+                                                            en: 'Approve',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: FilledButton.tonalIcon(
+                                                        key: Key(
+                                                          'scholarship-reject-${submission.id}',
+                                                        ),
+                                                        onPressed:
+                                                            _controller
+                                                                    .isReviewing ||
+                                                                _controller
+                                                                    .hasCurrentReviewerVoted(
+                                                                      submission,
+                                                                    )
+                                                            ? null
+                                                            : () {
+                                                                _reviewSubmission(
+                                                                  submission:
+                                                                      submission,
+                                                                  approved:
+                                                                      false,
+                                                                );
+                                                              },
+                                                        icon: const Icon(
+                                                          Icons.close,
+                                                        ),
+                                                        label: Text(
+                                                          l10n.pick(
+                                                            vi: 'Từ chối',
+                                                            en: 'Reject',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                          ),
+                          if (_controller.canViewApprovalHistory) ...[
+                            const SizedBox(height: 16),
+                            _SectionCard(
+                              title: l10n.pick(
+                                vi: 'Nhật ký xét duyệt',
+                                en: 'Approval activity log',
+                              ),
+                              child: _controller.approvalLogs.isEmpty
+                                  ? _InlineEmpty(
+                                      message: l10n.pick(
+                                        vi: 'Chưa có hoạt động xét duyệt nào cho gia phả này.',
+                                        en: 'No approval activity yet for this clan.',
+                                      ),
+                                    )
+                                  : Column(
+                                      children: [
+                                        for (final log
+                                            in _controller.approvalLogs.take(
+                                              25,
+                                            ))
+                                          ListTile(
+                                            key: Key(
+                                              'scholarship-approval-log-${log.id}',
+                                            ),
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: Icon(
+                                              log.action == 'finalized'
+                                                  ? Icons.flag_outlined
+                                                  : Icons.how_to_vote_outlined,
+                                            ),
+                                            title: Text(
+                                              '${_approvalActionLabel(context, log.action)} • ${_approvalDecisionLabel(context, log.decision)}',
+                                            ),
+                                            subtitle: Text(
+                                              l10n.pick(
+                                                vi: 'Hồ sơ ${log.submissionId} • ${_controller.memberName(log.actorMemberId)}',
+                                                en: 'Submission ${log.submissionId} • ${_controller.memberName(log.actorMemberId)}',
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                            ),
+                          ],
                         ],
                       ],
                     ),

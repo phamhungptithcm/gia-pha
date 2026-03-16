@@ -27,7 +27,7 @@ void main() {
     );
   }
 
-  testWidgets('adds a spouse relationship from the inspector panel', (
+  testWidgets('renders relationship inspector in read-only mode', (
     tester,
   ) async {
     final store = DebugGenealogyStore.seeded();
@@ -52,7 +52,6 @@ void main() {
               member: member,
               members: store.members.values.toList(growable: false),
               repository: relationshipRepository,
-              onRelationshipsChanged: () async {},
             ),
           ),
         ),
@@ -61,18 +60,67 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Quan hệ gia đình'), findsOneWidget);
+    expect(find.text('Cha/mẹ'), findsOneWidget);
+    expect(find.text('Con'), findsOneWidget);
+    expect(find.text('Vợ/chồng'), findsOneWidget);
     expect(find.text('Bé Minh'), findsWidgets);
-
-    await tester.tap(find.byKey(const Key('relationship-add-spouse-button')));
-    await tester.pumpAndSettle();
-
-    await tester.tap(
-      find.byKey(const Key('relationship-candidate-member_demo_parent_002')),
+    expect(
+      find.byKey(const Key('relationship-add-parent-button')),
+      findsNothing,
     );
-    await tester.pump();
-    await tester.pumpAndSettle();
-
-    expect(find.text('Đã thêm liên kết hôn phối.'), findsOneWidget);
-    expect(find.text('Trần Lan'), findsWidgets);
+    expect(
+      find.byKey(const Key('relationship-add-child-button')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('relationship-add-spouse-button')),
+      findsNothing,
+    );
   });
+
+  testWidgets(
+    'opens linked member detail callback when tapping relation chip',
+    (tester) async {
+      final store = DebugGenealogyStore.seeded();
+      final relationshipRepository = DebugRelationshipRepository(store: store);
+      final member = store.members['member_demo_parent_001']!;
+      final linkedMember = store.members.values.firstWhere(
+        (entry) => entry.fullName == 'Bé Minh',
+      );
+      String? openedMemberId;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('vi'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Scaffold(
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: RelationshipInspectorPanel(
+                session: buildClanAdminSession(),
+                member: member,
+                members: store.members.values.toList(growable: false),
+                repository: relationshipRepository,
+                onOpenMemberDetail: (selected) {
+                  openedMemberId = selected.id;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ActionChip, 'Bé Minh').first);
+      await tester.pump();
+
+      expect(openedMemberId, linkedMember.id);
+    },
+  );
 }

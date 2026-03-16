@@ -74,7 +74,7 @@ extension AppLocalizationsX on AppLocalizations {
   }
 
   String shellDestinationLabel(String id) {
-    return switch (id) {
+    final label = switch (id) {
       'home' => shellHomeLabel,
       'tree' => shellTreeLabel,
       'events' => shellEventsLabel,
@@ -82,6 +82,7 @@ extension AppLocalizationsX on AppLocalizations {
       'profile' => shellProfileLabel,
       _ => shellHomeLabel,
     };
+    return label.replaceAll(' ', '\u00A0');
   }
 
   String shellDestinationTitle(String id) {

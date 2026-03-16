@@ -54,23 +54,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
   AuthSession get _session => _activeSession;
 
   List<ClanContextOption> get _clanContexts {
-    if (widget.availableClanContexts.isNotEmpty) {
-      return widget.availableClanContexts;
-    }
-    final clanId = (_session.clanId ?? '').trim();
-    if (clanId.isEmpty) {
-      return const [];
-    }
-    return [
-      ClanContextOption(
-        clanId: clanId,
-        clanName: clanId,
-        memberId: (_session.memberId ?? '').trim(),
-        primaryRole: (_session.primaryRole ?? 'MEMBER').trim().toUpperCase(),
-        branchId: _nullIfBlank(_session.branchId),
-        displayName: _nullIfBlank(_session.displayName),
-      ),
-    ];
+    return widget.availableClanContexts;
   }
 
   @override
@@ -143,6 +127,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
               : FundDraft.fromProfile(fund),
           availableClanContexts: _clanContexts,
           activeClanId: (_session.clanId ?? '').trim(),
+          resolveViewerMemberId: () => _session.memberId,
           onEnsureClanContext: _ensureClanContext,
           loadMembersForClan: _loadMembersForClan,
           isSaving: _controller.isSavingFund,
@@ -357,6 +342,12 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final currentFund = _controller.selectedFund;
+        final hasFunds = _controller.funds.isNotEmpty;
+        final displayCurrency =
+            currentFund?.currency ??
+            (_controller.funds.isNotEmpty
+                ? _controller.funds.first.currency
+                : 'VND');
 
         return Scaffold(
           appBar: AppBar(
@@ -402,11 +393,10 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
             ],
           ),
           floatingActionButton: _controller.canManageFunds
-              ? FloatingActionButton.extended(
+              ? FloatingActionButton(
                   onPressed: () => _openFundEditor(),
                   tooltip: l10n.pick(vi: 'Thêm quỹ', en: 'Add fund'),
-                  icon: const Icon(Icons.add),
-                  label: Text(l10n.pick(vi: 'Thêm quỹ', en: 'Add fund')),
+                  child: const Icon(Icons.add),
                 )
               : null,
           body: SafeArea(
@@ -444,7 +434,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                             en: 'Track donations, expenses, running balance, and history across each fund.',
                           ),
                           canManageFunds: _controller.canManageFunds,
-                          onPrimaryAction: _controller.canManageFunds
+                          onPrimaryAction:
+                              _controller.canManageFunds && !hasFunds
                               ? () => _openFundEditor()
                               : null,
                         ),
@@ -497,104 +488,98 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                             tone: colorScheme.secondaryContainer,
                           ),
                           const SizedBox(height: 20),
-                        ],
-                        _StatRow(
-                          items: [
-                            _StatTile(
-                              label: l10n.pick(vi: 'Quỹ', en: 'Funds'),
-                              value: '${_controller.funds.length}',
-                              icon: Icons.account_balance_wallet_outlined,
+                        ] else ...[
+                          _InfoCard(
+                            icon: Icons.edit_note_outlined,
+                            title: l10n.pick(
+                              vi: 'Quyền truy cập',
+                              en: 'Access level',
                             ),
-                            _StatTile(
-                              label: l10n.pick(
-                                vi: 'Giao dịch',
-                                en: 'Transactions',
-                              ),
-                              value: '${_controller.transactions.length}',
-                              icon: Icons.receipt_long_outlined,
+                            description: l10n.pick(
+                              vi: 'Bạn có quyền ghi sổ. Thủ quỹ hiện tại: ${_treasurerSummaryLabel(context, currentFund: currentFund)}.',
+                              en: 'You have write access. Active treasurer: ${_treasurerSummaryLabel(context, currentFund: currentFund)}.',
                             ),
-                            _StatTile(
-                              label: l10n.pick(
-                                vi: 'Quyền truy cập',
-                                en: 'Access',
-                              ),
-                              value: _controller.canManageFunds
-                                  ? l10n.pick(vi: 'Ghi', en: 'Write')
-                                  : l10n.pick(vi: 'Đọc', en: 'Read'),
-                              icon: Icons.verified_user_outlined,
-                            ),
-                            _StatTile(
-                              label: l10n.pick(
-                                vi: 'Thủ quỹ quỹ hiện tại',
-                                en: 'Current fund treasurer',
-                              ),
-                              value: _treasurerSummaryLabel(
-                                context,
-                                currentFund: currentFund,
-                              ),
-                              valueMaxLines: 2,
-                              icon: Icons.badge_outlined,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        _SectionCard(
-                          title: l10n.pick(
-                            vi: 'Danh sách quỹ',
-                            en: 'Fund list',
+                            tone: colorScheme.secondaryContainer,
                           ),
-                          actionLabel: _controller.canManageFunds
-                              ? l10n.pick(vi: 'Tạo quỹ', en: 'Create fund')
-                              : null,
-                          onAction: _controller.canManageFunds
-                              ? () => _openFundEditor()
-                              : null,
-                          child: _controller.funds.isEmpty
-                              ? _EmptyWorkspace(
-                                  icon: Icons.savings_outlined,
-                                  title: l10n.pick(
-                                    vi: 'Chưa có quỹ nào',
-                                    en: 'No funds yet',
-                                  ),
-                                  description: l10n.pick(
-                                    vi: 'Tạo quỹ đầu tiên để bắt đầu ghi nhận đóng góp và chi tiêu.',
-                                    en: 'Create the first fund to start recording donations and expenses.',
-                                  ),
+                          const SizedBox(height: 20),
+                        ],
+                        if (hasFunds) ...[
+                          _StatRow(
+                            items: [
+                              _StatTile(
+                                label: l10n.pick(vi: 'Số dư', en: 'Balance'),
+                                value: CurrencyMinorUnits.formatMinorUnits(
+                                  amountMinor: _totalBalanceMinor(),
+                                  currency: displayCurrency,
+                                ),
+                                icon: Icons.account_balance_wallet_outlined,
+                                valueMaxLines: 2,
+                              ),
+                              _StatTile(
+                                label: l10n.pick(
+                                  vi: 'Thu tháng này',
+                                  en: 'This month income',
+                                ),
+                                value: CurrencyMinorUnits.formatMinorUnits(
+                                  amountMinor: _donationThisMonthMinor(),
+                                  currency: displayCurrency,
+                                ),
+                                icon: Icons.call_received_outlined,
+                                valueMaxLines: 2,
+                              ),
+                              _StatTile(
+                                label: l10n.pick(
+                                  vi: 'Chi tháng này',
+                                  en: 'This month expense',
+                                ),
+                                value: CurrencyMinorUnits.formatMinorUnits(
+                                  amountMinor: _expenseThisMonthMinor(),
+                                  currency: displayCurrency,
+                                ),
+                                icon: Icons.call_made_outlined,
+                                valueMaxLines: 2,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          _SectionCard(
+                            title: l10n.pick(
+                              vi: 'Danh sách quỹ',
+                              en: 'Fund list',
+                            ),
+                            child: Column(
+                              children: [
+                                for (
+                                  var i = 0;
+                                  i < _controller.funds.length;
+                                  i++
                                 )
-                              : Column(
-                                  children: [
-                                    for (
-                                      var i = 0;
-                                      i < _controller.funds.length;
-                                      i++
-                                    )
-                                      Padding(
-                                        padding: EdgeInsets.only(
-                                          bottom:
-                                              i == _controller.funds.length - 1
-                                              ? 0
-                                              : 14,
-                                        ),
-                                        child: _FundSummaryCard(
-                                          fund: _controller.funds[i],
-                                          memberCountLabel:
-                                              _memberCountLabelForFund(
-                                                context,
-                                                _controller.funds[i],
-                                              ),
-                                          onTap: () => _openFundDetail(
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom: i == _controller.funds.length - 1
+                                          ? 0
+                                          : 14,
+                                    ),
+                                    child: _FundSummaryCard(
+                                      fund: _controller.funds[i],
+                                      memberCountLabel:
+                                          _memberCountLabelForFund(
+                                            context,
                                             _controller.funds[i],
                                           ),
-                                          onEdit: _controller.canManageFunds
-                                              ? () => _openFundEditor(
-                                                  fund: _controller.funds[i],
-                                                )
-                                              : null,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                        ),
+                                      onTap: () =>
+                                          _openFundDetail(_controller.funds[i]),
+                                      onEdit: _controller.canManageFunds
+                                          ? () => _openFundEditor(
+                                              fund: _controller.funds[i],
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -612,6 +597,42 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       vi: 'Áp dụng: ${fund.appliedMemberIds.length} thành viên',
       en: 'Applies to ${fund.appliedMemberIds.length} members',
     );
+  }
+
+  int _totalBalanceMinor() {
+    var sum = 0;
+    for (final fund in _controller.funds) {
+      sum += fund.balanceMinor;
+    }
+    return sum;
+  }
+
+  int _donationThisMonthMinor() {
+    final now = DateTime.now();
+    var sum = 0;
+    for (final tx in _controller.transactions) {
+      final localDate = tx.occurredAt.toLocal();
+      if (localDate.year == now.year &&
+          localDate.month == now.month &&
+          tx.isDonation) {
+        sum += tx.amountMinor;
+      }
+    }
+    return sum;
+  }
+
+  int _expenseThisMonthMinor() {
+    final now = DateTime.now();
+    var sum = 0;
+    for (final tx in _controller.transactions) {
+      final localDate = tx.occurredAt.toLocal();
+      if (localDate.year == now.year &&
+          localDate.month == now.month &&
+          tx.isExpense) {
+        sum += tx.amountMinor;
+      }
+    }
+    return sum;
   }
 
   String _treasurerSummaryLabel(
@@ -1075,6 +1096,7 @@ class _FundEditorSheet extends StatefulWidget {
     required this.initialDraft,
     required this.availableClanContexts,
     required this.activeClanId,
+    required this.resolveViewerMemberId,
     required this.onEnsureClanContext,
     required this.loadMembersForClan,
     required this.isSaving,
@@ -1086,6 +1108,7 @@ class _FundEditorSheet extends StatefulWidget {
   final FundDraft initialDraft;
   final List<ClanContextOption> availableClanContexts;
   final String activeClanId;
+  final String? Function() resolveViewerMemberId;
   final Future<bool> Function(String clanId) onEnsureClanContext;
   final Future<List<MemberProfile>> Function(String clanId) loadMembersForClan;
   final bool isSaving;
@@ -1303,11 +1326,84 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
             .where((member) => ids.contains(member.id))
             .toList(growable: false)
           ..sort(
-            (left, right) => left.displayName.toLowerCase().compareTo(
-              right.displayName.toLowerCase(),
+            (left, right) => left.fullName.toLowerCase().compareTo(
+              right.fullName.toLowerCase(),
             ),
           );
     return selected;
+  }
+
+  MemberProfile? _memberById(String? memberId) {
+    final normalized = (memberId ?? '').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    for (final member in _members) {
+      if (member.id == normalized) {
+        return member;
+      }
+    }
+    return null;
+  }
+
+  String _memberKinshipBadge(MemberProfile member, BuildContext context) {
+    final l10n = context.l10n;
+    final viewer = _memberById(widget.resolveViewerMemberId());
+    if (viewer == null) {
+      return l10n.pick(
+        vi: 'Đời ${member.generation}',
+        en: 'Generation ${member.generation}',
+      );
+    }
+
+    final relativeGeneration = member.generation - viewer.generation;
+    switch (relativeGeneration) {
+      case -4:
+        return l10n.pick(vi: 'Cụ kỵ', en: 'Great-great-grandparent');
+      case -3:
+        return l10n.pick(vi: 'Cụ', en: 'Great-grandparent');
+      case -2:
+        return l10n.pick(vi: 'Ông/Bà', en: 'Grandparents');
+      case -1:
+        return l10n.pick(vi: 'Cha/Mẹ', en: 'Parents');
+      case 0:
+        return l10n.pick(vi: 'Tôi', en: 'Me');
+      case 1:
+        return l10n.pick(vi: 'Con', en: 'Child');
+      case 2:
+        return l10n.pick(vi: 'Cháu', en: 'Grandchild');
+      case 3:
+        return l10n.pick(vi: 'Chắt', en: 'Great-grandchild');
+      case 4:
+        return l10n.pick(vi: 'Chít', en: 'Great-great-grandchild');
+      default:
+        if (relativeGeneration < -4) {
+          return l10n.pick(vi: 'Tổ tiên xa', en: 'Distant ancestor');
+        }
+        return l10n.pick(vi: 'Hậu duệ xa', en: 'Distant descendant');
+    }
+  }
+
+  String? _memberDeathDateCaption(MemberProfile member, BuildContext context) {
+    final deathDate = _tryParseIsoDate(member.deathDate);
+    if (deathDate == null) {
+      return null;
+    }
+    final l10n = context.l10n;
+    final day = deathDate.day.toString().padLeft(2, '0');
+    final month = deathDate.month.toString().padLeft(2, '0');
+    return l10n.pick(
+      vi: 'Ngày mất: $day/$month/${deathDate.year}',
+      en: 'Passed away: $month/$day/${deathDate.year}',
+    );
+  }
+
+  DateTime? _tryParseIsoDate(String? raw) {
+    final normalized = (raw ?? '').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(normalized);
   }
 
   Future<void> _pickMemberIds({
@@ -1331,9 +1427,13 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   if (normalizedQuery.isEmpty) {
                     return true;
                   }
-                  return member.displayName.toLowerCase().contains(
+                  return member.fullName.toLowerCase().contains(
                         normalizedQuery,
                       ) ||
+                      member.displayName.toLowerCase().contains(
+                        normalizedQuery,
+                      ) ||
+                      member.nickName.toLowerCase().contains(normalizedQuery) ||
                       member.id.toLowerCase().contains(normalizedQuery);
                 })
                 .toList(growable: false);
@@ -1382,13 +1482,69 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                               itemBuilder: (context, index) {
                                 final member = filteredMembers[index];
                                 final isChecked = selected.contains(member.id);
+                                final kinshipBadge = _memberKinshipBadge(
+                                  member,
+                                  context,
+                                );
+                                final deathDateCaption =
+                                    _memberDeathDateCaption(member, context);
+                                final nickName = member.nickName.trim();
+                                final showNickName =
+                                    nickName.isNotEmpty &&
+                                    nickName.toLowerCase() !=
+                                        member.fullName.toLowerCase();
                                 return CheckboxListTile(
                                   value: isChecked,
-                                  title: Text(member.displayName),
-                                  subtitle: Text(
-                                    context.l10n.pick(
-                                      vi: 'Mã: ${member.id}',
-                                      en: 'ID: ${member.id}',
+                                  controlAffinity:
+                                      ListTileControlAffinity.trailing,
+                                  title: Text(member.fullName),
+                                  subtitle: Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (showNickName)
+                                          Text(
+                                            nickName,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.secondaryContainer,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            kinshipBadge,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                        ),
+                                        if (deathDateCaption != null) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            deathDateCaption,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ),
                                   onChanged: (value) {
@@ -1497,34 +1653,41 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   ),
                 ],
                 const SizedBox(height: 18),
-                DropdownButtonFormField<String>(
-                  key: const Key('fund-clan-selector'),
-                  initialValue: _selectedClanId.isEmpty
-                      ? null
-                      : _selectedClanId,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
-                      vi: 'Gia phả quản lý',
-                      en: 'Target clan',
+                if (widget.availableClanContexts.isNotEmpty)
+                  DropdownButtonFormField<String>(
+                    key: const Key('fund-clan-selector'),
+                    initialValue: _selectedClanId.isEmpty
+                        ? null
+                        : _selectedClanId,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Gia phả quản lý',
+                        en: 'Target clan',
+                      ),
+                    ),
+                    items: [
+                      for (final contextOption in widget.availableClanContexts)
+                        DropdownMenuItem<String>(
+                          value: contextOption.clanId,
+                          child: Text(contextOption.clanName),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      unawaited(_handleClanChanged(value));
+                    },
+                  )
+                else
+                  InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Gia phả', en: 'Clan'),
+                    ),
+                    child: Text(
+                      l10n.pick(
+                        vi: 'Gia phả hiện tại',
+                        en: 'Current genealogy',
+                      ),
                     ),
                   ),
-                  items: [
-                    for (final contextOption in widget.availableClanContexts)
-                      DropdownMenuItem<String>(
-                        value: contextOption.clanId,
-                        child: Text(contextOption.clanName),
-                      ),
-                    if (widget.availableClanContexts.isEmpty &&
-                        _selectedClanId.isNotEmpty)
-                      DropdownMenuItem<String>(
-                        value: _selectedClanId,
-                        child: Text(_selectedClanId),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    unawaited(_handleClanChanged(value));
-                  },
-                ),
                 const SizedBox(height: 14),
                 TextFormField(
                   key: const Key('fund-name-input'),
@@ -1703,7 +1866,11 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                                 runSpacing: 8,
                                 children: [
                                   for (final member in selectedTreasurerMembers)
-                                    Chip(label: Text(member.displayName)),
+                                    Chip(
+                                      label: Text(
+                                        '${member.fullName} • ${_memberKinshipBadge(member, context)}',
+                                      ),
+                                    ),
                                 ],
                               ),
                             ],
@@ -1787,7 +1954,11 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                                 runSpacing: 8,
                                 children: [
                                   for (final member in selectedAppliedMembers)
-                                    Chip(label: Text(member.displayName)),
+                                    Chip(
+                                      label: Text(
+                                        '${member.fullName} • ${_memberKinshipBadge(member, context)}',
+                                      ),
+                                    ),
                                 ],
                               ),
                             ],
@@ -2582,7 +2753,10 @@ class _StatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final crossAxisCount = screenWidth > 840 ? 3 : 1;
+    final crossAxisCount = screenWidth > 840 ? 3 : 2;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final baseHeight = crossAxisCount == 2 ? 126.0 : 114.0;
+    final scaleBoost = ((textScale - 1).clamp(0.0, 1.2)).toDouble() * 24;
 
     return GridView.builder(
       shrinkWrap: true,
@@ -2590,9 +2764,9 @@ class _StatRow extends StatelessWidget {
       itemCount: items.length,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: crossAxisCount == 1 ? 3.4 : 1.8,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        mainAxisExtent: baseHeight + scaleBoost,
       ),
       itemBuilder: (context, index) {
         return items[index];
@@ -2620,27 +2794,28 @@ class _StatTile extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Row(
           children: [
             CircleAvatar(
               backgroundColor: colorScheme.primaryContainer,
-              child: Icon(icon),
+              radius: 22,
+              child: Icon(icon, size: 20),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(label, style: Theme.of(context).textTheme.labelLarge),
-                  const SizedBox(height: 4),
+                  Text(label, style: Theme.of(context).textTheme.labelMedium),
+                  const SizedBox(height: 2),
                   Text(
                     value,
                     maxLines: valueMaxLines,
                     overflow: TextOverflow.ellipsis,
                     softWrap: valueMaxLines > 1,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
                   ),

@@ -123,10 +123,9 @@ void main() {
       280,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Tự động').first, warnIfMissed: false);
-    await tester.pump();
-
-    await tester.tap(saveButton);
+    await tester.ensureVisible(saveButton);
+    await tester.pumpAndSettle();
+    await tester.tap(saveButton, warnIfMissed: false);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -174,12 +173,12 @@ void main() {
       await tester.tap(selector);
       await tester.pump(const Duration(milliseconds: 350));
 
-      expect(find.textContaining('FREE •'), findsNothing);
-      expect(find.textContaining('BASE •'), findsNothing);
-      expect(find.textContaining('PLUS •'), findsWidgets);
-      expect(find.textContaining('PRO •'), findsWidgets);
+      expect(find.textContaining('Miễn phí •'), findsNothing);
+      expect(find.textContaining('Cơ bản •'), findsNothing);
+      expect(find.textContaining('Nâng cao •'), findsWidgets);
+      expect(find.textContaining('Chuyên nghiệp •'), findsWidgets);
 
-      await tester.tap(find.textContaining('PRO •').last);
+      await tester.tap(find.textContaining('Chuyên nghiệp •').last);
       await tester.pump(const Duration(milliseconds: 350));
 
       await tester.tap(find.byKey(const Key('billing-checkout-card-button')));

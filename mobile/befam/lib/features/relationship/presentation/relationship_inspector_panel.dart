@@ -6,7 +6,6 @@ import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../../member/models/member_profile.dart';
 import '../models/relationship_record.dart';
-import '../services/relationship_permissions.dart';
 import '../services/relationship_repository.dart';
 
 class RelationshipInspectorPanel extends StatefulWidget {
@@ -16,14 +15,14 @@ class RelationshipInspectorPanel extends StatefulWidget {
     required this.member,
     required this.members,
     required this.repository,
-    required this.onRelationshipsChanged,
+    this.onOpenMemberDetail,
   });
 
   final AuthSession session;
   final MemberProfile member;
   final List<MemberProfile> members;
   final RelationshipRepository repository;
-  final Future<void> Function() onRelationshipsChanged;
+  final ValueChanged<MemberProfile>? onOpenMemberDetail;
 
   @override
   State<RelationshipInspectorPanel> createState() =>
@@ -32,17 +31,13 @@ class RelationshipInspectorPanel extends StatefulWidget {
 
 class _RelationshipInspectorPanelState
     extends State<RelationshipInspectorPanel> {
-  late final RelationshipPermissions _permissions;
-
   bool _isLoading = true;
-  bool _isMutating = false;
   RelationshipRepositoryErrorCode? _error;
   List<RelationshipRecord> _relationships = const [];
 
   @override
   void initState() {
     super.initState();
-    _permissions = RelationshipPermissions.forSession(widget.session);
     _loadRelationships();
   }
 
@@ -73,183 +68,6 @@ class _RelationshipInspectorPanelState
         _isLoading = false;
       });
     }
-  }
-
-  Future<void> _createRelationship(_RelationshipAction action) async {
-    final selectedMember = await _pickMemberForAction(action);
-    if (selectedMember == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _isMutating = true;
-      _error = null;
-    });
-
-    try {
-      switch (action) {
-        case _RelationshipAction.parent:
-          await widget.repository.createParentChildRelationship(
-            session: widget.session,
-            parentId: selectedMember.id,
-            childId: widget.member.id,
-          );
-        case _RelationshipAction.child:
-          await widget.repository.createParentChildRelationship(
-            session: widget.session,
-            parentId: widget.member.id,
-            childId: selectedMember.id,
-          );
-        case _RelationshipAction.spouse:
-          await widget.repository.createSpouseRelationship(
-            session: widget.session,
-            memberId: widget.member.id,
-            spouseId: selectedMember.id,
-          );
-      }
-
-      await widget.onRelationshipsChanged();
-      await _loadRelationships();
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(switch (action) {
-            _RelationshipAction.parent =>
-              context.l10n.relationshipParentAddedSuccess,
-            _RelationshipAction.child =>
-              context.l10n.relationshipChildAddedSuccess,
-            _RelationshipAction.spouse =>
-              context.l10n.relationshipSpouseAddedSuccess,
-          }),
-        ),
-      );
-    } on RelationshipRepositoryException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _error = error.code;
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isMutating = false;
-        });
-      }
-    }
-  }
-
-  Future<MemberProfile?> _pickMemberForAction(
-    _RelationshipAction action,
-  ) async {
-    final excludedIds = switch (action) {
-      _RelationshipAction.parent => {
-        widget.member.id,
-        ..._relatedIdsFor(
-          _relationships.where(
-            (relationship) =>
-                relationship.type == RelationshipType.parentChild &&
-                relationship.personBId == widget.member.id,
-          ),
-        ),
-      },
-      _RelationshipAction.child => {
-        widget.member.id,
-        ..._relatedIdsFor(
-          _relationships.where(
-            (relationship) =>
-                relationship.type == RelationshipType.parentChild &&
-                relationship.personAId == widget.member.id,
-          ),
-        ),
-      },
-      _RelationshipAction.spouse => {
-        widget.member.id,
-        ..._relatedIdsFor(
-          _relationships.where(
-            (relationship) => relationship.type == RelationshipType.spouse,
-          ),
-        ),
-      },
-    };
-
-    final candidates =
-        widget.members
-            .where((candidate) => !excludedIds.contains(candidate.id))
-            .where(
-              (candidate) =>
-                  _permissions.canMutateBetween(widget.member, candidate),
-            )
-            .toList(growable: false)
-          ..sort((left, right) => left.fullName.compareTo(right.fullName));
-
-    if (candidates.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.l10n.relationshipNoCandidates)),
-        );
-      }
-      return null;
-    }
-
-    return showModalBottomSheet<MemberProfile>(
-      context: context,
-      useSafeArea: true,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        switch (action) {
-                          _RelationshipAction.parent =>
-                            context.l10n.relationshipPickParentTitle,
-                          _RelationshipAction.child =>
-                            context.l10n.relationshipPickChildTitle,
-                          _RelationshipAction.spouse =>
-                            context.l10n.relationshipPickSpouseTitle,
-                        },
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: candidates.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final candidate = candidates[index];
-                    return ListTile(
-                      key: Key('relationship-candidate-${candidate.id}'),
-                      title: Text(candidate.fullName),
-                      subtitle: Text(
-                        candidate.nickName.trim().isEmpty
-                            ? candidate.branchId
-                            : candidate.nickName,
-                      ),
-                      onTap: () => Navigator.of(context).pop(candidate),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   @override
@@ -304,51 +122,6 @@ class _RelationshipInspectorPanelState
               ],
             ),
             const SizedBox(height: 16),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _RelationshipIconActionButton(
-                    tooltip: l10n.relationshipRefreshAction,
-                    icon: Icons.refresh,
-                    onPressed: _isLoading ? null : _loadRelationships,
-                  ),
-                  if (_permissions.canEditSensitiveRelationships) ...[
-                    const SizedBox(width: 10),
-                    _RelationshipIconActionButton(
-                      key: const Key('relationship-add-parent-button'),
-                      tooltip: l10n.relationshipAddParentAction,
-                      icon: Icons.north_outlined,
-                      onPressed: _isMutating
-                          ? null
-                          : () =>
-                                _createRelationship(_RelationshipAction.parent),
-                    ),
-                    const SizedBox(width: 10),
-                    _RelationshipIconActionButton(
-                      key: const Key('relationship-add-child-button'),
-                      tooltip: l10n.relationshipAddChildAction,
-                      icon: Icons.south_outlined,
-                      onPressed: _isMutating
-                          ? null
-                          : () =>
-                                _createRelationship(_RelationshipAction.child),
-                    ),
-                    const SizedBox(width: 10),
-                    _RelationshipIconActionButton(
-                      key: const Key('relationship-add-spouse-button'),
-                      tooltip: l10n.relationshipAddSpouseAction,
-                      icon: Icons.favorite_border,
-                      onPressed: _isMutating
-                          ? null
-                          : () =>
-                                _createRelationship(_RelationshipAction.spouse),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
             if (_error != null) ...[
               _RelationshipMessage(
                 title: l10n.relationshipErrorTitle,
@@ -367,62 +140,40 @@ class _RelationshipInspectorPanelState
               )
             else ...[
               _RelationshipGroup(
-                title: l10n.relationshipParentsTitle,
-                emptyLabel: l10n.relationshipNoParents,
+                title: l10n.pick(vi: 'Cha/mẹ', en: 'Parents'),
+                emptyLabel: l10n.pick(
+                  vi: 'Chưa có liên kết cha/mẹ.',
+                  en: 'No parent links yet.',
+                ),
                 relationships: parentRelationships,
                 currentMemberId: widget.member.id,
                 memberById: memberById,
+                onOpenMemberDetail: widget.onOpenMemberDetail,
               ),
               const SizedBox(height: 14),
               _RelationshipGroup(
-                title: l10n.relationshipChildrenTitle,
+                title: l10n.pick(vi: 'Con', en: 'Children'),
                 emptyLabel: l10n.relationshipNoChildren,
                 relationships: childRelationships,
                 currentMemberId: widget.member.id,
                 memberById: memberById,
+                onOpenMemberDetail: widget.onOpenMemberDetail,
               ),
               const SizedBox(height: 14),
               _RelationshipGroup(
-                title: l10n.relationshipSpousesTitle,
-                emptyLabel: l10n.relationshipNoSpouses,
+                title: l10n.pick(vi: 'Vợ/chồng', en: 'Spouses'),
+                emptyLabel: l10n.pick(
+                  vi: 'Chưa có liên kết vợ/chồng.',
+                  en: 'No spouse links yet.',
+                ),
                 relationships: spouseRelationships,
                 currentMemberId: widget.member.id,
                 memberById: memberById,
+                onOpenMemberDetail: widget.onOpenMemberDetail,
               ),
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _RelationshipIconActionButton extends StatelessWidget {
-  const _RelationshipIconActionButton({
-    super.key,
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        child: Icon(icon),
       ),
     );
   }
@@ -435,6 +186,7 @@ class _RelationshipGroup extends StatelessWidget {
     required this.relationships,
     required this.currentMemberId,
     required this.memberById,
+    required this.onOpenMemberDetail,
   });
 
   final String title;
@@ -442,6 +194,7 @@ class _RelationshipGroup extends StatelessWidget {
   final List<RelationshipRecord> relationships;
   final String currentMemberId;
   final Map<String, MemberProfile> memberById;
+  final ValueChanged<MemberProfile>? onOpenMemberDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -463,18 +216,35 @@ class _RelationshipGroup extends StatelessWidget {
             runSpacing: 10,
             children: [
               for (final relationship in relationships)
-                Chip(
-                  label: Text(
-                    memberById[relationship.relatedMemberIdFor(currentMemberId)]
-                            ?.fullName ??
-                        relationship.relatedMemberIdFor(currentMemberId) ??
-                        currentMemberId,
-                  ),
-                ),
+                _buildRelatedMemberChip(context, relationship),
             ],
           ),
       ],
     );
+  }
+
+  Widget _buildRelatedMemberChip(
+    BuildContext context,
+    RelationshipRecord relationship,
+  ) {
+    final relatedId = relationship.relatedMemberIdFor(currentMemberId);
+    final relatedMember = relatedId == null ? null : memberById[relatedId];
+    final relatedLabel =
+        relatedMember?.fullName ?? relatedId ?? currentMemberId;
+
+    if (relatedMember != null && onOpenMemberDetail != null) {
+      return ActionChip(
+        tooltip: context.l10n.pick(
+          vi: 'Xem chi tiết thành viên',
+          en: 'View member details',
+        ),
+        avatar: const Icon(Icons.open_in_new, size: 16),
+        label: Text(relatedLabel),
+        onPressed: () => onOpenMemberDetail!(relatedMember),
+      );
+    }
+
+    return Chip(label: Text(relatedLabel));
   }
 }
 
@@ -527,8 +297,6 @@ class _RelationshipMessage extends StatelessWidget {
   }
 }
 
-enum _RelationshipAction { parent, child, spouse }
-
 String _relationshipErrorText(
   AppLocalizations l10n,
   RelationshipRepositoryErrorCode code,
@@ -547,12 +315,4 @@ String _relationshipErrorText(
     RelationshipRepositoryErrorCode.sameMember =>
       l10n.relationshipErrorSameMember,
   };
-}
-
-Set<String> _relatedIdsFor(Iterable<RelationshipRecord> relationships) {
-  return relationships
-      .expand(
-        (relationship) => [relationship.personAId, relationship.personBId],
-      )
-      .toSet();
 }

@@ -29,7 +29,7 @@ void main() {
       uid: 'debug:+84908886655',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84908886655',
-      displayName: 'Tran Lan',
+      displayName: 'Tran Van Long',
       memberId: 'member_demo_parent_002',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_002',

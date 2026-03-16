@@ -88,14 +88,10 @@ void main() {
     expect(find.text('2026 Scholarship Program'), findsWidgets);
   });
 
-  testWidgets('supports create forms and evidence upload', (
-    tester,
-  ) async {
+  testWidgets('supports create forms and evidence upload', (tester) async {
     await pumpScholarshipWorkspace(tester);
 
-    await tester.tap(
-      find.byKey(const Key('scholarship-open-program-form-button')),
-    );
+    await tester.tap(find.byKey(const Key('scholarship-create-program-fab')));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -195,10 +191,7 @@ void main() {
   testWidgets('shows council review controls for pending submissions', (
     tester,
   ) async {
-    await pumpScholarshipWorkspace(
-      tester,
-      session: buildCouncilHeadSession(),
-    );
+    await pumpScholarshipWorkspace(tester, session: buildCouncilHeadSession());
 
     final openDetailFinder = find.byKey(
       const Key('scholarship-open-program-detail-sp_demo_2026'),

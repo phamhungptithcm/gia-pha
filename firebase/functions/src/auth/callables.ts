@@ -24,7 +24,16 @@ type MemberRecord = {
   branchId?: string | null;
   fullName?: string | null;
   nickName?: string | null;
+  gender?: string | null;
+  birthDate?: string | null;
+  deathDate?: string | null;
   phoneE164?: string | null;
+  email?: string | null;
+  addressText?: string | null;
+  jobTitle?: string | null;
+  bio?: string | null;
+  socialLinks?: Record<string, unknown> | null;
+  isMinor?: boolean | null;
   primaryRole?: string | null;
   authUid?: string | null;
   status?: string | null;
@@ -93,6 +102,32 @@ type DebugProfileTokenResponse = {
   phoneE164: string;
   memberId: string | null;
   displayName: string | null;
+};
+
+type LookupMemberProfileResponse = {
+  found: boolean;
+  profile: {
+    memberId: string;
+    clanId: string;
+    branchId: string | null;
+    fullName: string;
+    nickName: string;
+    gender: string | null;
+    birthDate: string | null;
+    deathDate: string | null;
+    phoneE164: string;
+    email: string | null;
+    addressText: string | null;
+    jobTitle: string | null;
+    bio: string | null;
+    isMinor: boolean;
+    status: string | null;
+    socialLinks: {
+      facebook: string | null;
+      zalo: string | null;
+      linkedin: string | null;
+    };
+  } | null;
 };
 
 const membersCollection = db.collection('members');
@@ -264,6 +299,67 @@ export const claimMemberRecord = onCall({ region: APP_REGION }, async (request) 
 
   return context;
 });
+
+export const lookupMemberProfileByPhone = onCall(
+  { region: APP_REGION },
+  async (request): Promise<LookupMemberProfileResponse> => {
+    const auth = requireAuth(request);
+    const role = normalizeRoleClaim(auth.token.primaryRole);
+    if (!isLookupRoleAllowed(role)) {
+      throw new HttpsError(
+        'permission-denied',
+        'This session cannot lookup member profiles across the system.',
+      );
+    }
+
+    const phoneInput = requireNonEmptyString(request.data, 'phoneE164');
+    const phoneE164 = normalizePhoneE164(phoneInput);
+    const snapshot = await membersCollection
+      .where('phoneE164', '==', phoneE164)
+      .limit(10)
+      .get();
+
+    if (snapshot.empty) {
+      return { found: false, profile: null };
+    }
+
+    const candidate = [...snapshot.docs]
+      .map((doc) => ({ id: doc.id, data: doc.data() as MemberRecord }))
+      .sort((left, right) => {
+        const byScore = memberLookupScore(right.data) - memberLookupScore(left.data);
+        if (byScore !== 0) {
+          return byScore;
+        }
+        return left.id.localeCompare(right.id);
+      })[0];
+
+    return {
+      found: true,
+      profile: {
+        memberId: candidate.id,
+        clanId: optionalTrimmedRecordString(candidate.data.clanId) ?? '',
+        branchId: optionalTrimmedRecordString(candidate.data.branchId),
+        fullName: optionalTrimmedRecordString(candidate.data.fullName) ?? '',
+        nickName: optionalTrimmedRecordString(candidate.data.nickName) ?? '',
+        gender: optionalTrimmedRecordString(candidate.data.gender),
+        birthDate: optionalTrimmedRecordString(candidate.data.birthDate),
+        deathDate: optionalTrimmedRecordString(candidate.data.deathDate),
+        phoneE164,
+        email: optionalTrimmedRecordString(candidate.data.email),
+        addressText: optionalTrimmedRecordString(candidate.data.addressText),
+        jobTitle: optionalTrimmedRecordString(candidate.data.jobTitle),
+        bio: optionalTrimmedRecordString(candidate.data.bio),
+        isMinor: candidate.data.isMinor === true,
+        status: optionalTrimmedRecordString(candidate.data.status),
+        socialLinks: {
+          facebook: optionalTrimmedRecordString(candidate.data.socialLinks?.facebook),
+          zalo: optionalTrimmedRecordString(candidate.data.socialLinks?.zalo),
+          linkedin: optionalTrimmedRecordString(candidate.data.socialLinks?.linkedin),
+        },
+      },
+    };
+  },
+);
 
 export const bootstrapClanWorkspace = onCall(
   { region: APP_REGION },
@@ -796,6 +892,68 @@ function requireNonEmptyString(data: unknown, key: string): string {
   }
 
   return value;
+}
+
+function normalizePhoneE164(input: string): string {
+  const trimmed = input.trim();
+  const digitsAndPlus = trimmed.replace(/[^0-9+]/g, '');
+  let normalized = '';
+
+  if (digitsAndPlus.startsWith('+')) {
+    normalized = `+${digitsAndPlus.slice(1).replace(/[^0-9]/g, '')}`;
+  } else if (digitsAndPlus.startsWith('00')) {
+    normalized = `+${digitsAndPlus.slice(2)}`;
+  } else if (digitsAndPlus.startsWith('0')) {
+    normalized = `+84${digitsAndPlus.slice(1)}`;
+  } else {
+    normalized = `+${digitsAndPlus}`;
+  }
+
+  if (!/^\+[1-9]\d{8,14}$/.test(normalized)) {
+    throw new HttpsError('invalid-argument', 'phoneE164 has invalid format.');
+  }
+
+  return normalized;
+}
+
+function optionalTrimmedRecordString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function isLookupRoleAllowed(role: string): boolean {
+  return role === 'SUPER_ADMIN' ||
+    role === 'CLAN_ADMIN' ||
+    role === 'CLAN_OWNER' ||
+    role === 'CLAN_LEADER' ||
+    role === 'BRANCH_ADMIN' ||
+    role === 'ADMIN_SUPPORT';
+}
+
+function memberLookupScore(member: MemberRecord): number {
+  let score = 0;
+  if ((member.status ?? '').toLowerCase() === 'active') {
+    score += 30;
+  }
+  if (optionalTrimmedRecordString(member.authUid) != null) {
+    score += 20;
+  }
+  if (optionalTrimmedRecordString(member.fullName) != null) {
+    score += 10;
+  }
+  if (optionalTrimmedRecordString(member.birthDate) != null) {
+    score += 6;
+  }
+  if (optionalTrimmedRecordString(member.email) != null) {
+    score += 4;
+  }
+  if (optionalTrimmedRecordString(member.addressText) != null) {
+    score += 2;
+  }
+  return score;
 }
 
 function optionalString(data: unknown, key: string): string | null {

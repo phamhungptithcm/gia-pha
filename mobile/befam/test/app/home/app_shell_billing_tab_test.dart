@@ -87,6 +87,28 @@ void main() {
     },
   );
 
+  testWidgets('ad banner auto hides after 10 seconds', (tester) async {
+    await tester.pumpWidget(
+      _ShellTestApp(
+        child: AppShellPage(
+          status: buildReadyStatus(),
+          session: buildLinkedSession(),
+          clanRepository: DebugClanRepository.seeded(),
+          memberRepository: DebugMemberRepository.seeded(),
+          pushNotificationService: _NoopPushNotificationService(),
+        ),
+      ),
+    );
+    await pumpUi(tester);
+
+    expect(find.text('Free/Base plans show light ads.'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 11));
+    await pumpUi(tester);
+
+    expect(find.text('Free/Base plans show light ads.'), findsNothing);
+  });
+
   testWidgets('unlinked shell still shows billing tab and CTA actions', (
     tester,
   ) async {

@@ -27,7 +27,6 @@ import '../../features/auth/models/auth_entry_method.dart';
 import '../../features/auth/models/auth_member_access_mode.dart';
 import '../../features/auth/models/auth_session.dart';
 import '../../features/auth/models/clan_context_option.dart';
-import '../../features/auth/services/phone_number_formatter.dart';
 import '../../features/auth/services/auth_session_store.dart';
 import '../../features/auth/services/clan_context_service.dart';
 import '../../core/services/app_locale_controller.dart';
@@ -67,6 +66,8 @@ class AppShellPage extends StatefulWidget {
 }
 
 class _AppShellPageState extends State<AppShellPage> {
+  static const Duration _adBannerAutoHideDelay = Duration(seconds: 10);
+
   int _selectedIndex = 0;
   final Set<int> _visitedDestinationIndexes = <int>{0};
   late AuthSession _activeSession;
@@ -80,6 +81,7 @@ class _AppShellPageState extends State<AppShellPage> {
   bool _showAdBanner = true;
   bool _isResolvingBillingEntitlement = false;
   bool _dismissAdBannerForSession = false;
+  Timer? _adBannerAutoHideTimer;
   bool _isLoadingClanContexts = false;
   bool _isSwitchingClanContext = false;
   List<ClanContextOption> _clanContexts = const [];
@@ -167,6 +169,7 @@ class _AppShellPageState extends State<AppShellPage> {
     );
     unawaited(_loadClanContexts());
     unawaited(_refreshBillingEntitlement());
+    _syncAdBannerAutoHideTimer();
   }
 
   @override
@@ -183,11 +186,13 @@ class _AppShellPageState extends State<AppShellPage> {
       unawaited(_loadClanContexts());
       _dismissAdBannerForSession = false;
       unawaited(_refreshBillingEntitlement());
+      _syncAdBannerAutoHideTimer();
     }
   }
 
   @override
   void dispose() {
+    _adBannerAutoHideTimer?.cancel();
     unawaited(_pushNotificationService.stop());
     super.dispose();
   }
@@ -206,6 +211,7 @@ class _AppShellPageState extends State<AppShellPage> {
         _selectedIndex = 2;
         _visitedDestinationIndexes.add(2);
       });
+      _syncAdBannerAutoHideTimer();
       _openNotificationTargetPage(
         targetType: deepLink.targetType,
         referenceId: deepLink.referenceId,
@@ -303,6 +309,25 @@ class _AppShellPageState extends State<AppShellPage> {
     };
   }
 
+  bool get _isAdBannerVisible =>
+      _showAdBanner && !_dismissAdBannerForSession && _selectedIndex != 3;
+
+  void _syncAdBannerAutoHideTimer() {
+    _adBannerAutoHideTimer?.cancel();
+    if (!_isAdBannerVisible) {
+      _adBannerAutoHideTimer = null;
+      return;
+    }
+    _adBannerAutoHideTimer = Timer(_adBannerAutoHideDelay, () {
+      if (!mounted || !_isAdBannerVisible) {
+        return;
+      }
+      setState(() {
+        _dismissAdBannerForSession = true;
+      });
+    });
+  }
+
   Future<void> _refreshBillingEntitlement() async {
     if (_isResolvingBillingEntitlement) {
       return;
@@ -312,6 +337,7 @@ class _AppShellPageState extends State<AppShellPage> {
         setState(() {
           _showAdBanner = true;
         });
+        _syncAdBannerAutoHideTimer();
       }
       return;
     }
@@ -327,6 +353,7 @@ class _AppShellPageState extends State<AppShellPage> {
       setState(() {
         _showAdBanner = entitlement.showAds;
       });
+      _syncAdBannerAutoHideTimer();
     } catch (_) {
       if (!mounted) {
         return;
@@ -334,6 +361,7 @@ class _AppShellPageState extends State<AppShellPage> {
       setState(() {
         _showAdBanner = true;
       });
+      _syncAdBannerAutoHideTimer();
     } finally {
       _isResolvingBillingEntitlement = false;
     }
@@ -482,18 +510,21 @@ class _AppShellPageState extends State<AppShellPage> {
             _selectedIndex = 1;
             _visitedDestinationIndexes.add(1);
           });
+          _syncAdBannerAutoHideTimer();
         },
         onOpenEventsRequested: () {
           setState(() {
             _selectedIndex = 2;
             _visitedDestinationIndexes.add(2);
           });
+          _syncAdBannerAutoHideTimer();
         },
         onOpenProfileRequested: () {
           setState(() {
             _selectedIndex = 4;
             _visitedDestinationIndexes.add(4);
           });
+          _syncAdBannerAutoHideTimer();
         },
       ),
       if (_visitedDestinationIndexes.contains(1))
@@ -533,6 +564,7 @@ class _AppShellPageState extends State<AppShellPage> {
                     _selectedIndex = 1;
                     _visitedDestinationIndexes.add(1);
                   });
+                  _syncAdBannerAutoHideTimer();
                 },
                 onCreateClanWorkspace: () {
                   _openClanWorkspaceFromBilling();
@@ -642,30 +674,38 @@ class _AppShellPageState extends State<AppShellPage> {
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_showAdBanner && !_dismissAdBannerForSession)
+          if (_showAdBanner &&
+              !_dismissAdBannerForSession &&
+              _selectedIndex != 3)
             _SponsoredAdBanner(
               onClose: () {
                 setState(() {
                   _dismissAdBannerForSession = true;
                 });
+                _syncAdBannerAutoHideTimer();
               },
             ),
-          NavigationBar(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
-              setState(() {
-                _selectedIndex = index;
-                _visitedDestinationIndexes.add(index);
-              });
-            },
-            destinations: [
-              for (final destination in destinations)
-                NavigationDestination(
-                  icon: Icon(destination.icon),
-                  selectedIcon: Icon(destination.selectedIcon),
-                  label: l10n.shellDestinationLabel(destination.id),
-                ),
-            ],
+          MediaQuery.withClampedTextScaling(
+            minScaleFactor: 1,
+            maxScaleFactor: 1,
+            child: NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (index) {
+                setState(() {
+                  _selectedIndex = index;
+                  _visitedDestinationIndexes.add(index);
+                });
+                _syncAdBannerAutoHideTimer();
+              },
+              destinations: [
+                for (final destination in destinations)
+                  NavigationDestination(
+                    icon: Icon(destination.icon),
+                    selectedIcon: Icon(destination.selectedIcon),
+                    label: l10n.shellDestinationLabel(destination.id),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -805,23 +845,37 @@ class _SponsoredAdBanner extends StatelessWidget {
       color: colorScheme.tertiaryContainer.withValues(alpha: 0.88),
       child: SafeArea(
         top: false,
-        minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               Icons.campaign_outlined,
               color: colorScheme.onTertiaryContainer,
+              size: 18,
             ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 l10n.pick(
-                  vi: 'Quảng cáo nhẹ đang hiển thị trong gói Free/Base. Nâng cấp Plus/Pro để tắt hoàn toàn quảng cáo.',
-                  en: 'Light ads are active on Free/Base plans. Upgrade to Plus/Pro for a fully ad-free experience.',
+                  vi: 'Gói Miễn phí/Cơ bản đang hiển thị quảng cáo nhẹ.',
+                  en: 'Free/Base plans show light ads.',
                 ),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: colorScheme.onTertiaryContainer,
                   fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            TextButton(
+              onPressed: onClose,
+              child: Text(
+                l10n.pick(vi: 'Ẩn hôm nay', en: 'Hide today'),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colorScheme.onTertiaryContainer,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
@@ -830,6 +884,7 @@ class _SponsoredAdBanner extends StatelessWidget {
               onPressed: onClose,
               icon: const Icon(Icons.close),
               color: colorScheme.onTertiaryContainer,
+              visualDensity: VisualDensity.compact,
             ),
           ],
         ),
@@ -879,10 +934,22 @@ class _HomeDashboard extends StatelessWidget {
         .toList(growable: false);
   }
 
+  List<AppShortcut> get _primaryShortcuts {
+    final primary = _availableShortcuts.where((entry) => entry.isPrimary);
+    final fallback = primary.isEmpty ? _availableShortcuts : primary;
+    return fallback.take(4).toList(growable: false);
+  }
+
+  List<AppShortcut> get _secondaryShortcuts {
+    final primaryIds = _primaryShortcuts.map((entry) => entry.id).toSet();
+    return _availableShortcuts
+        .where((entry) => !primaryIds.contains(entry.id))
+        .toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
     final size = MediaQuery.sizeOf(context);
     final crossAxisCount = switch (size.width) {
@@ -894,62 +961,40 @@ class _HomeDashboard extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
       children: [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [colorScheme.primary, colorScheme.primaryContainer],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                status.isReady
-                    ? l10n.shellWelcomeBack(session.displayName)
-                    : l10n.shellBootstrapNeedsCloud,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: colorScheme.onPrimary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                status.isReady
-                    ? l10n.pick(
-                        vi: 'Trang chủ đã sẵn sàng để bạn theo dõi gia phả, sự kiện và hồ sơ gia đình.',
-                        en: 'Your home dashboard is ready to manage family tree, events, and member profiles.',
-                      )
-                    : l10n.shellCloudSetupNeeded,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onPrimary.withValues(alpha: 0.9),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
         _UpcomingEventSection(
           session: session,
           onOpenEventsRequested: onOpenEventsRequested,
         ),
         const SizedBox(height: 24),
-        _MemberAccessCard(session: session),
-        const SizedBox(height: 24),
-        Text(
-          l10n.pick(vi: 'Truy cập nhanh', en: 'Quick access'),
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+        _TodoSection(
+          status: status,
+          session: session,
+          onOpenTreeRequested: onOpenTreeRequested,
+          onOpenProfileRequested: onOpenProfileRequested,
+          onOpenEventsRequested: onOpenEventsRequested,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.pick(vi: 'Truy cập nhanh', en: 'Quick access'),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => _openAllShortcutsSheet(context),
+              child: Text(l10n.pick(vi: 'Xem tất cả', en: 'View all')),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: _availableShortcuts.length,
+          itemCount: _primaryShortcuts.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 16,
@@ -957,64 +1002,55 @@ class _HomeDashboard extends StatelessWidget {
             childAspectRatio: 1.24,
           ),
           itemBuilder: (context, index) {
-            final shortcut = _availableShortcuts[index];
+            final shortcut = _primaryShortcuts[index];
             return _ShortcutCard(
               shortcut: shortcut,
               onTap: _onShortcutTap(context, shortcut.id),
             );
           },
         ),
-        const SizedBox(height: 24),
-        Text(
-          l10n.shellSignedInContext,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                _FoundationRow(
-                  label: l10n.shellFieldDisplayName,
-                  value: session.displayName,
-                ),
-                _FoundationRow(
-                  label: l10n.shellFieldLoginMethod,
-                  value: l10n.authEntryMethodSummary(session.loginMethod),
-                ),
-                _FoundationRow(
-                  label: l10n.shellFieldPhone,
-                  value: _formatPhoneForDisplay(session.phoneE164),
-                ),
-                if (session.childIdentifier != null)
-                  _FoundationRow(
-                    label: l10n.shellFieldChildId,
-                    value: session.childIdentifier!,
-                  ),
-                if (session.primaryRole != null)
-                  _FoundationRow(
-                    label: l10n.shellFieldPrimaryRole,
-                    value: l10n.roleLabel(session.primaryRole),
-                  ),
-                _FoundationRow(
-                  label: l10n.shellFieldAccessMode,
-                  value: l10n.authMemberAccessModeLabel(session.accessMode),
-                  isLast: status.errorMessage == null,
-                ),
-                if (status.errorMessage != null)
-                  _FoundationRow(
-                    label: l10n.shellFieldStartupNote,
-                    value: status.errorMessage!,
-                    isLast: true,
-                  ),
-              ],
-            ),
-          ),
-        ),
       ],
+    );
+  }
+
+  void _openAllShortcutsSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) {
+        final l10n = context.l10n;
+        final shortcuts = _secondaryShortcuts.isEmpty
+            ? _availableShortcuts
+            : _secondaryShortcuts;
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          children: [
+            Text(
+              l10n.pick(vi: 'Tất cả truy cập nhanh', en: 'All quick access'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+            for (final shortcut in shortcuts)
+              Card(
+                child: ListTile(
+                  leading: Icon(_iconFor(shortcut.iconKey)),
+                  title: Text(l10n.shortcutTitle(shortcut.id)),
+                  subtitle: Text(
+                    _productionShortcutDescription(context, shortcut.id),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _onShortcutTap(context, shortcut.id)?.call();
+                  },
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -1059,6 +1095,8 @@ class _HomeDashboard extends StatelessWidget {
               return MemberWorkspacePage(
                 session: session,
                 repository: memberRepository,
+                availableClanContexts: availableClanContexts,
+                onSwitchClanContext: onSwitchClanContext,
               );
             },
           ),
@@ -1125,6 +1163,7 @@ class _ShortcutCard extends StatelessWidget {
       child: InkWell(
         key: Key('shortcut-${shortcut.id}'),
         onTap: onTap,
+        onLongPress: onTap,
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -1178,78 +1217,27 @@ class _ShortcutStatusChip extends StatelessWidget {
       AppShortcutStatus.bootstrap => colorScheme.secondaryContainer,
       AppShortcutStatus.planned => colorScheme.surfaceContainerHighest,
     };
+    final label = switch (status) {
+      AppShortcutStatus.live => context.l10n.pick(
+        vi: 'Đang dùng',
+        en: 'In use',
+      ),
+      AppShortcutStatus.bootstrap => context.l10n.pick(
+        vi: 'Chưa thiết lập',
+        en: 'Not set',
+      ),
+      AppShortcutStatus.planned => context.l10n.pick(
+        vi: 'Cần cập nhật',
+        en: 'Needs update',
+      ),
+    };
 
     return Chip(
-      label: Text(context.l10n.shortcutStatusLabel(status)),
+      label: Text(label),
       backgroundColor: background,
       visualDensity: VisualDensity.compact,
       side: BorderSide.none,
     );
-  }
-}
-
-class _FoundationRow extends StatelessWidget {
-  const _FoundationRow({
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
-
-  final String label;
-  final String value;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final stackForAccessibility = screenWidth < 420;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
-      child: stackForAccessibility
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(value, style: theme.textTheme.bodyMedium),
-              ],
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 132,
-                  child: Text(
-                    label,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
-              ],
-            ),
-    );
-  }
-}
-
-String _formatPhoneForDisplay(String value) {
-  try {
-    final parsed = PhoneNumberFormatter.parse(value).e164;
-    if (parsed.startsWith('+84') && parsed.length == 12) {
-      return '+84 ${parsed.substring(3, 5)} ${parsed.substring(5, 8)} ${parsed.substring(8)}';
-    }
-    return parsed;
-  } catch (_) {
-    return value;
   }
 }
 
@@ -1483,71 +1471,83 @@ class _UpcomingEventData {
   final String? hostHousehold;
 }
 
-class _MemberAccessCard extends StatelessWidget {
-  const _MemberAccessCard({required this.session});
+class _TodoSection extends StatelessWidget {
+  const _TodoSection({
+    required this.status,
+    required this.session,
+    required this.onOpenTreeRequested,
+    required this.onOpenProfileRequested,
+    required this.onOpenEventsRequested,
+  });
 
+  final FirebaseSetupStatus status;
   final AuthSession session;
+  final VoidCallback onOpenTreeRequested;
+  final VoidCallback onOpenProfileRequested;
+  final VoidCallback onOpenEventsRequested;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
-
-    final (title, description, icon, tone) = switch (session.accessMode) {
-      AuthMemberAccessMode.claimed => (
-        l10n.shellMemberAccessClaimedTitle,
-        l10n.pick(
-          vi: 'Tài khoản đã liên kết với hồ sơ thành viên của bạn trong gia phả.',
-          en: 'Your account is linked to your member profile in the family tree.',
+    final tasks = <({IconData icon, String title, VoidCallback onTap})>[
+      (
+        icon: Icons.event_available_outlined,
+        title: l10n.pick(
+          vi: 'Kiểm tra sự kiện trong tuần',
+          en: 'Review this week events',
         ),
-        Icons.verified_user_outlined,
-        colorScheme.primaryContainer,
+        onTap: onOpenEventsRequested,
       ),
-      AuthMemberAccessMode.child => (
-        l10n.shellMemberAccessChildTitle,
-        l10n.pick(
-          vi: 'Bạn đang vào chế độ trẻ em thông qua xác thực của phụ huynh.',
-          en: 'You are viewing child access mode through parent verification.',
+      (
+        icon: Icons.person_outline,
+        title: l10n.pick(
+          vi: 'Cập nhật hồ sơ của bạn',
+          en: 'Update your profile',
         ),
-        Icons.family_restroom_outlined,
-        colorScheme.secondaryContainer,
+        onTap: onOpenProfileRequested,
       ),
-      AuthMemberAccessMode.unlinked => (
-        l10n.shellMemberAccessUnlinkedTitle,
-        l10n.pick(
-          vi: 'Tài khoản chưa liên kết vào gia phả nào. Bạn có thể khám phá gia phả, tạo gia phả mới (nếu đủ quyền), hoặc dùng lịch sự kiện.',
-          en: 'This account is not linked to any clan yet. You can discover genealogies, create a clan workspace (if your role allows), or use events.',
+      if (session.accessMode == AuthMemberAccessMode.unlinked)
+        (
+          icon: Icons.travel_explore_outlined,
+          title: l10n.pick(
+            vi: 'Tìm gia phả để tham gia',
+            en: 'Discover genealogies to join',
+          ),
+          onTap: onOpenTreeRequested,
         ),
-        Icons.info_outline,
-        colorScheme.surfaceContainerHighest,
-      ),
-    };
+      if (!status.isReady)
+        (
+          icon: Icons.cloud_off,
+          title: l10n.pick(
+            vi: 'Kiểm tra kết nối Firebase',
+            en: 'Check Firebase connectivity',
+          ),
+          onTap: onOpenProfileRequested,
+        ),
+    ];
 
     return Card(
-      color: tone,
       child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 24),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(description, style: theme.textTheme.bodyMedium),
-                ],
-              ),
+            Text(
+              l10n.pick(vi: 'Việc cần làm', en: 'To-do'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
+            const SizedBox(height: 10),
+            for (final entry in tasks.take(3))
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(entry.icon),
+                title: Text(entry.title),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: entry.onTap,
+              ),
           ],
         ),
       ),

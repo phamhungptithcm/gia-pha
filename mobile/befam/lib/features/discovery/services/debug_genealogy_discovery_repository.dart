@@ -30,7 +30,7 @@ class DebugGenealogyDiscoveryRepository
           id: 'clan_demo_002',
           clanId: 'clan_demo_002',
           genealogyName: 'Trần tộc Quảng Nam',
-          leaderName: 'Trần Lan',
+          leaderName: 'Trần Văn Long',
           provinceCity: 'Quảng Nam',
           summary: 'Nhánh gia phả tập trung theo từng chi vùng duyên hải.',
           memberCount: 21,

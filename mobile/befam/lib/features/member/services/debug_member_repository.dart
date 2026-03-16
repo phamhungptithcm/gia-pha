@@ -64,7 +64,11 @@ class DebugMemberRepository implements MemberRepository {
     }
 
     final normalizedPhone = _normalizePhoneOrNull(draft.phoneInput);
-    _ensureUniquePhone(normalizedPhone, memberId);
+    _ensureUniquePhone(
+      clanId: clanId,
+      phoneE164: normalizedPhone,
+      memberId: memberId,
+    );
 
     final resolvedMemberId =
         memberId ?? 'member_demo_${_store.memberSequence++}';
@@ -157,13 +161,20 @@ class DebugMemberRepository implements MemberRepository {
     return updated;
   }
 
-  void _ensureUniquePhone(String? phoneE164, String? memberId) {
+  void _ensureUniquePhone({
+    required String clanId,
+    required String? phoneE164,
+    required String? memberId,
+  }) {
     if (phoneE164 == null) {
       return;
     }
 
     final duplicate = _store.members.values.firstWhereOrNull(
-      (member) => member.phoneE164 == phoneE164 && member.id != memberId,
+      (member) =>
+          member.clanId == clanId &&
+          member.phoneE164 == phoneE164 &&
+          member.id != memberId,
     );
     if (duplicate != null) {
       throw const MemberRepositoryException(
