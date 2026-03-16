@@ -27,6 +27,7 @@ type NullableDate = Date | null;
 export type BillingSettingsRecord = {
   id: string;
   clanId: string;
+  ownerUid: string;
   paymentMode: PaymentMode;
   autoRenew: boolean;
   reminderDaysBefore: Array<number>;
@@ -36,6 +37,7 @@ export type BillingSettingsRecord = {
 export type BillingTransactionRecord = {
   id: string;
   clanId: string;
+  subscriptionOwnerUid: string;
   subscriptionId: string;
   invoiceId: string;
   paymentMethod: PaymentMethod;
@@ -55,6 +57,7 @@ export type BillingTransactionRecord = {
 export type BillingInvoiceRecord = {
   id: string;
   clanId: string;
+  subscriptionOwnerUid: string;
   subscriptionId: string;
   transactionId: string;
   planCode: BillingPlanCode;
@@ -85,17 +88,36 @@ const invoicesCollection = db.collection('subscriptionInvoices');
 const webhookEventsCollection = db.collection('paymentWebhookEvents');
 const billingAuditLogsCollection = db.collection('billingAuditLogs');
 
+function scopedBillingDocId({
+  clanId,
+  ownerUid,
+}: {
+  clanId: string;
+  ownerUid: string;
+}): string {
+  return `${clanId}__${ownerUid}`;
+}
+
 export async function countClanMembers(clanId: string): Promise<number> {
   const snapshot = await membersCollection.where('clanId', '==', clanId).count().get();
   return Number(snapshot.data().count ?? 0);
 }
 
-export async function loadBillingSettings(clanId: string): Promise<BillingSettingsRecord> {
-  const snapshot = await billingSettingsCollection.doc(clanId).get();
+export async function loadBillingSettings(
+  clanId: string,
+  ownerUid: string,
+): Promise<BillingSettingsRecord> {
+  const scopedId = scopedBillingDocId({ clanId, ownerUid });
+  const [scopedSnapshot, legacySnapshot] = await Promise.all([
+    billingSettingsCollection.doc(scopedId).get(),
+    billingSettingsCollection.doc(clanId).get(),
+  ]);
+  const snapshot = scopedSnapshot.exists ? scopedSnapshot : legacySnapshot;
   if (!snapshot.exists) {
     return {
-      id: clanId,
+      id: scopedId,
       clanId,
+      ownerUid,
       paymentMode: 'manual',
       autoRenew: false,
       reminderDaysBefore: [30, 14, 7, 3, 1],
@@ -104,8 +126,9 @@ export async function loadBillingSettings(clanId: string): Promise<BillingSettin
   }
   const data = snapshot.data() ?? {};
   return {
-    id: snapshot.id,
+    id: scopedId,
     clanId: readString(data.clanId, clanId),
+    ownerUid: readString(data.ownerUid, ownerUid),
     paymentMode: normalizePaymentMode(data.paymentMode),
     autoRenew: readBool(data.autoRenew, false),
     reminderDaysBefore: normalizeReminderDays(data.reminderDaysBefore),
@@ -115,22 +138,26 @@ export async function loadBillingSettings(clanId: string): Promise<BillingSettin
 
 export async function upsertBillingSettings({
   clanId,
+  ownerUid,
   paymentMode,
   autoRenew,
   reminderDaysBefore,
   actorUid,
 }: {
   clanId: string;
+  ownerUid: string;
   paymentMode: PaymentMode;
   autoRenew: boolean;
   reminderDaysBefore?: Array<number>;
   actorUid: string;
 }): Promise<BillingSettingsRecord> {
+  const scopedId = scopedBillingDocId({ clanId, ownerUid });
   const normalizedReminderDays = normalizeReminderDays(reminderDaysBefore);
-  await billingSettingsCollection.doc(clanId).set(
+  await billingSettingsCollection.doc(scopedId).set(
     {
-      id: clanId,
+      id: scopedId,
       clanId,
+      ownerUid,
       paymentMode,
       autoRenew,
       reminderDaysBefore: normalizedReminderDays,
@@ -141,15 +168,29 @@ export async function upsertBillingSettings({
     },
     { merge: true },
   );
-  return loadBillingSettings(clanId);
+  return loadBillingSettings(clanId, ownerUid);
 }
 
-export async function loadSubscription(clanId: string): Promise<BillingSubscriptionRecord | null> {
-  const snapshot = await subscriptionsCollection.doc(clanId).get();
+export async function loadSubscription({
+  clanId,
+  ownerUid,
+}: {
+  clanId: string;
+  ownerUid: string;
+}): Promise<BillingSubscriptionRecord | null> {
+  const scopedId = scopedBillingDocId({ clanId, ownerUid });
+  const [scopedSnapshot, legacySnapshot] = await Promise.all([
+    subscriptionsCollection.doc(scopedId).get(),
+    subscriptionsCollection.doc(clanId).get(),
+  ]);
+  const snapshot = scopedSnapshot.exists ? scopedSnapshot : legacySnapshot;
   if (!snapshot.exists) {
     return null;
   }
-  return mapSubscription(snapshot.id, snapshot.data() ?? {});
+  return mapSubscription(scopedId, snapshot.data() ?? {}, {
+    fallbackClanId: clanId,
+    fallbackOwnerUid: ownerUid,
+  });
 }
 
 export async function ensureSubscriptionForClan({
@@ -161,22 +202,27 @@ export async function ensureSubscriptionForClan({
   actorUid: string;
   now?: Date;
 }): Promise<EnsureSubscriptionResult> {
+  const scopedSubscriptionId = scopedBillingDocId({
+    clanId,
+    ownerUid: actorUid,
+  });
   const [memberCount, settings, existing] = await Promise.all([
     countClanMembers(clanId),
-    loadBillingSettings(clanId),
-    loadSubscription(clanId),
+    loadBillingSettings(clanId, actorUid),
+    loadSubscription({ clanId, ownerUid: actorUid }),
   ]);
   const minimumTier = resolvePlanByMemberCount(memberCount);
 
   if (existing == null) {
     const seeded = seedSubscription({
       clanId,
+      ownerUid: actorUid,
       tier: minimumTier,
       memberCount,
       settings,
       now,
     });
-    await subscriptionsCollection.doc(clanId).set(
+    await subscriptionsCollection.doc(scopedSubscriptionId).set(
       {
         ...toSubscriptionWriteMap(seeded),
         createdAt: FieldValue.serverTimestamp(),
@@ -191,7 +237,7 @@ export async function ensureSubscriptionForClan({
       actorUid,
       action: 'subscription_bootstrapped',
       entityType: 'subscription',
-      entityId: clanId,
+      entityId: scopedSubscriptionId,
       after: {
         planCode: seeded.planCode,
         status: seeded.status,
@@ -235,7 +281,7 @@ export async function ensureSubscriptionForClan({
     updatedAt: now,
   };
 
-  await subscriptionsCollection.doc(clanId).set(
+  await subscriptionsCollection.doc(scopedSubscriptionId).set(
     {
       ...toSubscriptionWriteMap(updated),
       updatedAt: FieldValue.serverTimestamp(),
@@ -289,6 +335,7 @@ export async function createPendingCheckout({
   const transaction: BillingTransactionRecord = {
     id: transactionRef.id,
     clanId,
+    subscriptionOwnerUid: actorUid,
     subscriptionId: subscription.id,
     invoiceId: invoiceRef.id,
     paymentMethod,
@@ -308,6 +355,7 @@ export async function createPendingCheckout({
   const invoice: BillingInvoiceRecord = {
     id: invoiceRef.id,
     clanId,
+    subscriptionOwnerUid: actorUid,
     subscriptionId: subscription.id,
     transactionId: transaction.id,
     planCode: tier.planCode,
@@ -338,8 +386,11 @@ export async function createPendingCheckout({
     updatedBy: actorUid,
   });
   batch.set(
-    subscriptionsCollection.doc(clanId),
+    subscriptionsCollection.doc(subscription.id),
     {
+      id: subscription.id,
+      clanId,
+      ownerUid: actorUid,
       planCode: tier.planCode,
       memberCount,
       amountVndYear: tier.priceVndYear,
@@ -451,7 +502,10 @@ export async function applyPaymentResult({
 
   const transactionData = mapTransaction(transactionId, txnSnapshot.data() ?? {});
   if (transactionData.paymentStatus === 'succeeded' && paymentStatus === 'succeeded') {
-    const subscription = await loadSubscription(transactionData.clanId);
+    const subscription = await loadSubscription({
+      clanId: transactionData.clanId,
+      ownerUid: transactionData.subscriptionOwnerUid,
+    });
     const invoice = await loadInvoice(transactionData.invoiceId);
     return {
       clanId: transactionData.clanId,
@@ -462,7 +516,7 @@ export async function applyPaymentResult({
   }
 
   const invoiceRef = invoicesCollection.doc(transactionData.invoiceId);
-  const subscriptionRef = subscriptionsCollection.doc(transactionData.clanId);
+  const subscriptionRef = subscriptionsCollection.doc(transactionData.subscriptionId);
 
   await db.runTransaction(async (tx) => {
     const [invoiceSnapshot, subscriptionSnapshot] = await Promise.all([
@@ -471,7 +525,10 @@ export async function applyPaymentResult({
     ]);
 
     const existingSubscription = subscriptionSnapshot.exists
-      ? mapSubscription(subscriptionSnapshot.id, subscriptionSnapshot.data() ?? {})
+      ? mapSubscription(subscriptionSnapshot.id, subscriptionSnapshot.data() ?? {}, {
+        fallbackClanId: transactionData.clanId,
+        fallbackOwnerUid: transactionData.subscriptionOwnerUid,
+      })
       : null;
 
     const transactionWrite: Record<string, unknown> = {
@@ -519,8 +576,9 @@ export async function applyPaymentResult({
       tx.set(
         subscriptionRef,
         {
-          id: transactionData.clanId,
+          id: transactionData.subscriptionId,
           clanId: transactionData.clanId,
+          ownerUid: transactionData.subscriptionOwnerUid,
           planCode: tier.planCode,
           status: 'active',
           memberCount: transactionData.memberCount,
@@ -578,7 +636,7 @@ export async function applyPaymentResult({
 
   const [refreshedTransaction, refreshedSubscription, refreshedInvoice] = await Promise.all([
     transactionsCollection.doc(transactionId).get(),
-    subscriptionsCollection.doc(transactionData.clanId).get(),
+    subscriptionsCollection.doc(transactionData.subscriptionId).get(),
     invoicesCollection.doc(transactionData.invoiceId).get(),
   ]);
 
@@ -589,7 +647,10 @@ export async function applyPaymentResult({
       ? mapInvoice(refreshedInvoice.id, refreshedInvoice.data() ?? {})
       : null,
     subscription: refreshedSubscription.exists
-      ? mapSubscription(refreshedSubscription.id, refreshedSubscription.data() ?? {})
+      ? mapSubscription(refreshedSubscription.id, refreshedSubscription.data() ?? {}, {
+        fallbackClanId: transactionData.clanId,
+        fallbackOwnerUid: transactionData.subscriptionOwnerUid,
+      })
       : null,
   };
 }
@@ -686,12 +747,14 @@ function normalizeStatusForPlan({
 
 function seedSubscription({
   clanId,
+  ownerUid,
   tier,
   memberCount,
   settings,
   now,
 }: {
   clanId: string;
+  ownerUid: string;
   tier: BillingTierPricing;
   memberCount: number;
   settings: BillingSettingsRecord;
@@ -700,6 +763,7 @@ function seedSubscription({
   if (tier.planCode === 'FREE') {
     return createSubscriptionDraft({
       clanId,
+      ownerUid,
       tier,
       memberCount,
       paymentMode: settings.paymentMode,
@@ -713,6 +777,7 @@ function seedSubscription({
 
   return createSubscriptionDraft({
     clanId,
+    ownerUid,
     tier,
     memberCount,
     paymentMode: settings.paymentMode,
@@ -728,6 +793,7 @@ function toSubscriptionWriteMap(record: BillingSubscriptionRecord): Record<strin
   return {
     id: record.id,
     clanId: record.clanId,
+    ownerUid: record.ownerUid,
     planCode: record.planCode,
     status: record.status,
     memberCount: record.memberCount,
@@ -750,6 +816,7 @@ function toTransactionWriteMap(record: BillingTransactionRecord): Record<string,
   return {
     id: record.id,
     clanId: record.clanId,
+    subscriptionOwnerUid: record.subscriptionOwnerUid,
     subscriptionId: record.subscriptionId,
     invoiceId: record.invoiceId,
     paymentMethod: record.paymentMethod,
@@ -770,6 +837,7 @@ function toInvoiceWriteMap(record: BillingInvoiceRecord): Record<string, unknown
   return {
     id: record.id,
     clanId: record.clanId,
+    subscriptionOwnerUid: record.subscriptionOwnerUid,
     subscriptionId: record.subscriptionId,
     transactionId: record.transactionId,
     planCode: record.planCode,
@@ -783,10 +851,18 @@ function toInvoiceWriteMap(record: BillingInvoiceRecord): Record<string, unknown
   };
 }
 
-function mapSubscription(id: string, data: Record<string, unknown>): BillingSubscriptionRecord {
+function mapSubscription(
+  id: string,
+  data: Record<string, unknown>,
+  fallback: {
+    fallbackClanId: string;
+    fallbackOwnerUid: string;
+  },
+): BillingSubscriptionRecord {
   return {
     id,
-    clanId: readString(data.clanId, ''),
+    clanId: readString(data.clanId, fallback.fallbackClanId),
+    ownerUid: readString(data.ownerUid, fallback.fallbackOwnerUid),
     planCode: normalizePlanCode(data.planCode),
     status: normalizeSubscriptionStatusCode(data.status),
     memberCount: readNumber(data.memberCount, 0),
@@ -808,6 +884,7 @@ function mapTransaction(id: string, data: Record<string, unknown>): BillingTrans
   return {
     id,
     clanId: readString(data.clanId, ''),
+    subscriptionOwnerUid: readString(data.subscriptionOwnerUid, ''),
     subscriptionId: readString(data.subscriptionId, ''),
     invoiceId: readString(data.invoiceId, ''),
     paymentMethod: normalizePaymentMethod(data.paymentMethod),
@@ -829,6 +906,7 @@ function mapInvoice(id: string, data: Record<string, unknown>): BillingInvoiceRe
   return {
     id,
     clanId: readString(data.clanId, ''),
+    subscriptionOwnerUid: readString(data.subscriptionOwnerUid, ''),
     subscriptionId: readString(data.subscriptionId, ''),
     transactionId: readString(data.transactionId, ''),
     planCode: normalizePlanCode(data.planCode),

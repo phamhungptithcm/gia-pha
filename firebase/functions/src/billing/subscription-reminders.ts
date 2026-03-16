@@ -47,6 +47,7 @@ export async function sendSubscriptionRemindersRun(
     if (clanId.length === 0) {
       continue;
     }
+    const ownerUid = normalizeString(data.ownerUid);
 
     const expiresAt = toDate(data.expiresAt);
     if (expiresAt == null) {
@@ -59,7 +60,7 @@ export async function sendSubscriptionRemindersRun(
     }
 
     const [settings, memberIds] = await Promise.all([
-      loadBillingSettings(clanId),
+      loadBillingSettings(clanId, ownerUid),
       resolveBillingAudienceMemberIds(clanId),
     ]);
 

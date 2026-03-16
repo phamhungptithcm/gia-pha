@@ -442,6 +442,8 @@ export const bootstrapClanWorkspace = onCall(
         status: 'active',
         memberCount: 1,
         branchCount: 1,
+        ownerUid: auth.uid,
+        billingOwnerUid: auth.uid,
         createdAt: now,
         createdBy: auth.uid,
         updatedAt: now,
