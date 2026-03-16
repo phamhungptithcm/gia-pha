@@ -1,5 +1,8 @@
 import 'package:befam/app/app.dart';
 import 'package:befam/app/bootstrap/firebase_setup_status.dart';
+import 'package:befam/app/home/app_shell_page.dart';
+import 'package:befam/features/auth/models/auth_entry_method.dart';
+import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/services/auth_analytics_service.dart';
 import 'package:befam/features/auth/services/auth_session_store.dart';
 import 'package:befam/features/auth/services/debug_auth_gateway.dart';
@@ -107,8 +110,8 @@ void main() {
   ) async {
     await pumpAuthApp(tester);
 
-    expect(find.text('Tiếp tục bằng số điện thoại'), findsOneWidget);
-    expect(find.text('Tiếp tục bằng mã trẻ em'), findsOneWidget);
+    expect(find.text('Dùng số điện thoại'), findsOneWidget);
+    expect(find.text('Dùng mã trẻ em'), findsOneWidget);
     expect(
       find.text('Xác thực là cột mốc tiếp theo của BeFam.'),
       findsOneWidget,
@@ -118,8 +121,8 @@ void main() {
   testWidgets('supports Vietnamese as the primary locale', (tester) async {
     await pumpAuthApp(tester, locale: const Locale('vi'));
 
-    expect(find.text('Tiếp tục bằng số điện thoại'), findsOneWidget);
-    expect(find.text('Tiếp tục bằng mã trẻ em'), findsOneWidget);
+    expect(find.text('Dùng số điện thoại'), findsOneWidget);
+    expect(find.text('Dùng mã trẻ em'), findsOneWidget);
     expect(
       find.text('Xác thực là cột mốc tiếp theo của BeFam.'),
       findsOneWidget,
@@ -129,8 +132,8 @@ void main() {
   testWidgets('supports English as the secondary locale', (tester) async {
     await pumpAuthApp(tester, locale: const Locale('en'));
 
-    expect(find.text('Continue with phone'), findsOneWidget);
-    expect(find.text('Continue with child ID'), findsOneWidget);
+    expect(find.text('Use phone number'), findsOneWidget);
+    expect(find.text('Use child identifier'), findsOneWidget);
     expect(
       find.text('Authentication is the next BeFam milestone.'),
       findsOneWidget,
@@ -144,10 +147,11 @@ void main() {
 
     await loginWithPhone(tester);
 
-    expect(find.textContaining('Chào mừng trở lại'), findsOneWidget);
-    expect(find.text('Ngữ cảnh đã đăng nhập'), findsOneWidget);
-    expect(find.text('Đăng nhập bằng điện thoại'), findsWidgets);
-    expect(find.text('Phiên thành viên đã liên kết'), findsWidgets);
+    final shell = tester.widget<AppShellPage>(find.byType(AppShellPage));
+    expect(shell.session.loginMethod, AuthEntryMethod.phone);
+    expect(shell.session.accessMode, AuthMemberAccessMode.claimed);
+    expect(find.text('Trang tổng quan'), findsOneWidget);
+    expect(find.byKey(const Key('shortcut-members')), findsOneWidget);
   });
 
   testWidgets('supports manual child identifier input', (tester) async {
@@ -169,9 +173,11 @@ void main() {
 
     await loginWithChild(tester);
 
-    expect(find.text('Phiên truy cập trẻ em'), findsWidgets);
-    expect(find.textContaining('BEFAM-CHILD-001'), findsWidgets);
-    expect(find.textContaining('OTP phụ huynh'), findsWidgets);
+    final shell = tester.widget<AppShellPage>(find.byType(AppShellPage));
+    expect(shell.session.loginMethod, AuthEntryMethod.child);
+    expect(shell.session.accessMode, AuthMemberAccessMode.child);
+    expect(shell.session.childIdentifier, 'BEFAM-CHILD-001');
+    expect(find.text('Trang tổng quan'), findsOneWidget);
   });
 
   testWidgets('opens the clan workspace for a linked clan admin', (
@@ -322,7 +328,11 @@ void main() {
       await tester.enterText(find.byKey(const Key('members-search-input')), '');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('members-generation-filter-4')));
+      await tester.tap(
+        find.byKey(const Key('members-generation-filter-dropdown')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Đời 4').last);
       await tester.pumpAndSettle();
 
       expect(
@@ -338,9 +348,9 @@ void main() {
         findsNothing,
       );
 
-      await tester.tap(
-        find.byKey(const Key('members-branch-filter-branch_demo_002')),
-      );
+      await tester.tap(find.byKey(const Key('members-branch-filter-dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Chi Phụ').last);
       await tester.pumpAndSettle();
 
       expect(
@@ -352,7 +362,7 @@ void main() {
         findsNothing,
       );
 
-      await tester.tap(find.text('Xóa bộ lọc'));
+      await tester.tap(find.byKey(const Key('members-clear-filters')));
       await tester.pumpAndSettle();
 
       expect(
