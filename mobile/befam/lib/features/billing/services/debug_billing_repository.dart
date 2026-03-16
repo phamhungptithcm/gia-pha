@@ -17,7 +17,7 @@ class DebugBillingRepository implements BillingRepository {
 
   final DebugGenealogyStore _genealogyStore;
 
-  static final Map<String, _DebugBillingState> _statesByClanId = {};
+  static final Map<String, _DebugBillingState> _statesByScopeId = {};
   static int _transactionSequence = 1;
   static int _invoiceSequence = 1;
   static int _auditSequence = 1;
@@ -31,7 +31,7 @@ class DebugBillingRepository implements BillingRepository {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 120));
     final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId);
+    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
     _syncStateWithMemberCount(state, clanId);
     return state.toSnapshot();
   }
@@ -42,7 +42,7 @@ class DebugBillingRepository implements BillingRepository {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 90));
     final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId);
+    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
     _syncStateWithMemberCount(state, clanId);
     return state.toViewerSummary();
   }
@@ -53,7 +53,7 @@ class DebugBillingRepository implements BillingRepository {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 60));
     final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId);
+    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
     _syncStateWithMemberCount(state, clanId);
     return state.entitlement;
   }
@@ -67,7 +67,7 @@ class DebugBillingRepository implements BillingRepository {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 90));
     final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId);
+    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
 
     final normalizedMode = paymentMode.trim().toLowerCase();
     if (normalizedMode != 'manual' && normalizedMode != 'auto_renew') {
@@ -78,7 +78,7 @@ class DebugBillingRepository implements BillingRepository {
     }
 
     state.settings = BillingSettings(
-      id: clanId,
+      id: '${clanId}__${session.uid}',
       clanId: clanId,
       paymentMode: normalizedMode,
       autoRenew: autoRenew,
@@ -115,7 +115,7 @@ class DebugBillingRepository implements BillingRepository {
       clanId: clanId,
       action: 'billing_preferences_updated',
       entityType: 'billingSettings',
-      entityId: clanId,
+      entityId: state.settings.id,
       actorUid: session.uid,
     );
 
@@ -131,7 +131,7 @@ class DebugBillingRepository implements BillingRepository {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 140));
     final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId);
+    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
     _syncStateWithMemberCount(state, clanId);
 
     final method = paymentMethod.trim().toLowerCase();
@@ -144,7 +144,8 @@ class DebugBillingRepository implements BillingRepository {
 
     final minimumTier = _resolveTier(state.memberCount);
     final currentTier = _resolveTierByPlanCode(state.subscription.planCode);
-    final defaultTier = _rankPlanCode(currentTier.planCode) >=
+    final defaultTier =
+        _rankPlanCode(currentTier.planCode) >=
             _rankPlanCode(minimumTier.planCode)
         ? currentTier
         : minimumTier;
@@ -168,7 +169,7 @@ class DebugBillingRepository implements BillingRepository {
     final transaction = BillingPaymentTransaction(
       id: transactionId,
       clanId: clanId,
-      subscriptionId: clanId,
+      subscriptionId: state.subscription.id,
       invoiceId: invoiceId,
       paymentMethod: method,
       paymentStatus: tier.planCode == 'FREE' ? 'succeeded' : 'pending',
@@ -188,7 +189,7 @@ class DebugBillingRepository implements BillingRepository {
     final invoice = BillingInvoice(
       id: invoiceId,
       clanId: clanId,
-      subscriptionId: clanId,
+      subscriptionId: state.subscription.id,
       transactionId: transactionId,
       planCode: tier.planCode,
       amountVnd: tier.priceVndYear,
@@ -237,7 +238,11 @@ class DebugBillingRepository implements BillingRepository {
     );
 
     if (tier.planCode == 'FREE') {
-      _applySuccessfulPayment(state, transactionId: transactionId, actorUid: session.uid);
+      _applySuccessfulPayment(
+        state,
+        transactionId: transactionId,
+        actorUid: session.uid,
+      );
     }
 
     final checkoutUrl = method == 'vnpay'
@@ -266,7 +271,7 @@ class DebugBillingRepository implements BillingRepository {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 130));
     final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId);
+    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
     final transaction = _findTransaction(state, transactionId);
     if (transaction.paymentMethod != 'card') {
       throw const BillingRepositoryException(
@@ -288,7 +293,7 @@ class DebugBillingRepository implements BillingRepository {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 130));
     final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId);
+    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
     final transaction = _findTransaction(state, transactionId);
     if (transaction.paymentMethod != 'vnpay') {
       throw const BillingRepositoryException(
@@ -303,13 +308,17 @@ class DebugBillingRepository implements BillingRepository {
     );
   }
 
-  _DebugBillingState _ensureState(String clanId) {
-    return _statesByClanId.putIfAbsent(clanId, () {
+  _DebugBillingState _ensureState({
+    required String clanId,
+    required String ownerUid,
+  }) {
+    final scopeId = '${clanId}__$ownerUid';
+    return _statesByScopeId.putIfAbsent(scopeId, () {
       final memberCount = _memberCountForClan(clanId);
       final tier = _resolveTier(memberCount);
       final now = DateTime.now().toUtc();
       final subscription = BillingSubscription(
-        id: clanId,
+        id: scopeId,
         clanId: clanId,
         planCode: tier.planCode,
         status: tier.planCode == 'FREE' ? 'active' : 'expired',
@@ -320,14 +329,16 @@ class DebugBillingRepository implements BillingRepository {
         autoRenew: false,
         startsAtIso: tier.planCode == 'FREE' ? now.toIso8601String() : null,
         expiresAtIso: tier.planCode == 'FREE' ? null : now.toIso8601String(),
-        nextPaymentDueAtIso: tier.planCode == 'FREE' ? null : now.toIso8601String(),
+        nextPaymentDueAtIso: tier.planCode == 'FREE'
+            ? null
+            : now.toIso8601String(),
         graceEndsAtIso: null,
         lastPaymentMethod: null,
         lastTransactionId: null,
         updatedAtIso: now.toIso8601String(),
       );
       final settings = BillingSettings(
-        id: clanId,
+        id: scopeId,
         clanId: clanId,
         paymentMode: 'manual',
         autoRenew: false,
@@ -335,6 +346,7 @@ class DebugBillingRepository implements BillingRepository {
         updatedAtIso: now.toIso8601String(),
       );
       return _DebugBillingState(
+        ownerUid: ownerUid,
         clanId: clanId,
         memberCount: memberCount,
         subscription: subscription,
@@ -359,7 +371,8 @@ class DebugBillingRepository implements BillingRepository {
     }
     final minimumTier = _resolveTier(memberCount);
     final currentTier = _resolveTierByPlanCode(state.subscription.planCode);
-    final tier = _rankPlanCode(currentTier.planCode) >=
+    final tier =
+        _rankPlanCode(currentTier.planCode) >=
             _rankPlanCode(minimumTier.planCode)
         ? currentTier
         : minimumTier;
@@ -418,7 +431,9 @@ class DebugBillingRepository implements BillingRepository {
   }) {
     final now = DateTime.now().toUtc();
     final transaction = _findTransaction(state, transactionId);
-    final txIndex = state.transactions.indexWhere((item) => item.id == transactionId);
+    final txIndex = state.transactions.indexWhere(
+      (item) => item.id == transactionId,
+    );
     final paidTransaction = BillingPaymentTransaction(
       id: transaction.id,
       clanId: transaction.clanId,
@@ -438,7 +453,9 @@ class DebugBillingRepository implements BillingRepository {
     );
     state.transactions[txIndex] = paidTransaction;
 
-    final invoiceIndex = state.invoices.indexWhere((item) => item.id == transaction.invoiceId);
+    final invoiceIndex = state.invoices.indexWhere(
+      (item) => item.id == transaction.invoiceId,
+    );
     if (invoiceIndex >= 0) {
       final invoice = state.invoices[invoiceIndex];
       state.invoices[invoiceIndex] = BillingInvoice(
@@ -459,7 +476,14 @@ class DebugBillingRepository implements BillingRepository {
     }
 
     final startsAt = now;
-    final expiresAt = DateTime.utc(now.year + 1, now.month, now.day, now.hour, now.minute, now.second);
+    final expiresAt = DateTime.utc(
+      now.year + 1,
+      now.month,
+      now.day,
+      now.hour,
+      now.minute,
+      now.second,
+    );
     state.subscription = BillingSubscription(
       id: state.subscription.id,
       clanId: state.subscription.clanId,
@@ -518,7 +542,9 @@ class DebugBillingRepository implements BillingRepository {
   }
 
   int _memberCountForClan(String clanId) {
-    return _genealogyStore.members.values.where((member) => member.clanId == clanId).length;
+    return _genealogyStore.members.values
+        .where((member) => member.clanId == clanId)
+        .length;
   }
 
   _PricingTier _resolveTier(int memberCount) {
@@ -644,6 +670,7 @@ class DebugBillingRepository implements BillingRepository {
 
 class _DebugBillingState {
   _DebugBillingState({
+    required this.ownerUid,
     required this.clanId,
     required this.memberCount,
     required this.subscription,
@@ -654,6 +681,7 @@ class _DebugBillingState {
     required this.auditLogs,
   });
 
+  final String ownerUid;
   final String clanId;
   int memberCount;
   BillingSubscription subscription;

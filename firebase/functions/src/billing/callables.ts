@@ -9,7 +9,6 @@ import {
   buildEntitlementFromSubscription,
   createPendingCheckout,
   ensureSubscriptionForClan,
-  loadBillingSettings,
   resolveBillingAudienceMemberIds,
   upsertBillingSettings,
   writeBillingAuditLog,
@@ -37,6 +36,10 @@ const subscriptionsCollection = db.collection('subscriptions');
 const transactionsCollection = db.collection('paymentTransactions');
 const invoicesCollection = db.collection('subscriptionInvoices');
 const billingAuditLogsCollection = db.collection('billingAuditLogs');
+
+function scopedBillingDocId(clanId: string, ownerUid: string): string {
+  return `${clanId}__${ownerUid}`;
+}
 
 export const resolveBillingEntitlement = onCall(
   { region: APP_REGION },
@@ -76,7 +79,6 @@ export const loadBillingWorkspace = onCall(
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
     ensureClanAccess(auth.token, clanId);
-    assertBillingAdmin(auth.token);
 
     const ensured = await ensureSubscriptionForClan({
       clanId,
@@ -133,7 +135,6 @@ export const updateBillingPreferences = onCall(
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
     ensureClanAccess(auth.token, clanId);
-    assertBillingAdmin(auth.token);
 
     const paymentMode = normalizePaymentModeFromInput(request.data);
     const autoRenew = readBoolean(request.data, 'autoRenew', paymentMode === 'auto_renew');
@@ -141,13 +142,14 @@ export const updateBillingPreferences = onCall(
 
     const settings = await upsertBillingSettings({
       clanId,
+      ownerUid: auth.uid,
       paymentMode,
       autoRenew,
       reminderDaysBefore,
       actorUid: auth.uid,
     });
 
-    await subscriptionsCollection.doc(clanId).set(
+    await subscriptionsCollection.doc(scopedBillingDocId(clanId, auth.uid)).set(
       {
         paymentMode: settings.paymentMode,
         autoRenew: settings.autoRenew,
@@ -184,7 +186,6 @@ export const createSubscriptionCheckout = onCall(
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
     ensureClanAccess(auth.token, clanId);
-    assertBillingAdmin(auth.token);
 
     const paymentMethod = normalizePaymentMethod(request.data);
     const requestedPlanCode = normalizeRequestedPlanCode(request.data);
@@ -262,7 +263,6 @@ export const completeCardCheckout = onCall(
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
     ensureClanAccess(auth.token, clanId);
-    assertBillingAdmin(auth.token);
 
     const transactionId = readString(request.data, 'transactionId');
     if (transactionId == null || transactionId.length === 0) {
@@ -276,6 +276,10 @@ export const completeCardCheckout = onCall(
     const txClanId = normalizeString(txSnapshot.data()?.clanId);
     if (txClanId !== clanId) {
       throw new HttpsError('permission-denied', 'transaction clan mismatch.');
+    }
+    const txOwnerUid = normalizeString(txSnapshot.data()?.subscriptionOwnerUid);
+    if (txOwnerUid.length > 0 && txOwnerUid !== auth.uid) {
+      throw new HttpsError('permission-denied', 'transaction owner mismatch.');
     }
 
     const payment = await applyPaymentResult({
@@ -317,11 +321,23 @@ export const simulateVnpaySettlement = onCall(
       throw new HttpsError('failed-precondition', 'No clan context is available.');
     }
     ensureClanAccess(auth.token, clanId);
-    assertBillingAdmin(auth.token);
 
     const transactionId = readString(request.data, 'transactionId');
     if (transactionId == null || transactionId.length === 0) {
       throw new HttpsError('invalid-argument', 'transactionId is required.');
+    }
+
+    const txSnapshot = await transactionsCollection.doc(transactionId).get();
+    if (!txSnapshot.exists) {
+      throw new HttpsError('not-found', 'transaction not found.');
+    }
+    const txClanId = normalizeString(txSnapshot.data()?.clanId);
+    if (txClanId !== clanId) {
+      throw new HttpsError('permission-denied', 'transaction clan mismatch.');
+    }
+    const txOwnerUid = normalizeString(txSnapshot.data()?.subscriptionOwnerUid);
+    if (txOwnerUid.length > 0 && txOwnerUid !== auth.uid) {
+      throw new HttpsError('permission-denied', 'transaction owner mismatch.');
     }
 
     const payment = await applyPaymentResult({
@@ -402,25 +418,6 @@ function resolveClanId(token: AuthToken, data: unknown): string {
     return dataClanId;
   }
   return clanIds[0] ?? '';
-}
-
-function assertBillingAdmin(token: AuthToken): void {
-  const role = normalizeString(token.primaryRole).toUpperCase();
-  const allowed = new Set([
-    'SUPER_ADMIN',
-    'CLAN_ADMIN',
-    'BRANCH_ADMIN',
-    'CLAN_OWNER',
-    'CLAN_LEADER',
-    'VICE_LEADER',
-    'SUPPORTER_OF_LEADER',
-  ]);
-  if (!allowed.has(role)) {
-    throw new HttpsError(
-      'permission-denied',
-      'Billing actions require clan owner/admin privileges.',
-    );
-  }
 }
 
 function normalizePaymentMethod(data: unknown): PaymentMethod {
