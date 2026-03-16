@@ -391,12 +391,11 @@ export async function createPendingCheckout({
       id: subscription.id,
       clanId,
       ownerUid: actorUid,
-      planCode: tier.planCode === 'FREE' ? tier.planCode : subscription.planCode,
+      planCode: tier.planCode,
       memberCount,
-      amountVndYear:
-        tier.planCode === 'FREE' ? tier.priceVndYear : subscription.amountVndYear,
-      vatIncluded: tier.planCode === 'FREE' ? tier.vatIncluded : subscription.vatIncluded,
-      status: tier.planCode === 'FREE' ? 'active' : subscription.status,
+      amountVndYear: tier.priceVndYear,
+      vatIncluded: tier.vatIncluded,
+      status: tier.planCode === 'FREE' ? 'active' : 'pending_payment',
       lastTransactionId: transaction.id,
       lastInvoiceId: invoice.id,
       lastPaymentMethod: paymentMethod,
@@ -423,123 +422,17 @@ export async function createPendingCheckout({
 
   const checkoutSubscription: BillingSubscriptionRecord = {
     ...subscription,
-    planCode: tier.planCode === 'FREE' ? tier.planCode : subscription.planCode,
+    planCode: tier.planCode,
     memberCount,
-    amountVndYear:
-      tier.planCode === 'FREE' ? tier.priceVndYear : subscription.amountVndYear,
-    vatIncluded: tier.planCode === 'FREE' ? tier.vatIncluded : subscription.vatIncluded,
-    status: tier.planCode === 'FREE' ? 'active' : subscription.status,
+    amountVndYear: tier.priceVndYear,
+    vatIncluded: tier.vatIncluded,
+    status: tier.planCode === 'FREE' ? 'active' : 'pending_payment',
     lastPaymentMethod: paymentMethod,
     lastTransactionId: transaction.id,
     updatedAt: now,
   };
 
   return { tier, memberCount, subscription: checkoutSubscription, transaction, invoice };
-}
-
-export async function expireStalePendingTransactions({
-  clanId,
-  actorUid = 'system:billing_timeout',
-  now = new Date(),
-  timeoutMinutes,
-  scanLimit,
-}: {
-  clanId: string;
-  actorUid?: string;
-  now?: Date;
-  timeoutMinutes?: number;
-  scanLimit?: number;
-}): Promise<{
-  timeoutMinutes: number;
-  expiredCount: number;
-  transactionIds: Array<string>;
-}> {
-  const resolvedTimeoutMinutes = Math.max(
-    5,
-    Math.trunc(timeoutMinutes ?? readNumber(process.env.BILLING_PENDING_TIMEOUT_MINUTES, 45)),
-  );
-  const resolvedScanLimit = Math.max(
-    20,
-    Math.min(200, Math.trunc(scanLimit ?? readNumber(process.env.BILLING_PENDING_SCAN_LIMIT, 100))),
-  );
-  const cutoffTimeMs = now.getTime() - resolvedTimeoutMinutes * 60_000;
-
-  const snapshot = await transactionsCollection
-    .where('clanId', '==', clanId)
-    .orderBy('createdAt', 'desc')
-    .limit(resolvedScanLimit)
-    .get();
-  const staleTransactions = snapshot.docs
-    .map((doc) => mapTransaction(doc.id, doc.data() ?? {}))
-    .filter((transaction) => {
-      const status = transaction.paymentStatus.trim().toLowerCase();
-      if (status !== 'pending' && status !== 'created') {
-        return false;
-      }
-      if (transaction.createdAt == null) {
-        return false;
-      }
-      return transaction.createdAt.getTime() <= cutoffTimeMs;
-    });
-
-  if (staleTransactions.length === 0) {
-    return {
-      timeoutMinutes: resolvedTimeoutMinutes,
-      expiredCount: 0,
-      transactionIds: [],
-    };
-  }
-
-  const transactionIds: Array<string> = [];
-  for (const transaction of staleTransactions) {
-    try {
-      await applyPaymentResult({
-        transactionId: transaction.id,
-        provider: 'system_timeout',
-        gatewayReference: transaction.gatewayReference ?? `TIMEOUT-${transaction.id.slice(0, 10)}`,
-        paymentStatus: 'canceled',
-        payloadHash: `timeout:${clanId}:${transaction.id}:${Math.trunc(now.getTime() / 60_000)}`,
-        actorUid,
-        now,
-      });
-      transactionIds.push(transaction.id);
-      await writeBillingAuditLog({
-        clanId,
-        actorUid,
-        action: 'payment_timeout_marked',
-        entityType: 'paymentTransaction',
-        entityId: transaction.id,
-        before: {
-          status: transaction.paymentStatus,
-          createdAt: transaction.createdAt?.toISOString() ?? null,
-        },
-        after: {
-          status: 'canceled',
-          timeoutMinutes: resolvedTimeoutMinutes,
-        },
-      });
-    } catch (error) {
-      logWarn('failed to expire stale billing transaction', {
-        clanId,
-        transactionId: transaction.id,
-        error: `${error}`,
-      });
-    }
-  }
-
-  if (transactionIds.length > 0) {
-    logInfo('expired stale pending billing transactions', {
-      clanId,
-      timeoutMinutes: resolvedTimeoutMinutes,
-      transactionIds,
-    });
-  }
-
-  return {
-    timeoutMinutes: resolvedTimeoutMinutes,
-    expiredCount: transactionIds.length,
-    transactionIds,
-  };
 }
 
 export async function recordPaymentWebhookEvent({
@@ -658,12 +551,7 @@ export async function applyPaymentResult({
       tx.set(
         invoiceRef,
         {
-          status:
-            paymentStatus === 'succeeded'
-              ? 'paid'
-              : paymentStatus === 'canceled'
-              ? 'void'
-              : 'failed',
+          status: paymentStatus === 'succeeded' ? 'paid' : 'failed',
           paidAt: paymentStatus === 'succeeded' ? FieldValue.serverTimestamp() : null,
           updatedAt: FieldValue.serverTimestamp(),
           updatedBy: actorUid,
@@ -673,7 +561,7 @@ export async function applyPaymentResult({
     }
 
     if (paymentStatus === 'succeeded') {
-      const tier = resolveTierByPlanCode(transactionData.planCode);
+      const tier = resolvePlanByMemberCount(transactionData.memberCount);
       const anchorStart = existingSubscription?.expiresAt != null &&
           existingSubscription.expiresAt.getTime() > now.getTime()
         ? existingSubscription.expiresAt
@@ -715,14 +603,10 @@ export async function applyPaymentResult({
         { merge: true },
       );
     } else {
-      const nextStatus = resolveStatusAfterUnsuccessfulPayment({
-        subscription: existingSubscription,
-        now,
-      });
       tx.set(
         subscriptionRef,
         {
-          status: nextStatus,
+          status: 'expired',
           updatedAt: FieldValue.serverTimestamp(),
           updatedBy: actorUid,
         },
@@ -735,12 +619,7 @@ export async function applyPaymentResult({
       id: auditRef.id,
       clanId: transactionData.clanId,
       actorUid,
-      action:
-        paymentStatus === 'succeeded'
-          ? 'payment_succeeded'
-          : paymentStatus === 'canceled'
-          ? 'payment_canceled'
-          : 'payment_failed',
+      action: paymentStatus === 'succeeded' ? 'payment_succeeded' : 'payment_failed',
       entityType: 'paymentTransaction',
       entityId: transactionData.id,
       before: {
@@ -862,28 +741,6 @@ function normalizeStatusForPlan({
   }
   if (currentStatus === 'pending_payment') {
     return currentStatus;
-  }
-  return 'expired';
-}
-
-function resolveStatusAfterUnsuccessfulPayment({
-  subscription,
-  now,
-}: {
-  subscription: BillingSubscriptionRecord | null;
-  now: Date;
-}): SubscriptionStatus {
-  if (subscription == null) {
-    return 'expired';
-  }
-  const normalizedStatus = normalizeSubscriptionStatus({
-    status: subscription.status,
-    expiresAt: subscription.expiresAt,
-    graceEndsAt: subscription.graceEndsAt,
-    now,
-  });
-  if (normalizedStatus === 'active' || normalizedStatus === 'grace_period') {
-    return normalizedStatus;
   }
   return 'expired';
 }

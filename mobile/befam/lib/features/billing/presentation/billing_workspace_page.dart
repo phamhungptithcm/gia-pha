@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -35,8 +34,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   bool _autoRenewDraft = false;
   Set<int> _reminderDaysDraft = {30, 14, 7, 3, 1};
   String? _draftSeedKey;
-  Timer? _pendingPollingTimer;
-  bool _isPollingRefreshInFlight = false;
 
   @override
   void initState() {
@@ -52,42 +49,14 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
 
   @override
   void dispose() {
-    _pendingPollingTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _startVnpayCheckoutFlow({
-    required BillingWorkspaceSnapshot workspace,
-    required BillingPlanPricing selectedTier,
-  }) async {
-    final draft = await Navigator.of(context).push<_VnpayCheckoutDraft>(
-      MaterialPageRoute(
-        builder: (context) => _VnpayCheckoutFormPage(
-          selectedTier: selectedTier,
-          memberCount: workspace.memberCount,
-          currentPlanCode: workspace.subscription.planCode,
-          currentStatus: workspace.entitlement.status,
-          expiresAtIso:
-              workspace.entitlement.expiresAtIso ??
-              workspace.subscription.expiresAtIso,
-          defaultLocale: _preferredVnpayLocale(context),
-        ),
-      ),
-    );
-    if (!mounted || draft == null) {
-      return;
-    }
-    await _createVnpayCheckout(draft);
-  }
-
-  Future<void> _createVnpayCheckout(_VnpayCheckoutDraft draft) async {
+  Future<void> _createCheckout(String paymentMethod) async {
     final result = await _controller.createCheckout(
-      paymentMethod: 'vnpay',
+      paymentMethod: paymentMethod,
       requestedPlanCode: _selectedPlanCodeDraft,
-      locale: draft.locale,
-      orderNote: draft.orderNote,
-      bankCode: draft.bankCode,
     );
     if (!mounted || result == null) {
       return;
@@ -96,22 +65,12 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       SnackBar(
         content: Text(
           context.l10n.pick(
-            vi: 'Đã tạo phiên thanh toán VNPay. Hệ thống sẽ cập nhật khi VNPay xác nhận.',
-            en: 'VNPay checkout created. We will update once VNPay confirms payment.',
+            vi: 'Đã tạo phiên thanh toán ${paymentMethod.toUpperCase()}.',
+            en: '${paymentMethod.toUpperCase()} checkout created.',
           ),
         ),
       ),
     );
-    if (result.checkoutUrl.trim().isNotEmpty) {
-      await _openCheckoutUrl(result.checkoutUrl);
-    }
-  }
-
-  String _preferredVnpayLocale(BuildContext context) {
-    final languageCode = Localizations.localeOf(
-      context,
-    ).languageCode.toLowerCase();
-    return languageCode == 'en' ? 'en' : 'vn';
   }
 
   Future<void> _savePreferences() async {
@@ -152,73 +111,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         ),
       ),
     );
-  }
-
-  Future<void> _openCheckoutUrl(String checkoutUrl) async {
-    final uri = Uri.tryParse(checkoutUrl.trim());
-    if (uri == null) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.pick(
-              vi: 'Liên kết thanh toán không hợp lệ.',
-              en: 'Invalid checkout URL.',
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-
-    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (launched || !mounted) {
-      return;
-    }
-
-    await Clipboard.setData(ClipboardData(text: checkoutUrl));
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          context.l10n.pick(
-            vi: 'Không thể mở VNPay. Đã sao chép liên kết để bạn mở thủ công.',
-            en: 'Could not open VNPay. The checkout link has been copied.',
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _syncPendingPolling({required bool shouldPoll}) {
-    if (shouldPoll) {
-      _pendingPollingTimer ??= Timer.periodic(const Duration(seconds: 8), (_) {
-        if (!mounted ||
-            _controller.isLoading ||
-            _controller.isCreatingCheckout ||
-            _controller.isProcessingPayment ||
-            _isPollingRefreshInFlight) {
-          return;
-        }
-        _isPollingRefreshInFlight = true;
-        unawaited(() async {
-          try {
-            await _controller.refresh(silent: true);
-          } finally {
-            _isPollingRefreshInFlight = false;
-          }
-        }());
-      });
-      return;
-    }
-
-    _pendingPollingTimer?.cancel();
-    _pendingPollingTimer = null;
-    _isPollingRefreshInFlight = false;
   }
 
   void _syncDraftFromWorkspace(BillingWorkspaceSnapshot workspace) {
@@ -264,9 +156,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         final viewerSummary = _controller.viewerSummary;
         if (workspace != null) {
           _syncDraftFromWorkspace(workspace);
-        }
-        if (!_controller.canManageBilling || workspace == null) {
-          _syncPendingPolling(shouldPoll: false);
         }
 
         return Scaffold(
@@ -362,27 +251,9 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       (tier) => tier.planCode.trim().toUpperCase() == selectedPlanCode,
       orElse: () => minimumTier,
     );
-    final currentPlanRank = _planRank(workspace.subscription.planCode);
-    final selectedPlanRank = _planRank(selectedTier.planCode);
-    final activeStatus = _isActiveSubscriptionStatus(
-      workspace.entitlement.status,
-    );
-    final isUpgrade = selectedPlanRank > currentPlanRank;
-    final upgradeOnlyMode = activeStatus && currentPlanRank > 0;
-    final checkoutBlockedByUpgradeRule = upgradeOnlyMode && !isUpgrade;
-    final canStartVnpayCheckout =
-        canManage &&
-        !_controller.isCreatingCheckout &&
-        selectedTier.priceVndYear > 0 &&
-        !checkoutBlockedByUpgradeRule;
     final pendingTransactions = workspace.transactions
         .where((tx) => _isPendingPaymentStatus(tx.paymentStatus))
         .toList(growable: false);
-    _syncPendingPolling(
-      shouldPoll: pendingTransactions.any(
-        (tx) => tx.paymentMethod.trim().toLowerCase() == 'vnpay',
-      ),
-    );
 
     return RefreshIndicator(
       onRefresh: _controller.refresh,
@@ -496,20 +367,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                   style: theme.textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
-                if (upgradeOnlyMode)
-                  _InfoCard(
-                    icon: Icons.upgrade_outlined,
-                    title: l10n.pick(
-                      vi: 'Gói hiện tại vẫn còn hiệu lực',
-                      en: 'Current plan is still active',
-                    ),
-                    description: l10n.pick(
-                      vi: 'Trong thời gian còn hạn, hệ thống chỉ cho thanh toán nâng cấp lên gói cao hơn.',
-                      en: 'While your plan is valid, checkout is available for higher-tier upgrades only.',
-                    ),
-                    tone: colorScheme.secondaryContainer,
-                  ),
-                if (upgradeOnlyMode) const SizedBox(height: 10),
                 if (selectedTier.priceVndYear == 0)
                   _InfoCard(
                     icon: Icons.info_outline,
@@ -524,40 +381,28 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                     tone: colorScheme.tertiaryContainer,
                   )
                 else
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
                     children: [
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          key: const Key('billing-checkout-vnpay-button'),
-                          onPressed: canStartVnpayCheckout
-                              ? () => _startVnpayCheckoutFlow(
-                                  workspace: workspace,
-                                  selectedTier: selectedTier,
-                                )
-                              : null,
-                          icon: const Icon(Icons.qr_code_2_outlined),
-                          label: Text(
-                            l10n.pick(
-                              vi: 'Thanh toán bằng VNPay',
-                              en: 'Pay with VNPay',
-                            ),
-                          ),
+                      FilledButton.icon(
+                        key: const Key('billing-checkout-card-button'),
+                        onPressed: canManage && !_controller.isCreatingCheckout
+                            ? () => _createCheckout('card')
+                            : null,
+                        icon: const Icon(Icons.credit_card),
+                        label: Text(
+                          l10n.pick(vi: 'Thanh toán thẻ', en: 'Pay by card'),
                         ),
                       ),
-                      if (checkoutBlockedByUpgradeRule) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          l10n.pick(
-                            vi: 'Vui lòng chọn gói cao hơn để nâng cấp trong thời gian còn hạn.',
-                            en: 'Please choose a higher plan to upgrade while current plan is valid.',
-                          ),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.error,
-                          ),
-                        ),
-                      ],
+                      OutlinedButton.icon(
+                        key: const Key('billing-checkout-vnpay-button'),
+                        onPressed: canManage && !_controller.isCreatingCheckout
+                            ? () => _createCheckout('vnpay')
+                            : null,
+                        icon: const Icon(Icons.qr_code_2_outlined),
+                        label: const Text('VNPay'),
+                      ),
                     ],
                   ),
                 if (_controller.lastCheckout case final checkout?) ...[
@@ -567,9 +412,22 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                     onCopyUrl: checkout.checkoutUrl.trim().isEmpty
                         ? null
                         : () => _copyCheckoutUrl(checkout.checkoutUrl),
-                    onOpenUrl: checkout.checkoutUrl.trim().isEmpty
-                        ? null
-                        : () => _openCheckoutUrl(checkout.checkoutUrl),
+                    onConfirmCard:
+                        canManage &&
+                            checkout.paymentMethod == 'card' &&
+                            checkout.requiresManualConfirmation
+                        ? () => _controller.confirmCardPayment(
+                            checkout.transactionId,
+                          )
+                        : null,
+                    onConfirmVnpay:
+                        canManage &&
+                            checkout.paymentMethod == 'vnpay' &&
+                            checkout.planCode != 'FREE'
+                        ? () => _controller.confirmVnpayPayment(
+                            checkout.transactionId,
+                          )
+                        : null,
                   ),
                 ],
                 if (pendingTransactions.isNotEmpty) ...[
@@ -590,21 +448,33 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       child: ListTile(
                         dense: true,
                         title: Text(
-                          '${_localizedPlanName(tx.planCode, l10n)} • ${_formatVnd(tx.amountVnd)}',
+                          '${tx.paymentMethod.toUpperCase()} • ${_formatVnd(tx.amountVnd)}',
                         ),
                         subtitle: Text(
-                          l10n.pick(
-                            vi: 'VNPay • Mã: ${tx.id}',
-                            en: 'VNPay • Ref: ${tx.id}',
-                          ),
+                          l10n.pick(vi: 'Mã: ${tx.id}', en: 'Ref: ${tx.id}'),
                         ),
-                        trailing: Tooltip(
-                          message: l10n.pick(
-                            vi: 'Đợi VNPay gửi callback xác nhận. Gói hiện tại vẫn được giữ nguyên cho đến khi thanh toán thành công.',
-                            en: 'Waiting for VNPay callback confirmation. Your current plan remains active until payment succeeds.',
-                          ),
-                          child: const Icon(Icons.hourglass_top_rounded),
-                        ),
+                        trailing: tx.paymentMethod == 'card'
+                            ? TextButton(
+                                onPressed: canManage
+                                    ? () =>
+                                          _controller.confirmCardPayment(tx.id)
+                                    : null,
+                                child: Text(
+                                  l10n.pick(vi: 'Xác nhận', en: 'Confirm'),
+                                ),
+                              )
+                            : TextButton(
+                                onPressed: canManage
+                                    ? () =>
+                                          _controller.confirmVnpayPayment(tx.id)
+                                    : null,
+                                child: Text(
+                                  l10n.pick(
+                                    vi: 'Đã thanh toán',
+                                    en: 'Mark paid',
+                                  ),
+                                ),
+                              ),
                       ),
                     ),
                 ],
@@ -1039,14 +909,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         return l10n.pick(vi: 'Thanh toán thành công', en: 'Payment succeeded');
       case 'payment_failed':
         return l10n.pick(vi: 'Thanh toán thất bại', en: 'Payment failed');
-      case 'payment_canceled':
-      case 'payment_cancelled':
-        return l10n.pick(vi: 'Thanh toán đã hủy', en: 'Payment canceled');
-      case 'payment_timeout_marked':
-        return l10n.pick(
-          vi: 'Phiên thanh toán đã hết hạn',
-          en: 'Payment session timed out',
-        );
       case 'billing_preferences_updated':
         return l10n.pick(
           vi: 'Đã cập nhật cài đặt thanh toán',
@@ -1078,11 +940,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   bool _isPendingPaymentStatus(String status) {
     final normalized = status.trim().toLowerCase();
     return normalized == 'pending' || normalized == 'created';
-  }
-
-  bool _isActiveSubscriptionStatus(String status) {
-    final normalized = status.trim().toLowerCase();
-    return normalized == 'active' || normalized == 'grace_period';
   }
 
   String _humanizeCode(String raw) {
@@ -1250,275 +1107,18 @@ class _SubscriptionHeroCard extends StatelessWidget {
   }
 }
 
-class _VnpayCheckoutDraft {
-  const _VnpayCheckoutDraft({
-    required this.locale,
-    this.orderNote,
-    this.bankCode,
-  });
-
-  final String locale;
-  final String? orderNote;
-  final String? bankCode;
-}
-
-class _VnpayCheckoutFormPage extends StatefulWidget {
-  const _VnpayCheckoutFormPage({
-    required this.selectedTier,
-    required this.memberCount,
-    required this.currentPlanCode,
-    required this.currentStatus,
-    required this.expiresAtIso,
-    required this.defaultLocale,
-  });
-
-  final BillingPlanPricing selectedTier;
-  final int memberCount;
-  final String currentPlanCode;
-  final String currentStatus;
-  final String? expiresAtIso;
-  final String defaultLocale;
-
-  @override
-  State<_VnpayCheckoutFormPage> createState() => _VnpayCheckoutFormPageState();
-}
-
-class _VnpayCheckoutFormPageState extends State<_VnpayCheckoutFormPage> {
-  late final TextEditingController _orderNoteController;
-  String? _selectedBankCode;
-
-  @override
-  void initState() {
-    super.initState();
-    _orderNoteController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _orderNoteController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.pick(vi: 'Thanh toán VNPay', en: 'VNPay checkout')),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.pick(vi: 'Tóm tắt đơn hàng', en: 'Order summary'),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _SummaryRow(
-                      label: l10n.pick(vi: 'Gói thanh toán', en: 'Plan'),
-                      value: _localizedPlanName(
-                        widget.selectedTier.planCode,
-                        l10n,
-                      ),
-                    ),
-                    _SummaryRow(
-                      label: l10n.pick(vi: 'Số thành viên', en: 'Members'),
-                      value: '${widget.memberCount}',
-                    ),
-                    _SummaryRow(
-                      label: l10n.pick(vi: 'Tổng tiền', en: 'Total amount'),
-                      value: _formatVnd(widget.selectedTier.priceVndYear),
-                    ),
-                    _SummaryRow(
-                      label: l10n.pick(vi: 'Gói đang dùng', en: 'Current plan'),
-                      value:
-                          '${_localizedPlanName(widget.currentPlanCode, l10n)} • '
-                          '${_humanizeStatusCode(widget.currentStatus, l10n)}',
-                    ),
-                    _SummaryRow(
-                      label: l10n.pick(
-                        vi: 'Hiệu lực hiện tại',
-                        en: 'Current validity',
-                      ),
-                      value: _dateOnly(widget.expiresAtIso),
-                    ),
-                    _SummaryRow(
-                      label: l10n.pick(
-                        vi: 'Ngôn ngữ VNPay',
-                        en: 'VNPay language',
-                      ),
-                      value: widget.defaultLocale == 'en'
-                          ? l10n.pick(vi: 'Tiếng Anh', en: 'English')
-                          : l10n.pick(vi: 'Tiếng Việt', en: 'Vietnamese'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _orderNoteController,
-              maxLength: 120,
-              textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                labelText: l10n.pick(
-                  vi: 'Ghi chú đơn hàng (tùy chọn)',
-                  en: 'Order note (optional)',
-                ),
-                hintText: l10n.pick(
-                  vi: 'Ví dụ: Gia hạn cho năm 2026',
-                  en: 'Example: Renewal for 2026',
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String?>(
-              isExpanded: true,
-              initialValue: _selectedBankCode,
-              decoration: InputDecoration(
-                labelText: l10n.pick(
-                  vi: 'Kênh thanh toán (tùy chọn)',
-                  en: 'Payment channel (optional)',
-                ),
-              ),
-              items: [
-                DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text(
-                    l10n.pick(vi: 'Tự chọn tại VNPay', en: 'Choose on VNPay'),
-                  ),
-                ),
-                for (final option in _vnpayBankOptions)
-                  DropdownMenuItem<String?>(
-                    value: option.code,
-                    child: Text(
-                      l10n.pick(vi: option.labelVi, en: option.labelEn),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedBankCode = value;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            Text(
-              l10n.pick(
-                vi: 'Nhấn "Tiếp tục với VNPay" để chuyển sang trang thanh toán sandbox. Gói hiện tại chỉ đổi khi VNPay xác nhận thành công.',
-                en: 'Tap "Continue to VNPay" to open the sandbox checkout. Current plan changes only after successful VNPay confirmation.',
-              ),
-              style: theme.textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-        child: FilledButton.icon(
-          onPressed: () {
-            Navigator.of(context).pop(
-              _VnpayCheckoutDraft(
-                locale: widget.defaultLocale,
-                orderNote: _orderNoteController.text.trim().isEmpty
-                    ? null
-                    : _orderNoteController.text.trim(),
-                bankCode: _selectedBankCode,
-              ),
-            );
-          },
-          icon: const Icon(Icons.arrow_forward),
-          label: Text(
-            l10n.pick(vi: 'Tiếp tục với VNPay', en: 'Continue to VNPay'),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 126,
-            child: Text(label, style: theme.textTheme.bodySmall),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _VnpayBankOption {
-  const _VnpayBankOption({
-    required this.code,
-    required this.labelVi,
-    required this.labelEn,
-  });
-
-  final String code;
-  final String labelVi;
-  final String labelEn;
-}
-
-const List<_VnpayBankOption> _vnpayBankOptions = [
-  _VnpayBankOption(code: 'VNPAYQR', labelVi: 'QR VNPay', labelEn: 'VNPay QR'),
-  _VnpayBankOption(
-    code: 'VNBANK',
-    labelVi: 'ATM/Tài khoản nội địa',
-    labelEn: 'Domestic ATM/account',
-  ),
-  _VnpayBankOption(
-    code: 'INTCARD',
-    labelVi: 'Thẻ quốc tế',
-    labelEn: 'International card',
-  ),
-];
-
 class _CheckoutResultCard extends StatelessWidget {
   const _CheckoutResultCard({
     required this.checkout,
     this.onCopyUrl,
-    this.onOpenUrl,
+    this.onConfirmCard,
+    this.onConfirmVnpay,
   });
 
   final BillingCheckoutResult checkout;
   final VoidCallback? onCopyUrl;
-  final VoidCallback? onOpenUrl;
+  final VoidCallback? onConfirmCard;
+  final VoidCallback? onConfirmVnpay;
 
   @override
   Widget build(BuildContext context) {
@@ -1540,47 +1140,49 @@ class _CheckoutResultCard extends StatelessWidget {
                 en: 'Transaction: ${checkout.transactionId}',
               ),
             ),
-            const SizedBox(height: 4),
             Text(
               l10n.pick(
                 vi: 'Phương thức: ${checkout.paymentMethod.toUpperCase()}',
                 en: 'Method: ${checkout.paymentMethod.toUpperCase()}',
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              l10n.pick(
-                vi: 'Số tiền: ${_formatVnd(checkout.amountVnd)}',
-                en: 'Amount: ${_formatVnd(checkout.amountVnd)}',
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.pick(
-                vi: 'Sau khi thanh toán, VNPay sẽ gọi callback để hệ thống tự cập nhật trạng thái gói.',
-                en: 'After payment, VNPay callback will update your subscription status automatically.',
-              ),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
             if (checkout.checkoutUrl.trim().isNotEmpty) ...[
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilledButton.tonalIcon(
-                    onPressed: onOpenUrl,
-                    icon: const Icon(Icons.open_in_new),
-                    label: Text(l10n.pick(vi: 'Mở VNPay', en: 'Open VNPay')),
+              SelectableText(checkout.checkoutUrl),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: onCopyUrl,
+                icon: const Icon(Icons.copy_outlined),
+                label: Text(
+                  l10n.pick(
+                    vi: 'Sao chép liên kết thanh toán',
+                    en: 'Copy checkout link',
                   ),
-                  OutlinedButton.icon(
-                    onPressed: onCopyUrl,
-                    icon: const Icon(Icons.copy_outlined),
-                    label: Text(
-                      l10n.pick(vi: 'Sao chép link', en: 'Copy link'),
-                    ),
+                ),
+              ),
+            ],
+            if (onConfirmCard != null) ...[
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: onConfirmCard,
+                child: Text(
+                  l10n.pick(
+                    vi: 'Xác nhận thanh toán thẻ',
+                    en: 'Confirm card payment',
                   ),
-                ],
+                ),
+              ),
+            ],
+            if (onConfirmVnpay != null) ...[
+              const SizedBox(height: 8),
+              FilledButton.tonal(
+                onPressed: onConfirmVnpay,
+                child: Text(
+                  l10n.pick(
+                    vi: 'Đánh dấu VNPay đã thanh toán',
+                    en: 'Mark VNPay paid',
+                  ),
+                ),
               ),
             ],
           ],
@@ -1795,20 +1397,6 @@ String _localizedPlanName(String planCode, AppLocalizations l10n) {
   }
 }
 
-String _humanizeStatusCode(String status, AppLocalizations l10n) {
-  switch (status.trim().toLowerCase()) {
-    case 'active':
-      return l10n.pick(vi: 'Đang hoạt động', en: 'Active');
-    case 'grace_period':
-      return l10n.pick(vi: 'Ân hạn', en: 'Grace period');
-    case 'pending_payment':
-      return l10n.pick(vi: 'Chờ thanh toán', en: 'Pending payment');
-    case 'expired':
-      return l10n.pick(vi: 'Hết hạn', en: 'Expired');
-    default:
-      return status;
-  }
-}
 String _friendlyErrorMessage(String? raw, AppLocalizations l10n) {
   final fallback = l10n.pick(
     vi: 'Hãy thử tải lại sau.',
@@ -1848,24 +1436,6 @@ String _friendlyErrorMessage(String? raw, AppLocalizations l10n) {
     return l10n.pick(
       vi: 'Không thể kết nối dịch vụ thanh toán. Vui lòng kiểm tra mạng và thử lại.',
       en: 'Billing service is unavailable. Please check your network and retry.',
-    );
-  }
-  if (lower.contains('timeout') || lower.contains('timed out')) {
-    return l10n.pick(
-      vi: 'Phiên thanh toán đã hết thời gian chờ. Vui lòng tạo phiên mới để thanh toán lại.',
-      en: 'Payment session timed out. Please create a new checkout and try again.',
-    );
-  }
-  if (lower.contains('canceled') || lower.contains('cancelled')) {
-    return l10n.pick(
-      vi: 'Thanh toán đã bị hủy. Bạn có thể tạo phiên mới bất kỳ lúc nào.',
-      en: 'Payment was canceled. You can create a new checkout anytime.',
-    );
-  }
-  if (lower.contains('payment failed') || lower.contains(' failed')) {
-    return l10n.pick(
-      vi: 'Thanh toán chưa thành công. Vui lòng kiểm tra lại và thử lại.',
-      en: 'Payment did not complete successfully. Please review and try again.',
     );
   }
 

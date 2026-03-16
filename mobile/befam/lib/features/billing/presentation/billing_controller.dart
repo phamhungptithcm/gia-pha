@@ -63,15 +63,10 @@ class BillingController extends ChangeNotifier {
     await refresh();
   }
 
-  Future<void> refresh({bool silent = false}) async {
-    final shouldShowLoading = !silent || _workspace == null;
-    if (shouldShowLoading) {
-      _isLoading = true;
-      _errorMessage = null;
-      notifyListeners();
-    } else {
-      _errorMessage = null;
-    }
+  Future<void> refresh() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
     try {
       if (canManageBilling) {
         _workspace = await _repository.loadWorkspace(session: _session);
@@ -126,9 +121,6 @@ class BillingController extends ChangeNotifier {
     required String paymentMethod,
     String? requestedPlanCode,
     String? returnUrl,
-    String? locale,
-    String? orderNote,
-    String? bankCode,
   }) async {
     _isCreatingCheckout = true;
     _errorMessage = null;
@@ -140,9 +132,6 @@ class BillingController extends ChangeNotifier {
         paymentMethod: paymentMethod,
         requestedPlanCode: requestedPlanCode,
         returnUrl: returnUrl,
-        locale: locale,
-        orderNote: orderNote,
-        bankCode: bankCode,
       );
       _workspace = await _repository.loadWorkspace(session: _session);
       _viewerSummary = null;
