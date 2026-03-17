@@ -3062,6 +3062,138 @@ abstract class AppLocalizations {
   /// **'Thiết lập nhanh từ ngày mất {deathDate}. Hãy kiểm tra lại trước khi lưu.'**
   String eventQuickMemorialDescription(Object deathDate);
 
+  /// No description provided for @eventRitualChecklistSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Danh sách dỗ trạp'**
+  String get eventRitualChecklistSectionTitle;
+
+  /// No description provided for @eventRitualChecklistSectionDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Theo dõi các mốc 49/50 ngày, 100 ngày, giỗ đầu và giỗ hết để không bỏ sót nghi lễ quan trọng.'**
+  String get eventRitualChecklistSectionDescription;
+
+  /// No description provided for @eventRitualChecklistConfiguredCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thiết lập: {count}'**
+  String eventRitualChecklistConfiguredCount(int count);
+
+  /// No description provided for @eventRitualChecklistMissingCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập: {count}'**
+  String eventRitualChecklistMissingCount(int count);
+
+  /// No description provided for @eventRitualChecklistMismatchCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lệch ngày: {count}'**
+  String eventRitualChecklistMismatchCount(int count);
+
+  /// No description provided for @eventRitualChecklistEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có danh sách dỗ trạp'**
+  String get eventRitualChecklistEmptyTitle;
+
+  /// No description provided for @eventRitualChecklistEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khi thành viên có ngày mất hợp lệ, danh sách dỗ trạp sẽ xuất hiện tại đây.'**
+  String get eventRitualChecklistEmptyDescription;
+
+  /// No description provided for @eventRitualChecklistConfiguredChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thiết lập'**
+  String get eventRitualChecklistConfiguredChip;
+
+  /// No description provided for @eventRitualChecklistMissingChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập'**
+  String get eventRitualChecklistMissingChip;
+
+  /// No description provided for @eventRitualChecklistMismatchChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cần kiểm tra'**
+  String get eventRitualChecklistMismatchChip;
+
+  /// No description provided for @eventRitualChecklistDeathDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày mất'**
+  String get eventRitualChecklistDeathDateLabel;
+
+  /// No description provided for @eventRitualChecklistExpectedDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày dự kiến'**
+  String get eventRitualChecklistExpectedDateLabel;
+
+  /// No description provided for @eventRitualChecklistEventDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày đang thiết lập'**
+  String get eventRitualChecklistEventDateLabel;
+
+  /// No description provided for @eventRitualChecklistQuickSetupAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết lập nhanh'**
+  String get eventRitualChecklistQuickSetupAction;
+
+  /// No description provided for @eventRitualChecklistOpenEventAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở sự kiện'**
+  String get eventRitualChecklistOpenEventAction;
+
+  /// No description provided for @eventRitualMilestone49Days.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lễ 49 ngày'**
+  String get eventRitualMilestone49Days;
+
+  /// No description provided for @eventRitualMilestone50Days.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lễ 50 ngày'**
+  String get eventRitualMilestone50Days;
+
+  /// No description provided for @eventRitualMilestone100Days.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lễ 100 ngày'**
+  String get eventRitualMilestone100Days;
+
+  /// No description provided for @eventRitualMilestone1Year.
+  ///
+  /// In vi, this message translates to:
+  /// **'Giỗ đầu (1 năm)'**
+  String get eventRitualMilestone1Year;
+
+  /// No description provided for @eventRitualMilestone2Year.
+  ///
+  /// In vi, this message translates to:
+  /// **'Giỗ hết (2 năm)'**
+  String get eventRitualMilestone2Year;
+
+  /// No description provided for @eventQuickRitualTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'{milestone} - {memberName}'**
+  String eventQuickRitualTitle(Object milestone, Object memberName);
+
+  /// No description provided for @eventQuickRitualDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết lập nhanh mốc {milestone} dựa trên ngày mất {deathDate}. Hãy kiểm tra phong tục chi/họ trước khi lưu.'**
+  String eventQuickRitualDescription(Object milestone, Object deathDate);
+
   /// No description provided for @eventFilterSectionTitle.
   ///
   /// In vi, this message translates to:

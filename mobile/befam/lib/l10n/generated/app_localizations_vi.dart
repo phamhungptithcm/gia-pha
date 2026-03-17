@@ -1651,6 +1651,84 @@ class AppLocalizationsVi extends AppLocalizations {
   }
 
   @override
+  String get eventRitualChecklistSectionTitle => 'Danh sách dỗ trạp';
+
+  @override
+  String get eventRitualChecklistSectionDescription =>
+      'Theo dõi các mốc 49/50 ngày, 100 ngày, giỗ đầu và giỗ hết để không bỏ sót nghi lễ quan trọng.';
+
+  @override
+  String eventRitualChecklistConfiguredCount(int count) {
+    return 'Đã thiết lập: $count';
+  }
+
+  @override
+  String eventRitualChecklistMissingCount(int count) {
+    return 'Chưa thiết lập: $count';
+  }
+
+  @override
+  String eventRitualChecklistMismatchCount(int count) {
+    return 'Lệch ngày: $count';
+  }
+
+  @override
+  String get eventRitualChecklistEmptyTitle => 'Chưa có danh sách dỗ trạp';
+
+  @override
+  String get eventRitualChecklistEmptyDescription =>
+      'Khi thành viên có ngày mất hợp lệ, danh sách dỗ trạp sẽ xuất hiện tại đây.';
+
+  @override
+  String get eventRitualChecklistConfiguredChip => 'Đã thiết lập';
+
+  @override
+  String get eventRitualChecklistMissingChip => 'Chưa thiết lập';
+
+  @override
+  String get eventRitualChecklistMismatchChip => 'Cần kiểm tra';
+
+  @override
+  String get eventRitualChecklistDeathDateLabel => 'Ngày mất';
+
+  @override
+  String get eventRitualChecklistExpectedDateLabel => 'Ngày dự kiến';
+
+  @override
+  String get eventRitualChecklistEventDateLabel => 'Ngày đang thiết lập';
+
+  @override
+  String get eventRitualChecklistQuickSetupAction => 'Thiết lập nhanh';
+
+  @override
+  String get eventRitualChecklistOpenEventAction => 'Mở sự kiện';
+
+  @override
+  String get eventRitualMilestone49Days => 'Lễ 49 ngày';
+
+  @override
+  String get eventRitualMilestone50Days => 'Lễ 50 ngày';
+
+  @override
+  String get eventRitualMilestone100Days => 'Lễ 100 ngày';
+
+  @override
+  String get eventRitualMilestone1Year => 'Giỗ đầu (1 năm)';
+
+  @override
+  String get eventRitualMilestone2Year => 'Giỗ hết (2 năm)';
+
+  @override
+  String eventQuickRitualTitle(Object milestone, Object memberName) {
+    return '$milestone - $memberName';
+  }
+
+  @override
+  String eventQuickRitualDescription(Object milestone, Object deathDate) {
+    return 'Thiết lập nhanh mốc $milestone dựa trên ngày mất $deathDate. Hãy kiểm tra phong tục chi/họ trước khi lưu.';
+  }
+
+  @override
   String get eventFilterSectionTitle => 'Tìm kiếm và bộ lọc';
 
   @override

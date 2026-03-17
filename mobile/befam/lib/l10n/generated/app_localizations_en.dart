@@ -1660,6 +1660,84 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get eventRitualChecklistSectionTitle => 'Memorial ritual checklist';
+
+  @override
+  String get eventRitualChecklistSectionDescription =>
+      'Track 49/50-day, 100-day, first-year, and second-year rites so important family memorial milestones are not missed.';
+
+  @override
+  String eventRitualChecklistConfiguredCount(int count) {
+    return 'Configured: $count';
+  }
+
+  @override
+  String eventRitualChecklistMissingCount(int count) {
+    return 'Missing setup: $count';
+  }
+
+  @override
+  String eventRitualChecklistMismatchCount(int count) {
+    return 'Date mismatch: $count';
+  }
+
+  @override
+  String get eventRitualChecklistEmptyTitle => 'No ritual checklist data yet';
+
+  @override
+  String get eventRitualChecklistEmptyDescription =>
+      'When members have valid death dates, ritual milestones will appear here.';
+
+  @override
+  String get eventRitualChecklistConfiguredChip => 'Configured';
+
+  @override
+  String get eventRitualChecklistMissingChip => 'Missing setup';
+
+  @override
+  String get eventRitualChecklistMismatchChip => 'Needs review';
+
+  @override
+  String get eventRitualChecklistDeathDateLabel => 'Death date';
+
+  @override
+  String get eventRitualChecklistExpectedDateLabel => 'Expected date';
+
+  @override
+  String get eventRitualChecklistEventDateLabel => 'Configured date';
+
+  @override
+  String get eventRitualChecklistQuickSetupAction => 'Quick setup';
+
+  @override
+  String get eventRitualChecklistOpenEventAction => 'Open event';
+
+  @override
+  String get eventRitualMilestone49Days => '49-day rite';
+
+  @override
+  String get eventRitualMilestone50Days => '50-day rite';
+
+  @override
+  String get eventRitualMilestone100Days => '100-day rite';
+
+  @override
+  String get eventRitualMilestone1Year => 'First-year memorial';
+
+  @override
+  String get eventRitualMilestone2Year => 'Second-year memorial';
+
+  @override
+  String eventQuickRitualTitle(Object milestone, Object memberName) {
+    return '$milestone - $memberName';
+  }
+
+  @override
+  String eventQuickRitualDescription(Object milestone, Object deathDate) {
+    return 'Quick setup for the $milestone milestone based on death date $deathDate. Please review before saving.';
+  }
+
+  @override
   String get eventFilterSectionTitle => 'Search and filters';
 
   @override

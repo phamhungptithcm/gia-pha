@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/app_environment.dart';
 import '../../../core/services/kinship_title_resolver.dart';
+import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
+import '../../events/presentation/event_workspace_page.dart';
+import '../../events/services/event_repository.dart';
 import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../../clan/models/branch_profile.dart';
@@ -133,6 +136,10 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                           const SizedBox(height: 16),
                         ],
                         _SettingsCard(controller: _controller),
+                        const SizedBox(height: 16),
+                        _MemorialChecklistEntryCard(
+                          onOpenChecklist: _openMemorialChecklistWorkspace,
+                        ),
                         const SizedBox(height: 16),
                         _MonthHeader(
                           label: _monthHeaderLabel(
@@ -346,6 +353,23 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
     _controller.selectDay(targetMonth);
   }
 
+  Future<void> _openMemorialChecklistWorkspace() async {
+    final session = widget.session;
+    if (session == null) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return EventWorkspacePage(
+            session: session,
+            repository: createDefaultEventRepository(session: session),
+          );
+        },
+      ),
+    );
+  }
+
   DualCalendarController _buildDefaultController() {
     final conversionCache = LunarConversionCache();
     final resolutionCache = LunarResolutionCache();
@@ -406,6 +430,66 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
     } finally {
       _isLoadingMembers = false;
     }
+  }
+}
+
+class _MemorialChecklistEntryCard extends StatelessWidget {
+  const _MemorialChecklistEntryCard({required this.onOpenChecklist});
+
+  final Future<void> Function() onOpenChecklist;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.pick(
+                vi: 'Giỗ kỵ và dỗ trạp',
+                en: 'Memorial rituals and checklist',
+              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              l10n.pick(
+                vi: 'Xem danh sách người đã mất, mục nào đã thiết lập sự kiện và mục nào cần bổ sung.',
+                en: 'See which passed members already have ritual events and which still need setup.',
+              ),
+            ),
+            const SizedBox(height: 12),
+            AppAsyncAction(
+              onPressed: onOpenChecklist,
+              builder: (context, onPressed, isLoading) {
+                return FilledButton.tonalIcon(
+                  key: const Key('calendar-open-memorial-checklist'),
+                  onPressed: onPressed,
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.history_edu_outlined),
+                  label: Text(
+                    l10n.pick(
+                      vi: 'Mở danh sách giỗ & dỗ trạp',
+                      en: 'Open memorial checklist',
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

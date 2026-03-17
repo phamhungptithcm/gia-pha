@@ -599,6 +599,61 @@
       "deathDate": {}
     }
   },
+  "eventRitualChecklistSectionTitle": "Memorial ritual checklist",
+  "eventRitualChecklistSectionDescription": "Track 49/50-day, 100-day, first-year, and second-year rites so important family memorial milestones are not missed.",
+  "eventRitualChecklistConfiguredCount": "Configured: {count}",
+  "@eventRitualChecklistConfiguredCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventRitualChecklistMissingCount": "Missing setup: {count}",
+  "@eventRitualChecklistMissingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventRitualChecklistMismatchCount": "Date mismatch: {count}",
+  "@eventRitualChecklistMismatchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventRitualChecklistEmptyTitle": "No ritual checklist data yet",
+  "eventRitualChecklistEmptyDescription": "When members have valid death dates, ritual milestones will appear here.",
+  "eventRitualChecklistConfiguredChip": "Configured",
+  "eventRitualChecklistMissingChip": "Missing setup",
+  "eventRitualChecklistMismatchChip": "Needs review",
+  "eventRitualChecklistDeathDateLabel": "Death date",
+  "eventRitualChecklistExpectedDateLabel": "Expected date",
+  "eventRitualChecklistEventDateLabel": "Configured date",
+  "eventRitualChecklistQuickSetupAction": "Quick setup",
+  "eventRitualChecklistOpenEventAction": "Open event",
+  "eventRitualMilestone49Days": "49-day rite",
+  "eventRitualMilestone50Days": "50-day rite",
+  "eventRitualMilestone100Days": "100-day rite",
+  "eventRitualMilestone1Year": "First-year memorial",
+  "eventRitualMilestone2Year": "Second-year memorial",
+  "eventQuickRitualTitle": "{milestone} - {memberName}",
+  "@eventQuickRitualTitle": {
+    "placeholders": {
+      "milestone": {},
+      "memberName": {}
+    }
+  },
+  "eventQuickRitualDescription": "Quick setup for the {milestone} milestone based on death date {deathDate}. Please review before saving.",
+  "@eventQuickRitualDescription": {
+    "placeholders": {
+      "milestone": {},
+      "deathDate": {}
+    }
+  },
   "eventFilterSectionTitle": "Search and filters",
   "eventSearchLabel": "Search events",
   "eventSearchHint": "Title, location, member, or description",

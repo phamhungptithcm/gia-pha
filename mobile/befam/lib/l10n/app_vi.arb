@@ -599,6 +599,61 @@
       "deathDate": {}
     }
   },
+  "eventRitualChecklistSectionTitle": "Danh sách dỗ trạp",
+  "eventRitualChecklistSectionDescription": "Theo dõi các mốc 49/50 ngày, 100 ngày, giỗ đầu và giỗ hết để không bỏ sót nghi lễ quan trọng.",
+  "eventRitualChecklistConfiguredCount": "Đã thiết lập: {count}",
+  "@eventRitualChecklistConfiguredCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventRitualChecklistMissingCount": "Chưa thiết lập: {count}",
+  "@eventRitualChecklistMissingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventRitualChecklistMismatchCount": "Lệch ngày: {count}",
+  "@eventRitualChecklistMismatchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventRitualChecklistEmptyTitle": "Chưa có danh sách dỗ trạp",
+  "eventRitualChecklistEmptyDescription": "Khi thành viên có ngày mất hợp lệ, danh sách dỗ trạp sẽ xuất hiện tại đây.",
+  "eventRitualChecklistConfiguredChip": "Đã thiết lập",
+  "eventRitualChecklistMissingChip": "Chưa thiết lập",
+  "eventRitualChecklistMismatchChip": "Cần kiểm tra",
+  "eventRitualChecklistDeathDateLabel": "Ngày mất",
+  "eventRitualChecklistExpectedDateLabel": "Ngày dự kiến",
+  "eventRitualChecklistEventDateLabel": "Ngày đang thiết lập",
+  "eventRitualChecklistQuickSetupAction": "Thiết lập nhanh",
+  "eventRitualChecklistOpenEventAction": "Mở sự kiện",
+  "eventRitualMilestone49Days": "Lễ 49 ngày",
+  "eventRitualMilestone50Days": "Lễ 50 ngày",
+  "eventRitualMilestone100Days": "Lễ 100 ngày",
+  "eventRitualMilestone1Year": "Giỗ đầu (1 năm)",
+  "eventRitualMilestone2Year": "Giỗ hết (2 năm)",
+  "eventQuickRitualTitle": "{milestone} - {memberName}",
+  "@eventQuickRitualTitle": {
+    "placeholders": {
+      "milestone": {},
+      "memberName": {}
+    }
+  },
+  "eventQuickRitualDescription": "Thiết lập nhanh mốc {milestone} dựa trên ngày mất {deathDate}. Hãy kiểm tra phong tục chi/họ trước khi lưu.",
+  "@eventQuickRitualDescription": {
+    "placeholders": {
+      "milestone": {},
+      "deathDate": {}
+    }
+  },
   "eventFilterSectionTitle": "Tìm kiếm và bộ lọc",
   "eventSearchLabel": "Tìm sự kiện",
   "eventSearchHint": "Tiêu đề, địa điểm, thành viên hoặc mô tả",

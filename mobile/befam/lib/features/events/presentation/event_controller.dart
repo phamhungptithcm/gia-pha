@@ -7,6 +7,7 @@ import '../../member/models/member_profile.dart';
 import '../models/event_draft.dart';
 import '../models/event_record.dart';
 import '../models/event_type.dart';
+import '../models/memorial_ritual.dart';
 import '../services/event_permissions.dart';
 import '../services/event_repository.dart';
 
@@ -46,6 +47,49 @@ class MemorialChecklistItem {
   }
 }
 
+class MemorialRitualChecklistMilestoneItem {
+  const MemorialRitualChecklistMilestoneItem({
+    required this.milestone,
+    required this.expectedDate,
+    required this.configuredEvent,
+    required this.hasAlignedDate,
+  });
+
+  final MemorialRitualMilestone milestone;
+  final DateTime expectedDate;
+  final EventRecord? configuredEvent;
+  final bool hasAlignedDate;
+
+  bool get isConfigured => configuredEvent != null && hasAlignedDate;
+  bool get isMissing => configuredEvent == null;
+  bool get hasDateMismatch => configuredEvent != null && !hasAlignedDate;
+}
+
+class MemorialRitualChecklistItem {
+  const MemorialRitualChecklistItem({
+    required this.member,
+    required this.deathDateRaw,
+    required this.deathDate,
+    required this.milestones,
+  });
+
+  final MemberProfile member;
+  final String deathDateRaw;
+  final DateTime deathDate;
+  final List<MemorialRitualChecklistMilestoneItem> milestones;
+
+  int get configuredCount =>
+      milestones.where((milestone) => milestone.isConfigured).length;
+
+  int get missingCount =>
+      milestones.where((milestone) => milestone.isMissing).length;
+
+  int get mismatchCount =>
+      milestones.where((milestone) => milestone.hasDateMismatch).length;
+
+  bool get hasMissingMilestone => missingCount > 0;
+}
+
 class EventController extends ChangeNotifier {
   EventController({
     required EventRepository repository,
@@ -75,6 +119,10 @@ class EventController extends ChangeNotifier {
   int _memorialChecklistConfiguredCount = 0;
   int _memorialChecklistMissingCount = 0;
   int _memorialChecklistDateMismatchCount = 0;
+  List<MemorialRitualChecklistItem> _memorialRitualChecklistItems = const [];
+  int _memorialRitualConfiguredCount = 0;
+  int _memorialRitualMissingCount = 0;
+  int _memorialRitualDateMismatchCount = 0;
 
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
@@ -102,6 +150,15 @@ class EventController extends ChangeNotifier {
 
   int get memorialChecklistDateMismatchCount =>
       _memorialChecklistDateMismatchCount;
+
+  List<MemorialRitualChecklistItem> get memorialRitualChecklistItems =>
+      _memorialRitualChecklistItems;
+
+  int get memorialRitualConfiguredCount => _memorialRitualConfiguredCount;
+
+  int get memorialRitualMissingCount => _memorialRitualMissingCount;
+
+  int get memorialRitualDateMismatchCount => _memorialRitualDateMismatchCount;
 
   Future<void> initialize() async {
     await refresh();
@@ -133,6 +190,10 @@ class EventController extends ChangeNotifier {
       _memorialChecklistConfiguredCount = 0;
       _memorialChecklistMissingCount = 0;
       _memorialChecklistDateMismatchCount = 0;
+      _memorialRitualChecklistItems = const [];
+      _memorialRitualConfiguredCount = 0;
+      _memorialRitualMissingCount = 0;
+      _memorialRitualDateMismatchCount = 0;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -219,13 +280,14 @@ class EventController extends ChangeNotifier {
         .where((event) => event.eventType.isMemorial)
         .length;
     _recomputeMemorialChecklist();
+    _recomputeMemorialRitualChecklist();
     _recomputeFilteredEvents();
   }
 
   void _recomputeMemorialChecklist() {
     final memorialEventsByMemberId = <String, List<EventRecord>>{};
     for (final event in _events) {
-      if (!event.eventType.isMemorial) {
+      if (!_isYearlyMemorialEvent(event)) {
         continue;
       }
 
@@ -318,6 +380,126 @@ class EventController extends ChangeNotifier {
         .length;
   }
 
+  void _recomputeMemorialRitualChecklist() {
+    final ritualEventsByMemberId = <String, List<EventRecord>>{};
+    for (final event in _events) {
+      if (!_isRitualMemorialEvent(event)) {
+        continue;
+      }
+
+      final targetMemberId = event.targetMemberId?.trim();
+      if (targetMemberId == null || targetMemberId.isEmpty) {
+        continue;
+      }
+      ritualEventsByMemberId
+          .putIfAbsent(targetMemberId, () => <EventRecord>[])
+          .add(event);
+    }
+
+    final values = <MemorialRitualChecklistItem>[];
+    var configuredCount = 0;
+    var missingCount = 0;
+    var mismatchCount = 0;
+
+    for (final member in _members) {
+      final deathDateRaw = member.deathDate?.trim() ?? '';
+      if (deathDateRaw.isEmpty) {
+        continue;
+      }
+      final deathDate = _parseDeathDate(deathDateRaw);
+      if (deathDate == null) {
+        continue;
+      }
+
+      final milestones = buildMemorialRitualMilestones(
+        deathDate: deathDate,
+        gender: member.gender,
+      );
+      final memberEvents = List<EventRecord>.from(
+        ritualEventsByMemberId[member.id] ?? const <EventRecord>[],
+      )..sort((left, right) => left.startsAt.compareTo(right.startsAt));
+
+      final consumedEventIds = <String>{};
+      final checklistMilestones = <MemorialRitualChecklistMilestoneItem>[];
+      for (final milestone in milestones) {
+        final expectedDate = milestone.expectedAt;
+        final byKey = memberEvents.firstWhereOrNull(
+          (event) =>
+              !consumedEventIds.contains(event.id) &&
+              (event.ritualKey?.trim() ?? '') == milestone.key,
+        );
+        final byDate = memberEvents.firstWhereOrNull(
+          (event) =>
+              !consumedEventIds.contains(event.id) &&
+              _isSameCalendarDate(event.startsAt.toLocal(), expectedDate),
+        );
+        final configuredEvent = byKey ?? byDate;
+        if (configuredEvent != null) {
+          consumedEventIds.add(configuredEvent.id);
+        }
+
+        final hasAlignedDate =
+            configuredEvent != null &&
+            _isSameCalendarDate(
+              configuredEvent.startsAt.toLocal(),
+              expectedDate,
+            );
+        if (configuredEvent == null) {
+          missingCount += 1;
+        } else if (hasAlignedDate) {
+          configuredCount += 1;
+        } else {
+          mismatchCount += 1;
+        }
+
+        checklistMilestones.add(
+          MemorialRitualChecklistMilestoneItem(
+            milestone: milestone,
+            expectedDate: expectedDate,
+            configuredEvent: configuredEvent,
+            hasAlignedDate: hasAlignedDate,
+          ),
+        );
+      }
+
+      values.add(
+        MemorialRitualChecklistItem(
+          member: member,
+          deathDateRaw: deathDateRaw,
+          deathDate: deathDate,
+          milestones: List.unmodifiable(checklistMilestones),
+        ),
+      );
+    }
+
+    values.sort((left, right) {
+      final byMissing = right.missingCount.compareTo(left.missingCount);
+      if (byMissing != 0) {
+        return byMissing;
+      }
+      final byMismatch = right.mismatchCount.compareTo(left.mismatchCount);
+      if (byMismatch != 0) {
+        return byMismatch;
+      }
+      final byMonth = left.deathDate.month.compareTo(right.deathDate.month);
+      if (byMonth != 0) {
+        return byMonth;
+      }
+      final byDay = left.deathDate.day.compareTo(right.deathDate.day);
+      if (byDay != 0) {
+        return byDay;
+      }
+      return left.member.fullName.toLowerCase().compareTo(
+        right.member.fullName.toLowerCase(),
+      );
+    });
+
+    _memorialRitualChecklistItems = List.unmodifiable(values);
+    _memorialRitualConfiguredCount = configuredCount;
+    _memorialRitualMissingCount = missingCount;
+    _memorialRitualDateMismatchCount = mismatchCount;
+  }
+
   void _recomputeFilteredEvents() {
     final normalizedQuery = _query.trim().toLowerCase();
     final now = DateTime.now().toUtc();
@@ -377,4 +559,28 @@ DateTime? _parseDeathDate(String value) {
 
 bool _isSameMonthAndDay(DateTime left, DateTime right) {
   return left.month == right.month && left.day == right.day;
+}
+
+bool _isSameCalendarDate(DateTime left, DateTime right) {
+  return left.year == right.year &&
+      left.month == right.month &&
+      left.day == right.day;
+}
+
+bool _isYearlyMemorialEvent(EventRecord event) {
+  if (!event.eventType.isMemorial) {
+    return false;
+  }
+  if (!event.isRecurring) {
+    return false;
+  }
+  final rule = event.recurrenceRule?.trim().toUpperCase() ?? '';
+  return rule.contains('FREQ=YEARLY');
+}
+
+bool _isRitualMemorialEvent(EventRecord event) {
+  if (!event.eventType.isMemorial) {
+    return false;
+  }
+  return !event.isRecurring;
 }
