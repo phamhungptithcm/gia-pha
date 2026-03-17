@@ -5,7 +5,8 @@ This schema is optimized for a high-read mobile genealogy application using Clou
 
 > Implementation note (March 14, 2026): this document is the target schema
 > reference. Active collection behavior and rules are summarized in
-> `docs/04-backend/firestore-schema.md` and `docs/06-security/firebase-rules.md`.
+> `docs/en/04-backend/firestore-schema.md` and
+> `docs/en/06-security/firebase-rules.md`.
 
 ## 1. Design Goals
 
