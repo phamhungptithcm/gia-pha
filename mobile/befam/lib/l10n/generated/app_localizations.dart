@@ -3361,6 +3361,234 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Khác'**
   String get eventTypeOther;
+
+  /// No description provided for @webNavHome.
+  ///
+  /// In vi, this message translates to:
+  /// **'Trang chủ'**
+  String get webNavHome;
+
+  /// No description provided for @webNavAboutUs.
+  ///
+  /// In vi, this message translates to:
+  /// **'Về chúng tôi'**
+  String get webNavAboutUs;
+
+  /// No description provided for @webNavBeFamInfo.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông tin BeFam'**
+  String get webNavBeFamInfo;
+
+  /// No description provided for @webNavOpenApp.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở ứng dụng'**
+  String get webNavOpenApp;
+
+  /// No description provided for @webNavMenuTooltip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở menu điều hướng'**
+  String get webNavMenuTooltip;
+
+  /// No description provided for @webLandingBadge.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nền tảng gia phả hiện đại'**
+  String get webLandingBadge;
+
+  /// No description provided for @webLandingTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'BeFam giúp gia đình kết nối dữ liệu gia phả, sự kiện và quỹ trong một không gian thống nhất.'**
+  String get webLandingTitle;
+
+  /// No description provided for @webLandingSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Từ cây gia phả nhiều thế hệ đến lịch ngày giỗ, BeFam giúp ban điều hành và từng thành viên theo dõi thông tin rõ ràng, nhất quán và dễ dùng.'**
+  String get webLandingSubtitle;
+
+  /// No description provided for @webLandingPrimaryCta.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bắt đầu với BeFam'**
+  String get webLandingPrimaryCta;
+
+  /// No description provided for @webLandingSecondaryCta.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tìm hiểu về BeFam'**
+  String get webLandingSecondaryCta;
+
+  /// No description provided for @webLandingHighlightTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản trị họ tộc minh bạch'**
+  String get webLandingHighlightTitle;
+
+  /// No description provided for @webLandingHighlightDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Theo dõi thành viên, kế hoạch sự kiện, gói dịch vụ và quyền truy cập trên cùng một nền tảng.'**
+  String get webLandingHighlightDescription;
+
+  /// No description provided for @webLandingFeatureTreeTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Gia phả đa thế hệ'**
+  String get webLandingFeatureTreeTitle;
+
+  /// No description provided for @webLandingFeatureTreeDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xem cây họ theo chi, đời và quan hệ để dễ quản lý thông tin tổ tiên - hậu duệ.'**
+  String get webLandingFeatureTreeDescription;
+
+  /// No description provided for @webLandingFeatureEventsTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lịch sự kiện tập trung'**
+  String get webLandingFeatureEventsTitle;
+
+  /// No description provided for @webLandingFeatureEventsDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lưu lịch họp họ, ngày giỗ, nhắc lịch quan trọng và trạng thái tham gia của thành viên.'**
+  String get webLandingFeatureEventsDescription;
+
+  /// No description provided for @webLandingFeatureBillingTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản lý gói dịch vụ'**
+  String get webLandingFeatureBillingTitle;
+
+  /// No description provided for @webLandingFeatureBillingDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Theo dõi gói đang dùng, gia hạn và lịch sử thanh toán VNPay ngay trong BeFam.'**
+  String get webLandingFeatureBillingDescription;
+
+  /// No description provided for @webAboutTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Về chúng tôi'**
+  String get webAboutTitle;
+
+  /// No description provided for @webAboutSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'BeFam được xây dựng để gìn giữ ký ức gia đình, hỗ trợ quản trị họ tộc minh bạch và gắn kết nhiều thế hệ trên cùng nền tảng số.'**
+  String get webAboutSubtitle;
+
+  /// No description provided for @webAboutMissionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sứ mệnh'**
+  String get webAboutMissionTitle;
+
+  /// No description provided for @webAboutMissionDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Giúp mỗi họ tộc số hóa dữ liệu gia đình một cách dễ hiểu, dễ dùng và bền vững.'**
+  String get webAboutMissionDescription;
+
+  /// No description provided for @webAboutVisionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tầm nhìn'**
+  String get webAboutVisionTitle;
+
+  /// No description provided for @webAboutVisionDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Trở thành nền tảng gia phả số đáng tin cậy cho các cộng đồng gia đình Việt Nam.'**
+  String get webAboutVisionDescription;
+
+  /// No description provided for @webAboutTrustTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cam kết'**
+  String get webAboutTrustTitle;
+
+  /// No description provided for @webAboutTrustDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ưu tiên tính chính xác dữ liệu, minh bạch quyền truy cập và trải nghiệm đồng nhất trên mọi thiết bị.'**
+  String get webAboutTrustDescription;
+
+  /// No description provided for @webInfoTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông tin BeFam'**
+  String get webInfoTitle;
+
+  /// No description provided for @webInfoSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tổng quan nhanh về những gì BeFam đang cung cấp cho quản trị gia phả và hoạt động gia đình.'**
+  String get webInfoSubtitle;
+
+  /// No description provided for @webInfoGenealogyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không gian gia phả'**
+  String get webInfoGenealogyTitle;
+
+  /// No description provided for @webInfoGenealogyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Theo dõi hồ sơ thành viên, quan hệ huyết thống, nhánh chi và thông tin thế hệ trên một cấu trúc thống nhất.'**
+  String get webInfoGenealogyDescription;
+
+  /// No description provided for @webInfoNotificationsTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông báo và nhắc lịch'**
+  String get webInfoNotificationsTitle;
+
+  /// No description provided for @webInfoNotificationsDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng trong phạm vi gia tộc.'**
+  String get webInfoNotificationsDescription;
+
+  /// No description provided for @webInfoBillingTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Gói và thanh toán'**
+  String get webInfoBillingTitle;
+
+  /// No description provided for @webInfoBillingDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản lý quyền lợi theo gói, trạng thái hiệu lực và luồng thanh toán VNPay cho tổ chức gia phả.'**
+  String get webInfoBillingDescription;
+
+  /// No description provided for @webInfoHighlightsTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Điểm nổi bật hiện tại'**
+  String get webInfoHighlightsTitle;
+
+  /// No description provided for @webInfoHighlightsItemOne.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hỗ trợ tiếng Việt/English đồng bộ theo cấu hình người dùng.'**
+  String get webInfoHighlightsItemOne;
+
+  /// No description provided for @webInfoHighlightsItemTwo.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết kế responsive cho điện thoại, tablet và desktop.'**
+  String get webInfoHighlightsItemTwo;
+
+  /// No description provided for @webInfoHighlightsItemThree.
+  ///
+  /// In vi, this message translates to:
+  /// **'Kiến trúc Flutter + Firebase giúp mở rộng tính năng nhanh và nhất quán.'**
+  String get webInfoHighlightsItemThree;
 }
 
 class _AppLocalizationsDelegate

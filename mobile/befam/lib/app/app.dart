@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/services/app_locale_controller.dart';
 import '../core/services/app_locale_store.dart';
@@ -14,6 +16,7 @@ import '../features/member/services/member_repository.dart';
 import '../l10n/generated/app_localizations.dart';
 import 'bootstrap/firebase_setup_status.dart';
 import 'theme/app_theme.dart';
+import 'web/web_marketing_pages.dart';
 
 class BeFamApp extends StatefulWidget {
   static const defaultLocale = Locale('vi');
@@ -48,6 +51,7 @@ class BeFamApp extends StatefulWidget {
 class _BeFamAppState extends State<BeFamApp> {
   late final AppLocaleController _localeController;
   late final bool _ownsLocaleController;
+  GoRouter? _webRouter;
 
   @override
   void initState() {
@@ -61,10 +65,14 @@ class _BeFamAppState extends State<BeFamApp> {
     _ownsLocaleController = widget.localeController == null;
     _localeController.addListener(_handleLocaleChanged);
     unawaited(_localeController.load());
+    if (kIsWeb) {
+      _webRouter = _buildWebRouter();
+    }
   }
 
   @override
   void dispose() {
+    _webRouter?.dispose();
     _localeController.removeListener(_handleLocaleChanged);
     if (_ownsLocaleController) {
       _localeController.dispose();
@@ -82,6 +90,33 @@ class _BeFamAppState extends State<BeFamApp> {
   @override
   Widget build(BuildContext context) {
     final effectiveLocale = widget.locale ?? _localeController.locale;
+    final authExperience = _buildAuthExperience();
+
+    if (kIsWeb) {
+      return MaterialApp.router(
+        onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        locale: effectiveLocale,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        localeResolutionCallback: (deviceLocale, supportedLocales) {
+          for (final supportedLocale in supportedLocales) {
+            if (supportedLocale.languageCode == effectiveLocale.languageCode) {
+              return supportedLocale;
+            }
+          }
+
+          return BeFamApp.defaultLocale;
+        },
+        routerConfig: _webRouter!,
+      );
+    }
 
     return MaterialApp(
       onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
@@ -104,15 +139,41 @@ class _BeFamAppState extends State<BeFamApp> {
 
         return BeFamApp.defaultLocale;
       },
-      home: AuthExperience(
-        status: widget.status,
-        authGateway: widget.authGateway,
-        authAnalyticsService: widget.authAnalyticsService,
-        sessionStore: widget.sessionStore,
-        clanRepository: widget.clanRepository,
-        memberRepository: widget.memberRepository,
-        localeController: _localeController,
-      ),
+      home: authExperience,
+    );
+  }
+
+  AuthExperience _buildAuthExperience() {
+    return AuthExperience(
+      status: widget.status,
+      authGateway: widget.authGateway,
+      authAnalyticsService: widget.authAnalyticsService,
+      sessionStore: widget.sessionStore,
+      clanRepository: widget.clanRepository,
+      memberRepository: widget.memberRepository,
+      localeController: _localeController,
+    );
+  }
+
+  GoRouter _buildWebRouter() {
+    return GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(path: '/', builder: (context, state) => const WebLandingPage()),
+        GoRoute(
+          path: '/about-us',
+          builder: (context, state) => const WebAboutUsPage(),
+        ),
+        GoRoute(
+          path: '/befam-info',
+          builder: (context, state) => const WebBeFamInfoPage(),
+        ),
+        GoRoute(
+          path: '/app',
+          builder: (context, state) => _buildAuthExperience(),
+        ),
+      ],
+      errorBuilder: (context, state) => const WebLandingPage(),
     );
   }
 }
