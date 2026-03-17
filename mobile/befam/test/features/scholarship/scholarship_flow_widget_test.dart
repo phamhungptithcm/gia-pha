@@ -14,7 +14,7 @@ void main() {
       uid: 'debug:+84901234567',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84901234567',
-      displayName: 'Nguyen Minh',
+      displayName: 'Nguyễn Minh',
       memberId: 'member_demo_parent_001',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',
@@ -31,7 +31,7 @@ void main() {
       uid: 'debug:+84901111001',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84901111001',
-      displayName: 'Council Head',
+      displayName: 'Trưởng ban xét duyệt',
       memberId: 'member_council_001',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',
@@ -85,7 +85,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Program detail'), findsOneWidget);
-    expect(find.text('2026 Scholarship Program'), findsWidgets);
+    expect(find.text('Chương trình học bổng năm 2026'), findsWidgets);
   });
 
   testWidgets('supports create forms and evidence upload', (tester) async {

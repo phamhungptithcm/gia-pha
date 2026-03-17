@@ -139,7 +139,7 @@ class DebugScholarshipRepository implements ScholarshipRepository {
     if (title.isEmpty) {
       throw const ScholarshipRepositoryException(
         ScholarshipRepositoryErrorCode.validationFailed,
-        'Program title is required.',
+        'Tên chương trình là bắt buộc.',
       );
     }
 
@@ -198,7 +198,7 @@ class DebugScholarshipRepository implements ScholarshipRepository {
     if (name.isEmpty) {
       throw const ScholarshipRepositoryException(
         ScholarshipRepositoryErrorCode.validationFailed,
-        'Award level name is required.',
+        'Tên hạng mục giải thưởng là bắt buộc.',
       );
     }
 
@@ -269,7 +269,7 @@ class DebugScholarshipRepository implements ScholarshipRepository {
     if (title.isEmpty) {
       throw const ScholarshipRepositoryException(
         ScholarshipRepositoryErrorCode.validationFailed,
-        'Submission title is required.',
+        'Tiêu đề hồ sơ là bắt buộc.',
       );
     }
 
@@ -328,7 +328,7 @@ class DebugScholarshipRepository implements ScholarshipRepository {
     if (safeFileName.isEmpty) {
       throw const ScholarshipRepositoryException(
         ScholarshipRepositoryErrorCode.validationFailed,
-        'Evidence file name is required.',
+        'Tên tệp minh chứng là bắt buộc.',
       );
     }
 
@@ -475,9 +475,9 @@ class _DebugScholarshipStore {
         'sp_demo_2026': ScholarshipProgram(
           id: 'sp_demo_2026',
           clanId: clanId,
-          title: '2026 Scholarship Program',
+          title: 'Chương trình học bổng năm 2026',
           description:
-              'Annual scholarship for students with outstanding achievements.',
+              'Chương trình học bổng thường niên cho học sinh, sinh viên có thành tích nổi bật.',
           year: 2026,
           status: 'open',
           submissionOpenAtIso: DateTime(2026, 3, 1).toIso8601String(),
@@ -492,12 +492,12 @@ class _DebugScholarshipStore {
           id: 'award_demo_001',
           programId: 'sp_demo_2026',
           clanId: clanId,
-          name: 'National Achievement',
-          description: 'Recognizes national-level academic awards.',
+          name: 'Thành tích cấp quốc gia',
+          description: 'Vinh danh thành tích học tập hoặc thi cử cấp quốc gia.',
           sortOrder: 10,
           rewardType: 'cash',
           rewardAmountMinor: 2000000,
-          criteriaText: 'Must attach official certificate.',
+          criteriaText: 'Bắt buộc đính kèm giấy chứng nhận hợp lệ.',
           status: 'active',
           createdAtIso: now,
         ),
@@ -505,12 +505,12 @@ class _DebugScholarshipStore {
           id: 'award_demo_002',
           programId: 'sp_demo_2026',
           clanId: clanId,
-          name: 'Provincial Achievement',
-          description: 'Recognizes provincial-level achievements.',
+          name: 'Thành tích cấp tỉnh',
+          description: 'Vinh danh thành tích học tập hoặc thi cử cấp tỉnh.',
           sortOrder: 20,
           rewardType: 'cash',
           rewardAmountMinor: 1000000,
-          criteriaText: 'Must attach verified competition result.',
+          criteriaText: 'Bắt buộc đính kèm kết quả đã xác minh.',
           status: 'active',
           createdAtIso: now,
         ),
@@ -523,9 +523,9 @@ class _DebugScholarshipStore {
           clanId: clanId,
           memberId: 'member_demo_child_001',
           studentNameSnapshot: 'Bé Minh',
-          title: 'National Math Olympiad',
-          description: 'Second place in national math olympiad.',
-          evidenceUrls: const ['debug://seed/certificate-national-math.pdf'],
+          title: 'Olympic Toán cấp quốc gia',
+          description: 'Đạt giải Nhì kỳ thi Olympic Toán cấp quốc gia.',
+          evidenceUrls: const ['debug://seed/chung-chi-toan-cap-quoc-gia.pdf'],
           status: 'pending',
           reviewNote: null,
           reviewedBy: null,
@@ -540,11 +540,11 @@ class _DebugScholarshipStore {
           clanId: clanId,
           memberId: 'member_demo_child_002',
           studentNameSnapshot: 'Bé Lan',
-          title: 'Provincial Literature Contest',
-          description: 'First place in provincial literature contest.',
-          evidenceUrls: const ['debug://seed/certificate-provincial-lit.jpg'],
+          title: 'Kỳ thi Ngữ văn cấp tỉnh',
+          description: 'Đạt giải Nhất kỳ thi Ngữ văn cấp tỉnh.',
+          evidenceUrls: const ['debug://seed/chung-chi-ngu-van-cap-tinh.jpg'],
           status: 'approved',
-          reviewNote: 'Excellent supporting evidence.',
+          reviewNote: 'Hồ sơ minh chứng đầy đủ, hợp lệ.',
           reviewedBy: createdBy,
           reviewedAtIso: now,
           createdAtIso: now,
@@ -595,7 +595,7 @@ String _studentNameOrDefault(String input, {required String fallback}) {
   }
 
   final fallbackTrimmed = fallback.trim();
-  return fallbackTrimmed.isEmpty ? 'Unknown student' : fallbackTrimmed;
+  return fallbackTrimmed.isEmpty ? 'Học sinh chưa xác định' : fallbackTrimmed;
 }
 
 List<String> _normalizeEvidenceUrls(List<String> values) {

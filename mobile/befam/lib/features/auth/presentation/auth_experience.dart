@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -141,28 +140,12 @@ class _AuthScaffold extends StatelessWidget {
               switch (controller.step) {
                 AuthStep.loginMethodSelection => _LoginMethodSelectionCard(
                   isBusy: controller.isBusy,
-                  showSandboxProfiles:
-                      kDebugMode ||
-                      const bool.fromEnvironment(
-                        'BEFAM_ENABLE_TEST_LOGIN_PROFILES',
-                        defaultValue: false,
-                      ),
-                  enableAutoBypass: controller.canUseLocalBypass,
                   hasAcceptedPrivacyPolicy: controller.hasAcceptedPrivacyPolicy,
                   onPhoneSelected: () {
                     controller.selectLoginMethod(AuthEntryMethod.phone);
                   },
                   onChildSelected: () {
                     controller.selectLoginMethod(AuthEntryMethod.child);
-                  },
-                  onSandboxProfileSelected: (phoneE164, autoOtpCode) {
-                    if (controller.canUseLocalBypass) {
-                      return controller.signInWithLocalBypassPhone(phoneE164);
-                    }
-                    return controller.requestOtpForScenarioPhone(
-                      phoneE164,
-                      autoVerifyCode: autoOtpCode,
-                    );
                   },
                   onPrivacyConsentChanged: (accepted) {
                     unawaited(controller.setPrivacyPolicyAccepted(accepted));
@@ -387,24 +370,17 @@ class _AuthMessageCard extends StatelessWidget {
 class _LoginMethodSelectionCard extends StatelessWidget {
   const _LoginMethodSelectionCard({
     required this.isBusy,
-    required this.showSandboxProfiles,
-    required this.enableAutoBypass,
     required this.hasAcceptedPrivacyPolicy,
     required this.onPhoneSelected,
     required this.onChildSelected,
-    required this.onSandboxProfileSelected,
     required this.onPrivacyConsentChanged,
     required this.onViewPrivacyPolicy,
   });
 
   final bool isBusy;
-  final bool showSandboxProfiles;
-  final bool enableAutoBypass;
   final bool hasAcceptedPrivacyPolicy;
   final VoidCallback onPhoneSelected;
   final VoidCallback onChildSelected;
-  final Future<void> Function(String phoneE164, String? autoOtpCode)
-  onSandboxProfileSelected;
   final ValueChanged<bool> onPrivacyConsentChanged;
   final VoidCallback onViewPrivacyPolicy;
 
@@ -465,21 +441,6 @@ class _LoginMethodSelectionCard extends StatelessWidget {
           onChanged: onPrivacyConsentChanged,
           onViewPrivacyPolicy: onViewPrivacyPolicy,
         ),
-        if (showSandboxProfiles) ...[
-          const SizedBox(height: 16),
-          _SandboxEnvironmentCard(
-            isBusy: isBusy,
-            hasAcceptedPrivacyPolicy: hasAcceptedPrivacyPolicy,
-            title: l10n.authSandboxChip,
-            description: enableAutoBypass
-                ? l10n.authPhoneHelperSandbox
-                : l10n.pick(
-                    vi: 'Dùng profile thử nghiệm từ Firebase thật. Chạm vào một profile để gửi OTP thật theo số đã cấu hình.',
-                    en: 'Use live Firebase test profiles. Tap a profile to request a real OTP for that configured phone.',
-                  ),
-            onSelected: onSandboxProfileSelected,
-          ),
-        ],
       ],
     );
   }

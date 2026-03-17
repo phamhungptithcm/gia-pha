@@ -18,7 +18,7 @@ void main() {
       uid: 'debug:+84901234567',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84901234567',
-      displayName: 'Nguyen Minh',
+      displayName: 'Nguyễn Minh',
       memberId: memberId,
       clanId: clanId,
       branchId: 'branch_demo_001',

@@ -24,7 +24,7 @@ void main() {
       uid: 'uid-1',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84901111111',
-      displayName: 'Tester',
+      displayName: 'Người kiểm thử',
       memberId: 'm1',
       clanId: 'c1',
       branchId: 'b1',

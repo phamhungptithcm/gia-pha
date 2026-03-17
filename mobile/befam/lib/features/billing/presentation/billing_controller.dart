@@ -131,6 +131,10 @@ class BillingController extends ChangeNotifier {
     required String paymentMethod,
     String? requestedPlanCode,
     String? returnUrl,
+    String? locale,
+    String? orderNote,
+    String? bankCode,
+    String? contactPhone,
   }) async {
     _isCreatingCheckout = true;
     _errorMessage = null;
@@ -142,6 +146,10 @@ class BillingController extends ChangeNotifier {
         paymentMethod: paymentMethod,
         requestedPlanCode: requestedPlanCode,
         returnUrl: returnUrl,
+        locale: locale,
+        orderNote: orderNote,
+        bankCode: bankCode,
+        contactPhone: contactPhone,
       );
       _workspace = await _repository.loadWorkspace(session: _session);
       _viewerSummary = null;
@@ -217,6 +225,7 @@ class BillingController extends ChangeNotifier {
           subscription: current.subscription,
           entitlement: entitlement,
           settings: current.settings,
+          checkoutFlow: current.checkoutFlow,
           pricingTiers: current.pricingTiers,
           memberCount: current.memberCount,
           transactions: current.transactions,

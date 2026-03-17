@@ -12,6 +12,7 @@ import '../../auth/services/auth_session_store.dart';
 import '../../billing/presentation/billing_workspace_page.dart';
 import '../../billing/services/billing_repository.dart';
 import '../../member/models/member_profile.dart';
+import '../../member/models/member_social_links.dart';
 import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -231,6 +232,50 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     }
   }
 
+  MemberProfile _buildUnlinkedFallbackProfile({
+    required AuthSession session,
+    required ProfileDraft draft,
+    required AppLocalizations l10n,
+  }) {
+    final fullName = _normalizeUnlinkedFullName(
+      draftValue: draft.fullName,
+      fallbackValue: session.displayName,
+      l10n: l10n,
+    );
+    final phone = _displayOrFallback(
+      draft.phoneInput,
+      fallback: session.phoneE164,
+    );
+    final normalizedRole = (session.primaryRole ?? '').trim().toUpperCase();
+    return MemberProfile(
+      id: 'unlinked_${session.uid}',
+      clanId: '',
+      branchId: '',
+      fullName: fullName,
+      normalizedFullName: fullName.toLowerCase().trim(),
+      nickName: draft.nickName.trim(),
+      gender: null,
+      birthDate: null,
+      deathDate: null,
+      phoneE164: phone.isEmpty ? null : phone,
+      email: _blankToNull(draft.email),
+      addressText: _blankToNull(draft.addressText),
+      jobTitle: _blankToNull(draft.jobTitle),
+      avatarUrl: null,
+      bio: _blankToNull(draft.bio),
+      socialLinks: const MemberSocialLinks(),
+      parentIds: const [],
+      childrenIds: const [],
+      spouseIds: const [],
+      siblingOrder: null,
+      generation: 1,
+      primaryRole: normalizedRole.isEmpty ? 'MEMBER' : normalizedRole,
+      status: 'active',
+      isMinor: false,
+      authUid: session.uid,
+    );
+  }
+
   Future<void> _handleAvatarUpload() async {
     final l10n = context.l10n;
     final picked = await _avatarPicker.pickAvatar();
@@ -389,6 +434,19 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         final colorScheme = theme.colorScheme;
         final l10n = context.l10n;
         final selectedLanguageCode = _localeController.locale.languageCode;
+        final unlinkedDraft =
+            _unlinkedDraft ?? _fallbackUnlinkedDraft(widget.session);
+        final usesFallbackProfile =
+            !_controller.hasMemberContext && _controller.profile == null;
+        final displayProfile =
+            _controller.profile ??
+            (usesFallbackProfile
+                ? _buildUnlinkedFallbackProfile(
+                    session: widget.session,
+                    draft: unlinkedDraft,
+                    l10n: l10n,
+                  )
+                : null);
 
         return Scaffold(
           appBar: widget.showAppBar
@@ -418,21 +476,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                       en: 'Loading profile...',
                     ),
                   )
-                : !_controller.hasMemberContext
-                ? _ProfileUnlinkedState(
-                    session: widget.session,
-                    draft:
-                        _unlinkedDraft ??
-                        _fallbackUnlinkedDraft(widget.session),
-                    onEditProfile: _openUnlinkedEditor,
-                    isSavingProfile: _isSavingUnlinkedProfile,
-                    localeController: _localeController,
-                    onOpenSettings: _openSettings,
-                    onLogoutRequested: widget.onLogoutRequested == null
-                        ? null
-                        : _confirmLogout,
-                  )
-                : _controller.profile == null
+                : displayProfile == null
                 ? _ProfileEmptyState(
                     icon: Icons.person_search_outlined,
                     title: l10n.memberNotFoundTitle,
@@ -469,16 +513,20 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                           const SizedBox(height: 8),
                         ],
                         _ProfileHeroCard(
-                          profile: _controller.profile!,
-                          roleLabel: l10n.roleLabel(
-                            _controller.profile!.primaryRole,
-                          ),
-                          onEditProfile: () =>
-                              _openEditor(_controller.profile!),
-                          onAvatarTap: _controller.isUploadingAvatar
+                          profile: displayProfile,
+                          roleLabel: l10n.roleLabel(displayProfile.primaryRole),
+                          onEditProfile: usesFallbackProfile
+                              ? _openUnlinkedEditor
+                              : () => _openEditor(displayProfile),
+                          onAvatarTap:
+                              usesFallbackProfile ||
+                                  _controller.isUploadingAvatar
                               ? null
-                              : () => _openAvatarActions(_controller.profile!),
-                          isUploadingAvatar: _controller.isUploadingAvatar,
+                              : () => _openAvatarActions(displayProfile),
+                          isUploadingAvatar: usesFallbackProfile
+                              ? _isSavingUnlinkedProfile
+                              : _controller.isUploadingAvatar,
+                          showAvatarActionBadge: !usesFallbackProfile,
                         ),
                         const SizedBox(height: 20),
                         if (_controller.errorMessage != null) ...[
@@ -505,44 +553,35 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                             children: [
                               _ProfileDetailRow(
                                 label: l10n.memberFullNameLabel,
-                                value: _controller.profile!.fullName,
+                                value: displayProfile.fullName,
                               ),
                               _ProfileDetailRow(
                                 label: l10n.memberNicknameLabel,
-                                value:
-                                    _controller.profile!.nickName.trim().isEmpty
-                                    ? l10n.memberFieldUnset
-                                    : _controller.profile!.nickName,
+                                value: _blankIfMissing(displayProfile.nickName),
                               ),
                               _ProfileDetailRow(
                                 label: l10n.memberPhoneLabel,
-                                value:
-                                    _controller.profile!.phoneE164 ??
-                                    l10n.memberFieldUnset,
+                                value: _blankIfMissing(
+                                  displayProfile.phoneE164,
+                                ),
                               ),
                               _ProfileDetailRow(
                                 label: l10n.memberEmailLabel,
-                                value:
-                                    _controller.profile!.email ??
-                                    l10n.memberFieldUnset,
+                                value: _blankIfMissing(displayProfile.email),
                               ),
                               _ProfileDetailRow(
                                 label: l10n.memberJobTitleLabel,
-                                value:
-                                    _controller.profile!.jobTitle ??
-                                    l10n.memberFieldUnset,
+                                value: _blankIfMissing(displayProfile.jobTitle),
                               ),
                               _ProfileDetailRow(
                                 label: l10n.memberAddressLabel,
-                                value:
-                                    _controller.profile!.addressText ??
-                                    l10n.memberFieldUnset,
+                                value: _blankIfMissing(
+                                  displayProfile.addressText,
+                                ),
                               ),
                               _ProfileDetailRow(
                                 label: l10n.memberBioLabel,
-                                value:
-                                    _controller.profile!.bio ??
-                                    l10n.memberFieldUnset,
+                                value: _blankIfMissing(displayProfile.bio),
                                 isLast: true,
                               ),
                             ],
@@ -891,6 +930,7 @@ class _ProfileHeroCard extends StatelessWidget {
     required this.onEditProfile,
     this.onAvatarTap,
     this.isUploadingAvatar = false,
+    this.showAvatarActionBadge = true,
   });
 
   final MemberProfile profile;
@@ -898,12 +938,17 @@ class _ProfileHeroCard extends StatelessWidget {
   final VoidCallback onEditProfile;
   final VoidCallback? onAvatarTap;
   final bool isUploadingAvatar;
+  final bool showAvatarActionBadge;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
+    final resolvedSubtitle = l10n.pick(
+      vi: 'Bạn có thể cập nhật hồ sơ bất kỳ lúc nào.',
+      en: 'You can update your profile anytime.',
+    );
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -940,27 +985,28 @@ class _ProfileHeroCard extends StatelessWidget {
                           ),
                         ),
                 ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: colorScheme.surface,
-                        width: 1.4,
+                if (showAvatarActionBadge)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: colorScheme.surface,
+                          width: 1.4,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.photo_camera_outlined,
+                        size: 14,
+                        color: colorScheme.onPrimaryContainer,
                       ),
                     ),
-                    child: Icon(
-                      Icons.photo_camera_outlined,
-                      size: 14,
-                      color: colorScheme.onPrimaryContainer,
-                    ),
                   ),
-                ),
                 if (isUploadingAvatar)
                   Container(
                     width: 76,
@@ -1015,10 +1061,7 @@ class _ProfileHeroCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  l10n.pick(
-                    vi: 'Chạm ảnh để xem hoặc đổi ảnh đại diện',
-                    en: 'Tap avatar to view or upload a new profile photo',
-                  ),
+                  resolvedSubtitle,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: colorScheme.onPrimary.withValues(alpha: 0.9),
                   ),
@@ -1421,181 +1464,7 @@ class _ProfileInfoCard extends StatelessWidget {
   }
 }
 
-class _ProfileUnlinkedState extends StatelessWidget {
-  const _ProfileUnlinkedState({
-    required this.session,
-    required this.draft,
-    required this.onEditProfile,
-    required this.isSavingProfile,
-    required this.localeController,
-    required this.onOpenSettings,
-    this.onLogoutRequested,
-  });
-
-  final AuthSession session;
-  final ProfileDraft draft;
-  final VoidCallback onEditProfile;
-  final bool isSavingProfile;
-  final AppLocaleController localeController;
-  final VoidCallback onOpenSettings;
-  final VoidCallback? onLogoutRequested;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final selectedLanguageCode = localeController.locale.languageCode;
-    final fullName = _displayOrFallback(
-      draft.fullName,
-      fallback: session.displayName,
-      l10n: l10n,
-    );
-    final phone = _displayOrFallback(
-      draft.phoneInput,
-      fallback: session.phoneE164,
-      l10n: l10n,
-    );
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      children: [
-        _ProfileInfoCard(
-          icon: Icons.person_outline,
-          title: l10n.pick(
-            vi: 'Hồ sơ tài khoản chưa liên kết',
-            en: 'Unlinked account profile',
-          ),
-          description: l10n.pick(
-            vi: 'Bạn chưa liên kết vào gia phả nào, nhưng vẫn có thể cập nhật thông tin cá nhân để dùng cho các bước tạo/tham gia sau này.',
-            en: 'This account is not linked to a clan yet, but you can still update personal details for future create/join steps.',
-          ),
-          tone: colorScheme.secondaryContainer,
-        ),
-        const SizedBox(height: 20),
-        _ProfileSectionCard(
-          title: l10n.profileDetailsSectionTitle,
-          child: Column(
-            children: [
-              _ProfileDetailRow(
-                label: l10n.memberFullNameLabel,
-                value: fullName,
-              ),
-              _ProfileDetailRow(
-                label: l10n.memberNicknameLabel,
-                value: _displayOrFallback(draft.nickName, l10n: l10n),
-              ),
-              _ProfileDetailRow(label: l10n.memberPhoneLabel, value: phone),
-              _ProfileDetailRow(
-                label: l10n.memberEmailLabel,
-                value: _displayOrFallback(draft.email, l10n: l10n),
-              ),
-              _ProfileDetailRow(
-                label: l10n.memberJobTitleLabel,
-                value: _displayOrFallback(draft.jobTitle, l10n: l10n),
-              ),
-              _ProfileDetailRow(
-                label: l10n.memberAddressLabel,
-                value: _displayOrFallback(draft.addressText, l10n: l10n),
-              ),
-              _ProfileDetailRow(
-                label: l10n.memberBioLabel,
-                value: _displayOrFallback(draft.bio, l10n: l10n),
-                isLast: true,
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.tonalIcon(
-                  onPressed: isSavingProfile ? null : onEditProfile,
-                  icon: isSavingProfile
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.edit_outlined),
-                  label: Text(
-                    l10n.pick(vi: 'Cập nhật thông tin', en: 'Update profile'),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        _ProfileSectionCard(
-          title: l10n.profileLanguageSectionTitle,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.profileLanguageSectionDescription,
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 10),
-              SegmentedButton<String>(
-                showSelectedIcon: true,
-                segments: [
-                  ButtonSegment<String>(
-                    value: 'vi',
-                    label: Text(l10n.profileLanguageVietnamese),
-                  ),
-                  ButtonSegment<String>(
-                    value: 'en',
-                    label: Text(l10n.profileLanguageEnglish),
-                  ),
-                ],
-                selected: {selectedLanguageCode},
-                onSelectionChanged: (selected) {
-                  if (selected.isEmpty) {
-                    return;
-                  }
-                  unawaited(
-                    localeController.updateLanguageCode(selected.first),
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              Text(
-                selectedLanguageCode == 'vi'
-                    ? l10n.profileLanguageVietnameseSubtitle
-                    : l10n.profileLanguageEnglishSubtitle,
-                style: theme.textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        _ProfileSectionCard(
-          title: l10n.profileSettingsTitle,
-          child: FilledButton.tonalIcon(
-            onPressed: onOpenSettings,
-            icon: const Icon(Icons.settings_outlined),
-            label: Text(l10n.profileOpenSettingsAction),
-          ),
-        ),
-        if (onLogoutRequested != null) ...[
-          const SizedBox(height: 20),
-          _ProfileSectionCard(
-            title: l10n.profileAccountSectionTitle,
-            child: OutlinedButton.icon(
-              onPressed: onLogoutRequested,
-              icon: const Icon(Icons.logout),
-              label: Text(l10n.shellLogout),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-String _displayOrFallback(
-  String value, {
-  required AppLocalizations l10n,
-  String? fallback,
-}) {
+String _displayOrFallback(String value, {String? fallback}) {
   final trimmed = value.trim();
   if (trimmed.isNotEmpty) {
     return trimmed;
@@ -1604,7 +1473,43 @@ String _displayOrFallback(
   if (fallbackTrimmed.isNotEmpty) {
     return fallbackTrimmed;
   }
-  return l10n.memberFieldUnset;
+  return '';
+}
+
+String _blankIfMissing(String? value) {
+  return (value ?? '').trim();
+}
+
+String? _blankToNull(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return null;
+  }
+  return trimmed;
+}
+
+String _normalizeUnlinkedFullName({
+  required String draftValue,
+  required String fallbackValue,
+  required AppLocalizations l10n,
+}) {
+  final draft = draftValue.trim();
+  if (draft.isNotEmpty && !_looksLikeUnlinkedPlaceholder(draft)) {
+    return draft;
+  }
+  final fallback = fallbackValue.trim();
+  if (fallback.isNotEmpty && !_looksLikeUnlinkedPlaceholder(fallback)) {
+    return fallback;
+  }
+  return l10n.pick(vi: 'Chưa Có Tên', en: 'No Name Yet');
+}
+
+bool _looksLikeUnlinkedPlaceholder(String value) {
+  final normalized = value.toLowerCase();
+  return normalized.contains('chưa vào gia phả') ||
+      normalized.contains('chưa liên kết') ||
+      normalized.contains('not linked') ||
+      normalized.contains('unlinked');
 }
 
 class _UnlinkedProfileDraftStore {

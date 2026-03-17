@@ -93,6 +93,10 @@ class FirebaseBillingRepository implements BillingRepository {
     required String paymentMethod,
     String? requestedPlanCode,
     String? returnUrl,
+    String? locale,
+    String? orderNote,
+    String? bankCode,
+    String? contactPhone,
   }) async {
     final clanId = _sessionClanId(session);
     await _ensureSessionDocumentBestEffort(session);
@@ -102,6 +106,13 @@ class FirebaseBillingRepository implements BillingRepository {
         'requestedPlanCode': requestedPlanCode.trim().toUpperCase(),
       if (returnUrl != null && returnUrl.trim().isNotEmpty)
         'returnUrl': returnUrl.trim(),
+      if (locale != null && locale.trim().isNotEmpty) 'locale': locale.trim(),
+      if (orderNote != null && orderNote.trim().isNotEmpty)
+        'orderNote': orderNote.trim(),
+      if (bankCode != null && bankCode.trim().isNotEmpty)
+        'bankCode': bankCode.trim().toUpperCase(),
+      if (contactPhone != null && contactPhone.trim().isNotEmpty)
+        'contactPhone': contactPhone.trim(),
     };
     final result = await _call(
       'createSubscriptionCheckout',
@@ -200,6 +211,7 @@ class FirebaseBillingRepository implements BillingRepository {
       subscription: _parseSubscription(_asMap(map['subscription'])),
       entitlement: _parseEntitlement(_asMap(map['entitlement'])),
       settings: _parseSettings(_asMap(map['settings'])),
+      checkoutFlow: _parseCheckoutFlow(_asMap(map['checkoutFlow'])),
       pricingTiers: pricing,
       memberCount: _readInt(map, 'memberCount'),
       transactions: transactions,
@@ -262,6 +274,34 @@ class FirebaseBillingRepository implements BillingRepository {
       showAds: _readBool(map, 'showAds', fallback: true),
       adFree: _readBool(map, 'adFree', fallback: false),
     );
+  }
+
+  BillingCheckoutFlowConfig _parseCheckoutFlow(Map<String, dynamic> map) {
+    return BillingCheckoutFlowConfig(
+      qrCheckoutEnabled: _readBool(map, 'qrCheckoutEnabled', fallback: false),
+      qrImageUrlsByPlan: _parsePlanQrImageUrls(map['qrImageUrlsByPlan']),
+    );
+  }
+
+  Map<String, String> _parsePlanQrImageUrls(Object? raw) {
+    if (raw is! Map) {
+      return const <String, String>{};
+    }
+    final output = <String, String>{};
+    for (final entry in raw.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      if (key is! String || value is! String) {
+        continue;
+      }
+      final normalizedKey = key.trim().toUpperCase();
+      final normalizedValue = value.trim();
+      if (normalizedKey.isEmpty || normalizedValue.isEmpty) {
+        continue;
+      }
+      output[normalizedKey] = normalizedValue;
+    }
+    return output;
   }
 
   BillingPaymentTransaction _parseTransaction(Map<String, dynamic> map) {

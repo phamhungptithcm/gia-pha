@@ -12,7 +12,7 @@ void main() {
       uid: 'debug:+84901234567',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84901234567',
-      displayName: 'Nguyen Minh',
+      displayName: 'Nguyễn Minh',
       memberId: 'member_demo_parent_001',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',
@@ -29,7 +29,7 @@ void main() {
       uid: 'debug:+84908886655',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84908886655',
-      displayName: 'Tran Van Long',
+      displayName: 'Trần Văn Long',
       memberId: 'member_demo_parent_002',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_002',
@@ -74,13 +74,13 @@ void main() {
     await repository.createSpouseRelationship(
       session: session,
       memberId: 'member_demo_parent_001',
-      spouseId: 'member_demo_parent_002',
+      spouseId: 'member_demo_elder_001',
     );
 
     expect(
       () => repository.createSpouseRelationship(
         session: session,
-        memberId: 'member_demo_parent_002',
+        memberId: 'member_demo_elder_001',
         spouseId: 'member_demo_parent_001',
       ),
       throwsA(

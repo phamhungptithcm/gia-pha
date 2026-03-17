@@ -13,7 +13,7 @@ void main() {
       uid: 'debug:+84901234567',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84901234567',
-      displayName: 'Nguyen Minh',
+      displayName: 'Nguyễn Minh',
       memberId: 'member_demo_parent_001',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',
@@ -30,17 +30,16 @@ void main() {
   });
 
   test('loads the clan scope and returns cached snapshots on repeat', () async {
-    final repository = DebugGenealogyReadRepository(
-      store: DebugGenealogyStore.seeded(),
-    );
+    final store = DebugGenealogyStore.seeded();
+    final repository = DebugGenealogyReadRepository(store: store);
     final session = buildClanAdminSession();
 
     final initial = await repository.loadClanSegment(session: session);
     final cached = await repository.loadClanSegment(session: session);
 
-    expect(initial.members.length, 5);
-    expect(initial.branches.length, 2);
-    expect(initial.relationships.length, 2);
+    expect(initial.members.length, store.members.length);
+    expect(initial.branches.length, store.branches.length);
+    expect(initial.relationships.length, store.relationships.length);
     expect(initial.fromCache, isFalse);
     expect(cached.fromCache, isTrue);
     expect(

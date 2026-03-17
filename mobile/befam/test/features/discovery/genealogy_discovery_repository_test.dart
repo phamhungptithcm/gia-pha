@@ -58,7 +58,7 @@ AuthSession _claimedClanAdminSession() {
     uid: 'debug:+84901234567',
     loginMethod: AuthEntryMethod.phone,
     phoneE164: '+84901234567',
-    displayName: 'Nguyen Minh',
+    displayName: 'Nguyễn Minh',
     memberId: 'member_demo_parent_001',
     clanId: 'clan_demo_001',
     branchId: 'branch_demo_001',

@@ -14,7 +14,7 @@ void main() {
       uid: 'debug:+84901234567',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84901234567',
-      displayName: 'Nguyen Minh',
+      displayName: 'Nguyễn Minh',
       memberId: 'member_demo_parent_001',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',
@@ -31,7 +31,7 @@ void main() {
       uid: 'debug:+84909998888',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84909998888',
-      displayName: 'Member User',
+      displayName: 'Thành viên mẫu',
       memberId: 'member_demo_child_001',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',
@@ -66,12 +66,12 @@ void main() {
 
     final draft = EventDraft(
       branchId: 'branch_demo_001',
-      title: 'Clan planning meeting',
-      description: 'Discuss annual roadmap.',
+      title: 'Họp kế hoạch dòng họ',
+      description: 'Thảo luận kế hoạch hoạt động năm.',
       eventType: EventType.meeting,
       targetMemberId: null,
       locationName: 'Main hall',
-      locationAddress: 'Da Nang, Viet Nam',
+      locationAddress: 'Đà Nẵng, Việt Nam',
       startsAt: DateTime(2026, 6, 10, 18),
       endsAt: DateTime(2026, 6, 10, 20),
       timezone: 'Asia/Ho_Chi_Minh',
@@ -101,7 +101,7 @@ void main() {
 
     final invalidDraft = EventDraft(
       branchId: 'branch_demo_001',
-      title: 'Invalid timing',
+      title: 'Thời gian không hợp lệ',
       description: '',
       eventType: EventType.meeting,
       targetMemberId: null,
