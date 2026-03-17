@@ -100,7 +100,7 @@ class _FakeAuthGateway implements AuthGateway {
       uid: 'debug:${challenge.phoneE164}',
       loginMethod: challenge.loginMethod,
       phoneE164: challenge.phoneE164,
-      displayName: 'Sandbox User',
+      displayName: 'Người dùng thử nghiệm',
       memberId: 'member_demo_parent_001',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',

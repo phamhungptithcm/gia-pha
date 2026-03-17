@@ -80,7 +80,7 @@ function createMember({
     addressText,
     jobTitle,
     avatarUrl: null,
-    bio: bio ?? `Thành viên demo ${fullName}.`,
+    bio: bio ?? `Thành viên mẫu ${fullName}.`,
     socialLinks: {
       facebook: null,
       zalo: null,
@@ -148,7 +148,7 @@ const members = [
     generation: 2,
     status: 'deceased',
     jobTitle: 'Tộc trưởng',
-    bio: 'Tổ tiên truyền thống của dòng họ demo.',
+    bio: 'Tổ tiên truyền thống của dòng họ mẫu.',
   }),
   createMember({
     id: 'member_demo_ancestor_002',
@@ -161,7 +161,7 @@ const members = [
     generation: 2,
     status: 'deceased',
     jobTitle: 'Nội trợ',
-    bio: 'Tổ tiên đã mất, dùng để demo trạng thái đã mất.',
+    bio: 'Tổ tiên đã mất, dùng để kiểm thử trạng thái đã mất.',
   }),
   createMember({
     id: 'member_demo_elder_001',
@@ -201,7 +201,7 @@ const members = [
     generation: 4,
     primaryRole: 'CLAN_ADMIN',
     jobTitle: 'Điều phối họ tộc',
-    bio: 'Điều phối khởi tạo không gian họ tộc mẫu cho BeFam.',
+    bio: 'Điều phối khởi tạo không gian họ tộc mẫu cho ứng dụng gia phả.',
     authUid: 'debug_phone_84901234567',
   }),
   createMember({
@@ -218,8 +218,8 @@ const members = [
   createMember({
     id: 'member_demo_uncle_001',
     branchId: 'branch_demo_001',
-    fullName: 'Lê Đại Gia',
-    nickName: 'Đại Gia',
+    fullName: 'Lê Quốc Thắng',
+    nickName: 'Quốc Thắng',
     gender: 'male',
     birthDate: '1978-05-17',
     phoneE164: '+84905550001',
@@ -540,7 +540,7 @@ const additionalMembers = [
     gender: 'male',
     birthDate: '1984-05-18',
     phoneE164: '+84901130002',
-    email: 'vo.minh.thuan@example.vn',
+    email: 'vo.minh.thuan@giapha.vn',
     addressText: 'Phường Hòa Xuân, Cẩm Lệ, Đà Nẵng',
     generation: 4,
     jobTitle: 'Kỹ sư xây dựng',
@@ -1266,10 +1266,10 @@ for (const branch of branches) {
 
 const clan = {
   id: clanId,
-  name: 'Họ tộc BeFam',
-  slug: 'ho-toc-befam',
+  name: 'Gia phả họ Nguyễn Văn Đà Nẵng',
+  slug: 'gia-pha-ho-nguyen-van-da-nang',
   description:
-    'Không gian demo nhiều thế hệ để kiểm thử khám phá cây gia phả trên dữ liệu lớn.',
+    'Gia phả mẫu nhiều thế hệ với dữ liệu gần thực tế để kiểm thử trên quy mô lớn.',
   countryCode: 'VN',
   founderName: 'Nguyễn Minh',
   logoUrl: '',
@@ -1394,7 +1394,8 @@ const debugLoginProfiles = [
     phoneE164: '+84901234567',
     scenarioKey: 'clan_admin_existing',
     title: 'Trưởng tộc đã có gia phả',
-    description: 'CLAN_ADMIN đã liên kết thành viên và có dữ liệu gia phả.',
+    description:
+      'Tài khoản trưởng tộc đã liên kết thành viên và có dữ liệu gia phả.',
     memberId: 'member_demo_parent_001',
     clanId: 'clan_demo_001',
     branchId: 'branch_demo_001',
@@ -1412,7 +1413,7 @@ const debugLoginProfiles = [
     phoneE164: '+84908886655',
     scenarioKey: 'branch_admin_existing',
     title: 'Trưởng chi đã có gia phả',
-    description: 'BRANCH_ADMIN đã liên kết và quản lý một chi hiện có.',
+    description: 'Tài khoản trưởng chi đã liên kết và quản lý một chi hiện có.',
     memberId: 'member_demo_parent_002',
     clanId: 'clan_demo_001',
     branchId: 'branch_demo_002',
@@ -1430,7 +1431,8 @@ const debugLoginProfiles = [
     phoneE164: '+84907770011',
     scenarioKey: 'member_existing',
     title: 'Thành viên thường đã vào gia phả',
-    description: 'MEMBER đã liên kết hồ sơ để kiểm thử quyền người dùng thường.',
+    description:
+      'Tài khoản thành viên thường đã liên kết hồ sơ để kiểm thử phân quyền.',
     memberId: 'member_demo_elder_001',
     clanId: 'clan_demo_001',
     branchId: 'branch_demo_001',
@@ -1466,7 +1468,8 @@ const debugLoginProfiles = [
     phoneE164: '+84905550033',
     scenarioKey: 'branch_admin_unlinked',
     title: 'Trưởng chi chưa gắn gia phả',
-    description: 'Vai trò BRANCH_ADMIN nhưng chưa gắn họ tộc/chi để kiểm thử phân quyền.',
+    description:
+      'Tài khoản trưởng chi nhưng chưa gắn họ tộc/chi để kiểm thử phân quyền.',
     memberId: null,
     clanId: null,
     branchId: null,
@@ -1484,7 +1487,8 @@ const debugLoginProfiles = [
     phoneE164: '+84909990001',
     scenarioKey: 'clan_admin_uninitialized',
     title: 'Trưởng tộc chưa tạo gia phả',
-    description: 'CLAN_ADMIN có ngữ cảnh tạo họ tộc mới nhưng chưa có dữ liệu.',
+    description:
+      'Tài khoản trưởng tộc có ngữ cảnh tạo họ tộc mới nhưng chưa có dữ liệu.',
     memberId: null,
     clanId: 'clan_onboarding_001',
     branchId: null,
@@ -1681,7 +1685,7 @@ const events = [
     clanId,
     branchId: 'branch_demo_001',
     title: 'Sinh nhật bà nội (âm lịch)',
-    description: 'Sự kiện lặp lại theo âm lịch để test dual-calendar.',
+    description: 'Sự kiện lặp lại theo âm lịch để kiểm thử lịch âm dương.',
     eventType: 'birthday',
     targetMemberId: 'member_demo_elder_spouse_001',
     locationName: 'Nhà trưởng chi',
@@ -1733,7 +1737,8 @@ const awardLevels = [
     sortOrder: 10,
     rewardType: 'cash',
     rewardAmountMinor: 5000000,
-    criteriaText: 'GPA >= 3.8 hoặc giải học sinh giỏi cấp tỉnh/quốc gia.',
+    criteriaText:
+      'Điểm trung bình từ 3.8/4.0 trở lên hoặc đạt giải học sinh giỏi cấp tỉnh/quốc gia.',
     status: 'active',
     createdAt: now,
     updatedAt: now,
@@ -1747,7 +1752,7 @@ const awardLevels = [
     sortOrder: 20,
     rewardType: 'cash',
     rewardAmountMinor: 3000000,
-    criteriaText: 'GPA >= 3.4 và hạnh kiểm tốt.',
+    criteriaText: 'Điểm trung bình từ 3.4/4.0 trở lên và hạnh kiểm tốt.',
     status: 'active',
     createdAt: now,
     updatedAt: now,
@@ -1764,7 +1769,7 @@ const achievementSubmissions = [
     studentNameSnapshot: 'Bé Minh',
     title: 'Thành tích học kỳ I',
     description: 'Hồ sơ đề nghị học bổng cho học kỳ I năm học 2026.',
-    evidenceUrls: ['https://example.com/evidence/minh-hoc-ky-1.pdf'],
+    evidenceUrls: ['https://du-lieu.giapha.vn/minh-hoc-ky-1.pdf'],
     status: 'pending',
     reviewNote: null,
     reviewedBy: null,
@@ -1785,7 +1790,7 @@ const achievementSubmissions = [
     studentNameSnapshot: 'Bé Lan',
     title: 'Thành tích cuối năm',
     description: 'Đề nghị học bổng cho kết quả cuối năm 2026.',
-    evidenceUrls: ['https://example.com/evidence/lan-cuoi-nam.pdf'],
+    evidenceUrls: ['https://du-lieu.giapha.vn/lan-cuoi-nam.pdf'],
     status: 'approved',
     reviewNote: 'Hồ sơ đầy đủ và đạt tiêu chí.',
     reviewedBy: 'member_demo_parent_001',
@@ -2426,7 +2431,7 @@ async function seed() {
 
   await batch.commit();
 
-  console.log('Seeded extended demo clan data successfully.');
+  console.log('Đã seed dữ liệu gia phả mẫu mở rộng thành công.');
   console.log(`Project: ${projectId}`);
   console.log(`Clan: ${clan.id}`);
   console.log(`Members: ${normalizedMembers.length}`);
@@ -2456,7 +2461,7 @@ async function seed() {
 }
 
 seed().catch((error) => {
-  console.error('Failed to seed demo data.');
+  console.error('Seed dữ liệu mẫu thất bại.');
   console.error(error);
   process.exit(1);
 });
