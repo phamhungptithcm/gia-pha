@@ -9,7 +9,10 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DOC_PATH = REPO_ROOT / "docs/06-security/firebase-rules.md"
+DOC_CANDIDATE_PATHS = [
+    REPO_ROOT / "docs/en/06-security/firebase-rules.md",
+    REPO_ROOT / "docs/06-security/firebase-rules.md",
+]
 FIRESTORE_RULES_PATH = REPO_ROOT / "firebase/firestore.rules"
 STORAGE_RULES_PATH = REPO_ROOT / "firebase/storage.rules"
 
@@ -48,6 +51,16 @@ def _read_text(path: Path) -> str:
     if not path.exists():
         raise FileNotFoundError(f"Missing required file: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def _resolve_doc_path() -> Path:
+    for candidate in DOC_CANDIDATE_PATHS:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        "Missing required file. Checked: "
+        + ", ".join(str(path) for path in DOC_CANDIDATE_PATHS)
+    )
 
 
 def _extract_function_names(rules_text: str) -> set[str]:
@@ -89,7 +102,7 @@ def _extract_storage_limits_mb(storage_rules: str) -> tuple[int, int]:
 
 def main() -> int:
     try:
-        docs_text = _read_text(DOC_PATH)
+        docs_text = _read_text(_resolve_doc_path())
         firestore_rules = _read_text(FIRESTORE_RULES_PATH)
         storage_rules = _read_text(STORAGE_RULES_PATH)
     except (FileNotFoundError, OSError) as exc:

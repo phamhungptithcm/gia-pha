@@ -5,7 +5,7 @@ This document provides the implementation plan for AI agents building the Flutte
 
 > Implementation note (March 14, 2026): this plan is the architectural
 > baseline. Current delivered structure and behavior are documented in
-> `docs/03-mobile/*` and `docs/02-architecture/mobile-architecture.md`.
+> `docs/en/03-mobile/*` and `docs/en/02-architecture/mobile-architecture.md`.
 
 ## 1. App Architecture
 
