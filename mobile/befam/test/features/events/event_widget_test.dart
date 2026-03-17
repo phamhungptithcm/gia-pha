@@ -10,6 +10,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  Finder workspaceScroll() => find.descendant(
+    of: find.byKey(const Key('event-workspace-scroll')),
+    matching: find.byType(Scrollable),
+  ).first;
+
   AuthSession buildClanAdminSession() {
     return AuthSession(
       uid: 'debug:+84901234567',
@@ -73,7 +78,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Giỗ cụ tổ mùa xuân'),
       320,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: workspaceScroll(),
     );
     expect(find.text('Giỗ cụ tổ mùa xuân'), findsOneWidget);
 
@@ -83,6 +88,40 @@ void main() {
 
     expect(find.text('Chi tiết sự kiện'), findsOneWidget);
     expect(find.text('Giỗ cụ tổ mùa xuân'), findsWidgets);
+  });
+
+  testWidgets('shows memorial checklist and supports quick setup', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    await pumpWorkspace(tester, repository);
+
+    final memorialChecklistTitle = find.text('Danh sách giỗ kỵ');
+    await tester.scrollUntilVisible(
+      memorialChecklistTitle,
+      320,
+      scrollable: workspaceScroll(),
+    );
+    expect(memorialChecklistTitle, findsOneWidget);
+    expect(find.text('Chưa thiết lập'), findsWidgets);
+
+    final quickSetupButton = find.text('Thiết lập nhanh').first;
+    await tester.ensureVisible(quickSetupButton);
+    await tester.tap(quickSetupButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final saveButton = find.byKey(const Key('event-save-button'));
+    expect(saveButton, findsOneWidget);
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Đã lưu sự kiện thành công.'), findsOneWidget);
   });
 
   testWidgets('creates a new event from the create form', (tester) async {
@@ -164,16 +203,12 @@ void main() {
     );
     await pumpWorkspace(tester, repository);
 
-    final eventRowFinder = find.byKey(
-      const Key('event-row-event_demo_gathering_001'),
-    );
     await tester.scrollUntilVisible(
-      eventRowFinder,
+      find.text('Giỗ cụ tổ mùa xuân'),
       320,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: workspaceScroll(),
     );
-    await tester.ensureVisible(eventRowFinder);
-    await tester.tap(eventRowFinder);
+    await tester.tap(find.text('Giỗ cụ tổ mùa xuân').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -183,7 +218,7 @@ void main() {
 
     await tester.enterText(
       find.byKey(const Key('event-title-field')),
-      'Họp mặt đầu hè (cập nhật)',
+      'Giỗ cụ tổ mùa xuân (cập nhật)',
     );
 
     final saveButton = find.byKey(const Key('event-save-button'));
@@ -193,6 +228,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Đã lưu sự kiện thành công.'), findsOneWidget);
-    expect(find.text('Họp mặt đầu hè (cập nhật)'), findsOneWidget);
+    expect(find.text('Giỗ cụ tổ mùa xuân (cập nhật)'), findsOneWidget);
   });
 }

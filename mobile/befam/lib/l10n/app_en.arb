@@ -551,6 +551,54 @@
   "eventStatTotal": "Total events",
   "eventStatUpcoming": "Upcoming",
   "eventStatMemorial": "Memorial events",
+  "eventMemorialChecklistSectionTitle": "Memorial checklist",
+  "eventMemorialChecklistSectionDescription": "Cross-check deceased members and death dates against configured memorial events to avoid missing anniversaries.",
+  "eventMemorialChecklistConfiguredCount": "Configured: {count}",
+  "@eventMemorialChecklistConfiguredCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventMemorialChecklistMissingCount": "Missing setup: {count}",
+  "@eventMemorialChecklistMissingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventMemorialChecklistMismatchCount": "Date mismatch: {count}",
+  "@eventMemorialChecklistMismatchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventMemorialChecklistEmptyTitle": "No memorial checklist data yet",
+  "eventMemorialChecklistEmptyDescription": "When members have death dates, their memorial checklist will appear here.",
+  "eventMemorialChecklistMissingChip": "Missing setup",
+  "eventMemorialChecklistConfiguredChip": "Configured",
+  "eventMemorialChecklistMismatchChip": "Date mismatch",
+  "eventMemorialChecklistDeathDateLabel": "Death date",
+  "eventMemorialChecklistEventDateLabel": "Configured memorial date",
+  "eventMemorialChecklistInvalidDeathDate": "Invalid death date",
+  "eventMemorialChecklistQuickSetupAction": "Quick setup",
+  "eventMemorialChecklistOpenEventAction": "Open event",
+  "eventQuickMemorialTitle": "Memorial for {memberName}",
+  "@eventQuickMemorialTitle": {
+    "placeholders": {
+      "memberName": {}
+    }
+  },
+  "eventQuickMemorialDescription": "Quick setup from death date {deathDate}. Please review before saving.",
+  "@eventQuickMemorialDescription": {
+    "placeholders": {
+      "deathDate": {}
+    }
+  },
   "eventFilterSectionTitle": "Search and filters",
   "eventSearchLabel": "Search events",
   "eventSearchHint": "Title, location, member, or description",

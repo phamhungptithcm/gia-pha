@@ -2850,10 +2850,14 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         en: 'Generation ${member.generation}',
       );
     }
+    final membersById = {
+      for (final candidate in widget.members) candidate.id: candidate,
+    };
     return KinshipTitleResolver.resolve(
       l10n: l10n,
       viewer: viewer,
       member: member,
+      membersById: membersById,
     );
   }
 

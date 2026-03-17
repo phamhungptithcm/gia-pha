@@ -2960,6 +2960,108 @@ abstract class AppLocalizations {
   /// **'Sự kiện giỗ'**
   String get eventStatMemorial;
 
+  /// No description provided for @eventMemorialChecklistSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Danh sách giỗ kỵ'**
+  String get eventMemorialChecklistSectionTitle;
+
+  /// No description provided for @eventMemorialChecklistSectionDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đối chiếu thành viên đã mất và ngày mất với sự kiện giỗ đã thiết lập để tránh thiếu sót.'**
+  String get eventMemorialChecklistSectionDescription;
+
+  /// No description provided for @eventMemorialChecklistConfiguredCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thiết lập: {count}'**
+  String eventMemorialChecklistConfiguredCount(int count);
+
+  /// No description provided for @eventMemorialChecklistMissingCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập: {count}'**
+  String eventMemorialChecklistMissingCount(int count);
+
+  /// No description provided for @eventMemorialChecklistMismatchCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cần kiểm tra ngày: {count}'**
+  String eventMemorialChecklistMismatchCount(int count);
+
+  /// No description provided for @eventMemorialChecklistEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có dữ liệu giỗ kỵ'**
+  String get eventMemorialChecklistEmptyTitle;
+
+  /// No description provided for @eventMemorialChecklistEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khi thành viên có ngày mất, danh sách giỗ kỵ sẽ hiển thị tại đây.'**
+  String get eventMemorialChecklistEmptyDescription;
+
+  /// No description provided for @eventMemorialChecklistMissingChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập'**
+  String get eventMemorialChecklistMissingChip;
+
+  /// No description provided for @eventMemorialChecklistConfiguredChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thiết lập'**
+  String get eventMemorialChecklistConfiguredChip;
+
+  /// No description provided for @eventMemorialChecklistMismatchChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày chưa khớp'**
+  String get eventMemorialChecklistMismatchChip;
+
+  /// No description provided for @eventMemorialChecklistDeathDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày mất'**
+  String get eventMemorialChecklistDeathDateLabel;
+
+  /// No description provided for @eventMemorialChecklistEventDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày giỗ đang dùng'**
+  String get eventMemorialChecklistEventDateLabel;
+
+  /// No description provided for @eventMemorialChecklistInvalidDeathDate.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày mất chưa hợp lệ'**
+  String get eventMemorialChecklistInvalidDeathDate;
+
+  /// No description provided for @eventMemorialChecklistQuickSetupAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết lập nhanh'**
+  String get eventMemorialChecklistQuickSetupAction;
+
+  /// No description provided for @eventMemorialChecklistOpenEventAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở sự kiện'**
+  String get eventMemorialChecklistOpenEventAction;
+
+  /// No description provided for @eventQuickMemorialTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Giỗ {memberName}'**
+  String eventQuickMemorialTitle(Object memberName);
+
+  /// No description provided for @eventQuickMemorialDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết lập nhanh từ ngày mất {deathDate}. Hãy kiểm tra lại trước khi lưu.'**
+  String eventQuickMemorialDescription(Object deathDate);
+
   /// No description provided for @eventFilterSectionTitle.
   ///
   /// In vi, this message translates to:

@@ -1596,6 +1596,70 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventStatMemorial => 'Memorial events';
 
   @override
+  String get eventMemorialChecklistSectionTitle => 'Memorial checklist';
+
+  @override
+  String get eventMemorialChecklistSectionDescription =>
+      'Cross-check deceased members and death dates against configured memorial events to avoid missing anniversaries.';
+
+  @override
+  String eventMemorialChecklistConfiguredCount(int count) {
+    return 'Configured: $count';
+  }
+
+  @override
+  String eventMemorialChecklistMissingCount(int count) {
+    return 'Missing setup: $count';
+  }
+
+  @override
+  String eventMemorialChecklistMismatchCount(int count) {
+    return 'Date mismatch: $count';
+  }
+
+  @override
+  String get eventMemorialChecklistEmptyTitle =>
+      'No memorial checklist data yet';
+
+  @override
+  String get eventMemorialChecklistEmptyDescription =>
+      'When members have death dates, their memorial checklist will appear here.';
+
+  @override
+  String get eventMemorialChecklistMissingChip => 'Missing setup';
+
+  @override
+  String get eventMemorialChecklistConfiguredChip => 'Configured';
+
+  @override
+  String get eventMemorialChecklistMismatchChip => 'Date mismatch';
+
+  @override
+  String get eventMemorialChecklistDeathDateLabel => 'Death date';
+
+  @override
+  String get eventMemorialChecklistEventDateLabel => 'Configured memorial date';
+
+  @override
+  String get eventMemorialChecklistInvalidDeathDate => 'Invalid death date';
+
+  @override
+  String get eventMemorialChecklistQuickSetupAction => 'Quick setup';
+
+  @override
+  String get eventMemorialChecklistOpenEventAction => 'Open event';
+
+  @override
+  String eventQuickMemorialTitle(Object memberName) {
+    return 'Memorial for $memberName';
+  }
+
+  @override
+  String eventQuickMemorialDescription(Object deathDate) {
+    return 'Quick setup from death date $deathDate. Please review before saving.';
+  }
+
+  @override
   String get eventFilterSectionTitle => 'Search and filters';
 
   @override

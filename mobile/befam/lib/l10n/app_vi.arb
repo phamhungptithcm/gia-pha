@@ -551,6 +551,54 @@
   "eventStatTotal": "Tổng sự kiện",
   "eventStatUpcoming": "Sắp diễn ra",
   "eventStatMemorial": "Sự kiện giỗ",
+  "eventMemorialChecklistSectionTitle": "Danh sách giỗ kỵ",
+  "eventMemorialChecklistSectionDescription": "Đối chiếu thành viên đã mất và ngày mất với sự kiện giỗ đã thiết lập để tránh thiếu sót.",
+  "eventMemorialChecklistConfiguredCount": "Đã thiết lập: {count}",
+  "@eventMemorialChecklistConfiguredCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventMemorialChecklistMissingCount": "Chưa thiết lập: {count}",
+  "@eventMemorialChecklistMissingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventMemorialChecklistMismatchCount": "Cần kiểm tra ngày: {count}",
+  "@eventMemorialChecklistMismatchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventMemorialChecklistEmptyTitle": "Chưa có dữ liệu giỗ kỵ",
+  "eventMemorialChecklistEmptyDescription": "Khi thành viên có ngày mất, danh sách giỗ kỵ sẽ hiển thị tại đây.",
+  "eventMemorialChecklistMissingChip": "Chưa thiết lập",
+  "eventMemorialChecklistConfiguredChip": "Đã thiết lập",
+  "eventMemorialChecklistMismatchChip": "Ngày chưa khớp",
+  "eventMemorialChecklistDeathDateLabel": "Ngày mất",
+  "eventMemorialChecklistEventDateLabel": "Ngày giỗ đang dùng",
+  "eventMemorialChecklistInvalidDeathDate": "Ngày mất chưa hợp lệ",
+  "eventMemorialChecklistQuickSetupAction": "Thiết lập nhanh",
+  "eventMemorialChecklistOpenEventAction": "Mở sự kiện",
+  "eventQuickMemorialTitle": "Giỗ {memberName}",
+  "@eventQuickMemorialTitle": {
+    "placeholders": {
+      "memberName": {}
+    }
+  },
+  "eventQuickMemorialDescription": "Thiết lập nhanh từ ngày mất {deathDate}. Hãy kiểm tra lại trước khi lưu.",
+  "@eventQuickMemorialDescription": {
+    "placeholders": {
+      "deathDate": {}
+    }
+  },
   "eventFilterSectionTitle": "Tìm kiếm và bộ lọc",
   "eventSearchLabel": "Tìm sự kiện",
   "eventSearchHint": "Tiêu đề, địa điểm, thành viên hoặc mô tả",

@@ -50,7 +50,10 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     super.dispose();
   }
 
-  Future<void> _openEventEditor({EventRecord? event}) async {
+  Future<void> _openEventEditor({
+    EventRecord? event,
+    EventDraft? initialDraft,
+  }) async {
     final didSave = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -62,9 +65,10 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
               ? context.l10n.eventFormCreateTitle
               : context.l10n.eventFormEditTitle,
           initialDraft: event == null
-              ? EventDraft.empty(
-                  defaultBranchId: _controller.permissions.sessionBranchId,
-                )
+              ? initialDraft ??
+                    EventDraft.empty(
+                      defaultBranchId: _controller.permissions.sessionBranchId,
+                    )
               : EventDraft.fromRecord(event),
           branches: _controller.branches,
           members: _controller.members,
@@ -93,6 +97,94 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
         ),
       ),
     );
+  }
+
+  Future<void> _openQuickMemorialSetup(MemorialChecklistItem item) async {
+    final deathDate = item.deathDate;
+    if (deathDate == null) {
+      return;
+    }
+
+    await _openEventEditor(
+      initialDraft: _buildQuickMemorialDraft(
+        member: item.member,
+        deathDate: deathDate,
+        now: DateTime.now(),
+      ),
+    );
+  }
+
+  EventDraft _buildQuickMemorialDraft({
+    required MemberProfile member,
+    required DateTime deathDate,
+    required DateTime now,
+  }) {
+    final l10n = context.l10n;
+    final startAt = _nextMemorialOccurrence(deathDate: deathDate, now: now);
+    final defaultBranchId = _controller.permissions.sessionBranchId;
+    final branchId = member.branchId.trim().isEmpty
+        ? defaultBranchId
+        : member.branchId;
+    final base = EventDraft.empty(defaultBranchId: branchId);
+
+    return base.copyWith(
+      branchId: branchId,
+      title: l10n.eventQuickMemorialTitle(member.fullName),
+      description: l10n.eventQuickMemorialDescription(
+        _formatDateInput(deathDate),
+      ),
+      eventType: EventType.deathAnniversary,
+      targetMemberId: member.id,
+      startsAt: startAt,
+      endsAt: startAt.add(const Duration(hours: 2)),
+      isRecurring: true,
+      recurrenceRule: 'FREQ=YEARLY',
+      reminderOffsetsMinutes: const [10080, 1440, 120],
+      visibility: 'clan',
+      status: 'scheduled',
+    );
+  }
+
+  DateTime _nextMemorialOccurrence({
+    required DateTime deathDate,
+    required DateTime now,
+  }) {
+    final nowLocal = now.toLocal();
+    final initialCandidate = _safeLocalDate(
+      year: nowLocal.year,
+      month: deathDate.month,
+      day: deathDate.day,
+      hour: 9,
+      minute: 0,
+    );
+
+    if (!initialCandidate.isBefore(nowLocal)) {
+      return initialCandidate;
+    }
+
+    return _safeLocalDate(
+      year: nowLocal.year + 1,
+      month: deathDate.month,
+      day: deathDate.day,
+      hour: 9,
+      minute: 0,
+    );
+  }
+
+  DateTime _safeLocalDate({
+    required int year,
+    required int month,
+    required int day,
+    int hour = 0,
+    int minute = 0,
+  }) {
+    final value = DateTime(year, month, day, hour, minute);
+    if (value.month == month && value.day == day) {
+      return value;
+    }
+
+    // Clamp invalid calendar days (e.g. Feb 29 in non-leap years) to month end.
+    return DateTime(year, month + 1, 0, hour, minute);
   }
 
   @override
@@ -141,6 +233,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                 : RefreshIndicator(
                     onRefresh: _controller.refresh,
                     child: ListView(
+                      key: const Key('event-workspace-scroll'),
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -200,6 +293,24 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                               icon: Icons.emoji_people_outlined,
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 20),
+                        _SectionCard(
+                          title: l10n.eventMemorialChecklistSectionTitle,
+                          child: _MemorialChecklistPanel(
+                            items: _controller.memorialChecklistItems,
+                            configuredCount:
+                                _controller.memorialChecklistConfiguredCount,
+                            missingCount:
+                                _controller.memorialChecklistMissingCount,
+                            mismatchCount:
+                                _controller.memorialChecklistDateMismatchCount,
+                            canManageEvents:
+                                _controller.permissions.canManageEvents,
+                            branchNameFor: _controller.branchName,
+                            onQuickSetup: _openQuickMemorialSetup,
+                            onOpenEvent: _openDetail,
+                          ),
                         ),
                         const SizedBox(height: 20),
                         _SectionCard(
@@ -933,6 +1044,228 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   }
 }
 
+class _MemorialChecklistPanel extends StatelessWidget {
+  const _MemorialChecklistPanel({
+    required this.items,
+    required this.configuredCount,
+    required this.missingCount,
+    required this.mismatchCount,
+    required this.canManageEvents,
+    required this.branchNameFor,
+    required this.onQuickSetup,
+    required this.onOpenEvent,
+  });
+
+  final List<MemorialChecklistItem> items;
+  final int configuredCount;
+  final int missingCount;
+  final int mismatchCount;
+  final bool canManageEvents;
+  final String Function(String? branchId) branchNameFor;
+  final ValueChanged<MemorialChecklistItem> onQuickSetup;
+  final ValueChanged<EventRecord> onOpenEvent;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    if (items.isEmpty) {
+      return _WorkspaceEmptyState(
+        icon: Icons.history_edu_outlined,
+        title: l10n.eventMemorialChecklistEmptyTitle,
+        description: l10n.eventMemorialChecklistEmptyDescription,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.eventMemorialChecklistSectionDescription),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            Chip(
+              avatar: const Icon(Icons.check_circle_outline, size: 16),
+              label: Text(
+                l10n.eventMemorialChecklistConfiguredCount(configuredCount),
+              ),
+            ),
+            Chip(
+              avatar: const Icon(Icons.pending_outlined, size: 16),
+              label: Text(
+                l10n.eventMemorialChecklistMissingCount(missingCount),
+              ),
+            ),
+            Chip(
+              avatar: const Icon(Icons.warning_amber_outlined, size: 16),
+              label: Text(
+                l10n.eventMemorialChecklistMismatchCount(mismatchCount),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Column(
+          children: [
+            for (var index = 0; index < items.length; index++) ...[
+              _MemorialChecklistRow(
+                key: Key('event-memorial-row-${items[index].member.id}'),
+                item: items[index],
+                canManageEvents: canManageEvents,
+                branchName: branchNameFor(items[index].member.branchId),
+                onQuickSetup: () => onQuickSetup(items[index]),
+                onOpenEvent: items[index].primaryEvent == null
+                    ? null
+                    : () => onOpenEvent(items[index].primaryEvent!),
+              ),
+              if (index != items.length - 1) const SizedBox(height: 12),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _MemorialChecklistRow extends StatelessWidget {
+  const _MemorialChecklistRow({
+    super.key,
+    required this.item,
+    required this.canManageEvents,
+    required this.branchName,
+    required this.onQuickSetup,
+    required this.onOpenEvent,
+  });
+
+  final MemorialChecklistItem item;
+  final bool canManageEvents;
+  final String branchName;
+  final VoidCallback onQuickSetup;
+  final VoidCallback? onOpenEvent;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryEvent = item.primaryEvent;
+    final deathDateText = item.deathDate == null
+        ? l10n.eventMemorialChecklistInvalidDeathDate
+        : _formatDateInput(item.deathDate!);
+
+    final ({String label, Color tone, IconData icon}) status;
+    if (!item.hasMemorialEvent) {
+      status = (
+        label: l10n.eventMemorialChecklistMissingChip,
+        tone: colorScheme.errorContainer,
+        icon: Icons.pending_outlined,
+      );
+    } else if (item.hasDateMismatch) {
+      status = (
+        label: l10n.eventMemorialChecklistMismatchChip,
+        tone: colorScheme.tertiaryContainer,
+        icon: Icons.warning_amber_outlined,
+      );
+    } else {
+      status = (
+        label: l10n.eventMemorialChecklistConfiguredChip,
+        tone: colorScheme.secondaryContainer,
+        icon: Icons.check_circle_outline,
+      );
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.member.fullName,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (branchName.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${l10n.eventFieldBranch}: $branchName',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Chip(
+                  avatar: Icon(status.icon, size: 15),
+                  side: BorderSide.none,
+                  backgroundColor: status.tone,
+                  visualDensity: VisualDensity.compact,
+                  label: Text(status.label),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${l10n.eventMemorialChecklistDeathDateLabel}: $deathDateText',
+              style: theme.textTheme.bodyMedium,
+            ),
+            if (primaryEvent != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                '${l10n.eventMemorialChecklistEventDateLabel}: '
+                '${_formatDateInput(primaryEvent.startsAt.toLocal())}',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+            if ((canManageEvents &&
+                    !item.hasMemorialEvent &&
+                    item.deathDate != null) ||
+                onOpenEvent != null) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (canManageEvents &&
+                      !item.hasMemorialEvent &&
+                      item.deathDate != null)
+                    FilledButton.tonalIcon(
+                      key: Key('event-memorial-quick-setup-${item.member.id}'),
+                      onPressed: onQuickSetup,
+                      icon: const Icon(Icons.auto_fix_high_outlined),
+                      label: Text(l10n.eventMemorialChecklistQuickSetupAction),
+                    ),
+                  if (onOpenEvent != null)
+                    TextButton.icon(
+                      key: Key('event-memorial-open-${item.member.id}'),
+                      onPressed: onOpenEvent,
+                      icon: const Icon(Icons.open_in_new_outlined),
+                      label: Text(l10n.eventMemorialChecklistOpenEventAction),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _FilterPanel extends StatelessWidget {
   const _FilterPanel({
     required this.searchController,
@@ -1438,6 +1771,13 @@ String _humanizeOffset(int offsetMinutes) {
   }
 
   return '${offsetMinutes}m';
+}
+
+String _formatDateInput(DateTime value) {
+  final year = value.year.toString().padLeft(4, '0');
+  final month = value.month.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
 }
 
 String _formatDateTimeInput(DateTime value) {

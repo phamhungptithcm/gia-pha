@@ -1588,6 +1588,69 @@ class AppLocalizationsVi extends AppLocalizations {
   String get eventStatMemorial => 'Sự kiện giỗ';
 
   @override
+  String get eventMemorialChecklistSectionTitle => 'Danh sách giỗ kỵ';
+
+  @override
+  String get eventMemorialChecklistSectionDescription =>
+      'Đối chiếu thành viên đã mất và ngày mất với sự kiện giỗ đã thiết lập để tránh thiếu sót.';
+
+  @override
+  String eventMemorialChecklistConfiguredCount(int count) {
+    return 'Đã thiết lập: $count';
+  }
+
+  @override
+  String eventMemorialChecklistMissingCount(int count) {
+    return 'Chưa thiết lập: $count';
+  }
+
+  @override
+  String eventMemorialChecklistMismatchCount(int count) {
+    return 'Cần kiểm tra ngày: $count';
+  }
+
+  @override
+  String get eventMemorialChecklistEmptyTitle => 'Chưa có dữ liệu giỗ kỵ';
+
+  @override
+  String get eventMemorialChecklistEmptyDescription =>
+      'Khi thành viên có ngày mất, danh sách giỗ kỵ sẽ hiển thị tại đây.';
+
+  @override
+  String get eventMemorialChecklistMissingChip => 'Chưa thiết lập';
+
+  @override
+  String get eventMemorialChecklistConfiguredChip => 'Đã thiết lập';
+
+  @override
+  String get eventMemorialChecklistMismatchChip => 'Ngày chưa khớp';
+
+  @override
+  String get eventMemorialChecklistDeathDateLabel => 'Ngày mất';
+
+  @override
+  String get eventMemorialChecklistEventDateLabel => 'Ngày giỗ đang dùng';
+
+  @override
+  String get eventMemorialChecklistInvalidDeathDate => 'Ngày mất chưa hợp lệ';
+
+  @override
+  String get eventMemorialChecklistQuickSetupAction => 'Thiết lập nhanh';
+
+  @override
+  String get eventMemorialChecklistOpenEventAction => 'Mở sự kiện';
+
+  @override
+  String eventQuickMemorialTitle(Object memberName) {
+    return 'Giỗ $memberName';
+  }
+
+  @override
+  String eventQuickMemorialDescription(Object deathDate) {
+    return 'Thiết lập nhanh từ ngày mất $deathDate. Hãy kiểm tra lại trước khi lưu.';
+  }
+
+  @override
   String get eventFilterSectionTitle => 'Tìm kiếm và bộ lọc';
 
   @override

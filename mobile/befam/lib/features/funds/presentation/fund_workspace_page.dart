@@ -1471,10 +1471,14 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
         en: 'Generation ${member.generation}',
       );
     }
+    final membersById = {
+      for (final candidate in _members) candidate.id: candidate,
+    };
     return KinshipTitleResolver.resolve(
       l10n: l10n,
       viewer: viewer,
       member: member,
+      membersById: membersById,
     );
   }
 
