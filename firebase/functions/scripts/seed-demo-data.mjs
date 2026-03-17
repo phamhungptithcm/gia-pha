@@ -221,10 +221,10 @@ const members = [
     fullName: 'Lê Đại Gia',
     nickName: 'Đại Gia',
     gender: 'male',
-    birthDate: '1991-05-17',
+    birthDate: '1978-05-17',
     phoneE164: '+84905550001',
     generation: 4,
-    jobTitle: 'Doanh nhân',
+    jobTitle: 'Doanh nhân vật liệu xây dựng',
   }),
   createMember({
     id: 'member_demo_uncle_spouse_001',
@@ -232,11 +232,9 @@ const members = [
     fullName: 'Phạm Thị Sang',
     nickName: 'Sang',
     gender: 'female',
-    birthDate: '1992-07-07',
-    deathDate: '2025-07-07',
+    birthDate: '1980-07-07',
     generation: 4,
-    status: 'deceased',
-    jobTitle: 'Giáo viên',
+    jobTitle: 'Giáo viên trung học',
   }),
   createMember({
     id: 'member_demo_parent_002',
@@ -271,10 +269,10 @@ const members = [
     fullName: 'Lê Thị Hoa',
     nickName: 'Hoa',
     gender: 'female',
-    birthDate: '1993-06-19',
+    birthDate: '1980-06-19',
     phoneE164: '+84905550002',
     generation: 4,
-    jobTitle: 'Điều dưỡng',
+    jobTitle: 'Điều dưỡng trưởng',
   }),
   createMember({
     id: 'member_demo_aunt_spouse_001',
@@ -282,9 +280,9 @@ const members = [
     fullName: 'Lê Văn Vinh',
     nickName: 'Vinh',
     gender: 'male',
-    birthDate: '1992-12-20',
+    birthDate: '1979-12-20',
     generation: 4,
-    jobTitle: 'Kế toán',
+    jobTitle: 'Kỹ sư cầu đường',
   }),
   createMember({
     id: 'member_demo_branch3_lead_001',
@@ -415,10 +413,10 @@ const members = [
     fullName: 'Lê Văn Vũ',
     nickName: 'Vũ',
     gender: 'male',
-    birthDate: '2011-10-18',
+    birthDate: '2002-10-18',
     generation: 6,
-    isMinor: true,
-    jobTitle: 'Học sinh',
+    isMinor: false,
+    jobTitle: 'Công nhân cơ khí',
   }),
   createMember({
     id: 'member_demo_branch3_member_spouse_001',
@@ -426,10 +424,10 @@ const members = [
     fullName: 'Trần Thị Tươi',
     nickName: 'Tươi',
     gender: 'female',
-    birthDate: '2011-11-08',
+    birthDate: '2003-11-08',
     generation: 6,
-    isMinor: true,
-    jobTitle: 'Học sinh',
+    isMinor: false,
+    jobTitle: 'Sinh viên năm cuối',
   }),
   createMember({
     id: 'member_demo_branch4_child_002',
@@ -437,7 +435,7 @@ const members = [
     fullName: 'Nguyễn Thị Vân',
     nickName: 'Vân',
     gender: 'female',
-    birthDate: '2012-02-01',
+    birthDate: '2014-06-01',
     generation: 6,
     isMinor: true,
     jobTitle: 'Học sinh',
@@ -510,6 +508,297 @@ const members = [
   }),
 ];
 
+const additionalMembers = [
+  createMember({
+    id: 'member_demo_b1_elder_001',
+    branchId: 'branch_demo_001',
+    fullName: 'Võ Văn Lợi',
+    nickName: 'Ông Lợi',
+    gender: 'male',
+    birthDate: '1958-02-04',
+    phoneE164: '+84901130001',
+    addressText: 'Xã Hòa Châu, Hòa Vang, Đà Nẵng',
+    generation: 3,
+    jobTitle: 'Nông dân',
+  }),
+  createMember({
+    id: 'member_demo_b1_elder_spouse_001',
+    branchId: 'branch_demo_001',
+    fullName: 'Đỗ Thị Mến',
+    nickName: 'Bà Mến',
+    gender: 'female',
+    birthDate: '1961-09-12',
+    addressText: 'Xã Hòa Châu, Hòa Vang, Đà Nẵng',
+    generation: 3,
+    jobTitle: 'Làm nông',
+  }),
+  createMember({
+    id: 'member_demo_b1_parent_003',
+    branchId: 'branch_demo_001',
+    fullName: 'Võ Minh Thuận',
+    nickName: 'Thuận',
+    gender: 'male',
+    birthDate: '1984-05-18',
+    phoneE164: '+84901130002',
+    email: 'vo.minh.thuan@example.vn',
+    addressText: 'Phường Hòa Xuân, Cẩm Lệ, Đà Nẵng',
+    generation: 4,
+    jobTitle: 'Kỹ sư xây dựng',
+  }),
+  createMember({
+    id: 'member_demo_b1_parent_spouse_003',
+    branchId: 'branch_demo_001',
+    fullName: 'Trịnh Thị Hà',
+    nickName: 'Hà',
+    gender: 'female',
+    birthDate: '1986-01-20',
+    phoneE164: '+84901130003',
+    addressText: 'Phường Hòa Xuân, Cẩm Lệ, Đà Nẵng',
+    generation: 4,
+    jobTitle: 'Công nhân may',
+  }),
+  createMember({
+    id: 'member_demo_b1_child_005',
+    branchId: 'branch_demo_001',
+    fullName: 'Võ Tuấn Kiệt',
+    nickName: 'Kiệt',
+    gender: 'male',
+    birthDate: '2008-09-10',
+    addressText: 'Phường Hòa Xuân, Cẩm Lệ, Đà Nẵng',
+    generation: 6,
+    isMinor: true,
+    jobTitle: 'Học sinh',
+  }),
+  createMember({
+    id: 'member_demo_b1_child_006',
+    branchId: 'branch_demo_001',
+    fullName: 'Võ Ngọc Diễm',
+    nickName: 'Diễm',
+    gender: 'female',
+    birthDate: '2012-11-03',
+    addressText: 'Phường Hòa Xuân, Cẩm Lệ, Đà Nẵng',
+    generation: 6,
+    isMinor: true,
+    jobTitle: 'Học sinh',
+  }),
+  createMember({
+    id: 'member_demo_b2_elder_001',
+    branchId: 'branch_demo_002',
+    fullName: 'Trần Hữu Tín',
+    nickName: 'Ông Tín',
+    gender: 'male',
+    birthDate: '1955-04-09',
+    phoneE164: '+84902240001',
+    addressText: 'Xã Phong Hiền, Phong Điền, Huế',
+    generation: 3,
+    jobTitle: 'Chủ tịch xã',
+  }),
+  createMember({
+    id: 'member_demo_b2_elder_spouse_001',
+    branchId: 'branch_demo_002',
+    fullName: 'Ngô Thị Lành',
+    nickName: 'Bà Lành',
+    gender: 'female',
+    birthDate: '1957-08-26',
+    addressText: 'Xã Phong Hiền, Phong Điền, Huế',
+    generation: 3,
+    jobTitle: 'Làm nông',
+  }),
+  createMember({
+    id: 'member_demo_b2_parent_003',
+    branchId: 'branch_demo_002',
+    fullName: 'Trần Quốc Toàn',
+    nickName: 'Toàn',
+    gender: 'male',
+    birthDate: '1983-10-06',
+    phoneE164: '+84902240002',
+    addressText: 'Phường Hương Sơ, Huế',
+    generation: 4,
+    jobTitle: 'Công nhân cơ khí',
+  }),
+  createMember({
+    id: 'member_demo_b2_parent_spouse_003',
+    branchId: 'branch_demo_002',
+    fullName: 'Bùi Thị Mỹ Linh',
+    nickName: 'Mỹ Linh',
+    gender: 'female',
+    birthDate: '1985-12-15',
+    phoneE164: '+84902240003',
+    addressText: 'Phường Hương Sơ, Huế',
+    generation: 4,
+    jobTitle: 'Quản lý đất đai xã',
+  }),
+  createMember({
+    id: 'member_demo_b2_child_005',
+    branchId: 'branch_demo_002',
+    fullName: 'Trần Khánh Vy',
+    nickName: 'Khánh Vy',
+    gender: 'female',
+    birthDate: '2006-07-09',
+    addressText: 'Phường Hương Sơ, Huế',
+    generation: 6,
+    isMinor: false,
+    jobTitle: 'Sinh viên',
+  }),
+  createMember({
+    id: 'member_demo_b2_child_006',
+    branchId: 'branch_demo_002',
+    fullName: 'Trần Gia Bảo',
+    nickName: 'Gia Bảo',
+    gender: 'male',
+    birthDate: '2014-03-23',
+    addressText: 'Phường Hương Sơ, Huế',
+    generation: 6,
+    isMinor: true,
+    jobTitle: 'Học sinh',
+  }),
+  createMember({
+    id: 'member_demo_b3_parent_002',
+    branchId: 'branch_demo_003',
+    fullName: 'Lê Hoàng Phúc',
+    nickName: 'Hoàng Phúc',
+    gender: 'male',
+    birthDate: '1978-06-02',
+    phoneE164: '+84903350001',
+    addressText: 'Phường Hòa Cường Bắc, Hải Châu, Đà Nẵng',
+    generation: 5,
+    jobTitle: 'Kỹ sư phần mềm',
+  }),
+  createMember({
+    id: 'member_demo_b3_parent_spouse_002',
+    branchId: 'branch_demo_003',
+    fullName: 'Phan Thị Kim Ngân',
+    nickName: 'Kim Ngân',
+    gender: 'female',
+    birthDate: '1980-02-27',
+    addressText: 'Phường Hòa Cường Bắc, Hải Châu, Đà Nẵng',
+    generation: 5,
+    jobTitle: 'Giáo viên trung học',
+  }),
+  createMember({
+    id: 'member_demo_b3_child_003',
+    branchId: 'branch_demo_003',
+    fullName: 'Lê Đình Minh Trí',
+    nickName: 'Minh Trí',
+    gender: 'male',
+    birthDate: '2004-08-01',
+    addressText: 'Phường Hòa Cường Bắc, Hải Châu, Đà Nẵng',
+    generation: 6,
+    isMinor: false,
+    jobTitle: 'Sinh viên',
+  }),
+  createMember({
+    id: 'member_demo_b3_child_spouse_003',
+    branchId: 'branch_demo_003',
+    fullName: 'Huỳnh Thảo Nhi',
+    nickName: 'Thảo Nhi',
+    gender: 'female',
+    birthDate: '2005-01-14',
+    addressText: 'Phường Hòa Cường Bắc, Hải Châu, Đà Nẵng',
+    generation: 6,
+    isMinor: false,
+    jobTitle: 'Sinh viên',
+  }),
+  createMember({
+    id: 'member_demo_b3_grandchild_002',
+    branchId: 'branch_demo_003',
+    fullName: 'Lê An Nhiên',
+    nickName: 'Nhiên',
+    gender: 'female',
+    birthDate: '2024-06-19',
+    addressText: 'Phường Hòa Cường Bắc, Hải Châu, Đà Nẵng',
+    generation: 7,
+    isMinor: true,
+    jobTitle: 'Trẻ em',
+  }),
+  createMember({
+    id: 'member_demo_b3_child_004',
+    branchId: 'branch_demo_003',
+    fullName: 'Lê Quốc Bảo',
+    nickName: 'Quốc Bảo',
+    gender: 'male',
+    birthDate: '2009-04-05',
+    addressText: 'Phường Hòa Cường Bắc, Hải Châu, Đà Nẵng',
+    generation: 6,
+    isMinor: true,
+    jobTitle: 'Học sinh',
+  }),
+  createMember({
+    id: 'member_demo_b4_parent_002',
+    branchId: 'branch_demo_004',
+    fullName: 'Nguyễn Công Thành',
+    nickName: 'Công Thành',
+    gender: 'male',
+    birthDate: '1972-03-16',
+    phoneE164: '+84904460001',
+    addressText: 'Phường Đông Hải 1, Hải An, Hải Phòng',
+    generation: 5,
+    jobTitle: 'Chủ tịch tỉnh',
+  }),
+  createMember({
+    id: 'member_demo_b4_parent_spouse_002',
+    branchId: 'branch_demo_004',
+    fullName: 'Trần Thị Phương Thảo',
+    nickName: 'Phương Thảo',
+    gender: 'female',
+    birthDate: '1975-12-08',
+    addressText: 'Phường Đông Hải 1, Hải An, Hải Phòng',
+    generation: 5,
+    jobTitle: 'Cán bộ y tế',
+  }),
+  createMember({
+    id: 'member_demo_b4_child_003',
+    branchId: 'branch_demo_004',
+    fullName: 'Nguyễn Thành Nam',
+    nickName: 'Thành Nam',
+    gender: 'male',
+    birthDate: '1998-07-30',
+    phoneE164: '+84904460002',
+    addressText: 'Phường Trại Cau, Lê Chân, Hải Phòng',
+    generation: 6,
+    isMinor: false,
+    jobTitle: 'Kỹ sư phần mềm',
+  }),
+  createMember({
+    id: 'member_demo_b4_child_spouse_003',
+    branchId: 'branch_demo_004',
+    fullName: 'Phạm Ngọc Hân',
+    nickName: 'Ngọc Hân',
+    gender: 'female',
+    birthDate: '2000-05-21',
+    addressText: 'Phường Trại Cau, Lê Chân, Hải Phòng',
+    generation: 6,
+    isMinor: false,
+    jobTitle: 'Kỹ sư xây dựng',
+  }),
+  createMember({
+    id: 'member_demo_b4_grandchild_002',
+    branchId: 'branch_demo_004',
+    fullName: 'Nguyễn Gia Hân',
+    nickName: 'Gia Hân',
+    gender: 'female',
+    birthDate: '2022-09-11',
+    addressText: 'Phường Trại Cau, Lê Chân, Hải Phòng',
+    generation: 7,
+    isMinor: true,
+    jobTitle: 'Trẻ em',
+  }),
+  createMember({
+    id: 'member_demo_b4_child_004',
+    branchId: 'branch_demo_004',
+    fullName: 'Nguyễn Đức Hải',
+    nickName: 'Đức Hải',
+    gender: 'male',
+    birthDate: '2002-10-10',
+    addressText: 'Phường Trại Cau, Lê Chân, Hải Phòng',
+    generation: 6,
+    isMinor: false,
+    jobTitle: 'Phụ hồ',
+  }),
+];
+
+members.push(...additionalMembers);
+
 const relationships = [
   createSpouse('member_demo_ancestor_001', 'member_demo_ancestor_002'),
   createSpouse('member_demo_elder_001', 'member_demo_elder_spouse_001'),
@@ -523,10 +812,6 @@ const relationships = [
     'member_demo_branch3_member_spouse_001',
   ),
   createSpouse('member_demo_branch4_lead_001', 'member_demo_branch4_spouse_001'),
-  createSpouse(
-    'member_demo_branch4_child_001',
-    'member_demo_branch4_child_spouse_001',
-  ),
   createParentChild('member_demo_ancestor_001', 'member_demo_elder_001'),
   createParentChild('member_demo_ancestor_002', 'member_demo_elder_001'),
   createParentChild('member_demo_elder_001', 'member_demo_parent_001'),
@@ -578,20 +863,101 @@ const relationships = [
     'member_demo_branch4_spouse_001',
     'member_demo_branch4_child_001',
   ),
+  createParentChild(
+    'member_demo_branch4_lead_001',
+    'member_demo_branch4_child_spouse_001',
+  ),
+  createParentChild(
+    'member_demo_branch4_spouse_001',
+    'member_demo_branch4_child_spouse_001',
+  ),
   createParentChild('member_demo_branch4_lead_001', 'member_demo_branch4_child_002'),
   createParentChild(
     'member_demo_branch4_spouse_001',
     'member_demo_branch4_child_002',
   ),
   createParentChild(
-    'member_demo_branch4_child_001',
+    'member_demo_branch4_lead_001',
     'member_demo_branch4_grandchild_001',
   ),
   createParentChild(
-    'member_demo_branch4_child_spouse_001',
+    'member_demo_branch4_spouse_001',
     'member_demo_branch4_grandchild_001',
   ),
 ];
+
+const additionalRelationships = [
+  createSpouse('member_demo_b1_elder_001', 'member_demo_b1_elder_spouse_001'),
+  createSpouse('member_demo_b1_parent_003', 'member_demo_b1_parent_spouse_003'),
+  createParentChild('member_demo_b1_elder_001', 'member_demo_b1_parent_003'),
+  createParentChild(
+    'member_demo_b1_elder_spouse_001',
+    'member_demo_b1_parent_003',
+  ),
+  createParentChild('member_demo_b1_parent_003', 'member_demo_b1_child_005'),
+  createParentChild(
+    'member_demo_b1_parent_spouse_003',
+    'member_demo_b1_child_005',
+  ),
+  createParentChild('member_demo_b1_parent_003', 'member_demo_b1_child_006'),
+  createParentChild(
+    'member_demo_b1_parent_spouse_003',
+    'member_demo_b1_child_006',
+  ),
+  createSpouse('member_demo_b2_elder_001', 'member_demo_b2_elder_spouse_001'),
+  createSpouse('member_demo_b2_parent_003', 'member_demo_b2_parent_spouse_003'),
+  createParentChild('member_demo_b2_elder_001', 'member_demo_b2_parent_003'),
+  createParentChild(
+    'member_demo_b2_elder_spouse_001',
+    'member_demo_b2_parent_003',
+  ),
+  createParentChild('member_demo_b2_parent_003', 'member_demo_b2_child_005'),
+  createParentChild(
+    'member_demo_b2_parent_spouse_003',
+    'member_demo_b2_child_005',
+  ),
+  createParentChild('member_demo_b2_parent_003', 'member_demo_b2_child_006'),
+  createParentChild(
+    'member_demo_b2_parent_spouse_003',
+    'member_demo_b2_child_006',
+  ),
+  createSpouse('member_demo_b3_parent_002', 'member_demo_b3_parent_spouse_002'),
+  createSpouse('member_demo_b3_child_003', 'member_demo_b3_child_spouse_003'),
+  createParentChild('member_demo_b3_parent_002', 'member_demo_b3_child_003'),
+  createParentChild(
+    'member_demo_b3_parent_spouse_002',
+    'member_demo_b3_child_003',
+  ),
+  createParentChild('member_demo_b3_parent_002', 'member_demo_b3_child_004'),
+  createParentChild(
+    'member_demo_b3_parent_spouse_002',
+    'member_demo_b3_child_004',
+  ),
+  createParentChild('member_demo_b3_child_003', 'member_demo_b3_grandchild_002'),
+  createParentChild(
+    'member_demo_b3_child_spouse_003',
+    'member_demo_b3_grandchild_002',
+  ),
+  createSpouse('member_demo_b4_parent_002', 'member_demo_b4_parent_spouse_002'),
+  createSpouse('member_demo_b4_child_003', 'member_demo_b4_child_spouse_003'),
+  createParentChild('member_demo_b4_parent_002', 'member_demo_b4_child_003'),
+  createParentChild(
+    'member_demo_b4_parent_spouse_002',
+    'member_demo_b4_child_003',
+  ),
+  createParentChild('member_demo_b4_parent_002', 'member_demo_b4_child_004'),
+  createParentChild(
+    'member_demo_b4_parent_spouse_002',
+    'member_demo_b4_child_004',
+  ),
+  createParentChild('member_demo_b4_child_003', 'member_demo_b4_grandchild_002'),
+  createParentChild(
+    'member_demo_b4_child_spouse_003',
+    'member_demo_b4_grandchild_002',
+  ),
+];
+
+relationships.push(...additionalRelationships);
 
 const memberById = new Map(
   members.map((member) => [
@@ -757,7 +1123,140 @@ function assertMaleLineConstraints({ members, branches }) {
   }
 }
 
+function parseDateOnly(value) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return null;
+  }
+  const date = new Date(`${value.trim()}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function fullYearsBetween(earlier, later) {
+  let years = later.getUTCFullYear() - earlier.getUTCFullYear();
+  const monthDelta = later.getUTCMonth() - earlier.getUTCMonth();
+  const dayDelta = later.getUTCDate() - earlier.getUTCDate();
+  if (monthDelta < 0 || (monthDelta === 0 && dayDelta < 0)) {
+    years -= 1;
+  }
+  return years;
+}
+
+function ageFromBirthDate(birthDateIso, nowDate = new Date()) {
+  const birthDate = parseDateOnly(birthDateIso);
+  if (birthDate == null) {
+    return null;
+  }
+  return fullYearsBetween(birthDate, nowDate);
+}
+
+function assertDemographicQuality({ members, relationships, creatorId }) {
+  const memberById = new Map(members.map((member) => [member.id, member]));
+  const violations = [];
+
+  const creator = memberById.get(creatorId);
+  if (creator == null) {
+    violations.push(`creator_missing:${creatorId}`);
+  } else {
+    const creatorAge = ageFromBirthDate(creator.birthDate);
+    const creatorAlive =
+      creator.status === 'active' &&
+      (creator.deathDate == null || `${creator.deathDate}`.trim() === '');
+    if (!creatorAlive) {
+      violations.push(`creator_not_alive:${creator.id}`);
+    }
+    if (creatorAge == null || creatorAge < 25 || creatorAge > 70) {
+      violations.push(`creator_age_out_of_range:${creator.id}:${creatorAge ?? 'null'}`);
+    }
+  }
+
+  const roleTermsByAge = [
+    { maxAge: 17, pattern: /(học sinh|trẻ em|sơ sinh)/i },
+    { minAge: 18, maxAge: 22, pattern: /sinh viên/i },
+  ];
+  const forbiddenAdultTerms = /(học sinh|trẻ em|sơ sinh)/i;
+  const requiredJobPatterns = [
+    /nông/i,
+    /công nhân/i,
+    /kỹ sư phần mềm/i,
+    /kỹ sư xây dựng/i,
+    /phụ hồ/i,
+    /chủ tịch xã/i,
+    /chủ tịch tỉnh/i,
+    /quản lý đất đai xã/i,
+  ];
+  const jobCatalog = members
+    .map((member) => `${member.jobTitle ?? ''}`.toLowerCase())
+    .join(' | ');
+
+  for (const member of members) {
+    const age = ageFromBirthDate(member.birthDate);
+    if (age == null) {
+      continue;
+    }
+    const jobTitle = `${member.jobTitle ?? ''}`.trim();
+    const isAlive =
+      member.status === 'active' &&
+      (member.deathDate == null || `${member.deathDate}`.trim() === '');
+    if (isAlive && age > 100) {
+      violations.push(`alive_over_100:${member.id}:${age}`);
+    }
+
+    for (const rule of roleTermsByAge) {
+      const inRange =
+        (rule.minAge == null || age >= rule.minAge) &&
+        (rule.maxAge == null || age <= rule.maxAge);
+      if (!inRange) {
+        continue;
+      }
+      if (!rule.pattern.test(jobTitle)) {
+        violations.push(`job_age_mismatch:${member.id}:age_${age}:job_${jobTitle}`);
+      }
+    }
+
+    if (age >= 23 && forbiddenAdultTerms.test(jobTitle)) {
+      violations.push(`adult_has_minor_job:${member.id}:age_${age}:job_${jobTitle}`);
+    }
+  }
+
+  for (const pattern of requiredJobPatterns) {
+    if (!pattern.test(jobCatalog)) {
+      violations.push(`missing_required_job_pattern:${pattern}`);
+    }
+  }
+
+  for (const relationship of relationships) {
+    if (relationship.type !== 'parent_child') {
+      continue;
+    }
+    const parent = memberById.get(relationship.personA);
+    const child = memberById.get(relationship.personB);
+    if (parent == null || child == null) {
+      continue;
+    }
+    const parentBirth = parseDateOnly(parent.birthDate);
+    const childBirth = parseDateOnly(child.birthDate);
+    if (parentBirth == null || childBirth == null) {
+      continue;
+    }
+    const parentAgeAtChildBirth = fullYearsBetween(parentBirth, childBirth);
+    if (parentAgeAtChildBirth < 16 || parentAgeAtChildBirth > 75) {
+      violations.push(
+        `parent_child_age_gap_invalid:${relationship.id}:parent_age_at_birth_${parentAgeAtChildBirth}`,
+      );
+    }
+  }
+
+  if (violations.length > 0) {
+    throw new Error(`Demographic quality constraints violated:\\n${violations.join('\\n')}`);
+  }
+}
+
 assertMaleLineConstraints({ members: normalizedMembers, branches });
+assertDemographicQuality({
+  members: normalizedMembers,
+  relationships,
+  creatorId: 'member_demo_parent_001',
+});
 
 for (const branch of branches) {
   branch.memberCount = normalizedMembers.filter(
@@ -772,7 +1271,7 @@ const clan = {
   description:
     'Không gian demo nhiều thế hệ để kiểm thử khám phá cây gia phả trên dữ liệu lớn.',
   countryCode: 'VN',
-  founderName: 'Nguyễn Minh tổ',
+  founderName: 'Nguyễn Minh',
   logoUrl: '',
   status: 'active',
   memberCount: normalizedMembers.length,
@@ -1372,6 +1871,12 @@ const subscriptions = [
     createdBy: 'seed-script',
   },
 ];
+
+if (normalizedMembers.length > 50 && subscriptions[0]?.planCode !== 'BASE') {
+  throw new Error(
+    `Expected BASE plan for dataset larger than 50 members, got "${subscriptions[0]?.planCode ?? 'null'}".`,
+  );
+}
 
 const paymentTransactions = [
   {
