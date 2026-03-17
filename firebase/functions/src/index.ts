@@ -29,6 +29,7 @@ import {
   createSpouseRelationship,
 } from './genealogy/callables';
 import { createClanMember } from './members/callables';
+import { onMemberDeathDateChanged } from './members/memorial-ritual-triggers';
 import {
   detectDuplicateGenealogy,
   listJoinRequestsForReview,
@@ -85,6 +86,7 @@ export {
   onEventCreated,
   onRelationshipCreated,
   onRelationshipDeleted,
+  onMemberDeathDateChanged,
   onSubmissionReviewed,
   onTransactionCreated,
   registerDeviceToken,

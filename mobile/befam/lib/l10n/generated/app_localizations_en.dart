@@ -1596,6 +1596,148 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventStatMemorial => 'Memorial events';
 
   @override
+  String get eventMemorialChecklistSectionTitle => 'Memorial checklist';
+
+  @override
+  String get eventMemorialChecklistSectionDescription =>
+      'Cross-check deceased members and death dates against configured memorial events to avoid missing anniversaries.';
+
+  @override
+  String eventMemorialChecklistConfiguredCount(int count) {
+    return 'Configured: $count';
+  }
+
+  @override
+  String eventMemorialChecklistMissingCount(int count) {
+    return 'Missing setup: $count';
+  }
+
+  @override
+  String eventMemorialChecklistMismatchCount(int count) {
+    return 'Date mismatch: $count';
+  }
+
+  @override
+  String get eventMemorialChecklistEmptyTitle =>
+      'No memorial checklist data yet';
+
+  @override
+  String get eventMemorialChecklistEmptyDescription =>
+      'When members have death dates, their memorial checklist will appear here.';
+
+  @override
+  String get eventMemorialChecklistMissingChip => 'Missing setup';
+
+  @override
+  String get eventMemorialChecklistConfiguredChip => 'Configured';
+
+  @override
+  String get eventMemorialChecklistMismatchChip => 'Date mismatch';
+
+  @override
+  String get eventMemorialChecklistDeathDateLabel => 'Death date';
+
+  @override
+  String get eventMemorialChecklistEventDateLabel => 'Configured memorial date';
+
+  @override
+  String get eventMemorialChecklistInvalidDeathDate => 'Invalid death date';
+
+  @override
+  String get eventMemorialChecklistQuickSetupAction => 'Quick setup';
+
+  @override
+  String get eventMemorialChecklistOpenEventAction => 'Open event';
+
+  @override
+  String eventQuickMemorialTitle(Object memberName) {
+    return 'Memorial for $memberName';
+  }
+
+  @override
+  String eventQuickMemorialDescription(Object deathDate) {
+    return 'Quick setup from death date $deathDate. Please review before saving.';
+  }
+
+  @override
+  String get eventRitualChecklistSectionTitle => 'Memorial ritual checklist';
+
+  @override
+  String get eventRitualChecklistSectionDescription =>
+      'Track 49/50-day, 100-day, first-year, and second-year rites so important family memorial milestones are not missed.';
+
+  @override
+  String eventRitualChecklistConfiguredCount(int count) {
+    return 'Configured: $count';
+  }
+
+  @override
+  String eventRitualChecklistMissingCount(int count) {
+    return 'Missing setup: $count';
+  }
+
+  @override
+  String eventRitualChecklistMismatchCount(int count) {
+    return 'Date mismatch: $count';
+  }
+
+  @override
+  String get eventRitualChecklistEmptyTitle => 'No ritual checklist data yet';
+
+  @override
+  String get eventRitualChecklistEmptyDescription =>
+      'When members have valid death dates, ritual milestones will appear here.';
+
+  @override
+  String get eventRitualChecklistConfiguredChip => 'Configured';
+
+  @override
+  String get eventRitualChecklistMissingChip => 'Missing setup';
+
+  @override
+  String get eventRitualChecklistMismatchChip => 'Needs review';
+
+  @override
+  String get eventRitualChecklistDeathDateLabel => 'Death date';
+
+  @override
+  String get eventRitualChecklistExpectedDateLabel => 'Expected date';
+
+  @override
+  String get eventRitualChecklistEventDateLabel => 'Configured date';
+
+  @override
+  String get eventRitualChecklistQuickSetupAction => 'Quick setup';
+
+  @override
+  String get eventRitualChecklistOpenEventAction => 'Open event';
+
+  @override
+  String get eventRitualMilestone49Days => '49-day rite';
+
+  @override
+  String get eventRitualMilestone50Days => '50-day rite';
+
+  @override
+  String get eventRitualMilestone100Days => '100-day rite';
+
+  @override
+  String get eventRitualMilestone1Year => 'First-year memorial';
+
+  @override
+  String get eventRitualMilestone2Year => 'Second-year memorial';
+
+  @override
+  String eventQuickRitualTitle(Object milestone, Object memberName) {
+    return '$milestone - $memberName';
+  }
+
+  @override
+  String eventQuickRitualDescription(Object milestone, Object deathDate) {
+    return 'Quick setup for the $milestone milestone based on death date $deathDate. Please review before saving.';
+  }
+
+  @override
   String get eventFilterSectionTitle => 'Search and filters';
 
   @override

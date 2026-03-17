@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/app_locale_controller.dart';
+import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -794,7 +795,7 @@ class _SettingsScreenShell extends StatelessWidget {
                         style: theme.textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 10),
-                      FilledButton.tonalIcon(
+                      AppAsyncAction(
                         onPressed: () async {
                           await Navigator.of(context).push(
                             MaterialPageRoute<void>(
@@ -806,13 +807,27 @@ class _SettingsScreenShell extends StatelessWidget {
                           );
                           onBillingStateChanged?.call();
                         },
-                        icon: const Icon(Icons.workspace_premium_outlined),
-                        label: Text(
-                          l10n.pick(
-                            vi: 'Mở quản lý gói',
-                            en: 'Open billing workspace',
-                          ),
-                        ),
+                        builder: (context, onPressed, isLoading) {
+                          return FilledButton.tonal(
+                            onPressed: onPressed,
+                            child: AppStableLoadingChild(
+                              isLoading: isLoading,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.workspace_premium_outlined),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    l10n.pick(
+                                      vi: 'Mở quản lý gói',
+                                      en: 'Open billing workspace',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),

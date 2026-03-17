@@ -8,6 +8,7 @@ import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
 import '../../features/calendar/presentation/dual_calendar_workspace_page.dart';
 import '../../features/events/models/event_record.dart';
+import '../../features/events/presentation/event_workspace_page.dart';
 import '../../features/events/services/event_repository.dart';
 import '../../features/funds/presentation/fund_workspace_page.dart';
 import '../../features/funds/services/fund_repository.dart';
@@ -535,6 +536,9 @@ class _AppShellPageState extends State<AppShellPage> {
           });
           _syncAdBannerAutoHideTimer();
         },
+        onOpenMemorialChecklistRequested: () {
+          unawaited(_openMemorialRitualWorkspace());
+        },
         onOpenProfileRequested: () {
           setState(() {
             _selectedIndex = 4;
@@ -556,6 +560,7 @@ class _AppShellPageState extends State<AppShellPage> {
                 repository: createDefaultGenealogyDiscoveryRepository(
                   session: _session,
                 ),
+                onAddGenealogyRequested: _openClanWorkspaceFromTreeAddAction,
               )
       else
         const SizedBox.shrink(),
@@ -729,6 +734,52 @@ class _AppShellPageState extends State<AppShellPage> {
             repository: createDefaultGenealogyDiscoveryRepository(
               session: _session,
             ),
+            onAddGenealogyRequested: _openClanWorkspaceFromTreeAddAction,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openClanWorkspaceFromTreeAddAction() async {
+    if (!_hasClanContext && !GovernanceRoleMatrix.canBootstrapClan(_session)) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Tài khoản này chưa có quyền khởi tạo gia phả mới. Vui lòng liên hệ quản trị.',
+              en: 'This account is not allowed to bootstrap a new clan workspace. Please contact an administrator.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return ClanDetailPage(
+            session: _session,
+            repository: widget.clanRepository,
+            availableClanContexts: _clanContexts,
+            onSwitchClanContext: _switchClanContext,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openMemorialRitualWorkspace() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return EventWorkspacePage(
+            session: _session,
+            repository: createDefaultEventRepository(session: _session),
           );
         },
       ),
@@ -810,6 +861,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.onOpenTreeRequested,
     required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
+    required this.onOpenMemorialChecklistRequested,
   });
 
   final FirebaseSetupStatus status;
@@ -822,6 +874,7 @@ class _HomeDashboard extends StatelessWidget {
   final VoidCallback onOpenTreeRequested;
   final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
+  final VoidCallback onOpenMemorialChecklistRequested;
   bool get _hasClanContext => (session.clanId ?? '').trim().isNotEmpty;
 
   List<AppShortcut> get _availableShortcuts {
@@ -876,6 +929,7 @@ class _HomeDashboard extends StatelessWidget {
           onOpenTreeRequested: onOpenTreeRequested,
           onOpenProfileRequested: onOpenProfileRequested,
           onOpenEventsRequested: onOpenEventsRequested,
+          onOpenMemorialChecklistRequested: onOpenMemorialChecklistRequested,
         ),
         const SizedBox(height: 24),
         Row(
@@ -1384,6 +1438,7 @@ class _TodoSection extends StatelessWidget {
     required this.onOpenTreeRequested,
     required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
+    required this.onOpenMemorialChecklistRequested,
   });
 
   final FirebaseSetupStatus status;
@@ -1391,6 +1446,7 @@ class _TodoSection extends StatelessWidget {
   final VoidCallback onOpenTreeRequested;
   final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
+  final VoidCallback onOpenMemorialChecklistRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -1403,6 +1459,14 @@ class _TodoSection extends StatelessWidget {
           en: 'Review this week events',
         ),
         onTap: onOpenEventsRequested,
+      ),
+      (
+        icon: Icons.history_edu_outlined,
+        title: l10n.pick(
+          vi: 'Rà soát danh sách giỗ và dỗ trạp',
+          en: 'Review memorial and ritual checklists',
+        ),
+        onTap: onOpenMemorialChecklistRequested,
       ),
       (
         icon: Icons.person_outline,

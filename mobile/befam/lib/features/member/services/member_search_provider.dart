@@ -36,6 +36,7 @@ class LocalMemberSearchProvider implements MemberSearchProvider {
     }
 
     final normalizedQuery = _normalizeForSearch(query.query);
+    final queryTokens = _tokenizeQuery(normalizedQuery);
     final ranked = <_RankedMember>[];
 
     for (final member in members) {
@@ -55,6 +56,7 @@ class LocalMemberSearchProvider implements MemberSearchProvider {
       final score = _scoreMatch(
         member: member,
         normalizedQuery: normalizedQuery,
+        queryTokens: queryTokens,
       );
       if (score == null) {
         continue;
@@ -80,6 +82,7 @@ class LocalMemberSearchProvider implements MemberSearchProvider {
   int? _scoreMatch({
     required MemberProfile member,
     required String normalizedQuery,
+    required List<String> queryTokens,
   }) {
     final fullName = _normalizeForSearch(member.fullName);
     final normalizedFullName = _normalizeForSearch(member.normalizedFullName);
@@ -117,11 +120,6 @@ class LocalMemberSearchProvider implements MemberSearchProvider {
 
     apply(phone.contains(normalizedQuery), 70);
 
-    final queryTokens = normalizedQuery
-        .split(' ')
-        .map((token) => token.trim())
-        .where((token) => token.isNotEmpty)
-        .toList(growable: false);
     if (queryTokens.isNotEmpty) {
       final fullNameTokens = fullName
           .split(' ')
@@ -155,6 +153,15 @@ class _RankedMember {
   final int score;
 }
 
+final RegExp _accentARegex = RegExp('[àáạảãăằắặẳẵâầấậẩẫ]');
+final RegExp _accentERegex = RegExp('[èéẹẻẽêềếệểễ]');
+final RegExp _accentIRegex = RegExp('[ìíịỉĩ]');
+final RegExp _accentORegex = RegExp('[òóọỏõôồốộổỗơờớợởỡ]');
+final RegExp _accentURegex = RegExp('[ùúụủũưừứựửữ]');
+final RegExp _accentYRegex = RegExp('[ỳýỵỷỹ]');
+final RegExp _accentDRegex = RegExp('[đ]');
+final RegExp _whitespaceRegex = RegExp(r'\s+');
+
 String _normalizeForSearch(String value) {
   var normalized = value.toLowerCase().trim();
   if (normalized.isEmpty) {
@@ -162,14 +169,25 @@ String _normalizeForSearch(String value) {
   }
 
   normalized = normalized
-      .replaceAll(RegExp('[àáạảãăằắặẳẵâầấậẩẫ]'), 'a')
-      .replaceAll(RegExp('[èéẹẻẽêềếệểễ]'), 'e')
-      .replaceAll(RegExp('[ìíịỉĩ]'), 'i')
-      .replaceAll(RegExp('[òóọỏõôồốộổỗơờớợởỡ]'), 'o')
-      .replaceAll(RegExp('[ùúụủũưừứựửữ]'), 'u')
-      .replaceAll(RegExp('[ỳýỵỷỹ]'), 'y')
-      .replaceAll(RegExp('[đ]'), 'd')
-      .replaceAll(RegExp(r'\s+'), ' ');
+      .replaceAll(_accentARegex, 'a')
+      .replaceAll(_accentERegex, 'e')
+      .replaceAll(_accentIRegex, 'i')
+      .replaceAll(_accentORegex, 'o')
+      .replaceAll(_accentURegex, 'u')
+      .replaceAll(_accentYRegex, 'y')
+      .replaceAll(_accentDRegex, 'd')
+      .replaceAll(_whitespaceRegex, ' ');
 
   return normalized;
+}
+
+List<String> _tokenizeQuery(String normalizedQuery) {
+  if (normalizedQuery.isEmpty) {
+    return const [];
+  }
+  return normalizedQuery
+      .split(' ')
+      .map((token) => token.trim())
+      .where((token) => token.isNotEmpty)
+      .toList(growable: false);
 }
