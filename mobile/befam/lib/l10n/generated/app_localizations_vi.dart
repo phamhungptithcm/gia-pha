@@ -1936,4 +1936,135 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get eventTypeOther => 'Khác';
+
+  @override
+  String get webNavHome => 'Trang chủ';
+
+  @override
+  String get webNavAboutUs => 'Về chúng tôi';
+
+  @override
+  String get webNavBeFamInfo => 'Thông tin BeFam';
+
+  @override
+  String get webNavOpenApp => 'Mở ứng dụng';
+
+  @override
+  String get webNavMenuTooltip => 'Mở menu điều hướng';
+
+  @override
+  String get webLandingBadge => 'Nền tảng gia phả hiện đại';
+
+  @override
+  String get webLandingTitle =>
+      'BeFam giúp gia đình kết nối dữ liệu gia phả, sự kiện và quỹ trong một không gian thống nhất.';
+
+  @override
+  String get webLandingSubtitle =>
+      'Từ cây gia phả nhiều thế hệ đến lịch ngày giỗ, BeFam giúp ban điều hành và từng thành viên theo dõi thông tin rõ ràng, nhất quán và dễ dùng.';
+
+  @override
+  String get webLandingPrimaryCta => 'Bắt đầu với BeFam';
+
+  @override
+  String get webLandingSecondaryCta => 'Tìm hiểu về BeFam';
+
+  @override
+  String get webLandingHighlightTitle => 'Quản trị họ tộc minh bạch';
+
+  @override
+  String get webLandingHighlightDescription =>
+      'Theo dõi thành viên, kế hoạch sự kiện, gói dịch vụ và quyền truy cập trên cùng một nền tảng.';
+
+  @override
+  String get webLandingFeatureTreeTitle => 'Gia phả đa thế hệ';
+
+  @override
+  String get webLandingFeatureTreeDescription =>
+      'Xem cây họ theo chi, đời và quan hệ để dễ quản lý thông tin tổ tiên - hậu duệ.';
+
+  @override
+  String get webLandingFeatureEventsTitle => 'Lịch sự kiện tập trung';
+
+  @override
+  String get webLandingFeatureEventsDescription =>
+      'Lưu lịch họp họ, ngày giỗ, nhắc lịch quan trọng và trạng thái tham gia của thành viên.';
+
+  @override
+  String get webLandingFeatureBillingTitle => 'Quản lý gói dịch vụ';
+
+  @override
+  String get webLandingFeatureBillingDescription =>
+      'Theo dõi gói đang dùng, gia hạn và lịch sử thanh toán VNPay ngay trong BeFam.';
+
+  @override
+  String get webAboutTitle => 'Về chúng tôi';
+
+  @override
+  String get webAboutSubtitle =>
+      'BeFam được xây dựng để gìn giữ ký ức gia đình, hỗ trợ quản trị họ tộc minh bạch và gắn kết nhiều thế hệ trên cùng nền tảng số.';
+
+  @override
+  String get webAboutMissionTitle => 'Sứ mệnh';
+
+  @override
+  String get webAboutMissionDescription =>
+      'Giúp mỗi họ tộc số hóa dữ liệu gia đình một cách dễ hiểu, dễ dùng và bền vững.';
+
+  @override
+  String get webAboutVisionTitle => 'Tầm nhìn';
+
+  @override
+  String get webAboutVisionDescription =>
+      'Trở thành nền tảng gia phả số đáng tin cậy cho các cộng đồng gia đình Việt Nam.';
+
+  @override
+  String get webAboutTrustTitle => 'Cam kết';
+
+  @override
+  String get webAboutTrustDescription =>
+      'Ưu tiên tính chính xác dữ liệu, minh bạch quyền truy cập và trải nghiệm đồng nhất trên mọi thiết bị.';
+
+  @override
+  String get webInfoTitle => 'Thông tin BeFam';
+
+  @override
+  String get webInfoSubtitle =>
+      'Tổng quan nhanh về những gì BeFam đang cung cấp cho quản trị gia phả và hoạt động gia đình.';
+
+  @override
+  String get webInfoGenealogyTitle => 'Không gian gia phả';
+
+  @override
+  String get webInfoGenealogyDescription =>
+      'Theo dõi hồ sơ thành viên, quan hệ huyết thống, nhánh chi và thông tin thế hệ trên một cấu trúc thống nhất.';
+
+  @override
+  String get webInfoNotificationsTitle => 'Thông báo và nhắc lịch';
+
+  @override
+  String get webInfoNotificationsDescription =>
+      'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng trong phạm vi gia tộc.';
+
+  @override
+  String get webInfoBillingTitle => 'Gói và thanh toán';
+
+  @override
+  String get webInfoBillingDescription =>
+      'Quản lý quyền lợi theo gói, trạng thái hiệu lực và luồng thanh toán VNPay cho tổ chức gia phả.';
+
+  @override
+  String get webInfoHighlightsTitle => 'Điểm nổi bật hiện tại';
+
+  @override
+  String get webInfoHighlightsItemOne =>
+      'Hỗ trợ tiếng Việt/English đồng bộ theo cấu hình người dùng.';
+
+  @override
+  String get webInfoHighlightsItemTwo =>
+      'Thiết kế responsive cho điện thoại, tablet và desktop.';
+
+  @override
+  String get webInfoHighlightsItemThree =>
+      'Kiến trúc Flutter + Firebase giúp mở rộng tính năng nhanh và nhất quán.';
 }
