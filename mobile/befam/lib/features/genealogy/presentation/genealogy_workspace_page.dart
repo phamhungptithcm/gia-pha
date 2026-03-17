@@ -10,6 +10,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../../core/services/firebase_services.dart';
+import '../../../core/services/kinship_title_resolver.dart';
 import '../../../core/services/performance_measurement_logger.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -148,6 +149,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     final relativeLevelsByCurrentUser = _resolveRelativeLevelsByCurrentUser(
       segment.graph,
     );
+    final viewer = _viewerMemberForGraph(segment.graph);
     final siblingOrdersByMember = _resolveSiblingOrders(segment.graph);
     final honorBadgesByMember = _resolveHonorBadges(
       segment.graph,
@@ -260,10 +262,12 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                               generationLabel:
                                                   _memberGenerationLabelForDisplay(
                                                     l10n: l10n,
-                                                    generation: segment
-                                                        .graph
-                                                        .membersById[entry.key]!
-                                                        .generation,
+                                                    member:
+                                                        segment
+                                                            .graph
+                                                            .membersById[entry
+                                                            .key]!,
+                                                    viewer: viewer,
                                                     relativeLevel:
                                                         relativeLevelsByCurrentUser[entry
                                                             .key],
@@ -1113,6 +1117,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required Map<String, int?> relativeLevelsByCurrentUser,
   }) async {
     final l10n = context.l10n;
+    final viewer = _viewerMemberForGraph(graph);
     final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
       graph: graph,
       memberId: member.id,
@@ -1126,7 +1131,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         : l10n.genealogyMemberDeceasedStatus;
     final generationLabel = _memberGenerationLabelForDisplay(
       l10n: l10n,
-      generation: member.generation,
+      member: member,
+      viewer: viewer,
       relativeLevel: relativeLevelsByCurrentUser[member.id],
       compact: true,
     );
@@ -1263,6 +1269,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required Map<String, int?> relativeLevelsByCurrentUser,
   }) async {
     final l10n = context.l10n;
+    final viewer = _viewerMemberForGraph(graph);
     final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
       graph: graph,
       memberId: member.id,
@@ -1290,7 +1297,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
             honorBadges: _honorBadgeLabels(l10n, honorBadges),
             generationLabel: _memberGenerationLabelForDisplay(
               l10n: l10n,
-              generation: member.generation,
+              member: member,
+              viewer: viewer,
               relativeLevel: relativeLevelsByCurrentUser[member.id],
             ),
             ancestryCount: ancestry.length,
@@ -1361,26 +1369,47 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
 
   String _memberGenerationLabelForDisplay({
     required AppLocalizations l10n,
-    required int generation,
+    required MemberProfile member,
+    required MemberProfile? viewer,
     required int? relativeLevel,
     bool compact = false,
   }) {
     final base = compact
-        ? l10n.pick(vi: 'Đời $generation', en: 'Gen $generation')
-        : l10n.pick(vi: 'Đời thứ $generation', en: 'Generation $generation');
+        ? l10n.pick(
+            vi: 'Đời ${member.generation}',
+            en: 'Gen ${member.generation}',
+          )
+        : l10n.pick(
+            vi: 'Đời thứ ${member.generation}',
+            en: 'Generation ${member.generation}',
+          );
     if (relativeLevel == null) {
       return base;
     }
-    final relativeTitle = _relativeGenerationTitle(
-      l10n: l10n,
-      relativeLevel: relativeLevel,
-    );
+    final relativeTitle = viewer == null
+        ? _relativeGenerationTitleFromLevel(
+            l10n: l10n,
+            relativeLevel: relativeLevel,
+          )
+        : KinshipTitleResolver.resolve(
+            l10n: l10n,
+            viewer: viewer,
+            member: member,
+          );
     return compact
         ? '$base • $relativeTitle'
         : l10n.pick(
             vi: '$base ($relativeTitle so với bạn)',
             en: '$base ($relativeTitle relative to you)',
           );
+  }
+
+  MemberProfile? _viewerMemberForGraph(GenealogyGraph graph) {
+    final viewerId = widget.session.memberId?.trim();
+    if (viewerId == null || viewerId.isEmpty) {
+      return null;
+    }
+    return graph.membersById[viewerId];
   }
 
   Map<String, int?> _resolveRelativeLevelsByCurrentUser(GenealogyGraph graph) {
@@ -1407,7 +1436,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     };
   }
 
-  String _relativeGenerationTitle({
+  String _relativeGenerationTitleFromLevel({
     required AppLocalizations l10n,
     required int relativeLevel,
   }) {
@@ -1432,9 +1461,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         return l10n.pick(vi: 'Chít', en: 'Great-great-grandchild');
       default:
         if (relativeLevel < -4) {
-          return l10n.pick(vi: 'Tổ tiên xa', en: 'Distant ancestor');
+          return l10n.pick(vi: 'Cụ kỵ', en: 'Great-great-grandparent');
         }
-        return l10n.pick(vi: 'Hậu duệ xa', en: 'Distant descendant');
+        return l10n.pick(vi: 'Hậu duệ', en: 'Descendant');
     }
   }
 
