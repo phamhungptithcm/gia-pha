@@ -224,7 +224,7 @@ AuthSession _session({
     uid: 'debug:user',
     loginMethod: AuthEntryMethod.phone,
     phoneE164: '+84900000000',
-    displayName: 'Debug User',
+    displayName: 'Người dùng kiểm thử',
     clanId: clanId,
     branchId: branchId,
     memberId: memberId,

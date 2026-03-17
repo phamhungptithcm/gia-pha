@@ -51,16 +51,45 @@ void main() {
       expect(controller.error?.key, AuthIssueKey.phoneRequired);
       expect(controller.session, isNull);
     });
+
+    test(
+      'live gateway profile flow normalizes local phone and does not auto-verify fixed profile code',
+      () async {
+        final gateway = _FakeAuthGateway(isSandbox: false);
+        final controller = AuthController(
+          authGateway: gateway,
+          analyticsService: const NoopAuthAnalyticsService(),
+          sessionStore: InMemoryAuthSessionStore(),
+          privacyPolicyStore: InMemoryAuthPrivacyPolicyStore(accepted: true),
+        );
+        await controller.initialize();
+
+        await controller.requestOtpForScenarioPhone(
+          '0901234567',
+          autoVerifyCode: '123456',
+        );
+
+        expect(gateway.requestPhoneOtpCount, 1);
+        expect(gateway.lastRequestedPhoneE164, '+84901234567');
+        expect(gateway.verifyOtpCount, 0);
+        expect(controller.step, AuthStep.otp);
+        expect(controller.session, isNull);
+        expect(controller.error, isNull);
+      },
+    );
   });
 }
 
 class _FakeAuthGateway implements AuthGateway {
+  _FakeAuthGateway({this.isSandbox = true});
+
   int requestPhoneOtpCount = 0;
   int verifyOtpCount = 0;
   String? lastVerifiedCode;
+  String? lastRequestedPhoneE164;
 
   @override
-  bool get isSandbox => true;
+  final bool isSandbox;
 
   @override
   Future<bool> canRestoreSession(AuthSession session) async => false;
@@ -68,6 +97,7 @@ class _FakeAuthGateway implements AuthGateway {
   @override
   Future<AuthOtpRequestResult> requestPhoneOtp(String phoneE164) async {
     requestPhoneOtpCount += 1;
+    lastRequestedPhoneE164 = phoneE164;
     return AuthOtpRequestResult.challenge(
       PendingOtpChallenge(
         loginMethod: AuthEntryMethod.phone,
@@ -100,7 +130,7 @@ class _FakeAuthGateway implements AuthGateway {
       uid: 'debug:${challenge.phoneE164}',
       loginMethod: challenge.loginMethod,
       phoneE164: challenge.phoneE164,
-      displayName: 'Sandbox User',
+      displayName: 'Người dùng thử nghiệm',
       memberId: 'member_demo_parent_001',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',

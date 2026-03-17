@@ -202,7 +202,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Quản lý họ tộc'), findsOneWidget);
-    expect(find.text('Họ tộc BeFam'), findsWidgets);
+    expect(find.text('Gia phả họ Nguyễn Văn Đà Nẵng'), findsWidgets);
     expect(find.text('Các chi'), findsOneWidget);
     expect(find.text('Chi Trưởng'), findsOneWidget);
     expect(find.text('Thêm chi'), findsOneWidget);
@@ -330,12 +330,13 @@ void main() {
 
       expect(find.text('Hồ sơ thành viên'), findsOneWidget);
       expect(find.byKey(const Key('member-add-fab')), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('members-search-input')),
+        'Nguyễn Minh',
+      );
+      await tester.pumpAndSettle();
       expect(
         find.byKey(const Key('member-row-member_demo_parent_001')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('member-row-member_demo_elder_001')),
         findsOneWidget,
       );
 
@@ -361,7 +362,12 @@ void main() {
         find.byKey(const Key('members-generation-filter-dropdown')),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Đời 4').last);
+      await tester.tap(find.text('Đời 8').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('members-search-input')),
+        'Nguyễn Minh',
+      );
       await tester.pumpAndSettle();
 
       expect(
@@ -369,12 +375,17 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(const Key('member-row-member_demo_parent_002')),
-        findsOneWidget,
-      );
-      expect(
         find.byKey(const Key('member-row-member_demo_elder_001')),
         findsNothing,
+      );
+      await tester.enterText(
+        find.byKey(const Key('members-search-input')),
+        'Trần Văn Long',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('member-row-member_demo_parent_002')),
+        findsOneWidget,
       );
 
       await tester.tap(find.byKey(const Key('members-branch-filter-dropdown')));
@@ -392,6 +403,11 @@ void main() {
       );
 
       await tester.tap(find.byKey(const Key('members-clear-filters')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('members-search-input')),
+        'Ông Bảo',
+      );
       await tester.pumpAndSettle();
 
       expect(
@@ -456,6 +472,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Đã lưu hồ sơ thành viên.'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('members-search-input')),
+      'Phạm Hải An',
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Phạm Hải An'), findsWidgets);
   });
 

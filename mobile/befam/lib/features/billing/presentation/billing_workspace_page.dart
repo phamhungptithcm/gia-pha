@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,6 +12,7 @@ import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
 import '../services/billing_repository.dart';
+import '../services/vnpay_mobile_sdk_gateway.dart';
 import 'billing_controller.dart';
 
 typedef ExternalUriLauncher = Future<bool> Function(Uri uri);
@@ -23,6 +25,8 @@ class BillingWorkspacePage extends StatefulWidget {
     this.embeddedInShell = false,
     this.externalUrlLauncher,
     this.vnpayPaymentMethodUrl,
+    this.vnpayGateway,
+    this.allowQrCheckoutInDebug = false,
   });
 
   final AuthSession session;
@@ -30,6 +34,8 @@ class BillingWorkspacePage extends StatefulWidget {
   final bool embeddedInShell;
   final ExternalUriLauncher? externalUrlLauncher;
   final String? vnpayPaymentMethodUrl;
+  final VnpayMobileSdkGateway? vnpayGateway;
+  final bool allowQrCheckoutInDebug;
 
   @override
   State<BillingWorkspacePage> createState() => _BillingWorkspacePageState();
@@ -37,6 +43,7 @@ class BillingWorkspacePage extends StatefulWidget {
 
 class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   late final BillingController _controller;
+  late final VnpayMobileSdkGateway _vnpayGateway;
   String? _paymentModeDraft;
   String? _selectedPlanCodeDraft;
   bool _autoRenewDraft = false;
@@ -53,6 +60,11 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
           createDefaultBillingRepository(session: widget.session),
       session: widget.session,
     );
+    _vnpayGateway =
+        widget.vnpayGateway ??
+        MethodChannelVnpayMobileSdkGateway(
+          externalFallbackLauncher: _launchExternalUri,
+        );
     unawaited(_controller.initialize());
   }
 
@@ -70,12 +82,94 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     return launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  bool _shouldUseQrCheckout(BillingWorkspaceSnapshot workspace) {
+    if (!workspace.checkoutFlow.qrCheckoutEnabled) {
+      return false;
+    }
+    if (kReleaseMode) {
+      return true;
+    }
+    return widget.allowQrCheckoutInDebug;
+  }
+
+  Future<void> _openQrCheckoutFlow({
+    required BillingWorkspaceSnapshot workspace,
+    required BillingPlanPricing minimumTier,
+    required BillingPlanPricing selectedTier,
+    required bool canRenewCurrentPlan,
+  }) async {
+    final l10n = context.l10n;
+    final currentRank = _planRank(workspace.entitlement.planCode);
+    final minimumRank = _planRank(minimumTier.planCode);
+    final selectedRank = _planRank(selectedTier.planCode);
+    final isDowngrade = selectedRank < currentRank;
+    final isRenew = selectedRank == currentRank;
+    final isUpgrade = selectedRank > currentRank;
+    if (selectedRank < minimumRank) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Không thể hạ gói vì số thành viên hiện tại vượt giới hạn của gói đã chọn.',
+              en: 'Cannot downgrade because current member count exceeds the selected plan limit.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    if (isRenew && !canRenewCurrentPlan) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Gia hạn chỉ mở khi gói hiện tại gần hết hạn.',
+              en: 'Renewal is available only near expiry.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    if (!isUpgrade && !isDowngrade && !isRenew) {
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => _ManualQrPaymentPage(
+          currentPlanCode: workspace.entitlement.planCode,
+          selectedTier: selectedTier,
+          expiryDateLabel: _dateLabel(
+            workspace.entitlement.expiresAtIso,
+            context.l10n,
+          ),
+          qrImageUrl: workspace.checkoutFlow.qrImageUrlForPlan(
+            selectedTier.planCode,
+          ),
+          externalUrlLauncher: _launchExternalUri,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openVnpayCheckoutFlow({
     required BillingWorkspaceSnapshot workspace,
     required BillingPlanPricing minimumTier,
     required BillingPlanPricing selectedTier,
     required bool canRenewCurrentPlan,
   }) async {
+    // Safety guard: when QR checkout is enabled for this runtime, VNPay flow
+    // must not be opened from any call path.
+    if (_shouldUseQrCheckout(workspace)) {
+      await _openQrCheckoutFlow(
+        workspace: workspace,
+        minimumTier: minimumTier,
+        selectedTier: selectedTier,
+        canRenewCurrentPlan: canRenewCurrentPlan,
+      );
+      return;
+    }
     final l10n = context.l10n;
     final currentRank = _planRank(workspace.entitlement.planCode);
     final minimumRank = _planRank(minimumTier.planCode);
@@ -138,7 +232,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
           selectedTier: selectedTier,
           currentPlanCode: workspace.entitlement.planCode,
           draft: draft,
-          launchExternalUri: _launchExternalUri,
+          vnpayGateway: _vnpayGateway,
           checkoutUrlOverride: widget.vnpayPaymentMethodUrl,
         ),
       ),
@@ -463,6 +557,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     final isDowngradeSelection = selectedPlanRank < currentPlanRank;
     final isRenewSelection = selectedPlanRank == currentPlanRank;
     final isUpgradeSelection = selectedPlanRank > currentPlanRank;
+    final useQrCheckout = _shouldUseQrCheckout(workspace);
     final isBelowMinimumForMemberCount = selectedPlanRank < minimumPlanRank;
     final canCheckoutSelectedPlan =
         selectedTier.priceVndYear > 0 &&
@@ -608,8 +703,12 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       en: 'Free plan selected',
                     ),
                     description: l10n.pick(
-                      vi: 'Gói miễn phí không tạo checkout VNPay.',
-                      en: 'Free plan does not create a VNPay checkout.',
+                      vi: useQrCheckout
+                          ? 'Gói miễn phí không yêu cầu thanh toán QR.'
+                          : 'Gói miễn phí không tạo checkout VNPay.',
+                      en: useQrCheckout
+                          ? 'Free plan does not require QR payment.'
+                          : 'Free plan does not create a VNPay checkout.',
                     ),
                     tone: colorScheme.tertiaryContainer,
                   )
@@ -644,16 +743,27 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(54),
                       ),
-                      onPressed: () => _openVnpayCheckoutFlow(
-                        workspace: workspace,
-                        minimumTier: minimumTier,
-                        selectedTier: selectedTier,
-                        canRenewCurrentPlan: canRenewCurrentPlan,
-                      ),
+                      onPressed: () => useQrCheckout
+                          ? _openQrCheckoutFlow(
+                              workspace: workspace,
+                              minimumTier: minimumTier,
+                              selectedTier: selectedTier,
+                              canRenewCurrentPlan: canRenewCurrentPlan,
+                            )
+                          : _openVnpayCheckoutFlow(
+                              workspace: workspace,
+                              minimumTier: minimumTier,
+                              selectedTier: selectedTier,
+                              canRenewCurrentPlan: canRenewCurrentPlan,
+                            ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.account_balance_wallet_outlined),
+                          Icon(
+                            useQrCheckout
+                                ? Icons.qr_code_2_outlined
+                                : Icons.account_balance_wallet_outlined,
+                          ),
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
@@ -1787,10 +1897,230 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
 }
 
 class _VnpayCheckoutDraft {
-  const _VnpayCheckoutDraft({required this.phoneNumber, required this.note});
+  const _VnpayCheckoutDraft({
+    required this.phoneNumber,
+    required this.note,
+    required this.bankCode,
+    required this.locale,
+  });
 
   final String phoneNumber;
   final String note;
+  final String bankCode;
+  final String locale;
+}
+
+class _ManualQrPaymentPage extends StatelessWidget {
+  const _ManualQrPaymentPage({
+    required this.currentPlanCode,
+    required this.selectedTier,
+    required this.expiryDateLabel,
+    required this.externalUrlLauncher,
+    this.qrImageUrl,
+  });
+
+  final String currentPlanCode;
+  final BillingPlanPricing selectedTier;
+  final String expiryDateLabel;
+  final ExternalUriLauncher externalUrlLauncher;
+  final String? qrImageUrl;
+
+  Future<void> _downloadQrImage(BuildContext context) async {
+    final l10n = context.l10n;
+    final normalizedUrl = (qrImageUrl ?? '').trim();
+    if (normalizedUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Chưa có ảnh QR để tải xuống.',
+              en: 'No QR image available to download.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    final uri = Uri.tryParse(normalizedUrl);
+    if (uri == null || !uri.hasScheme) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Liên kết ảnh QR không hợp lệ.',
+              en: 'QR image URL is invalid.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    final opened = await externalUrlLauncher(uri);
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          opened
+              ? l10n.pick(
+                  vi: 'Đã mở ảnh QR để bạn tải xuống hoặc import vào ứng dụng ngân hàng.',
+                  en: 'Opened QR image so you can download or import it in your banking app.',
+                )
+              : l10n.pick(
+                  vi: 'Không thể mở ảnh QR để tải xuống.',
+                  en: 'Unable to open QR image for download.',
+                ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final normalizedUrl = (qrImageUrl ?? '').trim();
+    final hasQrImage = normalizedUrl.isNotEmpty;
+
+    return Scaffold(
+      key: const Key('billing-qr-payment-screen'),
+      appBar: AppBar(
+        title: Text(
+          l10n.pick(vi: 'Bước 3: Thanh toán QR', en: 'Step 3: QR payment'),
+        ),
+        actions: [
+          IconButton(
+            key: const Key('billing-qr-payment-download-button'),
+            tooltip: l10n.pick(vi: 'Tải ảnh QR', en: 'Download QR'),
+            onPressed: () => _downloadQrImage(context),
+            icon: const Icon(Icons.download_rounded),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _CheckoutStepper(currentStep: 3),
+              const SizedBox(height: 14),
+              _SectionCard(
+                title: l10n.pick(
+                  vi: 'Tóm tắt giao dịch gói',
+                  en: 'Plan change summary',
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.pick(
+                        vi: '${_localizedPlanName(currentPlanCode, l10n)} → ${_localizedPlanName(selectedTier.planCode, l10n)}',
+                        en: '${_localizedPlanName(currentPlanCode, l10n)} → ${_localizedPlanName(selectedTier.planCode, l10n)}',
+                      ),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.pick(
+                        vi: 'Số tiền thanh toán: ${_formatVnd(selectedTier.priceVndYear)}',
+                        en: 'Payment amount: ${_formatVnd(selectedTier.priceVndYear)}',
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.pick(
+                        vi: 'Gói hiện tại hiệu lực đến: $expiryDateLabel',
+                        en: 'Current plan valid until: $expiryDateLabel',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (!hasQrImage)
+                _InfoCard(
+                  key: const Key('billing-qr-payment-missing-config'),
+                  icon: Icons.error_outline,
+                  title: l10n.pick(
+                    vi: 'Chưa cấu hình ảnh QR',
+                    en: 'QR image is not configured',
+                  ),
+                  description: l10n.pick(
+                    vi: 'Hệ thống chưa nhận được ảnh QR cho gói này. Vui lòng liên hệ hỗ trợ để được cung cấp phương thức thanh toán.',
+                    en: 'No QR image is configured for this plan yet. Please contact support for payment instructions.',
+                  ),
+                  tone: Theme.of(context).colorScheme.errorContainer,
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      normalizedUrl,
+                      key: const Key('billing-qr-payment-image'),
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _InfoCard(
+                          icon: Icons.error_outline,
+                          title: l10n.pick(
+                            vi: 'Không thể tải ảnh QR',
+                            en: 'Unable to load QR image',
+                          ),
+                          description: l10n.pick(
+                            vi: 'Vui lòng kiểm tra cấu hình đường dẫn ảnh QR trên môi trường production.',
+                            en: 'Please verify the QR image URL configuration in production.',
+                          ),
+                          tone: Theme.of(context).colorScheme.errorContainer,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              _InfoCard(
+                icon: Icons.info_outline,
+                title: l10n.pick(
+                  vi: 'Hướng dẫn tiếp theo',
+                  en: 'What to do next',
+                ),
+                description: l10n.pick(
+                  vi: 'Vui lòng quét mã QR và chuyển khoản đúng số tiền của gói đã chọn. Sau khi nhận được thanh toán, quản trị viên sẽ xác nhận kích hoạt gói.',
+                  en: 'Scan the QR code and transfer the exact plan amount. An administrator will confirm and activate the plan after receiving payment.',
+                ),
+                tone: Theme.of(context).colorScheme.secondaryContainer,
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  key: const Key('billing-qr-payment-back-button'),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    l10n.pick(
+                      vi: 'Quay về Gói dịch vụ',
+                      en: 'Back to subscription',
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _VnpayCheckoutFormPage extends StatefulWidget {
@@ -1816,6 +2146,7 @@ class _VnpayCheckoutFormPageState extends State<_VnpayCheckoutFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _phoneController;
   late final TextEditingController _noteController;
+  String _bankCode = '';
 
   @override
   void initState() {
@@ -1840,6 +2171,10 @@ class _VnpayCheckoutFormPageState extends State<_VnpayCheckoutFormPage> {
       _VnpayCheckoutDraft(
         phoneNumber: _phoneController.text.trim(),
         note: _noteController.text.trim(),
+        bankCode: _bankCode.trim().toUpperCase(),
+        locale: _normalizeVnpayLocaleTag(
+          Localizations.localeOf(context).languageCode,
+        ),
       ),
     );
   }
@@ -1905,27 +2240,6 @@ class _VnpayCheckoutFormPageState extends State<_VnpayCheckoutFormPage> {
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
-                  key: const Key('billing-vnpay-phone-field'),
-                  controller: _phoneController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
-                      vi: 'Số điện thoại liên hệ',
-                      en: 'Contact phone',
-                    ),
-                  ),
-                  keyboardType: TextInputType.phone,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return l10n.pick(
-                        vi: 'Vui lòng nhập số điện thoại liên hệ.',
-                        en: 'Please enter a contact phone number.',
-                      );
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
                   key: const Key('billing-vnpay-note-field'),
                   controller: _noteController,
                   decoration: InputDecoration(
@@ -1936,6 +2250,52 @@ class _VnpayCheckoutFormPageState extends State<_VnpayCheckoutFormPage> {
                   ),
                   minLines: 2,
                   maxLines: 4,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  key: const Key('billing-vnpay-bank-code-field'),
+                  initialValue: _bankCode,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Kênh thanh toán (tuỳ chọn)',
+                      en: 'Payment channel (optional)',
+                    ),
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: '',
+                      child: Text(
+                        l10n.pick(
+                          vi: 'Tự động chọn bởi VNPay',
+                          en: 'Auto-select by VNPay',
+                        ),
+                      ),
+                    ),
+                    const DropdownMenuItem(
+                      value: 'VNPAYQR',
+                      child: Text('VNPayQR'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'VNBANK',
+                      child: Text(
+                        l10n.pick(
+                          vi: 'ATM / Tài khoản nội địa',
+                          en: 'ATM / Domestic bank account',
+                        ),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'INTCARD',
+                      child: Text(
+                        l10n.pick(vi: 'Thẻ quốc tế', en: 'International card'),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _bankCode = (value ?? '').trim().toUpperCase();
+                    });
+                  },
                 ),
                 const SizedBox(height: 18),
                 SizedBox(
@@ -1969,7 +2329,7 @@ class _VnpayCheckoutProgressPage extends StatefulWidget {
     required this.selectedTier,
     required this.currentPlanCode,
     required this.draft,
-    required this.launchExternalUri,
+    required this.vnpayGateway,
     this.checkoutUrlOverride,
   });
 
@@ -1977,7 +2337,7 @@ class _VnpayCheckoutProgressPage extends StatefulWidget {
   final BillingPlanPricing selectedTier;
   final String currentPlanCode;
   final _VnpayCheckoutDraft draft;
-  final ExternalUriLauncher launchExternalUri;
+  final VnpayMobileSdkGateway vnpayGateway;
   final String? checkoutUrlOverride;
 
   @override
@@ -2014,6 +2374,10 @@ class _VnpayCheckoutProgressPageState
     final checkout = await widget.controller.createCheckout(
       paymentMethod: 'vnpay',
       requestedPlanCode: widget.selectedTier.planCode,
+      locale: widget.draft.locale,
+      orderNote: widget.draft.note,
+      bankCode: widget.draft.bankCode,
+      contactPhone: widget.draft.phoneNumber,
     );
     if (!mounted) {
       return;
@@ -2057,19 +2421,25 @@ class _VnpayCheckoutProgressPageState
       return;
     }
 
-    final launched = await widget.launchExternalUri(uri);
+    final launchResult = await widget.vnpayGateway.openCheckout(
+      checkoutUri: uri,
+    );
     if (!mounted) {
       return;
     }
-    if (!launched) {
+    if (launchResult.status == VnpayCheckoutOpenStatus.failed) {
       setState(() {
         _checkout = checkout;
         _checkoutUri = uri;
         _state = _VnpayProgressState.failed;
-        _message = context.l10n.pick(
+        final fallbackMessage = context.l10n.pick(
           vi: 'Không thể mở cổng VNPay tự động.',
           en: 'Could not open VNPay automatically.',
         );
+        final details = (launchResult.message ?? '').trim();
+        _message = details.isEmpty
+            ? fallbackMessage
+            : '$fallbackMessage $details';
       });
       return;
     }
@@ -2079,6 +2449,15 @@ class _VnpayCheckoutProgressPageState
       _checkoutUri = uri;
       _state = _VnpayProgressState.awaitingAction;
       _lastKnownStatus = 'pending';
+      _message = launchResult.status == VnpayCheckoutOpenStatus.externalBrowser
+          ? context.l10n.pick(
+              vi: 'Đã chuyển sang trình duyệt để hoàn tất VNPay.',
+              en: 'Opened VNPay in external browser.',
+            )
+          : context.l10n.pick(
+              vi: 'Đã mở cổng VNPay trong ứng dụng.',
+              en: 'VNPay gateway opened in-app.',
+            );
     });
   }
 
@@ -2169,7 +2548,7 @@ class _VnpayCheckoutProgressPageState
     if (uri == null) {
       return;
     }
-    await widget.launchExternalUri(uri);
+    await widget.vnpayGateway.openCheckout(checkoutUri: uri);
   }
 
   String _statusLabel(String? status, AppLocalizations l10n) {
@@ -2447,6 +2826,7 @@ class _HeroPill extends StatelessWidget {
 
 class _InfoCard extends StatelessWidget {
   const _InfoCard({
+    super.key,
     required this.icon,
     required this.title,
     required this.description,
@@ -2615,6 +2995,14 @@ String _localizedPlanName(String planCode, AppLocalizations l10n) {
       final normalized = planCode.trim();
       return normalized.isEmpty ? planCode : normalized.toUpperCase();
   }
+}
+
+String _normalizeVnpayLocaleTag(String languageCode) {
+  final normalized = languageCode.trim().toLowerCase();
+  if (normalized.startsWith('en')) {
+    return 'en';
+  }
+  return 'vn';
 }
 
 String _friendlyErrorMessage(String? raw, AppLocalizations l10n) {

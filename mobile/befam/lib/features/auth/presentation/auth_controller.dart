@@ -205,15 +205,17 @@ class AuthController extends ChangeNotifier {
       return;
     }
 
-    final normalizedPhone = phoneE164.trim();
-    AppLogger.info(
-      'Scenario OTP request started for $normalizedPhone (autoCode=${autoVerifyCode != null && autoVerifyCode.trim().isNotEmpty}).',
-    );
-    if (normalizedPhone.isEmpty) {
-      error = const AuthIssue(AuthIssueKey.phoneRequired);
+    late final String normalizedPhone;
+    try {
+      normalizedPhone = PhoneNumberFormatter.parse(phoneE164).e164;
+    } catch (error) {
+      this.error = AuthErrorMapper.map(error);
       _emit();
       return;
     }
+    AppLogger.info(
+      'Scenario OTP request started for $normalizedPhone (autoCode=${autoVerifyCode != null && autoVerifyCode.trim().isNotEmpty}).',
+    );
 
     _clearError();
     unawaited(
@@ -237,7 +239,9 @@ class AuthController extends ChangeNotifier {
     final sanitizedAutoCode = autoVerifyCode
         ?.replaceAll(RegExp(r'[^0-9]'), '')
         .trim();
-    if (sanitizedAutoCode != null &&
+    final shouldAutoVerifyScenarioCode = isSandbox;
+    if (shouldAutoVerifyScenarioCode &&
+        sanitizedAutoCode != null &&
         RegExp(r'^\d{6}$').hasMatch(sanitizedAutoCode)) {
       AppLogger.info(
         'Scenario OTP auto-verify is enabled for $normalizedPhone.',

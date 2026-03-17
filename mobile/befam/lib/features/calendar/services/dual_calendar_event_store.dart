@@ -189,8 +189,8 @@ class SharedPrefsDualCalendarEventStore implements DualCalendarEventStore {
     return [
       DualCalendarEvent(
         id: 'cal_event_1000',
-        title: 'Ancestor memorial',
-        description: 'Prepare offerings and family gathering.',
+        title: 'Lễ giỗ tổ tiên',
+        description: 'Chuẩn bị lễ vật và họp mặt gia đình.',
         eventType: EventType.deathAnniversary,
         memorialForName: 'Nguyễn Văn Tổ',
         hostHousehold: 'Nhà trưởng chi',
@@ -207,8 +207,8 @@ class SharedPrefsDualCalendarEventStore implements DualCalendarEventStore {
       ),
       DualCalendarEvent(
         id: 'cal_event_1001',
-        title: 'Quarterly clan meeting',
-        description: 'Discuss scholarship and fund plans.',
+        title: 'Họp họ theo quý',
+        description: 'Trao đổi kế hoạch học bổng và quỹ họ tộc.',
         eventType: EventType.meeting,
         memorialForName: '',
         hostHousehold: 'Nhà văn hóa chi phụ',

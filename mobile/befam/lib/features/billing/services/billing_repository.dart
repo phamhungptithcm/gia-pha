@@ -48,6 +48,10 @@ abstract interface class BillingRepository {
     required String paymentMethod,
     String? requestedPlanCode,
     String? returnUrl,
+    String? locale,
+    String? orderNote,
+    String? bankCode,
+    String? contactPhone,
   });
 
   Future<void> completeCardCheckout({

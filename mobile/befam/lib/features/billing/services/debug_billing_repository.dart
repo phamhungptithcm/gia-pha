@@ -132,6 +132,10 @@ class DebugBillingRepository implements BillingRepository {
     required String paymentMethod,
     String? requestedPlanCode,
     String? returnUrl,
+    String? locale,
+    String? orderNote,
+    String? bankCode,
+    String? contactPhone,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 140));
     final clanId = _clanIdOf(session);
@@ -268,7 +272,18 @@ class DebugBillingRepository implements BillingRepository {
     }
 
     final checkoutUrl = method == 'vnpay'
-        ? 'https://example.com/billing/vnpay?transactionId=$transactionId&amountVnd=${tier.priceVndYear}'
+        ? Uri.https('example.com', '/billing/vnpay', {
+            'transactionId': transactionId,
+            'amountVnd': '${tier.priceVndYear}',
+            if (locale != null && locale.trim().isNotEmpty)
+              'locale': locale.trim(),
+            if (bankCode != null && bankCode.trim().isNotEmpty)
+              'bankCode': bankCode.trim().toUpperCase(),
+            if (orderNote != null && orderNote.trim().isNotEmpty)
+              'orderNote': orderNote.trim(),
+            if (contactPhone != null && contactPhone.trim().isNotEmpty)
+              'contactPhone': contactPhone.trim(),
+          }).toString()
         : 'https://example.com/billing/card?txn=$transactionId';
 
     return BillingCheckoutResult(
@@ -864,6 +879,10 @@ class _DebugBillingState {
       subscription: subscription,
       entitlement: entitlement,
       settings: settings,
+      checkoutFlow: const BillingCheckoutFlowConfig(
+        qrCheckoutEnabled: false,
+        qrImageUrlsByPlan: <String, String>{},
+      ),
       pricingTiers: pricing,
       memberCount: memberCount,
       transactions: List.unmodifiable(transactions),

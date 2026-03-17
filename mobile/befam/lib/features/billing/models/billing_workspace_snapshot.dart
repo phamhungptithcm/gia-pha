@@ -4,6 +4,7 @@ class BillingWorkspaceSnapshot {
     required this.subscription,
     required this.entitlement,
     required this.settings,
+    required this.checkoutFlow,
     required this.pricingTiers,
     required this.memberCount,
     required this.transactions,
@@ -15,11 +16,34 @@ class BillingWorkspaceSnapshot {
   final BillingSubscription subscription;
   final BillingEntitlement entitlement;
   final BillingSettings settings;
+  final BillingCheckoutFlowConfig checkoutFlow;
   final List<BillingPlanPricing> pricingTiers;
   final int memberCount;
   final List<BillingPaymentTransaction> transactions;
   final List<BillingInvoice> invoices;
   final List<BillingAuditLog> auditLogs;
+}
+
+class BillingCheckoutFlowConfig {
+  const BillingCheckoutFlowConfig({
+    required this.qrCheckoutEnabled,
+    required this.qrImageUrlsByPlan,
+  });
+
+  final bool qrCheckoutEnabled;
+  final Map<String, String> qrImageUrlsByPlan;
+
+  String? qrImageUrlForPlan(String planCode) {
+    final normalizedPlanCode = planCode.trim().toUpperCase();
+    if (normalizedPlanCode.isEmpty) {
+      return null;
+    }
+    final url = qrImageUrlsByPlan[normalizedPlanCode];
+    if (url == null || url.trim().isEmpty) {
+      return null;
+    }
+    return url.trim();
+  }
 }
 
 class BillingViewerSummary {

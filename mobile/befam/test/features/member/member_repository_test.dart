@@ -15,7 +15,7 @@ void main() {
       uid: 'debug:+84901234567',
       loginMethod: AuthEntryMethod.phone,
       phoneE164: '+84901234567',
-      displayName: 'Nguyen Minh',
+      displayName: 'Nguyễn Minh',
       memberId: 'member_demo_parent_001',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',
@@ -51,8 +51,8 @@ void main() {
           deathDate: null,
           phoneInput: '+84906667777',
           email: 'gia-hung@befam.vn',
-          addressText: 'Da Nang, Viet Nam',
-          jobTitle: 'Student',
+          addressText: 'Đà Nẵng, Việt Nam',
+          jobTitle: 'Học sinh',
           bio: 'Member profile created in repository tests.',
           generation: 7,
           socialLinks: MemberSocialLinks(
@@ -88,10 +88,10 @@ void main() {
         memberId: existing.id,
         draft: MemberDraft.fromProfile(
           existing,
-        ).copyWith(jobTitle: 'Head of Operations'),
+        ).copyWith(jobTitle: 'Trưởng vận hành'),
       );
 
-      expect(updated.jobTitle, 'Head of Operations');
+      expect(updated.jobTitle, 'Trưởng vận hành');
       expect(updated.phoneE164, '+84901234567');
     },
   );
