@@ -88,6 +88,10 @@ export const BILLING_ALLOW_MANUAL_SETTLEMENT = readEnvBoolean(
   'BILLING_ALLOW_MANUAL_SETTLEMENT',
   false,
 );
+export const BILLING_QR_CHECKOUT_ENABLED = readEnvBoolean(
+  'BILLING_QR_CHECKOUT_ENABLED',
+  false,
+);
 
 export function getBillingWebhookSecret(): string {
   return readEnvString('BILLING_WEBHOOK_SECRET', 'billing-local-secret');
@@ -121,6 +125,15 @@ export const BILLING_VNPAY_IP_ADDRESS = readEnvString(
   '127.0.0.1',
 );
 export const BILLING_VNPAY_LOCALE = readEnvString('BILLING_VNPAY_LOCALE', 'vn');
+export const BILLING_QR_IMAGE_BASE_URL = readEnvString(
+  'BILLING_QR_IMAGE_BASE_URL',
+);
+export const BILLING_QR_IMAGE_PLUS_URL = readEnvString(
+  'BILLING_QR_IMAGE_PLUS_URL',
+);
+export const BILLING_QR_IMAGE_PRO_URL = readEnvString(
+  'BILLING_QR_IMAGE_PRO_URL',
+);
 
 export const DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT = readEnvString(
   'DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT',

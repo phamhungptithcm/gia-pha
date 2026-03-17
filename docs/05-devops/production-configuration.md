@@ -76,10 +76,14 @@ The following implementation changes are now in place and documented:
 | `BILLING_PENDING_TIMEOUT_MINUTES` | optional var | `20` | tune pending-payment timeout policy |
 | `BILLING_PENDING_TIMEOUT_LIMIT` | optional var | `800` | tune batch processing limit for timeout job |
 | `BILLING_ALLOW_MANUAL_SETTLEMENT` | optional var | `false` | keep `false` in production, enable only for internal ops emergencies |
+| `BILLING_QR_CHECKOUT_ENABLED` | optional var | `false` | enable QR fallback checkout UI for production while VNPay live account is pending |
 | `DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT` | optional var | empty | keep empty in production unless explicitly needed |
 | `APP_RUNTIME_CONFIG_COLLECTION` | optional var | `runtimeConfig` | change only if you migrate document path |
 | `APP_RUNTIME_CONFIG_DOC_ID` | optional var | `global` | change only if you migrate document id |
 | `BEFAM_INVALID_CHECKOUT_HOSTS` | optional var | `example.com` | set deny-list hosts for mobile release builds |
+| `BILLING_QR_IMAGE_BASE_URL` | optional var | empty | QR image URL used when plan `BASE` is selected |
+| `BILLING_QR_IMAGE_PLUS_URL` | optional var | empty | QR image URL used when plan `PLUS` is selected |
+| `BILLING_QR_IMAGE_PRO_URL` | optional var | empty | QR image URL used when plan `PRO` is selected |
 
 ## Required values
 
@@ -103,12 +107,16 @@ Optional `vars`:
 - `BILLING_PENDING_TIMEOUT_MINUTES`
 - `BILLING_PENDING_TIMEOUT_LIMIT`
 - `BILLING_ALLOW_MANUAL_SETTLEMENT`
+- `BILLING_QR_CHECKOUT_ENABLED`
 - `BILLING_CARD_CHECKOUT_URL_BASE`
 - `BILLING_VNPAY_FALLBACK_URL`
 - `BILLING_VNPAY_GATEWAY_BASE_URL`
 - `VNPAY_RETURN_URL`
 - `BILLING_VNPAY_IP_ADDRESS`
 - `BILLING_VNPAY_LOCALE`
+- `BILLING_QR_IMAGE_BASE_URL`
+- `BILLING_QR_IMAGE_PLUS_URL`
+- `BILLING_QR_IMAGE_PRO_URL`
 - `DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT`
 - `BEFAM_INVALID_CHECKOUT_HOSTS`
 
@@ -160,6 +168,10 @@ Suggested document shape:
     "vnpayReturnUrl": "https://...",
     "vnpayIpAddress": "127.0.0.1",
     "vnpayLocale": "vn",
+    "qrCheckoutEnabled": false,
+    "qrImageBaseUrl": "https://...",
+    "qrImagePlusUrl": "https://...",
+    "qrImageProUrl": "https://...",
     "pendingTimeoutMinutes": 20,
     "pendingTimeoutLimit": 800
   },

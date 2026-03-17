@@ -2,7 +2,9 @@ import 'package:befam/core/services/debug_genealogy_store.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/billing/models/billing_workspace_snapshot.dart';
 import 'package:befam/features/billing/presentation/billing_workspace_page.dart';
+import 'package:befam/features/billing/services/billing_repository.dart';
 import 'package:befam/features/billing/services/debug_billing_repository.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -50,9 +52,10 @@ void main() {
   Future<void> pumpBillingPage(
     WidgetTester tester, {
     AuthSession? session,
-    DebugBillingRepository? repository,
+    BillingRepository? repository,
     Locale locale = const Locale('vi'),
     Future<bool> Function(Uri uri)? externalUrlLauncher,
+    bool allowQrCheckoutInDebug = false,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -68,6 +71,7 @@ void main() {
           session: session ?? buildSession(),
           repository: repository ?? DebugBillingRepository.shared(),
           externalUrlLauncher: externalUrlLauncher ?? ((_) async => true),
+          allowQrCheckoutInDebug: allowQrCheckoutInDebug,
         ),
       ),
     );
@@ -295,6 +299,47 @@ void main() {
     },
   );
 
+  testWidgets('uses QR fallback checkout when runtime config enables it', (
+    tester,
+  ) async {
+    seedPaidTier();
+    final repository = _QrEnabledBillingRepository(
+      DebugBillingRepository.shared(),
+    );
+    var didOpenQrImage = false;
+    await pumpBillingPage(
+      tester,
+      session: buildSession(uid: 'debug:billing-qr-fallback'),
+      repository: repository,
+      allowQrCheckoutInDebug: true,
+      externalUrlLauncher: (uri) async {
+        didOpenQrImage = true;
+        return true;
+      },
+    );
+
+    final checkoutButton = find.byKey(
+      const Key('billing-open-vnpay-form-button'),
+    );
+    await tester.scrollUntilVisible(
+      checkoutButton,
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(checkoutButton);
+    await tester.pumpAndSettle();
+    await tester.tap(checkoutButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('billing-qr-payment-screen')), findsOneWidget);
+    expect(find.byKey(const Key('billing-vnpay-submit-button')), findsNothing);
+    await tester.tap(
+      find.byKey(const Key('billing-qr-payment-download-button')),
+    );
+    await tester.pumpAndSettle();
+    expect(didOpenQrImage, isTrue);
+  });
+
   testWidgets(
     'shows downgrade warning when selected tier is below current member minimum',
     (tester) async {
@@ -377,4 +422,113 @@ void main() {
     expect(find.text('checkout_created'), findsNothing);
     expect(find.text('paymentTransaction'), findsNothing);
   });
+}
+
+class _QrEnabledBillingRepository implements BillingRepository {
+  _QrEnabledBillingRepository(this._delegate);
+
+  final BillingRepository _delegate;
+
+  @override
+  bool get isSandbox => _delegate.isSandbox;
+
+  @override
+  Future<BillingWorkspaceSnapshot> loadWorkspace({
+    required AuthSession session,
+  }) async {
+    final workspace = await _delegate.loadWorkspace(session: session);
+    return BillingWorkspaceSnapshot(
+      clanId: workspace.clanId,
+      subscription: workspace.subscription,
+      entitlement: workspace.entitlement,
+      settings: workspace.settings,
+      checkoutFlow: const BillingCheckoutFlowConfig(
+        qrCheckoutEnabled: true,
+        qrImageUrlsByPlan: <String, String>{
+          'BASE': 'https://example.com/base-qr.png',
+          'PLUS': 'https://example.com/plus-qr.png',
+          'PRO': 'https://example.com/pro-qr.png',
+        },
+      ),
+      pricingTiers: workspace.pricingTiers,
+      memberCount: workspace.memberCount,
+      transactions: workspace.transactions,
+      invoices: workspace.invoices,
+      auditLogs: workspace.auditLogs,
+    );
+  }
+
+  @override
+  Future<BillingViewerSummary> loadViewerSummary({
+    required AuthSession session,
+  }) {
+    return _delegate.loadViewerSummary(session: session);
+  }
+
+  @override
+  Future<BillingEntitlement> resolveEntitlement({
+    required AuthSession session,
+  }) {
+    return _delegate.resolveEntitlement(session: session);
+  }
+
+  @override
+  Future<BillingSettings> updatePreferences({
+    required AuthSession session,
+    required String paymentMode,
+    required bool autoRenew,
+    List<int>? reminderDaysBefore,
+  }) {
+    return _delegate.updatePreferences(
+      session: session,
+      paymentMode: paymentMode,
+      autoRenew: autoRenew,
+      reminderDaysBefore: reminderDaysBefore,
+    );
+  }
+
+  @override
+  Future<BillingCheckoutResult> createCheckout({
+    required AuthSession session,
+    required String paymentMethod,
+    String? requestedPlanCode,
+    String? returnUrl,
+    String? locale,
+    String? orderNote,
+    String? bankCode,
+    String? contactPhone,
+  }) {
+    return _delegate.createCheckout(
+      session: session,
+      paymentMethod: paymentMethod,
+      requestedPlanCode: requestedPlanCode,
+      returnUrl: returnUrl,
+      locale: locale,
+      orderNote: orderNote,
+      bankCode: bankCode,
+      contactPhone: contactPhone,
+    );
+  }
+
+  @override
+  Future<void> completeCardCheckout({
+    required AuthSession session,
+    required String transactionId,
+  }) {
+    return _delegate.completeCardCheckout(
+      session: session,
+      transactionId: transactionId,
+    );
+  }
+
+  @override
+  Future<void> settleVnpayCheckout({
+    required AuthSession session,
+    required String transactionId,
+  }) {
+    return _delegate.settleVnpayCheckout(
+      session: session,
+      transactionId: transactionId,
+    );
+  }
 }

@@ -62,6 +62,7 @@ jobs:
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIALS_PATH"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$CREDENTIALS_PATH" >> "$GITHUB_ENV"
           echo "GOOGLE_CLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
           echo "FIREBASE_FUNCTIONS_REGION=$FIREBASE_FUNCTIONS_REGION" >> "$GITHUB_ENV"
           echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"
 
@@ -79,12 +80,16 @@ jobs:
           BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BILLING_PENDING_TIMEOUT_MINUTES }}
           BILLING_PENDING_TIMEOUT_LIMIT: ${{ vars.BILLING_PENDING_TIMEOUT_LIMIT }}
           BILLING_ALLOW_MANUAL_SETTLEMENT: ${{ vars.BILLING_ALLOW_MANUAL_SETTLEMENT }}
+          BILLING_QR_CHECKOUT_ENABLED: ${{ vars.BILLING_QR_CHECKOUT_ENABLED }}
           BILLING_CARD_CHECKOUT_URL_BASE: ${{ vars.BILLING_CARD_CHECKOUT_URL_BASE }}
           BILLING_VNPAY_FALLBACK_URL: ${{ vars.BILLING_VNPAY_FALLBACK_URL }}
           BILLING_VNPAY_GATEWAY_BASE_URL: ${{ vars.BILLING_VNPAY_GATEWAY_BASE_URL }}
           VNPAY_RETURN_URL: ${{ vars.VNPAY_RETURN_URL }}
           BILLING_VNPAY_IP_ADDRESS: ${{ vars.BILLING_VNPAY_IP_ADDRESS }}
           BILLING_VNPAY_LOCALE: ${{ vars.BILLING_VNPAY_LOCALE }}
+          BILLING_QR_IMAGE_BASE_URL: ${{ vars.BILLING_QR_IMAGE_BASE_URL }}
+          BILLING_QR_IMAGE_PLUS_URL: ${{ vars.BILLING_QR_IMAGE_PLUS_URL }}
+          BILLING_QR_IMAGE_PRO_URL: ${{ vars.BILLING_QR_IMAGE_PRO_URL }}
           DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT: ${{ vars.DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT }}
           BILLING_WEBHOOK_SECRET: ${{ secrets.BILLING_WEBHOOK_SECRET }}
           CARD_WEBHOOK_SECRET: ${{ secrets.CARD_WEBHOOK_SECRET }}
@@ -97,49 +102,76 @@ jobs:
           test -n "$VNPAY_TMNCODE"
           test -n "$VNPAY_HASH_SECRET"
           resolved_card_secret="${CARD_WEBHOOK_SECRET:-$BILLING_WEBHOOK_SECRET}"
+          resolved_app_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          resolved_runtime_collection="${APP_RUNTIME_CONFIG_COLLECTION:-runtimeConfig}"
+          resolved_runtime_doc="${APP_RUNTIME_CONFIG_DOC_ID:-global}"
+          resolved_expire_invites_schedule="${EXPIRE_INVITES_JOB_SCHEDULE:-0 * * * *}"
+          resolved_reminder_schedule="${BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE:-0 7 * * *}"
+          resolved_pending_schedule="${BILLING_PENDING_TIMEOUT_JOB_SCHEDULE:-*/5 * * * *}"
+          resolved_pending_minutes="${BILLING_PENDING_TIMEOUT_MINUTES:-20}"
+          resolved_pending_limit="${BILLING_PENDING_TIMEOUT_LIMIT:-800}"
+          resolved_allow_manual_settlement="${BILLING_ALLOW_MANUAL_SETTLEMENT:-false}"
+          resolved_qr_checkout_enabled="${BILLING_QR_CHECKOUT_ENABLED:-false}"
+          resolved_gateway_base_url="${BILLING_VNPAY_GATEWAY_BASE_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}"
+          resolved_return_url="${VNPAY_RETURN_URL:-https://${FIREBASE_FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/vnpayPaymentCallback}"
+          resolved_vnpay_ip="${BILLING_VNPAY_IP_ADDRESS:-127.0.0.1}"
+          resolved_vnpay_locale="${BILLING_VNPAY_LOCALE:-vn}"
+          case "$resolved_vnpay_locale" in
+            vn|en) ;;
+            *) echo "Unsupported BILLING_VNPAY_LOCALE: $resolved_vnpay_locale"; exit 1 ;;
+          esac
+          test -n "$resolved_return_url"
+          test -n "$resolved_gateway_base_url"
           env_file=".env.${FIREBASE_PROJECT_ID}"
           cat > "$env_file" <<EOF
           APP_REGION=${FIREBASE_FUNCTIONS_REGION}
-          APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
-          APP_RUNTIME_CONFIG_COLLECTION=${APP_RUNTIME_CONFIG_COLLECTION:-runtimeConfig}
-          APP_RUNTIME_CONFIG_DOC_ID=${APP_RUNTIME_CONFIG_DOC_ID:-global}
-          EXPIRE_INVITES_JOB_SCHEDULE="${EXPIRE_INVITES_JOB_SCHEDULE:-0 * * * *}"
-          BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE="${BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE:-0 7 * * *}"
-          BILLING_PENDING_TIMEOUT_JOB_SCHEDULE="${BILLING_PENDING_TIMEOUT_JOB_SCHEDULE:-*/5 * * * *}"
-          BILLING_PENDING_TIMEOUT_MINUTES=${BILLING_PENDING_TIMEOUT_MINUTES:-20}
-          BILLING_PENDING_TIMEOUT_LIMIT=${BILLING_PENDING_TIMEOUT_LIMIT:-800}
-          BILLING_ALLOW_MANUAL_SETTLEMENT=${BILLING_ALLOW_MANUAL_SETTLEMENT:-false}
+          APP_TIMEZONE=${resolved_app_timezone}
+          APP_RUNTIME_CONFIG_COLLECTION=${resolved_runtime_collection}
+          APP_RUNTIME_CONFIG_DOC_ID=${resolved_runtime_doc}
+          EXPIRE_INVITES_JOB_SCHEDULE="${resolved_expire_invites_schedule}"
+          BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE="${resolved_reminder_schedule}"
+          BILLING_PENDING_TIMEOUT_JOB_SCHEDULE="${resolved_pending_schedule}"
+          BILLING_PENDING_TIMEOUT_MINUTES=${resolved_pending_minutes}
+          BILLING_PENDING_TIMEOUT_LIMIT=${resolved_pending_limit}
+          BILLING_ALLOW_MANUAL_SETTLEMENT=${resolved_allow_manual_settlement}
+          BILLING_QR_CHECKOUT_ENABLED=${resolved_qr_checkout_enabled}
           BILLING_CARD_CHECKOUT_URL_BASE=${BILLING_CARD_CHECKOUT_URL_BASE}
           BILLING_VNPAY_FALLBACK_URL=${BILLING_VNPAY_FALLBACK_URL}
-          BILLING_VNPAY_GATEWAY_BASE_URL=${BILLING_VNPAY_GATEWAY_BASE_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
-          VNPAY_RETURN_URL=${VNPAY_RETURN_URL}
-          BILLING_VNPAY_IP_ADDRESS=${BILLING_VNPAY_IP_ADDRESS:-127.0.0.1}
-          BILLING_VNPAY_LOCALE=${BILLING_VNPAY_LOCALE:-vn}
+          BILLING_VNPAY_GATEWAY_BASE_URL=${resolved_gateway_base_url}
+          VNPAY_RETURN_URL=${resolved_return_url}
+          BILLING_VNPAY_IP_ADDRESS=${resolved_vnpay_ip}
+          BILLING_VNPAY_LOCALE=${resolved_vnpay_locale}
+          BILLING_QR_IMAGE_BASE_URL=${BILLING_QR_IMAGE_BASE_URL}
+          BILLING_QR_IMAGE_PLUS_URL=${BILLING_QR_IMAGE_PLUS_URL}
+          BILLING_QR_IMAGE_PRO_URL=${BILLING_QR_IMAGE_PRO_URL}
           DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT=${DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT}
           BILLING_WEBHOOK_SECRET=${BILLING_WEBHOOK_SECRET}
           CARD_WEBHOOK_SECRET=${resolved_card_secret}
           VNPAY_TMNCODE=${VNPAY_TMNCODE}
           VNPAY_HASH_SECRET=${VNPAY_HASH_SECRET}
           EOF
+          echo "APP_RUNTIME_CONFIG_COLLECTION=$resolved_runtime_collection" >> "$GITHUB_ENV"
+          echo "APP_RUNTIME_CONFIG_DOC_ID=$resolved_runtime_doc" >> "$GITHUB_ENV"
+          echo "BILLING_PENDING_TIMEOUT_MINUTES=$resolved_pending_minutes" >> "$GITHUB_ENV"
+          echo "BILLING_PENDING_TIMEOUT_LIMIT=$resolved_pending_limit" >> "$GITHUB_ENV"
+          echo "BILLING_QR_CHECKOUT_ENABLED=$resolved_qr_checkout_enabled" >> "$GITHUB_ENV"
+          echo "BILLING_CARD_CHECKOUT_URL_BASE=$BILLING_CARD_CHECKOUT_URL_BASE" >> "$GITHUB_ENV"
+          echo "BILLING_VNPAY_FALLBACK_URL=$BILLING_VNPAY_FALLBACK_URL" >> "$GITHUB_ENV"
+          echo "BILLING_VNPAY_GATEWAY_BASE_URL=$resolved_gateway_base_url" >> "$GITHUB_ENV"
+          echo "VNPAY_RETURN_URL=$resolved_return_url" >> "$GITHUB_ENV"
+          echo "BILLING_VNPAY_IP_ADDRESS=$resolved_vnpay_ip" >> "$GITHUB_ENV"
+          echo "BILLING_VNPAY_LOCALE=$resolved_vnpay_locale" >> "$GITHUB_ENV"
+          echo "BILLING_QR_IMAGE_BASE_URL=$BILLING_QR_IMAGE_BASE_URL" >> "$GITHUB_ENV"
+          echo "BILLING_QR_IMAGE_PLUS_URL=$BILLING_QR_IMAGE_PLUS_URL" >> "$GITHUB_ENV"
+          echo "BILLING_QR_IMAGE_PRO_URL=$BILLING_QR_IMAGE_PRO_URL" >> "$GITHUB_ENV"
           echo "Wrote runtime environment file: firebase/functions/$env_file"
+          echo "Resolved VNPay return URL: $resolved_return_url"
 
       - name: Verify Firebase access
         run: firebase use "${{ vars.FIREBASE_PROJECT_ID }}" --project "${{ vars.FIREBASE_PROJECT_ID }}"
 
       - name: Sync runtime config document
         working-directory: firebase/functions
-        env:
-          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-          APP_RUNTIME_CONFIG_COLLECTION: ${{ vars.APP_RUNTIME_CONFIG_COLLECTION }}
-          APP_RUNTIME_CONFIG_DOC_ID: ${{ vars.APP_RUNTIME_CONFIG_DOC_ID }}
-          BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BILLING_PENDING_TIMEOUT_MINUTES }}
-          BILLING_PENDING_TIMEOUT_LIMIT: ${{ vars.BILLING_PENDING_TIMEOUT_LIMIT }}
-          BILLING_CARD_CHECKOUT_URL_BASE: ${{ vars.BILLING_CARD_CHECKOUT_URL_BASE }}
-          BILLING_VNPAY_FALLBACK_URL: ${{ vars.BILLING_VNPAY_FALLBACK_URL }}
-          BILLING_VNPAY_GATEWAY_BASE_URL: ${{ vars.BILLING_VNPAY_GATEWAY_BASE_URL }}
-          VNPAY_RETURN_URL: ${{ vars.VNPAY_RETURN_URL }}
-          BILLING_VNPAY_IP_ADDRESS: ${{ vars.BILLING_VNPAY_IP_ADDRESS }}
-          BILLING_VNPAY_LOCALE: ${{ vars.BILLING_VNPAY_LOCALE }}
         run: node scripts/upsert-runtime-config.mjs
 
       - name: Deploy Firestore, Storage, and Functions

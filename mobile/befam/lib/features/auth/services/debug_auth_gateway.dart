@@ -25,7 +25,7 @@ class DebugAuthGateway implements AuthGateway {
       childIdentifier: 'BEFAM-CHILD-001',
       parentPhoneE164: '+84901234567',
       memberId: 'member_demo_child_001',
-      displayName: 'Be Minh',
+      displayName: 'Bé Minh',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',
       primaryRole: 'MEMBER',
@@ -34,7 +34,7 @@ class DebugAuthGateway implements AuthGateway {
       childIdentifier: 'BEFAM-CHILD-002',
       parentPhoneE164: '+84908886655',
       memberId: 'member_demo_child_002',
-      displayName: 'Be Lan',
+      displayName: 'Bé Lan',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_002',
       primaryRole: 'MEMBER',
@@ -44,7 +44,7 @@ class DebugAuthGateway implements AuthGateway {
   static const Map<String, MemberAccessContext> _phoneDirectory = {
     '+84909990001': MemberAccessContext(
       memberId: null,
-      displayName: 'Truong Toc Chua Tao Gia Pha',
+      displayName: 'Trưởng tộc chưa tạo gia phả',
       clanId: 'clan_onboarding_001',
       branchId: null,
       primaryRole: 'CLAN_ADMIN',
@@ -53,7 +53,7 @@ class DebugAuthGateway implements AuthGateway {
     ),
     '+84901234567': MemberAccessContext(
       memberId: 'member_demo_parent_001',
-      displayName: 'Nguyen Minh',
+      displayName: 'Nguyễn Minh',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_001',
       primaryRole: 'CLAN_ADMIN',
@@ -62,7 +62,7 @@ class DebugAuthGateway implements AuthGateway {
     ),
     '+84908886655': MemberAccessContext(
       memberId: 'member_demo_parent_002',
-      displayName: 'Tran Van Long',
+      displayName: 'Trần Văn Long',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_002',
       primaryRole: 'BRANCH_ADMIN',
@@ -71,17 +71,17 @@ class DebugAuthGateway implements AuthGateway {
     ),
     '+84907770011': MemberAccessContext(
       memberId: 'member_demo_elder_001',
-      displayName: 'Ong Bao',
+      displayName: 'Ông Bảo',
       clanId: 'clan_demo_001',
       branchId: 'branch_demo_002',
       primaryRole: 'MEMBER',
       accessMode: AuthMemberAccessMode.claimed,
       linkedAuthUid: true,
     ),
-    '+84906660022': MemberAccessContext.unlinked(displayName: 'Khach Moi'),
+    '+84906660022': MemberAccessContext.unlinked(displayName: 'Khách mới'),
     '+84905550033': MemberAccessContext(
       memberId: null,
-      displayName: 'Truong Chi Chua Gan Gia Pha',
+      displayName: 'Trưởng chi chưa gắn gia phả',
       clanId: null,
       branchId: null,
       primaryRole: 'BRANCH_ADMIN',
@@ -109,7 +109,7 @@ class DebugAuthGateway implements AuthGateway {
         maskedDestination: PhoneNumberFormatter.mask(phoneE164),
         verificationId: 'debug-phone-$phoneE164',
         memberId: memberAccess.memberId,
-        displayName: memberAccess.displayName ?? 'BeFam Member',
+        displayName: memberAccess.displayName ?? 'Thành viên BeFam',
         debugOtpHint: _debugOtp,
       ),
     );
@@ -122,7 +122,7 @@ class DebugAuthGateway implements AuthGateway {
     if (resolved == null) {
       throw FirebaseAuthException(
         code: 'user-not-found',
-        message: 'No demo child record matches that identifier.',
+        message: 'Không tìm thấy hồ sơ trẻ em khớp với mã đã nhập.',
       );
     }
 
@@ -160,7 +160,7 @@ class DebugAuthGateway implements AuthGateway {
     if (smsCode != _debugOtp) {
       throw FirebaseAuthException(
         code: 'invalid-verification-code',
-        message: 'The demo OTP for local testing is 123456.',
+        message: 'Mã OTP thử nghiệm cho môi trường local là 123456.',
       );
     }
 
@@ -170,7 +170,9 @@ class DebugAuthGateway implements AuthGateway {
       loginMethod: challenge.loginMethod,
       phoneE164: challenge.phoneE164,
       displayName:
-          memberAccess.displayName ?? challenge.displayName ?? 'BeFam Member',
+          memberAccess.displayName ??
+          challenge.displayName ??
+          'Thành viên BeFam',
       childIdentifier: challenge.childIdentifier,
       memberId: memberAccess.memberId ?? challenge.memberId,
       clanId: memberAccess.clanId,

@@ -50,7 +50,7 @@ class FirebaseLunarHolidayRepository implements LunarHolidayRepository {
       }
     } catch (error, stackTrace) {
       AppLogger.warning(
-        'Could not fetch lunar holidays from Firestore collection lunar_holidays. Falling back to defaults.',
+        'Không thể tải ngày lễ âm lịch từ Firestore (lunar_holidays). Chuyển sang dữ liệu mặc định.',
         error,
         stackTrace,
       );
@@ -66,7 +66,7 @@ class FirebaseLunarHolidayRepository implements LunarHolidayRepository {
     return [
       LunarHoliday(
         id: '$code-new-year',
-        name: 'Lunar New Year',
+        name: 'Tết Nguyên Đán',
         lunarMonth: 1,
         lunarDay: 1,
         regionCode: code,
@@ -74,7 +74,7 @@ class FirebaseLunarHolidayRepository implements LunarHolidayRepository {
       ),
       LunarHoliday(
         id: '$code-lantern',
-        name: 'Lantern Festival',
+        name: 'Rằm tháng Giêng',
         lunarMonth: 1,
         lunarDay: 15,
         regionCode: code,
@@ -82,7 +82,7 @@ class FirebaseLunarHolidayRepository implements LunarHolidayRepository {
       ),
       LunarHoliday(
         id: '$code-mid-autumn',
-        name: 'Mid-Autumn Festival',
+        name: 'Tết Trung Thu',
         lunarMonth: 8,
         lunarDay: 15,
         regionCode: code,
@@ -90,7 +90,7 @@ class FirebaseLunarHolidayRepository implements LunarHolidayRepository {
       ),
       LunarHoliday(
         id: '$code-dragon-boat',
-        name: 'Dragon Boat Festival',
+        name: 'Tết Đoan Ngọ',
         lunarMonth: 5,
         lunarDay: 5,
         regionCode: code,

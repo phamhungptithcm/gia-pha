@@ -25,12 +25,12 @@ class DebugClanRepository implements ClanRepository {
       clans: {
         'clan_demo_001': const ClanProfile(
           id: 'clan_demo_001',
-          name: 'Họ tộc BeFam',
-          slug: 'ho-toc-befam',
+          name: 'Gia phả họ Nguyễn Văn Đà Nẵng',
+          slug: 'gia-pha-ho-nguyen-van-da-nang',
           description:
-              'Không gian điều phối mẫu cho việc quản lý họ tộc, các chi, và vai trò điều hành.',
+              'Gia phả thử nghiệm nhiều thế hệ với dữ liệu gần thực tế để kiểm thử nghiệp vụ.',
           countryCode: 'VN',
-          founderName: 'Nguyễn Minh tổ',
+          founderName: 'Nguyễn Minh',
           logoUrl: '',
           status: 'active',
           memberCount: 4,
@@ -151,7 +151,7 @@ class DebugClanRepository implements ClanRepository {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
-      throw StateError('A clan context is required before saving clan data.');
+      throw StateError('Cần có ngữ cảnh gia phả trước khi lưu thông tin họ tộc.');
     }
 
     final branchCount = _branches.values
@@ -183,7 +183,7 @@ class DebugClanRepository implements ClanRepository {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
-      throw StateError('A clan context is required before saving branch data.');
+      throw StateError('Cần có ngữ cảnh gia phả trước khi lưu thông tin chi.');
     }
 
     final resolvedBranchId = branchId ?? 'branch_demo_${_branchSequence++}';

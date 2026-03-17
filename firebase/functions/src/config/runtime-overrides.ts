@@ -6,6 +6,10 @@ import {
   BILLING_CARD_CHECKOUT_URL_BASE,
   BILLING_PENDING_TIMEOUT_LIMIT,
   BILLING_PENDING_TIMEOUT_MINUTES,
+  BILLING_QR_CHECKOUT_ENABLED,
+  BILLING_QR_IMAGE_BASE_URL,
+  BILLING_QR_IMAGE_PLUS_URL,
+  BILLING_QR_IMAGE_PRO_URL,
   BILLING_VNPAY_FALLBACK_URL,
   BILLING_VNPAY_GATEWAY_BASE_URL,
   BILLING_VNPAY_IP_ADDRESS,
@@ -20,6 +24,10 @@ export type BillingRuntimeConfig = {
   vnpayReturnUrl: string;
   vnpayIpAddress: string;
   vnpayLocale: string;
+  qrCheckoutEnabled: boolean;
+  qrImageBaseUrl: string;
+  qrImagePlusUrl: string;
+  qrImageProUrl: string;
   pendingTimeoutMinutes: number;
   pendingTimeoutLimit: number;
 };
@@ -73,6 +81,19 @@ export async function loadBillingRuntimeConfig(): Promise<BillingRuntimeConfig> 
           vnpayLocale:
             normalizeLocale(readString(billingSection, 'vnpayLocale')) ??
             normalizeLocale(readString(billingSection, 'billingVnpayLocale')),
+          qrCheckoutEnabled:
+            readBoolean(billingSection, 'qrCheckoutEnabled') ??
+            readBoolean(billingSection, 'billingQrCheckoutEnabled') ??
+            undefined,
+          qrImageBaseUrl:
+            normalizeUrl(readString(billingSection, 'qrImageBaseUrl')) ??
+            normalizeUrl(readString(billingSection, 'billingQrImageBaseUrl')),
+          qrImagePlusUrl:
+            normalizeUrl(readString(billingSection, 'qrImagePlusUrl')) ??
+            normalizeUrl(readString(billingSection, 'billingQrImagePlusUrl')),
+          qrImageProUrl:
+            normalizeUrl(readString(billingSection, 'qrImageProUrl')) ??
+            normalizeUrl(readString(billingSection, 'billingQrImageProUrl')),
           pendingTimeoutMinutes:
             normalizePositiveInt(readNumber(billingSection, 'pendingTimeoutMinutes')) ??
             normalizePositiveInt(readNumber(billingSection, 'billingPendingTimeoutMinutes')),
@@ -96,6 +117,10 @@ export async function loadBillingRuntimeConfig(): Promise<BillingRuntimeConfig> 
     vnpayReturnUrl: overrides.vnpayReturnUrl ?? defaults.vnpayReturnUrl,
     vnpayIpAddress: overrides.vnpayIpAddress ?? defaults.vnpayIpAddress,
     vnpayLocale: overrides.vnpayLocale ?? defaults.vnpayLocale,
+    qrCheckoutEnabled: overrides.qrCheckoutEnabled ?? defaults.qrCheckoutEnabled,
+    qrImageBaseUrl: overrides.qrImageBaseUrl ?? defaults.qrImageBaseUrl,
+    qrImagePlusUrl: overrides.qrImagePlusUrl ?? defaults.qrImagePlusUrl,
+    qrImageProUrl: overrides.qrImageProUrl ?? defaults.qrImageProUrl,
     pendingTimeoutMinutes: clamp(
       overrides.pendingTimeoutMinutes ?? defaults.pendingTimeoutMinutes,
       5,
@@ -125,6 +150,10 @@ function buildBillingDefaults(): BillingRuntimeConfig {
     vnpayReturnUrl: normalizeUrl(BILLING_VNPAY_RETURN_URL) ?? '',
     vnpayIpAddress: normalizeIpAddress(BILLING_VNPAY_IP_ADDRESS) ?? '127.0.0.1',
     vnpayLocale: normalizeLocale(BILLING_VNPAY_LOCALE) ?? 'vn',
+    qrCheckoutEnabled: BILLING_QR_CHECKOUT_ENABLED,
+    qrImageBaseUrl: normalizeUrl(BILLING_QR_IMAGE_BASE_URL) ?? '',
+    qrImagePlusUrl: normalizeUrl(BILLING_QR_IMAGE_PLUS_URL) ?? '',
+    qrImageProUrl: normalizeUrl(BILLING_QR_IMAGE_PRO_URL) ?? '',
     pendingTimeoutMinutes: clamp(BILLING_PENDING_TIMEOUT_MINUTES, 5, 240),
     pendingTimeoutLimit: clamp(BILLING_PENDING_TIMEOUT_LIMIT, 50, 5000),
   };
@@ -154,6 +183,31 @@ function readNumber(data: Record<string, unknown>, key: string): number | null {
   if (typeof value === 'string') {
     const parsed = Number.parseInt(value.trim(), 10);
     return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function readBoolean(data: Record<string, unknown>, key: string): boolean | null {
+  const value = data[key];
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+      return true;
+    }
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+      return false;
+    }
+  }
+  if (typeof value === 'number') {
+    if (value === 1) {
+      return true;
+    }
+    if (value === 0) {
+      return false;
+    }
   }
   return null;
 }
