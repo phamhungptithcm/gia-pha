@@ -42,10 +42,80 @@ extra_javascript:
 
 nav:
   - Home: index.md
-  - Introduction:
-      - Vision: 00-introduction/vision.md
-      - Problem: 00-introduction/problem.md
-      - Philosophy: 00-introduction/philosophy.md
+  - Vietnamese (VI):
+      - Tổng quan: vi/index.md
+      - Giới thiệu:
+          - Bài toán: vi/00-introduction/problem.md
+          - Tầm nhìn: vi/00-introduction/vision.md
+          - Triết lý: vi/00-introduction/philosophy.md
+      - Sản phẩm:
+          - Tổng quan sản phẩm: vi/01-product/product-overview.md
+          - Chân dung người dùng: vi/01-product/user-personas.md
+          - User stories: vi/01-product/user-stories.md
+          - Đặc tả tính năng: vi/01-product/feature-spec.md
+          - Epic lịch kép: vi/01-product/epic-dual-calendar-system.md
+          - Epic gói dịch vụ: vi/01-product/epic-tiered-subscription-payments.md
+          - Lộ trình phát triển: vi/01-product/roadmap.md
+      - Kiến trúc:
+          - Thiết kế hệ thống: vi/02-architecture/system-design.md
+          - Kiến trúc mobile: vi/02-architecture/mobile-architecture.md
+          - Kiến trúc Firebase: vi/02-architecture/firebase-architecture.md
+          - Mô hình dữ liệu: vi/02-architecture/data-model.md
+      - Mobile:
+          - Cấu trúc Flutter: vi/03-mobile/flutter-structure.md
+          - Phát triển local: vi/03-mobile/local-development.md
+          - Điều hướng: vi/03-mobile/navigation.md
+          - Quản lý trạng thái: vi/03-mobile/state-management.md
+          - Thiết kế UI: vi/03-mobile/ui-design.md
+      - Backend:
+          - Firestore Schema: vi/04-backend/firestore-schema.md
+          - Cloud Functions: vi/04-backend/cloud-functions.md
+          - Xác thực: vi/04-backend/authentication.md
+          - Thông báo: vi/04-backend/notifications.md
+      - DevOps:
+          - CI/CD: vi/05-devops/ci-cd.md
+          - Cấu hình Production: vi/05-devops/production-configuration.md
+          - Checklist QA trước release: vi/05-devops/pre-release-qa-checklist.md
+      - Bảo mật:
+          - Mô hình quyền riêng tư: vi/06-security/privacy-model.md
+          - Firebase Rules: vi/06-security/firebase-rules.md
+  - English (EN):
+      - Overview: en/index.md
+      - Introduction:
+          - Problem: en/00-introduction/problem.md
+          - Vision: en/00-introduction/vision.md
+          - Philosophy: en/00-introduction/philosophy.md
+      - Product:
+          - Product Overview: en/01-product/product-overview.md
+          - User Personas: en/01-product/user-personas.md
+          - User Stories: en/01-product/user-stories.md
+          - Feature Spec: en/01-product/feature-spec.md
+          - Dual Calendar Epic: en/01-product/epic-dual-calendar-system.md
+          - Subscription Epic: en/01-product/epic-tiered-subscription-payments.md
+          - Roadmap: en/01-product/roadmap.md
+      - Architecture:
+          - System Design: en/02-architecture/system-design.md
+          - Mobile Architecture: en/02-architecture/mobile-architecture.md
+          - Firebase Architecture: en/02-architecture/firebase-architecture.md
+          - Data Model: en/02-architecture/data-model.md
+      - Mobile:
+          - Flutter Structure: en/03-mobile/flutter-structure.md
+          - Local Development: en/03-mobile/local-development.md
+          - Navigation: en/03-mobile/navigation.md
+          - State Management: en/03-mobile/state-management.md
+          - UI Design: en/03-mobile/ui-design.md
+      - Backend:
+          - Firestore Schema: en/04-backend/firestore-schema.md
+          - Cloud Functions: en/04-backend/cloud-functions.md
+          - Authentication: en/04-backend/authentication.md
+          - Notifications: en/04-backend/notifications.md
+      - DevOps:
+          - CI/CD: en/05-devops/ci-cd.md
+          - Production Configuration: en/05-devops/production-configuration.md
+          - Pre-Release QA Checklist: en/05-devops/pre-release-qa-checklist.md
+      - Security:
+          - Privacy Model: en/06-security/privacy-model.md
+          - Firebase Rules: en/06-security/firebase-rules.md
   - Master Docs:
       - AI Build Master Doc: AI_BUILD_MASTER_DOC.md
       - Firestore Production Schema: FIRESTORE_PRODUCTION_SCHEMA.md
@@ -54,41 +124,11 @@ nav:
       - Genealogy Tree Algorithm: GENEALOGY_TREE_ALGORITHM.md
       - Firebase Cloud Functions: FIREBASE_CLOUD_FUNCTIONS.md
       - GitHub Automation AI Pipeline: GITHUB_AUTOMATION_AI_PIPELINE.md
-  - Product:
-      - Product Overview: 01-product/product-overview.md
-      - User Personas: 01-product/user-personas.md
-      - User Stories: 01-product/user-stories.md
-      - Feature Spec: 01-product/feature-spec.md
-      - Dual Calendar Epic: 01-product/epic-dual-calendar-system.md
-      - Subscription Billing Epic: 01-product/epic-tiered-subscription-payments.md
-      - Roadmap: 01-product/roadmap.md
-  - Architecture:
-      - System Design: 02-architecture/system-design.md
-      - Mobile Architecture: 02-architecture/mobile-architecture.md
-      - Firebase Architecture: 02-architecture/firebase-architecture.md
-      - Data Model: 02-architecture/data-model.md
-  - Mobile:
-      - Flutter Structure: 03-mobile/flutter-structure.md
-      - Local Development: 03-mobile/local-development.md
-      - Navigation: 03-mobile/navigation.md
-      - State Management: 03-mobile/state-management.md
-      - UI Design: 03-mobile/ui-design.md
-  - Backend:
-      - Firestore Schema: 04-backend/firestore-schema.md
-      - Cloud Functions: 04-backend/cloud-functions.md
-      - Authentication: 04-backend/authentication.md
-      - Notifications: 04-backend/notifications.md
-  - DevOps:
-      - CI/CD: 05-devops/ci-cd.md
-      - Production Configuration: 05-devops/production-configuration.md
-      - Pre-Release QA Checklist: 05-devops/pre-release-qa-checklist.md
+  - Shared DevOps (EN):
       - Store Assets Checklist: 05-devops/store-assets-checklist.md
       - GitHub Workflow: 05-devops/github-workflow.md
       - Branching Strategy: 05-devops/branching-strategy.md
       - GitHub Backlog: 05-devops/github-backlog.md
-  - Security:
-      - Privacy Model: 06-security/privacy-model.md
-      - Firebase Rules: 06-security/firebase-rules.md
   - Operations:
       - Monitoring: 07-operations/monitoring.md
       - Analytics: 07-operations/analytics.md
