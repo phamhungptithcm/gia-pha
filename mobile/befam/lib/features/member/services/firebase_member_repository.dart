@@ -259,8 +259,9 @@ class FirebaseMemberRepository implements MemberRepository {
         );
       }
       if (error.code == 'resource-exhausted') {
-        throw const MemberRepositoryException(
+        throw MemberRepositoryException(
           MemberRepositoryErrorCode.planLimitExceeded,
+          _resolvePlanLimitErrorMessage(error),
         );
       }
       if (error.code == 'permission-denied') {
@@ -480,6 +481,42 @@ class FirebaseMemberRepository implements MemberRepository {
       'updatedBy': actor,
     }, SetOptions(merge: true));
   }
+}
+
+String? _resolvePlanLimitErrorMessage(FirebaseFunctionsException error) {
+  final direct = error.message?.trim();
+  if (direct != null && direct.isNotEmpty) {
+    return direct;
+  }
+  final details = error.details;
+  if (details is Map) {
+    final ownerDisplayName = details['ownerDisplayName'];
+    final requiredPlanCode = details['requiredPlanCode'];
+    final currentPlanCode = details['currentPlanCode'];
+    final allowedMemberLimit = details['allowedMemberLimit'];
+    final projectedOwnerMemberCount = details['projectedOwnerMemberCount'];
+    final ownerLabel =
+        ownerDisplayName is String && ownerDisplayName.trim().isNotEmpty
+        ? ownerDisplayName.trim()
+        : 'the clan owner';
+    final requiredPlan =
+        requiredPlanCode is String && requiredPlanCode.trim().isNotEmpty
+        ? requiredPlanCode.trim().toUpperCase()
+        : 'the required plan';
+    final currentPlan =
+        currentPlanCode is String && currentPlanCode.trim().isNotEmpty
+        ? currentPlanCode.trim().toUpperCase()
+        : 'the current plan';
+    if (allowedMemberLimit is num && projectedOwnerMemberCount is num) {
+      return 'Current owner plan $currentPlan allows up to '
+          '${allowedMemberLimit.toInt()} members across owned clans. '
+          'Projected total is ${projectedOwnerMemberCount.toInt()}. '
+          'Contact $ownerLabel to upgrade to $requiredPlan.';
+    }
+    return 'This clan has reached member capacity for the current owner plan. '
+        'Contact $ownerLabel to upgrade to $requiredPlan.';
+  }
+  return null;
 }
 
 String? _normalizePhoneOrNull(String input) {

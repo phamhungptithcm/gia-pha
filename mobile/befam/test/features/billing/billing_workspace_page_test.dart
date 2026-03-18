@@ -439,6 +439,7 @@ class _QrEnabledBillingRepository implements BillingRepository {
     final workspace = await _delegate.loadWorkspace(session: session);
     return BillingWorkspaceSnapshot(
       clanId: workspace.clanId,
+      scope: workspace.scope,
       subscription: workspace.subscription,
       entitlement: workspace.entitlement,
       settings: workspace.settings,

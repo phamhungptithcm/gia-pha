@@ -19,7 +19,23 @@ service cloud.firestore {
     }
 
     function hasClanAccess(clanId) {
-      return signedIn() && clanId is string && clanId in clanIds();
+      return signedIn() &&
+        clanId is string &&
+        clanId in clanIds() &&
+        isClanActive(clanId);
+    }
+
+    function isClanActive(clanId) {
+      return clanId is string &&
+        exists(/databases/$(database)/documents/clans/$(clanId)) &&
+        (
+          !(get(/databases/$(database)/documents/clans/$(clanId)).data.status is string) ||
+          (
+            get(/databases/$(database)/documents/clans/$(clanId)).data.status != 'inactive' &&
+            get(/databases/$(database)/documents/clans/$(clanId)).data.status != 'archived' &&
+            get(/databases/$(database)/documents/clans/$(clanId)).data.status != 'deleted'
+          )
+        );
     }
 
     function memberIdClaim() {
@@ -318,10 +334,16 @@ service cloud.firestore {
 
     match /clans/{clanId} {
       allow read: if hasClanAccess(clanId);
-      allow create, update: if
+      allow create: if
         isClanSettingsAdmin() &&
         hasClanAccess(clanId) &&
         request.resource.data.id == clanId;
+      allow update: if
+        isClanSettingsAdmin() &&
+        hasClanAccess(clanId) &&
+        request.resource.data.id == clanId &&
+        request.resource.data.ownerUid == resource.data.ownerUid &&
+        request.resource.data.billingOwnerUid == resource.data.billingOwnerUid;
       allow delete: if false;
     }
 

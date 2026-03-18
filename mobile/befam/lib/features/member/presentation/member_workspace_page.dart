@@ -791,7 +791,15 @@ class _MemberDetailPage extends StatelessWidget {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_memberRepositoryErrorMessage(l10n, error))),
+      SnackBar(
+        content: Text(
+          _memberRepositoryErrorMessage(
+            l10n,
+            error.code,
+            overrideMessage: error.message,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1262,7 +1270,7 @@ class _MemberEditorSheet extends StatefulWidget {
   final List<String> assignableRoles;
   final String Function(MemberDraft draft) resolveAutoRole;
   final bool isSaving;
-  final Future<MemberRepositoryErrorCode?> Function(MemberDraft draft) onSubmit;
+  final Future<MemberRepositoryException?> Function(MemberDraft draft) onSubmit;
 
   @override
   State<_MemberEditorSheet> createState() => _MemberEditorSheetState();
@@ -1289,7 +1297,7 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
   String? _selectedMotherId;
   String? _gender;
   String? _selectedPrimaryRole;
-  MemberRepositoryErrorCode? _submitError;
+  MemberRepositoryException? _submitError;
   bool _isSubmitting = false;
   int _editorStep = 0;
 
@@ -1469,7 +1477,8 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                     title: l10n.memberSaveErrorTitle,
                     description: _memberRepositoryErrorMessage(
                       l10n,
-                      _submitError!,
+                      _submitError!.code,
+                      overrideMessage: _submitError!.message,
                     ),
                     tone: theme.colorScheme.errorContainer,
                   ),
@@ -3827,7 +3836,12 @@ class _DetailRow extends StatelessWidget {
 String _memberRepositoryErrorMessage(
   AppLocalizations l10n,
   MemberRepositoryErrorCode error,
+  {String? overrideMessage}
 ) {
+  final customMessage = overrideMessage?.trim();
+  if (customMessage != null && customMessage.isNotEmpty) {
+    return customMessage;
+  }
   return switch (error) {
     MemberRepositoryErrorCode.duplicatePhone => l10n.memberDuplicatePhoneError,
     MemberRepositoryErrorCode.planLimitExceeded =>

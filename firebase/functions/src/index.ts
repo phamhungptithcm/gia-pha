@@ -48,6 +48,7 @@ import {
 import { reviewScholarshipSubmission } from './scholarship/callables';
 import {
   billingPendingTimeoutJob,
+  billingSubscriptionDelinquencyJob,
   billingSubscriptionReminderJob,
   expireInvitesJob,
 } from './scheduled/jobs';
@@ -64,6 +65,7 @@ setGlobalOptions({
 
 export {
   billingPendingTimeoutJob,
+  billingSubscriptionDelinquencyJob,
   billingSubscriptionReminderJob,
   bootstrapClanWorkspace,
   cardPaymentCallback,

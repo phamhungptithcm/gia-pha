@@ -185,7 +185,7 @@ class MemberController extends ChangeNotifier {
     await _runSearch();
   }
 
-  Future<MemberRepositoryErrorCode?> saveMember({
+  Future<MemberRepositoryException?> saveMember({
     String? memberId,
     required MemberDraft draft,
   }) async {
@@ -193,7 +193,9 @@ class MemberController extends ChangeNotifier {
     final resolvedBranchId = _resolveBranchForDraft(draft);
 
     if (memberId == null && !permissions.canCreateInBranch(resolvedBranchId)) {
-      return MemberRepositoryErrorCode.permissionDenied;
+      return const MemberRepositoryException(
+        MemberRepositoryErrorCode.permissionDenied,
+      );
     }
 
     if (memberId == null) {
@@ -207,14 +209,18 @@ class MemberController extends ChangeNotifier {
         (member) => member.id == memberId,
       );
       if (existing == null || !permissions.canEditMember(existing, _session)) {
-        return MemberRepositoryErrorCode.permissionDenied;
+        return const MemberRepositoryException(
+          MemberRepositoryErrorCode.permissionDenied,
+        );
       }
 
       if (permissions.canEditAnyMember) {
         if (!permissions.canManageBranch(
           resolvedBranchId ?? existing.branchId,
         )) {
-          return MemberRepositoryErrorCode.permissionDenied;
+          return const MemberRepositoryException(
+            MemberRepositoryErrorCode.permissionDenied,
+          );
         }
       } else {
         draftToSave = draft.copyWith(
@@ -238,21 +244,23 @@ class MemberController extends ChangeNotifier {
       await refresh();
       return null;
     } on MemberRepositoryException catch (error) {
-      return error.code;
+      return error;
     } finally {
       _isSaving = false;
       notifyListeners();
     }
   }
 
-  Future<MemberRepositoryErrorCode?> uploadAvatar({
+  Future<MemberRepositoryException?> uploadAvatar({
     required MemberProfile member,
     required Uint8List bytes,
     required String fileName,
     required String contentType,
   }) async {
     if (!permissions.canUploadAvatar(member, _session)) {
-      return MemberRepositoryErrorCode.permissionDenied;
+      return const MemberRepositoryException(
+        MemberRepositoryErrorCode.permissionDenied,
+      );
     }
 
     _isUploadingAvatar = true;
@@ -270,7 +278,7 @@ class MemberController extends ChangeNotifier {
       await refresh();
       return null;
     } on MemberRepositoryException catch (error) {
-      return error.code;
+      return error;
     } finally {
       _isUploadingAvatar = false;
       notifyListeners();
