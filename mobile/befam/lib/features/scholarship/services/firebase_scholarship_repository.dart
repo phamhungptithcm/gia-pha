@@ -71,10 +71,35 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       );
     }
 
+    final canReadClanWideSubmissions =
+        GovernanceRoleMatrix.canManageScholarshipPrograms(session) ||
+        GovernanceRoleMatrix.canVoteScholarship(session);
+    final memberId = session.memberId?.trim() ?? '';
+    Query<Map<String, dynamic>> submissionsQuery = _submissions.where(
+      'clanId',
+      isEqualTo: clanId,
+    );
+    if (!canReadClanWideSubmissions) {
+      if (memberId.isEmpty) {
+        return const ScholarshipWorkspaceSnapshot(
+          programs: [],
+          awardLevels: [],
+          submissions: [],
+          memberNamesById: {},
+          approvalLogs: [],
+          councilHeadMemberIds: [],
+        );
+      }
+      submissionsQuery = submissionsQuery.where(
+        'memberId',
+        isEqualTo: memberId,
+      );
+    }
+
     final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
       _programs.where('clanId', isEqualTo: clanId).get(),
       _awardLevels.where('clanId', isEqualTo: clanId).get(),
-      _submissions.where('clanId', isEqualTo: clanId).get(),
+      submissionsQuery.get(),
       _members.where('clanId', isEqualTo: clanId).get(),
       _approvalLogs
           .where('clanId', isEqualTo: clanId)
@@ -117,8 +142,12 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
 
     final councilHeadMemberIds = results[3].docs
         .where((doc) {
-          final role = (doc.data()['primaryRole'] as String?)?.trim().toUpperCase();
-          final status = (doc.data()['status'] as String?)?.trim().toLowerCase();
+          final role = (doc.data()['primaryRole'] as String?)
+              ?.trim()
+              .toUpperCase();
+          final status = (doc.data()['status'] as String?)
+              ?.trim()
+              .toLowerCase();
           return role == GovernanceRoles.scholarshipCouncilHead &&
               (status == null || status.isEmpty || status == 'active');
         })
@@ -372,6 +401,12 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
         ScholarshipRepositoryErrorCode.permissionDenied,
       );
     }
+    final memberId = session.memberId?.trim() ?? '';
+    if (memberId.isEmpty) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
 
     final safeFileName = _sanitizeFileName(fileName);
     if (safeFileName.isEmpty) {
@@ -382,7 +417,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
     }
 
     final objectPath =
-        'clans/$clanId/scholarship/evidence/${DateTime.now().millisecondsSinceEpoch}-$safeFileName';
+        'clans/$clanId/scholarship/evidence/$memberId/${DateTime.now().millisecondsSinceEpoch}-$safeFileName';
 
     try {
       final storageRef = _storage.ref(objectPath);

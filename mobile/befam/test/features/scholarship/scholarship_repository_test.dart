@@ -47,6 +47,26 @@ void main() {
     );
   }
 
+  AuthSession buildMemberSession({
+    required String memberId,
+    required String phoneE164,
+  }) {
+    return AuthSession(
+      uid: 'debug:$phoneE164',
+      loginMethod: AuthEntryMethod.phone,
+      phoneE164: phoneE164,
+      displayName: 'Thành viên thường $memberId',
+      memberId: memberId,
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_001',
+      primaryRole: 'MEMBER',
+      accessMode: AuthMemberAccessMode.claimed,
+      linkedAuthUid: true,
+      isSandbox: true,
+      signedInAtIso: DateTime(2026, 3, 14).toIso8601String(),
+    );
+  }
+
   test('loads seeded scholarship workspace', () async {
     final repository = DebugScholarshipRepository.seeded();
     final session = buildClanAdminSession();
@@ -137,8 +157,28 @@ void main() {
       evidenceUrl,
       startsWith('debug://clans/clan_demo_001/scholarship/evidence/'),
     );
+    expect(evidenceUrl, contains('/member_demo_parent_001/'));
     expect(submission.evidenceUrls, contains(evidenceUrl));
     expect(submission.status, 'pending');
+  });
+
+  test('member can only see own scholarship submissions', () async {
+    final repository = DebugScholarshipRepository.seeded();
+    final memberSession = buildMemberSession(
+      memberId: 'member_demo_child_001',
+      phoneE164: '+84901111999',
+    );
+
+    final snapshot = await repository.loadWorkspace(session: memberSession);
+
+    expect(snapshot.submissions, hasLength(1));
+    expect(snapshot.submissions.first.memberId, 'member_demo_child_001');
+    expect(
+      snapshot.submissions.any(
+        (submission) => submission.memberId == 'member_demo_child_002',
+      ),
+      isFalse,
+    );
   });
 
   test('finalizes submissions with 2-of-3 council votes', () async {

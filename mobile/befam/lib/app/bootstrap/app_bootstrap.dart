@@ -1,7 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/services/app_logger.dart';
+import '../../core/services/app_environment.dart';
 import '../../core/services/crash_reporting_service.dart';
 import '../../core/services/firebase_services.dart';
 import '../../core/services/performance_measurement_logger.dart';
@@ -37,6 +39,7 @@ class AppBootstrap {
           await Firebase.initializeApp(
             options: DefaultFirebaseOptions.currentPlatform,
           );
+          await _activateAppCheck();
 
           final crashReportingService = await CrashReportingService.create(
             enableCrashlytics: kReleaseMode,
@@ -78,5 +81,41 @@ class AppBootstrap {
     } catch (_) {
       return DefaultFirebaseOptions.android;
     }
+  }
+
+  static Future<void> _activateAppCheck() async {
+    if (!AppEnvironment.enableAppCheck) {
+      AppLogger.info(
+        'Firebase App Check is disabled by BEFAM_ENABLE_APP_CHECK.',
+      );
+      return;
+    }
+
+    if (kIsWeb) {
+      final siteKey = AppEnvironment.appCheckWebRecaptchaSiteKey.trim();
+      if (siteKey.isEmpty) {
+        AppLogger.warning(
+          'Firebase App Check was skipped on web because BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY is empty.',
+        );
+        return;
+      }
+      await FirebaseAppCheck.instance.activate(
+        providerWeb: ReCaptchaV3Provider(siteKey),
+      );
+      AppLogger.info('Firebase App Check activated for web.');
+      return;
+    }
+
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: kReleaseMode
+          ? const AndroidPlayIntegrityProvider()
+          : const AndroidDebugProvider(),
+      providerApple: kReleaseMode
+          ? const AppleAppAttestWithDeviceCheckFallbackProvider()
+          : const AppleDebugProvider(),
+    );
+    AppLogger.info(
+      'Firebase App Check activated (${kReleaseMode ? 'production' : 'debug'} provider).',
+    );
   }
 }
