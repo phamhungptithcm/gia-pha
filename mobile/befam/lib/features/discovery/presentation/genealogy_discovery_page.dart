@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../l10n/l10n.dart';
@@ -11,10 +13,12 @@ class GenealogyDiscoveryPage extends StatefulWidget {
     super.key,
     required this.repository,
     this.session,
+    this.onAddGenealogyRequested,
   });
 
   final GenealogyDiscoveryRepository repository;
   final AuthSession? session;
+  final Future<void> Function()? onAddGenealogyRequested;
 
   @override
   State<GenealogyDiscoveryPage> createState() => _GenealogyDiscoveryPageState();
@@ -26,6 +30,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
   final _locationController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isOpeningAddAction = false;
   String? _errorMessage;
   List<GenealogyDiscoveryResult> _results = const [];
 
@@ -108,6 +113,25 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
     }
   }
 
+  Future<void> _openAddGenealogyAction() async {
+    final action = widget.onAddGenealogyRequested;
+    if (_isOpeningAddAction || action == null) {
+      return;
+    }
+    setState(() {
+      _isOpeningAddAction = true;
+    });
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOpeningAddAction = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -119,6 +143,21 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
           l10n.pick(vi: 'Khám phá gia phả', en: 'Genealogy discovery'),
         ),
       ),
+      floatingActionButton: widget.onAddGenealogyRequested == null
+          ? null
+          : FloatingActionButton(
+              onPressed: _isOpeningAddAction
+                  ? null
+                  : () => unawaited(_openAddGenealogyAction()),
+              tooltip: l10n.pick(vi: 'Thêm gia phả', en: 'Add genealogy'),
+              child: _isOpeningAddAction
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    )
+                  : const Icon(Icons.add),
+            ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _runSearch,

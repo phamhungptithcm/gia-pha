@@ -534,6 +534,8 @@
   "authIssueMemberClaimConflict": "Có nhiều hơn một hồ sơ thành viên dùng cùng số điện thoại này. Hãy liên hệ quản trị viên họ tộc.",
   "authIssueParentVerificationMismatch": "Số điện thoại đã xác minh không khớp với số phụ huynh liên kết với mã truy cập trẻ em đó.",
   "authIssueOperationNotAllowed": "Phương thức đăng nhập này chưa được bật cho dự án Firebase hiện tại.",
+  "authIssueWebDomainNotAuthorized": "Tên miền hiện tại chưa được bật trong Firebase Authentication. Hãy thêm tên miền này vào danh sách Authorized domains.",
+  "authIssueRecaptchaVerificationFailed": "Xác minh reCAPTCHA chưa thành công. Hãy tải lại trang và thử lại.",
   "authIssueAuthUnavailable": "Hiện chưa thể hoàn tất xác thực.",
   "authIssuePreparationFailed": "Có lỗi xảy ra khi chuẩn bị đăng nhập. Hãy thử lại.",
   "eventWorkspaceTitle": "Không gian sự kiện",
@@ -551,6 +553,109 @@
   "eventStatTotal": "Tổng sự kiện",
   "eventStatUpcoming": "Sắp diễn ra",
   "eventStatMemorial": "Sự kiện giỗ",
+  "eventMemorialChecklistSectionTitle": "Danh sách giỗ kỵ",
+  "eventMemorialChecklistSectionDescription": "Đối chiếu thành viên đã mất và ngày mất với sự kiện giỗ đã thiết lập để tránh thiếu sót.",
+  "eventMemorialChecklistConfiguredCount": "Đã thiết lập: {count}",
+  "@eventMemorialChecklistConfiguredCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventMemorialChecklistMissingCount": "Chưa thiết lập: {count}",
+  "@eventMemorialChecklistMissingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventMemorialChecklistMismatchCount": "Cần kiểm tra ngày: {count}",
+  "@eventMemorialChecklistMismatchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventMemorialChecklistEmptyTitle": "Chưa có dữ liệu giỗ kỵ",
+  "eventMemorialChecklistEmptyDescription": "Khi thành viên có ngày mất, danh sách giỗ kỵ sẽ hiển thị tại đây.",
+  "eventMemorialChecklistMissingChip": "Chưa thiết lập",
+  "eventMemorialChecklistConfiguredChip": "Đã thiết lập",
+  "eventMemorialChecklistMismatchChip": "Ngày chưa khớp",
+  "eventMemorialChecklistDeathDateLabel": "Ngày mất",
+  "eventMemorialChecklistEventDateLabel": "Ngày giỗ đang dùng",
+  "eventMemorialChecklistInvalidDeathDate": "Ngày mất chưa hợp lệ",
+  "eventMemorialChecklistQuickSetupAction": "Thiết lập nhanh",
+  "eventMemorialChecklistOpenEventAction": "Mở sự kiện",
+  "eventQuickMemorialTitle": "Giỗ {memberName}",
+  "@eventQuickMemorialTitle": {
+    "placeholders": {
+      "memberName": {}
+    }
+  },
+  "eventQuickMemorialDescription": "Thiết lập nhanh từ ngày mất {deathDate}. Hãy kiểm tra lại trước khi lưu.",
+  "@eventQuickMemorialDescription": {
+    "placeholders": {
+      "deathDate": {}
+    }
+  },
+  "eventRitualChecklistSectionTitle": "Danh sách dỗ trạp",
+  "eventRitualChecklistSectionDescription": "Theo dõi các mốc 49/50 ngày, 100 ngày, giỗ đầu và giỗ hết để không bỏ sót nghi lễ quan trọng.",
+  "eventRitualChecklistConfiguredCount": "Đã thiết lập: {count}",
+  "@eventRitualChecklistConfiguredCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventRitualChecklistMissingCount": "Chưa thiết lập: {count}",
+  "@eventRitualChecklistMissingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventRitualChecklistMismatchCount": "Lệch ngày: {count}",
+  "@eventRitualChecklistMismatchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventRitualChecklistEmptyTitle": "Chưa có danh sách dỗ trạp",
+  "eventRitualChecklistEmptyDescription": "Khi thành viên có ngày mất hợp lệ, danh sách dỗ trạp sẽ xuất hiện tại đây.",
+  "eventRitualChecklistConfiguredChip": "Đã thiết lập",
+  "eventRitualChecklistMissingChip": "Chưa thiết lập",
+  "eventRitualChecklistMismatchChip": "Cần kiểm tra",
+  "eventRitualChecklistDeathDateLabel": "Ngày mất",
+  "eventRitualChecklistExpectedDateLabel": "Ngày dự kiến",
+  "eventRitualChecklistEventDateLabel": "Ngày đang thiết lập",
+  "eventRitualChecklistQuickSetupAction": "Thiết lập nhanh",
+  "eventRitualChecklistOpenEventAction": "Mở sự kiện",
+  "eventRitualMilestone49Days": "Lễ 49 ngày",
+  "eventRitualMilestone50Days": "Lễ 50 ngày",
+  "eventRitualMilestone100Days": "Lễ 100 ngày",
+  "eventRitualMilestone1Year": "Giỗ đầu (1 năm)",
+  "eventRitualMilestone2Year": "Giỗ hết (2 năm)",
+  "eventQuickRitualTitle": "{milestone} - {memberName}",
+  "@eventQuickRitualTitle": {
+    "placeholders": {
+      "milestone": {},
+      "memberName": {}
+    }
+  },
+  "eventQuickRitualDescription": "Thiết lập nhanh mốc {milestone} dựa trên ngày mất {deathDate}. Hãy kiểm tra phong tục chi/họ trước khi lưu.",
+  "@eventQuickRitualDescription": {
+    "placeholders": {
+      "milestone": {},
+      "deathDate": {}
+    }
+  },
   "eventFilterSectionTitle": "Tìm kiếm và bộ lọc",
   "eventSearchLabel": "Tìm sự kiện",
   "eventSearchHint": "Tiêu đề, địa điểm, thành viên hoặc mô tả",
@@ -617,5 +722,43 @@
   "eventTypeMeeting": "Cuộc họp",
   "eventTypeBirthday": "Sinh nhật",
   "eventTypeDeathAnniversary": "Ngày giỗ",
-  "eventTypeOther": "Khác"
+  "eventTypeOther": "Khác",
+  "webNavHome": "Trang chủ",
+  "webNavAboutUs": "Về chúng tôi",
+  "webNavBeFamInfo": "Thông tin BeFam",
+  "webNavOpenApp": "Mở ứng dụng",
+  "webNavMenuTooltip": "Mở menu điều hướng",
+  "webLandingBadge": "Nền tảng gia phả hiện đại",
+  "webLandingTitle": "BeFam giúp gia đình kết nối dữ liệu gia phả, sự kiện và quỹ trong một không gian thống nhất.",
+  "webLandingSubtitle": "Từ cây gia phả nhiều thế hệ đến lịch ngày giỗ, BeFam giúp ban điều hành và từng thành viên theo dõi thông tin rõ ràng, nhất quán và dễ dùng.",
+  "webLandingPrimaryCta": "Bắt đầu với BeFam",
+  "webLandingSecondaryCta": "Tìm hiểu về BeFam",
+  "webLandingHighlightTitle": "Quản trị họ tộc minh bạch",
+  "webLandingHighlightDescription": "Theo dõi thành viên, kế hoạch sự kiện, gói dịch vụ và quyền truy cập trên cùng một nền tảng.",
+  "webLandingFeatureTreeTitle": "Gia phả đa thế hệ",
+  "webLandingFeatureTreeDescription": "Xem cây họ theo chi, đời và quan hệ để dễ quản lý thông tin tổ tiên - hậu duệ.",
+  "webLandingFeatureEventsTitle": "Lịch sự kiện tập trung",
+  "webLandingFeatureEventsDescription": "Lưu lịch họp họ, ngày giỗ, nhắc lịch quan trọng và trạng thái tham gia của thành viên.",
+  "webLandingFeatureBillingTitle": "Quản lý gói dịch vụ",
+  "webLandingFeatureBillingDescription": "Theo dõi gói đang dùng, gia hạn và lịch sử thanh toán VNPay ngay trong BeFam.",
+  "webAboutTitle": "Về chúng tôi",
+  "webAboutSubtitle": "BeFam được xây dựng để gìn giữ ký ức gia đình, hỗ trợ quản trị họ tộc minh bạch và gắn kết nhiều thế hệ trên cùng nền tảng số.",
+  "webAboutMissionTitle": "Sứ mệnh",
+  "webAboutMissionDescription": "Giúp mỗi họ tộc số hóa dữ liệu gia đình một cách dễ hiểu, dễ dùng và bền vững.",
+  "webAboutVisionTitle": "Tầm nhìn",
+  "webAboutVisionDescription": "Trở thành nền tảng gia phả số đáng tin cậy cho các cộng đồng gia đình Việt Nam.",
+  "webAboutTrustTitle": "Cam kết",
+  "webAboutTrustDescription": "Ưu tiên tính chính xác dữ liệu, minh bạch quyền truy cập và trải nghiệm đồng nhất trên mọi thiết bị.",
+  "webInfoTitle": "Thông tin BeFam",
+  "webInfoSubtitle": "Tổng quan nhanh về những gì BeFam đang cung cấp cho quản trị gia phả và hoạt động gia đình.",
+  "webInfoGenealogyTitle": "Không gian gia phả",
+  "webInfoGenealogyDescription": "Theo dõi hồ sơ thành viên, quan hệ huyết thống, nhánh chi và thông tin thế hệ trên một cấu trúc thống nhất.",
+  "webInfoNotificationsTitle": "Thông báo và nhắc lịch",
+  "webInfoNotificationsDescription": "Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng trong phạm vi gia tộc.",
+  "webInfoBillingTitle": "Gói và thanh toán",
+  "webInfoBillingDescription": "Quản lý quyền lợi theo gói, trạng thái hiệu lực và luồng thanh toán VNPay cho tổ chức gia phả.",
+  "webInfoHighlightsTitle": "Điểm nổi bật hiện tại",
+  "webInfoHighlightsItemOne": "Hỗ trợ tiếng Việt/English đồng bộ theo cấu hình người dùng.",
+  "webInfoHighlightsItemTwo": "Thiết kế responsive cho điện thoại, tablet và desktop.",
+  "webInfoHighlightsItemThree": "Kiến trúc Flutter + Firebase giúp mở rộng tính năng nhanh và nhất quán."
 }

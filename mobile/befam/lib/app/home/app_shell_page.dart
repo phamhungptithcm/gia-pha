@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -8,6 +9,7 @@ import '../../features/clan/presentation/clan_detail_page.dart';
 import '../../features/clan/services/clan_repository.dart';
 import '../../features/calendar/presentation/dual_calendar_workspace_page.dart';
 import '../../features/events/models/event_record.dart';
+import '../../features/events/presentation/event_workspace_page.dart';
 import '../../features/events/services/event_repository.dart';
 import '../../features/funds/presentation/fund_workspace_page.dart';
 import '../../features/funds/services/fund_repository.dart';
@@ -31,6 +33,7 @@ import '../../features/auth/services/auth_session_store.dart';
 import '../../features/auth/services/clan_context_service.dart';
 import '../../core/services/app_locale_controller.dart';
 import '../../core/services/governance_role_matrix.dart';
+import '../../core/widgets/responsive_layout.dart';
 import '../bootstrap/firebase_setup_status.dart';
 import '../models/app_shortcut.dart';
 import 'app_shortcuts.dart';
@@ -497,6 +500,7 @@ class _AppShellPageState extends State<AppShellPage> {
 
   @override
   Widget build(BuildContext context) {
+    final layout = ResponsiveLayout.of(context);
     final l10n = context.l10n;
     final destinations = _hasClanContext
         ? _destinations
@@ -535,6 +539,9 @@ class _AppShellPageState extends State<AppShellPage> {
           });
           _syncAdBannerAutoHideTimer();
         },
+        onOpenMemorialChecklistRequested: () {
+          unawaited(_openMemorialRitualWorkspace());
+        },
         onOpenProfileRequested: () {
           setState(() {
             _selectedIndex = 4;
@@ -556,6 +563,7 @@ class _AppShellPageState extends State<AppShellPage> {
                 repository: createDefaultGenealogyDiscoveryRepository(
                   session: _session,
                 ),
+                onAddGenealogyRequested: _openClanWorkspaceFromTreeAddAction,
               )
       else
         const SizedBox.shrink(),
@@ -596,95 +604,65 @@ class _AppShellPageState extends State<AppShellPage> {
         const SizedBox.shrink(),
     ];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.shellDestinationTitle(destination.id)),
-        actions: [
-          if (_selectedIndex == 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Tooltip(
-                message: sessionTooltip,
-                child: Icon(
-                  _session.loginMethod == AuthEntryMethod.phone
-                      ? Icons.phone_iphone
-                      : Icons.child_care,
-                ),
-              ),
-            ),
-          if (_isLoadingClanContexts || _isSwitchingClanContext)
-            const Padding(
-              padding: EdgeInsets.only(right: 8),
-              child: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          else if (_clanContexts.length > 1)
-            PopupMenuButton<String>(
-              tooltip: l10n.pick(vi: 'Chọn gia phả', en: 'Select clan'),
-              onSelected: (clanId) {
-                unawaited(_switchClanContext(clanId));
-              },
-              itemBuilder: (context) => [
-                for (final contextOption in _clanContexts)
-                  PopupMenuItem<String>(
-                    value: contextOption.clanId,
-                    child: Text(
-                      contextOption.clanId == (_session.clanId ?? '').trim()
-                          ? '• ${contextOption.clanName}'
-                          : contextOption.clanName,
-                    ),
-                  ),
-              ],
-              icon: const Icon(Icons.account_tree_outlined),
-            ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Tooltip(
-              message: readinessTooltip,
-              child: Icon(
-                widget.status.isReady ? Icons.cloud_done : Icons.cloud_off,
-              ),
-            ),
-          ),
-          PopupMenuButton<String>(
-            tooltip: l10n.shellMoreActions,
-            onSelected: (value) async {
-              if (value == 'discover') {
-                _openGenealogyDiscoveryPage();
-                return;
-              }
-              if (value == 'logout') {
-                await _confirmLogoutRequest();
-              }
+    final appBar = AppBar(
+      title: Text(l10n.shellDestinationTitle(destination.id)),
+      actions: _buildAppBarActions(
+        l10n: l10n,
+        sessionTooltip: sessionTooltip,
+        readinessTooltip: readinessTooltip,
+      ),
+    );
+
+    Widget contentStack = IndexedStack(index: _selectedIndex, children: pages);
+    if (layout.useRailNavigation) {
+      contentStack = Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: layout.contentMaxWidth),
+          child: contentStack,
+        ),
+      );
+    }
+
+    final contentWithBanner = Column(
+      children: [
+        if (_isAdBannerVisible)
+          _SponsoredAdBanner(
+            onClose: () {
+              setState(() {
+                _dismissAdBannerForSession = true;
+              });
+              _syncAdBannerAutoHideTimer();
             },
-            itemBuilder: (context) => [
-              PopupMenuItem<String>(
-                value: 'discover',
-                child: Text(
-                  l10n.pick(vi: 'Khám phá gia phả', en: 'Discover genealogies'),
-                ),
-              ),
-              if (widget.onLogoutRequested != null)
-                PopupMenuItem<String>(
-                  value: 'logout',
-                  child: Text(l10n.shellLogout),
-                ),
-            ],
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: IndexedStack(index: _selectedIndex, children: pages),
-      ),
+        Expanded(child: SafeArea(top: false, child: contentStack)),
+      ],
+    );
+
+    if (layout.useRailNavigation) {
+      return Scaffold(
+        appBar: appBar,
+        body: Row(
+          children: [
+            _ShellNavigationRail(
+              selectedIndex: _selectedIndex,
+              destinations: destinations,
+              onDestinationSelected: _handleDestinationSelected,
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(child: contentWithBanner),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: appBar,
+      body: SafeArea(child: contentStack),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_showAdBanner &&
-              !_dismissAdBannerForSession &&
-              _selectedIndex != 3)
+          if (_isAdBannerVisible)
             _SponsoredAdBanner(
               onClose: () {
                 setState(() {
@@ -698,13 +676,10 @@ class _AppShellPageState extends State<AppShellPage> {
             maxScaleFactor: 1,
             child: NavigationBar(
               selectedIndex: _selectedIndex,
-              onDestinationSelected: (index) {
-                setState(() {
-                  _selectedIndex = index;
-                  _visitedDestinationIndexes.add(index);
-                });
-                _syncAdBannerAutoHideTimer();
-              },
+              onDestinationSelected: _handleDestinationSelected,
+              labelBehavior: layout.width < 460
+                  ? NavigationDestinationLabelBehavior.onlyShowSelected
+                  : NavigationDestinationLabelBehavior.alwaysShow,
               destinations: [
                 for (final destination in destinations)
                   NavigationDestination(
@@ -720,6 +695,97 @@ class _AppShellPageState extends State<AppShellPage> {
     );
   }
 
+  void _handleDestinationSelected(int index) {
+    setState(() {
+      _selectedIndex = index;
+      _visitedDestinationIndexes.add(index);
+    });
+    _syncAdBannerAutoHideTimer();
+  }
+
+  List<Widget> _buildAppBarActions({
+    required dynamic l10n,
+    required String sessionTooltip,
+    required String readinessTooltip,
+  }) {
+    return [
+      if (_selectedIndex == 0)
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: Tooltip(
+            message: sessionTooltip,
+            child: Icon(
+              _session.loginMethod == AuthEntryMethod.phone
+                  ? Icons.phone_iphone
+                  : Icons.child_care,
+            ),
+          ),
+        ),
+      if (_isLoadingClanContexts || _isSwitchingClanContext)
+        const Padding(
+          padding: EdgeInsets.only(right: 8),
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        )
+      else if (_clanContexts.length > 1)
+        PopupMenuButton<String>(
+          tooltip: l10n.pick(vi: 'Chọn gia phả', en: 'Select clan'),
+          onSelected: (clanId) {
+            unawaited(_switchClanContext(clanId));
+          },
+          itemBuilder: (context) => [
+            for (final contextOption in _clanContexts)
+              PopupMenuItem<String>(
+                value: contextOption.clanId,
+                child: Text(
+                  contextOption.clanId == (_session.clanId ?? '').trim()
+                      ? '• ${contextOption.clanName}'
+                      : contextOption.clanName,
+                ),
+              ),
+          ],
+          icon: const Icon(Icons.account_tree_outlined),
+        ),
+      Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Tooltip(
+          message: readinessTooltip,
+          child: Icon(
+            widget.status.isReady ? Icons.cloud_done : Icons.cloud_off,
+          ),
+        ),
+      ),
+      PopupMenuButton<String>(
+        tooltip: l10n.shellMoreActions,
+        onSelected: (value) async {
+          if (value == 'discover') {
+            _openGenealogyDiscoveryPage();
+            return;
+          }
+          if (value == 'logout') {
+            await _confirmLogoutRequest();
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            value: 'discover',
+            child: Text(
+              l10n.pick(vi: 'Khám phá gia phả', en: 'Discover genealogies'),
+            ),
+          ),
+          if (widget.onLogoutRequested != null)
+            PopupMenuItem<String>(
+              value: 'logout',
+              child: Text(l10n.shellLogout),
+            ),
+        ],
+      ),
+    ];
+  }
+
   void _openGenealogyDiscoveryPage() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -729,6 +795,52 @@ class _AppShellPageState extends State<AppShellPage> {
             repository: createDefaultGenealogyDiscoveryRepository(
               session: _session,
             ),
+            onAddGenealogyRequested: _openClanWorkspaceFromTreeAddAction,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openClanWorkspaceFromTreeAddAction() async {
+    if (!_hasClanContext && !GovernanceRoleMatrix.canBootstrapClan(_session)) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Tài khoản này chưa có quyền khởi tạo gia phả mới. Vui lòng liên hệ quản trị.',
+              en: 'This account is not allowed to bootstrap a new clan workspace. Please contact an administrator.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return ClanDetailPage(
+            session: _session,
+            repository: widget.clanRepository,
+            availableClanContexts: _clanContexts,
+            onSwitchClanContext: _switchClanContext,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openMemorialRitualWorkspace() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return EventWorkspacePage(
+            session: _session,
+            repository: createDefaultEventRepository(session: _session),
           );
         },
       ),
@@ -745,51 +857,100 @@ class _SponsoredAdBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: colorScheme.tertiaryContainer.withValues(alpha: 0.88),
-      child: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.campaign_outlined,
-              color: colorScheme.onTertiaryContainer,
-              size: 18,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                l10n.pick(
-                  vi: 'Gói Miễn phí/Cơ bản đang hiển thị quảng cáo nhẹ.',
-                  en: 'Free/Base plans show light ads.',
-                ),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 420;
+        return Material(
+          color: colorScheme.tertiaryContainer.withValues(alpha: 0.88),
+          child: SafeArea(
+            top: false,
+            minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.campaign_outlined,
                   color: colorScheme.onTertiaryContainer,
-                  fontWeight: FontWeight.w600,
+                  size: 18,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            TextButton(
-              onPressed: onClose,
-              child: Text(
-                l10n.pick(vi: 'Ẩn hôm nay', en: 'Hide today'),
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    l10n.pick(
+                      vi: 'Gói Miễn phí/Cơ bản đang hiển thị quảng cáo nhẹ.',
+                      en: 'Free/Base plans show light ads.',
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onTertiaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: compact ? 2 : 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (!compact)
+                  TextButton(
+                    onPressed: onClose,
+                    child: Text(
+                      l10n.pick(vi: 'Ẩn hôm nay', en: 'Hide today'),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colorScheme.onTertiaryContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                IconButton(
+                  tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
+                  onPressed: onClose,
+                  icon: const Icon(Icons.close),
                   color: colorScheme.onTertiaryContainer,
-                  fontWeight: FontWeight.w700,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ShellNavigationRail extends StatelessWidget {
+  const _ShellNavigationRail({
+    required this.selectedIndex,
+    required this.destinations,
+    required this.onDestinationSelected,
+  });
+
+  final int selectedIndex;
+  final List<_ShellDestination> destinations;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final layout = ResponsiveLayout.of(context);
+    return SafeArea(
+      right: false,
+      child: SizedBox(
+        width: layout.isDesktop ? 104 : 92,
+        child: NavigationRail(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: onDestinationSelected,
+          extended: false,
+          useIndicator: true,
+          labelType: NavigationRailLabelType.selected,
+          groupAlignment: -0.9,
+          destinations: [
+            for (final destination in destinations)
+              NavigationRailDestination(
+                icon: Icon(destination.icon),
+                selectedIcon: Icon(destination.selectedIcon),
+                label: Text(
+                  l10n.shellDestinationLabel(destination.id),
+                  textAlign: TextAlign.center,
                 ),
               ),
-            ),
-            IconButton(
-              tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
-              onPressed: onClose,
-              icon: const Icon(Icons.close),
-              color: colorScheme.onTertiaryContainer,
-              visualDensity: VisualDensity.compact,
-            ),
           ],
         ),
       ),
@@ -810,6 +971,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.onOpenTreeRequested,
     required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
+    required this.onOpenMemorialChecklistRequested,
   });
 
   final FirebaseSetupStatus status;
@@ -822,6 +984,7 @@ class _HomeDashboard extends StatelessWidget {
   final VoidCallback onOpenTreeRequested;
   final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
+  final VoidCallback onOpenMemorialChecklistRequested;
   bool get _hasClanContext => (session.clanId ?? '').trim().isNotEmpty;
 
   List<AppShortcut> get _availableShortcuts {
@@ -855,63 +1018,94 @@ class _HomeDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = context.l10n;
-    final size = MediaQuery.sizeOf(context);
-    final crossAxisCount = switch (size.width) {
-      > 1000 => 3,
-      > 640 => 2,
-      _ => 1,
+    final layout = ResponsiveLayout.of(context);
+    final maxCrossAxisCount = layout.gridColumns(
+      mobile: 1,
+      tablet: 2,
+      desktop: 3,
+    );
+    final availableWidth = math.min(
+      layout.contentMaxWidth,
+      layout.width - (layout.horizontalPadding * 2),
+    );
+    final fitColumns = ((availableWidth + 16) / 300).floor().clamp(
+      1,
+      maxCrossAxisCount,
+    );
+    final crossAxisCount = fitColumns;
+    final childAspectRatio = switch (layout.viewport) {
+      AppViewport.mobile => 1.05,
+      AppViewport.tablet => 0.95,
+      AppViewport.desktop => 1.08,
     };
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      padding: EdgeInsets.fromLTRB(
+        layout.horizontalPadding,
+        20,
+        layout.horizontalPadding,
+        32,
+      ),
       children: [
-        _UpcomingEventSection(
-          session: session,
-          onOpenEventsRequested: onOpenEventsRequested,
-        ),
-        const SizedBox(height: 24),
-        _TodoSection(
-          status: status,
-          session: session,
-          onOpenTreeRequested: onOpenTreeRequested,
-          onOpenProfileRequested: onOpenProfileRequested,
-          onOpenEventsRequested: onOpenEventsRequested,
-        ),
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                l10n.pick(vi: 'Truy cập nhanh', en: 'Quick access'),
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
+        Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: layout.contentMaxWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _UpcomingEventSection(
+                  session: session,
+                  onOpenEventsRequested: onOpenEventsRequested,
                 ),
-              ),
+                const SizedBox(height: 24),
+                _TodoSection(
+                  status: status,
+                  session: session,
+                  onOpenTreeRequested: onOpenTreeRequested,
+                  onOpenProfileRequested: onOpenProfileRequested,
+                  onOpenEventsRequested: onOpenEventsRequested,
+                  onOpenMemorialChecklistRequested:
+                      onOpenMemorialChecklistRequested,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.pick(vi: 'Truy cập nhanh', en: 'Quick access'),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _openAllShortcutsSheet(context),
+                      child: Text(l10n.pick(vi: 'Xem tất cả', en: 'View all')),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _primaryShortcuts.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: childAspectRatio,
+                  ),
+                  itemBuilder: (context, index) {
+                    final shortcut = _primaryShortcuts[index];
+                    return _ShortcutCard(
+                      shortcut: shortcut,
+                      onTap: _onShortcutTap(context, shortcut.id),
+                    );
+                  },
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () => _openAllShortcutsSheet(context),
-              child: Text(l10n.pick(vi: 'Xem tất cả', en: 'View all')),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _primaryShortcuts.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.24,
           ),
-          itemBuilder: (context, index) {
-            final shortcut = _primaryShortcuts[index];
-            return _ShortcutCard(
-              shortcut: shortcut,
-              onTap: _onShortcutTap(context, shortcut.id),
-            );
-          },
         ),
       ],
     );
@@ -1070,40 +1264,57 @@ class _ShortcutCard extends StatelessWidget {
         key: Key('shortcut-${shortcut.id}'),
         onTap: onTap,
         onLongPress: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                backgroundColor: statusColor,
-                foregroundColor: colorScheme.onSurface,
-                child: Icon(_iconFor(shortcut.iconKey)),
-              ),
-              const SizedBox(height: 16),
-              Row(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final textScale = MediaQuery.textScalerOf(context).scale(1);
+            final compact = constraints.maxHeight < 260 || textScale > 1.15;
+            final hideStatusChip =
+                constraints.maxHeight < 280 || textScale > 1.2;
+            return Padding(
+              padding: EdgeInsets.all(compact ? 16 : 20),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  CircleAvatar(
+                    radius: compact ? 16 : 20,
+                    backgroundColor: statusColor,
+                    foregroundColor: colorScheme.onSurface,
+                    child: Icon(_iconFor(shortcut.iconKey)),
+                  ),
+                  SizedBox(height: compact ? 10 : 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l10n.shortcutTitle(shortcut.id),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            fontSize: compact ? 17 : null,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!hideStatusChip) ...[
+                        const SizedBox(width: 8),
+                        _ShortcutStatusChip(status: shortcut.status),
+                      ],
+                    ],
+                  ),
+                  SizedBox(height: compact ? 6 : 10),
                   Expanded(
                     child: Text(
-                      l10n.shortcutTitle(shortcut.id),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      _productionShortcutDescription(context, shortcut.id),
+                      style: theme.textTheme.bodyMedium,
+                      maxLines: hideStatusChip ? 1 : (compact ? 2 : 3),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  _ShortcutStatusChip(status: shortcut.status),
                 ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                _productionShortcutDescription(context, shortcut.id),
-                style: theme.textTheme.bodyMedium,
-              ),
-              const Spacer(),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -1384,6 +1595,7 @@ class _TodoSection extends StatelessWidget {
     required this.onOpenTreeRequested,
     required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
+    required this.onOpenMemorialChecklistRequested,
   });
 
   final FirebaseSetupStatus status;
@@ -1391,6 +1603,7 @@ class _TodoSection extends StatelessWidget {
   final VoidCallback onOpenTreeRequested;
   final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
+  final VoidCallback onOpenMemorialChecklistRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -1403,6 +1616,14 @@ class _TodoSection extends StatelessWidget {
           en: 'Review this week events',
         ),
         onTap: onOpenEventsRequested,
+      ),
+      (
+        icon: Icons.history_edu_outlined,
+        title: l10n.pick(
+          vi: 'Rà soát danh sách giỗ và dỗ trạp',
+          en: 'Review memorial and ritual checklists',
+        ),
+        onTap: onOpenMemorialChecklistRequested,
       ),
       (
         icon: Icons.person_outline,

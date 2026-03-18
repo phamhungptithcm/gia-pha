@@ -29,6 +29,7 @@ import {
   createSpouseRelationship,
 } from './genealogy/callables';
 import { createClanMember } from './members/callables';
+import { onMemberDeathDateChanged } from './members/memorial-ritual-triggers';
 import {
   detectDuplicateGenealogy,
   listJoinRequestsForReview,
@@ -52,6 +53,7 @@ import {
 } from './scheduled/jobs';
 import { onSubmissionReviewed } from './scholarship/submission-triggers';
 import { onTransactionCreated } from './funds/transaction-triggers';
+import { appHealthCheck } from './system/health';
 
 initializeApp();
 
@@ -76,6 +78,7 @@ export {
   detectDuplicateGenealogy,
   expireInvitesJob,
   assignGovernanceRole,
+  appHealthCheck,
   getTreasurerDashboard,
   listJoinRequestsForReview,
   listDebugLoginProfiles,
@@ -85,6 +88,7 @@ export {
   onEventCreated,
   onRelationshipCreated,
   onRelationshipDeleted,
+  onMemberDeathDateChanged,
   onSubmissionReviewed,
   onTransactionCreated,
   registerDeviceToken,

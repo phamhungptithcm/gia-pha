@@ -2858,6 +2858,18 @@ abstract class AppLocalizations {
   /// **'Phương thức đăng nhập này chưa được bật cho dự án Firebase hiện tại.'**
   String get authIssueOperationNotAllowed;
 
+  /// No description provided for @authIssueWebDomainNotAuthorized.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tên miền hiện tại chưa được bật trong Firebase Authentication. Hãy thêm tên miền này vào danh sách Authorized domains.'**
+  String get authIssueWebDomainNotAuthorized;
+
+  /// No description provided for @authIssueRecaptchaVerificationFailed.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xác minh reCAPTCHA chưa thành công. Hãy tải lại trang và thử lại.'**
+  String get authIssueRecaptchaVerificationFailed;
+
   /// No description provided for @authIssueAuthUnavailable.
   ///
   /// In vi, this message translates to:
@@ -2959,6 +2971,240 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Sự kiện giỗ'**
   String get eventStatMemorial;
+
+  /// No description provided for @eventMemorialChecklistSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Danh sách giỗ kỵ'**
+  String get eventMemorialChecklistSectionTitle;
+
+  /// No description provided for @eventMemorialChecklistSectionDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đối chiếu thành viên đã mất và ngày mất với sự kiện giỗ đã thiết lập để tránh thiếu sót.'**
+  String get eventMemorialChecklistSectionDescription;
+
+  /// No description provided for @eventMemorialChecklistConfiguredCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thiết lập: {count}'**
+  String eventMemorialChecklistConfiguredCount(int count);
+
+  /// No description provided for @eventMemorialChecklistMissingCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập: {count}'**
+  String eventMemorialChecklistMissingCount(int count);
+
+  /// No description provided for @eventMemorialChecklistMismatchCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cần kiểm tra ngày: {count}'**
+  String eventMemorialChecklistMismatchCount(int count);
+
+  /// No description provided for @eventMemorialChecklistEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có dữ liệu giỗ kỵ'**
+  String get eventMemorialChecklistEmptyTitle;
+
+  /// No description provided for @eventMemorialChecklistEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khi thành viên có ngày mất, danh sách giỗ kỵ sẽ hiển thị tại đây.'**
+  String get eventMemorialChecklistEmptyDescription;
+
+  /// No description provided for @eventMemorialChecklistMissingChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập'**
+  String get eventMemorialChecklistMissingChip;
+
+  /// No description provided for @eventMemorialChecklistConfiguredChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thiết lập'**
+  String get eventMemorialChecklistConfiguredChip;
+
+  /// No description provided for @eventMemorialChecklistMismatchChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày chưa khớp'**
+  String get eventMemorialChecklistMismatchChip;
+
+  /// No description provided for @eventMemorialChecklistDeathDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày mất'**
+  String get eventMemorialChecklistDeathDateLabel;
+
+  /// No description provided for @eventMemorialChecklistEventDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày giỗ đang dùng'**
+  String get eventMemorialChecklistEventDateLabel;
+
+  /// No description provided for @eventMemorialChecklistInvalidDeathDate.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày mất chưa hợp lệ'**
+  String get eventMemorialChecklistInvalidDeathDate;
+
+  /// No description provided for @eventMemorialChecklistQuickSetupAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết lập nhanh'**
+  String get eventMemorialChecklistQuickSetupAction;
+
+  /// No description provided for @eventMemorialChecklistOpenEventAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở sự kiện'**
+  String get eventMemorialChecklistOpenEventAction;
+
+  /// No description provided for @eventQuickMemorialTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Giỗ {memberName}'**
+  String eventQuickMemorialTitle(Object memberName);
+
+  /// No description provided for @eventQuickMemorialDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết lập nhanh từ ngày mất {deathDate}. Hãy kiểm tra lại trước khi lưu.'**
+  String eventQuickMemorialDescription(Object deathDate);
+
+  /// No description provided for @eventRitualChecklistSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Danh sách dỗ trạp'**
+  String get eventRitualChecklistSectionTitle;
+
+  /// No description provided for @eventRitualChecklistSectionDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Theo dõi các mốc 49/50 ngày, 100 ngày, giỗ đầu và giỗ hết để không bỏ sót nghi lễ quan trọng.'**
+  String get eventRitualChecklistSectionDescription;
+
+  /// No description provided for @eventRitualChecklistConfiguredCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thiết lập: {count}'**
+  String eventRitualChecklistConfiguredCount(int count);
+
+  /// No description provided for @eventRitualChecklistMissingCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập: {count}'**
+  String eventRitualChecklistMissingCount(int count);
+
+  /// No description provided for @eventRitualChecklistMismatchCount.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lệch ngày: {count}'**
+  String eventRitualChecklistMismatchCount(int count);
+
+  /// No description provided for @eventRitualChecklistEmptyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa có danh sách dỗ trạp'**
+  String get eventRitualChecklistEmptyTitle;
+
+  /// No description provided for @eventRitualChecklistEmptyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khi thành viên có ngày mất hợp lệ, danh sách dỗ trạp sẽ xuất hiện tại đây.'**
+  String get eventRitualChecklistEmptyDescription;
+
+  /// No description provided for @eventRitualChecklistConfiguredChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã thiết lập'**
+  String get eventRitualChecklistConfiguredChip;
+
+  /// No description provided for @eventRitualChecklistMissingChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chưa thiết lập'**
+  String get eventRitualChecklistMissingChip;
+
+  /// No description provided for @eventRitualChecklistMismatchChip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cần kiểm tra'**
+  String get eventRitualChecklistMismatchChip;
+
+  /// No description provided for @eventRitualChecklistDeathDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày mất'**
+  String get eventRitualChecklistDeathDateLabel;
+
+  /// No description provided for @eventRitualChecklistExpectedDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày dự kiến'**
+  String get eventRitualChecklistExpectedDateLabel;
+
+  /// No description provided for @eventRitualChecklistEventDateLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ngày đang thiết lập'**
+  String get eventRitualChecklistEventDateLabel;
+
+  /// No description provided for @eventRitualChecklistQuickSetupAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết lập nhanh'**
+  String get eventRitualChecklistQuickSetupAction;
+
+  /// No description provided for @eventRitualChecklistOpenEventAction.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở sự kiện'**
+  String get eventRitualChecklistOpenEventAction;
+
+  /// No description provided for @eventRitualMilestone49Days.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lễ 49 ngày'**
+  String get eventRitualMilestone49Days;
+
+  /// No description provided for @eventRitualMilestone50Days.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lễ 50 ngày'**
+  String get eventRitualMilestone50Days;
+
+  /// No description provided for @eventRitualMilestone100Days.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lễ 100 ngày'**
+  String get eventRitualMilestone100Days;
+
+  /// No description provided for @eventRitualMilestone1Year.
+  ///
+  /// In vi, this message translates to:
+  /// **'Giỗ đầu (1 năm)'**
+  String get eventRitualMilestone1Year;
+
+  /// No description provided for @eventRitualMilestone2Year.
+  ///
+  /// In vi, this message translates to:
+  /// **'Giỗ hết (2 năm)'**
+  String get eventRitualMilestone2Year;
+
+  /// No description provided for @eventQuickRitualTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'{milestone} - {memberName}'**
+  String eventQuickRitualTitle(Object milestone, Object memberName);
+
+  /// No description provided for @eventQuickRitualDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết lập nhanh mốc {milestone} dựa trên ngày mất {deathDate}. Hãy kiểm tra phong tục chi/họ trước khi lưu.'**
+  String eventQuickRitualDescription(Object milestone, Object deathDate);
 
   /// No description provided for @eventFilterSectionTitle.
   ///
@@ -3361,6 +3607,234 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Khác'**
   String get eventTypeOther;
+
+  /// No description provided for @webNavHome.
+  ///
+  /// In vi, this message translates to:
+  /// **'Trang chủ'**
+  String get webNavHome;
+
+  /// No description provided for @webNavAboutUs.
+  ///
+  /// In vi, this message translates to:
+  /// **'Về chúng tôi'**
+  String get webNavAboutUs;
+
+  /// No description provided for @webNavBeFamInfo.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông tin BeFam'**
+  String get webNavBeFamInfo;
+
+  /// No description provided for @webNavOpenApp.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở ứng dụng'**
+  String get webNavOpenApp;
+
+  /// No description provided for @webNavMenuTooltip.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở menu điều hướng'**
+  String get webNavMenuTooltip;
+
+  /// No description provided for @webLandingBadge.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nền tảng gia phả hiện đại'**
+  String get webLandingBadge;
+
+  /// No description provided for @webLandingTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'BeFam giúp gia đình kết nối dữ liệu gia phả, sự kiện và quỹ trong một không gian thống nhất.'**
+  String get webLandingTitle;
+
+  /// No description provided for @webLandingSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Từ cây gia phả nhiều thế hệ đến lịch ngày giỗ, BeFam giúp ban điều hành và từng thành viên theo dõi thông tin rõ ràng, nhất quán và dễ dùng.'**
+  String get webLandingSubtitle;
+
+  /// No description provided for @webLandingPrimaryCta.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bắt đầu với BeFam'**
+  String get webLandingPrimaryCta;
+
+  /// No description provided for @webLandingSecondaryCta.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tìm hiểu về BeFam'**
+  String get webLandingSecondaryCta;
+
+  /// No description provided for @webLandingHighlightTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản trị họ tộc minh bạch'**
+  String get webLandingHighlightTitle;
+
+  /// No description provided for @webLandingHighlightDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Theo dõi thành viên, kế hoạch sự kiện, gói dịch vụ và quyền truy cập trên cùng một nền tảng.'**
+  String get webLandingHighlightDescription;
+
+  /// No description provided for @webLandingFeatureTreeTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Gia phả đa thế hệ'**
+  String get webLandingFeatureTreeTitle;
+
+  /// No description provided for @webLandingFeatureTreeDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xem cây họ theo chi, đời và quan hệ để dễ quản lý thông tin tổ tiên - hậu duệ.'**
+  String get webLandingFeatureTreeDescription;
+
+  /// No description provided for @webLandingFeatureEventsTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lịch sự kiện tập trung'**
+  String get webLandingFeatureEventsTitle;
+
+  /// No description provided for @webLandingFeatureEventsDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lưu lịch họp họ, ngày giỗ, nhắc lịch quan trọng và trạng thái tham gia của thành viên.'**
+  String get webLandingFeatureEventsDescription;
+
+  /// No description provided for @webLandingFeatureBillingTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản lý gói dịch vụ'**
+  String get webLandingFeatureBillingTitle;
+
+  /// No description provided for @webLandingFeatureBillingDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Theo dõi gói đang dùng, gia hạn và lịch sử thanh toán VNPay ngay trong BeFam.'**
+  String get webLandingFeatureBillingDescription;
+
+  /// No description provided for @webAboutTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Về chúng tôi'**
+  String get webAboutTitle;
+
+  /// No description provided for @webAboutSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'BeFam được xây dựng để gìn giữ ký ức gia đình, hỗ trợ quản trị họ tộc minh bạch và gắn kết nhiều thế hệ trên cùng nền tảng số.'**
+  String get webAboutSubtitle;
+
+  /// No description provided for @webAboutMissionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sứ mệnh'**
+  String get webAboutMissionTitle;
+
+  /// No description provided for @webAboutMissionDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Giúp mỗi họ tộc số hóa dữ liệu gia đình một cách dễ hiểu, dễ dùng và bền vững.'**
+  String get webAboutMissionDescription;
+
+  /// No description provided for @webAboutVisionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tầm nhìn'**
+  String get webAboutVisionTitle;
+
+  /// No description provided for @webAboutVisionDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Trở thành nền tảng gia phả số đáng tin cậy cho các cộng đồng gia đình Việt Nam.'**
+  String get webAboutVisionDescription;
+
+  /// No description provided for @webAboutTrustTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cam kết'**
+  String get webAboutTrustTitle;
+
+  /// No description provided for @webAboutTrustDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Ưu tiên tính chính xác dữ liệu, minh bạch quyền truy cập và trải nghiệm đồng nhất trên mọi thiết bị.'**
+  String get webAboutTrustDescription;
+
+  /// No description provided for @webInfoTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông tin BeFam'**
+  String get webInfoTitle;
+
+  /// No description provided for @webInfoSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tổng quan nhanh về những gì BeFam đang cung cấp cho quản trị gia phả và hoạt động gia đình.'**
+  String get webInfoSubtitle;
+
+  /// No description provided for @webInfoGenealogyTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Không gian gia phả'**
+  String get webInfoGenealogyTitle;
+
+  /// No description provided for @webInfoGenealogyDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Theo dõi hồ sơ thành viên, quan hệ huyết thống, nhánh chi và thông tin thế hệ trên một cấu trúc thống nhất.'**
+  String get webInfoGenealogyDescription;
+
+  /// No description provided for @webInfoNotificationsTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông báo và nhắc lịch'**
+  String get webInfoNotificationsTitle;
+
+  /// No description provided for @webInfoNotificationsDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng trong phạm vi gia tộc.'**
+  String get webInfoNotificationsDescription;
+
+  /// No description provided for @webInfoBillingTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Gói và thanh toán'**
+  String get webInfoBillingTitle;
+
+  /// No description provided for @webInfoBillingDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quản lý quyền lợi theo gói, trạng thái hiệu lực và luồng thanh toán VNPay cho tổ chức gia phả.'**
+  String get webInfoBillingDescription;
+
+  /// No description provided for @webInfoHighlightsTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Điểm nổi bật hiện tại'**
+  String get webInfoHighlightsTitle;
+
+  /// No description provided for @webInfoHighlightsItemOne.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hỗ trợ tiếng Việt/English đồng bộ theo cấu hình người dùng.'**
+  String get webInfoHighlightsItemOne;
+
+  /// No description provided for @webInfoHighlightsItemTwo.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết kế responsive cho điện thoại, tablet và desktop.'**
+  String get webInfoHighlightsItemTwo;
+
+  /// No description provided for @webInfoHighlightsItemThree.
+  ///
+  /// In vi, this message translates to:
+  /// **'Kiến trúc Flutter + Firebase giúp mở rộng tính năng nhanh và nhất quán.'**
+  String get webInfoHighlightsItemThree;
 }
 
 class _AppLocalizationsDelegate

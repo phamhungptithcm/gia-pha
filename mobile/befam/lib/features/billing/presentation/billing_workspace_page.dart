@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/services/app_environment.dart';
+import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -50,6 +51,10 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   Set<int> _reminderDaysDraft = {30, 14, 7, 3, 1};
   String? _draftSeedKey;
   bool _showPreferencesSavedInline = false;
+  String _pricingTierCacheKey = '';
+  List<BillingPlanPricing> _cachedSortedAllTiers = const [];
+  List<BillingPlanPricing> _cachedCheckoutTiers = const [];
+  Map<int, BillingPlanPricing> _cachedMinimumTierByMemberCount = {};
 
   @override
   void initState() {
@@ -369,37 +374,67 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
-                    child: FilledButton.tonalIcon(
-                      key: const Key('billing-pending-detail-copy-link-button'),
+                    child: AppAsyncAction(
                       onPressed: () => _copyCheckoutUrl(checkoutUrl),
-                      icon: const Icon(Icons.copy_outlined),
-                      label: Text(
-                        l10n.pick(
-                          vi: 'Sao chép liên kết thanh toán',
-                          en: 'Copy checkout link',
-                        ),
-                      ),
+                      builder: (context, onPressed, isLoading) {
+                        return FilledButton.tonalIcon(
+                          key: const Key(
+                            'billing-pending-detail-copy-link-button',
+                          ),
+                          onPressed: onPressed,
+                          icon: isLoading
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.copy_outlined),
+                          label: Text(
+                            l10n.pick(
+                              vi: 'Sao chép liên kết thanh toán',
+                              en: 'Copy checkout link',
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton.icon(
-                      key: const Key('billing-pending-detail-open-link-button'),
-                      onPressed: () {
+                    child: AppAsyncAction(
+                      onPressed: () async {
                         final uri = Uri.tryParse(checkoutUrl);
                         if (uri == null) {
                           return;
                         }
-                        unawaited(_launchExternalUri(uri));
+                        await _launchExternalUri(uri);
                       },
-                      icon: const Icon(Icons.open_in_new),
-                      label: Text(
-                        l10n.pick(
-                          vi: 'Mở liên kết thanh toán',
-                          en: 'Open checkout link',
-                        ),
-                      ),
+                      builder: (context, onPressed, isLoading) {
+                        return OutlinedButton.icon(
+                          key: const Key(
+                            'billing-pending-detail-open-link-button',
+                          ),
+                          onPressed: onPressed,
+                          icon: isLoading
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.open_in_new),
+                          label: Text(
+                            l10n.pick(
+                              vi: 'Mở liên kết thanh toán',
+                              en: 'Open checkout link',
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -573,6 +608,23 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         .toList(growable: false);
     final latestCheckout = _controller.lastCheckout;
     final hasRenewalSettingsChanges = _hasRenewalSettingsChanges(workspace);
+    final checkoutActionLabel = isRenewSelection
+        ? l10n.pick(
+            vi: 'Gia hạn ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
+            en: 'Renew ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
+          )
+        : isDowngradeSelection
+        ? l10n.pick(
+            vi: 'Hạ xuống ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
+            en: 'Downgrade to ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
+          )
+        : l10n.pick(
+            vi: 'Nâng cấp ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
+            en: 'Upgrade to ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
+          );
+    final checkoutActionIcon = useQrCheckout
+        ? Icons.qr_code_2_outlined
+        : Icons.account_balance_wallet_outlined;
 
     return RefreshIndicator(
       onRefresh: _controller.refresh,
@@ -738,57 +790,55 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                 else ...[
                   SizedBox(
                     width: double.infinity,
-                    child: FilledButton(
-                      key: const Key('billing-open-vnpay-form-button'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(54),
-                      ),
-                      onPressed: () => useQrCheckout
-                          ? _openQrCheckoutFlow(
-                              workspace: workspace,
-                              minimumTier: minimumTier,
-                              selectedTier: selectedTier,
-                              canRenewCurrentPlan: canRenewCurrentPlan,
-                            )
-                          : _openVnpayCheckoutFlow(
-                              workspace: workspace,
-                              minimumTier: minimumTier,
-                              selectedTier: selectedTier,
-                              canRenewCurrentPlan: canRenewCurrentPlan,
-                            ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            useQrCheckout
-                                ? Icons.qr_code_2_outlined
-                                : Icons.account_balance_wallet_outlined,
+                    child: AppAsyncAction(
+                      enabled: canCheckoutSelectedPlan,
+                      onPressed: canCheckoutSelectedPlan
+                          ? () async {
+                              if (useQrCheckout) {
+                                await _openQrCheckoutFlow(
+                                  workspace: workspace,
+                                  minimumTier: minimumTier,
+                                  selectedTier: selectedTier,
+                                  canRenewCurrentPlan: canRenewCurrentPlan,
+                                );
+                                return;
+                              }
+                              await _openVnpayCheckoutFlow(
+                                workspace: workspace,
+                                minimumTier: minimumTier,
+                                selectedTier: selectedTier,
+                                canRenewCurrentPlan: canRenewCurrentPlan,
+                              );
+                            }
+                          : null,
+                      builder: (context, onPressed, isLoading) {
+                        return FilledButton(
+                          key: const Key('billing-open-vnpay-form-button'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(54),
                           ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              isRenewSelection
-                                  ? l10n.pick(
-                                      vi: 'Gia hạn ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
-                                      en: 'Renew ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
-                                    )
-                                  : isDowngradeSelection
-                                  ? l10n.pick(
-                                      vi: 'Hạ xuống ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
-                                      en: 'Downgrade to ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
-                                    )
-                                  : l10n.pick(
-                                      vi: 'Nâng cấp ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
-                                      en: 'Upgrade to ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
-                                    ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              softWrap: false,
-                              textAlign: TextAlign.center,
+                          onPressed: onPressed,
+                          child: AppStableLoadingChild(
+                            isLoading: isLoading,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(checkoutActionIcon),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    checkoutActionLabel,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    softWrap: false,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -1053,19 +1103,39 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                   ),
                   child: SizedBox(
                     width: double.infinity,
-                    child: FilledButton.icon(
-                      key: const Key('billing-save-preferences-button'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                      ),
+                    child: AppAsyncAction(
+                      enabled:
+                          canManage &&
+                          !_controller.isSavingPreferences &&
+                          hasRenewalSettingsChanges,
                       onPressed:
                           canManage &&
                               !_controller.isSavingPreferences &&
                               hasRenewalSettingsChanges
                           ? _savePreferences
                           : null,
-                      icon: const Icon(Icons.save_outlined),
-                      label: Text(l10n.pick(vi: 'Lưu', en: 'Save')),
+                      builder: (context, onPressed, isLoading) {
+                        final saveInProgress =
+                            isLoading || _controller.isSavingPreferences;
+                        return FilledButton(
+                          key: const Key('billing-save-preferences-button'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                          ),
+                          onPressed: onPressed,
+                          child: AppStableLoadingChild(
+                            isLoading: saveInProgress,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.save_outlined),
+                                const SizedBox(width: 8),
+                                Text(l10n.pick(vi: 'Lưu', en: 'Save')),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -1314,24 +1384,57 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     );
   }
 
-  BillingPlanPricing _minimumTierForMemberCount(
-    List<BillingPlanPricing> tiers,
-    int memberCount,
-  ) {
+  void _ensurePricingTierCache(List<BillingPlanPricing> tiers) {
+    final cacheKey = _buildPricingTierCacheKey(tiers);
+    if (cacheKey == _pricingTierCacheKey) {
+      return;
+    }
+    _pricingTierCacheKey = cacheKey;
     final sorted = [...tiers]
       ..sort(
         (left, right) =>
             _planRank(left.planCode).compareTo(_planRank(right.planCode)),
       );
-    for (final tier in sorted) {
-      final inLowerBound = memberCount >= tier.minMembers;
-      final inUpperBound =
-          tier.maxMembers == null || memberCount <= tier.maxMembers!;
-      if (inLowerBound && inUpperBound) {
-        return tier;
-      }
+    _cachedSortedAllTiers = sorted;
+    _cachedCheckoutTiers = sorted
+        .where((tier) => _planRank(tier.planCode) > 0)
+        .toList(growable: false);
+    _cachedMinimumTierByMemberCount = {};
+  }
+
+  String _buildPricingTierCacheKey(List<BillingPlanPricing> tiers) {
+    if (tiers.isEmpty) {
+      return 'empty';
     }
-    return sorted.isNotEmpty
+    final normalized =
+        tiers
+            .map(
+              (tier) =>
+                  '${tier.planCode.trim().toUpperCase()}:'
+                  '${tier.minMembers}:'
+                  '${tier.maxMembers ?? ''}:'
+                  '${tier.priceVndYear}:'
+                  '${tier.vatIncluded ? 1 : 0}:'
+                  '${tier.showAds ? 1 : 0}:'
+                  '${tier.adFree ? 1 : 0}',
+            )
+            .toList(growable: false)
+          ..sort();
+    return normalized.join('|');
+  }
+
+  BillingPlanPricing _minimumTierForMemberCount(
+    List<BillingPlanPricing> tiers,
+    int memberCount,
+  ) {
+    _ensurePricingTierCache(tiers);
+    final cached = _cachedMinimumTierByMemberCount[memberCount];
+    if (cached != null) {
+      return cached;
+    }
+
+    final sorted = _cachedSortedAllTiers;
+    BillingPlanPricing resolved = sorted.isNotEmpty
         ? sorted.last
         : const BillingPlanPricing(
             planCode: 'FREE',
@@ -1342,6 +1445,17 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             showAds: true,
             adFree: false,
           );
+    for (final tier in sorted) {
+      final inLowerBound = memberCount >= tier.minMembers;
+      final inUpperBound =
+          tier.maxMembers == null || memberCount <= tier.maxMembers!;
+      if (inLowerBound && inUpperBound) {
+        resolved = tier;
+        break;
+      }
+    }
+    _cachedMinimumTierByMemberCount[memberCount] = resolved;
+    return resolved;
   }
 
   bool _hasRenewalSettingsChanges(BillingWorkspaceSnapshot workspace) {
@@ -1363,14 +1477,8 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   List<BillingPlanPricing> _checkoutSelectablePlans({
     required List<BillingPlanPricing> tiers,
   }) {
-    final filtered = tiers
-        .where((tier) => _planRank(tier.planCode) > 0)
-        .toList(growable: false);
-    filtered.sort(
-      (left, right) =>
-          _planRank(left.planCode).compareTo(_planRank(right.planCode)),
-    );
-    return filtered;
+    _ensurePricingTierCache(tiers);
+    return _cachedCheckoutTiers;
   }
 
   bool _canRenewCurrentPlan(BillingSubscription subscription) {
@@ -1806,89 +1914,106 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: borderColor, width: isSelected ? 1.6 : 1),
           ),
-          child: Row(
-            children: [
-              Icon(
-                isSelected
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
-                size: 18,
-                color: isSelected
-                    ? colorScheme.primary
-                    : colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final showDivider = constraints.maxWidth >= 360;
+              return Row(
+                children: [
+                  Icon(
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 18,
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                planName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            if (isCurrentPlan) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  l10n.pick(vi: 'Hiện tại', en: 'Current'),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          memberRangeLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  if (showDivider) ...[
+                    Container(
+                      width: 1,
+                      height: 34,
+                      color: colorScheme.outlineVariant,
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
                           child: Text(
-                            planName,
+                            priceLabel,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
+                            style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
-                        if (isCurrentPlan) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              l10n.pick(vi: 'Hiện tại', en: 'Current'),
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      memberRangeLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                width: 1,
-                height: 34,
-                color: colorScheme.outlineVariant,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                priceLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ],
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -1990,11 +2115,22 @@ class _ManualQrPaymentPage extends StatelessWidget {
           l10n.pick(vi: 'Bước 3: Thanh toán QR', en: 'Step 3: QR payment'),
         ),
         actions: [
-          IconButton(
-            key: const Key('billing-qr-payment-download-button'),
-            tooltip: l10n.pick(vi: 'Tải ảnh QR', en: 'Download QR'),
+          AppAsyncAction(
             onPressed: () => _downloadQrImage(context),
-            icon: const Icon(Icons.download_rounded),
+            builder: (context, onPressed, isLoading) {
+              return IconButton(
+                key: const Key('billing-qr-payment-download-button'),
+                tooltip: l10n.pick(vi: 'Tải ảnh QR', en: 'Download QR'),
+                onPressed: onPressed,
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_rounded),
+              );
+            },
           ),
         ],
       ),
@@ -2640,30 +2776,56 @@ class _VnpayCheckoutProgressPageState
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.icon(
+                  child: FilledButton(
                     key: const Key('billing-payment-check-status-button'),
                     onPressed: _isChecking ? null : _checkPaymentStatus,
-                    icon: const Icon(Icons.verified_outlined),
-                    label: Text(
-                      _isChecking
-                          ? l10n.pick(vi: 'Đang kiểm tra...', en: 'Checking...')
-                          : l10n.pick(
+                    child: AppStableLoadingChild(
+                      isLoading: _isChecking,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.verified_outlined),
+                          const SizedBox(width: 8),
+                          Text(
+                            l10n.pick(
                               vi: 'Tôi đã thanh toán, kiểm tra ngay',
                               en: 'I paid, check status',
                             ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    key: const Key('billing-payment-open-vnpay-again-button'),
+                  child: AppAsyncAction(
                     onPressed: _openVnpayAgain,
-                    icon: const Icon(Icons.open_in_new),
-                    label: Text(
-                      l10n.pick(vi: 'Mở lại VNPay', en: 'Open VNPay again'),
-                    ),
+                    builder: (context, onPressed, isLoading) {
+                      return OutlinedButton(
+                        key: const Key(
+                          'billing-payment-open-vnpay-again-button',
+                        ),
+                        onPressed: onPressed,
+                        child: AppStableLoadingChild(
+                          isLoading: isLoading,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.open_in_new),
+                              const SizedBox(width: 8),
+                              Text(
+                                l10n.pick(
+                                  vi: 'Mở lại VNPay',
+                                  en: 'Open VNPay again',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -2733,11 +2895,25 @@ class _VnpayCheckoutProgressPageState
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.tonalIcon(
-                    key: const Key('billing-payment-retry-button'),
+                  child: AppAsyncAction(
                     onPressed: _createCheckoutAndOpenGateway,
-                    icon: const Icon(Icons.refresh),
-                    label: Text(l10n.pick(vi: 'Thử lại', en: 'Retry')),
+                    builder: (context, onPressed, isLoading) {
+                      return FilledButton.tonal(
+                        key: const Key('billing-payment-retry-button'),
+                        onPressed: onPressed,
+                        child: AppStableLoadingChild(
+                          isLoading: isLoading,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.refresh),
+                              const SizedBox(width: 8),
+                              Text(l10n.pick(vi: 'Thử lại', en: 'Retry')),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 8),

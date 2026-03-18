@@ -1,16 +1,22 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
+import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/services/kinship_title_resolver.dart';
 import '../../../core/services/performance_measurement_logger.dart';
+import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -50,6 +56,8 @@ enum _GenealogyHonorBadge {
   dichTonToc,
 }
 
+enum _TreeExportPaperSize { a3, a2 }
+
 class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     with TickerProviderStateMixin {
   static const _minTreeScale = 0.22;
@@ -84,6 +92,12 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   _TreeScene? _cachedScene;
   GenealogyReadSegment? _cachedSceneSegment;
   String _cachedSceneRootId = '';
+  GenealogyGraph? _cachedDerivedGraph;
+  String? _cachedDerivedViewerId;
+  Map<String, int?>? _cachedRelativeLevelsByCurrentUser;
+  Map<String, int>? _cachedSiblingOrdersByMember;
+  Map<String, List<_GenealogyHonorBadge>>? _cachedHonorBadgesByMember;
+  Map<String, int>? _cachedHonorBadgesSiblingOrders;
 
   @override
   void initState() {
@@ -148,6 +162,13 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     final relativeLevelsByCurrentUser = _resolveRelativeLevelsByCurrentUser(
       segment.graph,
     );
+    final hasClanContext = (widget.session.clanId ?? '').trim().isNotEmpty;
+    final canAddBranchAction =
+        hasClanContext &&
+        GovernanceRoleMatrix.canManageBranches(widget.session);
+    final canAddMemberAction =
+        hasClanContext && GovernanceRoleMatrix.canManageMembers(widget.session);
+    final viewer = _viewerMemberForGraph(segment.graph);
     final siblingOrdersByMember = _resolveSiblingOrders(segment.graph);
     final honorBadgesByMember = _resolveHonorBadges(
       segment.graph,
@@ -218,9 +239,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                           child: CustomPaint(
                                             key: const Key('tree-connectors'),
                                             painter: _TreeConnectorPainter(
-                                              parentChildEdges:
-                                                  scene.parentChildEdges,
-                                              nodeRects: scene.nodeRects,
+                                              connectorGroups:
+                                                  scene.connectorGroups,
                                               selectedMemberId:
                                                   _selectedMemberId,
                                             ),
@@ -260,10 +280,15 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                               generationLabel:
                                                   _memberGenerationLabelForDisplay(
                                                     l10n: l10n,
-                                                    generation: segment
+                                                    member:
+                                                        segment
+                                                            .graph
+                                                            .membersById[entry
+                                                            .key]!,
+                                                    viewer: viewer,
+                                                    membersById: segment
                                                         .graph
-                                                        .membersById[entry.key]!
-                                                        .generation,
+                                                        .membersById,
                                                     relativeLevel:
                                                         relativeLevelsByCurrentUser[entry
                                                             .key],
@@ -366,7 +391,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                 onZoomIn: _zoomIn,
                                 onZoomOut: _zoomOut,
                                 onReset: _resetTreeViewport,
-                                onPrint: _printTree,
+                                onExport: _openTreeExportSheet,
                               ),
                             ),
                           ],
@@ -385,8 +410,10 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           child: _AddActionFab(
             isMenuOpen: _showAddFabMenu,
             canAddGenealogy: !_isSubmittingAddClan,
-            canAddBranch: !_isSubmittingAddBranch,
-            canAddMember: true,
+            showAddBranch: canAddBranchAction,
+            canAddBranch: canAddBranchAction && !_isSubmittingAddBranch,
+            showAddMember: canAddMemberAction,
+            canAddMember: canAddMemberAction,
             onToggleMenu: () {
               setState(() {
                 _showAddFabMenu = !_showAddFabMenu;
@@ -421,6 +448,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       _isLoading = true;
       _error = null;
       _invalidateTreeSceneCache();
+      _invalidateDerivedGraphCaches();
     });
 
     try {
@@ -783,6 +811,27 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     _cachedSceneRootId = '';
   }
 
+  void _prepareDerivedGraphCache(GenealogyGraph graph) {
+    if (identical(_cachedDerivedGraph, graph)) {
+      return;
+    }
+    _cachedDerivedGraph = graph;
+    _cachedDerivedViewerId = null;
+    _cachedRelativeLevelsByCurrentUser = null;
+    _cachedSiblingOrdersByMember = null;
+    _cachedHonorBadgesByMember = null;
+    _cachedHonorBadgesSiblingOrders = null;
+  }
+
+  void _invalidateDerivedGraphCaches() {
+    _cachedDerivedGraph = null;
+    _cachedDerivedViewerId = null;
+    _cachedRelativeLevelsByCurrentUser = null;
+    _cachedSiblingOrdersByMember = null;
+    _cachedHonorBadgesByMember = null;
+    _cachedHonorBadgesSiblingOrders = null;
+  }
+
   _TreeScene _buildTreeScene(
     GenealogyReadSegment segment, {
     required String rootId,
@@ -827,6 +876,13 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     for (final entry in optimizedRows.entries) {
       idsByLevel[entry.key] = entry.value;
     }
+
+    final rowGaps = _computeRowGaps(
+      sortedLevels: sortedLevels,
+      idsByLevel: idsByLevel,
+      graph: graph,
+      levels: levels,
+    );
     final maxColumns = idsByLevel.values.fold<int>(
       1,
       (current, list) => list.length > current ? list.length : current,
@@ -838,16 +894,16 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     final canvasHeight =
         (_canvasPadding * 2) +
         (sortedLevels.length * _nodeHeight) +
-        ((sortedLevels.length - 1) * _rowSpacing);
+        rowGaps.fold<double>(0, (sum, gap) => sum + gap);
 
     final nodeRects = <String, Rect>{};
+    var top = _canvasPadding;
     for (var levelIndex = 0; levelIndex < sortedLevels.length; levelIndex++) {
       final level = sortedLevels[levelIndex];
       final row = idsByLevel[level]!;
       final rowWidth =
           (row.length * _nodeWidth) + ((row.length - 1) * _columnSpacing);
       final startX = (canvasWidth - rowWidth) / 2;
-      final top = _canvasPadding + (levelIndex * (_nodeHeight + _rowSpacing));
       for (var columnIndex = 0; columnIndex < row.length; columnIndex++) {
         final left = startX + (columnIndex * (_nodeWidth + _columnSpacing));
         nodeRects[row[columnIndex]] = Rect.fromLTWH(
@@ -856,6 +912,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           _nodeWidth,
           _nodeHeight,
         );
+      }
+      if (levelIndex < rowGaps.length) {
+        top += _nodeHeight + rowGaps[levelIndex];
       }
     }
 
@@ -888,6 +947,15 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       }
     }
 
+    final connectorGroups = _buildConnectorGroups(
+      parentChildEdges: parentChildEdges,
+      nodeRects: nodeRects,
+    );
+    final connectorSegmentCount = connectorGroups.fold<int>(
+      0,
+      (sum, group) => sum + group.segmentCount,
+    );
+
     stopwatch.stop();
     final layoutProfile = _layoutProfiler.push(stopwatch.elapsed);
     _performanceLogger.logDuration(
@@ -896,6 +964,11 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       dimensions: {
         'nodes': visibleMemberIds.length,
         'edges': parentChildEdges.length + spouseEdges.length,
+        'connector_groups': connectorGroups.length,
+        'connector_segments': connectorSegmentCount,
+        'row_gap_max': rowGaps.isEmpty
+            ? 0
+            : rowGaps.reduce((left, right) => math.max(left, right)).round(),
         'layout_latest_ms': layoutProfile.latestMs,
         'layout_average_ms': layoutProfile.averageMs,
         'layout_peak_ms': layoutProfile.peakMs,
@@ -908,9 +981,272 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       nodeRects: nodeRects,
       parentChildEdges: parentChildEdges,
       spouseEdges: spouseEdges,
+      connectorGroups: connectorGroups,
       visibleMemberIds: visibleMemberIds,
       layoutProfile: layoutProfile,
     );
+  }
+
+  List<_TreeConnectorGroupGeometry> _buildConnectorGroups({
+    required List<_TreeEdge> parentChildEdges,
+    required Map<String, Rect> nodeRects,
+  }) {
+    if (parentChildEdges.isEmpty || nodeRects.isEmpty) {
+      return const [];
+    }
+
+    final parentsByChild = <String, Set<String>>{};
+    for (final edge in parentChildEdges) {
+      parentsByChild.putIfAbsent(edge.toId, () => <String>{}).add(edge.fromId);
+    }
+    final childrenByParentGroup = <String, List<String>>{};
+    final parentsForGroup = <String, List<String>>{};
+    for (final entry in parentsByChild.entries) {
+      final childId = entry.key;
+      final childRect = nodeRects[childId];
+      if (childRect == null) {
+        continue;
+      }
+      final sortedParents =
+          entry.value.where(nodeRects.containsKey).toList(growable: false)
+            ..sort((left, right) {
+              final leftRect = nodeRects[left]!;
+              final rightRect = nodeRects[right]!;
+              return leftRect.center.dx.compareTo(rightRect.center.dx);
+            });
+      if (sortedParents.isEmpty) {
+        continue;
+      }
+      final groupKey = sortedParents.join('|');
+      childrenByParentGroup
+          .putIfAbsent(groupKey, () => <String>[])
+          .add(childId);
+      parentsForGroup[groupKey] = sortedParents;
+    }
+
+    final joinLaneAllocator = _HorizontalLaneAllocator(step: 10, padding: 18);
+    final splitLaneAllocator = _HorizontalLaneAllocator(step: 8, padding: 14);
+
+    final orderedGroupKeys = childrenByParentGroup.keys.toList(growable: false)
+      ..sort((left, right) {
+        final leftParents = parentsForGroup[left];
+        final rightParents = parentsForGroup[right];
+        if (leftParents == null || leftParents.isEmpty) {
+          return 1;
+        }
+        if (rightParents == null || rightParents.isEmpty) {
+          return -1;
+        }
+        final leftRect = nodeRects[leftParents.first];
+        final rightRect = nodeRects[rightParents.first];
+        if (leftRect == null || rightRect == null) {
+          return 0;
+        }
+        return leftRect.center.dx.compareTo(rightRect.center.dx);
+      });
+
+    final groups = <_TreeConnectorGroupGeometry>[];
+    for (final groupKey in orderedGroupKeys) {
+      final parentIds = parentsForGroup[groupKey];
+      final childIds = childrenByParentGroup[groupKey];
+      if (parentIds == null ||
+          parentIds.isEmpty ||
+          childIds == null ||
+          childIds.isEmpty) {
+        continue;
+      }
+
+      final childAnchors = <({String childId, double x, double top})>[];
+      for (final childId in childIds) {
+        final childRect = nodeRects[childId];
+        if (childRect == null) {
+          continue;
+        }
+        childAnchors.add((
+          childId: childId,
+          x: childRect.center.dx,
+          top: childRect.top - 2,
+        ));
+      }
+      if (childAnchors.isEmpty) {
+        continue;
+      }
+      childAnchors.sort((left, right) => left.x.compareTo(right.x));
+
+      final parentAnchors = <({String parentId, double x, double bottom})>[];
+      for (final parentId in parentIds) {
+        final parentRect = nodeRects[parentId];
+        if (parentRect == null) {
+          continue;
+        }
+        parentAnchors.add((
+          parentId: parentId,
+          x: parentRect.center.dx,
+          bottom: parentRect.bottom + 2,
+        ));
+      }
+      if (parentAnchors.isEmpty) {
+        continue;
+      }
+      parentAnchors.sort((left, right) => left.x.compareTo(right.x));
+
+      final minChildTop = childAnchors
+          .map((anchor) => anchor.top)
+          .reduce(math.min);
+      final firstChildX = childAnchors.first.x;
+      final lastChildX = childAnchors.last.x;
+      final childCenterX = (firstChildX + lastChildX) / 2;
+
+      final maxParentBottom = parentAnchors
+          .map((anchor) => anchor.bottom)
+          .reduce(math.max);
+      final verticalGap = minChildTop - maxParentBottom;
+      if (verticalGap <= 8) {
+        // Avoid inverse vertical connectors for malformed graph links.
+        continue;
+      }
+
+      final minParentX = parentAnchors
+          .map((anchor) => anchor.x)
+          .reduce(math.min);
+      final maxParentX = parentAnchors
+          .map((anchor) => anchor.x)
+          .reduce(math.max);
+      final groupMinX = math.min(minParentX, firstChildX);
+      final groupMaxX = math.max(maxParentX, lastChildX);
+
+      final minJoinY = maxParentBottom + 4;
+      final maxJoinY = minChildTop - 22;
+      if (maxJoinY <= minJoinY) {
+        continue;
+      }
+      final preferredJoinY =
+          (parentAnchors.length > 1
+                  ? maxParentBottom + 16
+                  : maxParentBottom + 8)
+              .clamp(minJoinY, maxJoinY)
+              .toDouble();
+      final joinY = joinLaneAllocator.reserve(
+        preferredY: preferredJoinY,
+        minY: minJoinY,
+        maxY: maxJoinY,
+        left: groupMinX,
+        right: groupMaxX,
+      );
+
+      final parentCenterX = (parentAnchors.first.x + parentAnchors.last.x) / 2;
+      final trunkX = childAnchors.length == 1
+          ? childAnchors.first.x
+          : childCenterX;
+
+      final sharedSegments = <_TreeLineSegment>[];
+      final childSegments = <_TreeChildLineSegment>[];
+
+      void addSharedSegment(Offset from, Offset to) {
+        if ((from.dx - to.dx).abs() <= 0.5 && (from.dy - to.dy).abs() <= 0.5) {
+          return;
+        }
+        sharedSegments.add(_TreeLineSegment(from: from, to: to));
+      }
+
+      void addChildSegment({
+        required String childId,
+        required Offset from,
+        required Offset to,
+      }) {
+        if ((from.dx - to.dx).abs() <= 0.5 && (from.dy - to.dy).abs() <= 0.5) {
+          return;
+        }
+        childSegments.add(
+          _TreeChildLineSegment(childId: childId, from: from, to: to),
+        );
+      }
+
+      for (final parent in parentAnchors) {
+        if (joinY - parent.bottom > 0.5) {
+          addSharedSegment(
+            Offset(parent.x, parent.bottom),
+            Offset(parent.x, joinY),
+          );
+        }
+      }
+      if (parentAnchors.length > 1) {
+        addSharedSegment(
+          Offset(parentAnchors.first.x, joinY),
+          Offset(parentAnchors.last.x, joinY),
+        );
+      }
+
+      if ((trunkX - parentCenterX).abs() > 0.5) {
+        addSharedSegment(Offset(parentCenterX, joinY), Offset(trunkX, joinY));
+      }
+
+      if (childAnchors.length == 1) {
+        final onlyChild = childAnchors.first;
+        if (onlyChild.top - joinY > 0.5) {
+          addChildSegment(
+            childId: onlyChild.childId,
+            from: Offset(trunkX, joinY),
+            to: Offset(trunkX, onlyChild.top),
+          );
+        }
+      } else {
+        final minSplitY = joinY + 18;
+        final maxSplitY = minChildTop - 18;
+        if (maxSplitY > minSplitY) {
+          final preferredSplitY = (joinY + ((minChildTop - joinY) * 0.42))
+              .clamp(minSplitY, maxSplitY)
+              .toDouble();
+          final splitY = splitLaneAllocator.reserve(
+            preferredY: preferredSplitY,
+            minY: minSplitY,
+            maxY: maxSplitY,
+            left: firstChildX,
+            right: lastChildX,
+          );
+
+          if (splitY - joinY > 0.5) {
+            addSharedSegment(Offset(trunkX, joinY), Offset(trunkX, splitY));
+          }
+
+          final splitLeftX = math.min(firstChildX, trunkX);
+          final splitRightX = math.max(lastChildX, trunkX);
+          if ((splitRightX - splitLeftX).abs() > 0.5) {
+            addSharedSegment(
+              Offset(splitLeftX, splitY),
+              Offset(splitRightX, splitY),
+            );
+          }
+
+          for (final anchor in childAnchors) {
+            if (anchor.top - splitY > 0.5) {
+              addChildSegment(
+                childId: anchor.childId,
+                from: Offset(anchor.x, splitY),
+                to: Offset(anchor.x, anchor.top),
+              );
+            }
+          }
+        }
+      }
+
+      if (sharedSegments.isEmpty && childSegments.isEmpty) {
+        continue;
+      }
+
+      final groupMemberIds = <String>{
+        ...parentAnchors.map((anchor) => anchor.parentId),
+        ...childAnchors.map((anchor) => anchor.childId),
+      };
+      groups.add(
+        _TreeConnectorGroupGeometry(
+          memberIds: groupMemberIds,
+          sharedSegments: sharedSegments,
+          childSegments: childSegments,
+        ),
+      );
+    }
+    return groups;
   }
 
   Map<int, List<String>> _optimizeRowOrdering({
@@ -922,84 +1258,365 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     final orderedByLevel = <int, List<String>>{};
     for (final level in sortedLevels) {
       final row = List<String>.from(idsByLevel[level] ?? const []);
-      row.sort((left, right) {
-        final leftAnchor = _memberAnchorIndex(
-          memberId: left,
-          graph: graph,
-          levels: levels,
-          orderedByLevel: orderedByLevel,
-        );
-        final rightAnchor = _memberAnchorIndex(
-          memberId: right,
-          graph: graph,
-          levels: levels,
-          orderedByLevel: orderedByLevel,
-        );
-        if (leftAnchor != null && rightAnchor != null) {
-          final byAnchor = leftAnchor.compareTo(rightAnchor);
-          if (byAnchor != 0) {
-            return byAnchor;
-          }
-        } else if (leftAnchor != null) {
-          return -1;
-        } else if (rightAnchor != null) {
-          return 1;
-        }
-
-        final leftMember = graph.membersById[left]!;
-        final rightMember = graph.membersById[right]!;
-        final byGeneration = leftMember.generation.compareTo(
-          rightMember.generation,
-        );
-        if (byGeneration != 0) {
-          return byGeneration;
-        }
-        return leftMember.fullName.compareTo(rightMember.fullName);
-      });
+      row.sort((left, right) => _compareMembersForLayout(left, right, graph));
       orderedByLevel[level] = row;
+    }
+
+    // Multi-pass barycenter sweeps (top-down + bottom-up) to reduce crossings.
+    for (var iteration = 0; iteration < 4; iteration++) {
+      for (var index = 1; index < sortedLevels.length; index++) {
+        _sortRowWithBarycenter(
+          level: sortedLevels[index],
+          orderedByLevel: orderedByLevel,
+          graph: graph,
+          levels: levels,
+          preferParents: true,
+        );
+      }
+      for (var index = sortedLevels.length - 2; index >= 0; index--) {
+        _sortRowWithBarycenter(
+          level: sortedLevels[index],
+          orderedByLevel: orderedByLevel,
+          graph: graph,
+          levels: levels,
+          preferParents: false,
+        );
+      }
+    }
+
+    for (final level in sortedLevels) {
+      final row = orderedByLevel[level];
+      if (row == null || row.length < 2) {
+        continue;
+      }
+      final compactedSpouses = _compactSpouseBlocks(
+        row: row,
+        graph: graph,
+        levels: levels,
+        level: level,
+      );
+      orderedByLevel[level] = _compactSiblingBlocks(
+        row: compactedSpouses,
+        graph: graph,
+        levels: levels,
+        level: level,
+      );
     }
     return orderedByLevel;
   }
 
-  double? _memberAnchorIndex({
-    required String memberId,
+  void _sortRowWithBarycenter({
+    required int level,
+    required Map<int, List<String>> orderedByLevel,
     required GenealogyGraph graph,
     required Map<String, int> levels,
-    required Map<int, List<String>> orderedByLevel,
+    required bool preferParents,
   }) {
-    final anchors = <double>[];
-    for (final parentId in graph.parentsOf(memberId)) {
-      final parentLevel = levels[parentId];
-      if (parentLevel == null) {
-        continue;
+    final row = orderedByLevel[level];
+    if (row == null || row.length < 2) {
+      return;
+    }
+
+    final positionByMember = _positionIndexMap(orderedByLevel);
+    final barycenterByMember = <String, double?>{};
+    for (final memberId in row) {
+      final anchors = <double>[];
+      final neighborIds = preferParents
+          ? graph.parentsOf(memberId)
+          : graph.childrenOf(memberId);
+      for (final neighborId in neighborIds) {
+        final index = positionByMember[neighborId];
+        if (index != null) {
+          anchors.add(index);
+        }
       }
-      final parentRow = orderedByLevel[parentLevel];
-      if (parentRow == null) {
-        continue;
+      for (final spouseId in graph.spousesOf(memberId)) {
+        if (levels[spouseId] != level) {
+          continue;
+        }
+        final index = positionByMember[spouseId];
+        if (index != null) {
+          anchors.add(index);
+        }
       }
-      final index = parentRow.indexOf(parentId);
-      if (index >= 0) {
-        anchors.add(index.toDouble());
+      if (anchors.isEmpty) {
+        barycenterByMember[memberId] = null;
+      } else {
+        final sum = anchors.reduce((a, b) => a + b);
+        barycenterByMember[memberId] = sum / anchors.length;
       }
     }
-    for (final spouseId in graph.spousesOf(memberId)) {
-      final spouseLevel = levels[spouseId];
-      if (spouseLevel == null) {
-        continue;
+
+    row.sort((left, right) {
+      final leftAnchor = barycenterByMember[left];
+      final rightAnchor = barycenterByMember[right];
+      if (leftAnchor != null && rightAnchor != null) {
+        final byAnchor = leftAnchor.compareTo(rightAnchor);
+        if (byAnchor != 0) {
+          return byAnchor;
+        }
+      } else if (leftAnchor != null) {
+        return -1;
+      } else if (rightAnchor != null) {
+        return 1;
       }
-      final spouseRow = orderedByLevel[spouseLevel];
-      if (spouseRow == null) {
-        continue;
+      final leftPos = positionByMember[left];
+      final rightPos = positionByMember[right];
+      if (leftPos != null && rightPos != null) {
+        final byPreviousPosition = leftPos.compareTo(rightPos);
+        if (byPreviousPosition != 0) {
+          return byPreviousPosition;
+        }
       }
-      final index = spouseRow.indexOf(spouseId);
-      if (index >= 0) {
-        anchors.add(index.toDouble());
+      return _compareMembersForLayout(left, right, graph);
+    });
+
+    final compactedSpouses = _compactSpouseBlocks(
+      row: row,
+      graph: graph,
+      levels: levels,
+      level: level,
+    );
+    orderedByLevel[level] = _compactSiblingBlocks(
+      row: compactedSpouses,
+      graph: graph,
+      levels: levels,
+      level: level,
+    );
+  }
+
+  Map<String, double> _positionIndexMap(Map<int, List<String>> orderedByLevel) {
+    final result = <String, double>{};
+    for (final row in orderedByLevel.values) {
+      for (var index = 0; index < row.length; index++) {
+        result[row[index]] = index.toDouble();
       }
     }
-    if (anchors.isEmpty) {
-      return null;
+    return result;
+  }
+
+  List<String> _compactSpouseBlocks({
+    required List<String> row,
+    required GenealogyGraph graph,
+    required Map<String, int> levels,
+    required int level,
+  }) {
+    if (row.length < 3) {
+      return row;
     }
-    return anchors.reduce((sum, value) => sum + value) / anchors.length;
+
+    final indexById = <String, int>{
+      for (var index = 0; index < row.length; index++) row[index]: index,
+    };
+    final parent = <String, String>{for (final id in row) id: id};
+
+    String find(String id) {
+      var cursor = id;
+      while (parent[cursor] != cursor) {
+        parent[cursor] = parent[parent[cursor]!]!;
+        cursor = parent[cursor]!;
+      }
+      return cursor;
+    }
+
+    void union(String left, String right) {
+      final leftRoot = find(left);
+      final rightRoot = find(right);
+      if (leftRoot == rightRoot) {
+        return;
+      }
+      final leftIndex = indexById[leftRoot] ?? 0;
+      final rightIndex = indexById[rightRoot] ?? 0;
+      if (leftIndex <= rightIndex) {
+        parent[rightRoot] = leftRoot;
+      } else {
+        parent[leftRoot] = rightRoot;
+      }
+    }
+
+    for (final memberId in row) {
+      for (final spouseId in graph.spousesOf(memberId)) {
+        if (levels[spouseId] != level || !indexById.containsKey(spouseId)) {
+          continue;
+        }
+        union(memberId, spouseId);
+      }
+    }
+
+    final blocksByRoot = <String, List<String>>{};
+    for (final memberId in row) {
+      final root = find(memberId);
+      blocksByRoot.putIfAbsent(root, () => <String>[]).add(memberId);
+    }
+    if (blocksByRoot.length == row.length) {
+      return row;
+    }
+
+    final blocks = blocksByRoot.values.toList(growable: false);
+    for (final block in blocks) {
+      block.sort(
+        (left, right) =>
+            (indexById[left] ?? 0).compareTo(indexById[right] ?? 0),
+      );
+    }
+    blocks.sort((left, right) {
+      final leftAnchor =
+          left.map((id) => indexById[id] ?? 0).reduce((a, b) => a + b) /
+          left.length;
+      final rightAnchor =
+          right.map((id) => indexById[id] ?? 0).reduce((a, b) => a + b) /
+          right.length;
+      return leftAnchor.compareTo(rightAnchor);
+    });
+
+    return blocks.expand((block) => block).toList(growable: false);
+  }
+
+  List<String> _compactSiblingBlocks({
+    required List<String> row,
+    required GenealogyGraph graph,
+    required Map<String, int> levels,
+    required int level,
+  }) {
+    if (row.length < 3) {
+      return row;
+    }
+    final indexById = <String, int>{
+      for (var index = 0; index < row.length; index++) row[index]: index,
+    };
+    final groupsByKey = <String, List<String>>{};
+    for (final memberId in row) {
+      final directParents =
+          graph
+              .parentsOf(memberId)
+              .where((parentId) {
+                return levels[parentId] == level - 1;
+              })
+              .toList(growable: false)
+            ..sort();
+      final key = directParents.isEmpty
+          ? 'solo:$memberId'
+          : 'parents:${directParents.join('|')}';
+      groupsByKey.putIfAbsent(key, () => <String>[]).add(memberId);
+    }
+    if (groupsByKey.length == row.length) {
+      return row;
+    }
+
+    final groups = groupsByKey.values.toList(growable: false);
+    for (final group in groups) {
+      group.sort(
+        (left, right) =>
+            (indexById[left] ?? 0).compareTo(indexById[right] ?? 0),
+      );
+    }
+    groups.sort((left, right) {
+      final leftAnchor =
+          left.map((id) => indexById[id] ?? 0).reduce((a, b) => a + b) /
+          left.length;
+      final rightAnchor =
+          right.map((id) => indexById[id] ?? 0).reduce((a, b) => a + b) /
+          right.length;
+      return leftAnchor.compareTo(rightAnchor);
+    });
+    return groups.expand((group) => group).toList(growable: false);
+  }
+
+  List<double> _computeRowGaps({
+    required List<int> sortedLevels,
+    required Map<int, List<String>> idsByLevel,
+    required GenealogyGraph graph,
+    required Map<String, int> levels,
+  }) {
+    if (sortedLevels.length < 2) {
+      return const [];
+    }
+    final gaps = <double>[];
+    for (var index = 0; index < sortedLevels.length - 1; index++) {
+      final parentLevel = sortedLevels[index];
+      final childLevel = sortedLevels[index + 1];
+      final parentRowSet = (idsByLevel[parentLevel] ?? const <String>[])
+          .toSet();
+      final childRow = idsByLevel[childLevel] ?? const <String>[];
+      final parentGroups = <String>{};
+      var connectedChildren = 0;
+      for (final childId in childRow) {
+        final directParents =
+            graph
+                .parentsOf(childId)
+                .where(parentRowSet.contains)
+                .toList(growable: false)
+              ..sort();
+        if (directParents.isEmpty) {
+          continue;
+        }
+        connectedChildren += 1;
+        parentGroups.add(directParents.join('|'));
+      }
+
+      final densityScore =
+          (parentGroups.length * 2) + (connectedChildren / 2).round();
+      final extraGap = math.min(120.0, math.max(0, densityScore - 4) * 6.0);
+      final irregularLevelJump = (childLevel - parentLevel).abs() > 1
+          ? 10.0
+          : 0.0;
+      final spouseCompressionBoost = _estimateSpouseCompressionBoost(
+        row: idsByLevel[childLevel] ?? const <String>[],
+        graph: graph,
+        levels: levels,
+        level: childLevel,
+      );
+      gaps.add(
+        _rowSpacing + extraGap + irregularLevelJump + spouseCompressionBoost,
+      );
+    }
+    return gaps;
+  }
+
+  double _estimateSpouseCompressionBoost({
+    required List<String> row,
+    required GenealogyGraph graph,
+    required Map<String, int> levels,
+    required int level,
+  }) {
+    if (row.length < 3) {
+      return 0;
+    }
+    var spousePairCount = 0;
+    final seenPairs = <String>{};
+    for (final memberId in row) {
+      for (final spouseId in graph.spousesOf(memberId)) {
+        if (levels[spouseId] != level) {
+          continue;
+        }
+        final ordered = [memberId, spouseId]..sort();
+        final key = '${ordered.first}|${ordered.last}';
+        if (seenPairs.add(key)) {
+          spousePairCount += 1;
+        }
+      }
+    }
+    return math.min(36.0, spousePairCount * 4.0);
+  }
+
+  int _compareMembersForLayout(
+    String left,
+    String right,
+    GenealogyGraph graph,
+  ) {
+    final leftMember = graph.membersById[left]!;
+    final rightMember = graph.membersById[right]!;
+    final byGeneration = leftMember.generation.compareTo(
+      rightMember.generation,
+    );
+    if (byGeneration != 0) {
+      return byGeneration;
+    }
+    final byName = leftMember.fullName.compareTo(rightMember.fullName);
+    if (byName != 0) {
+      return byName;
+    }
+    return left.compareTo(right);
   }
 
   Set<String> _buildVisibleMemberIds({
@@ -1015,55 +1632,44 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required Set<String> visibleMemberIds,
   }) {
     final levels = <String, int>{};
+    final rootGeneration = graph.membersById[rootId]?.generation ?? 1;
+    for (final memberId in visibleMemberIds) {
+      levels[memberId] =
+          (graph.membersById[memberId]?.generation ?? rootGeneration) -
+          rootGeneration;
+    }
     if (rootId.isNotEmpty && visibleMemberIds.contains(rootId)) {
       levels[rootId] = 0;
-      final queue = Queue<String>()..add(rootId);
-      while (queue.isNotEmpty) {
-        final currentId = queue.removeFirst();
-        final currentLevel = levels[currentId]!;
+    }
 
-        for (final parentId in graph.parentsOf(currentId)) {
+    final maxIterations = (visibleMemberIds.length * 4) + 12;
+    var converged = false;
+    for (var iteration = 0; iteration < maxIterations; iteration++) {
+      var changed = false;
+      for (final childId in visibleMemberIds) {
+        var childLevel = levels[childId] ?? 0;
+        for (final parentId in graph.parentsOf(childId)) {
           if (!visibleMemberIds.contains(parentId)) {
             continue;
           }
-          final next = currentLevel - 1;
-          final existing = levels[parentId];
-          if (existing == null || next.abs() < existing.abs()) {
-            levels[parentId] = next;
-            queue.add(parentId);
-          }
-        }
-        for (final childId in graph.childrenOf(currentId)) {
-          if (!visibleMemberIds.contains(childId)) {
-            continue;
-          }
-          final next = currentLevel + 1;
-          final existing = levels[childId];
-          if (existing == null || next.abs() < existing.abs()) {
-            levels[childId] = next;
-            queue.add(childId);
-          }
-        }
-        for (final spouseId in graph.spousesOf(currentId)) {
-          if (!visibleMemberIds.contains(spouseId)) {
-            continue;
-          }
-          final existing = levels[spouseId];
-          if (existing == null || currentLevel.abs() < existing.abs()) {
-            levels[spouseId] = currentLevel;
-            queue.add(spouseId);
+          final parentLevel = levels[parentId] ?? 0;
+          final requiredChildLevel = parentLevel + 1;
+          if (childLevel < requiredChildLevel) {
+            childLevel = requiredChildLevel;
+            levels[childId] = childLevel;
+            changed = true;
           }
         }
       }
+      if (!changed) {
+        converged = true;
+        break;
+      }
     }
 
-    final rootGeneration = graph.membersById[rootId]?.generation ?? 1;
-    for (final memberId in visibleMemberIds) {
-      levels.putIfAbsent(
-        memberId,
-        () =>
-            (graph.membersById[memberId]?.generation ?? rootGeneration) -
-            rootGeneration,
+    if (!converged) {
+      AppLogger.warning(
+        'Tree level constraints did not fully converge. Check parent-child cycles or invalid source links.',
       );
     }
     return levels;
@@ -1113,6 +1719,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required Map<String, int?> relativeLevelsByCurrentUser,
   }) async {
     final l10n = context.l10n;
+    final viewer = _viewerMemberForGraph(graph);
     final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
       graph: graph,
       memberId: member.id,
@@ -1126,7 +1733,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         : l10n.genealogyMemberDeceasedStatus;
     final generationLabel = _memberGenerationLabelForDisplay(
       l10n: l10n,
-      generation: member.generation,
+      member: member,
+      viewer: viewer,
+      membersById: graph.membersById,
       relativeLevel: relativeLevelsByCurrentUser[member.id],
       compact: true,
     );
@@ -1263,6 +1872,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required Map<String, int?> relativeLevelsByCurrentUser,
   }) async {
     final l10n = context.l10n;
+    final viewer = _viewerMemberForGraph(graph);
     final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
       graph: graph,
       memberId: member.id,
@@ -1290,7 +1900,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
             honorBadges: _honorBadgeLabels(l10n, honorBadges),
             generationLabel: _memberGenerationLabelForDisplay(
               l10n: l10n,
-              generation: member.generation,
+              member: member,
+              viewer: viewer,
+              membersById: graph.membersById,
               relativeLevel: relativeLevelsByCurrentUser[member.id],
             ),
             ancestryCount: ancestry.length,
@@ -1361,20 +1973,35 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
 
   String _memberGenerationLabelForDisplay({
     required AppLocalizations l10n,
-    required int generation,
+    required MemberProfile member,
+    required MemberProfile? viewer,
+    required Map<String, MemberProfile> membersById,
     required int? relativeLevel,
     bool compact = false,
   }) {
     final base = compact
-        ? l10n.pick(vi: 'Đời $generation', en: 'Gen $generation')
-        : l10n.pick(vi: 'Đời thứ $generation', en: 'Generation $generation');
+        ? l10n.pick(
+            vi: 'Đời ${member.generation}',
+            en: 'Gen ${member.generation}',
+          )
+        : l10n.pick(
+            vi: 'Đời thứ ${member.generation}',
+            en: 'Generation ${member.generation}',
+          );
     if (relativeLevel == null) {
       return base;
     }
-    final relativeTitle = _relativeGenerationTitle(
-      l10n: l10n,
-      relativeLevel: relativeLevel,
-    );
+    final relativeTitle = viewer == null
+        ? _relativeGenerationTitleFromLevel(
+            l10n: l10n,
+            relativeLevel: relativeLevel,
+          )
+        : KinshipTitleResolver.resolve(
+            l10n: l10n,
+            viewer: viewer,
+            member: member,
+            membersById: membersById,
+          );
     return compact
         ? '$base • $relativeTitle'
         : l10n.pick(
@@ -1383,15 +2010,30 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           );
   }
 
+  MemberProfile? _viewerMemberForGraph(GenealogyGraph graph) {
+    final viewerId = widget.session.memberId?.trim();
+    if (viewerId == null || viewerId.isEmpty) {
+      return null;
+    }
+    return graph.membersById[viewerId];
+  }
+
   Map<String, int?> _resolveRelativeLevelsByCurrentUser(GenealogyGraph graph) {
+    _prepareDerivedGraphCache(graph);
     final fallback = {
       for (final entry in graph.generationLabels.entries)
         entry.key: entry.value.relativeLevel,
     };
     final viewerId = widget.session.memberId?.trim();
+    if (_cachedRelativeLevelsByCurrentUser != null &&
+        _cachedDerivedViewerId == viewerId) {
+      return _cachedRelativeLevelsByCurrentUser!;
+    }
     if (viewerId == null ||
         viewerId.isEmpty ||
         !graph.membersById.containsKey(viewerId)) {
+      _cachedDerivedViewerId = viewerId;
+      _cachedRelativeLevelsByCurrentUser = fallback;
       return fallback;
     }
 
@@ -1402,12 +2044,15 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       spouseMap: graph.spouseMap,
       focusMemberId: viewerId,
     );
-    return {
+    final resolved = {
       for (final entry in labels.entries) entry.key: entry.value.relativeLevel,
     };
+    _cachedDerivedViewerId = viewerId;
+    _cachedRelativeLevelsByCurrentUser = resolved;
+    return resolved;
   }
 
-  String _relativeGenerationTitle({
+  String _relativeGenerationTitleFromLevel({
     required AppLocalizations l10n,
     required int relativeLevel,
   }) {
@@ -1432,13 +2077,17 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         return l10n.pick(vi: 'Chít', en: 'Great-great-grandchild');
       default:
         if (relativeLevel < -4) {
-          return l10n.pick(vi: 'Tổ tiên xa', en: 'Distant ancestor');
+          return l10n.pick(vi: 'Cụ kỵ', en: 'Great-great-grandparent');
         }
-        return l10n.pick(vi: 'Hậu duệ xa', en: 'Distant descendant');
+        return l10n.pick(vi: 'Hậu duệ', en: 'Descendant');
     }
   }
 
   Map<String, int> _resolveSiblingOrders(GenealogyGraph graph) {
+    _prepareDerivedGraphCache(graph);
+    if (_cachedSiblingOrdersByMember != null) {
+      return _cachedSiblingOrdersByMember!;
+    }
     final orders = <String, int>{};
     for (final entry in graph.childMap.entries) {
       final rankedChildren =
@@ -1460,6 +2109,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         orders[member.id] = persisted;
       }
     }
+    _cachedSiblingOrdersByMember = orders;
     return orders;
   }
 
@@ -1467,6 +2117,11 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     GenealogyGraph graph,
     Map<String, int> siblingOrders,
   ) {
+    _prepareDerivedGraphCache(graph);
+    if (_cachedHonorBadgesByMember != null &&
+        identical(_cachedHonorBadgesSiblingOrders, siblingOrders)) {
+      return _cachedHonorBadgesByMember!;
+    }
     final badges = <String, Set<_GenealogyHonorBadge>>{};
     void addBadge(String memberId, _GenealogyHonorBadge badge) {
       badges.putIfAbsent(memberId, () => <_GenealogyHonorBadge>{}).add(badge);
@@ -1551,7 +2206,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       _GenealogyHonorBadge.dichTonChi: 3,
       _GenealogyHonorBadge.dichTonGiaDinh: 4,
     };
-    return {
+    final resolved = {
       for (final entry in badges.entries)
         entry.key: entry.value.toList(growable: false)
           ..sort(
@@ -1559,6 +2214,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                 (priority[left] ?? 99).compareTo(priority[right] ?? 99),
           ),
     };
+    _cachedHonorBadgesSiblingOrders = siblingOrders;
+    _cachedHonorBadgesByMember = resolved;
+    return resolved;
   }
 
   List<String> _honorBadgeLabels(
@@ -1624,42 +2282,54 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     });
   }
 
-  Future<void> _printTree() async {
+  Future<void> _openTreeExportSheet() async {
+    final selectedAction = await showModalBottomSheet<_TreeExportAction>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => const _TreeExportSheet(),
+    );
+
+    if (selectedAction == null) {
+      return;
+    }
+
+    await _runTreeExport(action: selectedAction);
+  }
+
+  Future<void> _runTreeExport({required _TreeExportAction action}) async {
     final l10n = context.l10n;
     try {
-      final boundaryContext = _treeCanvasPrintBoundaryKey.currentContext;
-      final boundary =
-          boundaryContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) {
-        throw StateError('Tree canvas print boundary is not ready.');
-      }
-      final ui.Image image = await boundary.toImage(pixelRatio: 2.6);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        throw StateError('Could not encode tree image.');
-      }
-      final bytes = byteData.buffer.asUint8List();
-      final printableImage = pw.MemoryImage(bytes);
-      await Printing.layoutPdf(
-        onLayout: (format) async {
-          final prefersLandscape = image.width >= image.height;
-          final pageFormat = prefersLandscape ? format.landscape : format;
-          final pdf = pw.Document();
-          pdf.addPage(
-            pw.Page(
-              pageFormat: pageFormat,
-              margin: const pw.EdgeInsets.all(8),
-              build: (context) {
-                return pw.Center(
-                  child: pw.Image(printableImage, fit: pw.BoxFit.contain),
-                );
-              },
-            ),
-          );
-          return pdf.save();
-        },
+      final pdfBytes = await _buildTreePdf(
+        paperSize: action.paperSize,
+        preferLandscape: true,
       );
-      image.dispose();
+      if (!mounted) {
+        return;
+      }
+
+      if (action.mode == _TreeExportMode.print) {
+        await Printing.layoutPdf(onLayout: (_) async => pdfBytes);
+        return;
+      }
+
+      final fileName = _treePdfFileName(action.paperSize);
+      await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick(
+                vi: 'Đã tạo PDF. Bạn có thể lưu vào Files hoặc chia sẻ.',
+                en: 'PDF is ready. You can save it to Files or share it now.',
+              ),
+            ),
+          ),
+        );
     } catch (_) {
       if (!mounted) {
         return;
@@ -1670,13 +2340,85 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           SnackBar(
             content: Text(
               l10n.pick(
-                vi: 'Chưa thể in cây lúc này. Vui lòng thử lại sau.',
-                en: 'Could not print the tree right now. Please try again.',
+                vi: 'Chưa thể xuất cây lúc này. Vui lòng thử lại sau.',
+                en: 'Could not export the tree right now. Please try again.',
               ),
             ),
           ),
         );
     }
+  }
+
+  Future<Uint8List> _buildTreePdf({
+    required _TreeExportPaperSize paperSize,
+    required bool preferLandscape,
+  }) async {
+    final boundaryContext = _treeCanvasPrintBoundaryKey.currentContext;
+    final boundary =
+        boundaryContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) {
+      throw StateError('Tree canvas print boundary is not ready.');
+    }
+
+    final exportPixelRatio = _resolveTreeExportPixelRatio(boundary.size);
+    final ui.Image image = await boundary.toImage(pixelRatio: exportPixelRatio);
+    try {
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        throw StateError('Could not encode tree image.');
+      }
+
+      final treeImage = pw.MemoryImage(byteData.buffer.asUint8List());
+      final pdf = pw.Document();
+      final baseFormat = _pageFormatForPaperSize(paperSize);
+      final useLandscape = preferLandscape && image.width >= image.height;
+      final pageFormat = useLandscape ? baseFormat.landscape : baseFormat;
+      pdf.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          margin: const pw.EdgeInsets.all(8),
+          build: (context) {
+            return pw.Center(
+              child: pw.Image(treeImage, fit: pw.BoxFit.contain),
+            );
+          },
+        ),
+      );
+      return pdf.save();
+    } finally {
+      image.dispose();
+    }
+  }
+
+  double _resolveTreeExportPixelRatio(Size boundarySize) {
+    const minPixelRatio = 1.2;
+    const maxPixelRatio = 2.2;
+    const maxPixels = 18000000.0; // Keep export stable for large trees.
+    final estimatedPixels = boundarySize.width * boundarySize.height;
+    if (estimatedPixels <= 0) {
+      return minPixelRatio;
+    }
+    final adaptiveRatio = math.sqrt(maxPixels / estimatedPixels);
+    return adaptiveRatio.clamp(minPixelRatio, maxPixelRatio).toDouble();
+  }
+
+  PdfPageFormat _pageFormatForPaperSize(_TreeExportPaperSize size) {
+    return switch (size) {
+      _TreeExportPaperSize.a3 => PdfPageFormat.a3,
+      _TreeExportPaperSize.a2 => PdfPageFormat(
+        420 * PdfPageFormat.mm,
+        594 * PdfPageFormat.mm,
+      ),
+    };
+  }
+
+  String _treePdfFileName(_TreeExportPaperSize size) {
+    final now = DateTime.now().toLocal();
+    final year = now.year.toString().padLeft(4, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    final paper = size.name.toUpperCase();
+    return 'befam-family-tree-$paper-$year$month$day.pdf';
   }
 
   void _scaleTree(double ratio) {
@@ -2459,7 +3201,9 @@ class _AddActionFab extends StatelessWidget {
   const _AddActionFab({
     required this.isMenuOpen,
     required this.canAddGenealogy,
+    required this.showAddBranch,
     required this.canAddBranch,
+    required this.showAddMember,
     required this.canAddMember,
     required this.onToggleMenu,
     required this.onAddGenealogy,
@@ -2469,7 +3213,9 @@ class _AddActionFab extends StatelessWidget {
 
   final bool isMenuOpen;
   final bool canAddGenealogy;
+  final bool showAddBranch;
   final bool canAddBranch;
+  final bool showAddMember;
   final bool canAddMember;
   final VoidCallback onToggleMenu;
   final Future<void> Function() onAddGenealogy;
@@ -2492,20 +3238,24 @@ class _AddActionFab extends StatelessWidget {
             icon: const Icon(Icons.account_tree_outlined),
             label: Text(l10n.pick(vi: 'Thêm gia phả', en: 'Add genealogy')),
           ),
-          const SizedBox(height: 10),
-          FloatingActionButton.extended(
-            heroTag: 'genealogy-add-branch-fab',
-            onPressed: canAddBranch ? () => unawaited(onAddBranch()) : null,
-            icon: const Icon(Icons.call_split_outlined),
-            label: Text(l10n.pick(vi: 'Thêm nhánh', en: 'Add branch')),
-          ),
-          const SizedBox(height: 10),
-          FloatingActionButton.extended(
-            heroTag: 'genealogy-add-member-fab',
-            onPressed: canAddMember ? () => unawaited(onAddMember()) : null,
-            icon: const Icon(Icons.person_add_alt_1_outlined),
-            label: Text(l10n.memberAddAction),
-          ),
+          if (showAddBranch) ...[
+            const SizedBox(height: 10),
+            FloatingActionButton.extended(
+              heroTag: 'genealogy-add-branch-fab',
+              onPressed: canAddBranch ? () => unawaited(onAddBranch()) : null,
+              icon: const Icon(Icons.call_split_outlined),
+              label: Text(l10n.pick(vi: 'Thêm nhánh', en: 'Add branch')),
+            ),
+          ],
+          if (showAddMember) ...[
+            const SizedBox(height: 10),
+            FloatingActionButton.extended(
+              heroTag: 'genealogy-add-member-fab',
+              onPressed: canAddMember ? () => unawaited(onAddMember()) : null,
+              icon: const Icon(Icons.person_add_alt_1_outlined),
+              label: Text(l10n.memberAddAction),
+            ),
+          ],
           const SizedBox(height: 10),
         ],
         FloatingActionButton(
@@ -2524,13 +3274,13 @@ class _TreeZoomControls extends StatelessWidget {
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onReset,
-    required this.onPrint,
+    required this.onExport,
   });
 
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onReset;
-  final VoidCallback onPrint;
+  final Future<void> Function() onExport;
 
   @override
   Widget build(BuildContext context) {
@@ -2571,15 +3321,130 @@ class _TreeZoomControls extends StatelessWidget {
                 en: 'Reset tree view',
               ),
             ),
-            IconButton(
-              key: const Key('tree-print'),
-              visualDensity: VisualDensity.compact,
-              onPressed: onPrint,
-              icon: const Icon(Icons.print_outlined),
-              tooltip: l10n.pick(vi: 'In cây gia phả', en: 'Print family tree'),
+            AppAsyncAction(
+              onPressed: onExport,
+              builder: (context, onPressed, isLoading) {
+                return IconButton(
+                  key: const Key('tree-print'),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onPressed,
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.picture_as_pdf_outlined),
+                  tooltip: l10n.pick(
+                    vi: 'In hoặc tải xuống cây gia phả',
+                    en: 'Print or download family tree',
+                  ),
+                );
+              },
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+enum _TreeExportMode { print, download }
+
+class _TreeExportAction {
+  const _TreeExportAction({required this.mode, required this.paperSize});
+
+  final _TreeExportMode mode;
+  final _TreeExportPaperSize paperSize;
+}
+
+class _TreeExportSheet extends StatelessWidget {
+  const _TreeExportSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final actions = <_TreeExportAction>[
+      const _TreeExportAction(
+        mode: _TreeExportMode.print,
+        paperSize: _TreeExportPaperSize.a3,
+      ),
+      const _TreeExportAction(
+        mode: _TreeExportMode.download,
+        paperSize: _TreeExportPaperSize.a3,
+      ),
+      const _TreeExportAction(
+        mode: _TreeExportMode.print,
+        paperSize: _TreeExportPaperSize.a2,
+      ),
+      const _TreeExportAction(
+        mode: _TreeExportMode.download,
+        paperSize: _TreeExportPaperSize.a2,
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.pick(vi: 'Xuất cây gia phả', en: 'Export family tree'),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.pick(
+              vi: 'Chọn khổ giấy A3/A2 và cách xuất.',
+              en: 'Choose A3/A2 paper size and output mode.',
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (var index = 0; index < actions.length; index++) ...[
+            Builder(
+              builder: (context) {
+                final action = actions[index];
+                return ListTile(
+                  key: Key(
+                    'tree-export-${action.mode.name}-${action.paperSize.name}',
+                  ),
+                  leading: Icon(
+                    action.mode == _TreeExportMode.print
+                        ? Icons.print_outlined
+                        : Icons.download_outlined,
+                  ),
+                  title: Text(
+                    l10n.pick(
+                      vi: action.mode == _TreeExportMode.print
+                          ? 'In PDF (${action.paperSize.name.toUpperCase()})'
+                          : 'Tải xuống PDF (${action.paperSize.name.toUpperCase()})',
+                      en: action.mode == _TreeExportMode.print
+                          ? 'Print PDF (${action.paperSize.name.toUpperCase()})'
+                          : 'Download PDF (${action.paperSize.name.toUpperCase()})',
+                    ),
+                  ),
+                  subtitle: Text(
+                    l10n.pick(
+                      vi: action.mode == _TreeExportMode.print
+                          ? 'Mở hộp thoại in với khổ giấy đã chọn.'
+                          : 'Mở chia sẻ để lưu tệp vào máy.',
+                      en: action.mode == _TreeExportMode.print
+                          ? 'Open print dialog with selected paper size.'
+                          : 'Open share sheet to save the file locally.',
+                    ),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () => Navigator.of(context).pop(action),
+                );
+              },
+            ),
+            if (index != actions.length - 1)
+              const Divider(height: 1, thickness: 0.5),
+          ],
+        ],
       ),
     );
   }
@@ -2810,13 +3675,11 @@ class _MiniFactChip extends StatelessWidget {
 
 class _TreeConnectorPainter extends CustomPainter {
   const _TreeConnectorPainter({
-    required this.parentChildEdges,
-    required this.nodeRects,
+    required this.connectorGroups,
     required this.selectedMemberId,
   });
 
-  final List<_TreeEdge> parentChildEdges;
-  final Map<String, Rect> nodeRects;
+  final List<_TreeConnectorGroupGeometry> connectorGroups;
   final String? selectedMemberId;
 
   @override
@@ -2840,220 +3703,31 @@ class _TreeConnectorPainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round
       ..color = const Color(0xFF2563EB);
 
-    final parentsByChild = <String, Set<String>>{};
-    for (final edge in parentChildEdges) {
-      parentsByChild.putIfAbsent(edge.toId, () => <String>{}).add(edge.fromId);
-    }
-    final childrenByParentGroup = <String, List<String>>{};
-    final parentsForGroup = <String, List<String>>{};
-    for (final entry in parentsByChild.entries) {
-      final childId = entry.key;
-      final childRect = nodeRects[childId];
-      if (childRect == null) {
-        continue;
-      }
-      final sortedParents =
-          entry.value.where(nodeRects.containsKey).toList(growable: false)
-            ..sort((left, right) {
-              final leftRect = nodeRects[left]!;
-              final rightRect = nodeRects[right]!;
-              return leftRect.center.dx.compareTo(rightRect.center.dx);
-            });
-      if (sortedParents.isEmpty) {
-        continue;
-      }
-      final groupKey = sortedParents.join('|');
-      childrenByParentGroup
-          .putIfAbsent(groupKey, () => <String>[])
-          .add(childId);
-      parentsForGroup[groupKey] = sortedParents;
-    }
-
     void drawSegment(Offset from, Offset to, Paint paint) {
       canvas.drawLine(from, to, haloPaint);
       canvas.drawLine(from, to, paint);
     }
 
-    final orderedGroupKeys = childrenByParentGroup.keys.toList(growable: false)
-      ..sort((left, right) {
-        final leftParents = parentsForGroup[left];
-        final rightParents = parentsForGroup[right];
-        if (leftParents == null || leftParents.isEmpty) {
-          return 1;
-        }
-        if (rightParents == null || rightParents.isEmpty) {
-          return -1;
-        }
-        final leftRect = nodeRects[leftParents.first];
-        final rightRect = nodeRects[rightParents.first];
-        if (leftRect == null || rightRect == null) {
-          return 0;
-        }
-        return leftRect.center.dx.compareTo(rightRect.center.dx);
-      });
-
-    for (final groupKey in orderedGroupKeys) {
-      final parentIds = parentsForGroup[groupKey];
-      final childIds = childrenByParentGroup[groupKey];
-      if (parentIds == null ||
-          parentIds.isEmpty ||
-          childIds == null ||
-          childIds.isEmpty) {
-        continue;
+    for (final group in connectorGroups) {
+      final isGroupSelected =
+          selectedMemberId != null &&
+          group.memberIds.contains(selectedMemberId);
+      final sharedPaint = isGroupSelected ? selectedPaint : parentPaint;
+      for (final segment in group.sharedSegments) {
+        drawSegment(segment.from, segment.to, sharedPaint);
       }
-
-      final childAnchors = <({String childId, double x, double top})>[];
-      for (final childId in childIds) {
-        final childRect = nodeRects[childId];
-        if (childRect == null) {
-          continue;
-        }
-        childAnchors.add((
-          childId: childId,
-          x: childRect.center.dx,
-          top: childRect.top - 2,
-        ));
-      }
-      if (childAnchors.isEmpty) {
-        continue;
-      }
-      childAnchors.sort((left, right) => left.x.compareTo(right.x));
-
-      final parentAnchors = <({String parentId, double x, double bottom})>[];
-      for (final parentId in parentIds) {
-        final parentRect = nodeRects[parentId];
-        if (parentRect == null) {
-          continue;
-        }
-        parentAnchors.add((
-          parentId: parentId,
-          x: parentRect.center.dx,
-          bottom: parentRect.bottom + 2,
-        ));
-      }
-      if (parentAnchors.isEmpty) {
-        continue;
-      }
-      parentAnchors.sort((left, right) => left.x.compareTo(right.x));
-
-      final minChildTop = childAnchors
-          .map((anchor) => anchor.top)
-          .reduce(math.min);
-      final firstChildX = childAnchors.first.x;
-      final lastChildX = childAnchors.last.x;
-      final childCenterX = (firstChildX + lastChildX) / 2;
-
-      final hasSelectedParent = parentAnchors.any(
-        (anchor) => anchor.parentId == selectedMemberId,
-      );
-      final hasSelectedChild = childAnchors.any(
-        (anchor) => anchor.childId == selectedMemberId,
-      );
-
-      final maxParentBottom = parentAnchors
-          .map((anchor) => anchor.bottom)
-          .reduce(math.max);
-
-      var joinY = maxParentBottom;
-      if (parentAnchors.length > 1) {
-        joinY = maxParentBottom + 16;
-        final maxJoinY = minChildTop - 30;
-        if (joinY > maxJoinY) {
-          joinY = (maxParentBottom + minChildTop) / 2;
-        }
-      }
-      if (joinY >= minChildTop) {
-        joinY = (maxParentBottom + minChildTop) / 2;
-      }
-
-      final sharedPaint = hasSelectedParent || hasSelectedChild
-          ? selectedPaint
-          : parentPaint;
-      final parentCenterX = (parentAnchors.first.x + parentAnchors.last.x) / 2;
-
-      for (final parent in parentAnchors) {
-        if ((joinY - parent.bottom).abs() > 0.5) {
-          drawSegment(
-            Offset(parent.x, parent.bottom),
-            Offset(parent.x, joinY),
-            sharedPaint,
-          );
-        }
-      }
-      if (parentAnchors.length > 1) {
-        drawSegment(
-          Offset(parentAnchors.first.x, joinY),
-          Offset(parentAnchors.last.x, joinY),
-          sharedPaint,
-        );
-      }
-
-      final trunkX = childAnchors.length == 1
-          ? childAnchors.first.x
-          : childCenterX;
-      if ((trunkX - parentCenterX).abs() > 0.5) {
-        drawSegment(
-          Offset(parentCenterX, joinY),
-          Offset(trunkX, joinY),
-          sharedPaint,
-        );
-      }
-
-      if (childAnchors.length == 1) {
-        final onlyChild = childAnchors.first;
-        final edgePaint =
-            hasSelectedParent || onlyChild.childId == selectedMemberId
+      for (final segment in group.childSegments) {
+        final edgePaint = isGroupSelected || segment.childId == selectedMemberId
             ? selectedPaint
             : parentPaint;
-        drawSegment(
-          Offset(trunkX, joinY),
-          Offset(trunkX, onlyChild.top),
-          edgePaint,
-        );
-        continue;
-      }
-
-      var splitY = joinY + ((minChildTop - joinY) * 0.42);
-      final minSplitY = joinY + 18;
-      final maxSplitY = minChildTop - 18;
-      if (minSplitY <= maxSplitY) {
-        splitY = splitY.clamp(minSplitY, maxSplitY).toDouble();
-      } else {
-        splitY = (joinY + minChildTop) / 2;
-      }
-
-      if ((splitY - joinY).abs() > 0.5) {
-        drawSegment(Offset(trunkX, joinY), Offset(trunkX, splitY), sharedPaint);
-      }
-
-      final splitLeftX = math.min(firstChildX, trunkX);
-      final splitRightX = math.max(lastChildX, trunkX);
-      if ((splitRightX - splitLeftX).abs() > 0.5) {
-        drawSegment(
-          Offset(splitLeftX, splitY),
-          Offset(splitRightX, splitY),
-          sharedPaint,
-        );
-      }
-
-      for (final anchor in childAnchors) {
-        final childSelected = anchor.childId == selectedMemberId;
-        final edgePaint = hasSelectedParent || childSelected
-            ? selectedPaint
-            : parentPaint;
-        drawSegment(
-          Offset(anchor.x, splitY),
-          Offset(anchor.x, anchor.top),
-          edgePaint,
-        );
+        drawSegment(segment.from, segment.to, edgePaint);
       }
     }
   }
 
   @override
   bool shouldRepaint(covariant _TreeConnectorPainter oldDelegate) {
-    return oldDelegate.parentChildEdges != parentChildEdges ||
-        oldDelegate.nodeRects != nodeRects ||
+    return oldDelegate.connectorGroups != connectorGroups ||
         oldDelegate.selectedMemberId != selectedMemberId;
   }
 }
@@ -3428,6 +4102,7 @@ class _TreeScene {
     required this.nodeRects,
     required this.parentChildEdges,
     required this.spouseEdges,
+    required this.connectorGroups,
     required this.visibleMemberIds,
     required this.layoutProfile,
   });
@@ -3436,6 +4111,7 @@ class _TreeScene {
   final Map<String, Rect> nodeRects;
   final List<_TreeEdge> parentChildEdges;
   final List<_TreeEdge> spouseEdges;
+  final List<_TreeConnectorGroupGeometry> connectorGroups;
   final Set<String> visibleMemberIds;
   final _TreeLayoutProfile layoutProfile;
 }
@@ -3445,6 +4121,100 @@ class _TreeEdge {
 
   final String fromId;
   final String toId;
+}
+
+class _TreeConnectorGroupGeometry {
+  const _TreeConnectorGroupGeometry({
+    required this.memberIds,
+    required this.sharedSegments,
+    required this.childSegments,
+  });
+
+  final Set<String> memberIds;
+  final List<_TreeLineSegment> sharedSegments;
+  final List<_TreeChildLineSegment> childSegments;
+
+  int get segmentCount => sharedSegments.length + childSegments.length;
+}
+
+class _TreeLineSegment {
+  const _TreeLineSegment({required this.from, required this.to});
+
+  final Offset from;
+  final Offset to;
+}
+
+class _TreeChildLineSegment {
+  const _TreeChildLineSegment({
+    required this.childId,
+    required this.from,
+    required this.to,
+  });
+
+  final String childId;
+  final Offset from;
+  final Offset to;
+}
+
+class _HorizontalLaneAllocator {
+  _HorizontalLaneAllocator({required this.step, required this.padding});
+
+  final double step;
+  final double padding;
+  final Map<int, List<_HorizontalLaneInterval>> _intervalsByBucket = {};
+
+  double reserve({
+    required double preferredY,
+    required double minY,
+    required double maxY,
+    required double left,
+    required double right,
+  }) {
+    if (maxY <= minY) {
+      return minY;
+    }
+
+    final preferred = preferredY.clamp(minY, maxY).toDouble();
+    for (var ring = 0; ring < 140; ring++) {
+      final offsets = ring == 0
+          ? <double>[0]
+          : <double>[ring * step, -ring * step];
+      for (final offset in offsets) {
+        final candidateY = preferred + offset;
+        if (candidateY < minY || candidateY > maxY) {
+          continue;
+        }
+        final bucket = (candidateY / step).round();
+        final intervals = _intervalsByBucket.putIfAbsent(
+          bucket,
+          () => <_HorizontalLaneInterval>[],
+        );
+        final overlaps = intervals.any(
+          (segment) =>
+              !(right + padding < segment.left ||
+                  left - padding > segment.right),
+        );
+        if (!overlaps) {
+          intervals.add(_HorizontalLaneInterval(left: left, right: right));
+          return candidateY;
+        }
+      }
+    }
+
+    final fallbackY = maxY;
+    final fallbackBucket = (fallbackY / step).round();
+    _intervalsByBucket
+        .putIfAbsent(fallbackBucket, () => <_HorizontalLaneInterval>[])
+        .add(_HorizontalLaneInterval(left: left, right: right));
+    return fallbackY;
+  }
+}
+
+class _HorizontalLaneInterval {
+  const _HorizontalLaneInterval({required this.left, required this.right});
+
+  final double left;
+  final double right;
 }
 
 class _TreeLayoutProfiler {

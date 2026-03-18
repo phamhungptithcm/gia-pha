@@ -18,6 +18,15 @@ void main() {
     }
   }
 
+  void setMobileViewport(WidgetTester tester) {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(740, 932);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+  }
+
   FirebaseSetupStatus buildReadyStatus() {
     return FirebaseSetupStatus.ready(
       projectId: 'be-fam-3ab23',
@@ -64,6 +73,7 @@ void main() {
   testWidgets(
     'linked shell exposes billing before profile in bottom navigation',
     (tester) async {
+      setMobileViewport(tester);
       await tester.pumpWidget(
         _ShellTestApp(
           child: AppShellPage(
@@ -88,6 +98,7 @@ void main() {
   );
 
   testWidgets('ad banner auto hides after 10 seconds', (tester) async {
+    setMobileViewport(tester);
     await tester.pumpWidget(
       _ShellTestApp(
         child: AppShellPage(
@@ -112,6 +123,7 @@ void main() {
   testWidgets(
     'unlinked shell opens personal billing workspace in billing tab',
     (tester) async {
+      setMobileViewport(tester);
       await tester.pumpWidget(
         _ShellTestApp(
           child: AppShellPage(

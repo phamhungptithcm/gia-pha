@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/services/kinship_title_resolver.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -1470,33 +1471,15 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
         en: 'Generation ${member.generation}',
       );
     }
-
-    final relativeGeneration = member.generation - viewer.generation;
-    switch (relativeGeneration) {
-      case -4:
-        return l10n.pick(vi: 'Cụ kỵ', en: 'Great-great-grandparent');
-      case -3:
-        return l10n.pick(vi: 'Cụ', en: 'Great-grandparent');
-      case -2:
-        return l10n.pick(vi: 'Ông/Bà', en: 'Grandparents');
-      case -1:
-        return l10n.pick(vi: 'Cha/Mẹ', en: 'Parents');
-      case 0:
-        return l10n.pick(vi: 'Tôi', en: 'Me');
-      case 1:
-        return l10n.pick(vi: 'Con', en: 'Child');
-      case 2:
-        return l10n.pick(vi: 'Cháu', en: 'Grandchild');
-      case 3:
-        return l10n.pick(vi: 'Chắt', en: 'Great-grandchild');
-      case 4:
-        return l10n.pick(vi: 'Chít', en: 'Great-great-grandchild');
-      default:
-        if (relativeGeneration < -4) {
-          return l10n.pick(vi: 'Tổ tiên xa', en: 'Distant ancestor');
-        }
-        return l10n.pick(vi: 'Hậu duệ xa', en: 'Distant descendant');
-    }
+    final membersById = {
+      for (final candidate in _members) candidate.id: candidate,
+    };
+    return KinshipTitleResolver.resolve(
+      l10n: l10n,
+      viewer: viewer,
+      member: member,
+      membersById: membersById,
+    );
   }
 
   String? _memberDeathDateCaption(MemberProfile member, BuildContext context) {

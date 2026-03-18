@@ -1539,6 +1539,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'This sign-in method is not enabled for the current Firebase project.';
 
   @override
+  String get authIssueWebDomainNotAuthorized =>
+      'This domain is not enabled in Firebase Authentication. Add it to the Authorized domains list.';
+
+  @override
+  String get authIssueRecaptchaVerificationFailed =>
+      'reCAPTCHA verification failed. Reload the page and try again.';
+
+  @override
   String get authIssueAuthUnavailable =>
       'Authentication could not be completed right now.';
 
@@ -1594,6 +1602,148 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventStatMemorial => 'Memorial events';
+
+  @override
+  String get eventMemorialChecklistSectionTitle => 'Memorial checklist';
+
+  @override
+  String get eventMemorialChecklistSectionDescription =>
+      'Cross-check deceased members and death dates against configured memorial events to avoid missing anniversaries.';
+
+  @override
+  String eventMemorialChecklistConfiguredCount(int count) {
+    return 'Configured: $count';
+  }
+
+  @override
+  String eventMemorialChecklistMissingCount(int count) {
+    return 'Missing setup: $count';
+  }
+
+  @override
+  String eventMemorialChecklistMismatchCount(int count) {
+    return 'Date mismatch: $count';
+  }
+
+  @override
+  String get eventMemorialChecklistEmptyTitle =>
+      'No memorial checklist data yet';
+
+  @override
+  String get eventMemorialChecklistEmptyDescription =>
+      'When members have death dates, their memorial checklist will appear here.';
+
+  @override
+  String get eventMemorialChecklistMissingChip => 'Missing setup';
+
+  @override
+  String get eventMemorialChecklistConfiguredChip => 'Configured';
+
+  @override
+  String get eventMemorialChecklistMismatchChip => 'Date mismatch';
+
+  @override
+  String get eventMemorialChecklistDeathDateLabel => 'Death date';
+
+  @override
+  String get eventMemorialChecklistEventDateLabel => 'Configured memorial date';
+
+  @override
+  String get eventMemorialChecklistInvalidDeathDate => 'Invalid death date';
+
+  @override
+  String get eventMemorialChecklistQuickSetupAction => 'Quick setup';
+
+  @override
+  String get eventMemorialChecklistOpenEventAction => 'Open event';
+
+  @override
+  String eventQuickMemorialTitle(Object memberName) {
+    return 'Memorial for $memberName';
+  }
+
+  @override
+  String eventQuickMemorialDescription(Object deathDate) {
+    return 'Quick setup from death date $deathDate. Please review before saving.';
+  }
+
+  @override
+  String get eventRitualChecklistSectionTitle => 'Memorial ritual checklist';
+
+  @override
+  String get eventRitualChecklistSectionDescription =>
+      'Track 49/50-day, 100-day, first-year, and second-year rites so important family memorial milestones are not missed.';
+
+  @override
+  String eventRitualChecklistConfiguredCount(int count) {
+    return 'Configured: $count';
+  }
+
+  @override
+  String eventRitualChecklistMissingCount(int count) {
+    return 'Missing setup: $count';
+  }
+
+  @override
+  String eventRitualChecklistMismatchCount(int count) {
+    return 'Date mismatch: $count';
+  }
+
+  @override
+  String get eventRitualChecklistEmptyTitle => 'No ritual checklist data yet';
+
+  @override
+  String get eventRitualChecklistEmptyDescription =>
+      'When members have valid death dates, ritual milestones will appear here.';
+
+  @override
+  String get eventRitualChecklistConfiguredChip => 'Configured';
+
+  @override
+  String get eventRitualChecklistMissingChip => 'Missing setup';
+
+  @override
+  String get eventRitualChecklistMismatchChip => 'Needs review';
+
+  @override
+  String get eventRitualChecklistDeathDateLabel => 'Death date';
+
+  @override
+  String get eventRitualChecklistExpectedDateLabel => 'Expected date';
+
+  @override
+  String get eventRitualChecklistEventDateLabel => 'Configured date';
+
+  @override
+  String get eventRitualChecklistQuickSetupAction => 'Quick setup';
+
+  @override
+  String get eventRitualChecklistOpenEventAction => 'Open event';
+
+  @override
+  String get eventRitualMilestone49Days => '49-day rite';
+
+  @override
+  String get eventRitualMilestone50Days => '50-day rite';
+
+  @override
+  String get eventRitualMilestone100Days => '100-day rite';
+
+  @override
+  String get eventRitualMilestone1Year => 'First-year memorial';
+
+  @override
+  String get eventRitualMilestone2Year => 'Second-year memorial';
+
+  @override
+  String eventQuickRitualTitle(Object milestone, Object memberName) {
+    return '$milestone - $memberName';
+  }
+
+  @override
+  String eventQuickRitualDescription(Object milestone, Object deathDate) {
+    return 'Quick setup for the $milestone milestone based on death date $deathDate. Please review before saving.';
+  }
 
   @override
   String get eventFilterSectionTitle => 'Search and filters';
@@ -1803,4 +1953,135 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventTypeOther => 'Other';
+
+  @override
+  String get webNavHome => 'Home';
+
+  @override
+  String get webNavAboutUs => 'About Us';
+
+  @override
+  String get webNavBeFamInfo => 'BeFam Info';
+
+  @override
+  String get webNavOpenApp => 'Open App';
+
+  @override
+  String get webNavMenuTooltip => 'Open navigation menu';
+
+  @override
+  String get webLandingBadge => 'Modern family record platform';
+
+  @override
+  String get webLandingTitle =>
+      'BeFam connects genealogy, events, and family billing in one unified workspace.';
+
+  @override
+  String get webLandingSubtitle =>
+      'From multi-generation tree management to memorial schedules, BeFam helps family leaders and members keep shared data clear, consistent, and actionable.';
+
+  @override
+  String get webLandingPrimaryCta => 'Start with BeFam';
+
+  @override
+  String get webLandingSecondaryCta => 'Learn about BeFam';
+
+  @override
+  String get webLandingHighlightTitle => 'Transparent family governance';
+
+  @override
+  String get webLandingHighlightDescription =>
+      'Track members, events, subscription plans, and access control from one trusted platform.';
+
+  @override
+  String get webLandingFeatureTreeTitle => 'Multi-generation genealogy';
+
+  @override
+  String get webLandingFeatureTreeDescription =>
+      'View family structures by branch, generation, and relationships for easier lineage management.';
+
+  @override
+  String get webLandingFeatureEventsTitle => 'Centralized event timeline';
+
+  @override
+  String get webLandingFeatureEventsDescription =>
+      'Manage ceremonies, memorial dates, and key reminders with one shared family schedule.';
+
+  @override
+  String get webLandingFeatureBillingTitle => 'Subscription management';
+
+  @override
+  String get webLandingFeatureBillingDescription =>
+      'Monitor active plans, renewals, and VNPay payment history directly inside BeFam.';
+
+  @override
+  String get webAboutTitle => 'About Us';
+
+  @override
+  String get webAboutSubtitle =>
+      'BeFam is built to preserve family memory, support transparent clan operations, and connect generations through one digital platform.';
+
+  @override
+  String get webAboutMissionTitle => 'Mission';
+
+  @override
+  String get webAboutMissionDescription =>
+      'Help every family community digitize lineage data in a way that is understandable, usable, and sustainable.';
+
+  @override
+  String get webAboutVisionTitle => 'Vision';
+
+  @override
+  String get webAboutVisionDescription =>
+      'Become the trusted digital genealogy platform for Vietnamese family communities.';
+
+  @override
+  String get webAboutTrustTitle => 'Commitment';
+
+  @override
+  String get webAboutTrustDescription =>
+      'Prioritize data accuracy, transparent permissions, and a consistent experience across devices.';
+
+  @override
+  String get webInfoTitle => 'BeFam Information';
+
+  @override
+  String get webInfoSubtitle =>
+      'A quick overview of what BeFam currently delivers for family governance and operations.';
+
+  @override
+  String get webInfoGenealogyTitle => 'Genealogy workspace';
+
+  @override
+  String get webInfoGenealogyDescription =>
+      'Track member profiles, bloodline relationships, branch structures, and generation data in one system.';
+
+  @override
+  String get webInfoNotificationsTitle => 'Notifications and reminders';
+
+  @override
+  String get webInfoNotificationsDescription =>
+      'Receive updates for events, scholarship workflows, and important clan activities.';
+
+  @override
+  String get webInfoBillingTitle => 'Plans and payments';
+
+  @override
+  String get webInfoBillingDescription =>
+      'Manage plan entitlements, subscription validity, and VNPay checkout flow for family organizations.';
+
+  @override
+  String get webInfoHighlightsTitle => 'Current highlights';
+
+  @override
+  String get webInfoHighlightsItemOne =>
+      'Vietnamese/English localization driven by user settings.';
+
+  @override
+  String get webInfoHighlightsItemTwo =>
+      'Responsive design for mobile, tablet, and desktop.';
+
+  @override
+  String get webInfoHighlightsItemThree =>
+      'Flutter + Firebase architecture for fast and consistent feature delivery.';
 }

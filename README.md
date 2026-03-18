@@ -66,3 +66,21 @@ flutter analyze
 flutter test
 flutter run
 ```
+
+## Web Hosting and Monitoring
+
+- Web deployment workflow: `.github/workflows/deploy-web-hosting.yml`
+  - `staging` pushes deploy to Firebase Hosting preview channel (default: `staging`)
+  - `main` pushes deploy to Firebase Hosting production
+- Monitoring workflow: `.github/workflows/monitoring-healthcheck.yml`
+  - Runs every 15 minutes
+  - Verifies web routes (`/`, `/app`) and Functions health endpoint (`appHealthCheck`)
+
+Recommended GitHub repository variables:
+
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_FUNCTIONS_REGION`
+- `FIREBASE_HOSTING_TARGET` (optional, multi-site)
+- `FIREBASE_HOSTING_STAGING_CHANNEL` (optional, default `staging`)
+- `BEFAM_WEB_BASE_URL` (optional, overrides default `https://<project>.web.app`)
+- `BEFAM_HEALTHCHECK_URL` (optional, overrides default Functions URL)
