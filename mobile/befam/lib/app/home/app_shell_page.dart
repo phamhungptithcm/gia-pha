@@ -740,10 +740,24 @@ class _AppShellPageState extends State<AppShellPage> {
             for (final contextOption in _clanContexts)
               PopupMenuItem<String>(
                 value: contextOption.clanId,
-                child: Text(
-                  contextOption.clanId == (_session.clanId ?? '').trim()
-                      ? '• ${contextOption.clanName}'
-                      : contextOption.clanName,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      contextOption.clanId == (_session.clanId ?? '').trim()
+                          ? '• ${contextOption.clanName}'
+                          : contextOption.clanName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _clanContextPopupSubtitle(contextOption, l10n),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -784,6 +798,18 @@ class _AppShellPageState extends State<AppShellPage> {
         ],
       ),
     ];
+  }
+
+  String _clanContextPopupSubtitle(ClanContextOption option, dynamic l10n) {
+    final ownerLabel = (option.ownerDisplayName ?? option.ownerUid ?? '').trim();
+    final planCode = (option.billingPlanCode ?? '').trim().toUpperCase();
+    final planLabel = planCode.isEmpty
+        ? l10n.pick(vi: 'Gói: --', en: 'Plan: --')
+        : l10n.pick(vi: 'Gói: $planCode', en: 'Plan: $planCode');
+    final ownerPart = ownerLabel.isEmpty
+        ? l10n.pick(vi: 'Owner: --', en: 'Owner: --')
+        : l10n.pick(vi: 'Owner: $ownerLabel', en: 'Owner: $ownerLabel');
+    return '$planLabel · $ownerPart';
   }
 
   void _openGenealogyDiscoveryPage() {

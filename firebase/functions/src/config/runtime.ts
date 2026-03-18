@@ -48,6 +48,34 @@ function readEnvBoolean(name: string, fallback: boolean): boolean {
   return fallback;
 }
 
+function readEnvIntList(
+  name: string,
+  fallback: Array<number>,
+  constraints?: { min?: number; max?: number },
+): Array<number> {
+  const raw = readEnvString(name, '');
+  const source = raw.length > 0 ? raw : fallback.join(',');
+  const normalized = source
+    .split(',')
+    .map((part) => Number.parseInt(part.trim(), 10))
+    .filter((value) => Number.isFinite(value))
+    .map((value) => {
+      let current = value;
+      if (constraints?.min != null && current < constraints.min) {
+        current = constraints.min;
+      }
+      if (constraints?.max != null && current > constraints.max) {
+        current = constraints.max;
+      }
+      return current;
+    })
+    .filter((value) => value > 0);
+  if (normalized.length === 0) {
+    return [...fallback];
+  }
+  return [...new Set(normalized)];
+}
+
 export const APP_REGION = readEnvString(
   'APP_REGION',
   readEnvString('FIREBASE_FUNCTIONS_REGION', DEFAULT_REGION),
@@ -74,6 +102,10 @@ export const BILLING_PENDING_TIMEOUT_JOB_SCHEDULE = readEnvString(
   'BILLING_PENDING_TIMEOUT_JOB_SCHEDULE',
   '*/5 * * * *',
 );
+export const BILLING_DELINQUENCY_JOB_SCHEDULE = readEnvString(
+  'BILLING_DELINQUENCY_JOB_SCHEDULE',
+  '0 8 * * *',
+);
 export const BILLING_PENDING_TIMEOUT_MINUTES = readEnvInt(
   'BILLING_PENDING_TIMEOUT_MINUTES',
   20,
@@ -83,6 +115,21 @@ export const BILLING_PENDING_TIMEOUT_LIMIT = readEnvInt(
   'BILLING_PENDING_TIMEOUT_LIMIT',
   800,
   { min: 50, max: 5000 },
+);
+export const BILLING_DELINQUENCY_GRACE_DAYS = readEnvInt(
+  'BILLING_DELINQUENCY_GRACE_DAYS',
+  7,
+  { min: 1, max: 30 },
+);
+export const BILLING_DELINQUENCY_LIMIT = readEnvInt(
+  'BILLING_DELINQUENCY_LIMIT',
+  800,
+  { min: 50, max: 5000 },
+);
+export const BILLING_DELINQUENCY_REMINDER_DAYS = readEnvIntList(
+  'BILLING_DELINQUENCY_REMINDER_DAYS',
+  [7, 3, 1],
+  { min: 1, max: 30 },
 );
 export const BILLING_ALLOW_MANUAL_SETTLEMENT = readEnvBoolean(
   'BILLING_ALLOW_MANUAL_SETTLEMENT',

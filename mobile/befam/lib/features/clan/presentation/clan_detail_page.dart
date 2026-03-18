@@ -181,6 +181,8 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
             ? null
             : _session.branchId!.trim(),
         displayName: _session.displayName,
+        ownerUid: _session.uid.trim().isEmpty ? null : _session.uid.trim(),
+        ownerDisplayName: _session.displayName,
       ),
     ];
   }
@@ -202,6 +204,25 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
               (_session.clanId ?? '').trim(),
           contexts: _clanContexts,
           roleLabelBuilder: (role) => context.l10n.roleLabel(role),
+          ownerLabelBuilder: (option) {
+            final ownerLabel =
+                (option.ownerDisplayName ?? option.ownerUid ?? '').trim();
+            return ownerLabel.isEmpty
+                ? context.l10n.pick(vi: 'Owner: --', en: 'Owner: --')
+                : context.l10n.pick(
+                    vi: 'Owner: $ownerLabel',
+                    en: 'Owner: $ownerLabel',
+                  );
+          },
+          planLabelBuilder: (option) {
+            final planCode = (option.billingPlanCode ?? '').trim().toUpperCase();
+            return planCode.isEmpty
+                ? context.l10n.pick(vi: 'Gói: --', en: 'Plan: --')
+                : context.l10n.pick(
+                    vi: 'Gói: $planCode',
+                    en: 'Plan: $planCode',
+                  );
+          },
           statusLabelBuilder: (status) =>
               _contextStatusLabel(context.l10n, status),
           memberCountLabelBuilder: (option) {
@@ -903,6 +924,8 @@ class _ClanContextPickerSheet extends StatelessWidget {
     required this.activeClanId,
     required this.contexts,
     required this.roleLabelBuilder,
+    required this.ownerLabelBuilder,
+    required this.planLabelBuilder,
     required this.statusLabelBuilder,
     required this.memberCountLabelBuilder,
   });
@@ -910,6 +933,8 @@ class _ClanContextPickerSheet extends StatelessWidget {
   final String activeClanId;
   final List<ClanContextOption> contexts;
   final String Function(String? role) roleLabelBuilder;
+  final String Function(ClanContextOption option) ownerLabelBuilder;
+  final String Function(ClanContextOption option) planLabelBuilder;
   final String Function(String? status) statusLabelBuilder;
   final String Function(ClanContextOption option) memberCountLabelBuilder;
 
@@ -960,6 +985,8 @@ class _ClanContextPickerSheet extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     '${roleLabelBuilder(option.primaryRole)} · '
+                    '${planLabelBuilder(option)} · '
+                    '${ownerLabelBuilder(option)} · '
                     '${memberCountLabelBuilder(option)} · '
                     '${statusLabelBuilder(option.status)}',
                     maxLines: 2,

@@ -876,6 +876,13 @@ class _DebugBillingState {
 
     return BillingWorkspaceSnapshot(
       clanId: clanId,
+      scope: BillingScopeContext(
+        clanId: clanId,
+        ownerUid: ownerUid,
+        ownerDisplayName: null,
+        clanStatus: 'active',
+        viewerIsOwner: true,
+      ),
       subscription: subscription,
       entitlement: entitlement,
       settings: settings,
@@ -895,6 +902,7 @@ class _DebugBillingState {
     final snapshot = toSnapshot();
     return BillingViewerSummary(
       clanId: snapshot.clanId,
+      scope: snapshot.scope,
       subscription: snapshot.subscription,
       entitlement: snapshot.entitlement,
       pricingTiers: snapshot.pricingTiers,

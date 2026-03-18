@@ -1,12 +1,14 @@
 import {
   FieldValue,
-  Timestamp,
   type Transaction,
 } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { BILLING_PRICING_TIERS, type BillingPlanCode, type SubscriptionStatus } from '../billing/pricing';
-import { normalizeSubscriptionStatus } from '../billing/subscription-lifecycle';
+import {
+  resolveOwnerBillingPolicy,
+  type OwnerBillingPolicySummary,
+} from '../billing/store';
+import { resolvePlanByMemberCount } from '../billing/pricing';
 import { APP_REGION } from '../config/runtime';
 import { requireAuth } from '../shared/errors';
 import { db } from '../shared/firestore';
@@ -14,20 +16,13 @@ import { logWarn } from '../shared/logger';
 import {
   ensureClaimedSession,
   tokenClanIds,
-  tokenPrimaryRole,
   type AuthToken,
 } from '../shared/permissions';
 
 const membersCollection = db.collection('members');
 const branchesCollection = db.collection('branches');
 const clansCollection = db.collection('clans');
-const subscriptionsCollection = db.collection('subscriptions');
 
-const FREE_PLAN_MAX_MEMBERS = 10;
-const CLAIMED_BILLING_STATUSES = new Set<SubscriptionStatus>([
-  'active',
-  'grace_period',
-]);
 const CLAN_MEMBER_MANAGER_ROLES = new Set([
   'SUPER_ADMIN',
   'CLAN_ADMIN',
@@ -67,6 +62,16 @@ type MemberCreateTransactionResult = {
   branchId: string;
 };
 
+type ClanOwnerScope = {
+  ownerUid: string;
+  ownerDisplayName: string;
+};
+
+type ActorRoleContext = {
+  role: string;
+  branchId: string | null;
+};
+
 export const createClanMember = onCall({ region: APP_REGION }, async (request) => {
   const auth = requireAuth(request);
   ensureClaimedSession(auth.token);
@@ -74,9 +79,14 @@ export const createClanMember = onCall({ region: APP_REGION }, async (request) =
   const input = parseCreateClanMemberInput(auth.token, request.data);
   const actorUid = auth.uid;
   const actorId = normalizeString(auth.token.memberId) || actorUid;
+  const now = new Date();
+  const clanOwnerScope = await resolveClanOwnerScope(input.clanId);
+  const ownerPolicy = await resolveOwnerBillingPolicy({
+    ownerUid: clanOwnerScope.ownerUid,
+    now,
+  });
   const observedMemberCount = await countMembersForClan(input.clanId);
   const memberRef = membersCollection.doc();
-  const now = new Date();
 
   const created = await db.runTransaction(async (transaction) => createMemberInTransaction({
     transaction,
@@ -84,9 +94,10 @@ export const createClanMember = onCall({ region: APP_REGION }, async (request) =
     actorUid,
     actorId,
     input,
+    clanOwnerScope,
+    ownerPolicy,
     memberRefId: memberRef.id,
     observedMemberCount,
-    now,
   }));
 
   if (created.parentIds.length > 0) {
@@ -138,18 +149,20 @@ async function createMemberInTransaction({
   actorUid,
   actorId,
   input,
+  clanOwnerScope,
+  ownerPolicy,
   memberRefId,
   observedMemberCount,
-  now,
 }: {
   transaction: Transaction;
   authToken: AuthToken;
   actorUid: string;
   actorId: string;
   input: CreateClanMemberInput;
+  clanOwnerScope: ClanOwnerScope;
+  ownerPolicy: OwnerBillingPolicySummary;
   memberRefId: string;
   observedMemberCount: number;
-  now: Date;
 }): Promise<MemberCreateTransactionResult> {
   const clanRef = clansCollection.doc(input.clanId);
   const memberRef = membersCollection.doc(memberRefId);
@@ -162,19 +175,41 @@ async function createMemberInTransaction({
   if (clanData == null) {
     throw new HttpsError('not-found', 'Clan was not found.');
   }
+  if (!isActiveMemberStatus(clanData.status)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'This clan is currently inactive. Contact the clan owner to reactivate billing before adding members.',
+    );
+  }
 
-  const maxMembersAllowed = await resolveAllowedMemberLimit({
-    transaction,
-    clanId: input.clanId,
-    clanData,
-    now,
-  });
+  const maxMembersAllowed = resolveOwnerMaxMembersAllowed(ownerPolicy);
   const trackedMemberCount = readPositiveInt(clanData.memberCount, observedMemberCount);
   const currentMemberCount = Math.max(trackedMemberCount, observedMemberCount);
-  if (currentMemberCount + 1 > maxMembersAllowed) {
+  const observedClanMemberCountForPolicy =
+    ownerPolicy.clans.find((clan) => clan.clanId == input.clanId)?.memberCount ??
+    observedMemberCount;
+  const ownerMemberCountBeforeCreate = Math.max(
+    0,
+    ownerPolicy.totalMemberCount - observedClanMemberCountForPolicy + currentMemberCount,
+  );
+  const projectedOwnerMemberCount = ownerMemberCountBeforeCreate + 1;
+  if (projectedOwnerMemberCount > maxMembersAllowed) {
+    const requiredTier = resolvePlanByMemberCount(projectedOwnerMemberCount);
+    const ownerLabel = clanOwnerScope.ownerDisplayName;
     throw new HttpsError(
       'resource-exhausted',
-      `Current plan allows up to ${maxMembersAllowed} members. Upgrade required to add more.`,
+      `Current owner plan ${ownerPolicy.highestActivePlanCode} allows up to ${maxMembersAllowed} members across owned clans. Contact ${ownerLabel} to upgrade to ${requiredTier.planCode} before adding more members.`,
+      {
+        reason: 'owner_plan_member_limit_exceeded',
+        clanId: input.clanId,
+        ownerUid: clanOwnerScope.ownerUid,
+        ownerDisplayName: ownerLabel,
+        currentPlanCode: ownerPolicy.highestActivePlanCode,
+        requiredPlanCode: requiredTier.planCode,
+        ownerTotalMemberCount: ownerMemberCountBeforeCreate,
+        projectedOwnerMemberCount,
+        allowedMemberLimit: maxMembersAllowed,
+      },
     );
   }
 
@@ -254,8 +289,14 @@ async function createMemberInTransaction({
   if (resolvedBranchId == null || resolvedBranchId.length == 0) {
     throw new HttpsError('invalid-argument', 'branchId is required.');
   }
-  ensureCreateMemberRole({
+  const actorRoleContext = await resolveActorRoleContextForClan({
+    transaction,
     token: authToken,
+    actorUid,
+    clanId: input.clanId,
+  });
+  ensureCreateMemberRole({
+    actorRoleContext,
     branchId: resolvedBranchId,
   });
 
@@ -433,18 +474,18 @@ function resolveClanId(token: AuthToken, requestedClanId: string): string {
 }
 
 function ensureCreateMemberRole({
-  token,
+  actorRoleContext,
   branchId,
 }: {
-  token: AuthToken;
+  actorRoleContext: ActorRoleContext;
   branchId: string;
 }): void {
-  const role = tokenPrimaryRole(token);
+  const role = actorRoleContext.role;
   if (CLAN_MEMBER_MANAGER_ROLES.has(role)) {
     return;
   }
   if (role == BRANCH_ADMIN_ROLE) {
-    const scopedBranchId = normalizeString(token.branchId);
+    const scopedBranchId = actorRoleContext.branchId ?? '';
     if (scopedBranchId.length > 0 && scopedBranchId == branchId) {
       return;
     }
@@ -455,82 +496,141 @@ function ensureCreateMemberRole({
   );
 }
 
-async function resolveAllowedMemberLimit({
+function resolveOwnerMaxMembersAllowed(policy: OwnerBillingPolicySummary): number {
+  const maxMembers = policy.highestActiveTier.maxMembers;
+  return maxMembers == null ? Number.MAX_SAFE_INTEGER : maxMembers;
+}
+
+async function resolveClanOwnerScope(clanId: string): Promise<ClanOwnerScope> {
+  const clanSnapshot = await clansCollection.doc(clanId).get();
+  if (!clanSnapshot.exists) {
+    throw new HttpsError('not-found', 'Clan was not found.');
+  }
+  const clanData = asRecord(clanSnapshot.data());
+  if (clanData == null) {
+    throw new HttpsError('not-found', 'Clan was not found.');
+  }
+  const ownerUid =
+    normalizeString(clanData.billingOwnerUid) || normalizeString(clanData.ownerUid);
+  if (ownerUid.length == 0) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Clan billing owner is missing.',
+    );
+  }
+
+  let ownerDisplayName = normalizeString(clanData.founderName);
+  if (ownerDisplayName.length == 0) {
+    const ownerMemberSnapshot = await membersCollection
+      .where('clanId', '==', clanId)
+      .where('authUid', '==', ownerUid)
+      .limit(1)
+      .get();
+    if (!ownerMemberSnapshot.empty) {
+      const ownerMemberData = asRecord(ownerMemberSnapshot.docs[0]?.data());
+      ownerDisplayName =
+        normalizeString(ownerMemberData?.fullName) ||
+        normalizeString(ownerMemberData?.nickName);
+    }
+  }
+  return {
+    ownerUid,
+    ownerDisplayName: ownerDisplayName.length > 0 ? ownerDisplayName : ownerUid,
+  };
+}
+
+async function resolveActorRoleContextForClan({
   transaction,
+  token,
+  actorUid,
   clanId,
-  clanData,
-  now,
 }: {
   transaction: Transaction;
+  token: AuthToken;
+  actorUid: string;
   clanId: string;
-  clanData: Record<string, unknown>;
-  now: Date;
-}): Promise<number> {
-  const billingOwnerUid =
-    normalizeString(clanData.billingOwnerUid) || normalizeString(clanData.ownerUid);
-  if (billingOwnerUid.length == 0) {
-    return FREE_PLAN_MAX_MEMBERS;
+}): Promise<ActorRoleContext> {
+  const normalizedTokenRole = normalizeString(token.primaryRole).toUpperCase();
+  if (normalizedTokenRole == 'SUPER_ADMIN') {
+    return {
+      role: 'SUPER_ADMIN',
+      branchId: null,
+    };
   }
 
-  const scopedSubscriptionId = `${clanId}__${billingOwnerUid}`;
-  const [scopedSnapshot, legacySnapshot] = await Promise.all([
-    transaction.get(subscriptionsCollection.doc(scopedSubscriptionId)),
-    transaction.get(subscriptionsCollection.doc(clanId)),
-  ]);
-  const subscriptionData = scopedSnapshot.exists
-    ? asRecord(scopedSnapshot.data())
-    : legacySnapshot.exists
-      ? asRecord(legacySnapshot.data())
-      : null;
-
-  if (subscriptionData == null) {
-    return FREE_PLAN_MAX_MEMBERS;
+  const tokenMemberId = normalizeString(token.memberId);
+  if (tokenMemberId.length > 0) {
+    const tokenMemberSnapshot = await transaction.get(membersCollection.doc(tokenMemberId));
+    const tokenMemberData = asRecord(tokenMemberSnapshot.data());
+    if (
+      tokenMemberSnapshot.exists &&
+      tokenMemberData != null &&
+      normalizeString(tokenMemberData.clanId) == clanId &&
+      normalizeString(tokenMemberData.authUid) == actorUid &&
+      isActiveMemberStatus(tokenMemberData.status)
+    ) {
+      return {
+        role: normalizeString(tokenMemberData.primaryRole).toUpperCase() || 'MEMBER',
+        branchId: normalizeNullableString(tokenMemberData.branchId),
+      };
+    }
   }
 
-  const planCode = normalizePlanCode(subscriptionData.planCode);
-  const status = normalizeSubscriptionStatus({
-    status: normalizeSubscriptionStatusCode(subscriptionData.status),
-    expiresAt: readDate(subscriptionData.expiresAt),
-    graceEndsAt: readDate(subscriptionData.graceEndsAt),
-    now,
-  });
-  if (!CLAIMED_BILLING_STATUSES.has(status)) {
-    return FREE_PLAN_MAX_MEMBERS;
+  const actorMembershipSnapshot = await transaction.get(
+    membersCollection
+      .where('clanId', '==', clanId)
+      .where('authUid', '==', actorUid)
+      .limit(5),
+  );
+  if (actorMembershipSnapshot.empty) {
+    throw new HttpsError(
+      'permission-denied',
+      'This session does not have a member role in the target clan.',
+    );
   }
 
-  const tier = BILLING_PRICING_TIERS.find((candidate) => candidate.planCode == planCode);
-  if (tier == null) {
-    return FREE_PLAN_MAX_MEMBERS;
+  const candidateRoles = actorMembershipSnapshot.docs
+    .map((doc) => asRecord(doc.data()))
+    .filter((data): data is Record<string, unknown> => data != null)
+    .filter((data) => isActiveMemberStatus(data.status))
+    .map((data) => ({
+      role: normalizeString(data.primaryRole).toUpperCase() || 'MEMBER',
+      branchId: normalizeNullableString(data.branchId),
+    }))
+    .sort((left, right) => rolePriority(right.role) - rolePriority(left.role));
+
+  const bestRole = candidateRoles[0];
+  if (bestRole == null) {
+    throw new HttpsError(
+      'permission-denied',
+      'This session does not have an active role in the target clan.',
+    );
   }
-  return tier.maxMembers == null ? Number.MAX_SAFE_INTEGER : tier.maxMembers;
+  return bestRole;
 }
 
-function normalizePlanCode(value: unknown): BillingPlanCode {
-  const normalized = normalizeString(value).toUpperCase();
-  if (
-    normalized == 'FREE' ||
-    normalized == 'BASE' ||
-    normalized == 'PLUS' ||
-    normalized == 'PRO'
-  ) {
-    return normalized;
-  }
-  return 'FREE';
-}
-
-function normalizeSubscriptionStatusCode(value: unknown): SubscriptionStatus {
+function isActiveMemberStatus(value: unknown): boolean {
   const normalized = normalizeString(value).toLowerCase();
+  return normalized.length == 0 || normalized == 'active';
+}
+
+function rolePriority(role: string): number {
+  const normalized = role.trim().toUpperCase();
   switch (normalized) {
-    case 'active':
-      return 'active';
-    case 'grace_period':
-      return 'grace_period';
-    case 'pending_payment':
-      return 'pending_payment';
-    case 'canceled':
-      return 'canceled';
+    case 'SUPER_ADMIN':
+      return 100;
+    case 'CLAN_ADMIN':
+      return 95;
+    case 'CLAN_OWNER':
+      return 90;
+    case 'CLAN_LEADER':
+      return 85;
+    case 'ADMIN_SUPPORT':
+      return 80;
+    case 'BRANCH_ADMIN':
+      return 70;
     default:
-      return 'expired';
+      return 10;
   }
 }
 
@@ -702,23 +802,6 @@ function parseIsoDate(value: string | null): Date | null {
   }
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) ? parsed : null;
-}
-
-function readDate(value: unknown): Date | null {
-  if (value == null) {
-    return null;
-  }
-  if (value instanceof Date) {
-    return Number.isFinite(value.getTime()) ? value : null;
-  }
-  if (value instanceof Timestamp) {
-    return value.toDate();
-  }
-  if (typeof value == 'string') {
-    const parsed = new Date(value);
-    return Number.isFinite(parsed.getTime()) ? parsed : null;
-  }
-  return null;
 }
 
 function normalizeSocialLinks(value: unknown): Record<string, string | null> {

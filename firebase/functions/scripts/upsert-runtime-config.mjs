@@ -36,6 +36,12 @@ const billing = {
   ...optionalStringEntry('qrImageProUrl', 'BILLING_QR_IMAGE_PRO_URL'),
   ...optionalIntEntry('pendingTimeoutMinutes', 'BILLING_PENDING_TIMEOUT_MINUTES'),
   ...optionalIntEntry('pendingTimeoutLimit', 'BILLING_PENDING_TIMEOUT_LIMIT'),
+  ...optionalIntEntry('delinquencyGraceDays', 'BILLING_DELINQUENCY_GRACE_DAYS'),
+  ...optionalIntEntry('delinquencyLimit', 'BILLING_DELINQUENCY_LIMIT'),
+  ...optionalIntListEntry(
+    'delinquencyReminderDays',
+    'BILLING_DELINQUENCY_REMINDER_DAYS',
+  ),
 };
 
 if (Object.keys(billing).length === 0) {
@@ -97,4 +103,19 @@ function optionalBoolEntry(targetKey, sourceEnv) {
     return { [targetKey]: false };
   }
   return {};
+}
+
+function optionalIntListEntry(targetKey, sourceEnv) {
+  const raw = readString(sourceEnv);
+  if (!raw) {
+    return {};
+  }
+  const values = raw
+    .split(',')
+    .map((entry) => Number.parseInt(entry.trim(), 10))
+    .filter((entry) => Number.isFinite(entry) && entry > 0);
+  if (values.length === 0) {
+    return {};
+  }
+  return { [targetKey]: [...new Set(values)] };
 }

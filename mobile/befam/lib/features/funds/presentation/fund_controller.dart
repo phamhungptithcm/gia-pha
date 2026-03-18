@@ -6,34 +6,48 @@ import '../models/fund_draft.dart';
 import '../models/fund_profile.dart';
 import '../models/fund_transaction.dart';
 import '../models/fund_transaction_draft.dart';
+import '../models/treasurer_dashboard_snapshot.dart';
 import '../models/fund_transaction_filters.dart';
 import '../services/fund_repository.dart';
+import '../services/treasurer_dashboard_repository.dart';
 
 class FundController extends ChangeNotifier {
   FundController({
     required FundRepository repository,
     required AuthSession session,
+    TreasurerDashboardRepository? treasurerDashboardRepository,
   }) : _repository = repository,
-       _session = session;
+       _session = session,
+       _treasurerDashboardRepository =
+           treasurerDashboardRepository ??
+           createDefaultTreasurerDashboardRepository(session: session);
 
   final FundRepository _repository;
   final AuthSession _session;
+  final TreasurerDashboardRepository _treasurerDashboardRepository;
 
   bool _isLoading = true;
+  bool _isLoadingTreasurerDashboard = false;
   bool _isSavingFund = false;
   bool _isSavingTransaction = false;
   String? _errorMessage;
+  String? _treasurerDashboardErrorMessage;
   List<FundProfile> _funds = const [];
   List<FundTransaction> _transactions = const [];
+  TreasurerDashboardSnapshot _treasurerDashboard =
+      TreasurerDashboardSnapshot.empty();
   String? _selectedFundId;
   FundTransactionFilters _filters = const FundTransactionFilters();
 
   bool get isLoading => _isLoading;
+  bool get isLoadingTreasurerDashboard => _isLoadingTreasurerDashboard;
   bool get isSavingFund => _isSavingFund;
   bool get isSavingTransaction => _isSavingTransaction;
   String? get errorMessage => _errorMessage;
+  String? get treasurerDashboardErrorMessage => _treasurerDashboardErrorMessage;
   List<FundProfile> get funds => _funds;
   List<FundTransaction> get transactions => _transactions;
+  TreasurerDashboardSnapshot get treasurerDashboard => _treasurerDashboard;
   FundTransactionFilters get filters => _filters;
 
   bool get hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
@@ -72,16 +86,30 @@ class FundController extends ChangeNotifier {
 
     if (!canViewFunds) {
       _errorMessage = 'permission_denied';
+      _treasurerDashboardErrorMessage = 'permission_denied';
       _funds = const [];
       _transactions = const [];
+      _treasurerDashboard = TreasurerDashboardSnapshot.empty(
+        clanId: _session.clanId ?? '',
+      );
       _selectedFundId = null;
+      _isLoadingTreasurerDashboard = false;
       _isLoading = false;
       notifyListeners();
       return;
     }
 
+    _treasurerDashboardErrorMessage = null;
+    _isLoadingTreasurerDashboard = hasClanContext;
+    final workspaceFuture = _repository.loadWorkspace(session: _session);
+    final dashboardFuture = hasClanContext
+        ? _treasurerDashboardRepository.loadDashboard(session: _session)
+        : Future<TreasurerDashboardSnapshot>.value(
+            TreasurerDashboardSnapshot.empty(clanId: _session.clanId ?? ''),
+          );
+
     try {
-      final snapshot = await _repository.loadWorkspace(session: _session);
+      final snapshot = await workspaceFuture;
       _funds = snapshot.funds;
       _transactions = snapshot.transactions;
       _selectedFundId = _resolveSelectedFundId(previousSelectedFundId);
@@ -90,7 +118,23 @@ class FundController extends ChangeNotifier {
       _funds = const [];
       _transactions = const [];
       _selectedFundId = null;
+    }
+
+    try {
+      _treasurerDashboard = await dashboardFuture;
+      _treasurerDashboardErrorMessage = null;
+    } on TreasurerDashboardRepositoryException catch (error) {
+      _treasurerDashboard = TreasurerDashboardSnapshot.empty(
+        clanId: _session.clanId ?? '',
+      );
+      _treasurerDashboardErrorMessage = error.toString();
+    } catch (error) {
+      _treasurerDashboard = TreasurerDashboardSnapshot.empty(
+        clanId: _session.clanId ?? '',
+      );
+      _treasurerDashboardErrorMessage = error.toString();
     } finally {
+      _isLoadingTreasurerDashboard = false;
       _isLoading = false;
       notifyListeners();
     }

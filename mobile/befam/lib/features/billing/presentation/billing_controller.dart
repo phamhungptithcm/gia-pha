@@ -59,6 +59,20 @@ class BillingController extends ChangeNotifier {
         role == 'SUPPORTER_OF_LEADER';
   }
 
+  bool get canMutateBilling {
+    if (_session.uid.trim().isEmpty) {
+      return false;
+    }
+    if (!hasClanContext) {
+      return true;
+    }
+    final workspace = _workspace;
+    if (workspace == null) {
+      return false;
+    }
+    return workspace.scope.viewerIsOwner;
+  }
+
   bool get shouldShowAds {
     final entitlement = _workspace?.entitlement;
     if (entitlement == null) {
@@ -222,6 +236,7 @@ class BillingController extends ChangeNotifier {
       if (current != null) {
         _workspace = BillingWorkspaceSnapshot(
           clanId: current.clanId,
+          scope: current.scope,
           subscription: current.subscription,
           entitlement: entitlement,
           settings: current.settings,

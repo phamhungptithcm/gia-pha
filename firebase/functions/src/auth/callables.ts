@@ -88,12 +88,19 @@ type LinkedClanContext = {
   primaryRole: string;
   displayName: string | null;
   status: string | null;
+  ownerUid: string | null;
+  ownerDisplayName: string | null;
+  billingPlanCode: string | null;
+  billingPlanStatus: string | null;
 };
 
 type ClanRecord = {
   name?: string | null;
   slug?: string | null;
   status?: string | null;
+  founderName?: string | null;
+  ownerUid?: string | null;
+  billingOwnerUid?: string | null;
 };
 
 type DiscoveryIndexRecord = {
@@ -158,6 +165,7 @@ const debugLoginProfilesCollection = db.collection('debug_login_profiles');
 const usersCollection = db.collection('users');
 const genealogyDiscoveryCollection = db.collection('genealogyDiscoveryIndex');
 const authRateLimitsCollection = db.collection('authRateLimits');
+const subscriptionsCollection = db.collection('subscriptions');
 const CHILD_LOOKUP_WINDOW_MS = 5 * 60 * 1000;
 const CHILD_LOOKUP_MAX_REQUESTS = 8;
 const APP_CHECK_CALLABLE_OPTIONS = {
@@ -841,17 +849,22 @@ export const switchActiveClanContext = onCall(
       );
     }
 
-    const activeContext = resolveActiveClanContext({
-      contexts,
-      requestedClanId,
-      token: auth.token,
-    });
-    if (activeContext == null || activeContext.clanId !== requestedClanId) {
+    const requestedContext = contexts.find(
+      (context) => context.clanId == requestedClanId,
+    );
+    if (requestedContext == null) {
       throw new HttpsError(
         'permission-denied',
         'The requested clan is not linked to this account.',
       );
     }
+    if (!isActiveClanContext(requestedContext)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'The requested clan is currently inactive. Contact the clan owner to reactivate billing.',
+      );
+    }
+    const activeContext = requestedContext;
 
     const orderedClanIds = [
       activeContext.clanId,
@@ -1405,9 +1418,9 @@ function resolveOwnerRole(role: string): string {
     return role;
   }
   if (role === 'CLAN_OWNER' || role === 'CLAN_LEADER') {
-    return role;
+    return 'CLAN_OWNER';
   }
-  return 'CLAN_LEADER';
+  return 'CLAN_OWNER';
 }
 
 function requireLoginMethod(data: unknown): LoginMethod {
@@ -1869,6 +1882,10 @@ function serializeLinkedClanContext(context: LinkedClanContext) {
     primaryRole: context.primaryRole,
     displayName: context.displayName,
     status: context.status,
+    ownerUid: context.ownerUid,
+    ownerDisplayName: context.ownerDisplayName,
+    billingPlanCode: context.billingPlanCode,
+    billingPlanStatus: context.billingPlanStatus,
   };
 }
 
@@ -1893,7 +1910,6 @@ async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedCl
     const role = normalizeRoleClaim(data.primaryRole) || 'MEMBER';
     const displayName = resolveMemberDisplayName(data);
     const branchId = asNullableTrimmedString(data.branchId);
-    const status = asNullableTrimmedString(data.status)?.toLowerCase() ?? null;
     const candidate: LinkedClanContext = {
       clanId,
       clanName: clanId,
@@ -1901,7 +1917,11 @@ async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedCl
       branchId,
       primaryRole: role,
       displayName,
-      status,
+      status: null,
+      ownerUid: null,
+      ownerDisplayName: null,
+      billingPlanCode: null,
+      billingPlanStatus: null,
     };
 
     const existing = dedupByClan.get(clanId);
@@ -1918,11 +1938,73 @@ async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedCl
   const clanSnapshots = await Promise.all(
     clanIds.map((clanId) => clansCollection.doc(clanId).get()),
   );
-  const clanNameById = new Map<string, string>();
+  const clanMetadataById = new Map<string, {
+    clanName: string;
+    clanStatus: string | null;
+    ownerUid: string | null;
+    ownerDisplayName: string | null;
+  }>();
   for (const snapshot of clanSnapshots) {
     const data = snapshot.data() as ClanRecord | undefined;
     const clanName = asNullableTrimmedString(data?.name) ?? snapshot.id;
-    clanNameById.set(snapshot.id, clanName);
+    const clanStatus = asNullableTrimmedString(data?.status)?.toLowerCase() ?? null;
+    const ownerUid = asNullableTrimmedString(data?.billingOwnerUid) ??
+      asNullableTrimmedString(data?.ownerUid);
+    const ownerDisplayName = asNullableTrimmedString(data?.founderName);
+    clanMetadataById.set(snapshot.id, {
+      clanName,
+      clanStatus,
+      ownerUid,
+      ownerDisplayName,
+    });
+  }
+
+  const ownerNameByClanId = new Map<string, string>();
+  await Promise.all(
+    clanIds.map(async (clanId) => {
+      const metadata = clanMetadataById.get(clanId);
+      if (metadata == null || metadata.ownerUid == null || metadata.ownerDisplayName != null) {
+        return;
+      }
+      const ownerMemberSnapshot = await membersCollection
+        .where('clanId', '==', clanId)
+        .where('authUid', '==', metadata.ownerUid)
+        .limit(1)
+        .get();
+      if (ownerMemberSnapshot.empty) {
+        return;
+      }
+      const ownerMember = ownerMemberSnapshot.docs[0]?.data() as MemberRecord | undefined;
+      const ownerLabel = resolveMemberDisplayName(ownerMember ?? {});
+      if (ownerLabel != null && ownerLabel.trim().length > 0) {
+        ownerNameByClanId.set(clanId, ownerLabel.trim());
+      }
+    }),
+  );
+
+  const subscriptionDocIds = new Set<string>();
+  for (const clanId of clanIds) {
+    const metadata = clanMetadataById.get(clanId);
+    if (metadata?.ownerUid != null) {
+      subscriptionDocIds.add(`${clanId}__${metadata.ownerUid}`);
+    }
+    subscriptionDocIds.add(clanId);
+  }
+  const subscriptionSnapshots = await Promise.all(
+    [...subscriptionDocIds].map((docId) => subscriptionsCollection.doc(docId).get()),
+  );
+  const subscriptionByDocId = new Map<string, { planCode: string | null; status: string | null }>();
+  for (const subscriptionSnapshot of subscriptionSnapshots) {
+    if (!subscriptionSnapshot.exists) {
+      continue;
+    }
+    const data = subscriptionSnapshot.data() as Record<string, unknown> | undefined;
+    const planCode = normalizeBillingPlanCode(data?.planCode);
+    const billingStatus = asNullableTrimmedString(data?.status)?.toLowerCase() ?? null;
+    subscriptionByDocId.set(subscriptionSnapshot.id, {
+      planCode,
+      status: billingStatus,
+    });
   }
 
   for (const clanId of clanIds) {
@@ -1930,9 +2012,24 @@ async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedCl
     if (context == null) {
       continue;
     }
+    const metadata = clanMetadataById.get(clanId);
+    const ownerUid = metadata?.ownerUid ?? null;
+    const scopedSubscription = ownerUid == null
+      ? null
+      : subscriptionByDocId.get(`${clanId}__${ownerUid}`);
+    const legacySubscription = subscriptionByDocId.get(clanId);
+    const subscription = scopedSubscription ?? legacySubscription ?? null;
     dedupByClan.set(clanId, {
       ...context,
-      clanName: clanNameById.get(clanId) ?? context.clanName,
+      clanName: metadata?.clanName ?? context.clanName,
+      status: metadata?.clanStatus ?? context.status,
+      ownerUid,
+      ownerDisplayName:
+        metadata?.ownerDisplayName ??
+        ownerNameByClanId.get(clanId) ??
+        null,
+      billingPlanCode: subscription?.planCode ?? null,
+      billingPlanStatus: subscription?.status ?? null,
     });
   }
 
@@ -1956,24 +2053,41 @@ function resolveActiveClanContext({
   requestedClanId: string | null;
   token: Record<string, unknown>;
 }): LinkedClanContext | null {
-  if (contexts.length === 0) {
+  const activeContexts = contexts.filter((context) => isActiveClanContext(context));
+  if (activeContexts.length === 0) {
     return null;
   }
   const requested = requestedClanId?.trim();
   if (requested != null && requested.length > 0) {
-    return contexts.find((context) => context.clanId == requested) ?? null;
+    return activeContexts.find((context) => context.clanId == requested) ?? null;
   }
 
   const activeFromToken = optionalString(token, 'activeClanId')?.trim() ??
     optionalString(token, 'clanId')?.trim();
   if (activeFromToken != null && activeFromToken.length > 0) {
-    const matched = contexts.find((context) => context.clanId == activeFromToken);
+    const matched = activeContexts.find((context) => context.clanId == activeFromToken);
     if (matched != null) {
       return matched;
     }
   }
 
-  return contexts[0] ?? null;
+  return activeContexts[0] ?? null;
+}
+
+function isActiveClanContext(context: LinkedClanContext): boolean {
+  const status = (context.status ?? 'active').trim().toLowerCase();
+  return status != 'inactive' && status != 'archived' && status != 'deleted';
+}
+
+function normalizeBillingPlanCode(value: unknown): string | null {
+  const normalized = asNullableTrimmedString(value)?.toUpperCase() ?? null;
+  if (normalized == null) {
+    return null;
+  }
+  if (normalized == 'FREE' || normalized == 'BASE' || normalized == 'PLUS' || normalized == 'PRO') {
+    return normalized;
+  }
+  return null;
 }
 
 function preferredClanContext(candidate: LinkedClanContext, current: LinkedClanContext): boolean {
