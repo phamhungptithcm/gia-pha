@@ -3,7 +3,6 @@ name: Deploy Web Hosting
 on:
   push:
     branches:
-      - staging
       - main
     paths:
       - 'mobile/befam/**'
@@ -22,6 +21,7 @@ concurrency:
 jobs:
   build-web:
     name: build-web
+    if: ${{ github.ref_name == 'main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -67,11 +67,12 @@ jobs:
 
   deploy-hosting:
     name: deploy-hosting
+    if: ${{ github.ref_name == 'main' }}
     needs: build-web
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+      name: production
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -95,42 +96,27 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
         run: |
-          test -n "$FIREBASE_SERVICE_ACCOUNT"
-          test -n "$FIREBASE_PROJECT_ID"
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
+          if [ -z "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is required for main hosting deploy."
+            exit 1
+          fi
           CREDENTIALS_PATH="$RUNNER_TEMP/firebase-service-account.json"
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIALS_PATH"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$CREDENTIALS_PATH" >> "$GITHUB_ENV"
-          echo "GOOGLE_CLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
-          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+          echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
 
       - name: Deploy Firebase Hosting
         env:
           FIREBASE_HOSTING_TARGET: ${{ vars.FIREBASE_HOSTING_TARGET }}
-          FIREBASE_HOSTING_STAGING_CHANNEL: ${{ vars.FIREBASE_HOSTING_STAGING_CHANNEL }}
         run: |
           set -euo pipefail
           project="${FIREBASE_PROJECT_ID}"
           target="${FIREBASE_HOSTING_TARGET:-}"
-
-          if [ "${GITHUB_REF_NAME}" = "main" ]; then
-            if [ -n "$target" ]; then
-              firebase deploy --project "$project" --non-interactive --only "hosting:${target}"
-            else
-              firebase deploy --project "$project" --non-interactive --only hosting
-            fi
-            exit 0
-          fi
-
-          channel="${FIREBASE_HOSTING_STAGING_CHANNEL:-staging}"
           if [ -n "$target" ]; then
-            firebase hosting:channel:deploy "$channel" \
-              --project "$project" \
-              --non-interactive \
-              --expires 30d \
-              --only "$target"
+            firebase deploy --project "$project" --non-interactive --only "hosting:${target}"
           else
-            firebase hosting:channel:deploy "$channel" \
-              --project "$project" \
-              --non-interactive \
-              --expires 30d
+            firebase deploy --project "$project" --non-interactive --only hosting
           fi
