@@ -11,6 +11,7 @@ import {
   ensureClaimedSession,
   ensureClanAccess,
   stringOrNull,
+  tokenClanIds,
   tokenMemberId,
   tokenPrimaryRole,
 } from '../shared/permissions';
@@ -191,33 +192,33 @@ export const getTreasurerDashboard = onCall(
       'Finance dashboard is available to finance governance roles only.',
     );
 
-    const clanIdsRaw = Array.isArray(auth.token.clanIds) ? auth.token.clanIds : [];
-    const clanIds = clanIdsRaw
-      .filter((entry): entry is string => typeof entry === 'string')
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
-    const clanId = clanIds[0] ?? null;
+    const clanId = resolveDashboardClanId({
+      token: auth.token,
+      requestedClanId: optionalNonEmptyString(request.data, 'clanId'),
+    });
     if (clanId == null) {
       throw new HttpsError('failed-precondition', 'No clan context was found for this session.');
     }
+    ensureClanAccess(auth.token, clanId);
 
     const [fundSnapshot, transactionSnapshot, submissionSnapshot] = await Promise.all([
       fundsCollection.where('clanId', '==', clanId).get(),
-      transactionsCollection
-        .where('clanId', '==', clanId)
-        .orderBy('occurredAt', 'desc')
-        .limit(200)
-        .get(),
-      submissionsCollection
-        .where('clanId', '==', clanId)
-        .orderBy('updatedAt', 'desc')
-        .limit(100)
-        .get(),
+      loadTransactionsForDashboard(clanId),
+      loadScholarshipRequestsForDashboard(clanId),
     ]);
 
     const funds = fundSnapshot.docs.map((doc) => normalizeFirestoreValue(doc.data()));
-    const transactions = transactionSnapshot.docs.map((doc) => normalizeFirestoreValue(doc.data()));
-    const submissions = submissionSnapshot.docs.map((doc) => normalizeFirestoreValue(doc.data()));
+    const transactions = transactionSnapshot.docs
+      .map((doc) => normalizeFirestoreValue(doc.data()))
+      .filter(isPlainRecord)
+      .sort((left, right) => compareDateDesc(left, right, 'occurredAt', { fallbackKey: 'createdAt' }));
+    const submissions = submissionSnapshot.docs
+      .map((doc) => normalizeFirestoreValue(doc.data()))
+      .filter(isPlainRecord)
+      .sort((left, right) => compareDateDesc(left, right, 'updatedAt', { fallbackKey: 'createdAt' }));
+    const donationHistory = transactions
+      .filter((entry) => stringOrNull(entry['transactionType'])?.toLowerCase() == 'donation')
+      .slice();
 
     const totalBalanceMinor = fundSnapshot.docs.reduce((sum, doc) => {
       const balance = doc.data().balanceMinor;
@@ -270,7 +271,9 @@ export const getTreasurerDashboard = onCall(
       },
       funds,
       transactions,
+      donationHistory,
       scholarshipRequests: submissions,
+      scholarshipRequestHistory: submissions,
       reportSummary,
     };
   },
@@ -285,6 +288,14 @@ function requireNonEmptyString(data: unknown, key: string): string {
     throw new HttpsError('invalid-argument', `${key} is required.`);
   }
   return value.trim();
+}
+
+function optionalNonEmptyString(data: unknown, key: string): string | null {
+  if (data == null || typeof data !== 'object') {
+    return null;
+  }
+  const value = (data as Record<string, unknown>)[key];
+  return stringOrNull(value);
 }
 
 function requireSupportedRole(data: unknown, key: string): string {
@@ -325,4 +336,99 @@ function normalizeFirestoreValue(value: unknown): unknown {
     return normalized;
   }
   return value;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function resolveDashboardClanId({
+  token,
+  requestedClanId,
+}: {
+  token: Parameters<typeof tokenClanIds>[0];
+  requestedClanId: string | null;
+}): string | null {
+  const clanIds = tokenClanIds(token);
+  if (requestedClanId != null) {
+    return requestedClanId;
+  }
+  const tokenRecord = token as Record<string, unknown>;
+  const activeClanId =
+    stringOrNull(tokenRecord.activeClanId) ??
+    stringOrNull(tokenRecord.clanId);
+  if (activeClanId != null && clanIds.includes(activeClanId)) {
+    return activeClanId;
+  }
+  return clanIds[0] ?? null;
+}
+
+async function loadTransactionsForDashboard(
+  clanId: string,
+): Promise<FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>> {
+  const query = transactionsCollection.where('clanId', '==', clanId);
+  try {
+    return await query.orderBy('occurredAt', 'desc').limit(400).get();
+  } catch (error) {
+    if (!isMissingCompositeIndexError(error)) {
+      throw error;
+    }
+    return query.limit(1200).get();
+  }
+}
+
+async function loadScholarshipRequestsForDashboard(
+  clanId: string,
+): Promise<FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>> {
+  const query = submissionsCollection.where('clanId', '==', clanId);
+  try {
+    return await query.orderBy('updatedAt', 'desc').limit(240).get();
+  } catch (error) {
+    if (!isMissingCompositeIndexError(error)) {
+      throw error;
+    }
+    return query.limit(800).get();
+  }
+}
+
+function isMissingCompositeIndexError(error: unknown): boolean {
+  if (error == null || typeof error !== 'object') {
+    return false;
+  }
+  const message = String((error as { message?: unknown }).message ?? '').toLowerCase();
+  const code = String((error as { code?: unknown }).code ?? '').toLowerCase();
+  return code.includes('failed-precondition') && message.includes('index');
+}
+
+function compareDateDesc(
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+  key: string,
+  options: { fallbackKey?: string } = {},
+): number {
+  const leftTime = readDateEpochMs(left[key]) || readDateEpochMs(left[options.fallbackKey ?? '']);
+  const rightTime = readDateEpochMs(right[key]) || readDateEpochMs(right[options.fallbackKey ?? '']);
+  return rightTime - leftTime;
+}
+
+function readDateEpochMs(value: unknown): number {
+  if (value == null) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof value === 'object' && 'toDate' in (value as object)) {
+    try {
+      const parsed = (value as { toDate: () => Date }).toDate();
+      return parsed.getTime();
+    } catch (_) {
+      return 0;
+    }
+  }
+  return 0;
 }

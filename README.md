@@ -67,6 +67,27 @@ flutter test
 flutter run
 ```
 
+### Flutter Run Helper Script
+
+Use the helper script when you want a simple guided menu to run on Android, iOS, or Web without manually typing every target/device flag.
+
+```bash
+./scripts/run_flutter_targets.sh
+```
+
+You can still call specific targets directly if needed:
+
+```bash
+./scripts/run_flutter_targets.sh devices
+./scripts/run_flutter_targets.sh android-sim
+./scripts/run_flutter_targets.sh ios-device-release
+./scripts/run_flutter_targets.sh web-server 8080
+```
+
+Interactive wizard example:
+
+![Flutter run helper wizard](artifacts/screenshots/run-flutter-targets-wizard.png)
+
 ## Web Hosting and Monitoring
 
 - Web deployment workflow: `.github/workflows/deploy-web-hosting.yml`

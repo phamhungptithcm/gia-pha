@@ -7,6 +7,10 @@ class ClanContextOption {
     this.branchId,
     this.displayName,
     this.status,
+    this.ownerUid,
+    this.ownerDisplayName,
+    this.billingPlanCode,
+    this.billingPlanStatus,
   });
 
   final String clanId;
@@ -16,6 +20,10 @@ class ClanContextOption {
   final String? branchId;
   final String? displayName;
   final String? status;
+  final String? ownerUid;
+  final String? ownerDisplayName;
+  final String? billingPlanCode;
+  final String? billingPlanStatus;
 
   String get normalizedClanId => clanId.trim();
 }

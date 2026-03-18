@@ -81,7 +81,27 @@ export type EnsureSubscriptionResult = {
   settings: BillingSettingsRecord;
 };
 
+export type BillingOwnerClanSummary = {
+  clanId: string;
+  clanName: string;
+  ownerUid: string;
+  clanStatus: string;
+  memberCount: number;
+  ownerDisplayName: string | null;
+};
+
+export type OwnerBillingPolicySummary = {
+  ownerUid: string;
+  clans: Array<BillingOwnerClanSummary>;
+  totalMemberCount: number;
+  minimumTier: BillingTierPricing;
+  highestActiveTier: BillingTierPricing;
+  highestActivePlanCode: BillingPlanCode;
+  hasSufficientActivePlan: boolean;
+};
+
 const membersCollection = db.collection('members');
+const clansCollection = db.collection('clans');
 const subscriptionsCollection = db.collection('subscriptions');
 const billingSettingsCollection = db.collection('billingSettings');
 const transactionsCollection = db.collection('paymentTransactions');
@@ -102,6 +122,155 @@ function scopedBillingDocId({
 export async function countClanMembers(clanId: string): Promise<number> {
   const snapshot = await membersCollection.where('clanId', '==', clanId).count().get();
   return Number(snapshot.data().count ?? 0);
+}
+
+export async function listOwnerClansForBilling(ownerUid: string): Promise<Array<BillingOwnerClanSummary>> {
+  const normalizedOwnerUid = ownerUid.trim();
+  if (normalizedOwnerUid.length === 0) {
+    return [];
+  }
+
+  const [ownerSnapshot, billingOwnerSnapshot] = await Promise.all([
+    clansCollection.where('ownerUid', '==', normalizedOwnerUid).limit(400).get(),
+    clansCollection.where('billingOwnerUid', '==', normalizedOwnerUid).limit(400).get(),
+  ]);
+  const clanById = new Map<string, BillingOwnerClanSummary>();
+  for (const snapshot of [...ownerSnapshot.docs, ...billingOwnerSnapshot.docs]) {
+    const data = snapshot.data() ?? {};
+    const resolvedOwnerUid = readString(
+      data.billingOwnerUid,
+      readString(data.ownerUid, ''),
+    );
+    if (resolvedOwnerUid !== normalizedOwnerUid) {
+      continue;
+    }
+    clanById.set(snapshot.id, {
+      clanId: snapshot.id,
+      clanName: readString(data.name, snapshot.id),
+      ownerUid: resolvedOwnerUid,
+      clanStatus: normalizeClanStatus(data.status),
+      memberCount: Math.max(0, readNumber(data.memberCount, 0)),
+      ownerDisplayName: nullableString(data.founderName),
+    });
+  }
+  return [...clanById.values()].sort((left, right) => left.clanId.localeCompare(right.clanId));
+}
+
+export async function resolveOwnerBillingPolicy({
+  ownerUid,
+  now = new Date(),
+}: {
+  ownerUid: string;
+  now?: Date;
+}): Promise<OwnerBillingPolicySummary> {
+  const normalizedOwnerUid = ownerUid.trim();
+  if (normalizedOwnerUid.length === 0) {
+    const freeTier = resolveTierByPlanCode('FREE');
+    return {
+      ownerUid: '',
+      clans: [],
+      totalMemberCount: 0,
+      minimumTier: freeTier,
+      highestActiveTier: freeTier,
+      highestActivePlanCode: freeTier.planCode,
+      hasSufficientActivePlan: true,
+    };
+  }
+
+  const clans = await listOwnerClansForBilling(normalizedOwnerUid);
+  if (clans.length === 0) {
+    const freeTier = resolveTierByPlanCode('FREE');
+    return {
+      ownerUid: normalizedOwnerUid,
+      clans: [],
+      totalMemberCount: 0,
+      minimumTier: freeTier,
+      highestActiveTier: freeTier,
+      highestActivePlanCode: freeTier.planCode,
+      hasSufficientActivePlan: true,
+    };
+  }
+
+  const authoritativeCounts = await Promise.all(
+    clans.map(async (clan) => {
+      try {
+        return await countClanMembers(clan.clanId);
+      } catch {
+        return clan.memberCount;
+      }
+    }),
+  );
+  const clansWithCounts = clans.map((clan, index) => ({
+    ...clan,
+    memberCount: Math.max(0, authoritativeCounts[index] ?? clan.memberCount),
+  }));
+  const totalMemberCount = clansWithCounts.reduce((sum, clan) => sum + clan.memberCount, 0);
+  const minimumTier = resolvePlanByMemberCount(totalMemberCount);
+
+  const subscriptionsById = new Map<string, FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>>();
+  const ownerSubscriptions = await subscriptionsCollection
+    .where('ownerUid', '==', normalizedOwnerUid)
+    .limit(400)
+    .get();
+  for (const doc of ownerSubscriptions.docs) {
+    subscriptionsById.set(doc.id, doc);
+  }
+
+  const fallbackSnapshots = await Promise.all(
+    clansWithCounts.flatMap((clan) => [
+      subscriptionsCollection.doc(scopedBillingDocId({
+        clanId: clan.clanId,
+        ownerUid: normalizedOwnerUid,
+      })).get(),
+      subscriptionsCollection.doc(clan.clanId).get(),
+    ]),
+  );
+  for (const snapshot of fallbackSnapshots) {
+    if (!snapshot.exists) {
+      continue;
+    }
+    subscriptionsById.set(snapshot.id, snapshot);
+  }
+
+  let highestActiveTier = resolveTierByPlanCode('FREE');
+  for (const clan of clansWithCounts) {
+    const scopedId = scopedBillingDocId({
+      clanId: clan.clanId,
+      ownerUid: normalizedOwnerUid,
+    });
+    const source = subscriptionsById.get(scopedId) ?? subscriptionsById.get(clan.clanId);
+    if (source == null || !source.exists) {
+      continue;
+    }
+    const subscription = mapSubscription(source.id, source.data() ?? {}, {
+      fallbackClanId: clan.clanId,
+      fallbackOwnerUid: normalizedOwnerUid,
+    });
+    const normalizedStatus = normalizeSubscriptionStatus({
+      status: subscription.status,
+      expiresAt: subscription.expiresAt,
+      graceEndsAt: subscription.graceEndsAt,
+      now,
+    });
+    if (normalizedStatus !== 'active' && normalizedStatus !== 'grace_period') {
+      continue;
+    }
+    const candidateTier = resolveTierByPlanCode(subscription.planCode);
+    if (rankPlanCode(candidateTier.planCode) > rankPlanCode(highestActiveTier.planCode)) {
+      highestActiveTier = candidateTier;
+    }
+  }
+
+  return {
+    ownerUid: normalizedOwnerUid,
+    clans: clansWithCounts,
+    totalMemberCount,
+    minimumTier,
+    highestActiveTier,
+    highestActivePlanCode: highestActiveTier.planCode,
+    hasSufficientActivePlan:
+      rankPlanCode(highestActiveTier.planCode) >= rankPlanCode(minimumTier.planCode),
+  };
 }
 
 export async function loadBillingSettings(
@@ -304,6 +473,7 @@ export async function createPendingCheckout({
   actorUid = ownerUid,
   paymentMethod,
   requestedPlanCode,
+  policyMemberCount,
   now = new Date(),
 }: {
   clanId: string;
@@ -311,6 +481,7 @@ export async function createPendingCheckout({
   actorUid?: string;
   paymentMethod: PaymentMethod;
   requestedPlanCode?: BillingPlanCode;
+  policyMemberCount?: number;
   now?: Date;
 }): Promise<{
   tier: BillingTierPricing;
@@ -326,8 +497,12 @@ export async function createPendingCheckout({
     now,
   });
   const { memberCount, subscription } = ensured;
+  const effectiveMemberCountForPolicy = typeof policyMemberCount === 'number' &&
+      Number.isFinite(policyMemberCount)
+    ? Math.max(memberCount, Math.trunc(policyMemberCount))
+    : memberCount;
   const effectivePlanCode = resolveEffectivePlanCode({
-    memberCount,
+    memberCount: effectiveMemberCountForPolicy,
     currentPlanCode: ensured.tier.planCode,
     requestedPlanCode: requestedPlanCode ?? null,
   });
@@ -639,11 +814,13 @@ export async function applyPaymentResult({
   }
   const invoiceRef = invoicesCollection.doc(transactionData.invoiceId);
   const subscriptionRef = subscriptionsCollection.doc(transactionData.subscriptionId);
+  const clanRef = clansCollection.doc(transactionData.clanId);
 
   await db.runTransaction(async (tx) => {
-    const [invoiceSnapshot, subscriptionSnapshot] = await Promise.all([
+    const [invoiceSnapshot, subscriptionSnapshot, clanSnapshot] = await Promise.all([
       tx.get(invoiceRef),
       tx.get(subscriptionRef),
+      tx.get(clanRef),
     ]);
 
     const existingSubscription = subscriptionSnapshot.exists
@@ -724,6 +901,29 @@ export async function applyPaymentResult({
         },
         { merge: true },
       );
+      if (clanSnapshot.exists) {
+        const clanData = clanSnapshot.data() ?? {};
+        const currentClanStatus = normalizeClanStatus(clanData.status);
+        const billingLockReason = readString(clanData.billingLockReason, '');
+        const shouldReactivateClan = currentClanStatus === 'inactive' &&
+          billingLockReason === 'subscription_overdue';
+        if (shouldReactivateClan) {
+          tx.set(
+            clanRef,
+            {
+              status: 'active',
+              billingLockReason: null,
+              billingLockedAt: null,
+              billingGraceEndsAt: null,
+              billingSubscriptionId: transactionData.subscriptionId,
+              billingRestoredAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+              updatedBy: actorUid,
+            },
+            { merge: true },
+          );
+        }
+      }
     } else {
       const keepCurrentEntitlement = existingSubscription != null &&
         isSubscriptionValidForUpgradeOnly(existingSubscription, now);
@@ -1102,6 +1302,14 @@ function normalizePlanCode(value: unknown): BillingPlanCode {
     return normalized;
   }
   return 'FREE';
+}
+
+function normalizeClanStatus(value: unknown): string {
+  const normalized = readString(value, 'active').toLowerCase();
+  if (normalized.length === 0) {
+    return 'active';
+  }
+  return normalized;
 }
 
 function normalizeSubscriptionStatusCode(value: unknown): SubscriptionStatus {

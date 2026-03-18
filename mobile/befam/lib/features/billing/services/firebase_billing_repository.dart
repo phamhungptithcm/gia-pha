@@ -45,8 +45,14 @@ class FirebaseBillingRepository implements BillingRepository {
     final pricing = _asList(
       map['pricingTiers'],
     ).map((item) => _parsePricing(_asMap(item))).toList(growable: false);
+    final ownerUidFallback = session.uid.trim();
     return BillingViewerSummary(
       clanId: _readString(map, 'clanId', fallback: clanId),
+      scope: _parseScope(
+        _asMap(map['scope']),
+        fallbackClanId: clanId,
+        fallbackOwnerUid: ownerUidFallback,
+      ),
       subscription: _parseSubscription(_asMap(map['subscription'])),
       entitlement: _parseEntitlement(_asMap(map['entitlement'])),
       pricingTiers: pricing,
@@ -208,6 +214,11 @@ class FirebaseBillingRepository implements BillingRepository {
 
     return BillingWorkspaceSnapshot(
       clanId: _readString(map, 'clanId'),
+      scope: _parseScope(
+        _asMap(map['scope']),
+        fallbackClanId: _readString(map, 'clanId'),
+        fallbackOwnerUid: '',
+      ),
       subscription: _parseSubscription(_asMap(map['subscription'])),
       entitlement: _parseEntitlement(_asMap(map['entitlement'])),
       settings: _parseSettings(_asMap(map['settings'])),
@@ -217,6 +228,20 @@ class FirebaseBillingRepository implements BillingRepository {
       transactions: transactions,
       invoices: invoices,
       auditLogs: auditLogs,
+    );
+  }
+
+  BillingScopeContext _parseScope(
+    Map<String, dynamic> map, {
+    required String fallbackClanId,
+    required String fallbackOwnerUid,
+  }) {
+    return BillingScopeContext(
+      clanId: _readString(map, 'clanId', fallback: fallbackClanId),
+      ownerUid: _readString(map, 'ownerUid', fallback: fallbackOwnerUid),
+      ownerDisplayName: _readNullableString(map, 'ownerDisplayName'),
+      clanStatus: _readString(map, 'clanStatus', fallback: 'active'),
+      viewerIsOwner: _readBool(map, 'viewerIsOwner', fallback: false),
     );
   }
 

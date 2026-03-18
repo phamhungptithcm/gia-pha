@@ -48,6 +48,8 @@ class DebugClanContextService implements ClanContextService {
                   ? 'MEMBER'
                   : session.primaryRole!.trim().toUpperCase(),
               displayName: session.displayName,
+              ownerUid: session.uid.trim().isEmpty ? null : session.uid.trim(),
+              ownerDisplayName: session.displayName,
             ),
           ]
         : const <ClanContextOption>[];
@@ -165,6 +167,10 @@ class FirebaseClanContextService implements ClanContextService {
       branchId: _stringOrNull(map['branchId']),
       displayName: _stringOrNull(map['displayName']),
       status: _stringOrNull(map['status']),
+      ownerUid: _stringOrNull(map['ownerUid']),
+      ownerDisplayName: _stringOrNull(map['ownerDisplayName']),
+      billingPlanCode: _stringOrNull(map['billingPlanCode'])?.toUpperCase(),
+      billingPlanStatus: _stringOrNull(map['billingPlanStatus']),
     );
   }
 

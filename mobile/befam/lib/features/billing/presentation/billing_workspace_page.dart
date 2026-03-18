@@ -123,6 +123,19 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       );
       return;
     }
+    if (isDowngrade) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Hạ gói chỉ mở sau khi kỳ hiện tại kết thúc.',
+              en: 'Downgrade is available only after the current term ends.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     if (isRenew && !canRenewCurrentPlan) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -136,7 +149,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       );
       return;
     }
-    if (!isUpgrade && !isDowngrade && !isRenew) {
+    if (!isUpgrade && !isRenew) {
       return;
     }
 
@@ -195,6 +208,19 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       );
       return;
     }
+    if (isDowngrade) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Hạ gói chỉ mở sau khi kỳ hiện tại kết thúc.',
+              en: 'Downgrade is available only after the current term ends.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     if (isRenew && !canRenewCurrentPlan) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -208,7 +234,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       );
       return;
     }
-    if (!isUpgrade && !isDowngrade && !isRenew) {
+    if (!isUpgrade && !isRenew) {
       return;
     }
 
@@ -457,10 +483,11 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     final selectablePlans = _checkoutSelectablePlans(
       tiers: workspace.pricingTiers,
     );
-    BillingPlanPricing? firstAlternativePlan;
+    final currentPlanRank = _planRank(currentPlanCode);
+    BillingPlanPricing? firstUpgradePlan;
     for (final tier in selectablePlans) {
-      if (tier.planCode.trim().toUpperCase() != currentPlanCode) {
-        firstAlternativePlan = tier;
+      if (_planRank(tier.planCode) > currentPlanRank) {
+        firstUpgradePlan = tier;
         break;
       }
     }
@@ -468,9 +495,9 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       (tier) => tier.planCode.trim().toUpperCase() == currentPlanCode,
     );
     final defaultPlanCode = hasCurrentPlan
-        ? (canRenewCurrentPlan || firstAlternativePlan == null
+        ? (canRenewCurrentPlan || firstUpgradePlan == null
               ? currentPlanCode
-              : firstAlternativePlan.planCode.trim().toUpperCase())
+              : firstUpgradePlan.planCode.trim().toUpperCase())
         : selectablePlans.isNotEmpty
         ? selectablePlans.first.planCode.trim().toUpperCase()
         : minimumTier.planCode.trim().toUpperCase();
@@ -567,7 +594,12 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     final tier = workspace.pricingTiers
         .where((item) => item.planCode == entitlement.planCode)
         .firstOrNull;
-    final canManage = _controller.canManageBilling;
+    final canManage = _controller.canMutateBilling;
+    final ownerLabel =
+        (workspace.scope.ownerDisplayName ?? workspace.scope.ownerUid).trim();
+    final resolvedOwnerLabel = ownerLabel.isEmpty
+        ? l10n.pick(vi: 'owner của clan', en: 'the clan owner')
+        : ownerLabel;
     final minimumTier = _minimumTierForMemberCount(
       workspace.pricingTiers,
       workspace.memberCount,
@@ -589,7 +621,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     );
     final selectedPlanRank = _planRank(selectedTier.planCode);
     final currentPlanRank = _planRank(currentPlanCode);
-    final isDowngradeSelection = selectedPlanRank < currentPlanRank;
     final isRenewSelection = selectedPlanRank == currentPlanRank;
     final isUpgradeSelection = selectedPlanRank > currentPlanRank;
     final useQrCheckout = _shouldUseQrCheckout(workspace);
@@ -600,9 +631,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         !_controller.isCreatingCheckout &&
         hasSelectablePlans &&
         !isBelowMinimumForMemberCount &&
-        (isUpgradeSelection ||
-            isDowngradeSelection ||
-            (isRenewSelection && canRenewCurrentPlan));
+        (isUpgradeSelection || (isRenewSelection && canRenewCurrentPlan));
     final pendingTransactions = workspace.transactions
         .where((tx) => _isPendingPaymentStatus(tx.paymentStatus))
         .toList(growable: false);
@@ -612,11 +641,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         ? l10n.pick(
             vi: 'Gia hạn ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
             en: 'Renew ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
-          )
-        : isDowngradeSelection
-        ? l10n.pick(
-            vi: 'Hạ xuống ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
-            en: 'Downgrade to ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
           )
         : l10n.pick(
             vi: 'Nâng cấp ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
@@ -665,6 +689,23 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                 entitlement.nextPaymentDueAtIso ??
                 workspace.subscription.nextPaymentDueAtIso,
           ),
+          if (!canManage) ...[
+            const SizedBox(height: 12),
+            _InfoCard(
+              icon: Icons.lock_outline,
+              title: l10n.pick(
+                vi: 'Chỉ owner được thanh toán và đổi gói',
+                en: 'Only owner can manage checkout',
+              ),
+              description: l10n.pick(
+                vi:
+                    'Liên hệ $resolvedOwnerLabel để nâng cấp hoặc gia hạn gói.',
+                en:
+                    'Contact $resolvedOwnerLabel to upgrade or renew this subscription.',
+              ),
+              tone: colorScheme.primaryContainer,
+            ),
+          ],
           const SizedBox(height: 16),
           _SectionCard(
             title: l10n.pick(

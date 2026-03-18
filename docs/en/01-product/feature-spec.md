@@ -16,7 +16,7 @@ _Last reviewed: March 17, 2026_
 | Dual calendar events | Live | Solar/lunar scheduling and reminders |
 | Funds workspace | Live | Fund list/detail/create + donation/expense + running balance |
 | Scholarship workspace | Live | Program, award levels, submissions, review baseline |
-| Discovery + join request | Live | Public search + structured request submission |
+| Discovery + join request | Live | Public search, reviewer approval workflow, applicant notification, access provisioning on approval |
 | Profile and settings | Live (baseline) | Profile shell, edit profile, notification preference placeholders, logout confirmation |
 | Notification inbox | Live (baseline) | Inbox list/read-state and destination placeholders |
 | Billing plans | Live | Tier model by member count with entitlement rules |
@@ -39,3 +39,20 @@ _Last reviewed: March 17, 2026_
 ### Payment channels
 - Mobile UX is VNPay-first for checkout.
 - Card callback compatibility remains in backend processing paths.
+
+## Discovery & Duplicate Guard (Current)
+
+### Join request governance
+- New join requests notify eligible reviewers (leader/supporter/vice/governance roles).
+- Reviewer decisions (`approve`/`reject`) are audited and applicant notifications are idempotent.
+- On approval, the backend attempts to provision applicant access context (member link + clan claims); when auto-link cannot be resolved, the request is still tracked with provisioning status for follow-up.
+
+### Duplicate genealogy protection
+- Additional clan creation runs a duplicate check using normalized genealogy name + leader + location similarity.
+- If high-confidence candidates are found, creation is blocked first and candidates are returned to UI for human review.
+- Users can continue only via explicit override flow; override is audit logged.
+
+### Heuristic caveats
+- False positive risk: common clan names and repeated leader names across regions can score high.
+- False negative risk: incomplete location data, transliteration differences, or uncommon abbreviations can reduce similarity score.
+- Duplicate checks are audit logged to support tuning threshold/weights after release.

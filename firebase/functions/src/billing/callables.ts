@@ -16,10 +16,10 @@ import {
 import {
   applyPaymentResult,
   cancelStalePendingTransactionsRun,
-  countClanMembers,
   buildEntitlementFromSubscription,
   createPendingCheckout,
   ensureSubscriptionForClan,
+  resolveOwnerBillingPolicy,
   resolveBillingAudienceMemberIds,
   upsertBillingSettings,
   writeBillingAuditLog,
@@ -27,7 +27,6 @@ import {
 import {
   BILLING_PRICING_TIERS,
   rankPlanCode,
-  resolvePlanByMemberCount,
   type BillingPlanCode,
   type PaymentMethod,
   type PaymentMode,
@@ -35,7 +34,7 @@ import {
 import { requireAuth } from "../shared/errors";
 import { db } from "../shared/firestore";
 import { notifyMembers } from "../notifications/push-delivery";
-import { logInfo, logWarn } from "../shared/logger";
+import { logInfo } from "../shared/logger";
 import {
   ensureAnyRole,
   ensureClaimedSession,
@@ -46,6 +45,7 @@ import {
 
 const subscriptionsCollection = db.collection("subscriptions");
 const clansCollection = db.collection("clans");
+const membersCollection = db.collection("members");
 const transactionsCollection = db.collection("paymentTransactions");
 const invoicesCollection = db.collection("subscriptionInvoices");
 const billingAuditLogsCollection = db.collection("billingAuditLogs");
@@ -120,6 +120,9 @@ function ensureBillingScopeAccess({
 type BillingScopeContext = {
   clanId: string;
   ownerUid: string;
+  ownerDisplayName: string | null;
+  clanStatus: string;
+  viewerIsOwner: boolean;
 };
 
 async function resolveBillingScopeContext({
@@ -127,11 +130,13 @@ async function resolveBillingScopeContext({
   token,
   data,
   requireManageRole = false,
+  requireOwnerMutationAccess = false,
 }: {
   uid: string;
   token: AuthToken;
   data: unknown;
   requireManageRole?: boolean;
+  requireOwnerMutationAccess?: boolean;
 }): Promise<BillingScopeContext> {
   const scopeId = resolveBillingScopeId(uid, token, data);
   ensureBillingScopeAccess({
@@ -150,24 +155,37 @@ async function resolveBillingScopeContext({
     return {
       clanId: scopeId,
       ownerUid: uid,
+      ownerDisplayName: null,
+      clanStatus: "active",
+      viewerIsOwner: true,
     };
+  }
+  const clanScope = await resolveClanBillingScopeMetadata(scopeId);
+  if (requireOwnerMutationAccess && uid !== clanScope.ownerUid) {
+    const ownerLabel = clanScope.ownerDisplayName ?? clanScope.ownerUid;
+    throw new HttpsError(
+      "permission-denied",
+      `Only clan owner ${ownerLabel} can perform this billing action.`,
+    );
   }
   return {
     clanId: scopeId,
-    ownerUid: await resolveClanBillingOwnerUid({
-      clanId: scopeId,
-      fallbackOwnerUid: uid,
-    }),
+    ownerUid: clanScope.ownerUid,
+    ownerDisplayName: clanScope.ownerDisplayName,
+    clanStatus: clanScope.clanStatus,
+    viewerIsOwner: uid === clanScope.ownerUid,
   };
 }
 
-async function resolveClanBillingOwnerUid({
-  clanId,
-  fallbackOwnerUid,
-}: {
-  clanId: string;
-  fallbackOwnerUid: string;
-}): Promise<string> {
+type ClanBillingScopeMetadata = {
+  ownerUid: string;
+  ownerDisplayName: string | null;
+  clanStatus: string;
+};
+
+async function resolveClanBillingScopeMetadata(
+  clanId: string,
+): Promise<ClanBillingScopeMetadata> {
   const snapshot = await clansCollection.doc(clanId).get();
   if (!snapshot.exists) {
     throw new HttpsError(
@@ -179,23 +197,32 @@ async function resolveClanBillingOwnerUid({
   const billingOwnerUid = normalizeString(data.billingOwnerUid);
   const ownerUid = normalizeString(data.ownerUid);
   const resolved = billingOwnerUid.length > 0 ? billingOwnerUid : ownerUid;
-  if (resolved.length > 0) {
-    return resolved;
+  if (resolved.length == 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Clan billing owner is missing.",
+    );
   }
 
-  const fallback = normalizeString(fallbackOwnerUid);
-  if (fallback.length > 0) {
-    logWarn("Clan billing owner is missing; using caller fallback owner.", {
-      clanId,
-      fallbackOwnerUid: fallback,
-    });
-    return fallback;
+  let ownerDisplayName = normalizeString(data.founderName);
+  if (ownerDisplayName.length == 0) {
+    const ownerMemberSnapshot = await membersCollection
+      .where("clanId", "==", clanId)
+      .where("authUid", "==", resolved)
+      .limit(1)
+      .get();
+    if (!ownerMemberSnapshot.empty) {
+      const ownerMember = ownerMemberSnapshot.docs[0]?.data() ?? {};
+      ownerDisplayName =
+        normalizeString(ownerMember.fullName) ||
+        normalizeString(ownerMember.nickName);
+    }
   }
-
-  throw new HttpsError(
-    "failed-precondition",
-    "Clan billing owner is missing.",
-  );
+  return {
+    ownerUid: resolved,
+    ownerDisplayName: ownerDisplayName.length > 0 ? ownerDisplayName : null,
+    clanStatus: normalizeClanStatus(data.status),
+  };
 }
 
 function ensureManualSettlementAllowed(token: AuthToken): void {
@@ -231,6 +258,7 @@ export const resolveBillingEntitlement = onCall(
 
     return {
       clanId: scope.clanId,
+      scope: serializeBillingScope(scope),
       subscription: serializeSubscription(ensured.subscription),
       entitlement,
       pricingTiers: BILLING_PRICING_TIERS,
@@ -248,7 +276,7 @@ export const loadBillingWorkspace = onCall(
       uid: auth.uid,
       token: auth.token,
       data: request.data,
-      requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const runtimeConfig = await loadBillingRuntimeConfig();
@@ -286,6 +314,7 @@ export const loadBillingWorkspace = onCall(
 
     return {
       clanId: scope.clanId,
+      scope: serializeBillingScope(scope),
       subscription: serializeSubscription(ensured.subscription),
       entitlement: buildEntitlementFromSubscription(ensured.subscription),
       settings: ensured.settings,
@@ -316,7 +345,7 @@ export const updateBillingPreferences = onCall(
       uid: auth.uid,
       token: auth.token,
       data: request.data,
-      requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const paymentMode = normalizePaymentModeFromInput(request.data);
@@ -373,7 +402,7 @@ export const createSubscriptionCheckout = onCall(
       uid: auth.uid,
       token: auth.token,
       data: request.data,
-      requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const paymentMethod = normalizePaymentMethod(request.data);
@@ -389,14 +418,18 @@ export const createSubscriptionCheckout = onCall(
       timeoutMinutes: runtimeConfig.pendingTimeoutMinutes,
       limit: runtimeConfig.pendingTimeoutLimit,
     });
+    const now = new Date();
+    const ownerPolicy = await resolveOwnerBillingPolicy({
+      ownerUid: scope.ownerUid,
+      now,
+    });
+    const minimumPlanCode = ownerPolicy.minimumTier.planCode;
     const requestedPlanCode = normalizeRequestedPlanCode(request.data);
     if (requestedPlanCode != null) {
-      const memberCount = await countClanMembers(scope.clanId);
-      const minimumPlanCode = resolvePlanByMemberCount(memberCount).planCode;
       if (rankPlanCode(requestedPlanCode) < rankPlanCode(minimumPlanCode)) {
         throw new HttpsError(
           "invalid-argument",
-          `requestedPlanCode must be at least ${minimumPlanCode} for ${memberCount} members.`,
+          `requestedPlanCode must be at least ${minimumPlanCode} for ${ownerPolicy.totalMemberCount} total members across owner clans.`,
         );
       }
     }
@@ -407,12 +440,22 @@ export const createSubscriptionCheckout = onCall(
     });
     const selectedPlanCode = requestedPlanCode ?? ensured.subscription.planCode;
     const selectedRank = rankPlanCode(selectedPlanCode);
+    const currentRank = rankPlanCode(ensured.subscription.planCode);
+    if (
+      selectedRank < currentRank &&
+      isSubscriptionActiveAndValid(ensured.subscription, now)
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Downgrade is available only after the current paid term ends.",
+      );
+    }
     const canRenewCurrent = canRenewCurrentPlan(
       ensured.subscription,
-      new Date(),
+      now,
     );
     if (
-      selectedRank === rankPlanCode(ensured.subscription.planCode) &&
+      selectedRank === currentRank &&
       !canRenewCurrent
     ) {
       throw new HttpsError(
@@ -429,6 +472,7 @@ export const createSubscriptionCheckout = onCall(
         actorUid: auth.uid,
         paymentMethod,
         requestedPlanCode: requestedPlanCode ?? undefined,
+        policyMemberCount: ownerPolicy.totalMemberCount,
       });
     } catch (error) {
       if (
@@ -496,6 +540,7 @@ export const createSubscriptionCheckout = onCall(
 
     return {
       clanId: scope.clanId,
+      scope: serializeBillingScope(scope),
       paymentMethod,
       planCode: checkout.tier.planCode,
       amountVnd: checkout.transaction.amountVnd,
@@ -506,6 +551,12 @@ export const createSubscriptionCheckout = onCall(
       requiresManualConfirmation,
       subscription: serializeSubscription(checkout.subscription),
       entitlement: buildEntitlementFromSubscription(checkout.subscription),
+      ownerPolicy: {
+        totalMemberCount: ownerPolicy.totalMemberCount,
+        minimumPlanCode,
+        highestActivePlanCode: ownerPolicy.highestActivePlanCode,
+        hasSufficientActivePlan: ownerPolicy.hasSufficientActivePlan,
+      },
     };
   },
 );
@@ -817,6 +868,41 @@ function readBoolean(data: unknown, key: string, fallback: boolean): boolean {
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeClanStatus(value: unknown): string {
+  const normalized = normalizeString(value).toLowerCase();
+  return normalized.length > 0 ? normalized : "active";
+}
+
+function serializeBillingScope(
+  scope: BillingScopeContext,
+): Record<string, unknown> {
+  return {
+    clanId: scope.clanId,
+    ownerUid: scope.ownerUid,
+    ownerDisplayName: scope.ownerDisplayName,
+    clanStatus: scope.clanStatus,
+    viewerIsOwner: scope.viewerIsOwner,
+  };
+}
+
+function isSubscriptionActiveAndValid(
+  subscription: {
+    status?: unknown;
+    expiresAt?: unknown;
+  },
+  now: Date,
+): boolean {
+  const status = normalizeString(subscription.status).toLowerCase();
+  if (status !== "active" && status !== "grace_period") {
+    return false;
+  }
+  const expiresAt = subscription.expiresAt;
+  if (!(expiresAt instanceof Date)) {
+    return status === "grace_period";
+  }
+  return expiresAt.getTime() > now.getTime();
 }
 
 function serializeSubscription(

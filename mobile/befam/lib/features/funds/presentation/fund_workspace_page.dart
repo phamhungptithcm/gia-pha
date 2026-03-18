@@ -1,6 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/services/kinship_title_resolver.dart';
@@ -16,6 +20,7 @@ import '../models/fund_transaction.dart';
 import '../models/fund_transaction_draft.dart';
 import '../services/currency_minor_units.dart';
 import '../services/fund_repository.dart';
+import '../services/treasurer_dashboard_repository.dart';
 import 'fund_controller.dart';
 
 class FundWorkspacePage extends StatefulWidget {
@@ -23,6 +28,7 @@ class FundWorkspacePage extends StatefulWidget {
     super.key,
     required this.session,
     required this.repository,
+    this.treasurerDashboardRepository,
     this.memberRepository,
     this.availableClanContexts = const [],
     this.onSwitchClanContext,
@@ -30,6 +36,7 @@ class FundWorkspacePage extends StatefulWidget {
 
   final AuthSession session;
   final FundRepository repository;
+  final TreasurerDashboardRepository? treasurerDashboardRepository;
   final MemberRepository? memberRepository;
   final List<ClanContextOption> availableClanContexts;
   final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
@@ -44,6 +51,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
   late FundController _controller;
   late AuthSession _activeSession;
   late MemberRepository _memberRepository;
+  late TreasurerDashboardRepository _treasurerDashboardRepository;
   late final ScrollController _workspaceScrollController;
   bool _isSwitchingClanContext = false;
   String _cachedMembersClanId = '';
@@ -53,6 +61,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
   bool _isLoadingTreasurers = false;
   bool _hasResolvedTreasurers = false;
   bool _treasurerLookupFailed = false;
+  bool _isExportingTreasurerReport = false;
   int _treasurerRequestToken = 0;
   int _visibleFundCount = _fundBatchSize;
   String _fundListSeed = '';
@@ -70,9 +79,13 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     _memberRepository =
         widget.memberRepository ??
         createDefaultMemberRepository(session: _session);
+    _treasurerDashboardRepository =
+        widget.treasurerDashboardRepository ??
+        createDefaultTreasurerDashboardRepository(session: _session);
     _controller = FundController(
       repository: widget.repository,
       session: _session,
+      treasurerDashboardRepository: _treasurerDashboardRepository,
     );
     _workspaceScrollController = ScrollController()
       ..addListener(_handleWorkspaceScroll);
@@ -87,7 +100,13 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     final repositoryChanged = oldWidget.repository != widget.repository;
     final memberRepositoryChanged =
         oldWidget.memberRepository != widget.memberRepository;
-    if (!sessionChanged && !repositoryChanged && !memberRepositoryChanged) {
+    final treasurerRepositoryChanged =
+        oldWidget.treasurerDashboardRepository !=
+        widget.treasurerDashboardRepository;
+    if (!sessionChanged &&
+        !repositoryChanged &&
+        !memberRepositoryChanged &&
+        !treasurerRepositoryChanged) {
       return;
     }
 
@@ -97,12 +116,18 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           widget.memberRepository ??
           createDefaultMemberRepository(session: _session);
     }
+    if (sessionChanged || treasurerRepositoryChanged) {
+      _treasurerDashboardRepository =
+          widget.treasurerDashboardRepository ??
+          createDefaultTreasurerDashboardRepository(session: _session);
+    }
     _cachedMembers = const [];
     _cachedMembersClanId = '';
     _controller.dispose();
     _controller = FundController(
       repository: widget.repository,
       session: _session,
+      treasurerDashboardRepository: _treasurerDashboardRepository,
     );
     unawaited(_controller.initialize());
     unawaited(_refreshTreasurerRoster(force: true));
@@ -282,6 +307,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       _controller = FundController(
         repository: widget.repository,
         session: _session,
+        treasurerDashboardRepository: _treasurerDashboardRepository,
       );
       setState(() {});
       await _controller.initialize();
@@ -509,6 +535,13 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                               : (clanId) => _switchClanContext(clanId),
                         ),
                         const SizedBox(height: 16),
+                        if (_controller.canViewFunds)
+                          _buildTreasurerDashboardSection(
+                            context,
+                            displayCurrency: displayCurrency,
+                          ),
+                        if (_controller.canViewFunds)
+                          const SizedBox(height: 16),
                         if (_controller.errorMessage case final error?) ...[
                           _InfoCard(
                             icon: Icons.error_outline,
@@ -653,6 +686,475 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         );
       },
     );
+  }
+
+  Widget _buildTreasurerDashboardSection(
+    BuildContext context, {
+    required String displayCurrency,
+  }) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final dashboard = _controller.treasurerDashboard;
+    final donationHistory = dashboard.donationHistory
+        .take(8)
+        .toList(growable: false);
+    final scholarshipHistory = dashboard.scholarshipRequests
+        .take(8)
+        .toList(growable: false);
+    final hasDashboardData =
+        dashboard.funds.isNotEmpty ||
+        dashboard.transactions.isNotEmpty ||
+        dashboard.scholarshipRequests.isNotEmpty ||
+        dashboard.reportSummary.trim().isNotEmpty;
+    final loadError = _controller.treasurerDashboardErrorMessage;
+    final dashboardClanId = dashboard.clanId.trim().isEmpty
+        ? (_session.clanId ?? '').trim()
+        : dashboard.clanId.trim();
+
+    if (_controller.isLoadingTreasurerDashboard && !hasDashboardData) {
+      return _InfoCard(
+        icon: Icons.analytics_outlined,
+        title: l10n.pick(
+          vi: 'Đang tải dashboard thủ quỹ',
+          en: 'Loading treasurer dashboard',
+        ),
+        description: l10n.pick(
+          vi: 'Đang đồng bộ số dư quỹ, lịch sử đóng góp và hồ sơ học bổng...',
+          en: 'Syncing fund balance, donation history, and scholarship requests...',
+        ),
+        tone: colorScheme.surfaceContainerHighest,
+      );
+    }
+
+    if (loadError != null && !hasDashboardData) {
+      return _InfoCard(
+        icon: Icons.error_outline,
+        title: l10n.pick(
+          vi: 'Không tải được dashboard thủ quỹ',
+          en: 'Unable to load treasurer dashboard',
+        ),
+        description: loadError,
+        tone: colorScheme.errorContainer,
+      );
+    }
+
+    return _SectionCard(
+      title: l10n.pick(vi: 'Dashboard thủ quỹ', en: 'Treasurer dashboard'),
+      actionLabel: _controller.isLoadingTreasurerDashboard
+          ? null
+          : l10n.pick(vi: 'Làm mới', en: 'Refresh'),
+      onAction: _controller.isLoadingTreasurerDashboard
+          ? null
+          : () => unawaited(_refreshWorkspace()),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (dashboardClanId.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                l10n.pick(
+                  vi: 'Phạm vi clan: $dashboardClanId',
+                  en: 'Clan scope: $dashboardClanId',
+                ),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          if (loadError != null && hasDashboardData) ...[
+            _InfoCard(
+              icon: Icons.info_outline,
+              title: l10n.pick(
+                vi: 'Dữ liệu dashboard chưa đồng bộ hoàn toàn',
+                en: 'Dashboard data is partially synced',
+              ),
+              description: loadError,
+              tone: colorScheme.surfaceContainerHighest,
+              compact: true,
+            ),
+            const SizedBox(height: 12),
+          ],
+          _StatRow(
+            items: [
+              _StatTile(
+                label: l10n.pick(
+                  vi: 'Tổng số dư quỹ',
+                  en: 'Total fund balance',
+                ),
+                value: _formatMoney(
+                  context,
+                  amountMinor: dashboard.totals.totalBalanceMinor,
+                  currency: displayCurrency,
+                ),
+                icon: Icons.account_balance_wallet_outlined,
+              ),
+              _StatTile(
+                label: l10n.pick(vi: 'Tổng đóng góp', en: 'Total donations'),
+                value: _formatMoney(
+                  context,
+                  amountMinor: dashboard.totals.totalDonationsMinor,
+                  currency: displayCurrency,
+                ),
+                icon: Icons.south_west_rounded,
+                iconBackgroundColor: colorScheme.primaryContainer,
+                valueColor: colorScheme.primary,
+              ),
+              _StatTile(
+                label: l10n.pick(vi: 'Tổng chi', en: 'Total expenses'),
+                value: _formatMoney(
+                  context,
+                  amountMinor: dashboard.totals.totalExpensesMinor,
+                  currency: displayCurrency,
+                ),
+                icon: Icons.north_east_rounded,
+                iconBackgroundColor: colorScheme.errorContainer,
+                valueColor: colorScheme.error,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            l10n.pick(vi: 'Lịch sử đóng góp', en: 'Donation history'),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (donationHistory.isEmpty)
+            Text(
+              l10n.pick(
+                vi: 'Chưa có bản ghi đóng góp trong phạm vi hiển thị.',
+                en: 'No donation records in the current dashboard range.',
+              ),
+            )
+          else
+            for (final transaction in donationHistory)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            transaction.note.trim().isEmpty
+                                ? l10n.pick(
+                                    vi: 'Đóng góp quỹ',
+                                    en: 'Fund donation',
+                                  )
+                                : transaction.note,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatDate(context, transaction.occurredAt),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      _formatMoney(
+                        context,
+                        amountMinor: transaction.amountMinor,
+                        currency: transaction.currency,
+                      ),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          const SizedBox(height: 16),
+          Text(
+            l10n.pick(
+              vi: 'Lịch sử yêu cầu học bổng',
+              en: 'Scholarship request history',
+            ),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (scholarshipHistory.isEmpty)
+            Text(
+              l10n.pick(
+                vi: 'Chưa có hồ sơ học bổng trong phạm vi hiển thị.',
+                en: 'No scholarship requests in the current dashboard range.',
+              ),
+            )
+          else
+            for (final request in scholarshipHistory)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            request.title.trim().isEmpty
+                                ? request.studentNameSnapshot
+                                : request.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            request.studentNameSnapshot.trim().isEmpty
+                                ? _formatScholarshipRequestDate(
+                                    context,
+                                    request.updatedAtIso,
+                                  )
+                                : '${request.studentNameSnapshot} • ${_formatScholarshipRequestDate(context, request.updatedAtIso)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _StatusChip(
+                      label: _scholarshipStatusLabel(context, request.status),
+                      tone: _scholarshipStatusTone(
+                        context,
+                        request.status,
+                        colorScheme: colorScheme,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          const SizedBox(height: 16),
+          Text(
+            l10n.pick(vi: 'Tóm tắt báo cáo', en: 'Report summary'),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: colorScheme.surfaceContainerHighest,
+            ),
+            child: Text(
+              dashboard.reportSummary.trim().isEmpty
+                  ? l10n.pick(
+                      vi: 'Chưa có dữ liệu báo cáo.',
+                      en: 'No report summary available.',
+                    )
+                  : dashboard.reportSummary,
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                onPressed: dashboard.reportSummary.trim().isEmpty
+                    ? null
+                    : () =>
+                          _copyTreasurerReportSummary(dashboard.reportSummary),
+                icon: const Icon(Icons.copy_all_outlined),
+                label: Text(
+                  l10n.pick(vi: 'Sao chép báo cáo', en: 'Copy summary'),
+                ),
+              ),
+              FilledButton.icon(
+                onPressed:
+                    dashboard.reportSummary.trim().isEmpty ||
+                        _isExportingTreasurerReport
+                    ? null
+                    : () => _exportTreasurerReportSummaryPdf(
+                        reportSummary: dashboard.reportSummary,
+                        clanId: dashboardClanId,
+                      ),
+                icon: _isExportingTreasurerReport
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_for_offline_outlined),
+                label: Text(
+                  _isExportingTreasurerReport
+                      ? l10n.pick(vi: 'Đang xuất...', en: 'Exporting...')
+                      : l10n.pick(
+                          vi: 'Xuất báo cáo PDF',
+                          en: 'Export PDF report',
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _copyTreasurerReportSummary(String summary) async {
+    final l10n = context.l10n;
+    await Clipboard.setData(ClipboardData(text: summary));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          l10n.pick(
+            vi: 'Đã sao chép tóm tắt báo cáo.',
+            en: 'Report summary copied.',
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportTreasurerReportSummaryPdf({
+    required String reportSummary,
+    required String clanId,
+  }) async {
+    if (_isExportingTreasurerReport) {
+      return;
+    }
+    final l10n = context.l10n;
+    setState(() {
+      _isExportingTreasurerReport = true;
+    });
+    try {
+      final pdfBytes = await _buildTreasurerReportPdfBytes(
+        reportSummary: reportSummary,
+        clanId: clanId,
+      );
+      final fileName = _treasurerReportFileName(clanId);
+      await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Đã tạo báo cáo PDF. Bạn có thể lưu hoặc chia sẻ.',
+              en: 'PDF report is ready to save or share.',
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Chưa thể xuất báo cáo PDF. Vui lòng thử lại.',
+              en: 'Unable to export PDF report. Please retry.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExportingTreasurerReport = false;
+        });
+      } else {
+        _isExportingTreasurerReport = false;
+      }
+    }
+  }
+
+  Future<Uint8List> _buildTreasurerReportPdfBytes({
+    required String reportSummary,
+    required String clanId,
+  }) async {
+    final pdf = pw.Document();
+    final generatedAt = DateTime.now().toUtc().toIso8601String();
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(24),
+        build: (context) => [
+          pw.Text(
+            'Treasurer Financial Summary',
+            style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Text('Clan ID: $clanId'),
+          pw.Text('Generated at: $generatedAt'),
+          pw.SizedBox(height: 12),
+          pw.Text(reportSummary.trim()),
+        ],
+      ),
+    );
+    return pdf.save();
+  }
+
+  String _treasurerReportFileName(String clanId) {
+    final now = DateTime.now().toLocal();
+    final year = now.year.toString().padLeft(4, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    final scope = clanId.isEmpty ? 'unknown' : clanId;
+    return 'treasurer-report-$scope-$year$month$day.pdf';
+  }
+
+  String _formatScholarshipRequestDate(BuildContext context, String isoValue) {
+    final parsed = DateTime.tryParse(isoValue);
+    if (parsed == null) {
+      return context.l10n.pick(vi: 'Không rõ thời gian', en: 'Unknown date');
+    }
+    return _formatDate(context, parsed.toUtc());
+  }
+
+  String _scholarshipStatusLabel(BuildContext context, String status) {
+    final l10n = context.l10n;
+    return switch (status.trim().toLowerCase()) {
+      'approved' => l10n.pick(vi: 'Đã duyệt', en: 'Approved'),
+      'rejected' => l10n.pick(vi: 'Từ chối', en: 'Rejected'),
+      _ => l10n.pick(vi: 'Chờ duyệt', en: 'Pending'),
+    };
+  }
+
+  Color _scholarshipStatusTone(
+    BuildContext context,
+    String status, {
+    required ColorScheme colorScheme,
+  }) {
+    switch (status.trim().toLowerCase()) {
+      case 'approved':
+        return colorScheme.primaryContainer;
+      case 'rejected':
+        return colorScheme.errorContainer;
+      default:
+        return colorScheme.surfaceContainerHighest;
+    }
   }
 
   String? _memberCountLabelForFund(BuildContext context, FundProfile fund) {
@@ -2786,6 +3288,30 @@ class _SectionCard extends StatelessWidget {
             child,
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.label, required this.tone});
+
+  final String label;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: tone,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
       ),
     );
   }

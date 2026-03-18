@@ -1,6 +1,7 @@
 class BillingWorkspaceSnapshot {
   const BillingWorkspaceSnapshot({
     required this.clanId,
+    required this.scope,
     required this.subscription,
     required this.entitlement,
     required this.settings,
@@ -13,6 +14,7 @@ class BillingWorkspaceSnapshot {
   });
 
   final String clanId;
+  final BillingScopeContext scope;
   final BillingSubscription subscription;
   final BillingEntitlement entitlement;
   final BillingSettings settings;
@@ -49,6 +51,7 @@ class BillingCheckoutFlowConfig {
 class BillingViewerSummary {
   const BillingViewerSummary({
     required this.clanId,
+    required this.scope,
     required this.subscription,
     required this.entitlement,
     required this.pricingTiers,
@@ -56,10 +59,27 @@ class BillingViewerSummary {
   });
 
   final String clanId;
+  final BillingScopeContext scope;
   final BillingSubscription subscription;
   final BillingEntitlement entitlement;
   final List<BillingPlanPricing> pricingTiers;
   final int memberCount;
+}
+
+class BillingScopeContext {
+  const BillingScopeContext({
+    required this.clanId,
+    required this.ownerUid,
+    required this.ownerDisplayName,
+    required this.clanStatus,
+    required this.viewerIsOwner,
+  });
+
+  final String clanId;
+  final String ownerUid;
+  final String? ownerDisplayName;
+  final String clanStatus;
+  final bool viewerIsOwner;
 }
 
 class BillingSubscription {
