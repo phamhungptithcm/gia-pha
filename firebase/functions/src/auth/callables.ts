@@ -474,15 +474,28 @@ export const bootstrapClanWorkspace = onCall(
     const ownerRole = resolveOwnerRole(role);
     const ownerPhone = optionalString(auth.token, 'phone_number');
     const normalizedFullName = ownerDisplayName.trim().toLowerCase();
-    const duplicateCandidates = allowExistingClan
-      ? await findPotentialDuplicateGenealogies({
-        genealogyName: clanName,
-        leaderName: ownerDisplayName,
-        provinceCity: provinceCityHint.length > 0
-          ? provinceCityHint
-          : countryCode,
-      })
-      : [];
+    let duplicateCandidates: Array<{
+      clanId: string;
+      genealogyName: string;
+      leaderName: string;
+      provinceCity: string;
+      score: number;
+    }> = [];
+    if (allowExistingClan) {
+      try {
+        duplicateCandidates = await findPotentialDuplicateGenealogies({
+          genealogyName: clanName,
+          leaderName: ownerDisplayName,
+          provinceCity: provinceCityHint,
+        });
+      } catch (error) {
+        logWarn('bootstrapClanWorkspace duplicate check failed; continue without block', {
+          uid: auth.uid,
+          clanName,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
     if (duplicateCandidates.length > 0 && !duplicateOverride) {
       await writeAuditLog({
         uid: auth.uid,

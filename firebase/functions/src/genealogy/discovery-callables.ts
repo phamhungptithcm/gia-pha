@@ -5,7 +5,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { APP_REGION } from '../config/runtime';
 import { requireAuth } from '../shared/errors';
 import { db } from '../shared/firestore';
-import { logInfo } from '../shared/logger';
+import { logError, logInfo } from '../shared/logger';
 import { notifyMembers } from '../notifications/push-delivery';
 import {
   GOVERNANCE_ROLES,
@@ -79,6 +79,7 @@ type JoinRequestAccessProvisionResult = {
     | 'member_clan_mismatch'
     | 'member_already_linked'
     | 'applicant_account_missing'
+    | 'provisioning_failed'
     | 'not_required';
   linkedMemberId: string | null;
   clanIds: Array<string>;
@@ -274,19 +275,34 @@ export const reviewJoinRequest = onCall(
     }
 
     const nextStatus = decision === 'approve' ? 'approved' : 'rejected';
-    const accessProvisioning = nextStatus === 'approved'
-      ? await provisionApprovedJoinRequestAccess({
-        requestId,
-        clanId,
-        joinRequest,
-        reviewerUid: auth.uid,
-        reviewerMemberId,
-      })
-      : {
-        status: 'not_required',
-        linkedMemberId: null,
-        clanIds: [],
-      } satisfies JoinRequestAccessProvisionResult;
+    let accessProvisioning: JoinRequestAccessProvisionResult = {
+      status: 'not_required',
+      linkedMemberId: null,
+      clanIds: [],
+    };
+    if (nextStatus === 'approved') {
+      try {
+        accessProvisioning = await provisionApprovedJoinRequestAccess({
+          requestId,
+          clanId,
+          joinRequest,
+          reviewerUid: auth.uid,
+          reviewerMemberId,
+        });
+      } catch (error) {
+        logError('reviewJoinRequest access provisioning failed', {
+          requestId,
+          clanId,
+          reviewerMemberId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+        accessProvisioning = {
+          status: 'provisioning_failed',
+          linkedMemberId: null,
+          clanIds: [],
+        };
+      }
+    }
     await joinRequestRef.set(
       {
         status: nextStatus,
@@ -566,10 +582,15 @@ async function notifyApplicantForJoinRequest(input: {
   if (recipientMemberId != null) {
     const approvedAndLinked = input.nextStatus === 'approved' &&
       input.accessProvisioningStatus === 'linked';
+    const approvedProvisioningFailed = input.nextStatus === 'approved' &&
+      input.accessProvisioningStatus === 'provisioning_failed';
     const approvedPendingAccess = input.nextStatus === 'approved' &&
-      !approvedAndLinked;
+      !approvedAndLinked &&
+      !approvedProvisioningFailed;
     const body = approvedAndLinked
       ? 'Your join request has been approved. Access is now available.'
+      : approvedProvisioningFailed
+        ? 'Your join request was approved. Access setup is in progress and will be finalized shortly.'
       : approvedPendingAccess
         ? 'Your join request was approved and is waiting for membership linking.'
         : 'Your join request was not approved at this time.';
