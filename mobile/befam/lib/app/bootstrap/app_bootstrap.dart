@@ -57,12 +57,12 @@ class AppBootstrap {
           );
         } catch (error, stackTrace) {
           AppLogger.error('Firebase bootstrap failed.', error, stackTrace);
+          final fallbackOptions = _resolveFallbackOptions();
 
           return AppBootstrapResult(
             status: FirebaseSetupStatus.failed(
-              projectId: DefaultFirebaseOptions.currentPlatform.projectId,
-              storageBucket:
-                  DefaultFirebaseOptions.currentPlatform.storageBucket ?? '',
+              projectId: fallbackOptions.projectId,
+              storageBucket: fallbackOptions.storageBucket ?? '',
               errorMessage: error.toString(),
             ),
             crashReportingService: const CrashReportingService.disabled(),
@@ -70,5 +70,13 @@ class AppBootstrap {
         }
       },
     );
+  }
+
+  static FirebaseOptions _resolveFallbackOptions() {
+    try {
+      return DefaultFirebaseOptions.currentPlatform;
+    } catch (_) {
+      return DefaultFirebaseOptions.android;
+    }
   }
 }
