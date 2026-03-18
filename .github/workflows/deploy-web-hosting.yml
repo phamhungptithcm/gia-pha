@@ -54,6 +54,7 @@ jobs:
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           flutter build web \
             --release \
+            --no-wasm-dry-run \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
             --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
             --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}"
