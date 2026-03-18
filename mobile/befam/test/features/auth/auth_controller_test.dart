@@ -12,8 +12,8 @@ import 'package:befam/features/auth/services/auth_session_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('AuthController scenario login', () {
-    test('auto-verifies scenario profile when auto OTP is provided', () async {
+  group('AuthController phone login', () {
+    test('submits phone number then verifies OTP successfully', () async {
       final gateway = _FakeAuthGateway();
       final controller = AuthController(
         authGateway: gateway,
@@ -23,10 +23,8 @@ void main() {
       );
       await controller.initialize();
 
-      await controller.requestOtpForScenarioPhone(
-        '+84901234567',
-        autoVerifyCode: '123456',
-      );
+      await controller.submitPhoneNumber('+84901234567');
+      await controller.verifyOtp('123456');
 
       expect(gateway.requestPhoneOtpCount, 1);
       expect(gateway.verifyOtpCount, 1);
@@ -35,7 +33,7 @@ void main() {
       expect(controller.error, isNull);
     });
 
-    test('rejects empty scenario phone and does not request OTP', () async {
+    test('rejects empty phone and does not request OTP', () async {
       final gateway = _FakeAuthGateway();
       final controller = AuthController(
         authGateway: gateway,
@@ -45,38 +43,32 @@ void main() {
       );
       await controller.initialize();
 
-      await controller.requestOtpForScenarioPhone('   ');
+      await controller.submitPhoneNumber('   ');
 
       expect(gateway.requestPhoneOtpCount, 0);
       expect(controller.error?.key, AuthIssueKey.phoneRequired);
       expect(controller.session, isNull);
     });
 
-    test(
-      'live gateway profile flow normalizes local phone and does not auto-verify fixed profile code',
-      () async {
-        final gateway = _FakeAuthGateway(isSandbox: false);
-        final controller = AuthController(
-          authGateway: gateway,
-          analyticsService: const NoopAuthAnalyticsService(),
-          sessionStore: InMemoryAuthSessionStore(),
-          privacyPolicyStore: InMemoryAuthPrivacyPolicyStore(accepted: true),
-        );
-        await controller.initialize();
+    test('normalizes local phone format before requesting OTP', () async {
+      final gateway = _FakeAuthGateway(isSandbox: false);
+      final controller = AuthController(
+        authGateway: gateway,
+        analyticsService: const NoopAuthAnalyticsService(),
+        sessionStore: InMemoryAuthSessionStore(),
+        privacyPolicyStore: InMemoryAuthPrivacyPolicyStore(accepted: true),
+      );
+      await controller.initialize();
 
-        await controller.requestOtpForScenarioPhone(
-          '0901234567',
-          autoVerifyCode: '123456',
-        );
+      await controller.submitPhoneNumber('0901234567');
 
-        expect(gateway.requestPhoneOtpCount, 1);
-        expect(gateway.lastRequestedPhoneE164, '+84901234567');
-        expect(gateway.verifyOtpCount, 0);
-        expect(controller.step, AuthStep.otp);
-        expect(controller.session, isNull);
-        expect(controller.error, isNull);
-      },
-    );
+      expect(gateway.requestPhoneOtpCount, 1);
+      expect(gateway.lastRequestedPhoneE164, '+84901234567');
+      expect(gateway.verifyOtpCount, 0);
+      expect(controller.step, AuthStep.otp);
+      expect(controller.session, isNull);
+      expect(controller.error, isNull);
+    });
   });
 }
 

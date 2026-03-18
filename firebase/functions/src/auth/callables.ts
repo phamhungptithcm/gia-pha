@@ -16,7 +16,6 @@ import {
 import {
   APP_REGION,
   CALLABLE_ENFORCE_APP_CHECK,
-  DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT,
 } from '../config/runtime';
 import { db } from '../shared/firestore';
 import { requireAuth } from '../shared/errors';
@@ -113,23 +112,6 @@ type DiscoveryIndexRecord = {
   provinceCityNormalized?: string | null;
 };
 
-type DebugLoginProfileResponse = {
-  scenarioKey: string;
-  phoneE164: string;
-  title: string;
-  description: string;
-  sortOrder: number;
-  autoOtpCode: string | null;
-};
-
-type DebugProfileTokenResponse = {
-  customToken: string;
-  uid: string;
-  phoneE164: string;
-  memberId: string | null;
-  displayName: string | null;
-};
-
 type LookupMemberProfileResponse = {
   found: boolean;
   profile: {
@@ -161,7 +143,6 @@ const branchesCollection = db.collection('branches');
 const clansCollection = db.collection('clans');
 const invitesCollection = db.collection('invites');
 const auditLogsCollection = db.collection('auditLogs');
-const debugLoginProfilesCollection = db.collection('debug_login_profiles');
 const usersCollection = db.collection('users');
 const genealogyDiscoveryCollection = db.collection('genealogyDiscoveryIndex');
 const authRateLimitsCollection = db.collection('authRateLimits');
@@ -172,13 +153,6 @@ const APP_CHECK_CALLABLE_OPTIONS = {
   region: APP_REGION,
   enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
 } as const;
-const debugTokenCallableOptions: {
-  region: string;
-  serviceAccount?: string;
-} = { region: APP_REGION };
-if (DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT.length > 0) {
-  debugTokenCallableOptions.serviceAccount = DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT;
-}
 
 export const resolveChildLoginContext = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
@@ -798,25 +772,6 @@ export const registerDeviceToken = onCall(APP_CHECK_CALLABLE_OPTIONS, async (req
   };
 });
 
-export const listDebugLoginProfiles = onCall(
-  { region: APP_REGION },
-  async (request): Promise<{ profiles: Array<DebugLoginProfileResponse> }> => {
-    const snapshot = await debugLoginProfilesCollection.limit(25).get();
-    const profiles = snapshot.docs
-      .map((doc) => sanitizeDebugLoginProfile(doc.id, doc.data() as Record<string, unknown>))
-      .filter((profile): profile is DebugLoginProfileResponse => profile != null)
-      .sort((left, right) => left.sortOrder - right.sortOrder);
-
-    logInfo('listDebugLoginProfiles succeeded', {
-      count: profiles.length,
-      hasAuth: request.auth != null,
-      appId: request.app?.appId ?? null,
-    });
-
-    return { profiles };
-  },
-);
-
 export const listUserClanContexts = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
@@ -924,100 +879,6 @@ export const switchActiveClanContext = onCall(
   },
 );
 
-export const issueDebugProfileCustomToken = onCall(
-  debugTokenCallableOptions,
-  async (request): Promise<DebugProfileTokenResponse> => {
-    const phoneE164 = requireNonEmptyString(request.data, 'phoneE164').trim();
-    const snapshot = await debugLoginProfilesCollection.doc(phoneE164).get();
-    if (!snapshot.exists) {
-      throw new HttpsError(
-        'not-found',
-        'No debug login profile exists for that phone number.',
-      );
-    }
-
-    const rawData = snapshot.data() as Record<string, unknown>;
-    const profile = sanitizeDebugLoginProfile(snapshot.id, rawData);
-    if (profile == null) {
-      throw new HttpsError(
-        'permission-denied',
-        'This profile is not enabled for debug sign-in.',
-      );
-    }
-
-    const memberId = asNullableTrimmedString(rawData.memberId);
-    const clanId = asNullableTrimmedString(rawData.clanId);
-    const branchId = asNullableTrimmedString(rawData.branchId);
-    const primaryRole = asNullableTrimmedString(rawData.primaryRole);
-    const linkedAuthUid = rawData.linkedAuthUid === true;
-
-    const accessModeRaw = asTrimmedString(rawData.accessMode).toLowerCase();
-    const accessMode: MemberAccessMode = accessModeRaw === 'claimed'
-      ? 'claimed'
-      : accessModeRaw === 'child'
-        ? 'child'
-        : 'unlinked';
-
-    let memberData: MemberRecord | null = null;
-    let memberUid = '';
-    if (memberId != null) {
-      const memberSnapshot = await membersCollection.doc(memberId).get();
-      if (memberSnapshot.exists) {
-        memberData = memberSnapshot.data() as MemberRecord;
-        memberUid = memberData.authUid?.trim() ?? '';
-      }
-    }
-
-    const profileUid = asTrimmedString(rawData.authUid);
-    const uid = buildDebugAuthUid(profileUid || memberUid || phoneE164);
-    const profileDisplayName = asNullableTrimmedString(rawData.displayName);
-    const displayName = profileDisplayName ??
-      (memberData != null ? resolveMemberDisplayName(memberData) : null) ??
-      profile.title;
-
-    const additionalClaims: Record<string, string | boolean> = {
-      debugProfile: true,
-      debugPhoneE164: phoneE164,
-      debugLinkedAuthUid: linkedAuthUid,
-      debugAccessMode: accessMode,
-    };
-    if (memberId != null) {
-      additionalClaims.debugMemberId = memberId;
-    }
-    if (displayName.length > 0) {
-      additionalClaims.debugDisplayName = displayName;
-    }
-    if (clanId != null) {
-      additionalClaims.debugClanId = clanId;
-    }
-    if (branchId != null) {
-      additionalClaims.debugBranchId = branchId;
-    }
-    if (primaryRole != null) {
-      additionalClaims.debugPrimaryRole = primaryRole;
-    }
-
-    const customToken = await getAuth().createCustomToken(uid, additionalClaims);
-
-    logInfo('issueDebugProfileCustomToken succeeded', {
-      uid,
-      maskedPhoneE164: maskPhone(phoneE164),
-      scenarioKey: profile.scenarioKey,
-      memberId,
-      hasAuth: request.auth != null,
-      appId: request.app?.appId ?? null,
-    });
-
-    return {
-      customToken,
-      uid,
-      phoneE164,
-      memberId,
-      displayName: displayName.length > 0 ? displayName : null,
-    };
-  },
-);
-
 function requireNonEmptyString(data: unknown, key: string): string {
   const value = optionalString(data, key)?.trim();
   if (value == null || value.length === 0) {
@@ -1098,42 +959,6 @@ function optionalString(data: unknown, key: string): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function sanitizeDebugLoginProfile(
-  docId: string,
-  data: Record<string, unknown>,
-): DebugLoginProfileResponse | null {
-  if (data.isActive === false) {
-    return null;
-  }
-  if (data.isTestUser !== true) {
-    return null;
-  }
-
-  const phoneFromData = asTrimmedString(data.phoneE164);
-  const phoneE164 = (phoneFromData.length > 0 ? phoneFromData : docId).trim();
-  if (phoneE164.length === 0) {
-    return null;
-  }
-
-  const scenarioKey = asTrimmedString(data.scenarioKey, docId);
-  const title = asTrimmedString(data.title, scenarioKey);
-  const description = asTrimmedString(data.description, phoneE164);
-  const sortOrder = typeof data.sortOrder === 'number' ? data.sortOrder : 9999;
-
-  const rawOtp = asTrimmedString(data.debugOtpCode, asTrimmedString(data.otpCode));
-  const digitsOnlyOtp = rawOtp.replace(/[^\d]/g, '');
-  const autoOtpCode = digitsOnlyOtp.length === 6 ? digitsOnlyOtp : null;
-
-  return {
-    scenarioKey,
-    phoneE164,
-    title,
-    description,
-    sortOrder,
-    autoOtpCode,
-  };
-}
-
 function asTrimmedString(value: unknown, fallback = ''): string {
   if (typeof value !== 'string') {
     return fallback.trim();
@@ -1147,19 +972,6 @@ function asNullableTrimmedString(value: unknown): string | null {
   }
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
-}
-
-function buildDebugAuthUid(seed: string): string {
-  const raw = seed.trim();
-  const digits = raw.replace(/[^\d]/g, '');
-  const base = digits.length > 0
-    ? `debug_phone_${digits}`
-    : `debug_profile_${raw.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
-  const compact = base.replace(/^_+|_+$/g, '');
-  if (compact.length <= 120) {
-    return compact;
-  }
-  return compact.slice(0, 120);
 }
 
 function resolveMemberDisplayName(member: MemberRecord): string | null {

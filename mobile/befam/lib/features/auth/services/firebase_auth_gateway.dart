@@ -34,7 +34,7 @@ class FirebaseAuthGateway implements AuthGateway {
   final FirebaseAuth _auth;
   final FirebaseFunctions _functions;
   final FirebaseFirestore _firestore;
-  static bool _debugPhoneAuthConfigured = false;
+  static bool _phoneAuthSettingsConfigured = false;
   final Map<String, ConfirmationResult> _webConfirmationResults =
       <String, ConfirmationResult>{};
 
@@ -170,19 +170,6 @@ class FirebaseAuthGateway implements AuthGateway {
       '[$requestTag] Preparing Firebase OTP request (method=${loginMethod.name}, phone=$phoneE164, forceResendingToken=${forceResendingToken ?? 'none'}).',
     );
 
-    final debugSession = await _signInWithDebugProfileTokenIfAvailable(
-      requestTag: requestTag,
-      loginMethod: loginMethod,
-      phoneE164: phoneE164,
-      childIdentifier: childIdentifier,
-      memberId: memberId,
-      displayName: displayName,
-      forceResendingToken: forceResendingToken,
-    );
-    if (debugSession != null) {
-      return AuthOtpRequestResult.session(debugSession);
-    }
-
     if (kIsWeb) {
       return _requestOtpOnWeb(
         requestTag: requestTag,
@@ -194,7 +181,7 @@ class FirebaseAuthGateway implements AuthGateway {
       );
     }
 
-    await _configurePhoneAuthForDebugIfNeeded();
+    await _configurePhoneAuthSettings();
     _logPhoneAuthPreflight(requestTag);
     final completer = Completer<AuthOtpRequestResult>();
 
@@ -365,19 +352,17 @@ class FirebaseAuthGateway implements AuthGateway {
     );
   }
 
-  Future<void> _configurePhoneAuthForDebugIfNeeded() async {
-    if (!kDebugMode || _debugPhoneAuthConfigured) {
+  Future<void> _configurePhoneAuthSettings() async {
+    if (_phoneAuthSettingsConfigured) {
       return;
     }
-    _debugPhoneAuthConfigured = true;
+    _phoneAuthSettingsConfigured = true;
     try {
-      await _auth.setSettings(appVerificationDisabledForTesting: true);
-      AppLogger.info(
-        'Enabled FirebaseAuth test phone verification for debug mode.',
-      );
+      await _auth.setSettings(appVerificationDisabledForTesting: false);
+      AppLogger.info('Using live Firebase phone verification flow.');
     } catch (error, stackTrace) {
       AppLogger.warning(
-        'Could not enable FirebaseAuth test phone verification in debug.',
+        'Could not apply FirebaseAuth phone verification settings.',
         error,
         stackTrace,
       );
@@ -392,89 +377,8 @@ class FirebaseAuthGateway implements AuthGateway {
     final googleAppId = app.options.appId;
     final expectedIosCallbackScheme = 'app-${googleAppId.replaceAll(':', '-')}';
     AppLogger.info(
-      '[$requestTag] PhoneAuth preflight (platform=${defaultTargetPlatform.name}, firebaseApp=${app.name}, iosBundleId=${app.options.iosBundleId}, googleAppId=$googleAppId, expectedIosCallbackScheme=$expectedIosCallbackScheme, debugPhoneAuthConfigured=$_debugPhoneAuthConfigured).',
+      '[$requestTag] PhoneAuth preflight (platform=${defaultTargetPlatform.name}, firebaseApp=${app.name}, iosBundleId=${app.options.iosBundleId}, googleAppId=$googleAppId, expectedIosCallbackScheme=$expectedIosCallbackScheme, phoneAuthSettingsConfigured=$_phoneAuthSettingsConfigured).',
     );
-  }
-
-  Future<AuthSession?> _signInWithDebugProfileTokenIfAvailable({
-    required String requestTag,
-    required AuthEntryMethod loginMethod,
-    required String phoneE164,
-    required String? childIdentifier,
-    required String? memberId,
-    required String? displayName,
-    required int? forceResendingToken,
-  }) async {
-    if (!kDebugMode ||
-        loginMethod != AuthEntryMethod.phone ||
-        forceResendingToken != null) {
-      return null;
-    }
-
-    try {
-      final callable = _functions.httpsCallable('issueDebugProfileCustomToken');
-      final result = await callable.call(<String, dynamic>{
-        'phoneE164': phoneE164,
-      });
-      final payload = (result.data as Map).map(
-        (key, value) => MapEntry(key.toString(), value),
-      );
-      final customToken = (payload['customToken'] as String?)?.trim() ?? '';
-      if (customToken.isEmpty) {
-        AppLogger.warning(
-          '[$requestTag] Debug profile token callable returned an empty token.',
-        );
-        return null;
-      }
-
-      final resolvedMemberId = (payload['memberId'] as String?)?.trim();
-      final resolvedDisplayName = (payload['displayName'] as String?)?.trim();
-      AppLogger.info(
-        '[$requestTag] Using debug profile custom token sign-in for $phoneE164.',
-      );
-
-      final userCredential = await _auth.signInWithCustomToken(customToken);
-      final user = userCredential.user;
-      if (user == null) {
-        throw FirebaseAuthException(
-          code: 'unknown',
-          message: 'Firebase did not return a signed-in user for debug token.',
-        );
-      }
-
-      return _buildSession(
-        user,
-        loginMethod: loginMethod,
-        phoneE164: phoneE164,
-        childIdentifier: childIdentifier,
-        memberId: (resolvedMemberId?.isNotEmpty ?? false)
-            ? resolvedMemberId
-            : memberId,
-        displayName: (resolvedDisplayName?.isNotEmpty ?? false)
-            ? resolvedDisplayName
-            : displayName,
-      );
-    } on FirebaseFunctionsException catch (error, stackTrace) {
-      if (_isExpectedDebugBypassMiss(error.code)) {
-        AppLogger.info(
-          '[$requestTag] Debug profile token bypass not available (${error.code}). Falling back to phone OTP flow.',
-        );
-        return null;
-      }
-      AppLogger.warning(
-        '[$requestTag] Debug profile token bypass failed unexpectedly.',
-        error,
-        stackTrace,
-      );
-      rethrow;
-    }
-  }
-
-  bool _isExpectedDebugBypassMiss(String code) {
-    return code == 'not-found' ||
-        code == 'permission-denied' ||
-        code == 'unimplemented' ||
-        code == 'failed-precondition';
   }
 
   Future<ResolvedChildAccess> _resolveChildAccess(
@@ -518,23 +422,71 @@ class FirebaseAuthGateway implements AuthGateway {
         'memberId': memberId,
       });
 
-      await user.getIdToken(true);
-      return MemberAccessContext.fromFunctionsData(result.data);
+      final context = MemberAccessContext.fromFunctionsData(result.data);
+      await _refreshSessionTokenBestEffort(user);
+      return context;
     } on FirebaseFunctionsException catch (error) {
-      if (!_shouldUseClientFallback(error.code)) {
+      if (!_shouldUseClientFallback(error.code, message: error.message)) {
         rethrow;
       }
 
       AppLogger.warning(
         'claimMemberRecord callable unavailable; using client fallback claim flow.',
       );
-      return _claimMemberAccessWithoutFunctions(
-        user,
-        loginMethod: loginMethod,
-        childIdentifier: childIdentifier,
-        memberId: memberId,
-      );
+      try {
+        return await _claimMemberAccessWithoutFunctions(
+          user,
+          loginMethod: loginMethod,
+          childIdentifier: childIdentifier,
+          memberId: memberId,
+        );
+      } on FirebaseException catch (fallbackError, fallbackStackTrace) {
+        AppLogger.warning(
+          'Client fallback claim flow failed.',
+          fallbackError,
+          fallbackStackTrace,
+        );
+        if (_isFirestorePermissionFailure(fallbackError)) {
+          if (loginMethod == AuthEntryMethod.phone) {
+            AppLogger.warning(
+              'Fallback claim flow is blocked by Firestore rules; returning an unlinked session context.',
+            );
+            return MemberAccessContext.unlinked(
+              displayName: user.displayName ?? 'BeFam Member',
+            );
+          }
+          throw error;
+        }
+        rethrow;
+      }
     }
+  }
+
+  Future<void> _refreshSessionTokenBestEffort(User user) async {
+    for (var attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await user.getIdToken(true);
+        return;
+      } catch (error, stackTrace) {
+        if (attempt == 3) {
+          AppLogger.warning(
+            'Could not refresh Firebase ID token after claimMemberRecord; continuing with the current token.',
+            error,
+            stackTrace,
+          );
+          return;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 250 * attempt));
+      }
+    }
+  }
+
+  bool _isFirestorePermissionFailure(FirebaseException error) {
+    final code = error.code.trim().toLowerCase();
+    return code == 'permission-denied' ||
+        code == 'permission_denied' ||
+        code == 'failed-precondition' ||
+        code == 'failed_precondition';
   }
 
   Future<MemberAccessContext> _claimMemberAccessWithoutFunctions(
@@ -657,10 +609,26 @@ class FirebaseAuthGateway implements AuthGateway {
     }, SetOptions(merge: true));
   }
 
-  bool _shouldUseClientFallback(String code) {
-    return code == 'not-found' ||
+  bool _shouldUseClientFallback(String code, {String? message}) {
+    if (code == 'not-found' ||
         code == 'unimplemented' ||
-        code == 'unavailable';
+        code == 'unavailable') {
+      return true;
+    }
+    if (code == 'failed-precondition' || code == 'unauthenticated') {
+      if ((message ?? '').trim().isEmpty) {
+        return true;
+      }
+    } else if (code != 'permission-denied') {
+      return false;
+    }
+    final normalizedMessage = (message ?? '').toLowerCase();
+    return normalizedMessage.contains('app check') ||
+        normalizedMessage.contains('appcheck') ||
+        normalizedMessage.contains('token') ||
+        normalizedMessage.contains('auth') ||
+        normalizedMessage.contains('credential') ||
+        normalizedMessage.contains('precondition');
   }
 
   String _pickDisplayName(Map<String, dynamic> data) {
