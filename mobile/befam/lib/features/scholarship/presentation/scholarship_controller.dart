@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import '../../auth/models/auth_session.dart';
+import '../../../core/services/governance_role_matrix.dart';
 import '../models/achievement_submission.dart';
 import '../models/achievement_submission_draft.dart';
 import '../models/award_level.dart';
 import '../models/award_level_draft.dart';
 import '../models/scholarship_approval_log_entry.dart';
+import '../models/scholarship_disbursement_fund.dart';
 import '../models/scholarship_program.dart';
 import '../models/scholarship_program_draft.dart';
 import '../services/scholarship_permissions.dart';
@@ -27,6 +29,7 @@ class ScholarshipController extends ChangeNotifier {
   bool _isSaving = false;
   bool _isUploadingEvidence = false;
   bool _isReviewing = false;
+  bool _isDisbursing = false;
   String? _errorMessage;
   List<ScholarshipProgram> _programs = const [];
   List<AwardLevel> _awardLevels = const [];
@@ -40,6 +43,7 @@ class ScholarshipController extends ChangeNotifier {
   bool get isSaving => _isSaving;
   bool get isUploadingEvidence => _isUploadingEvidence;
   bool get isReviewing => _isReviewing;
+  bool get isDisbursing => _isDisbursing;
   String? get errorMessage => _errorMessage;
   List<ScholarshipProgram> get programs => _programs;
   List<AwardLevel> get awardLevels => _awardLevels;
@@ -96,6 +100,8 @@ class ScholarshipController extends ChangeNotifier {
   bool get canSubmitAchievements => permissions.canSubmitSubmissions;
   bool get canReviewSubmissions => permissions.canReviewQueue;
   bool get canViewApprovalHistory => permissions.canViewApprovalHistory;
+  bool get canDisburseFromFund =>
+      GovernanceRoleMatrix.canManageFinance(_session);
   bool get isCouncilVotingConfigured => _councilHeadMemberIds.length == 3;
 
   bool hasCurrentReviewerVoted(AchievementSubmission submission) {
@@ -310,6 +316,37 @@ class ScholarshipController extends ChangeNotifier {
       return error.code;
     } finally {
       _isReviewing = false;
+      notifyListeners();
+    }
+  }
+
+  Future<List<ScholarshipDisbursementFund>> loadDisbursementFunds() async {
+    return _repository.loadDisbursementFunds(session: _session);
+  }
+
+  Future<ScholarshipRepositoryErrorCode?> disburseSubmission({
+    required String submissionId,
+    required String fundId,
+    String? note,
+  }) async {
+    _isDisbursing = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repository.disburseSubmission(
+        session: _session,
+        submissionId: submissionId,
+        fundId: fundId,
+        note: note,
+      );
+      await refresh();
+      return null;
+    } on ScholarshipRepositoryException catch (error) {
+      _errorMessage = error.toString();
+      return error.code;
+    } finally {
+      _isDisbursing = false;
       notifyListeners();
     }
   }

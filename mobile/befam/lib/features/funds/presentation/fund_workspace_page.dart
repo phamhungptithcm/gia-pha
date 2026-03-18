@@ -1094,6 +1094,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     required String reportSummary,
     required String clanId,
   }) async {
+    final l10n = context.l10n;
     final pdf = pw.Document();
     final generatedAt = DateTime.now().toUtc().toIso8601String();
     pdf.addPage(
@@ -1102,12 +1103,20 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         margin: const pw.EdgeInsets.all(24),
         build: (context) => [
           pw.Text(
-            'Treasurer Financial Summary',
+            l10n.pick(
+              vi: 'Tổng hợp tài chính dành cho thủ quỹ',
+              en: 'Treasurer Financial Summary',
+            ),
             style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 8),
-          pw.Text('Clan ID: $clanId'),
-          pw.Text('Generated at: $generatedAt'),
+          pw.Text(l10n.pick(vi: 'Mã gia phả: $clanId', en: 'Clan ID: $clanId')),
+          pw.Text(
+            l10n.pick(
+              vi: 'Thời điểm tạo: $generatedAt',
+              en: 'Generated at: $generatedAt',
+            ),
+          ),
           pw.SizedBox(height: 12),
           pw.Text(reportSummary.trim()),
         ],

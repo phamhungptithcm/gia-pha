@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -11,11 +12,15 @@ import '../models/auth_issue.dart';
 import '../models/auth_entry_method.dart';
 import '../models/auth_member_access_mode.dart';
 import '../models/auth_otp_request_result.dart';
+import '../models/auth_otp_verification_result.dart';
 import '../models/auth_session.dart';
+import '../models/member_identity_verification.dart';
 import '../models/member_access_context.dart';
 import '../models/pending_otp_challenge.dart';
+import '../models/phone_identity_resolution.dart';
 import '../models/resolved_child_access.dart';
 import 'auth_gateway.dart';
+import 'auth_trusted_device_store.dart';
 import 'phone_number_formatter.dart';
 
 class FirebaseAuthGateway implements AuthGateway {
@@ -23,17 +28,21 @@ class FirebaseAuthGateway implements AuthGateway {
     FirebaseAuth? auth,
     FirebaseFunctions? functions,
     FirebaseFirestore? firestore,
+    AuthTrustedDeviceStore? trustedDeviceStore,
   }) : _auth = auth ?? FirebaseAuth.instance,
        _functions =
            functions ??
            FirebaseFunctions.instanceFor(
              region: AppEnvironment.firebaseFunctionsRegion,
            ),
-       _firestore = firestore ?? FirebaseFirestore.instance;
+       _firestore = firestore ?? FirebaseFirestore.instance,
+       _trustedDeviceStore =
+           trustedDeviceStore ?? SharedPrefsAuthTrustedDeviceStore();
 
   final FirebaseAuth _auth;
   final FirebaseFunctions _functions;
   final FirebaseFirestore _firestore;
+  final AuthTrustedDeviceStore _trustedDeviceStore;
   static bool _phoneAuthSettingsConfigured = false;
   final Map<String, ConfirmationResult> _webConfirmationResults =
       <String, ConfirmationResult>{};
@@ -100,9 +109,10 @@ class FirebaseAuthGateway implements AuthGateway {
   }
 
   @override
-  Future<AuthSession> verifyOtp(
+  Future<AuthOtpVerificationResult> verifyOtp(
     PendingOtpChallenge challenge,
     String smsCode,
+    {String? languageCode}
   ) async {
     if (kIsWeb) {
       final confirmationResult = _webConfirmationResults.remove(
@@ -117,13 +127,14 @@ class FirebaseAuthGateway implements AuthGateway {
             message: 'Firebase did not return a signed-in user.',
           );
         }
-        return _buildSession(
+        return _handleVerifiedUser(
           user,
           loginMethod: challenge.loginMethod,
           phoneE164: challenge.phoneE164,
           childIdentifier: challenge.childIdentifier,
           memberId: challenge.memberId,
           displayName: challenge.displayName,
+          languageCode: languageCode,
         );
       }
     }
@@ -141,19 +152,228 @@ class FirebaseAuthGateway implements AuthGateway {
       );
     }
 
-    return _buildSession(
+    return _handleVerifiedUser(
       user,
       loginMethod: challenge.loginMethod,
       phoneE164: challenge.phoneE164,
       childIdentifier: challenge.childIdentifier,
       memberId: challenge.memberId,
       displayName: challenge.displayName,
+      languageCode: languageCode,
     );
   }
 
   @override
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  @override
+  Future<AuthSession> createUnlinkedPhoneIdentity() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'user-not-found',
+        message: 'No signed-in Firebase user is available.',
+      );
+    }
+    final phoneE164 = (user.phoneNumber ?? '').trim();
+    if (phoneE164.isEmpty) {
+      throw const AuthIssueException(AuthIssue(AuthIssueKey.userNotFound));
+    }
+    final deviceToken = await _trustedDeviceStore.readOrCreateDeviceToken();
+    final callable = _functions.httpsCallable('createUnlinkedPhoneIdentity');
+    final result = await callable.call(<String, dynamic>{
+      'deviceToken': deviceToken,
+    });
+    final payload = (result.data is Map)
+        ? (result.data as Map).map(
+            (key, value) => MapEntry(key.toString(), value),
+          )
+        : const <String, dynamic>{};
+    final contextMap = payload['context'];
+    final context = MemberAccessContext.fromFunctionsData(contextMap);
+    return AuthSession(
+      uid: user.uid,
+      loginMethod: AuthEntryMethod.phone,
+      phoneE164: user.phoneNumber ?? phoneE164,
+      displayName: context.displayName ?? user.displayName ?? 'BeFam Member',
+      childIdentifier: null,
+      memberId: context.memberId,
+      clanId: context.clanId,
+      branchId: context.branchId,
+      primaryRole: context.primaryRole,
+      accessMode: context.accessMode,
+      linkedAuthUid: context.linkedAuthUid,
+      isSandbox: false,
+      signedInAtIso: DateTime.now().toIso8601String(),
+    );
+  }
+
+  @override
+  Future<MemberIdentityVerificationChallenge> startMemberIdentityVerification(
+    String memberId,
+    {String? languageCode}
+  ) async {
+    final normalizedMemberId = memberId.trim();
+    if (normalizedMemberId.isEmpty) {
+      throw const AuthIssueException(AuthIssue(AuthIssueKey.preparationFailed));
+    }
+    final deviceToken = await _trustedDeviceStore.readOrCreateDeviceToken();
+    final callable = _functions.httpsCallable('startMemberIdentityVerification');
+    final result = await callable.call(<String, dynamic>{
+      'memberId': normalizedMemberId,
+      'deviceToken': deviceToken,
+      'languageCode': _normalizeLanguageCode(languageCode),
+    });
+    final payload = (result.data as Map).map(
+      (key, value) => MapEntry(key.toString(), value),
+    );
+    return MemberIdentityVerificationChallenge.fromMap(payload);
+  }
+
+  @override
+  Future<MemberIdentityVerificationResult> submitMemberIdentityVerification({
+    required String verificationSessionId,
+    required Map<String, String> answers,
+  }) async {
+    final callable = _functions.httpsCallable('submitMemberIdentityVerification');
+    final result = await callable.call(<String, dynamic>{
+      'verificationSessionId': verificationSessionId,
+      'answers': answers,
+    });
+    final payload = (result.data is Map)
+        ? (result.data as Map).map(
+            (key, value) => MapEntry(key.toString(), value),
+          )
+        : const <String, dynamic>{};
+
+    final passed = payload['passed'] == true;
+    final contextPayload = payload['context'];
+    AuthSession? session;
+    if (passed && contextPayload is Map) {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'No signed-in Firebase user is available.',
+        );
+      }
+      final context = MemberAccessContext.fromFunctionsData(contextPayload);
+      session = AuthSession(
+        uid: user.uid,
+        loginMethod: AuthEntryMethod.phone,
+        phoneE164: user.phoneNumber ?? '',
+        displayName: context.displayName ?? user.displayName ?? 'BeFam Member',
+        childIdentifier: null,
+        memberId: context.memberId,
+        clanId: context.clanId,
+        branchId: context.branchId,
+        primaryRole: context.primaryRole,
+        accessMode: context.accessMode,
+        linkedAuthUid: context.linkedAuthUid,
+        isSandbox: false,
+        signedInAtIso: DateTime.now().toIso8601String(),
+      );
+    }
+
+    int parseInt(dynamic value, int fallback) {
+      if (value is int) {
+        return value;
+      }
+      if (value is num) {
+        return value.toInt();
+      }
+      return fallback;
+    }
+
+    return MemberIdentityVerificationResult(
+      passed: passed,
+      locked: payload['locked'] == true,
+      remainingAttempts: parseInt(payload['remainingAttempts'], 0),
+      score: parseInt(payload['score'], 0),
+      requiredCorrect: parseInt(payload['requiredCorrect'], 3),
+      session: session,
+    );
+  }
+
+  Future<AuthOtpVerificationResult> _handleVerifiedUser(
+    User user, {
+    required AuthEntryMethod loginMethod,
+    required String phoneE164,
+    required String? childIdentifier,
+    required String? memberId,
+    required String? displayName,
+    String? languageCode,
+  }) async {
+    if (loginMethod == AuthEntryMethod.child) {
+      final session = await _buildSession(
+        user,
+        loginMethod: loginMethod,
+        phoneE164: phoneE164,
+        childIdentifier: childIdentifier,
+        memberId: memberId,
+        displayName: displayName,
+      );
+      return AuthOtpVerificationResult.session(session);
+    }
+
+    final deviceToken = await _trustedDeviceStore.readOrCreateDeviceToken();
+    final callable = _functions.httpsCallable('resolvePhoneIdentityAfterOtp');
+    final result = await callable.call(<String, dynamic>{
+      'deviceToken': deviceToken,
+      'languageCode': _normalizeLanguageCode(languageCode),
+    });
+    final payload = (result.data is Map)
+        ? (result.data as Map).map(
+            (key, value) => MapEntry(key.toString(), value),
+          )
+        : const <String, dynamic>{};
+    final status = (payload['status'] as String?)?.trim().toLowerCase() ?? '';
+    final contextPayload = payload['context'];
+    if (status == 'resolved' && contextPayload is Map) {
+      final context = MemberAccessContext.fromFunctionsData(contextPayload);
+      final session = AuthSession(
+        uid: user.uid,
+        loginMethod: loginMethod,
+        phoneE164: user.phoneNumber ?? phoneE164,
+        displayName: context.displayName ?? user.displayName ?? 'BeFam Member',
+        childIdentifier: childIdentifier,
+        memberId: context.memberId ?? memberId,
+        clanId: context.clanId,
+        branchId: context.branchId,
+        primaryRole: context.primaryRole,
+        accessMode: context.accessMode,
+        linkedAuthUid: context.linkedAuthUid,
+        isSandbox: false,
+        signedInAtIso: DateTime.now().toIso8601String(),
+      );
+      return AuthOtpVerificationResult.session(session);
+    }
+
+    final rawCandidates = payload['candidates'];
+    final candidates = rawCandidates is List
+        ? rawCandidates
+              .whereType<Map>()
+              .map((entry) => entry.map(
+                    (key, value) => MapEntry(key.toString(), value),
+                  ))
+              .map(PhoneIdentityCandidate.fromMap)
+              .where((candidate) => candidate.memberId.isNotEmpty)
+              .toList(growable: false)
+        : const <PhoneIdentityCandidate>[];
+    final resolution = PhoneIdentityResolution(
+      status: status == 'create_new_only'
+          ? PhoneIdentityResolutionStatus.createNewOnly
+          : PhoneIdentityResolutionStatus.needsSelection,
+      phoneE164:
+          (payload['phoneE164'] as String?)?.trim().isNotEmpty == true
+              ? (payload['phoneE164'] as String).trim()
+              : (user.phoneNumber ?? phoneE164),
+      allowCreateNew: payload['allowCreateNew'] != false,
+      candidates: candidates,
+    );
+    return AuthOtpVerificationResult.phoneResolution(resolution);
   }
 
   Future<AuthOtpRequestResult> _requestOtp({
@@ -198,6 +418,12 @@ class FirebaseAuthGateway implements AuthGateway {
           AppLogger.info(
             '[$requestTag] verificationCompleted callback received.',
           );
+          if (loginMethod == AuthEntryMethod.phone) {
+            AppLogger.info(
+              '[$requestTag] Skipping auto-complete for phone login to preserve identity reconciliation flow.',
+            );
+            return;
+          }
           try {
             final userCredential = await _auth.signInWithCredential(credential);
             final user = userCredential.user;
@@ -309,6 +535,24 @@ class FirebaseAuthGateway implements AuthGateway {
         );
       },
     );
+  }
+
+  String _preferredLanguageCode() {
+    final languageCode = ui.PlatformDispatcher.instance.locale.languageCode
+        .trim()
+        .toLowerCase();
+    return languageCode.startsWith('en') ? 'en' : 'vi';
+  }
+
+  String _normalizeLanguageCode(String? languageCode) {
+    final normalized = languageCode?.trim().toLowerCase() ?? '';
+    if (normalized.startsWith('en')) {
+      return 'en';
+    }
+    if (normalized.startsWith('vi')) {
+      return 'vi';
+    }
+    return _preferredLanguageCode();
   }
 
   Future<AuthOtpRequestResult> _requestOtpOnWeb({

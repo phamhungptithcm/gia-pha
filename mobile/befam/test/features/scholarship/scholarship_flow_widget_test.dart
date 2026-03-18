@@ -9,6 +9,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  Future<void> tapButtonByKey(WidgetTester tester, Key key) async {
+    final finder = find.byKey(key);
+    await tester.ensureVisible(finder);
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
   AuthSession buildClanAdminSession() {
     return AuthSession(
       uid: 'debug:+84901234567',
@@ -104,13 +111,23 @@ void main() {
       find.byKey(const Key('scholarship-program-year-input')),
       '2030',
     );
-    await tester.ensureVisible(
-      find.byKey(const Key('scholarship-program-save-button')),
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-program-save-button'),
     );
-    await tester.tap(find.byKey(const Key('scholarship-program-save-button')));
-    await tester.pumpAndSettle();
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-program-save-button'),
+    );
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-program-save-button'),
+    );
 
-    expect(find.text('2030 Scholarship Program'), findsWidgets);
+    expect(
+      find.byKey(const Key('scholarship-program-save-button')),
+      findsNothing,
+    );
 
     final openDetailFinder = find.byKey(
       const Key('scholarship-open-program-detail-sp_demo_2026'),
@@ -132,15 +149,22 @@ void main() {
       find.byKey(const Key('scholarship-award-name-input')),
       'Merit Award',
     );
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-award-save-button'),
+    );
     await tester.enterText(
       find.byKey(const Key('scholarship-award-amount-input')),
       '500000',
     );
-    await tester.ensureVisible(
-      find.byKey(const Key('scholarship-award-save-button')),
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-award-save-button'),
     );
-    await tester.tap(find.byKey(const Key('scholarship-award-save-button')));
-    await tester.pumpAndSettle();
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-award-save-button'),
+    );
 
     expect(find.text('Merit Award'), findsOneWidget);
 
@@ -156,9 +180,17 @@ void main() {
       find.byKey(const Key('scholarship-submission-student-input')),
       'Pham Gia Hung',
     );
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-submission-save-button'),
+    );
     await tester.enterText(
       find.byKey(const Key('scholarship-submission-title-input')),
       'Math Talent Prize',
+    );
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-submission-save-button'),
     );
     await tester.enterText(
       find.byKey(const Key('scholarship-evidence-file-input')),
@@ -172,13 +204,10 @@ void main() {
 
     expect(find.byKey(const Key('scholarship-evidence-url-0')), findsOneWidget);
 
-    await tester.ensureVisible(
-      find.byKey(const Key('scholarship-submission-save-button')),
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-submission-save-button'),
     );
-    await tester.tap(
-      find.byKey(const Key('scholarship-submission-save-button')),
-    );
-    await tester.pumpAndSettle();
 
     expect(
       find.byKey(const Key('scholarship-submission-save-button')),

@@ -11,6 +11,7 @@ import '../models/achievement_submission_draft.dart';
 import '../models/award_level.dart';
 import '../models/award_level_draft.dart';
 import '../models/scholarship_approval_log_entry.dart';
+import '../models/scholarship_disbursement_fund.dart';
 import '../models/scholarship_program.dart';
 import '../models/scholarship_program_draft.dart';
 import '../models/scholarship_workspace_snapshot.dart';
@@ -298,11 +299,21 @@ class DebugScholarshipRepository implements ScholarshipRepository {
       description: draft.description.trim(),
       evidenceUrls: _normalizeEvidenceUrls(draft.evidenceUrls),
       status: existing?.status ?? 'pending',
+      disbursementStatus:
+          existing?.disbursementStatus ??
+          ((existing?.status ?? 'pending') == 'approved' ? 'pending' : 'none'),
       reviewNote: existing?.reviewNote,
       reviewedBy: existing?.reviewedBy,
       reviewedAtIso: existing?.reviewedAtIso,
       createdAtIso: existing?.createdAtIso ?? nowIso,
       updatedAtIso: nowIso,
+      disbursedFundId: existing?.disbursedFundId,
+      disbursedTransactionId: existing?.disbursedTransactionId,
+      disbursedAmountMinor: existing?.disbursedAmountMinor,
+      disbursedCurrency: existing?.disbursedCurrency,
+      disbursementNote: existing?.disbursementNote,
+      disbursedAtIso: existing?.disbursedAtIso,
+      disbursedBy: existing?.disbursedBy,
     );
 
     _store.submissions[resolvedSubmissionId] = payload;
@@ -432,6 +443,11 @@ class DebugScholarshipRepository implements ScholarshipRepository {
 
     final updated = existing.copyWith(
       status: status,
+      disbursementStatus: status == 'approved'
+          ? 'pending'
+          : status == 'rejected'
+          ? 'none'
+          : existing.disbursementStatus,
       reviewNote: status == 'pending' ? null : trimmedNote,
       clearReviewNote: status == 'pending' || trimmedNote == null,
       reviewedBy: status == 'pending' ? null : reviewerMemberId,
@@ -439,6 +455,13 @@ class DebugScholarshipRepository implements ScholarshipRepository {
       reviewedAtIso: status == 'pending' ? null : nowIso,
       clearReviewedAtIso: status == 'pending',
       updatedAtIso: nowIso,
+      clearDisbursedFundId: status != 'approved',
+      clearDisbursedTransactionId: status != 'approved',
+      clearDisbursedAmountMinor: status != 'approved',
+      clearDisbursedCurrency: status != 'approved',
+      clearDisbursementNote: status != 'approved',
+      clearDisbursedAtIso: status != 'approved',
+      clearDisbursedBy: status != 'approved',
       approvalVotes: updatedVotes,
       finalDecisionReason: status == 'pending' ? null : trimmedNote,
       clearFinalDecisionReason: status == 'pending',
@@ -475,6 +498,124 @@ class DebugScholarshipRepository implements ScholarshipRepository {
     return updated;
   }
 
+  @override
+  Future<List<ScholarshipDisbursementFund>> loadDisbursementFunds({
+    required AuthSession session,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    final clanId = session.clanId?.trim() ?? '';
+    if (clanId.isEmpty || !GovernanceRoleMatrix.canManageFinance(session)) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+
+    return _store.disbursementFunds.values
+        .where((fund) => fund.clanId == clanId && fund.isActive)
+        .sortedBy((fund) => fund.name.toLowerCase())
+        .toList(growable: false);
+  }
+
+  @override
+  Future<AchievementSubmission> disburseSubmission({
+    required AuthSession session,
+    required String submissionId,
+    required String fundId,
+    String? note,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 110));
+
+    final clanId = session.clanId?.trim() ?? '';
+    if (clanId.isEmpty || !GovernanceRoleMatrix.canManageFinance(session)) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+
+    final submission = _store.submissions[submissionId];
+    if (submission == null || submission.clanId != clanId) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.submissionNotFound,
+      );
+    }
+    if (!submission.isApproved) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.validationFailed,
+        'submission_not_approved',
+      );
+    }
+    if (submission.isDisbursed) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.submissionAlreadyDisbursed,
+      );
+    }
+
+    final fund = _store.disbursementFunds[fundId];
+    if (fund == null || fund.clanId != clanId || !fund.isActive) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.fundNotFound,
+      );
+    }
+
+    final awardLevel = _store.awardLevels[submission.awardLevelId];
+    final amountMinor = awardLevel?.rewardAmountMinor ?? 0;
+    if (amountMinor <= 0) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.validationFailed,
+        'award_level_amount_invalid',
+      );
+    }
+    if (amountMinor > fund.balanceMinor) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.insufficientFundBalance,
+      );
+    }
+
+    final nowIso = DateTime.now().toIso8601String();
+    final resolvedNote =
+        _nullIfEmpty(note) ??
+        'Chi học bổng • ${submission.studentNameSnapshot} • ${submission.title}';
+    final transactionId = 'tx_demo_${_store.transactionSequence++}';
+    _store.disbursementFunds[fundId] = ScholarshipDisbursementFund(
+      id: fund.id,
+      clanId: fund.clanId,
+      name: fund.name,
+      currency: fund.currency,
+      balanceMinor: fund.balanceMinor - amountMinor,
+      fundType: fund.fundType,
+      status: fund.status,
+    );
+
+    final updated = submission.copyWith(
+      disbursementStatus: 'disbursed',
+      disbursedFundId: fundId,
+      disbursedTransactionId: transactionId,
+      disbursedAmountMinor: amountMinor,
+      disbursedCurrency: fund.currency,
+      disbursementNote: resolvedNote,
+      disbursedAtIso: nowIso,
+      disbursedBy: session.memberId ?? session.uid,
+      updatedAtIso: nowIso,
+    );
+    _store.submissions[submissionId] = updated;
+
+    final log = ScholarshipApprovalLogEntry(
+      id: 'log_disburse_${_store.logSequence++}',
+      clanId: clanId,
+      submissionId: submissionId,
+      action: 'disbursed',
+      decision: 'disbursed',
+      actorMemberId: session.memberId ?? session.uid,
+      actorRole: session.primaryRole ?? GovernanceRoles.treasurer,
+      note: resolvedNote,
+      createdAtIso: nowIso,
+    );
+    _store.approvalLogs[log.id] = log;
+
+    return updated;
+  }
+
   List<String> _activeCouncilHeadMemberIds(String clanId) {
     return _genealogyStore.members.values
         .where(
@@ -494,6 +635,7 @@ class _DebugScholarshipStore {
     required this.programs,
     required this.awardLevels,
     required this.submissions,
+    required this.disbursementFunds,
     required this.approvalLogs,
   });
 
@@ -559,11 +701,19 @@ class _DebugScholarshipStore {
           description: 'Đạt giải Nhì kỳ thi Olympic Toán cấp quốc gia.',
           evidenceUrls: const ['debug://seed/chung-chi-toan-cap-quoc-gia.pdf'],
           status: 'pending',
+          disbursementStatus: 'none',
           reviewNote: null,
           reviewedBy: null,
           reviewedAtIso: null,
           createdAtIso: now,
           updatedAtIso: now,
+          disbursedFundId: null,
+          disbursedTransactionId: null,
+          disbursedAmountMinor: null,
+          disbursedCurrency: null,
+          disbursementNote: null,
+          disbursedAtIso: null,
+          disbursedBy: null,
         ),
         'sub_demo_002': AchievementSubmission(
           id: 'sub_demo_002',
@@ -576,11 +726,39 @@ class _DebugScholarshipStore {
           description: 'Đạt giải Nhất kỳ thi Ngữ văn cấp tỉnh.',
           evidenceUrls: const ['debug://seed/chung-chi-ngu-van-cap-tinh.jpg'],
           status: 'approved',
+          disbursementStatus: 'pending',
           reviewNote: 'Hồ sơ minh chứng đầy đủ, hợp lệ.',
           reviewedBy: createdBy,
           reviewedAtIso: now,
           createdAtIso: now,
           updatedAtIso: now,
+          disbursedFundId: null,
+          disbursedTransactionId: null,
+          disbursedAmountMinor: null,
+          disbursedCurrency: null,
+          disbursementNote: null,
+          disbursedAtIso: null,
+          disbursedBy: null,
+        ),
+      },
+      disbursementFunds: {
+        'fund_demo_001': const ScholarshipDisbursementFund(
+          id: 'fund_demo_001',
+          clanId: clanId,
+          name: 'Quỹ khuyến học dòng họ',
+          currency: 'VND',
+          balanceMinor: 12000000,
+          fundType: 'scholarship',
+          status: 'active',
+        ),
+        'fund_demo_002': const ScholarshipDisbursementFund(
+          id: 'fund_demo_002',
+          clanId: clanId,
+          name: 'Quỹ hoạt động chung',
+          currency: 'VND',
+          balanceMinor: 8000000,
+          fundType: 'community',
+          status: 'active',
         ),
       },
       approvalLogs: {},
@@ -590,10 +768,12 @@ class _DebugScholarshipStore {
   final Map<String, ScholarshipProgram> programs;
   final Map<String, AwardLevel> awardLevels;
   final Map<String, AchievementSubmission> submissions;
+  final Map<String, ScholarshipDisbursementFund> disbursementFunds;
   final Map<String, ScholarshipApprovalLogEntry> approvalLogs;
   int programSequence = 2027;
   int awardSequence = 100;
   int submissionSequence = 1000;
+  int transactionSequence = 1000;
   int logSequence = 1000;
 }
 

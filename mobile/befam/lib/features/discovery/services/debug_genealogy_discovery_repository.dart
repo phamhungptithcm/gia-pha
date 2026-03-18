@@ -3,6 +3,7 @@ import '../../auth/models/auth_session.dart';
 import '../models/genealogy_discovery_result.dart';
 import '../models/join_request_draft.dart';
 import '../models/join_request_review_item.dart';
+import '../models/my_join_request_item.dart';
 import 'genealogy_discovery_repository.dart';
 
 class DebugGenealogyDiscoveryRepository
@@ -11,7 +12,13 @@ class DebugGenealogyDiscoveryRepository
     required List<GenealogyDiscoveryResult> discovery,
     required List<JoinRequestReviewItem> joinRequests,
   }) : _discovery = List<GenealogyDiscoveryResult>.unmodifiable(discovery),
-       _joinRequests = List<JoinRequestReviewItem>.of(joinRequests);
+       _joinRequests = List<JoinRequestReviewItem>.of(joinRequests) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (var index = 0; index < _joinRequests.length; index += 1) {
+      final requestId = _joinRequests[index].id;
+      _submittedAtByRequestId[requestId] = now - (index * 60000);
+    }
+  }
 
   factory DebugGenealogyDiscoveryRepository.seeded() {
     return DebugGenealogyDiscoveryRepository._(
@@ -43,6 +50,7 @@ class DebugGenealogyDiscoveryRepository
 
   final List<GenealogyDiscoveryResult> _discovery;
   final List<JoinRequestReviewItem> _joinRequests;
+  final Map<String, int> _submittedAtByRequestId = <String, int>{};
 
   @override
   bool get isSandbox => true;
@@ -83,9 +91,10 @@ class DebugGenealogyDiscoveryRepository
 
   @override
   Future<void> submitJoinRequest({required JoinRequestDraft draft}) async {
+    final requestId = 'join_debug_${_joinRequests.length + 1}';
     _joinRequests.add(
       JoinRequestReviewItem(
-        id: 'join_debug_${_joinRequests.length + 1}',
+        id: requestId,
         clanId: draft.clanId,
         status: 'pending',
         applicantName: draft.applicantName.trim(),
@@ -93,6 +102,57 @@ class DebugGenealogyDiscoveryRepository
         contactInfo: draft.contactInfo.trim(),
         message: draft.message?.trim(),
       ),
+    );
+    _submittedAtByRequestId[requestId] = DateTime.now().millisecondsSinceEpoch;
+  }
+
+  @override
+  Future<List<MyJoinRequestItem>> loadMyJoinRequests({
+    required AuthSession session,
+  }) async {
+    final items = _joinRequests
+        .map(
+          (request) => MyJoinRequestItem(
+            id: request.id,
+            clanId: request.clanId,
+            status: request.status.trim().toLowerCase(),
+            submittedAtEpochMs:
+                _submittedAtByRequestId[request.id] ??
+                DateTime.now().millisecondsSinceEpoch,
+            canCancel: request.status.trim().toLowerCase() == 'pending',
+          ),
+        )
+        .toList(growable: false);
+    items.sort(
+      (left, right) =>
+          right.submittedAtEpochMs.compareTo(left.submittedAtEpochMs),
+    );
+    return items;
+  }
+
+  @override
+  Future<void> cancelJoinRequest({
+    required AuthSession session,
+    required String requestId,
+  }) async {
+    final index = _joinRequests.indexWhere(
+      (request) => request.id == requestId,
+    );
+    if (index < 0) {
+      return;
+    }
+    final existing = _joinRequests[index];
+    if (existing.status.trim().toLowerCase() != 'pending') {
+      return;
+    }
+    _joinRequests[index] = JoinRequestReviewItem(
+      id: existing.id,
+      clanId: existing.clanId,
+      status: 'canceled',
+      applicantName: existing.applicantName,
+      relationshipToFamily: existing.relationshipToFamily,
+      contactInfo: existing.contactInfo,
+      message: existing.message,
     );
   }
 

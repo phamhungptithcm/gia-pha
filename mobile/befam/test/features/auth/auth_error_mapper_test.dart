@@ -62,6 +62,65 @@ void main() {
       expect(issue.key, AuthIssueKey.operationNotAllowed);
     });
 
+    test(
+      'maps verification data insufficiency to member verification data unavailable',
+      () {
+        final issue = AuthErrorMapper.map(
+          FirebaseFunctionsException(
+            code: 'failed-precondition',
+            message: 'Verification data is not sufficient for automatic linking.',
+          ),
+        );
+
+        expect(issue.key, AuthIssueKey.memberVerificationDataUnavailable);
+      },
+    );
+
+    test('maps inactive profile precondition to operation not allowed', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'failed-precondition',
+          message: 'The selected member profile is inactive and cannot be linked automatically.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.operationNotAllowed);
+    });
+
+    test('maps temporary verification lock to member verification locked', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'failed-precondition',
+          message: 'Verification is temporarily locked. Please wait and try again.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.memberVerificationLocked);
+    });
+
+    test('maps structured reason payload to member verification locked', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'failed-precondition',
+          message: 'ignored',
+          details: <String, dynamic>{'reason': 'member_verification_locked'},
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.memberVerificationLocked);
+    });
+
+    test('maps duplicated member phone conflict to member claim conflict', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'failed-precondition',
+          message: 'Multiple member profiles share this phone number.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.memberClaimConflict);
+    });
+
     test('maps unknown error to preparation failed', () {
       final issue = AuthErrorMapper.map(StateError('boom'));
 

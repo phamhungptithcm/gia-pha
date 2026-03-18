@@ -13,7 +13,7 @@ class AppEnvironment {
 
   static const String invalidCheckoutHostsRaw = String.fromEnvironment(
     'BEFAM_INVALID_CHECKOUT_HOSTS',
-    defaultValue: 'example.com',
+    defaultValue: 'example.com,checkout-debug.befam.local',
   );
 
   static final Set<String> invalidCheckoutHosts = invalidCheckoutHostsRaw
@@ -30,5 +30,10 @@ class AppEnvironment {
   static const String appCheckWebRecaptchaSiteKey = String.fromEnvironment(
     'BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY',
     defaultValue: '',
+  );
+
+  static const int billingPendingTimeoutMinutes = int.fromEnvironment(
+    'BEFAM_BILLING_PENDING_TIMEOUT_MINUTES',
+    defaultValue: 20,
   );
 }

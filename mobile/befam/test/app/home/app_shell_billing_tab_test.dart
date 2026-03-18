@@ -147,7 +147,7 @@ void main() {
       await tester.tap(find.text('Billing'));
       await pumpUi(tester, frames: 36);
 
-      expect(find.text('Checkout & renewal'), findsOneWidget);
+      expect(find.text('Subscription & billing'), findsOneWidget);
       expect(find.text('Discover genealogies'), findsNothing);
       expect(find.text('Create clan workspace'), findsNothing);
     },

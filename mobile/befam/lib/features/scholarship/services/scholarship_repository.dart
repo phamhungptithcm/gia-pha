@@ -6,6 +6,7 @@ import '../models/achievement_submission.dart';
 import '../models/achievement_submission_draft.dart';
 import '../models/award_level.dart';
 import '../models/award_level_draft.dart';
+import '../models/scholarship_disbursement_fund.dart';
 import '../models/scholarship_program.dart';
 import '../models/scholarship_program_draft.dart';
 import '../models/scholarship_workspace_snapshot.dart';
@@ -17,6 +18,9 @@ enum ScholarshipRepositoryErrorCode {
   programNotFound,
   awardLevelNotFound,
   submissionNotFound,
+  fundNotFound,
+  insufficientFundBalance,
+  submissionAlreadyDisbursed,
   validationFailed,
   uploadFailed,
 }
@@ -69,6 +73,17 @@ abstract interface class ScholarshipRepository {
     required String submissionId,
     required bool approved,
     String? reviewNote,
+  });
+
+  Future<List<ScholarshipDisbursementFund>> loadDisbursementFunds({
+    required AuthSession session,
+  });
+
+  Future<AchievementSubmission> disburseSubmission({
+    required AuthSession session,
+    required String submissionId,
+    required String fundId,
+    String? note,
   });
 }
 

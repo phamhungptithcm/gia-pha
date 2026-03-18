@@ -55,6 +55,18 @@ extension AppLocalizationsX on AppLocalizations {
       AuthIssueKey.memberClaimConflict => authIssueMemberClaimConflict,
       AuthIssueKey.parentVerificationMismatch =>
         authIssueParentVerificationMismatch,
+      AuthIssueKey.memberVerificationFailed => pick(
+        vi: 'BeFam chưa thể xác minh hồ sơ này. Bạn có thể thử lại hoặc chọn tạo tài khoản mới.',
+        en: 'BeFam could not verify this profile yet. You can try again or create a new account.',
+      ),
+      AuthIssueKey.memberVerificationLocked => pick(
+        vi: 'Bạn đã vượt quá số lần thử xác minh. Vui lòng đợi một lúc rồi thử lại, hoặc liên hệ hỗ trợ.',
+        en: 'You have reached the verification attempt limit. Please wait and try again, or contact support.',
+      ),
+      AuthIssueKey.memberVerificationDataUnavailable => pick(
+        vi: 'Hồ sơ này chưa đủ dữ liệu để xác minh tự động. Bạn có thể tạo tài khoản mới hoặc liên hệ hỗ trợ.',
+        en: 'This profile does not have enough data for automatic verification. You can create a new account or contact support.',
+      ),
       AuthIssueKey.privacyPolicyRequired => pick(
         vi: 'Vui lòng đồng ý Chính sách quyền riêng tư trước khi đăng nhập.',
         en: 'Please accept the Privacy Policy before signing in.',

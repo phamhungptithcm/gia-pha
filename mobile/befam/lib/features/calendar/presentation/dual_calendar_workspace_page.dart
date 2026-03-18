@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/app_environment.dart';
 import '../../../core/services/kinship_title_resolver.dart';
+import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -119,7 +120,10 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                               vi: 'Lỗi đồng bộ lịch',
                               en: 'Calendar sync issue',
                             ),
-                            description: message,
+                            description: _friendlyCalendarErrorMessage(
+                              message,
+                              l10n,
+                            ),
                             tone: colorScheme.errorContainer,
                           ),
                           const SizedBox(height: 8),
@@ -1347,22 +1351,32 @@ class _OccurrenceRow extends StatelessWidget {
         ),
         title: Text(event.title),
         subtitle: Text(details.join('\n')),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'edit') {
-              onEdit();
-            } else if (value == 'delete') {
-              onDelete();
-            }
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              value: 'edit',
-              child: Text(l10n.pick(vi: 'Sửa', en: 'Edit')),
-            ),
-            PopupMenuItem(
-              value: 'delete',
-              child: Text(l10n.pick(vi: 'Xóa', en: 'Delete')),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (event.locationAddress.trim().isNotEmpty)
+              AddressDirectionIconButton(
+                address: event.locationAddress.trim(),
+                label: event.title,
+              ),
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'edit') {
+                  onEdit();
+                } else if (value == 'delete') {
+                  onDelete();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'edit',
+                  child: Text(l10n.pick(vi: 'Sửa', en: 'Edit')),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text(l10n.pick(vi: 'Xóa', en: 'Delete')),
+                ),
+              ],
             ),
           ],
         ),
@@ -2007,6 +2021,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                     border: const OutlineInputBorder(),
                   ),
                 ),
+                const SizedBox(height: 8),
+                AddressInputAssistRow(controller: _locationAddressController),
                 const SizedBox(height: 12),
                 SegmentedButton<CalendarDateMode>(
                   showSelectedIcon: false,
@@ -3359,7 +3375,14 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
 
       if (widget.controller.errorMessage != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(widget.controller.errorMessage!)),
+          SnackBar(
+            content: Text(
+              _friendlyCalendarErrorMessage(
+                widget.controller.errorMessage!,
+                context.l10n,
+              ),
+            ),
+          ),
         );
         return;
       }
@@ -4005,6 +4028,36 @@ String _formatReminderLeadTime(AppLocalizations l10n, int totalMinutes) {
     );
   }
   return parts.join(' ');
+}
+
+String _friendlyCalendarErrorMessage(String raw, AppLocalizations l10n) {
+  final normalized = raw.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return l10n.pick(
+      vi: 'Không thể đồng bộ lịch lúc này. Vui lòng thử lại.',
+      en: 'Could not sync calendar right now. Please try again.',
+    );
+  }
+  if (normalized.contains('permission_denied') ||
+      normalized.contains('permission denied')) {
+    return l10n.pick(
+      vi: 'Bạn chưa có quyền thao tác lịch trong gia phả này.',
+      en: 'You do not have permission to manage calendar data in this clan.',
+    );
+  }
+  if (normalized.contains('network') ||
+      normalized.contains('unavailable') ||
+      normalized.contains('timeout') ||
+      normalized.contains('deadline')) {
+    return l10n.pick(
+      vi: 'Kết nối đang gián đoạn. Vui lòng kiểm tra mạng rồi thử lại.',
+      en: 'Connection is unstable. Please check your network and try again.',
+    );
+  }
+  return l10n.pick(
+    vi: 'Đồng bộ lịch chưa thành công. Vui lòng thử lại sau.',
+    en: 'Calendar sync failed. Please try again later.',
+  );
 }
 
 extension _IterableFirstOrNull<T> on Iterable<T> {

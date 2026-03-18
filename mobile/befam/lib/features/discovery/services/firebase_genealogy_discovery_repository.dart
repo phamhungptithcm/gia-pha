@@ -7,6 +7,7 @@ import '../../auth/models/auth_session.dart';
 import '../models/genealogy_discovery_result.dart';
 import '../models/join_request_draft.dart';
 import '../models/join_request_review_item.dart';
+import '../models/my_join_request_item.dart';
 import 'genealogy_discovery_repository.dart';
 
 class FirebaseGenealogyDiscoveryRepository
@@ -56,6 +57,44 @@ class FirebaseGenealogyDiscoveryRepository
   Future<void> submitJoinRequest({required JoinRequestDraft draft}) async {
     final callable = _functions.httpsCallable('submitJoinRequest');
     await callable.call(draft.toPayload());
+  }
+
+  @override
+  Future<List<MyJoinRequestItem>> loadMyJoinRequests({
+    required AuthSession session,
+  }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: FirebaseServices.firestore,
+      session: session,
+    );
+    final callable = _functions.httpsCallable('listMyJoinRequests');
+    final response = await callable.call(const <String, dynamic>{});
+    final payload = _asMap(response.data);
+    final entries = payload['requests'];
+    if (entries is! List) {
+      return const [];
+    }
+    return entries
+        .whereType<Map>()
+        .map(
+          (item) => MyJoinRequestItem.fromJson(
+            item.map((key, value) => MapEntry(key.toString(), value)),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> cancelJoinRequest({
+    required AuthSession session,
+    required String requestId,
+  }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: FirebaseServices.firestore,
+      session: session,
+    );
+    final callable = _functions.httpsCallable('cancelJoinRequest');
+    await callable.call(<String, dynamic>{'requestId': requestId});
   }
 
   @override

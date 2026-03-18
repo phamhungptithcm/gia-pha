@@ -2,7 +2,9 @@ import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_issue.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_otp_request_result.dart';
+import 'package:befam/features/auth/models/auth_otp_verification_result.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/auth/models/member_identity_verification.dart';
 import 'package:befam/features/auth/models/pending_otp_challenge.dart';
 import 'package:befam/features/auth/presentation/auth_controller.dart';
 import 'package:befam/features/auth/services/auth_analytics_service.dart';
@@ -112,25 +114,74 @@ class _FakeAuthGateway implements AuthGateway {
   }
 
   @override
-  Future<AuthSession> verifyOtp(
+  Future<AuthOtpVerificationResult> verifyOtp(
     PendingOtpChallenge challenge,
     String smsCode,
+    {String? languageCode}
   ) async {
     verifyOtpCount += 1;
     lastVerifiedCode = smsCode;
+    return AuthOtpVerificationResult.session(
+      AuthSession(
+        uid: 'debug:${challenge.phoneE164}',
+        loginMethod: challenge.loginMethod,
+        phoneE164: challenge.phoneE164,
+        displayName: 'Người dùng thử nghiệm',
+        memberId: 'member_demo_parent_001',
+        clanId: 'clan_demo_001',
+        branchId: 'branch_demo_001',
+        primaryRole: 'CLAN_ADMIN',
+        accessMode: AuthMemberAccessMode.claimed,
+        linkedAuthUid: true,
+        isSandbox: true,
+        signedInAtIso: DateTime(2026, 3, 15).toIso8601String(),
+      ),
+    );
+  }
+
+  @override
+  Future<AuthSession> createUnlinkedPhoneIdentity() async {
     return AuthSession(
-      uid: 'debug:${challenge.phoneE164}',
-      loginMethod: challenge.loginMethod,
-      phoneE164: challenge.phoneE164,
+      uid: 'debug:unlinked',
+      loginMethod: AuthEntryMethod.phone,
+      phoneE164: '+84900000000',
       displayName: 'Người dùng thử nghiệm',
-      memberId: 'member_demo_parent_001',
-      clanId: 'clan_demo_001',
-      branchId: 'branch_demo_001',
-      primaryRole: 'CLAN_ADMIN',
-      accessMode: AuthMemberAccessMode.claimed,
-      linkedAuthUid: true,
+      memberId: null,
+      clanId: null,
+      branchId: null,
+      primaryRole: 'GUEST',
+      accessMode: AuthMemberAccessMode.unlinked,
+      linkedAuthUid: false,
       isSandbox: true,
       signedInAtIso: DateTime(2026, 3, 15).toIso8601String(),
+    );
+  }
+
+  @override
+  Future<MemberIdentityVerificationChallenge> startMemberIdentityVerification(
+    String memberId,
+    {String? languageCode}
+  ) async {
+    return const MemberIdentityVerificationChallenge(
+      verificationSessionId: 'session',
+      memberId: 'member_demo_parent_001',
+      maxAttempts: 3,
+      remainingAttempts: 3,
+      questions: [],
+    );
+  }
+
+  @override
+  Future<MemberIdentityVerificationResult> submitMemberIdentityVerification({
+    required String verificationSessionId,
+    required Map<String, String> answers,
+  }) async {
+    return const MemberIdentityVerificationResult(
+      passed: false,
+      locked: false,
+      remainingAttempts: 2,
+      score: 0,
+      requiredCorrect: 3,
     );
   }
 

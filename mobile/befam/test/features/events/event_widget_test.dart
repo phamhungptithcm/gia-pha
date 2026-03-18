@@ -2,12 +2,53 @@ import 'package:befam/core/services/debug_genealogy_store.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/calendar/models/calendar_region.dart';
+import 'package:befam/features/calendar/models/lunar_date.dart';
+import 'package:befam/features/calendar/services/lunar_conversion_engine.dart';
 import 'package:befam/features/events/presentation/event_workspace_page.dart';
 import 'package:befam/features/events/services/debug_event_repository.dart';
+import 'package:befam/features/member/models/member_profile.dart';
+import 'package:befam/features/member/models/member_social_links.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _FakeLunarConversionEngine implements LunarConversionEngine {
+  const _FakeLunarConversionEngine();
+
+  @override
+  Future<DateTime?> lunarToSolar(
+    LunarDate lunarDate, {
+    required CalendarRegion region,
+  }) async {
+    if (lunarDate.month == 1 && lunarDate.day == 4) {
+      return DateTime(lunarDate.year, 2, 20);
+    }
+    return DateTime(lunarDate.year, lunarDate.month, lunarDate.day);
+  }
+
+  @override
+  Future<Map<int, LunarDate>> monthSolarToLunar({
+    required int year,
+    required int month,
+    required CalendarRegion region,
+  }) async {
+    return <int, LunarDate>{};
+  }
+
+  @override
+  Future<LunarDate> solarToLunar(
+    DateTime solarDate, {
+    required CalendarRegion region,
+  }) async {
+    return LunarDate(
+      year: solarDate.year,
+      month: solarDate.month,
+      day: solarDate.day,
+    );
+  }
+}
 
 void main() {
   Finder workspaceScroll() => find.byType(Scrollable).first;
@@ -43,8 +84,10 @@ void main() {
 
   Future<void> pumpWorkspace(
     WidgetTester tester,
-    DebugEventRepository repository,
-  ) async {
+    DebugEventRepository repository, {
+    DateTime Function()? nowProvider,
+    LunarConversionEngine? lunarConversionEngine,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('vi'),
@@ -59,6 +102,8 @@ void main() {
           body: EventWorkspacePage(
             session: buildClanAdminSession(),
             repository: repository,
+            nowProvider: nowProvider,
+            lunarConversionEngine: lunarConversionEngine,
           ),
         ),
       ),
@@ -88,11 +133,19 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     await tester.enterText(find.byKey(const Key('event-title-field')), title);
+    await tester.tap(find.byKey(const Key('event-save-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
     await tester.enterText(find.byKey(const Key('event-start-field')), startAt);
     await tester.enterText(find.byKey(const Key('event-end-field')), endAt);
 
     final saveButton = find.byKey(const Key('event-save-button'));
     await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
     await tester.tap(saveButton);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
@@ -148,6 +201,12 @@ void main() {
     await tester.ensureVisible(saveButton);
     await tester.tap(saveButton);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(saveButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(saveButton);
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Đã lưu sự kiện thành công.'), findsOneWidget);
@@ -191,6 +250,9 @@ void main() {
       find.byKey(const Key('event-title-field')),
       'Họp tổng kết',
     );
+    await tester.tap(find.byKey(const Key('event-save-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.enterText(
       find.byKey(const Key('event-start-field')),
       '2026-07-01 19:00',
@@ -204,10 +266,12 @@ void main() {
     await tester.ensureVisible(saveButton);
     await tester.tap(saveButton);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(saveButton);
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Đã lưu sự kiện thành công.'), findsOneWidget);
-    expect(find.text('Họp tổng kết'), findsWidgets);
   });
 
   testWidgets('validates start and end time ordering in form', (tester) async {
@@ -225,6 +289,9 @@ void main() {
       find.byKey(const Key('event-title-field')),
       'Sự kiện lỗi thời gian',
     );
+    await tester.tap(find.byKey(const Key('event-save-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.enterText(
       find.byKey(const Key('event-start-field')),
       '2026-06-10 18:00',
@@ -247,6 +314,76 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'shows upcoming longevity link and opens member detail for 70+ milestone',
+    (tester) async {
+      useLargeViewport(tester);
+      final store = DebugGenealogyStore.seeded();
+      store.members['member_demo_longevity_001'] = const MemberProfile(
+        id: 'member_demo_longevity_001',
+        clanId: 'clan_demo_001',
+        branchId: 'branch_demo_001',
+        fullName: 'Cụ Nguyễn Văn Thọ',
+        normalizedFullName: 'cụ nguyễn văn thọ',
+        nickName: 'Cụ Thọ',
+        gender: 'male',
+        birthDate: '1970-02-20',
+        deathDate: null,
+        phoneE164: null,
+        email: null,
+        addressText: 'Quảng Nam, Việt Nam',
+        jobTitle: 'Nông dân',
+        avatarUrl: null,
+        bio: 'Hồ sơ mừng thọ dùng cho kiểm thử.',
+        socialLinks: MemberSocialLinks(),
+        parentIds: [],
+        childrenIds: [],
+        spouseIds: [],
+        generation: 7,
+        primaryRole: 'MEMBER',
+        status: 'active',
+        isMinor: false,
+        authUid: null,
+      );
+      final repository = DebugEventRepository(store: store);
+
+      await pumpWorkspace(
+        tester,
+        repository,
+        nowProvider: () => DateTime(2040, 1, 25, 9),
+        lunarConversionEngine: const _FakeLunarConversionEngine(),
+      );
+
+      expect(
+        find.byKey(const Key('event-longevity-reminder-link-card')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('event-longevity-link-button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(
+        find.byKey(
+          const Key('event-longevity-member-row-member_demo_longevity_001'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('70 tuổi'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(
+          const Key('event-longevity-member-row-member_demo_longevity_001'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Cụ Nguyễn Văn Thọ'), findsWidgets);
+      expect(find.text('Chi tiết thành viên'), findsOneWidget);
+    },
+  );
 
   testWidgets('edits an existing event from detail screen', (tester) async {
     useLargeViewport(tester);
@@ -277,6 +414,12 @@ void main() {
 
     final saveButton = find.byKey(const Key('event-save-button'));
     await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(saveButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(saveButton);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));

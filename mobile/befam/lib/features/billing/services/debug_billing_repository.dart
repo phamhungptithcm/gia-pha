@@ -271,20 +271,23 @@ class DebugBillingRepository implements BillingRepository {
       );
     }
 
-    final checkoutUrl = method == 'vnpay'
-        ? Uri.https('example.com', '/billing/vnpay', {
-            'transactionId': transactionId,
-            'amountVnd': '${tier.priceVndYear}',
-            if (locale != null && locale.trim().isNotEmpty)
-              'locale': locale.trim(),
-            if (bankCode != null && bankCode.trim().isNotEmpty)
-              'bankCode': bankCode.trim().toUpperCase(),
-            if (orderNote != null && orderNote.trim().isNotEmpty)
-              'orderNote': orderNote.trim(),
-            if (contactPhone != null && contactPhone.trim().isNotEmpty)
-              'contactPhone': contactPhone.trim(),
-          }).toString()
-        : 'https://example.com/billing/card?txn=$transactionId';
+    final checkoutUrl = Uri.https(
+      'checkout-debug.befam.local',
+      '/billing/vnpay',
+      {
+        'transactionId': transactionId,
+        'amountVnd': '${tier.priceVndYear}',
+        if (locale != null && locale.trim().isNotEmpty) 'locale': locale.trim(),
+        if (bankCode != null && bankCode.trim().isNotEmpty)
+          'bankCode': bankCode.trim().toUpperCase(),
+        if (orderNote != null && orderNote.trim().isNotEmpty)
+          'orderNote': orderNote.trim(),
+        if (contactPhone != null && contactPhone.trim().isNotEmpty)
+          'contactPhone': contactPhone.trim(),
+        'mode': method,
+        'debug': '1',
+      },
+    ).toString();
 
     return BillingCheckoutResult(
       clanId: clanId,

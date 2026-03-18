@@ -161,18 +161,27 @@ class DualCalendarController extends ChangeNotifier {
   }
 
   Future<void> goToPreviousMonth() async {
+    if (_isLoading) {
+      return;
+    }
     _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1);
     _selectedDay = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
     await _loadFocusedMonthWithLoading();
   }
 
   Future<void> goToNextMonth() async {
+    if (_isLoading) {
+      return;
+    }
     _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1);
     _selectedDay = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
     await _loadFocusedMonthWithLoading();
   }
 
   Future<void> jumpToMonth(DateTime month) async {
+    if (_isLoading) {
+      return;
+    }
     _focusedMonth = DateTime(month.year, month.month);
     _selectedDay = DateTime(month.year, month.month, 1);
     await _loadFocusedMonthWithLoading();

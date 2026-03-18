@@ -6,7 +6,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/auth_entry_method.dart';
 import '../models/auth_member_access_mode.dart';
 import '../models/auth_otp_request_result.dart';
+import '../models/auth_otp_verification_result.dart';
 import '../models/auth_session.dart';
+import '../models/member_identity_verification.dart';
 import '../models/member_access_context.dart';
 import '../models/pending_otp_challenge.dart';
 import '../models/resolved_child_access.dart';
@@ -152,9 +154,10 @@ class DebugAuthGateway implements AuthGateway {
   }
 
   @override
-  Future<AuthSession> verifyOtp(
+  Future<AuthOtpVerificationResult> verifyOtp(
     PendingOtpChallenge challenge,
     String smsCode,
+    {String? languageCode}
   ) async {
     await Future<void>.delayed(_debugDelay);
     if (smsCode != _debugOtp) {
@@ -165,7 +168,7 @@ class DebugAuthGateway implements AuthGateway {
     }
 
     final memberAccess = await _memberAccessFor(challenge);
-    return AuthSession(
+    final session = AuthSession(
       uid: 'debug:${challenge.phoneE164}',
       loginMethod: challenge.loginMethod,
       phoneE164: challenge.phoneE164,
@@ -182,6 +185,138 @@ class DebugAuthGateway implements AuthGateway {
       linkedAuthUid: memberAccess.linkedAuthUid,
       isSandbox: true,
       signedInAtIso: DateTime.now().toIso8601String(),
+    );
+    return AuthOtpVerificationResult.session(session);
+  }
+
+  @override
+  Future<AuthSession> createUnlinkedPhoneIdentity() async {
+    await Future<void>.delayed(_debugDelay);
+    return AuthSession(
+      uid: 'debug:unlinked',
+      loginMethod: AuthEntryMethod.phone,
+      phoneE164: '+84900000000',
+      displayName: 'Khách mới',
+      memberId: null,
+      clanId: null,
+      branchId: null,
+      primaryRole: 'GUEST',
+      accessMode: AuthMemberAccessMode.unlinked,
+      linkedAuthUid: false,
+      isSandbox: true,
+      signedInAtIso: DateTime.now().toIso8601String(),
+    );
+  }
+
+  @override
+  Future<MemberIdentityVerificationChallenge> startMemberIdentityVerification(
+    String memberId,
+    {String? languageCode}
+  ) async {
+    await Future<void>.delayed(_debugDelay);
+    final useEnglish = (languageCode ?? '').trim().toLowerCase().startsWith(
+      'en',
+    );
+    return MemberIdentityVerificationChallenge(
+      verificationSessionId: 'debug-verification-$memberId',
+      memberId: memberId,
+      maxAttempts: 3,
+      remainingAttempts: 3,
+      questions: [
+        MemberVerificationQuestion(
+          id: 'debug-q1',
+          category: 'personal',
+          prompt: useEnglish
+              ? 'What is the gender listed on this profile?'
+              : 'Giới tính trong hồ sơ này là gì?',
+          options: [
+            MemberVerificationOption(id: 'a', label: useEnglish ? 'Male' : 'Nam'),
+            MemberVerificationOption(
+              id: 'b',
+              label: useEnglish ? 'Female' : 'Nữ',
+            ),
+            MemberVerificationOption(
+              id: 'c',
+              label: useEnglish ? 'Other' : 'Khác',
+            ),
+          ],
+        ),
+        MemberVerificationQuestion(
+          id: 'debug-q2',
+          category: 'clan',
+          prompt: useEnglish
+              ? 'Which clan does this profile belong to?'
+              : 'Hồ sơ này thuộc dòng tộc nào?',
+          options: [
+            MemberVerificationOption(
+              id: 'a',
+              label: useEnglish ? 'BeFam Clan' : 'Họ BeFam',
+            ),
+            MemberVerificationOption(
+              id: 'b',
+              label: useEnglish ? 'Nguyen Clan' : 'Họ Nguyễn',
+            ),
+            MemberVerificationOption(
+              id: 'c',
+              label: useEnglish ? 'Tran Clan' : 'Họ Trần',
+            ),
+          ],
+        ),
+        MemberVerificationQuestion(
+          id: 'debug-q3',
+          category: 'personal',
+          prompt: useEnglish
+              ? 'Which month/year of birth is the closest match?'
+              : 'Tháng/năm sinh gần đúng là gì?',
+          options: [
+            const MemberVerificationOption(id: 'a', label: '02/1988'),
+            const MemberVerificationOption(id: 'b', label: '03/1988'),
+            const MemberVerificationOption(id: 'c', label: '02/1989'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<MemberIdentityVerificationResult> submitMemberIdentityVerification({
+    required String verificationSessionId,
+    required Map<String, String> answers,
+  }) async {
+    await Future<void>.delayed(_debugDelay);
+    final passed = answers['debug-q1'] == 'a' &&
+        answers['debug-q2'] == 'a' &&
+        answers['debug-q3'] == 'a';
+    if (!passed) {
+      return const MemberIdentityVerificationResult(
+        passed: false,
+        locked: false,
+        remainingAttempts: 2,
+        score: 0,
+        requiredCorrect: 3,
+      );
+    }
+
+    return MemberIdentityVerificationResult(
+      passed: true,
+      locked: false,
+      remainingAttempts: 2,
+      score: 3,
+      requiredCorrect: 3,
+      session: AuthSession(
+        uid: 'debug:verified',
+        loginMethod: AuthEntryMethod.phone,
+        phoneE164: '+84901234567',
+        displayName: 'Nguyễn Minh',
+        memberId: 'member_demo_parent_001',
+        clanId: 'clan_demo_001',
+        branchId: 'branch_demo_001',
+        primaryRole: 'CLAN_ADMIN',
+        accessMode: AuthMemberAccessMode.claimed,
+        linkedAuthUid: true,
+        isSandbox: true,
+        signedInAtIso: DateTime.now().toIso8601String(),
+      ),
     );
   }
 

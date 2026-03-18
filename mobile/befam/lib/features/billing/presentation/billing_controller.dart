@@ -20,7 +20,6 @@ class BillingController extends ChangeNotifier {
   bool _isProcessingPayment = false;
   bool _isCreatingCheckout = false;
   String? _errorMessage;
-  String? _actionMessage;
   BillingWorkspaceSnapshot? _workspace;
   BillingViewerSummary? _viewerSummary;
   BillingCheckoutResult? _lastCheckout;
@@ -30,7 +29,6 @@ class BillingController extends ChangeNotifier {
   bool get isProcessingPayment => _isProcessingPayment;
   bool get isCreatingCheckout => _isCreatingCheckout;
   String? get errorMessage => _errorMessage;
-  String? get actionMessage => _actionMessage;
   BillingWorkspaceSnapshot? get workspace => _workspace;
   BillingViewerSummary? get viewerSummary => _viewerSummary;
   BillingCheckoutResult? get lastCheckout => _lastCheckout;
@@ -120,7 +118,6 @@ class BillingController extends ChangeNotifier {
   }) async {
     _isSavingPreferences = true;
     _errorMessage = null;
-    _actionMessage = null;
     notifyListeners();
     try {
       await _repository.updatePreferences(
@@ -130,7 +127,6 @@ class BillingController extends ChangeNotifier {
         reminderDaysBefore: reminderDaysBefore,
       );
       _workspace = await _repository.loadWorkspace(session: _session);
-      _actionMessage = 'Billing preferences saved.';
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();
     } catch (error) {
@@ -152,7 +148,6 @@ class BillingController extends ChangeNotifier {
   }) async {
     _isCreatingCheckout = true;
     _errorMessage = null;
-    _actionMessage = null;
     notifyListeners();
     try {
       _lastCheckout = await _repository.createCheckout(
@@ -167,7 +162,6 @@ class BillingController extends ChangeNotifier {
       );
       _workspace = await _repository.loadWorkspace(session: _session);
       _viewerSummary = null;
-      _actionMessage = 'Checkout created successfully.';
       return _lastCheckout;
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();
@@ -184,7 +178,6 @@ class BillingController extends ChangeNotifier {
   Future<void> confirmCardPayment(String transactionId) async {
     _isProcessingPayment = true;
     _errorMessage = null;
-    _actionMessage = null;
     notifyListeners();
     try {
       await _repository.completeCardCheckout(
@@ -193,7 +186,6 @@ class BillingController extends ChangeNotifier {
       );
       _workspace = await _repository.loadWorkspace(session: _session);
       _viewerSummary = null;
-      _actionMessage = 'Card payment confirmed.';
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();
     } catch (error) {
@@ -207,7 +199,6 @@ class BillingController extends ChangeNotifier {
   Future<void> confirmVnpayPayment(String transactionId) async {
     _isProcessingPayment = true;
     _errorMessage = null;
-    _actionMessage = null;
     notifyListeners();
     try {
       await _repository.settleVnpayCheckout(
@@ -216,7 +207,6 @@ class BillingController extends ChangeNotifier {
       );
       _workspace = await _repository.loadWorkspace(session: _session);
       _viewerSummary = null;
-      _actionMessage = 'VNPay payment confirmed.';
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();
     } catch (error) {

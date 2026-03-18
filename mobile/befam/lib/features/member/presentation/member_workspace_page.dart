@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/firebase_services.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/address_action_tools.dart';
+import '../../../core/widgets/member_phone_action.dart';
+import '../../../core/widgets/social_link_actions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -931,6 +934,10 @@ class _MemberDetailPage extends StatelessWidget {
                             _DetailRow(
                               label: l10n.memberPhoneLabel,
                               value: member.phoneE164 ?? l10n.memberFieldUnset,
+                              trailing: MemberPhoneActionIconButton(
+                                phoneNumber: member.phoneE164 ?? '',
+                                contactName: member.displayName,
+                              ),
                             ),
                             _DetailRow(
                               label: l10n.memberEmailLabel,
@@ -963,6 +970,10 @@ class _MemberDetailPage extends StatelessWidget {
                               label: l10n.memberAddressLabel,
                               value:
                                   member.addressText ?? l10n.memberFieldUnset,
+                              trailing: AddressDirectionIconButton(
+                                address: member.addressText ?? '',
+                                label: member.displayName,
+                              ),
                             ),
                             _DetailRow(
                               label: l10n.memberBioLabel,
@@ -983,23 +994,39 @@ class _MemberDetailPage extends StatelessWidget {
                                     l10n.memberSocialLinksEmptyDescription,
                               )
                             : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (member.socialLinks.facebook != null)
-                                    _DetailRow(
-                                      label: 'Facebook',
-                                      value: member.socialLinks.facebook!,
+                                  Text(
+                                    l10n.pick(
+                                      vi: 'Bấm vào biểu tượng để mở ứng dụng mạng xã hội hoặc trình duyệt.',
+                                      en: 'Tap an icon to open the social app or browser.',
                                     ),
-                                  if (member.socialLinks.zalo != null)
-                                    _DetailRow(
-                                      label: 'Zalo',
-                                      value: member.socialLinks.zalo!,
-                                    ),
-                                  if (member.socialLinks.linkedin != null)
-                                    _DetailRow(
-                                      label: 'LinkedIn',
-                                      value: member.socialLinks.linkedin!,
-                                      isLast: true,
-                                    ),
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      if (member.socialLinks.facebook != null)
+                                        SocialLinkActionIconButton(
+                                          platform: SocialPlatform.facebook,
+                                          rawValue:
+                                              member.socialLinks.facebook!,
+                                        ),
+                                      if (member.socialLinks.zalo != null)
+                                        SocialLinkActionIconButton(
+                                          platform: SocialPlatform.zalo,
+                                          rawValue: member.socialLinks.zalo!,
+                                        ),
+                                      if (member.socialLinks.linkedin != null)
+                                        SocialLinkActionIconButton(
+                                          platform: SocialPlatform.linkedin,
+                                          rawValue:
+                                              member.socialLinks.linkedin!,
+                                        ),
+                                    ],
+                                  ),
                                 ],
                               ),
                       ),
@@ -1530,7 +1557,10 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                         controller: _birthDateController,
                         decoration: InputDecoration(
                           labelText: l10n.memberBirthDateLabel,
-                          hintText: 'YYYY-MM-DD',
+                          hintText: l10n.pick(
+                            vi: 'YYYY-MM-DD',
+                            en: 'YYYY-MM-DD',
+                          ),
                           suffixIcon: IconButton(
                             tooltip: l10n.pick(
                               vi: 'Chọn ngày sinh',
@@ -1553,7 +1583,10 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                         controller: _deathDateController,
                         decoration: InputDecoration(
                           labelText: l10n.memberDeathDateLabel,
-                          hintText: 'YYYY-MM-DD',
+                          hintText: l10n.pick(
+                            vi: 'YYYY-MM-DD',
+                            en: 'YYYY-MM-DD',
+                          ),
                           suffixIcon: IconButton(
                             tooltip: l10n.pick(
                               vi: 'Chọn ngày mất',
@@ -1883,7 +1916,10 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                     controller: _emailController,
                     decoration: InputDecoration(
                       labelText: l10n.memberEmailLabel,
-                      hintText: 'member@befam.vn',
+                      hintText: l10n.pick(
+                        vi: 'member@befam.vn',
+                        en: 'member@befam.vn',
+                      ),
                     ),
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
@@ -1908,25 +1944,71 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                     ),
                     textInputAction: TextInputAction.next,
                   ),
+                  const SizedBox(height: 8),
+                  AddressInputAssistRow(controller: _addressController),
                   const SizedBox(height: 14),
+                  Text(
+                    l10n.pick(
+                      vi: 'Nhập tên tài khoản hoặc liên kết. Bấm biểu tượng bên phải để mở app/web và liên kết nhanh.',
+                      en: 'Enter a username or link. Tap the right icon to open app/web for quick linking.',
+                    ),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 10),
                   TextFormField(
                     key: const Key('member-facebook-input'),
                     controller: _facebookController,
-                    decoration: const InputDecoration(labelText: 'Facebook'),
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Facebook', en: 'Facebook'),
+                      hintText: l10n.pick(
+                        vi: 'Tên tài khoản hoặc URL',
+                        en: 'Username or profile URL',
+                      ),
+                      prefixIcon: const Icon(Icons.facebook),
+                      suffixIcon: SocialLinkFieldConnectButton(
+                        platform: SocialPlatform.facebook,
+                        controller: _facebookController,
+                      ),
+                    ),
+                    keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.next,
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
                     key: const Key('member-zalo-input'),
                     controller: _zaloController,
-                    decoration: const InputDecoration(labelText: 'Zalo'),
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Zalo', en: 'Zalo'),
+                      hintText: l10n.pick(
+                        vi: 'Tên tài khoản hoặc URL',
+                        en: 'Username or profile URL',
+                      ),
+                      prefixIcon: const Icon(Icons.forum_outlined),
+                      suffixIcon: SocialLinkFieldConnectButton(
+                        platform: SocialPlatform.zalo,
+                        controller: _zaloController,
+                      ),
+                    ),
+                    keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.next,
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
                     key: const Key('member-linkedin-input'),
                     controller: _linkedinController,
-                    decoration: const InputDecoration(labelText: 'LinkedIn'),
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'LinkedIn', en: 'LinkedIn'),
+                      hintText: l10n.pick(
+                        vi: 'Tên tài khoản hoặc URL',
+                        en: 'Username or profile URL',
+                      ),
+                      prefixIcon: const Icon(Icons.work_outline),
+                      suffixIcon: SocialLinkFieldConnectButton(
+                        platform: SocialPlatform.linkedin,
+                        controller: _linkedinController,
+                      ),
+                    ),
+                    keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.next,
                   ),
                   const SizedBox(height: 14),
@@ -2071,9 +2153,18 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
       siblingOrder: _predictedSiblingOrder,
       generation: _resolvedGeneration,
       socialLinks: MemberSocialLinks(
-        facebook: _nullIfBlank(_facebookController.text),
-        zalo: _nullIfBlank(_zaloController.text),
-        linkedin: _nullIfBlank(_linkedinController.text),
+        facebook: normalizeSocialLinkForStorage(
+          SocialPlatform.facebook,
+          _facebookController.text,
+        ),
+        zalo: normalizeSocialLinkForStorage(
+          SocialPlatform.zalo,
+          _zaloController.text,
+        ),
+        linkedin: normalizeSocialLinkForStorage(
+          SocialPlatform.linkedin,
+          _linkedinController.text,
+        ),
       ),
       primaryRole: primaryRole,
       status: widget.initialDraft.status,
@@ -3199,16 +3290,29 @@ class _MemberSummaryCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _HighlightedText(
-                      text: member.phoneE164 ?? l10n.memberPhoneMissing,
-                      query: highlightQuery,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      highlightStyle: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _HighlightedText(
+                            text: member.phoneE164 ?? l10n.memberPhoneMissing,
+                            query: highlightQuery,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            highlightStyle: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if ((member.phoneE164 ?? '').trim().isNotEmpty)
+                          MemberPhoneActionIconButton(
+                            phoneNumber: member.phoneE164!,
+                            contactName: member.displayName,
+                            iconSize: 18,
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -3801,11 +3905,13 @@ class _DetailRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.isLast = false,
+    this.trailing,
   });
 
   final String label;
   final String value;
   final bool isLast;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -3826,7 +3932,15 @@ class _DetailRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -3835,9 +3949,9 @@ class _DetailRow extends StatelessWidget {
 
 String _memberRepositoryErrorMessage(
   AppLocalizations l10n,
-  MemberRepositoryErrorCode error,
-  {String? overrideMessage}
-) {
+  MemberRepositoryErrorCode error, {
+  String? overrideMessage,
+}) {
   final customMessage = overrideMessage?.trim();
   if (customMessage != null && customMessage.isNotEmpty) {
     return customMessage;

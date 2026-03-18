@@ -1,6 +1,8 @@
+import '../models/auth_otp_verification_result.dart';
+import '../models/member_identity_verification.dart';
 import '../models/auth_otp_request_result.dart';
-import '../models/pending_otp_challenge.dart';
 import '../models/auth_session.dart';
+import '../models/pending_otp_challenge.dart';
 
 abstract class AuthGateway {
   bool get isSandbox;
@@ -13,7 +15,23 @@ abstract class AuthGateway {
 
   Future<AuthOtpRequestResult> resendOtp(PendingOtpChallenge challenge);
 
-  Future<AuthSession> verifyOtp(PendingOtpChallenge challenge, String smsCode);
+  Future<AuthOtpVerificationResult> verifyOtp(
+    PendingOtpChallenge challenge,
+    String smsCode,
+    {String? languageCode}
+  );
+
+  Future<AuthSession> createUnlinkedPhoneIdentity();
+
+  Future<MemberIdentityVerificationChallenge> startMemberIdentityVerification(
+    String memberId,
+    {String? languageCode}
+  );
+
+  Future<MemberIdentityVerificationResult> submitMemberIdentityVerification({
+    required String verificationSessionId,
+    required Map<String, String> answers,
+  });
 
   Future<void> signOut();
 }

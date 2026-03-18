@@ -128,7 +128,7 @@ void main() {
     await pumpBillingPage(tester, session: buildNoClanSession());
 
     expect(find.text('Gói cá nhân của bạn'), findsNothing);
-    expect(find.text('Thanh toán & gia hạn'), findsOneWidget);
+    expect(find.text('Gói dịch vụ & thanh toán'), findsOneWidget);
     final vnpayButton = find.byKey(const Key('billing-open-vnpay-form-button'));
     await tester.scrollUntilVisible(
       vnpayButton,

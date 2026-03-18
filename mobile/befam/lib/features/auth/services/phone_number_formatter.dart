@@ -17,7 +17,7 @@ class PhoneNumberFormatter {
     }
 
     final digitsAndPlus = trimmed.replaceAll(RegExp(r'[^0-9+]'), '');
-    late final String normalized;
+    late String normalized;
 
     if (digitsAndPlus.startsWith('+')) {
       normalized =
@@ -28,6 +28,15 @@ class PhoneNumberFormatter {
       normalized = '+84${digitsAndPlus.substring(1)}';
     } else {
       normalized = '+$digitsAndPlus';
+    }
+
+    if (normalized.startsWith('+840')) {
+      normalized = '+84${normalized.substring(4)}';
+    }
+    if (normalized.startsWith('+84') &&
+        normalized.length > 3 &&
+        normalized[3] == '0') {
+      normalized = '+84${normalized.substring(4)}';
     }
 
     if (!RegExp(r'^\+[1-9]\d{8,14}$').hasMatch(normalized)) {

@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import '../../../core/services/app_locale_controller.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/address_action_tools.dart';
+import '../../../core/widgets/member_phone_action.dart';
+import '../../../core/widgets/social_link_actions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -534,7 +537,10 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                           _ProfileInfoCard(
                             icon: Icons.error_outline,
                             title: l10n.profileUpdateErrorTitle,
-                            description: _controller.errorMessage!,
+                            description: _friendlyProfileErrorMessage(
+                              _controller.errorMessage!,
+                              l10n,
+                            ),
                             tone: colorScheme.errorContainer,
                           ),
                           const SizedBox(height: 8),
@@ -565,6 +571,10 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                                 value: _blankIfMissing(
                                   displayProfile.phoneE164,
                                 ),
+                                trailing: MemberPhoneActionIconButton(
+                                  phoneNumber: displayProfile.phoneE164 ?? '',
+                                  contactName: displayProfile.displayName,
+                                ),
                               ),
                               _ProfileDetailRow(
                                 label: l10n.memberEmailLabel,
@@ -579,6 +589,10 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                                 value: _blankIfMissing(
                                   displayProfile.addressText,
                                 ),
+                                trailing: AddressDirectionIconButton(
+                                  address: displayProfile.addressText ?? '',
+                                  label: displayProfile.displayName,
+                                ),
                               ),
                               _ProfileDetailRow(
                                 label: l10n.memberBioLabel,
@@ -587,6 +601,62 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                               ),
                             ],
                           ),
+                        ),
+                        const SizedBox(height: 20),
+                        _ProfileSectionCard(
+                          title: l10n.memberSocialLinksTitle,
+                          child: displayProfile.socialLinks.isEmpty
+                              ? Text(
+                                  l10n.memberSocialLinksEmptyDescription,
+                                  style: theme.textTheme.bodyMedium,
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      l10n.pick(
+                                        vi: 'Bấm vào biểu tượng để mở ứng dụng mạng xã hội hoặc trình duyệt.',
+                                        en: 'Tap an icon to open the social app or browser.',
+                                      ),
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: [
+                                        if (displayProfile
+                                                .socialLinks
+                                                .facebook !=
+                                            null)
+                                          SocialLinkActionIconButton(
+                                            platform: SocialPlatform.facebook,
+                                            rawValue: displayProfile
+                                                .socialLinks
+                                                .facebook!,
+                                          ),
+                                        if (displayProfile.socialLinks.zalo !=
+                                            null)
+                                          SocialLinkActionIconButton(
+                                            platform: SocialPlatform.zalo,
+                                            rawValue: displayProfile
+                                                .socialLinks
+                                                .zalo!,
+                                          ),
+                                        if (displayProfile
+                                                .socialLinks
+                                                .linkedin !=
+                                            null)
+                                          SocialLinkActionIconButton(
+                                            platform: SocialPlatform.linkedin,
+                                            rawValue: displayProfile
+                                                .socialLinks
+                                                .linkedin!,
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                         ),
                         const SizedBox(height: 20),
                         _ProfileSectionCard(
@@ -1187,9 +1257,24 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
         addressText: _addressController.text.trim(),
         jobTitle: _jobTitleController.text.trim(),
         bio: _bioController.text.trim(),
-        facebook: _facebookController.text.trim(),
-        zalo: _zaloController.text.trim(),
-        linkedin: _linkedinController.text.trim(),
+        facebook:
+            normalizeSocialLinkForStorage(
+              SocialPlatform.facebook,
+              _facebookController.text,
+            ) ??
+            '',
+        zalo:
+            normalizeSocialLinkForStorage(
+              SocialPlatform.zalo,
+              _zaloController.text,
+            ) ??
+            '',
+        linkedin:
+            normalizeSocialLinkForStorage(
+              SocialPlatform.linkedin,
+              _linkedinController.text,
+            ) ??
+            '',
       ),
     );
 
@@ -1303,6 +1388,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                     labelText: l10n.memberAddressLabel,
                   ),
                 ),
+                const SizedBox(height: 8),
+                AddressInputAssistRow(controller: _addressController),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _bioController,
@@ -1310,25 +1397,63 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                   decoration: InputDecoration(labelText: l10n.memberBioLabel),
                 ),
                 const SizedBox(height: 14),
+                Text(
+                  l10n.pick(
+                    vi: 'Nhập tên tài khoản hoặc liên kết. Bấm biểu tượng bên phải để mở app/web và liên kết nhanh.',
+                    en: 'Enter a username or link. Tap the right icon to open app/web for quick linking.',
+                  ),
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 10),
                 TextFormField(
                   controller: _facebookController,
                   decoration: InputDecoration(
                     labelText: l10n.profileFacebookUrlLabel,
+                    hintText: l10n.pick(
+                      vi: 'Tên tài khoản hoặc URL',
+                      en: 'Username or profile URL',
+                    ),
+                    prefixIcon: const Icon(Icons.facebook),
+                    suffixIcon: SocialLinkFieldConnectButton(
+                      platform: SocialPlatform.facebook,
+                      controller: _facebookController,
+                    ),
                   ),
+                  keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _zaloController,
                   decoration: InputDecoration(
                     labelText: l10n.profileZaloUrlLabel,
+                    hintText: l10n.pick(
+                      vi: 'Tên tài khoản hoặc URL',
+                      en: 'Username or profile URL',
+                    ),
+                    prefixIcon: const Icon(Icons.forum_outlined),
+                    suffixIcon: SocialLinkFieldConnectButton(
+                      platform: SocialPlatform.zalo,
+                      controller: _zaloController,
+                    ),
                   ),
+                  keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _linkedinController,
                   decoration: InputDecoration(
                     labelText: l10n.profileLinkedinUrlLabel,
+                    hintText: l10n.pick(
+                      vi: 'Tên tài khoản hoặc URL',
+                      en: 'Username or profile URL',
+                    ),
+                    prefixIcon: const Icon(Icons.work_outline),
+                    suffixIcon: SocialLinkFieldConnectButton(
+                      platform: SocialPlatform.linkedin,
+                      controller: _linkedinController,
+                    ),
                   ),
+                  keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 22),
                 SizedBox(
@@ -1401,11 +1526,13 @@ class _ProfileDetailRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.isLast = false,
+    this.trailing,
   });
 
   final String label;
   final String value;
   final bool isLast;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -1426,7 +1553,15 @@ class _ProfileDetailRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1631,6 +1766,36 @@ class _ProfileEmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+String _friendlyProfileErrorMessage(String raw, AppLocalizations l10n) {
+  final normalized = raw.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return l10n.pick(
+      vi: 'Không thể tải hồ sơ lúc này. Vui lòng thử lại.',
+      en: 'Could not load profile right now. Please try again.',
+    );
+  }
+  if (normalized.contains('permission_denied') ||
+      normalized.contains('permission denied')) {
+    return l10n.pick(
+      vi: 'Bạn chưa có quyền cập nhật hồ sơ này.',
+      en: 'You do not have permission to update this profile.',
+    );
+  }
+  if (normalized.contains('network') ||
+      normalized.contains('unavailable') ||
+      normalized.contains('timeout') ||
+      normalized.contains('deadline')) {
+    return l10n.pick(
+      vi: 'Kết nối đang gián đoạn. Vui lòng kiểm tra mạng rồi thử lại.',
+      en: 'Connection is unstable. Please check your network and try again.',
+    );
+  }
+  return l10n.pick(
+    vi: 'Cập nhật hồ sơ chưa thành công. Vui lòng thử lại sau.',
+    en: 'Profile update failed. Please try again later.',
+  );
 }
 
 String _memberErrorMessage(

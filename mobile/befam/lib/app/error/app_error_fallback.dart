@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/services/app_logger.dart';
+import '../../l10n/l10n.dart';
 
 void installAppErrorFallback() {
   ErrorWidget.builder = (details) {
@@ -22,9 +23,11 @@ class AppErrorFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final description =
-        'This screen could not be displayed safely. You can return to home '
-        'and continue using the app.';
+    final l10n = context.l10n;
+    final description = l10n.pick(
+      vi: 'Màn hình này tạm thời chưa thể hiển thị an toàn. Bạn có thể quay về Trang chủ để tiếp tục sử dụng ứng dụng.',
+      en: 'This screen could not be displayed safely right now. You can return to Home and continue using the app.',
+    );
 
     return Material(
       color: colorScheme.surface,
@@ -57,7 +60,10 @@ class AppErrorFallback extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Something went wrong',
+                        l10n.pick(
+                          vi: 'Đã có lỗi xảy ra',
+                          en: 'Something went wrong',
+                        ),
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
@@ -80,7 +86,9 @@ class AppErrorFallback extends StatelessWidget {
                           navigator?.popUntil((route) => route.isFirst);
                         },
                         icon: const Icon(Icons.home_rounded),
-                        label: const Text('Back to home'),
+                        label: Text(
+                          l10n.pick(vi: 'Về trang chủ', en: 'Back to home'),
+                        ),
                       ),
                     ],
                   ),
