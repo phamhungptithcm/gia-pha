@@ -60,6 +60,9 @@ extension AppLocalizationsX on AppLocalizations {
         en: 'Please accept the Privacy Policy before signing in.',
       ),
       AuthIssueKey.operationNotAllowed => authIssueOperationNotAllowed,
+      AuthIssueKey.webDomainNotAuthorized => authIssueWebDomainNotAuthorized,
+      AuthIssueKey.recaptchaVerificationFailed =>
+        authIssueRecaptchaVerificationFailed,
       AuthIssueKey.authUnavailable => authIssueAuthUnavailable,
       AuthIssueKey.preparationFailed => authIssuePreparationFailed,
     };

@@ -29,6 +29,16 @@ class AuthErrorMapper {
         'operation-not-allowed' => const AuthIssue(
           AuthIssueKey.operationNotAllowed,
         ),
+        'app-not-authorized' || 'unauthorized-domain' => const AuthIssue(
+          AuthIssueKey.webDomainNotAuthorized,
+        ),
+        'captcha-check-failed' ||
+        'missing-app-credential' ||
+        'invalid-app-credential' ||
+        'web-context-cancelled' ||
+        'web-context-canceled' => const AuthIssue(
+          AuthIssueKey.recaptchaVerificationFailed,
+        ),
         _ => const AuthIssue(AuthIssueKey.authUnavailable),
       };
     }

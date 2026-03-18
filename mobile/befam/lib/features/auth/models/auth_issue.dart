@@ -19,6 +19,8 @@ enum AuthIssueKey {
   parentVerificationMismatch,
   privacyPolicyRequired,
   operationNotAllowed,
+  webDomainNotAuthorized,
+  recaptchaVerificationFailed,
   authUnavailable,
   preparationFailed,
 }

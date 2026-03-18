@@ -35,6 +35,8 @@ class FirebaseAuthGateway implements AuthGateway {
   final FirebaseFunctions _functions;
   final FirebaseFirestore _firestore;
   static bool _debugPhoneAuthConfigured = false;
+  final Map<String, ConfirmationResult> _webConfirmationResults =
+      <String, ConfirmationResult>{};
 
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
@@ -102,6 +104,30 @@ class FirebaseAuthGateway implements AuthGateway {
     PendingOtpChallenge challenge,
     String smsCode,
   ) async {
+    if (kIsWeb) {
+      final confirmationResult = _webConfirmationResults.remove(
+        challenge.verificationId,
+      );
+      if (confirmationResult != null) {
+        final userCredential = await confirmationResult.confirm(smsCode);
+        final user = userCredential.user;
+        if (user == null) {
+          throw FirebaseAuthException(
+            code: 'unknown',
+            message: 'Firebase did not return a signed-in user.',
+          );
+        }
+        return _buildSession(
+          user,
+          loginMethod: challenge.loginMethod,
+          phoneE164: challenge.phoneE164,
+          childIdentifier: challenge.childIdentifier,
+          memberId: challenge.memberId,
+          displayName: challenge.displayName,
+        );
+      }
+    }
+
     final credential = PhoneAuthProvider.credential(
       verificationId: challenge.verificationId,
       smsCode: smsCode,
@@ -155,6 +181,17 @@ class FirebaseAuthGateway implements AuthGateway {
     );
     if (debugSession != null) {
       return AuthOtpRequestResult.session(debugSession);
+    }
+
+    if (kIsWeb) {
+      return _requestOtpOnWeb(
+        requestTag: requestTag,
+        loginMethod: loginMethod,
+        phoneE164: phoneE164,
+        childIdentifier: childIdentifier,
+        memberId: memberId,
+        displayName: displayName,
+      );
     }
 
     await _configurePhoneAuthForDebugIfNeeded();
@@ -287,6 +324,47 @@ class FirebaseAuthGateway implements AuthGateway {
     );
   }
 
+  Future<AuthOtpRequestResult> _requestOtpOnWeb({
+    required String requestTag,
+    required AuthEntryMethod loginMethod,
+    required String phoneE164,
+    String? childIdentifier,
+    String? memberId,
+    String? displayName,
+  }) async {
+    AppLogger.info('[$requestTag] Calling FirebaseAuth.signInWithPhoneNumber.');
+    final confirmationResult = await _auth.signInWithPhoneNumber(phoneE164);
+    final verificationId = confirmationResult.verificationId.trim();
+    if (verificationId.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'session-expired',
+        message:
+            'The verification session expired before the OTP challenge was created.',
+      );
+    }
+    _webConfirmationResults[verificationId] = confirmationResult;
+    while (_webConfirmationResults.length > 20) {
+      final oldestKey = _webConfirmationResults.keys.first;
+      _webConfirmationResults.remove(oldestKey);
+    }
+
+    AppLogger.info(
+      '[$requestTag] Web OTP challenge created (verificationId=$verificationId).',
+    );
+
+    return AuthOtpRequestResult.challenge(
+      PendingOtpChallenge(
+        loginMethod: loginMethod,
+        phoneE164: phoneE164,
+        maskedDestination: PhoneNumberFormatter.mask(phoneE164),
+        verificationId: verificationId,
+        childIdentifier: childIdentifier,
+        memberId: memberId,
+        displayName: displayName,
+      ),
+    );
+  }
+
   Future<void> _configurePhoneAuthForDebugIfNeeded() async {
     if (!kDebugMode || _debugPhoneAuthConfigured) {
       return;
@@ -328,7 +406,6 @@ class FirebaseAuthGateway implements AuthGateway {
     required int? forceResendingToken,
   }) async {
     if (!kDebugMode ||
-        kIsWeb ||
         loginMethod != AuthEntryMethod.phone ||
         forceResendingToken != null) {
       return null;

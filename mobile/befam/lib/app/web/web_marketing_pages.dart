@@ -206,57 +206,80 @@ class _TopNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final textTheme = Theme.of(context).textTheme;
-    final isCompact = MediaQuery.sizeOf(context).width < 760;
-
     final navItems = [
       _NavItem(path: '/', label: l10n.webNavHome),
       _NavItem(path: '/about-us', label: l10n.webNavAboutUs),
       _NavItem(path: '/befam-info', label: l10n.webNavBeFamInfo),
     ];
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            const Icon(Icons.family_restroom_rounded),
-            const SizedBox(width: 10),
-            Text(
-              'BeFam',
-              style: textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const Spacer(),
-            if (!isCompact)
-              ...navItems.map(
-                (item) => _NavButton(
-                  label: item.label,
-                  isActive: currentPath == item.path,
-                  onPressed: () => context.go(item.path),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final boundedWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : screenWidth;
+        final effectiveWidth = boundedWidth < screenWidth
+            ? boundedWidth
+            : screenWidth;
+        final isCompact = effectiveWidth < 900;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                const Icon(Icons.family_restroom_rounded),
+                const SizedBox(width: 10),
+                Text(
+                  'BeFam',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-            if (isCompact)
-              PopupMenuButton<_NavItem>(
-                tooltip: l10n.webNavMenuTooltip,
-                onSelected: (item) => context.go(item.path),
-                itemBuilder: (context) => navItems
-                    .map(
-                      (item) => PopupMenuItem<_NavItem>(
-                        value: item,
-                        child: Text(item.label),
+                const Spacer(),
+                if (!isCompact)
+                  ...navItems.map(
+                    (item) => _NavButton(
+                      label: item.label,
+                      isActive: currentPath == item.path,
+                      onPressed: () => context.go(item.path),
+                    ),
+                  ),
+                if (isCompact)
+                  PopupMenuButton<_NavItem>(
+                    tooltip: l10n.webNavMenuTooltip,
+                    onSelected: (item) => context.go(item.path),
+                    itemBuilder: (context) => navItems
+                        .map(
+                          (item) => PopupMenuItem<_NavItem>(
+                            value: item,
+                            child: Text(item.label),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                const SizedBox(width: 8),
+                if (isCompact)
+                  Tooltip(
+                    message: l10n.webNavOpenApp,
+                    child: FilledButton(
+                      onPressed: () => context.go('/app'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.square(44),
+                        padding: EdgeInsets.zero,
                       ),
-                    )
-                    .toList(growable: false),
-              ),
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: () => context.go('/app'),
-              child: Text(l10n.webNavOpenApp),
+                      child: const Icon(Icons.open_in_new_rounded),
+                    ),
+                  )
+                else
+                  FilledButton(
+                    onPressed: () => context.go('/app'),
+                    child: Text(l10n.webNavOpenApp),
+                  ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

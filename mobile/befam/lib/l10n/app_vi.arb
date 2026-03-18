@@ -534,6 +534,8 @@
   "authIssueMemberClaimConflict": "Có nhiều hơn một hồ sơ thành viên dùng cùng số điện thoại này. Hãy liên hệ quản trị viên họ tộc.",
   "authIssueParentVerificationMismatch": "Số điện thoại đã xác minh không khớp với số phụ huynh liên kết với mã truy cập trẻ em đó.",
   "authIssueOperationNotAllowed": "Phương thức đăng nhập này chưa được bật cho dự án Firebase hiện tại.",
+  "authIssueWebDomainNotAuthorized": "Tên miền hiện tại chưa được bật trong Firebase Authentication. Hãy thêm tên miền này vào danh sách Authorized domains.",
+  "authIssueRecaptchaVerificationFailed": "Xác minh reCAPTCHA chưa thành công. Hãy tải lại trang và thử lại.",
   "authIssueAuthUnavailable": "Hiện chưa thể hoàn tất xác thực.",
   "authIssuePreparationFailed": "Có lỗi xảy ra khi chuẩn bị đăng nhập. Hãy thử lại.",
   "eventWorkspaceTitle": "Không gian sự kiện",
