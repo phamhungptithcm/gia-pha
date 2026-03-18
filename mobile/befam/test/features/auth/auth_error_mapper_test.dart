@@ -1,7 +1,9 @@
-import 'package:befam/features/auth/models/auth_issue.dart';
-import 'package:befam/features/auth/services/auth_error_mapper.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:befam/features/auth/models/auth_issue.dart';
+import 'package:befam/features/auth/services/auth_error_mapper.dart';
 
 void main() {
   group('AuthErrorMapper', () {
@@ -35,6 +37,35 @@ void main() {
       );
 
       expect(issue.key, AuthIssueKey.recaptchaVerificationFailed);
+    });
+
+    test('maps firebase functions invalid argument to preparation failed', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'invalid-argument',
+          message: 'invalid payload',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.preparationFailed);
+    });
+
+    test('maps firebase permission denied to operation not allowed', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+          message: 'Missing or insufficient permissions.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.operationNotAllowed);
+    });
+
+    test('maps unknown error to preparation failed', () {
+      final issue = AuthErrorMapper.map(StateError('boom'));
+
+      expect(issue.key, AuthIssueKey.preparationFailed);
     });
   });
 }

@@ -67,6 +67,21 @@ class AuthErrorMapper {
       };
     }
 
+    if (error is FirebaseException) {
+      final normalizedCode = error.code.trim().toLowerCase();
+      return switch (normalizedCode) {
+        'permission-denied' || 'permission_denied' => const AuthIssue(
+          AuthIssueKey.operationNotAllowed,
+        ),
+        'unavailable' || 'network-request-failed' => const AuthIssue(
+          AuthIssueKey.networkRequestFailed,
+        ),
+        'failed-precondition' ||
+        'failed_precondition' => const AuthIssue(AuthIssueKey.authUnavailable),
+        _ => const AuthIssue(AuthIssueKey.authUnavailable),
+      };
+    }
+
     return const AuthIssue(AuthIssueKey.preparationFailed);
   }
 }

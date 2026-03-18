@@ -422,8 +422,9 @@ class FirebaseAuthGateway implements AuthGateway {
         'memberId': memberId,
       });
 
-      await user.getIdToken(true);
-      return MemberAccessContext.fromFunctionsData(result.data);
+      final context = MemberAccessContext.fromFunctionsData(result.data);
+      await _refreshSessionTokenBestEffort(user);
+      return context;
     } on FirebaseFunctionsException catch (error) {
       if (!_shouldUseClientFallback(error.code, message: error.message)) {
         rethrow;
@@ -432,13 +433,60 @@ class FirebaseAuthGateway implements AuthGateway {
       AppLogger.warning(
         'claimMemberRecord callable unavailable; using client fallback claim flow.',
       );
-      return _claimMemberAccessWithoutFunctions(
-        user,
-        loginMethod: loginMethod,
-        childIdentifier: childIdentifier,
-        memberId: memberId,
-      );
+      try {
+        return await _claimMemberAccessWithoutFunctions(
+          user,
+          loginMethod: loginMethod,
+          childIdentifier: childIdentifier,
+          memberId: memberId,
+        );
+      } on FirebaseException catch (fallbackError, fallbackStackTrace) {
+        AppLogger.warning(
+          'Client fallback claim flow failed.',
+          fallbackError,
+          fallbackStackTrace,
+        );
+        if (_isFirestorePermissionFailure(fallbackError)) {
+          if (loginMethod == AuthEntryMethod.phone) {
+            AppLogger.warning(
+              'Fallback claim flow is blocked by Firestore rules; returning an unlinked session context.',
+            );
+            return MemberAccessContext.unlinked(
+              displayName: user.displayName ?? 'BeFam Member',
+            );
+          }
+          throw error;
+        }
+        rethrow;
+      }
     }
+  }
+
+  Future<void> _refreshSessionTokenBestEffort(User user) async {
+    for (var attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await user.getIdToken(true);
+        return;
+      } catch (error, stackTrace) {
+        if (attempt == 3) {
+          AppLogger.warning(
+            'Could not refresh Firebase ID token after claimMemberRecord; continuing with the current token.',
+            error,
+            stackTrace,
+          );
+          return;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 250 * attempt));
+      }
+    }
+  }
+
+  bool _isFirestorePermissionFailure(FirebaseException error) {
+    final code = error.code.trim().toLowerCase();
+    return code == 'permission-denied' ||
+        code == 'permission_denied' ||
+        code == 'failed-precondition' ||
+        code == 'failed_precondition';
   }
 
   Future<MemberAccessContext> _claimMemberAccessWithoutFunctions(
