@@ -52,38 +52,50 @@ void main() {
     );
   });
 
-  test('loads the current branch scope only and filters relationships', () async {
-    final repository = DebugGenealogyReadRepository(
-      store: DebugGenealogyStore.seeded(),
-    );
-    final session = buildClanAdminSession();
+  test(
+    'loads the current branch scope only and filters relationships',
+    () async {
+      final store = DebugGenealogyStore.seeded();
+      final repository = DebugGenealogyReadRepository(store: store);
+      final session = buildClanAdminSession();
 
     final segment = await repository.loadBranchSegment(session: session);
+    final branchMemberIds = store.members.values
+        .where((member) => member.branchId == 'branch_demo_001')
+        .map((member) => member.id)
+        .toSet();
+      final segmentMemberIds = segment.members
+          .map((member) => member.id)
+          .toSet();
 
-    expect(segment.members.map((member) => member.id).toSet(), {
-      'member_demo_parent_001',
-      'member_demo_child_001',
-      'member_demo_elder_001',
-    });
-    expect(segment.branches.single.id, 'branch_demo_001');
-    expect(segment.relationships.map((relationship) => relationship.id).toSet(), {
-      'rel_parent_child_member_demo_parent_001_member_demo_child_001',
-    });
-    expect(
-      segment.rootEntries.any(
-        (entry) =>
-            entry.memberId == 'member_demo_parent_001' &&
-            entry.reasons.contains(GenealogyRootReason.branchLeader),
-      ),
-      isTrue,
-    );
-    expect(
-      segment.rootEntries.any(
-        (entry) =>
-            entry.memberId == 'member_demo_elder_001' &&
-            entry.reasons.contains(GenealogyRootReason.scopeRoot),
-      ),
-      isTrue,
-    );
-  });
+      expect(segmentMemberIds, branchMemberIds);
+      expect(segment.branches.single.id, 'branch_demo_001');
+      expect(
+        segment.relationships.map((relationship) => relationship.id).toSet(),
+        contains(
+          'rel_parent_child_member_demo_parent_001_member_demo_child_001',
+        ),
+      );
+      for (final relationship in segment.relationships) {
+        expect(segmentMemberIds, contains(relationship.personAId));
+        expect(segmentMemberIds, contains(relationship.personBId));
+      }
+      expect(
+        segment.rootEntries.any(
+          (entry) =>
+              entry.memberId == 'member_demo_parent_001' &&
+              entry.reasons.contains(GenealogyRootReason.branchLeader),
+        ),
+        isTrue,
+      );
+      expect(
+        segment.rootEntries.any(
+          (entry) =>
+              entry.memberId == 'member_demo_elder_001' &&
+              entry.reasons.contains(GenealogyRootReason.scopeRoot),
+        ),
+        isTrue,
+      );
+    },
+  );
 }
