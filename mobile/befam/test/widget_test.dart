@@ -291,6 +291,7 @@ void main() {
       tester.view.physicalSize = const Size(320, 568);
       tester.binding.platformDispatcher.textScaleFactorTestValue = 1.35;
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 200));
 
       expect(find.text('Quản lý họ tộc'), findsOneWidget);
       expect(tester.takeException(), isNull);
