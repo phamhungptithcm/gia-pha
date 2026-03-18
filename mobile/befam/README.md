@@ -31,6 +31,18 @@ Enabled Flutter SDK packages:
 - `firebase_messaging`
 - `firebase_crashlytics`
 
+## Platform support
+
+Current baseline in this repository:
+
+- iOS `15.0+`
+- Android `API 24+` (Android 7.0+)
+
+Notes:
+
+- iOS minimum is aligned with current Firebase iOS plugin requirements.
+- Android minimum follows the current Flutter toolchain default and plugin constraints.
+
 ## Local workflow
 
 Install packages:
