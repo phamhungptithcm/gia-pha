@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
-import '../../../core/services/runtime_mode.dart';
 import '../models/auth_entry_method.dart';
 import '../models/auth_issue.dart';
 import '../models/auth_otp_request_result.dart';
@@ -22,11 +21,6 @@ enum AuthStep { loginMethodSelection, phoneNumber, childIdentifier, otp }
 typedef AuthOtpAction = Future<AuthOtpRequestResult> Function();
 
 class AuthController extends ChangeNotifier {
-  static const String _localBypassPhoneE164 = String.fromEnvironment(
-    'BEFAM_LOCAL_BYPASS_PHONE',
-    defaultValue: '+84901234567',
-  );
-
   AuthController({
     required AuthGateway authGateway,
     required AuthAnalyticsService analyticsService,
@@ -57,8 +51,6 @@ class AuthController extends ChangeNotifier {
   bool _disposed = false;
 
   bool get isSandbox => _authGateway.isSandbox;
-  bool get canUseLocalBypass =>
-      _authGateway.isSandbox && RuntimeMode.shouldBypassPhoneOtp;
 
   Future<void> initialize() async {
     if (_initialized) {
@@ -145,120 +137,19 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> submitPhoneNumber(String rawPhoneNumber) async {
-    final parsedPhone = PhoneNumberFormatter.parse(rawPhoneNumber);
-    await _startOtpRequest(
-      () => _authGateway.requestPhoneOtp(parsedPhone.e164),
-      method: AuthEntryMethod.phone,
-      source: 'phone_input',
-    );
-  }
-
-  Future<void> signInWithLocalBypass() async {
-    await signInWithLocalBypassPhone(_localBypassPhoneE164);
-  }
-
-  Future<void> signInWithLocalBypassPhone(String phoneE164) async {
-    if (!canUseLocalBypass || isBusy) {
-      return;
-    }
-    if (!_ensurePrivacyPolicyAccepted()) {
-      return;
-    }
-
-    _clearError();
-    unawaited(
-      _analyticsService.logLoginMethodSelected(
-        AuthEntryMethod.phone,
-        isSandbox: isSandbox,
-      ),
-    );
-
-    await _startOtpRequest(
-      () => _authGateway.requestPhoneOtp(phoneE164.trim()),
-      method: AuthEntryMethod.phone,
-      source: 'local_bypass',
-    );
-
-    final challenge = pendingChallenge;
-    if (session != null || challenge == null) {
-      return;
-    }
-
-    final otpHint = challenge.debugOtpHint;
-    if (otpHint == null || !RegExp(r'^\d{6}$').hasMatch(otpHint)) {
-      error = const AuthIssue(AuthIssueKey.preparationFailed);
-      _emit();
-      return;
-    }
-
-    await verifyOtp(otpHint);
-  }
-
-  Future<void> requestOtpForScenarioPhone(
-    String phoneE164, {
-    String? autoVerifyCode,
-  }) async {
-    if (isBusy) {
-      return;
-    }
-    if (!_ensurePrivacyPolicyAccepted()) {
-      return;
-    }
-
     late final String normalizedPhone;
     try {
-      normalizedPhone = PhoneNumberFormatter.parse(phoneE164).e164;
+      normalizedPhone = PhoneNumberFormatter.parse(rawPhoneNumber).e164;
     } catch (error) {
       this.error = AuthErrorMapper.map(error);
       _emit();
       return;
     }
-    AppLogger.info(
-      'Scenario OTP request started for $normalizedPhone (autoCode=${autoVerifyCode != null && autoVerifyCode.trim().isNotEmpty}).',
-    );
-
-    _clearError();
-    unawaited(
-      _analyticsService.logLoginMethodSelected(
-        AuthEntryMethod.phone,
-        isSandbox: isSandbox,
-      ),
-    );
-
     await _startOtpRequest(
       () => _authGateway.requestPhoneOtp(normalizedPhone),
       method: AuthEntryMethod.phone,
-      source: 'sandbox_profile',
+      source: 'phone_input',
     );
-
-    final challenge = pendingChallenge;
-    if (session != null || challenge == null) {
-      return;
-    }
-
-    final sanitizedAutoCode = autoVerifyCode
-        ?.replaceAll(RegExp(r'[^0-9]'), '')
-        .trim();
-    final shouldAutoVerifyScenarioCode = isSandbox;
-    if (shouldAutoVerifyScenarioCode &&
-        sanitizedAutoCode != null &&
-        RegExp(r'^\d{6}$').hasMatch(sanitizedAutoCode)) {
-      AppLogger.info(
-        'Scenario OTP auto-verify is enabled for $normalizedPhone.',
-      );
-      await verifyOtp(sanitizedAutoCode);
-      return;
-    }
-
-    if (canUseLocalBypass) {
-      final otpHint = challenge.debugOtpHint;
-      if (otpHint != null && RegExp(r'^\d{6}$').hasMatch(otpHint)) {
-        AppLogger.info(
-          'Scenario OTP fallback using debug hint for $normalizedPhone.',
-        );
-        await verifyOtp(otpHint);
-      }
-    }
   }
 
   Future<void> submitChildIdentifier(String rawChildIdentifier) async {
@@ -372,7 +263,7 @@ class AuthController extends ChangeNotifier {
 
     if (result.challenge case final PendingOtpChallenge challenge) {
       AppLogger.info(
-        '[$flowId] OTP challenge received (method=${challenge.loginMethod.name}, phone=${challenge.phoneE164}, verificationId=${challenge.verificationId}, hasDebugHint=${challenge.debugOtpHint != null}, source=$source).',
+        '[$flowId] OTP challenge received (method=${challenge.loginMethod.name}, phone=${challenge.phoneE164}, verificationId=${challenge.verificationId}, source=$source).',
       );
       pendingChallenge = challenge;
       step = AuthStep.otp;
