@@ -16,7 +16,7 @@ _Cập nhật gần nhất: 17/03/2026_
 | Sự kiện âm/dương lịch | Đã chạy | Tạo/sửa/xóa, lặp lại, nhắc lịch |
 | Quỹ dòng họ | Đã chạy | Danh sách/quỹ chi tiết/tạo quỹ/giao dịch/số dư chạy |
 | Khuyến học | Đã chạy | Chương trình, bậc thưởng, nộp và duyệt |
-| Khám phá gia phả | Đã chạy | Tìm kiếm công khai + gửi yêu cầu tham gia |
+| Khám phá gia phả | Đã chạy | Tìm kiếm công khai + duyệt yêu cầu tham gia + thông báo + cấp quyền truy cập sau duyệt |
 | Hồ sơ và cài đặt | Đã chạy nền tảng | Màn hình hồ sơ, sửa hồ sơ, placeholder tùy chọn |
 | Hộp thư thông báo | Đã chạy nền tảng | Danh sách thông báo, trạng thái đã đọc |
 | Gói dịch vụ | Đã chạy | Tính gói theo số thành viên |
@@ -39,3 +39,20 @@ _Cập nhật gần nhất: 17/03/2026_
 ### Kênh thanh toán
 - Luồng người dùng trên mobile ưu tiên VNPay.
 - Nhánh callback thẻ vẫn giữ cho tương thích backend.
+
+## Khám phá & chặn trùng gia phả (hiện tại)
+
+### Quy trình duyệt yêu cầu tham gia
+- Khi có yêu cầu mới, hệ thống gửi thông báo cho nhóm duyệt đủ quyền (trưởng tộc/phó/hỗ trợ và vai trò quản trị liên quan).
+- Quyết định duyệt/từ chối được ghi audit; thông báo cho người gửi yêu cầu có cơ chế idempotent.
+- Khi duyệt, backend cố gắng cấp ngữ cảnh truy cập cho người gửi (liên kết member + claim clan). Nếu chưa tự liên kết được, hệ thống vẫn lưu trạng thái provisioning để xử lý tiếp.
+
+### Chặn tạo trùng gia phả
+- Khi tạo thêm gia phả, hệ thống kiểm tra trùng dựa trên độ tương đồng tên gia phả + người đại diện + khu vực (đã chuẩn hóa).
+- Nếu phát hiện ứng viên trùng mạnh, hệ thống chặn bước tạo đầu tiên và trả danh sách để người dùng kiểm tra.
+- Chỉ khi người dùng xác nhận override rõ ràng thì mới cho tạo tiếp; hành động override được ghi audit.
+
+### Giới hạn heuristic
+- Có thể dương tính giả: họ/tộc phổ biến, tên người đại diện lặp lại ở nhiều khu vực.
+- Có thể âm tính giả: thiếu dữ liệu khu vực, khác biệt phiên âm, hoặc viết tắt không chuẩn.
+- Mọi lần kiểm tra trùng đều có log audit để tinh chỉnh ngưỡng/trọng số sau khi vận hành.
