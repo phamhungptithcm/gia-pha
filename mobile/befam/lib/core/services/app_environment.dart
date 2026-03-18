@@ -21,4 +21,14 @@ class AppEnvironment {
       .map((token) => token.trim().toLowerCase())
       .where((token) => token.isNotEmpty)
       .toSet();
+
+  static const bool enableAppCheck = bool.fromEnvironment(
+    'BEFAM_ENABLE_APP_CHECK',
+    defaultValue: true,
+  );
+
+  static const String appCheckWebRecaptchaSiteKey = String.fromEnvironment(
+    'BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY',
+    defaultValue: '',
+  );
 }

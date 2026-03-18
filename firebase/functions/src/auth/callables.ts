@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { getAuth } from 'firebase-admin/auth';
 import {
   FieldValue,
@@ -13,6 +15,7 @@ import {
 
 import {
   APP_REGION,
+  CALLABLE_ENFORCE_APP_CHECK,
   DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT,
 } from '../config/runtime';
 import { db } from '../shared/firestore';
@@ -57,6 +60,9 @@ type ResolvedChildLoginContext = {
   childIdentifier: string;
   parentPhoneE164: string;
   maskedDestination: string;
+};
+
+type InternalResolvedChildLoginContext = ResolvedChildLoginContext & {
   memberId: string;
   displayName: string;
   clanId: string;
@@ -141,6 +147,13 @@ const auditLogsCollection = db.collection('auditLogs');
 const debugLoginProfilesCollection = db.collection('debug_login_profiles');
 const usersCollection = db.collection('users');
 const genealogyDiscoveryCollection = db.collection('genealogyDiscoveryIndex');
+const authRateLimitsCollection = db.collection('authRateLimits');
+const CHILD_LOOKUP_WINDOW_MS = 5 * 60 * 1000;
+const CHILD_LOOKUP_MAX_REQUESTS = 8;
+const APP_CHECK_CALLABLE_OPTIONS = {
+  region: APP_REGION,
+  enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
+} as const;
 const debugTokenCallableOptions: {
   region: string;
   serviceAccount?: string;
@@ -150,31 +163,52 @@ if (DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT.length > 0) {
 }
 
 export const resolveChildLoginContext = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const childIdentifier = requireNonEmptyString(
       request.data,
       'childIdentifier',
     ).trim().toUpperCase();
+    await enforceChildLookupRateLimit(request, childIdentifier);
 
-    const resolved = await findChildLoginContext(childIdentifier);
+    let resolved: InternalResolvedChildLoginContext;
+    try {
+      resolved = await findChildLoginContext(childIdentifier);
+    } catch (error) {
+      if (error instanceof HttpsError && error.code === 'resource-exhausted') {
+        throw error;
+      }
+      logWarn('resolveChildLoginContext failed', {
+        childIdentifierHash: hashValueForLog(childIdentifier),
+        appId: request.app?.appId ?? null,
+        code: error instanceof HttpsError ? error.code : 'unknown',
+      });
+      throw new HttpsError(
+        'not-found',
+        'Child login context is unavailable. Please verify and try again.',
+      );
+    }
 
     logInfo('resolveChildLoginContext succeeded', {
-      childIdentifier: resolved.childIdentifier,
-      memberId: resolved.memberId,
-      clanId: resolved.clanId,
+      childIdentifierHash: hashValueForLog(resolved.childIdentifier),
+      maskedDestination: resolved.maskedDestination,
+      appId: request.app?.appId ?? null,
     });
 
-    return resolved;
+    return {
+      childIdentifier: resolved.childIdentifier,
+      parentPhoneE164: resolved.parentPhoneE164,
+      maskedDestination: resolved.maskedDestination,
+    };
   },
 );
 
-export const createInvite = onCall({ region: APP_REGION }, async (request) => {
+export const createInvite = onCall(APP_CHECK_CALLABLE_OPTIONS, async (request) => {
   const auth = requireAuth(request);
 
   logInfo('createInvite requested', {
     uid: auth.uid,
-    data: request.data,
+    payloadKeys: extractPayloadKeys(request.data),
   });
 
   throw new HttpsError(
@@ -183,7 +217,7 @@ export const createInvite = onCall({ region: APP_REGION }, async (request) => {
   );
 });
 
-export const claimMemberRecord = onCall({ region: APP_REGION }, async (request) => {
+export const claimMemberRecord = onCall(APP_CHECK_CALLABLE_OPTIONS, async (request) => {
   const auth = requireAuth(request);
   const loginMethod = requireLoginMethod(request.data);
 
@@ -267,7 +301,7 @@ export const claimMemberRecord = onCall({ region: APP_REGION }, async (request) 
 
     logWarn('claimMemberRecord found no member match', {
       uid: auth.uid,
-      phoneE164: effectiveAuthPhone,
+      maskedPhoneE164: maskPhone(effectiveAuthPhone),
     });
 
     return context;
@@ -301,7 +335,7 @@ export const claimMemberRecord = onCall({ region: APP_REGION }, async (request) 
     after: {
       accessMode: context.accessMode,
       linkedAuthUid: context.linkedAuthUid,
-      phoneE164: claimedMember.phoneE164,
+      maskedPhoneE164: maskPhone(claimedMember.phoneE164),
     },
   });
 
@@ -309,7 +343,7 @@ export const claimMemberRecord = onCall({ region: APP_REGION }, async (request) 
 });
 
 export const lookupMemberProfileByPhone = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request): Promise<LookupMemberProfileResponse> => {
     const auth = requireAuth(request);
     const role = normalizeRoleClaim(auth.token.primaryRole);
@@ -370,7 +404,7 @@ export const lookupMemberProfileByPhone = onCall(
 );
 
 export const bootstrapClanWorkspace = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const tokenClanIds = extractTokenClanIds(auth.token);
@@ -600,7 +634,7 @@ export const bootstrapClanWorkspace = onCall(
   },
 );
 
-export const registerDeviceToken = onCall({ region: APP_REGION }, async (request) => {
+export const registerDeviceToken = onCall(APP_CHECK_CALLABLE_OPTIONS, async (request) => {
   const auth = requireAuth(request);
   const token = requireNonEmptyString(request.data, 'token').trim();
   if (token.length > 4096) {
@@ -697,7 +731,7 @@ export const listDebugLoginProfiles = onCall(
 );
 
 export const listUserClanContexts = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const contexts = await loadLinkedClanContextsForUid(auth.uid);
@@ -716,7 +750,7 @@ export const listUserClanContexts = onCall(
 );
 
 export const switchActiveClanContext = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const requestedClanId = requireNonEmptyString(request.data, 'clanId');
@@ -875,7 +909,7 @@ export const issueDebugProfileCustomToken = onCall(
 
     logInfo('issueDebugProfileCustomToken succeeded', {
       uid,
-      phoneE164,
+      maskedPhoneE164: maskPhone(phoneE164),
       scenarioKey: profile.scenarioKey,
       memberId,
       hasAuth: request.auth != null,
@@ -1181,10 +1215,102 @@ function requireLoginMethod(data: unknown): LoginMethod {
 }
 
 function maskPhone(phoneE164: string): string {
+  if (phoneE164.trim().length === 0) {
+    return '';
+  }
   const visiblePrefix = phoneE164.startsWith('+84') ? '+84' : phoneE164.slice(0, 2);
   const visibleSuffix = phoneE164.slice(-2);
   const hiddenLength = Math.max(phoneE164.length - visiblePrefix.length - visibleSuffix.length, 4);
   return `${visiblePrefix}${'*'.repeat(hiddenLength)}${visibleSuffix}`;
+}
+
+function hashValueForLog(value: string): string {
+  return createHash('sha256').update(value).digest('hex').slice(0, 16);
+}
+
+function extractPayloadKeys(data: unknown): Array<string> {
+  if (data == null || typeof data !== 'object') {
+    return [];
+  }
+  return Object.keys(data as Record<string, unknown>).sort();
+}
+
+async function enforceChildLookupRateLimit(
+  request: CallableRequest<unknown>,
+  childIdentifier: string,
+): Promise<void> {
+  const nowMs = Date.now();
+  const currentWindowStartMs = nowMs - (nowMs % CHILD_LOOKUP_WINDOW_MS);
+  const fingerprint = resolveChildLookupFingerprint(request);
+  const docId = `child_lookup_${hashValueForLog(fingerprint)}`;
+  const rateLimitRef = authRateLimitsCollection.doc(docId);
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(rateLimitRef);
+    const existing = snapshot.data() as {
+      windowStartMs?: number | null;
+      requestCount?: number | null;
+    } | undefined;
+
+    const existingWindowStartMs = typeof existing?.windowStartMs === 'number'
+      ? Math.trunc(existing.windowStartMs)
+      : null;
+    const existingRequestCount = typeof existing?.requestCount === 'number'
+      ? Math.trunc(existing.requestCount)
+      : 0;
+
+    const isCurrentWindow = existingWindowStartMs === currentWindowStartMs;
+    const nextCount = isCurrentWindow ? existingRequestCount + 1 : 1;
+    if (isCurrentWindow && existingRequestCount >= CHILD_LOOKUP_MAX_REQUESTS) {
+      logWarn('resolveChildLoginContext rate limit exceeded', {
+        childIdentifierHash: hashValueForLog(childIdentifier),
+        fingerprint: hashValueForLog(fingerprint),
+        appId: request.app?.appId ?? null,
+      });
+      throw new HttpsError(
+        'resource-exhausted',
+        'Too many lookup attempts. Please wait a few minutes and try again.',
+      );
+    }
+
+    transaction.set(rateLimitRef, {
+      id: docId,
+      type: 'child_lookup',
+      fingerprintHash: hashValueForLog(fingerprint),
+      windowStartMs: currentWindowStartMs,
+      requestCount: nextCount,
+      sampleChildIdentifierHash: hashValueForLog(childIdentifier),
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(nowMs + (CHILD_LOOKUP_WINDOW_MS * 2)),
+    }, { merge: true });
+  });
+}
+
+function resolveChildLookupFingerprint(request: CallableRequest<unknown>): string {
+  const appId = request.app?.appId?.trim();
+  const rawRequest = request.rawRequest as {
+    ip?: string;
+    headers?: { [key: string]: unknown };
+  } | undefined;
+  const ipFromRequest = rawRequest?.ip?.trim();
+  const xForwardedFor = rawRequest?.headers != null &&
+      typeof rawRequest.headers['x-forwarded-for'] === 'string'
+    ? rawRequest.headers['x-forwarded-for'].trim()
+    : '';
+  const ip = ipFromRequest && ipFromRequest.length > 0
+    ? ipFromRequest
+    : xForwardedFor.split(',')[0]?.trim();
+
+  if (appId != null && appId.length > 0 && ip != null && ip.length > 0) {
+    return `app:${appId}|ip:${ip}`;
+  }
+  if (appId != null && appId.length > 0) {
+    return `app:${appId}`;
+  }
+  if (ip != null && ip.length > 0) {
+    return `ip:${ip}`;
+  }
+  return 'anonymous';
 }
 
 function inviteIsActive(invite: InviteRecord): boolean {
@@ -1202,7 +1328,7 @@ function inviteIsActive(invite: InviteRecord): boolean {
 
 async function findChildLoginContext(
   childIdentifier: string,
-): Promise<ResolvedChildLoginContext> {
+): Promise<InternalResolvedChildLoginContext> {
   const inviteSnapshot = await invitesCollection
     .where('childIdentifier', '==', childIdentifier)
     .limit(5)
@@ -1246,7 +1372,7 @@ async function findChildLoginContext(
 
 async function findChildLoginContextByMemberId(
   memberId: string | null | undefined,
-): Promise<ResolvedChildLoginContext> {
+): Promise<InternalResolvedChildLoginContext> {
   if (memberId == null || memberId.length === 0) {
     throw new HttpsError(
       'invalid-argument',
@@ -1291,7 +1417,7 @@ function buildResolvedChildContext(
   childIdentifier: string,
   parentPhoneE164: string,
   memberSnapshot: DocumentSnapshot,
-): ResolvedChildLoginContext {
+): InternalResolvedChildLoginContext {
   const memberId = memberSnapshot.id;
   const member = memberSnapshot.data() as MemberRecord | undefined;
   if (member == null || member.clanId == null || member.branchId == null) {
@@ -1468,7 +1594,7 @@ async function claimMemberTransaction({
 
 function buildMemberSessionContext(
   memberId: string,
-  source: MemberRecord | ResolvedChildLoginContext,
+  source: MemberRecord | InternalResolvedChildLoginContext,
   accessMode: MemberAccessMode,
   linkedAuthUid: boolean,
 ): MemberSessionContext {

@@ -57,6 +57,18 @@ service firebase.storage {
       ];
     }
 
+    function isScholarshipCouncilHead() {
+      return signedIn() && primaryRole() == 'SCHOLARSHIP_COUNCIL_HEAD';
+    }
+
+    function isScholarshipReviewerOrAdmin() {
+      return isClanAdmin() || isScholarshipCouncilHead();
+    }
+
+    function isScholarshipEvidencePath(path) {
+      return path is string && path.matches('^scholarship/evidence/.*$');
+    }
+
     match /clans/{clanId}/members/{memberId}/avatar/{fileName} {
       allow read: if hasClanAccess(clanId);
       allow write: if
@@ -67,12 +79,40 @@ service firebase.storage {
     }
 
     match /clans/{clanId}/{allPaths=**} {
-      allow read: if hasClanAccess(clanId);
-      allow write: if isClanAdmin() && hasClanAccess(clanId);
+      allow read: if
+        hasClanAccess(clanId) &&
+        !isScholarshipEvidencePath(allPaths);
+      allow write: if
+        isClanAdmin() &&
+        hasClanAccess(clanId) &&
+        !isScholarshipEvidencePath(allPaths);
+    }
+
+    match /clans/{clanId}/scholarship/evidence/{fileName} {
+      allow read: if hasClanAccess(clanId) && isScholarshipReviewerOrAdmin();
+      allow write: if false;
+    }
+
+    match /clans/{clanId}/scholarship/evidence/{memberId}/{fileName} {
+      allow read: if
+        hasClanAccess(clanId) &&
+        (
+          memberId == memberIdClaim() ||
+          isScholarshipReviewerOrAdmin()
+        );
+      allow write: if
+        hasClanAccess(clanId) &&
+        memberId == memberIdClaim() &&
+        request.resource.size < 20 * 1024 * 1024;
     }
 
     match /submissions/{clanId}/{memberId}/{fileName} {
-      allow read: if hasClanAccess(clanId);
+      allow read: if
+        hasClanAccess(clanId) &&
+        (
+          memberId == memberIdClaim() ||
+          isScholarshipReviewerOrAdmin()
+        );
       allow write: if
         hasClanAccess(clanId) &&
         memberId == memberIdClaim() &&

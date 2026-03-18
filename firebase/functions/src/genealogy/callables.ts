@@ -10,7 +10,7 @@ import {
   type CallableRequest,
 } from 'firebase-functions/v2/https';
 
-import { APP_REGION } from '../config/runtime';
+import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from '../config/runtime';
 import { requireAuth } from '../shared/errors';
 import { db } from '../shared/firestore';
 import { logInfo } from '../shared/logger';
@@ -35,9 +35,13 @@ type AuthToken = NonNullable<CallableRequest<unknown>['auth']>['token'];
 const membersCollection = db.collection('members');
 const relationshipsCollection = db.collection('relationships');
 const auditLogsCollection = db.collection('auditLogs');
+const APP_CHECK_CALLABLE_OPTIONS = {
+  region: APP_REGION,
+  enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
+} as const;
 
 export const createParentChildRelationship = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const parentId = requireNonEmptyString(request.data, 'parentId');
@@ -153,7 +157,7 @@ export const createParentChildRelationship = onCall(
 );
 
 export const createSpouseRelationship = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const memberId = requireNonEmptyString(request.data, 'memberId');

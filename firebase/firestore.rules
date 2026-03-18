@@ -93,6 +93,10 @@ service cloud.firestore {
       return primaryRole() == 'SCHOLARSHIP_COUNCIL_HEAD';
     }
 
+    function isScholarshipReviewerOrAdmin() {
+      return isClanAdmin() || isScholarshipCouncilHead();
+    }
+
     function isFinanceViewer() {
       return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN', 'TREASURER'];
     }
@@ -394,7 +398,12 @@ service cloud.firestore {
     }
 
     match /achievementSubmissions/{submissionId} {
-      allow read: if hasClanAccess(resource.data.clanId);
+      allow read: if
+        hasClanAccess(resource.data.clanId) &&
+        (
+          resource.data.memberId == memberIdClaim() ||
+          isScholarshipReviewerOrAdmin()
+        );
       allow create: if
         hasClanAccess(request.resource.data.clanId) &&
         request.resource.data.memberId == memberIdClaim();
