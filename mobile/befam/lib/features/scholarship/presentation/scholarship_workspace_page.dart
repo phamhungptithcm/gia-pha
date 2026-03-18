@@ -2759,7 +2759,7 @@ String _formatApprovalLogTimestamp(BuildContext context, String value) {
     return l10n.pick(vi: 'Thời gian: không xác định', en: 'Time: unknown');
   }
 
-  final twoDigits = (int number) => number.toString().padLeft(2, '0');
+  String twoDigits(int number) => number.toString().padLeft(2, '0');
   final rendered =
       '${twoDigits(parsed.day)}/${twoDigits(parsed.month)}/${parsed.year} '
       '${twoDigits(parsed.hour)}:${twoDigits(parsed.minute)}';
