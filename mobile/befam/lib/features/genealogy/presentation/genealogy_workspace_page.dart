@@ -575,26 +575,33 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         return;
       }
 
-      final callable = FirebaseServices.functions.httpsCallable(
-        'bootstrapClanWorkspace',
-      );
-      final response = await callable.call(<String, dynamic>{
-        'name': payload.draft.name,
-        'slug': payload.draft.slug,
-        'description': payload.draft.description,
-        'countryCode': payload.draft.countryCode,
-        'founderName': payload.draft.founderName,
-        'logoUrl': payload.draft.logoUrl,
-        'allowExistingClan': true,
-      });
+      String createdClanId = '';
+      try {
+        createdClanId = await _callBootstrapAdditionalClan(
+          payload: payload,
+          duplicateOverride: false,
+        );
+      } on FirebaseFunctionsException catch (error) {
+        final candidates = _extractDuplicateCandidates(error);
+        if (!_isPotentialDuplicateError(error) || candidates.isEmpty) {
+          rethrow;
+        }
+
+        final acceptedOverride = await _confirmDuplicateClanOverride(
+          candidates: candidates,
+        );
+        if (!acceptedOverride) {
+          return;
+        }
+        createdClanId = await _callBootstrapAdditionalClan(
+          payload: payload,
+          duplicateOverride: true,
+        );
+      }
 
       if (!mounted) {
         return;
       }
-      final data = response.data;
-      final createdClanId = data is Map
-          ? (data['clanId'] as String? ?? '')
-          : '';
       ScaffoldMessenger.maybeOf(context)
         ?..hideCurrentSnackBar()
         ..showSnackBar(
@@ -656,6 +663,167 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         setState(() => _isSubmittingAddClan = false);
       }
     }
+  }
+
+  Future<String> _callBootstrapAdditionalClan({
+    required _AdditionalClanPayload payload,
+    required bool duplicateOverride,
+  }) async {
+    final callable = FirebaseServices.functions.httpsCallable(
+      'bootstrapClanWorkspace',
+    );
+    final response = await callable.call(<String, dynamic>{
+      'name': payload.draft.name,
+      'slug': payload.draft.slug,
+      'description': payload.draft.description,
+      'countryCode': payload.draft.countryCode,
+      'founderName': payload.draft.founderName,
+      'logoUrl': payload.draft.logoUrl,
+      'allowExistingClan': true,
+      'duplicateOverride': duplicateOverride,
+    });
+    final data = response.data;
+    if (data is Map) {
+      return (data['clanId'] as String? ?? '').trim();
+    }
+    return '';
+  }
+
+  bool _isPotentialDuplicateError(FirebaseFunctionsException error) {
+    if (error.code != 'already-exists') {
+      return false;
+    }
+    if (error.details is! Map) {
+      return false;
+    }
+    final details = error.details as Map;
+    return (details['reason'] as String?) == 'potential_duplicate_genealogy';
+  }
+
+  List<_DuplicateGenealogyCandidate> _extractDuplicateCandidates(
+    FirebaseFunctionsException error,
+  ) {
+    if (error.details is! Map) {
+      return const [];
+    }
+    final details = error.details as Map;
+    final rawCandidates = details['candidates'];
+    if (rawCandidates is! List) {
+      return const [];
+    }
+    return rawCandidates
+        .whereType<Map>()
+        .map((item) => _DuplicateGenealogyCandidate.fromUnknownMap(item))
+        .whereType<_DuplicateGenealogyCandidate>()
+        .toList(growable: false);
+  }
+
+  Future<bool> _confirmDuplicateClanOverride({
+    required List<_DuplicateGenealogyCandidate> candidates,
+  }) async {
+    if (!mounted) {
+      return false;
+    }
+    final l10n = context.l10n;
+    return await showModalBottomSheet<bool>(
+          context: context,
+          useSafeArea: true,
+          isScrollControlled: true,
+          builder: (context) {
+            final theme = Theme.of(context);
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.pick(
+                        vi: 'Phát hiện gia phả có thể bị trùng',
+                        en: 'Potential duplicate genealogy detected',
+                      ),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      l10n.pick(
+                        vi: 'Vui lòng kiểm tra các gia phả bên dưới trước khi tạo mới. Bạn vẫn có thể tiếp tục nếu chắc chắn đây là gia phả khác.',
+                        en: 'Please review the candidates below before creating a new tree. You can still continue if this is intentionally different.',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: candidates.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final candidate = candidates[index];
+                          return DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    candidate.genealogyName,
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    l10n.pick(
+                                      vi: 'Trưởng tộc: ${candidate.leaderName}\nKhu vực: ${candidate.provinceCity.isEmpty ? 'Chưa cập nhật' : candidate.provinceCity}\nĐộ tương đồng: ${candidate.score}%',
+                                      en: 'Leader: ${candidate.leaderName}\nLocation: ${candidate.provinceCity.isEmpty ? 'Not specified' : candidate.provinceCity}\nSimilarity: ${candidate.score}%',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: Text(
+                              l10n.pick(vi: 'Kiểm tra lại', en: 'Review first'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: Text(
+                              l10n.pick(
+                                vi: 'Vẫn tạo gia phả mới',
+                                en: 'Create anyway',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
   }
 
   Future<void> _openAddPrivateBranchSheet() async {
@@ -2504,6 +2672,46 @@ class _AdditionalClanPayload {
   const _AdditionalClanPayload({required this.draft});
 
   final ClanDraft draft;
+}
+
+class _DuplicateGenealogyCandidate {
+  const _DuplicateGenealogyCandidate({
+    required this.clanId,
+    required this.genealogyName,
+    required this.leaderName,
+    required this.provinceCity,
+    required this.score,
+  });
+
+  final String clanId;
+  final String genealogyName;
+  final String leaderName;
+  final String provinceCity;
+  final int score;
+
+  static _DuplicateGenealogyCandidate? fromUnknownMap(Map raw) {
+    final clanId = '${raw['clanId'] ?? ''}'.trim();
+    if (clanId.isEmpty) {
+      return null;
+    }
+    return _DuplicateGenealogyCandidate(
+      clanId: clanId,
+      genealogyName: '${raw['genealogyName'] ?? clanId}'.trim(),
+      leaderName: '${raw['leaderName'] ?? ''}'.trim(),
+      provinceCity: '${raw['provinceCity'] ?? ''}'.trim(),
+      score: _parseScore(raw['score']),
+    );
+  }
+
+  static int _parseScore(Object? value) {
+    if (value is int) {
+      return value.clamp(0, 100);
+    }
+    if (value is num) {
+      return value.round().clamp(0, 100);
+    }
+    return 0;
+  }
 }
 
 class _PrivateBranchPayload {

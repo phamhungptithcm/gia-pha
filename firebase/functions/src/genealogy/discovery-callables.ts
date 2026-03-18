@@ -1,3 +1,4 @@
+import { getAuth } from 'firebase-admin/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -41,15 +42,55 @@ type JoinRequestRecord = {
   contactInfo?: string | null;
   contactInfoNormalized?: string | null;
   message?: string | null;
+  reviewedByMemberId?: string | null;
+  reviewerRole?: string | null;
+  reviewNote?: string | null;
+  accessProvisioningStatus?: string | null;
+  accessProvisioned?: boolean | null;
+  linkedApplicantMemberId?: string | null;
 };
 
 type MemberRecord = {
+  clanId?: string | null;
+  branchId?: string | null;
+  fullName?: string | null;
+  nickName?: string | null;
+  authUid?: string | null;
   primaryRole?: string | null;
   status?: string | null;
+  phoneE164?: string | null;
+  email?: string | null;
 };
 
 type UserRecord = {
   memberId?: string | null;
+  clanId?: string | null;
+  clanIds?: Array<string> | null;
+  branchId?: string | null;
+  primaryRole?: string | null;
+};
+
+type JoinRequestAccessProvisionResult = {
+  status:
+    | 'linked'
+    | 'pending_applicant_uid'
+    | 'pending_member_mapping'
+    | 'member_not_found'
+    | 'member_clan_mismatch'
+    | 'member_already_linked'
+    | 'applicant_account_missing'
+    | 'not_required';
+  linkedMemberId: string | null;
+  clanIds: Array<string>;
+};
+
+type LinkedClanContext = {
+  clanId: string;
+  memberId: string;
+  branchId: string | null;
+  primaryRole: string;
+  displayName: string | null;
+  status: string | null;
 };
 
 const discoveryCollection = db.collection('genealogyDiscoveryIndex');
@@ -233,12 +274,28 @@ export const reviewJoinRequest = onCall(
     }
 
     const nextStatus = decision === 'approve' ? 'approved' : 'rejected';
+    const accessProvisioning = nextStatus === 'approved'
+      ? await provisionApprovedJoinRequestAccess({
+        requestId,
+        clanId,
+        joinRequest,
+        reviewerUid: auth.uid,
+        reviewerMemberId,
+      })
+      : {
+        status: 'not_required',
+        linkedMemberId: null,
+        clanIds: [],
+      } satisfies JoinRequestAccessProvisionResult;
     await joinRequestRef.set(
       {
         status: nextStatus,
         reviewedByMemberId: reviewerMemberId,
         reviewerRole,
         reviewNote: note,
+        accessProvisioningStatus: accessProvisioning.status,
+        accessProvisioned: accessProvisioning.status === 'linked',
+        linkedApplicantMemberId: accessProvisioning.linkedMemberId,
         reviewedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       },
@@ -257,6 +314,8 @@ export const reviewJoinRequest = onCall(
       after: {
         status: nextStatus,
         reviewerRole,
+        accessProvisioningStatus: accessProvisioning.status,
+        linkedApplicantMemberId: accessProvisioning.linkedMemberId,
       },
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -269,6 +328,8 @@ export const reviewJoinRequest = onCall(
       reviewerMemberId,
       reviewerRole,
       note,
+      accessProvisioningStatus: accessProvisioning.status,
+      linkedApplicantMemberId: accessProvisioning.linkedMemberId,
     });
 
     logInfo('reviewJoinRequest succeeded', {
@@ -277,6 +338,7 @@ export const reviewJoinRequest = onCall(
       reviewerMemberId,
       reviewerRole,
       nextStatus,
+      accessProvisioningStatus: accessProvisioning.status,
       ...applicantDelivery,
     });
 
@@ -285,6 +347,8 @@ export const reviewJoinRequest = onCall(
       clanId,
       status: nextStatus,
       applicantNotified: applicantDelivery.sent,
+      accessProvisioningStatus: accessProvisioning.status,
+      linkedApplicantMemberId: accessProvisioning.linkedMemberId,
     };
   },
 );
@@ -448,6 +512,7 @@ async function notifyReviewersForJoinRequest(input: {
       extraData: {
         target: 'join_request',
         joinRequestId: input.joinRequestId,
+        referencePath: buildJoinRequestReferencePath(input.clanId, input.joinRequestId),
       },
     });
   }
@@ -458,6 +523,7 @@ async function notifyReviewersForJoinRequest(input: {
     eventType: 'reviewer_inbound',
     clanId: input.clanId,
     audienceCount: audience.length,
+    referencePath: buildJoinRequestReferencePath(input.clanId, input.joinRequestId),
     createdAt: FieldValue.serverTimestamp(),
   });
 
@@ -472,6 +538,8 @@ async function notifyApplicantForJoinRequest(input: {
   reviewerMemberId: string;
   reviewerRole: string;
   note: string | null;
+  accessProvisioningStatus: JoinRequestAccessProvisionResult['status'];
+  linkedApplicantMemberId: string | null;
 }): Promise<{ sent: boolean; recipientMemberId: string | null }> {
   const eventId = `${input.requestId}_applicant`;
   const eventRef = joinRequestNotificationEventsCollection.doc(eventId);
@@ -483,6 +551,9 @@ async function notifyApplicantForJoinRequest(input: {
 
   let recipientMemberId = stringOrNull(input.joinRequest.applicantMemberId);
   if (recipientMemberId == null) {
+    recipientMemberId = input.linkedApplicantMemberId;
+  }
+  if (recipientMemberId == null) {
     const applicantUid = stringOrNull(input.joinRequest.applicantUid);
     if (applicantUid != null) {
       const userSnapshot = await usersCollection.doc(applicantUid).get();
@@ -493,20 +564,30 @@ async function notifyApplicantForJoinRequest(input: {
 
   let sent = false;
   if (recipientMemberId != null) {
+    const approvedAndLinked = input.nextStatus === 'approved' &&
+      input.accessProvisioningStatus === 'linked';
+    const approvedPendingAccess = input.nextStatus === 'approved' &&
+      !approvedAndLinked;
+    const body = approvedAndLinked
+      ? 'Your join request has been approved. Access is now available.'
+      : approvedPendingAccess
+        ? 'Your join request was approved and is waiting for membership linking.'
+        : 'Your join request was not approved at this time.';
+
     await notifyMembers({
       clanId: input.clanId,
       memberIds: [recipientMemberId],
       type: 'join_request_reviewed',
       title: input.nextStatus === 'approved' ? 'Join request approved' : 'Join request reviewed',
-      body: input.nextStatus === 'approved'
-        ? 'Your join request has been approved.'
-        : 'Your join request was not approved at this time.',
+      body,
       target: 'generic',
       targetId: input.requestId,
       extraData: {
         target: 'join_request',
         joinRequestId: input.requestId,
         status: input.nextStatus,
+        accessProvisioningStatus: input.accessProvisioningStatus,
+        referencePath: buildJoinRequestReferencePath(input.clanId, input.requestId),
       },
     });
     sent = true;
@@ -522,7 +603,10 @@ async function notifyApplicantForJoinRequest(input: {
     reviewerRole: input.reviewerRole,
     status: input.nextStatus,
     note: input.note,
+    accessProvisioningStatus: input.accessProvisioningStatus,
+    linkedApplicantMemberId: input.linkedApplicantMemberId,
     sent,
+    referencePath: buildJoinRequestReferencePath(input.clanId, input.requestId),
     createdAt: FieldValue.serverTimestamp(),
   });
 
@@ -532,11 +616,349 @@ async function notifyApplicantForJoinRequest(input: {
     eventType: 'applicant_outbound',
     clanId: input.clanId,
     recipientMemberId,
+    accessProvisioningStatus: input.accessProvisioningStatus,
+    linkedApplicantMemberId: input.linkedApplicantMemberId,
     sent,
+    referencePath: buildJoinRequestReferencePath(input.clanId, input.requestId),
     createdAt: FieldValue.serverTimestamp(),
   });
 
   return { sent, recipientMemberId };
+}
+
+async function provisionApprovedJoinRequestAccess(input: {
+  requestId: string;
+  clanId: string;
+  joinRequest: JoinRequestRecord;
+  reviewerUid: string;
+  reviewerMemberId: string;
+}): Promise<JoinRequestAccessProvisionResult> {
+  const applicantUid = stringOrNull(input.joinRequest.applicantUid);
+  if (applicantUid == null) {
+    return {
+      status: 'pending_applicant_uid',
+      linkedMemberId: null,
+      clanIds: [],
+    };
+  }
+
+  const userSnapshot = await usersCollection.doc(applicantUid).get();
+  const userData = userSnapshot.data() as UserRecord | undefined;
+  const targetMemberId = await resolveJoinRequestApplicantMemberId({
+    clanId: input.clanId,
+    joinRequest: input.joinRequest,
+    fallbackMemberId: stringOrNull(userData?.memberId),
+  });
+  if (targetMemberId == null) {
+    return {
+      status: 'pending_member_mapping',
+      linkedMemberId: null,
+      clanIds: [],
+    };
+  }
+
+  const memberRef = membersCollection.doc(targetMemberId);
+  const memberSnapshot = await memberRef.get();
+  if (!memberSnapshot.exists || memberSnapshot.data() == null) {
+    return {
+      status: 'member_not_found',
+      linkedMemberId: targetMemberId,
+      clanIds: [],
+    };
+  }
+
+  const member = memberSnapshot.data() as MemberRecord;
+  if (stringOrNull(member.clanId) !== input.clanId) {
+    return {
+      status: 'member_clan_mismatch',
+      linkedMemberId: targetMemberId,
+      clanIds: [],
+    };
+  }
+
+  const existingAuthUid = stringOrNull(member.authUid);
+  if (existingAuthUid != null && existingAuthUid !== applicantUid) {
+    return {
+      status: 'member_already_linked',
+      linkedMemberId: targetMemberId,
+      clanIds: [],
+    };
+  }
+
+  const memberPatch: Record<string, unknown> = {
+    authUid: applicantUid,
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: input.reviewerMemberId,
+  };
+  if (existingAuthUid == null) {
+    memberPatch.claimedAt = FieldValue.serverTimestamp();
+  }
+  await memberRef.set(memberPatch, { merge: true });
+
+  const contexts = await loadLinkedClanContextsForUid(applicantUid);
+  const fallbackContext = linkedContextFromMemberSnapshot(targetMemberId, member);
+  if (contexts.length === 0 && fallbackContext == null) {
+    return {
+      status: 'pending_member_mapping',
+      linkedMemberId: targetMemberId,
+      clanIds: [],
+    };
+  }
+
+  const mergedContexts = contexts.length > 0
+    ? contexts
+    : [fallbackContext!];
+  const existingUserClanId = stringOrNull(userData?.clanId);
+  const activeContext = selectActiveContext({
+    contexts: mergedContexts,
+    preferredClanId: existingUserClanId,
+    fallbackClanId: input.clanId,
+  });
+  if (activeContext == null) {
+    return {
+      status: 'pending_member_mapping',
+      linkedMemberId: targetMemberId,
+      clanIds: [],
+    };
+  }
+
+  const orderedClanIds = [
+    activeContext.clanId,
+    ...mergedContexts
+      .map((context) => context.clanId)
+      .filter((clanId) => clanId !== activeContext.clanId),
+  ];
+
+  const authAdmin = getAuth();
+  let authUserClaims: Record<string, unknown> = {};
+  try {
+    const authUser = await authAdmin.getUser(applicantUid);
+    authUserClaims = authUser.customClaims ?? {};
+  } catch {
+    return {
+      status: 'applicant_account_missing',
+      linkedMemberId: targetMemberId,
+      clanIds: orderedClanIds,
+    };
+  }
+
+  await authAdmin.setCustomUserClaims(applicantUid, {
+    ...authUserClaims,
+    clanIds: orderedClanIds,
+    clanId: activeContext.clanId,
+    activeClanId: activeContext.clanId,
+    memberId: activeContext.memberId,
+    branchId: activeContext.branchId ?? '',
+    primaryRole: activeContext.primaryRole,
+    memberAccessMode: 'claimed',
+  });
+
+  await usersCollection.doc(applicantUid).set(
+    {
+      uid: applicantUid,
+      memberId: activeContext.memberId,
+      clanId: activeContext.clanId,
+      clanIds: orderedClanIds,
+      branchId: activeContext.branchId ?? '',
+      primaryRole: activeContext.primaryRole,
+      accessMode: 'claimed',
+      linkedAuthUid: true,
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  await auditLogsCollection.add({
+    clanId: input.clanId,
+    action: 'join_request_access_provisioned',
+    entityType: 'join_request',
+    entityId: input.requestId,
+    uid: input.reviewerUid,
+    memberId: input.reviewerMemberId,
+    after: {
+      applicantUid,
+      linkedMemberId: targetMemberId,
+      activeClanId: activeContext.clanId,
+      activeMemberId: activeContext.memberId,
+      clanIds: orderedClanIds,
+    },
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  return {
+    status: 'linked',
+    linkedMemberId: targetMemberId,
+    clanIds: orderedClanIds,
+  };
+}
+
+async function resolveJoinRequestApplicantMemberId(input: {
+  clanId: string;
+  joinRequest: JoinRequestRecord;
+  fallbackMemberId: string | null;
+}): Promise<string | null> {
+  const directCandidates = [
+    stringOrNull(input.joinRequest.applicantMemberId),
+    input.fallbackMemberId,
+  ]
+    .filter((entry): entry is string => entry != null)
+    .map((entry) => entry.trim())
+    .filter((entry, index, source) => entry.length > 0 && source.indexOf(entry) === index);
+  if (directCandidates.length > 0) {
+    return directCandidates[0]!;
+  }
+
+  const normalizedContact = normalizeContact(stringOrNull(input.joinRequest.contactInfo) ?? '');
+  if (normalizedContact.length === 0) {
+    return null;
+  }
+
+  const snapshot = await membersCollection
+    .where('clanId', '==', input.clanId)
+    .limit(500)
+    .get();
+  const matches = snapshot.docs
+    .filter((doc) => {
+      const member = doc.data() as MemberRecord;
+      const phone = normalizeContact(stringOrNull(member.phoneE164) ?? '');
+      const email = normalizeContact(stringOrNull(member.email) ?? '');
+      return phone === normalizedContact || email === normalizedContact;
+    })
+    .map((doc) => doc.id);
+  if (matches.length === 1) {
+    return matches[0]!;
+  }
+  return null;
+}
+
+async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedClanContext>> {
+  const snapshot = await membersCollection
+    .where('authUid', '==', uid)
+    .limit(300)
+    .get();
+  if (snapshot.empty) {
+    return [];
+  }
+
+  const byClan = new Map<string, LinkedClanContext>();
+  for (const doc of snapshot.docs) {
+    const member = doc.data() as MemberRecord;
+    const clanId = stringOrNull(member.clanId);
+    if (clanId == null) {
+      continue;
+    }
+    const candidate: LinkedClanContext = {
+      clanId,
+      memberId: doc.id,
+      branchId: stringOrNull(member.branchId),
+      primaryRole: normalizeRole(stringOrNull(member.primaryRole) ?? 'MEMBER'),
+      displayName: stringOrNull(member.fullName) ?? stringOrNull(member.nickName),
+      status: stringOrNull(member.status),
+    };
+    const existing = byClan.get(clanId);
+    if (existing == null || preferredClanContext(candidate, existing)) {
+      byClan.set(clanId, candidate);
+    }
+  }
+
+  return [...byClan.values()];
+}
+
+function linkedContextFromMemberSnapshot(
+  memberId: string,
+  member: MemberRecord,
+): LinkedClanContext | null {
+  const clanId = stringOrNull(member.clanId);
+  if (clanId == null) {
+    return null;
+  }
+  return {
+    clanId,
+    memberId,
+    branchId: stringOrNull(member.branchId),
+    primaryRole: normalizeRole(stringOrNull(member.primaryRole) ?? 'MEMBER'),
+    displayName: stringOrNull(member.fullName) ?? stringOrNull(member.nickName),
+    status: stringOrNull(member.status),
+  };
+}
+
+function selectActiveContext(input: {
+  contexts: Array<LinkedClanContext>;
+  preferredClanId: string | null;
+  fallbackClanId: string;
+}): LinkedClanContext | null {
+  if (input.contexts.length === 0) {
+    return null;
+  }
+
+  if (input.preferredClanId != null) {
+    const preferred = input.contexts.find((entry) => entry.clanId === input.preferredClanId);
+    if (preferred != null) {
+      return preferred;
+    }
+  }
+
+  const fallback = input.contexts.find((entry) => entry.clanId === input.fallbackClanId);
+  if (fallback != null) {
+    return fallback;
+  }
+
+  return input.contexts[0] ?? null;
+}
+
+function preferredClanContext(candidate: LinkedClanContext, current: LinkedClanContext): boolean {
+  const candidateRank = rolePriority(candidate.primaryRole);
+  const currentRank = rolePriority(current.primaryRole);
+  if (candidateRank !== currentRank) {
+    return candidateRank > currentRank;
+  }
+
+  const candidateActive = (candidate.status ?? 'active').toLowerCase() === 'active';
+  const currentActive = (current.status ?? 'active').toLowerCase() === 'active';
+  if (candidateActive !== currentActive) {
+    return candidateActive;
+  }
+
+  return candidate.memberId.localeCompare(current.memberId) < 0;
+}
+
+function rolePriority(role: string): number {
+  const normalized = normalizeRole(role);
+  switch (normalized) {
+    case 'SUPER_ADMIN':
+      return 100;
+    case 'CLAN_ADMIN':
+      return 95;
+    case 'CLAN_OWNER':
+      return 90;
+    case 'CLAN_LEADER':
+      return 85;
+    case 'VICE_LEADER':
+      return 80;
+    case 'SUPPORTER_OF_LEADER':
+      return 75;
+    case 'BRANCH_ADMIN':
+      return 70;
+    case 'ADMIN_SUPPORT':
+      return 65;
+    case 'TREASURER':
+      return 60;
+    case 'SCHOLARSHIP_COUNCIL_HEAD':
+      return 55;
+    case 'MEMBER':
+      return 30;
+    default:
+      return 10;
+  }
+}
+
+function normalizeRole(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+function buildJoinRequestReferencePath(clanId: string, joinRequestId: string): string {
+  return `/clans/${clanId}/join-requests/${joinRequestId}`;
 }
 
 function sanitizeDiscoveryResult(entry: { id: string } & DiscoveryRecord) {

@@ -96,6 +96,16 @@ type ClanRecord = {
   status?: string | null;
 };
 
+type DiscoveryIndexRecord = {
+  clanId?: string | null;
+  genealogyName?: string | null;
+  genealogyNameNormalized?: string | null;
+  leaderName?: string | null;
+  leaderNameNormalized?: string | null;
+  provinceCity?: string | null;
+  provinceCityNormalized?: string | null;
+};
+
 type DebugLoginProfileResponse = {
   scenarioKey: string;
   phoneE164: string;
@@ -437,6 +447,10 @@ export const bootstrapClanWorkspace = onCall(
     const clanName = requireNonEmptyString(request.data, 'name');
     const requestedSlug = optionalString(request.data, 'slug');
     const slug = normalizeSlug(requestedSlug ?? clanName);
+    const duplicateOverride = request.data != null &&
+      typeof request.data === 'object' &&
+      (request.data as Record<string, unknown>).duplicateOverride === true;
+    const provinceCityHint = optionalString(request.data, 'provinceCity') ?? '';
     if (slug.length < 3) {
       throw new HttpsError(
         'invalid-argument',
@@ -460,6 +474,58 @@ export const bootstrapClanWorkspace = onCall(
     const ownerRole = resolveOwnerRole(role);
     const ownerPhone = optionalString(auth.token, 'phone_number');
     const normalizedFullName = ownerDisplayName.trim().toLowerCase();
+    const duplicateCandidates = allowExistingClan
+      ? await findPotentialDuplicateGenealogies({
+        genealogyName: clanName,
+        leaderName: ownerDisplayName,
+        provinceCity: provinceCityHint.length > 0
+          ? provinceCityHint
+          : countryCode,
+      })
+      : [];
+    if (duplicateCandidates.length > 0 && !duplicateOverride) {
+      await writeAuditLog({
+        uid: auth.uid,
+        memberId: activeMemberIdFromToken,
+        clanId: activeClanIdFromToken,
+        action: 'clan_workspace_duplicate_blocked',
+        entityType: 'clan',
+        entityId: 'bootstrap',
+        after: {
+          requestedName: clanName,
+          requestedFounderName: ownerDisplayName,
+          requestedProvinceCity: provinceCityHint,
+          candidateCount: duplicateCandidates.length,
+          candidateIds: duplicateCandidates.map((candidate) => candidate.clanId),
+        },
+      });
+
+      throw new HttpsError(
+        'already-exists',
+        'Potential duplicate genealogy detected. Review candidates before creating a new clan.',
+        {
+          reason: 'potential_duplicate_genealogy',
+          candidates: duplicateCandidates,
+        },
+      );
+    }
+    if (duplicateCandidates.length > 0 && duplicateOverride) {
+      await writeAuditLog({
+        uid: auth.uid,
+        memberId: activeMemberIdFromToken,
+        clanId: activeClanIdFromToken,
+        action: 'clan_workspace_duplicate_override',
+        entityType: 'clan',
+        entityId: 'bootstrap',
+        after: {
+          requestedName: clanName,
+          requestedFounderName: ownerDisplayName,
+          requestedProvinceCity: provinceCityHint,
+          candidateCount: duplicateCandidates.length,
+          candidateIds: duplicateCandidates.map((candidate) => candidate.clanId),
+        },
+      });
+    }
 
     const clanRef = clansCollection.doc();
     const branchRef = branchesCollection.doc();
@@ -562,8 +628,8 @@ export const bootstrapClanWorkspace = onCall(
         genealogyNameNormalized: normalizeSearch(clanName),
         leaderName: ownerDisplayName,
         leaderNameNormalized: normalizeSearch(ownerDisplayName),
-        provinceCity: '',
-        provinceCityNormalized: '',
+        provinceCity: provinceCityHint,
+        provinceCityNormalized: normalizeSearch(provinceCityHint),
         summary: description,
         memberCount: 1,
         branchCount: 1,
@@ -1157,6 +1223,135 @@ function normalizeSlug(value: string): string {
 
 function normalizeSearch(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+async function findPotentialDuplicateGenealogies(input: {
+  genealogyName: string;
+  leaderName: string;
+  provinceCity: string;
+}): Promise<Array<{
+  clanId: string;
+  genealogyName: string;
+  leaderName: string;
+  provinceCity: string;
+  score: number;
+}>> {
+  const name = normalizeDiscoveryText(input.genealogyName);
+  const leader = normalizeDiscoveryText(input.leaderName);
+  const location = normalizeDiscoveryText(input.provinceCity);
+  if (name.length === 0 || leader.length === 0) {
+    return [];
+  }
+
+  const snapshot = await genealogyDiscoveryCollection.limit(250).get();
+  return snapshot.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() as DiscoveryIndexRecord) }))
+    .map((entry) => ({
+      clanId: optionalTrimmedRecordString(entry.clanId) ?? entry.id,
+      genealogyName: optionalTrimmedRecordString(entry.genealogyName) ?? 'Unnamed genealogy',
+      leaderName: optionalTrimmedRecordString(entry.leaderName) ?? 'Unknown leader',
+      provinceCity: optionalTrimmedRecordString(entry.provinceCity) ?? '',
+      score: duplicateScore({
+        genealogyName: normalizeDiscoveryText(
+          optionalTrimmedRecordString(entry.genealogyNameNormalized) ??
+            optionalTrimmedRecordString(entry.genealogyName) ??
+            '',
+        ),
+        leaderName: normalizeDiscoveryText(
+          optionalTrimmedRecordString(entry.leaderNameNormalized) ??
+            optionalTrimmedRecordString(entry.leaderName) ??
+            '',
+        ),
+        provinceCity: normalizeDiscoveryText(
+          optionalTrimmedRecordString(entry.provinceCityNormalized) ??
+            optionalTrimmedRecordString(entry.provinceCity) ??
+            '',
+        ),
+      }, {
+        genealogyName: name,
+        leaderName: leader,
+        provinceCity: location,
+      }),
+    }))
+    .filter((candidate) => candidate.score >= 55)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 10);
+}
+
+function duplicateScore(
+  entry: {
+    genealogyName: string;
+    leaderName: string;
+    provinceCity: string;
+  },
+  input: {
+    genealogyName: string;
+    leaderName: string;
+    provinceCity: string;
+  },
+): number {
+  let score = 0;
+  if (entry.genealogyName === input.genealogyName) {
+    score += 60;
+  } else if (
+    entry.genealogyName.includes(input.genealogyName) ||
+    input.genealogyName.includes(entry.genealogyName)
+  ) {
+    score += 40;
+  } else {
+    score += overlapTokenScore(entry.genealogyName, input.genealogyName, 32);
+  }
+
+  if (entry.leaderName === input.leaderName) {
+    score += 25;
+  } else if (
+    entry.leaderName.includes(input.leaderName) ||
+    input.leaderName.includes(entry.leaderName)
+  ) {
+    score += 15;
+  }
+
+  if (entry.provinceCity.length > 0 && input.provinceCity.length > 0) {
+    if (entry.provinceCity === input.provinceCity) {
+      score += 20;
+    } else if (
+      entry.provinceCity.includes(input.provinceCity) ||
+      input.provinceCity.includes(entry.provinceCity)
+    ) {
+      score += 10;
+    }
+  }
+  return score;
+}
+
+function overlapTokenScore(left: string, right: string, maxScore: number): number {
+  const leftTokens = new Set(left.split(' ').filter(Boolean));
+  const rightTokens = new Set(right.split(' ').filter(Boolean));
+  if (leftTokens.size === 0 || rightTokens.size === 0) {
+    return 0;
+  }
+  let overlap = 0;
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) {
+      overlap += 1;
+    }
+  }
+  const ratio = overlap / Math.max(leftTokens.size, rightTokens.size);
+  return Math.round(ratio * maxScore);
+}
+
+function normalizeDiscoveryText(value: string): string {
+  return (value ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/[àáạảãăằắặẳẵâầấậẩẫ]/g, 'a')
+    .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+    .replace(/[ìíịỉĩ]/g, 'i')
+    .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+    .replace(/[ùúụủũưừứựửữ]/g, 'u')
+    .replace(/[ỳýỵỷỹ]/g, 'y')
+    .replace(/đ/g, 'd')
+    .replace(/\s+/g, ' ');
 }
 
 function normalizeCountryCode(value: string | null): string {
