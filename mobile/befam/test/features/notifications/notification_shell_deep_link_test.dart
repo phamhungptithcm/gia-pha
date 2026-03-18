@@ -18,6 +18,42 @@ void main() {
     }
   }
 
+  Future<void> openProfileTab(WidgetTester tester) async {
+    final railFinder = find.byType(NavigationRail);
+    if (tester.any(railFinder)) {
+      final profileIcon = find.descendant(
+        of: railFinder,
+        matching: find.byIcon(Icons.person_outline),
+      );
+      if (tester.any(profileIcon)) {
+        await tester.tap(profileIcon.first);
+        return;
+      }
+      final selectedProfileIcon = find.descendant(
+        of: railFinder,
+        matching: find.byIcon(Icons.person),
+      );
+      await tester.tap(selectedProfileIcon.first);
+      return;
+    }
+
+    final navBarFinder = find.byType(NavigationBar);
+    final profileIcon = find.descendant(
+      of: navBarFinder,
+      matching: find.byIcon(Icons.person_outline),
+    );
+    if (tester.any(profileIcon)) {
+      await tester.tap(profileIcon.first);
+      return;
+    }
+
+    final selectedProfileIcon = find.descendant(
+      of: navBarFinder,
+      matching: find.byIcon(Icons.person),
+    );
+    await tester.tap(selectedProfileIcon.first);
+  }
+
   AuthSession buildSession() {
     return AuthSession(
       uid: 'debug:+84901234567',
@@ -115,45 +151,44 @@ void main() {
     expect(find.text('submission_demo_001'), findsOneWidget);
   });
 
-  testWidgets(
-    'renders notification settings toggles on Profile tab',
-    (tester) async {
-      await tester.pumpWidget(
-        _ShellTestApp(
-          child: AppShellPage(
-            status: buildReadyStatus(),
-            session: buildSession(),
-            clanRepository: DebugClanRepository.seeded(),
-            memberRepository: DebugMemberRepository.seeded(),
-            pushNotificationService: _ControllablePushNotificationService(),
-          ),
+  testWidgets('renders notification settings toggles on Profile tab', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _ShellTestApp(
+        child: AppShellPage(
+          status: buildReadyStatus(),
+          session: buildSession(),
+          clanRepository: DebugClanRepository.seeded(),
+          memberRepository: DebugMemberRepository.seeded(),
+          pushNotificationService: _ControllablePushNotificationService(),
         ),
-      );
-      await pumpUi(tester);
+      ),
+    );
+    await pumpUi(tester);
 
-      await tester.tap(find.text('Profile'));
-      await pumpUi(tester, frames: 36);
-      await tester.tap(find.byTooltip('Open settings'));
-      await pumpUi(tester, frames: 36);
+    await openProfileTab(tester);
+    await pumpUi(tester, frames: 36);
+    await tester.tap(find.byTooltip('Open settings'));
+    await pumpUi(tester, frames: 36);
 
-      expect(
-        find.byKey(const Key('notification-setting-event-updates')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('notification-setting-scholarship-updates')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('notification-setting-general-updates')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('notification-setting-quiet-hours')),
-        findsOneWidget,
-      );
-    },
-  );
+    expect(
+      find.byKey(const Key('notification-setting-event-updates')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('notification-setting-scholarship-updates')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('notification-setting-general-updates')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('notification-setting-quiet-hours')),
+      findsOneWidget,
+    );
+  });
 }
 
 class _ControllablePushNotificationService implements PushNotificationService {
