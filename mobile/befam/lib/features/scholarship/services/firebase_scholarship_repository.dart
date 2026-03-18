@@ -481,6 +481,14 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
           'duplicate_vote',
         );
       }
+      final normalizedMessage = (error.message ?? '').toLowerCase();
+      if (error.code == 'failed-precondition' &&
+          normalizedMessage.contains('exactly 3 active council heads')) {
+        throw ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.validationFailed,
+          'council_configuration_invalid',
+        );
+      }
       if (error.code == 'permission-denied') {
         throw ScholarshipRepositoryException(
           ScholarshipRepositoryErrorCode.permissionDenied,
