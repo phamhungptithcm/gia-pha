@@ -1539,6 +1539,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'This sign-in method is not enabled for the current Firebase project.';
 
   @override
+  String get authIssueWebDomainNotAuthorized =>
+      'This domain is not enabled in Firebase Authentication. Add it to the Authorized domains list.';
+
+  @override
+  String get authIssueRecaptchaVerificationFailed =>
+      'reCAPTCHA verification failed. Reload the page and try again.';
+
+  @override
   String get authIssueAuthUnavailable =>
       'Authentication could not be completed right now.';
 

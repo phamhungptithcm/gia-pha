@@ -1532,6 +1532,14 @@ class AppLocalizationsVi extends AppLocalizations {
       'Phương thức đăng nhập này chưa được bật cho dự án Firebase hiện tại.';
 
   @override
+  String get authIssueWebDomainNotAuthorized =>
+      'Tên miền hiện tại chưa được bật trong Firebase Authentication. Hãy thêm tên miền này vào danh sách Authorized domains.';
+
+  @override
+  String get authIssueRecaptchaVerificationFailed =>
+      'Xác minh reCAPTCHA chưa thành công. Hãy tải lại trang và thử lại.';
+
+  @override
   String get authIssueAuthUnavailable => 'Hiện chưa thể hoàn tất xác thực.';
 
   @override

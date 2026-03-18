@@ -534,6 +534,8 @@
   "authIssueMemberClaimConflict": "More than one member profile uses this phone number. Please contact a clan administrator.",
   "authIssueParentVerificationMismatch": "The verified phone number does not match the parent phone linked to that child access code.",
   "authIssueOperationNotAllowed": "This sign-in method is not enabled for the current Firebase project.",
+  "authIssueWebDomainNotAuthorized": "This domain is not enabled in Firebase Authentication. Add it to the Authorized domains list.",
+  "authIssueRecaptchaVerificationFailed": "reCAPTCHA verification failed. Reload the page and try again.",
   "authIssueAuthUnavailable": "Authentication could not be completed right now.",
   "authIssuePreparationFailed": "Something went wrong while preparing sign-in. Please try again.",
   "eventWorkspaceTitle": "Events workspace",

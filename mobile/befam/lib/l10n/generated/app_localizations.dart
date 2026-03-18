@@ -2858,6 +2858,18 @@ abstract class AppLocalizations {
   /// **'Phương thức đăng nhập này chưa được bật cho dự án Firebase hiện tại.'**
   String get authIssueOperationNotAllowed;
 
+  /// No description provided for @authIssueWebDomainNotAuthorized.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tên miền hiện tại chưa được bật trong Firebase Authentication. Hãy thêm tên miền này vào danh sách Authorized domains.'**
+  String get authIssueWebDomainNotAuthorized;
+
+  /// No description provided for @authIssueRecaptchaVerificationFailed.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xác minh reCAPTCHA chưa thành công. Hãy tải lại trang và thử lại.'**
+  String get authIssueRecaptchaVerificationFailed;
+
   /// No description provided for @authIssueAuthUnavailable.
   ///
   /// In vi, this message translates to:

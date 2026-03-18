@@ -115,6 +115,24 @@ jobs:
       - name: Run Flutter tests
         run: flutter test
 
+      - name: Run Flutter web smoke tests
+        run: xvfb-run -a flutter test --platform chrome test/app/web/web_marketing_pages_test.dart
+
+      - name: Build Flutter web
+        env:
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+          BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
+        run: |
+          befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
+          befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
+          flutter build web \
+            --release \
+            --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
+            --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
+            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}"
+
       - name: Build Android release APK
         run: flutter build apk --release --build-name 0.0.0 --build-number 1
 

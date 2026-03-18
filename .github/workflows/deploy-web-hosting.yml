@@ -1,0 +1,135 @@
+name: Deploy Web Hosting
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+    paths:
+      - 'mobile/befam/**'
+      - 'firebase.json'
+      - '.firebaserc'
+      - '.github/workflows/deploy-web-hosting.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-web-hosting-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-web:
+    name: build-web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile/befam
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Generate localization files
+        run: flutter gen-l10n
+
+      - name: Build Flutter web
+        env:
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+          BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
+        run: |
+          befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
+          befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
+          flutter build web \
+            --release \
+            --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
+            --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
+            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}"
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: befam-web-build
+          path: mobile/befam/build/web
+
+  deploy-hosting:
+    name: deploy-hosting
+    needs: build-web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download web artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: befam-web-build
+          path: mobile/befam/build/web
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Write Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+          test -n "$FIREBASE_PROJECT_ID"
+          CREDENTIALS_PATH="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIALS_PATH"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$CREDENTIALS_PATH" >> "$GITHUB_ENV"
+          echo "GOOGLE_CLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+
+      - name: Deploy Firebase Hosting
+        env:
+          FIREBASE_HOSTING_TARGET: ${{ vars.FIREBASE_HOSTING_TARGET }}
+          FIREBASE_HOSTING_STAGING_CHANNEL: ${{ vars.FIREBASE_HOSTING_STAGING_CHANNEL }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID}"
+          target="${FIREBASE_HOSTING_TARGET:-}"
+
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            if [ -n "$target" ]; then
+              firebase deploy --project "$project" --non-interactive --only "hosting:${target}"
+            else
+              firebase deploy --project "$project" --non-interactive --only hosting
+            fi
+            exit 0
+          fi
+
+          channel="${FIREBASE_HOSTING_STAGING_CHANNEL:-staging}"
+          if [ -n "$target" ]; then
+            firebase hosting:channel:deploy "$channel" \
+              --project "$project" \
+              --non-interactive \
+              --expires 30d \
+              --only "$target"
+          else
+            firebase hosting:channel:deploy "$channel" \
+              --project "$project" \
+              --non-interactive \
+              --expires 30d
+          fi
