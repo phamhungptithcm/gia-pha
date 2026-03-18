@@ -138,3 +138,8 @@ export const BILLING_QR_IMAGE_PRO_URL = readEnvString(
 export const DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT = readEnvString(
   'DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT',
 );
+
+export const CALLABLE_ENFORCE_APP_CHECK = readEnvBoolean(
+  'CALLABLE_ENFORCE_APP_CHECK',
+  readEnvString('FUNCTIONS_EMULATOR', 'false').toLowerCase() !== 'true',
+);

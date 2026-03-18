@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/l10n.dart';
 
@@ -90,6 +91,8 @@ class WebAboutUsPage extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 20),
+            const _FounderContactCard(),
           ],
         ),
       ),
@@ -185,7 +188,18 @@ class _WebMarketingLayout extends StatelessWidget {
                   children: [
                     _TopNavigation(currentPath: currentPath),
                     const SizedBox(height: 16),
-                    Expanded(child: SingleChildScrollView(child: child)),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            child,
+                            const SizedBox(height: 12),
+                            const _WebFooter(),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -410,25 +424,41 @@ class _FeatureGrid extends StatelessWidget {
         ? 2
         : 1;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final spacing = 14.0;
-        final totalSpacing = spacing * (columns - 1);
-        final cardWidth = (constraints.maxWidth - totalSpacing) / columns;
+    const spacing = 14.0;
+    final rows = <List<_FeatureItem>>[];
+    for (var index = 0; index < items.length; index += columns) {
+      final end = (index + columns > items.length)
+          ? items.length
+          : index + columns;
+      rows.add(items.sublist(index, end));
+    }
 
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: items
-              .map(
-                (item) => SizedBox(
-                  width: cardWidth.clamp(260, 520),
-                  child: _FeatureCard(item: item),
-                ),
-              )
-              .toList(growable: false),
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) ...[
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (
+                  var columnIndex = 0;
+                  columnIndex < columns;
+                  columnIndex++
+                ) ...[
+                  Expanded(
+                    child: columnIndex < rows[rowIndex].length
+                        ? _FeatureCard(item: rows[rowIndex][columnIndex])
+                        : const SizedBox.shrink(),
+                  ),
+                  if (columnIndex < columns - 1) const SizedBox(width: spacing),
+                ],
+              ],
+            ),
+          ),
+          if (rowIndex < rows.length - 1) const SizedBox(height: spacing),
+        ],
+      ],
     );
   }
 }
@@ -551,6 +581,129 @@ class _InfoBulletList extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _FounderContactCard extends StatelessWidget {
+  const _FounderContactCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.person_rounded, size: 30),
+                const SizedBox(width: 14),
+                Text(
+                  'Thông tin liên hệ',
+                  style: textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Phạm Hùng',
+              style: textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const _ContactRow(
+              icon: Icons.phone_rounded,
+              value: '+19452369965',
+              link: 'tel:+19452369965',
+            ),
+            const SizedBox(height: 8),
+            const _ContactRow(
+              icon: Icons.location_on_rounded,
+              value: '1801 McCord Way, Frisco, TX 75033',
+            ),
+            const SizedBox(height: 8),
+            const _ContactRow(
+              icon: Icons.email_rounded,
+              value: 'phamhung.pitit@gmail.com',
+              link: 'mailto:phamhung.pitit@gmail.com',
+            ),
+            const SizedBox(height: 8),
+            const _ContactRow(
+              icon: Icons.facebook_rounded,
+              value: 'Facebook',
+              link: 'https://www.facebook.com/hawaihouu',
+            ),
+            const SizedBox(height: 8),
+            const _ContactRow(
+              icon: Icons.work_rounded,
+              value: 'LinkedIn',
+              link: 'https://www.linkedin.com/in/hunpham',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactRow extends StatelessWidget {
+  const _ContactRow({required this.icon, required this.value, this.link});
+
+  final IconData icon;
+  final String value;
+  final String? link;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    Widget content = Text(value, style: textTheme.bodyLarge);
+    if (link != null) {
+      content = InkWell(
+        onTap: () async {
+          await launchUrl(Uri.parse(link!), mode: LaunchMode.platformDefault);
+        },
+        child: Text(
+          value,
+          style: textTheme.bodyLarge?.copyWith(
+            color: colorScheme.primary,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 10),
+        Expanded(child: content),
+      ],
+    );
+  }
+}
+
+class _WebFooter extends StatelessWidget {
+  const _WebFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    final year = DateTime.now().year;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 20),
+      child: Text(
+        'Copyright © $year BeFam. All rights reserved.',
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodyMedium,
       ),
     );
   }

@@ -445,6 +445,17 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
       );
       return;
     }
+    if (errorHint.contains('council_configuration_invalid') ||
+        errorHint.contains('council configuration invalid') ||
+        errorHint.contains('exactly 3 active council heads')) {
+      _showResultSnackBar(
+        l10n.pick(
+          vi: 'Hội đồng học bổng phải có đúng 3 Trưởng hội đồng đang hoạt động để áp dụng quy tắc 2/3.',
+          en: 'Scholarship council must have exactly 3 active heads for the 2-of-3 workflow.',
+        ),
+      );
+      return;
+    }
 
     _showResultSnackBar(
       l10n.pick(
@@ -768,6 +779,18 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                       en: 'Scholarship submissions are finalized automatically at 2 approvals (or 2 rejections).',
                                     ),
                                   ),
+                                  if (!_controller
+                                      .isCouncilVotingConfigured) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      l10n.pick(
+                                        vi: 'Cấu hình hiện tại chưa hợp lệ cho quy tắc 2/3. Cần đúng 3 Trưởng hội đồng hoạt động.',
+                                        en: 'Current council setup is not valid for the 2-of-3 rule. Exactly 3 active council heads are required.',
+                                      ),
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(color: colorScheme.error),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -1062,6 +1085,13 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                       en: 'Your session cannot review scholarship submissions.',
                                     ),
                                   )
+                                : !_controller.isCouncilVotingConfigured
+                                ? _InlineEmpty(
+                                    message: l10n.pick(
+                                      vi: 'Hội đồng học bổng phải có đúng 3 Trưởng hội đồng đang hoạt động trước khi bỏ phiếu.',
+                                      en: 'Scholarship council must have exactly 3 active heads before voting.',
+                                    ),
+                                  )
                                 : reviewQueue.isEmpty
                                 ? _InlineEmpty(
                                     message: l10n.pick(
@@ -1120,6 +1150,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                         onPressed:
                                                             _controller
                                                                     .isReviewing ||
+                                                                !_controller
+                                                                    .isCouncilVotingConfigured ||
                                                                 _controller
                                                                     .hasCurrentReviewerVoted(
                                                                       submission,
@@ -1153,6 +1185,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                         onPressed:
                                                             _controller
                                                                     .isReviewing ||
+                                                                !_controller
+                                                                    .isCouncilVotingConfigured ||
                                                                 _controller
                                                                     .hasCurrentReviewerVoted(
                                                                       submission,
@@ -1220,10 +1254,24 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                               '${_approvalActionLabel(context, log.action)} • ${_approvalDecisionLabel(context, log.decision)}',
                                             ),
                                             subtitle: Text(
-                                              l10n.pick(
-                                                vi: 'Hồ sơ ${log.submissionId} • ${_controller.memberName(log.actorMemberId)}',
-                                                en: 'Submission ${log.submissionId} • ${_controller.memberName(log.actorMemberId)}',
-                                              ),
+                                              [
+                                                l10n.pick(
+                                                  vi: 'Hồ sơ ${log.submissionId} • ${_controller.memberName(log.actorMemberId)}',
+                                                  en: 'Submission ${log.submissionId} • ${_controller.memberName(log.actorMemberId)}',
+                                                ),
+                                                _formatApprovalLogTimestamp(
+                                                  context,
+                                                  log.createdAtIso,
+                                                ),
+                                                if (log.note
+                                                        ?.trim()
+                                                        .isNotEmpty ==
+                                                    true)
+                                                  l10n.pick(
+                                                    vi: 'Ghi chú: ${log.note}',
+                                                    en: 'Note: ${log.note}',
+                                                  ),
+                                              ].join('\n'),
                                             ),
                                           ),
                                       ],
@@ -1419,6 +1467,24 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
                                             if (controller
                                                     .canReviewSubmissions &&
                                                 submission.isPending) ...[
+                                              if (!controller
+                                                  .isCouncilVotingConfigured) ...[
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  l10n.pick(
+                                                    vi: 'Tạm khóa bỏ phiếu vì hội đồng chưa đủ 3 Trưởng hội đồng hoạt động.',
+                                                    en: 'Voting is temporarily locked because the council does not have 3 active heads.',
+                                                  ),
+                                                  style: theme
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: theme
+                                                            .colorScheme
+                                                            .error,
+                                                      ),
+                                                ),
+                                              ],
                                               const SizedBox(height: 10),
                                               Row(
                                                 children: [
@@ -1429,9 +1495,13 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
                                                       ),
                                                       onPressed:
                                                           controller
-                                                              .hasCurrentReviewerVoted(
-                                                                submission,
-                                                              )
+                                                                  .isReviewing ||
+                                                              !controller
+                                                                  .isCouncilVotingConfigured ||
+                                                              controller
+                                                                  .hasCurrentReviewerVoted(
+                                                                    submission,
+                                                                  )
                                                           ? null
                                                           : () {
                                                               onReviewSubmission(
@@ -1456,9 +1526,13 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
                                                       ),
                                                       onPressed:
                                                           controller
-                                                              .hasCurrentReviewerVoted(
-                                                                submission,
-                                                              )
+                                                                  .isReviewing ||
+                                                              !controller
+                                                                  .isCouncilVotingConfigured ||
+                                                              controller
+                                                                  .hasCurrentReviewerVoted(
+                                                                    submission,
+                                                                  )
                                                           ? null
                                                           : () {
                                                               onReviewSubmission(
@@ -2676,6 +2750,20 @@ String _approvalDecisionLabel(BuildContext context, String? decision) {
     null || '' => l10n.pick(vi: 'không có', en: 'n/a'),
     _ => decision!.toUpperCase(),
   };
+}
+
+String _formatApprovalLogTimestamp(BuildContext context, String value) {
+  final l10n = context.l10n;
+  final parsed = DateTime.tryParse(value)?.toLocal();
+  if (parsed == null) {
+    return l10n.pick(vi: 'Thời gian: không xác định', en: 'Time: unknown');
+  }
+
+  String twoDigits(int number) => number.toString().padLeft(2, '0');
+  final rendered =
+      '${twoDigits(parsed.day)}/${twoDigits(parsed.month)}/${parsed.year} '
+      '${twoDigits(parsed.hour)}:${twoDigits(parsed.minute)}';
+  return l10n.pick(vi: 'Thời gian: $rendered', en: 'Time: $rendered');
 }
 
 String? _nullableText(String value) {

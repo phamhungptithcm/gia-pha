@@ -88,7 +88,6 @@ export const reviewScholarshipSubmission = onCall(
     const councilSnapshot = await membersCollection
       .where('clanId', '==', clanId)
       .where('primaryRole', '==', GOVERNANCE_ROLES.scholarshipCouncilHead)
-      .limit(6)
       .get();
     const activeCouncilMemberIds = councilSnapshot.docs
       .filter((doc) => {
@@ -103,10 +102,10 @@ export const reviewScholarshipSubmission = onCall(
         'Only active Scholarship Council Heads can review submissions.',
       );
     }
-    if (activeCouncilMemberIds.length > 3) {
+    if (activeCouncilMemberIds.length !== 3) {
       throw new HttpsError(
         'failed-precondition',
-        'Council configuration invalid: more than 3 active council heads.',
+        'Council configuration invalid: exactly 3 active council heads are required for 2-of-3 voting.',
       );
     }
 
@@ -158,6 +157,13 @@ export const reviewScholarshipSubmission = onCall(
       } else if (rejectionCount >= 2) {
         nextStatus = 'rejected';
       }
+      const finalDecisionReason = nextStatus === 'pending'
+        ? null
+        : resolveFinalDecisionReason({
+          status: nextStatus,
+          latestNote: note,
+          votes: nextVotes,
+        });
 
       transaction.set(
         submissionRef,
@@ -166,8 +172,8 @@ export const reviewScholarshipSubmission = onCall(
           approvalCount,
           rejectionCount,
           status: nextStatus,
-          finalDecisionReason: nextStatus === 'pending' ? null : note ?? null,
-          reviewNote: nextStatus === 'pending' ? null : note ?? null,
+          finalDecisionReason,
+          reviewNote: finalDecisionReason,
           reviewedBy: nextStatus === 'pending' ? null : memberId,
           reviewedAt: nextStatus === 'pending' ? null : FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
@@ -193,7 +199,7 @@ export const reviewScholarshipSubmission = onCall(
           decision: nextStatus,
           actorMemberId: memberId,
           actorRole,
-          note,
+          note: finalDecisionReason,
         });
       }
 
@@ -284,6 +290,36 @@ function normalizeVotes(input: SubmissionRecord['approvalVotes']): Array<{
     });
   }
   return votes;
+}
+
+function resolveFinalDecisionReason(input: {
+  status: 'approved' | 'rejected';
+  latestNote: string | null;
+  votes: Array<{
+    memberId: string;
+    decision: 'approve' | 'reject';
+    createdAt: string;
+    note: string | null;
+  }>;
+}): string | null {
+  const latest = stringOrNull(input.latestNote);
+  if (latest != null) {
+    return latest;
+  }
+
+  const decision = input.status === 'approved' ? 'approve' : 'reject';
+  for (let index = input.votes.length - 1; index >= 0; index -= 1) {
+    const vote = input.votes[index];
+    if (vote.decision !== decision) {
+      continue;
+    }
+    const resolved = stringOrNull(vote.note);
+    if (resolved != null) {
+      return resolved;
+    }
+  }
+
+  return null;
 }
 
 function requireNonEmptyString(data: unknown, key: string): string {

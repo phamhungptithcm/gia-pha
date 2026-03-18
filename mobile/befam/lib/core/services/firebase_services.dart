@@ -26,5 +26,6 @@ class FirebaseServices {
     'Functions',
     'Storage',
     'Messaging',
+    'App Check',
   ];
 }

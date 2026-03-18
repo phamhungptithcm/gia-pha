@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { FieldValue } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 
@@ -177,7 +179,7 @@ export async function notifyMembers(
           .catch((error: unknown) => {
             logWarn('failed to cleanup invalid device token', {
               uid: metadata.uid,
-              token,
+              tokenFingerprint: fingerprintToken(token),
               error: `${error}`,
             });
           });
@@ -326,4 +328,13 @@ function chunk<T>(values: Array<T>, size: number): Array<Array<T>> {
     chunks.push(values.slice(i, i + size));
   }
   return chunks;
+}
+
+function fingerprintToken(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return 'token:masked';
+  }
+  const digest = createHash('sha256').update(trimmed).digest('hex').slice(0, 16);
+  return `token_hash:${digest}`;
 }

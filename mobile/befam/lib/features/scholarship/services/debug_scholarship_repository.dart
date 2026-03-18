@@ -80,6 +80,16 @@ class DebugScholarshipRepository implements ScholarshipRepository {
 
     final submissions = _store.submissions.values
         .where((submission) => submission.clanId == clanId)
+        .where((submission) {
+          final canReadClanWide =
+              GovernanceRoleMatrix.canManageScholarshipPrograms(session) ||
+              GovernanceRoleMatrix.canVoteScholarship(session);
+          if (canReadClanWide) {
+            return true;
+          }
+          final memberId = session.memberId?.trim() ?? '';
+          return memberId.isNotEmpty && submission.memberId == memberId;
+        })
         .sorted(
           (left, right) => right.updatedAtIso.compareTo(left.updatedAtIso) != 0
               ? right.updatedAtIso.compareTo(left.updatedAtIso)
@@ -92,16 +102,7 @@ class DebugScholarshipRepository implements ScholarshipRepository {
         if (member.clanId == clanId) member.id: member.fullName,
     };
 
-    final councilHeadMemberIds = _genealogyStore.members.values
-        .where(
-          (member) =>
-              member.clanId == clanId &&
-              member.primaryRole.trim().toUpperCase() ==
-                  GovernanceRoles.scholarshipCouncilHead &&
-              member.status.trim().toLowerCase() == 'active',
-        )
-        .map((member) => member.id)
-        .toList(growable: false);
+    final councilHeadMemberIds = _activeCouncilHeadMemberIds(clanId);
 
     final approvalLogs = _store.approvalLogs.values
         .where((entry) => entry.clanId == clanId)
@@ -323,6 +324,12 @@ class DebugScholarshipRepository implements ScholarshipRepository {
         ScholarshipRepositoryErrorCode.permissionDenied,
       );
     }
+    final memberId = session.memberId?.trim() ?? '';
+    if (memberId.isEmpty) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
 
     final safeFileName = _sanitizeFileName(fileName);
     if (safeFileName.isEmpty) {
@@ -333,7 +340,7 @@ class DebugScholarshipRepository implements ScholarshipRepository {
     }
 
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    return 'debug://clans/$clanId/scholarship/evidence/$timestamp-$safeFileName';
+    return 'debug://clans/$clanId/scholarship/evidence/$memberId/$timestamp-$safeFileName';
   }
 
   @override
@@ -363,6 +370,18 @@ class DebugScholarshipRepository implements ScholarshipRepository {
     if (reviewerMemberId.isEmpty) {
       throw const ScholarshipRepositoryException(
         ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+    final councilHeadMemberIds = _activeCouncilHeadMemberIds(clanId);
+    if (!councilHeadMemberIds.contains(reviewerMemberId)) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+    if (councilHeadMemberIds.length != 3) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.validationFailed,
+        'council_configuration_invalid',
       );
     }
 
@@ -454,6 +473,19 @@ class DebugScholarshipRepository implements ScholarshipRepository {
     }
 
     return updated;
+  }
+
+  List<String> _activeCouncilHeadMemberIds(String clanId) {
+    return _genealogyStore.members.values
+        .where(
+          (member) =>
+              member.clanId == clanId &&
+              member.primaryRole.trim().toUpperCase() ==
+                  GovernanceRoles.scholarshipCouncilHead &&
+              member.status.trim().toLowerCase() == 'active',
+        )
+        .map((member) => member.id)
+        .toList(growable: false);
   }
 }
 

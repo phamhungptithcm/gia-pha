@@ -7,6 +7,7 @@ import 'package:befam/features/scholarship/models/achievement_submission_draft.d
 import 'package:befam/features/scholarship/models/award_level_draft.dart';
 import 'package:befam/features/scholarship/models/scholarship_program_draft.dart';
 import 'package:befam/features/scholarship/services/debug_scholarship_repository.dart';
+import 'package:befam/features/scholarship/services/scholarship_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -47,6 +48,26 @@ void main() {
     );
   }
 
+  AuthSession buildMemberSession({
+    required String memberId,
+    required String phoneE164,
+  }) {
+    return AuthSession(
+      uid: 'debug:$phoneE164',
+      loginMethod: AuthEntryMethod.phone,
+      phoneE164: phoneE164,
+      displayName: 'Thành viên thường $memberId',
+      memberId: memberId,
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_001',
+      primaryRole: 'MEMBER',
+      accessMode: AuthMemberAccessMode.claimed,
+      linkedAuthUid: true,
+      isSandbox: true,
+      signedInAtIso: DateTime(2026, 3, 14).toIso8601String(),
+    );
+  }
+
   test('loads seeded scholarship workspace', () async {
     final repository = DebugScholarshipRepository.seeded();
     final session = buildClanAdminSession();
@@ -56,6 +77,7 @@ void main() {
     expect(snapshot.programs, isNotEmpty);
     expect(snapshot.awardLevels, isNotEmpty);
     expect(snapshot.submissions, isNotEmpty);
+    expect(snapshot.councilHeadMemberIds, hasLength(3));
     expect(
       snapshot.submissions.any((submission) => submission.status == 'pending'),
       isTrue,
@@ -137,8 +159,28 @@ void main() {
       evidenceUrl,
       startsWith('debug://clans/clan_demo_001/scholarship/evidence/'),
     );
+    expect(evidenceUrl, contains('/member_demo_parent_001/'));
     expect(submission.evidenceUrls, contains(evidenceUrl));
     expect(submission.status, 'pending');
+  });
+
+  test('member can only see own scholarship submissions', () async {
+    final repository = DebugScholarshipRepository.seeded();
+    final memberSession = buildMemberSession(
+      memberId: 'member_demo_child_001',
+      phoneE164: '+84901111999',
+    );
+
+    final snapshot = await repository.loadWorkspace(session: memberSession);
+
+    expect(snapshot.submissions, hasLength(1));
+    expect(snapshot.submissions.first.memberId, 'member_demo_child_001');
+    expect(
+      snapshot.submissions.any(
+        (submission) => submission.memberId == 'member_demo_child_002',
+      ),
+      isFalse,
+    );
   });
 
   test('finalizes submissions with 2-of-3 council votes', () async {
@@ -221,5 +263,56 @@ void main() {
     expect(rejected.status, 'rejected');
     expect(rejected.rejectionCount, 2);
     expect(rejected.reviewNote, 'Second rejection vote.');
+
+    final refreshed = await repository.loadWorkspace(session: clanAdminSession);
+    final rejectedLogs = refreshed.approvalLogs
+        .where((entry) => entry.submissionId == submissionForRejection.id)
+        .toList(growable: false);
+    expect(rejectedLogs.where((entry) => entry.action == 'vote').length, 2);
+    expect(
+      rejectedLogs.where((entry) => entry.action == 'finalized').length,
+      1,
+    );
+    expect(
+      rejectedLogs.firstWhere((entry) => entry.action == 'finalized').note,
+      'Second rejection vote.',
+    );
+  });
+
+  test('prevents duplicate votes by the same council head', () async {
+    final repository = DebugScholarshipRepository.seeded();
+    final councilHead = buildCouncilSession(
+      memberId: 'member_council_001',
+      phoneE164: '+84901111001',
+    );
+    final snapshot = await repository.loadWorkspace(
+      session: buildClanAdminSession(),
+    );
+    final pending = snapshot.submissions.firstWhere(
+      (submission) => submission.status == 'pending',
+    );
+
+    await repository.reviewSubmission(
+      session: councilHead,
+      submissionId: pending.id,
+      approved: true,
+      reviewNote: 'Initial vote.',
+    );
+
+    expect(
+      () => repository.reviewSubmission(
+        session: councilHead,
+        submissionId: pending.id,
+        approved: true,
+        reviewNote: 'Duplicate vote.',
+      ),
+      throwsA(
+        isA<ScholarshipRepositoryException>().having(
+          (error) => error.message,
+          'message',
+          'duplicate_vote',
+        ),
+      ),
+    );
   });
 }

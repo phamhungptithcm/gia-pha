@@ -96,6 +96,7 @@ class ScholarshipController extends ChangeNotifier {
   bool get canSubmitAchievements => permissions.canSubmitSubmissions;
   bool get canReviewSubmissions => permissions.canReviewQueue;
   bool get canViewApprovalHistory => permissions.canViewApprovalHistory;
+  bool get isCouncilVotingConfigured => _councilHeadMemberIds.length == 3;
 
   bool hasCurrentReviewerVoted(AchievementSubmission submission) {
     final memberId = _session.memberId?.trim() ?? '';
