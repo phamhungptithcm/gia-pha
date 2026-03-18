@@ -92,16 +92,7 @@ class DebugScholarshipRepository implements ScholarshipRepository {
         if (member.clanId == clanId) member.id: member.fullName,
     };
 
-    final councilHeadMemberIds = _genealogyStore.members.values
-        .where(
-          (member) =>
-              member.clanId == clanId &&
-              member.primaryRole.trim().toUpperCase() ==
-                  GovernanceRoles.scholarshipCouncilHead &&
-              member.status.trim().toLowerCase() == 'active',
-        )
-        .map((member) => member.id)
-        .toList(growable: false);
+    final councilHeadMemberIds = _activeCouncilHeadMemberIds(clanId);
 
     final approvalLogs = _store.approvalLogs.values
         .where((entry) => entry.clanId == clanId)
@@ -365,6 +356,18 @@ class DebugScholarshipRepository implements ScholarshipRepository {
         ScholarshipRepositoryErrorCode.permissionDenied,
       );
     }
+    final councilHeadMemberIds = _activeCouncilHeadMemberIds(clanId);
+    if (!councilHeadMemberIds.contains(reviewerMemberId)) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+    if (councilHeadMemberIds.length != 3) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.validationFailed,
+        'council_configuration_invalid',
+      );
+    }
 
     final existing = _store.submissions[submissionId];
     if (existing == null || existing.clanId != clanId) {
@@ -454,6 +457,19 @@ class DebugScholarshipRepository implements ScholarshipRepository {
     }
 
     return updated;
+  }
+
+  List<String> _activeCouncilHeadMemberIds(String clanId) {
+    return _genealogyStore.members.values
+        .where(
+          (member) =>
+              member.clanId == clanId &&
+              member.primaryRole.trim().toUpperCase() ==
+                  GovernanceRoles.scholarshipCouncilHead &&
+              member.status.trim().toLowerCase() == 'active',
+        )
+        .map((member) => member.id)
+        .toList(growable: false);
   }
 }
 

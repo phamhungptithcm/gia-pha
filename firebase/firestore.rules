@@ -409,7 +409,7 @@ service cloud.firestore {
     match /scholarshipApprovalLogs/{logId} {
       allow read: if
         hasClanAccess(resource.data.clanId) &&
-        (isClanSettingsAdmin() || isScholarshipCouncilHead());
+        (isClanAdmin() || isScholarshipCouncilHead());
       allow write: if false;
     }
 

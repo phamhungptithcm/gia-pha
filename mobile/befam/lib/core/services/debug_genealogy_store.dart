@@ -162,6 +162,86 @@ class DebugGenealogyStore {
         isMinor: false,
         authUid: null,
       ),
+      'member_council_001': const MemberProfile(
+        id: 'member_council_001',
+        clanId: clanId,
+        branchId: 'branch_demo_001',
+        fullName: 'Phạm Thành Nam',
+        normalizedFullName: 'phạm thành nam',
+        nickName: 'Nam',
+        gender: 'male',
+        birthDate: '1986-03-18',
+        deathDate: null,
+        phoneE164: '+84901111001',
+        email: 'pham.thanh.nam@befam.vn',
+        addressText: 'Đà Nẵng, Việt Nam',
+        jobTitle: 'Kỹ sư xây dựng',
+        avatarUrl: null,
+        bio:
+            'Thành viên hội đồng học bổng phụ trách đánh giá hồ sơ khối kỹ thuật.',
+        socialLinks: MemberSocialLinks(),
+        parentIds: [],
+        childrenIds: [],
+        spouseIds: [],
+        generation: 8,
+        primaryRole: 'SCHOLARSHIP_COUNCIL_HEAD',
+        status: 'active',
+        isMinor: false,
+        authUid: 'debug:+84901111001',
+      ),
+      'member_council_002': const MemberProfile(
+        id: 'member_council_002',
+        clanId: clanId,
+        branchId: 'branch_demo_002',
+        fullName: 'Nguyễn Thu Hà',
+        normalizedFullName: 'nguyễn thu hà',
+        nickName: 'Hà',
+        gender: 'female',
+        birthDate: '1988-09-11',
+        deathDate: null,
+        phoneE164: '+84901111002',
+        email: 'nguyen.thu.ha@befam.vn',
+        addressText: 'Huế, Việt Nam',
+        jobTitle: 'Giáo viên trung học',
+        avatarUrl: null,
+        bio: 'Thành viên hội đồng học bổng phụ trách xét tiêu chí học thuật.',
+        socialLinks: MemberSocialLinks(),
+        parentIds: [],
+        childrenIds: [],
+        spouseIds: [],
+        generation: 8,
+        primaryRole: 'SCHOLARSHIP_COUNCIL_HEAD',
+        status: 'active',
+        isMinor: false,
+        authUid: 'debug:+84901111002',
+      ),
+      'member_council_003': const MemberProfile(
+        id: 'member_council_003',
+        clanId: clanId,
+        branchId: 'branch_demo_003',
+        fullName: 'Lê Quốc Bảo',
+        normalizedFullName: 'lê quốc bảo',
+        nickName: 'Bảo',
+        gender: 'male',
+        birthDate: '1985-12-05',
+        deathDate: null,
+        phoneE164: '+84901111003',
+        email: 'le.quoc.bao@befam.vn',
+        addressText: 'Quảng Nam, Việt Nam',
+        jobTitle: 'Chuyên viên quản lý đất đai xã',
+        avatarUrl: null,
+        bio:
+            'Thành viên hội đồng học bổng phụ trách thẩm định hồ sơ minh chứng.',
+        socialLinks: MemberSocialLinks(),
+        parentIds: [],
+        childrenIds: [],
+        spouseIds: [],
+        generation: 8,
+        primaryRole: 'SCHOLARSHIP_COUNCIL_HEAD',
+        status: 'active',
+        isMinor: false,
+        authUid: 'debug:+84901111003',
+      ),
     };
     final branches = <String, BranchProfile>{
       'branch_demo_001': const BranchProfile(
@@ -794,9 +874,7 @@ void _seedProductionLikeLineages({
 
       final maleFullName = config.maleNames[generation - 1];
       final femaleFullName = config.femaleNames[generation - 1];
-      final maleRole = config.key == 'a' && generation == 7
-          ? 'SCHOLARSHIP_COUNCIL_HEAD'
-          : (generation == 8 ? 'BRANCH_ADMIN' : 'MEMBER');
+      final maleRole = generation == 8 ? 'BRANCH_ADMIN' : 'MEMBER';
 
       members[maleId] = MemberProfile(
         id: maleId,

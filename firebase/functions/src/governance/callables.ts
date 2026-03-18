@@ -52,95 +52,126 @@ export const assignGovernanceRole = onCall(
     const nextRole = requireSupportedRole(request.data, 'role');
     const reason = stringOrNull((request.data as Record<string, unknown>)?.reason);
 
-    const memberSnapshot = await membersCollection.doc(memberId).get();
-    if (!memberSnapshot.exists || memberSnapshot.data() == null) {
-      throw new HttpsError('not-found', 'Target member was not found.');
-    }
-    const member = memberSnapshot.data() as MemberRecord;
-    const clanId = stringOrNull(member.clanId);
-    if (clanId == null) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Target member does not belong to a clan context.',
-      );
-    }
-    ensureClanAccess(auth.token, clanId);
+    const assignmentResult = await db.runTransaction(async (transaction) => {
+      const memberRef = membersCollection.doc(memberId);
+      const memberSnapshot = await transaction.get(memberRef);
+      if (!memberSnapshot.exists || memberSnapshot.data() == null) {
+        throw new HttpsError('not-found', 'Target member was not found.');
+      }
 
-    const previousRole = stringOrNull(member.primaryRole)?.toUpperCase() ?? GOVERNANCE_ROLES.member;
-
-    if (
-      nextRole === GOVERNANCE_ROLES.scholarshipCouncilHead &&
-      previousRole !== GOVERNANCE_ROLES.scholarshipCouncilHead
-    ) {
-      const councilSnapshot = await membersCollection
-        .where('clanId', '==', clanId)
-        .where('primaryRole', '==', GOVERNANCE_ROLES.scholarshipCouncilHead)
-        .limit(4)
-        .get();
-      const activeSeats = councilSnapshot.docs.filter((doc) => {
-        const status = stringOrNull((doc.data() as MemberRecord).status)?.toLowerCase();
-        return status == null || status === 'active';
-      }).length;
-      if (activeSeats >= 3) {
+      const member = memberSnapshot.data() as MemberRecord;
+      const clanId = stringOrNull(member.clanId);
+      if (clanId == null) {
         throw new HttpsError(
           'failed-precondition',
-          'Scholarship Council Head seats are full (max 3 active).',
+          'Target member does not belong to a clan context.',
         );
       }
-    }
+      ensureClanAccess(auth.token, clanId);
 
-    await membersCollection.doc(memberId).set(
-      {
-        primaryRole: nextRole,
-        updatedAt: FieldValue.serverTimestamp(),
-        updatedBy: actorMemberId,
-      },
-      { merge: true },
-    );
+      const previousRole =
+        stringOrNull(member.primaryRole)?.toUpperCase() ?? GOVERNANCE_ROLES.member;
+      const isRoleChanged = previousRole !== nextRole;
+      if (!isRoleChanged) {
+        return {
+          memberId,
+          clanId,
+          previousRole,
+          nextRole,
+          status: 'unchanged' as const,
+        };
+      }
 
-    const assignmentRef = roleAssignmentsCollection.doc();
-    await assignmentRef.set({
-      id: assignmentRef.id,
-      clanId,
-      memberId,
-      previousRole,
-      nextRole,
-      actorMemberId,
-      actorRole: tokenPrimaryRole(auth.token),
-      reason,
-      createdAt: FieldValue.serverTimestamp(),
-    });
+      const isActiveMember = isActiveStatus(member.status);
+      const isSeatTransition = (
+        previousRole === GOVERNANCE_ROLES.scholarshipCouncilHead ||
+        nextRole === GOVERNANCE_ROLES.scholarshipCouncilHead
+      );
 
-    const auditRef = auditLogsCollection.doc();
-    await auditRef.set({
-      id: auditRef.id,
-      clanId,
-      action: 'governance_role_assigned',
-      entityType: 'member',
-      entityId: memberId,
-      uid: auth.uid,
-      memberId: actorMemberId,
-      before: { primaryRole: previousRole },
-      after: { primaryRole: nextRole },
-      reason,
-      createdAt: FieldValue.serverTimestamp(),
+      if (isSeatTransition && isActiveMember) {
+        const councilSnapshot = await transaction.get(
+          membersCollection
+            .where('clanId', '==', clanId)
+            .where('primaryRole', '==', GOVERNANCE_ROLES.scholarshipCouncilHead),
+        );
+
+        const activeSeatCount = councilSnapshot.docs.filter((doc) => {
+          return isActiveStatus((doc.data() as MemberRecord).status);
+        }).length;
+
+        const isCurrentlySeatHolder = previousRole === GOVERNANCE_ROLES.scholarshipCouncilHead;
+        const isNextSeatHolder = nextRole === GOVERNANCE_ROLES.scholarshipCouncilHead;
+        const projectedSeatCount = activeSeatCount + (
+          isNextSeatHolder ? 1 : 0
+        ) - (
+          isCurrentlySeatHolder ? 1 : 0
+        );
+
+        if (projectedSeatCount > 3) {
+          throw new HttpsError(
+            'failed-precondition',
+            'Scholarship Council Head seats are full. Maximum 3 active seats are allowed.',
+          );
+        }
+      }
+
+      transaction.set(
+        memberRef,
+        {
+          primaryRole: nextRole,
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: actorMemberId,
+        },
+        { merge: true },
+      );
+
+      const assignmentRef = roleAssignmentsCollection.doc();
+      transaction.set(assignmentRef, {
+        id: assignmentRef.id,
+        clanId,
+        memberId,
+        previousRole,
+        nextRole,
+        actorMemberId,
+        actorRole: tokenPrimaryRole(auth.token),
+        reason,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      const auditRef = auditLogsCollection.doc();
+      transaction.set(auditRef, {
+        id: auditRef.id,
+        clanId,
+        action: 'governance_role_assigned',
+        entityType: 'member',
+        entityId: memberId,
+        uid: auth.uid,
+        memberId: actorMemberId,
+        before: { primaryRole: previousRole },
+        after: { primaryRole: nextRole },
+        reason,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      return {
+        memberId,
+        clanId,
+        previousRole,
+        nextRole,
+        status: 'updated' as const,
+      };
     });
 
     logInfo('assignGovernanceRole succeeded', {
       uid: auth.uid,
-      clanId,
-      memberId,
-      previousRole,
-      nextRole,
+      clanId: assignmentResult.clanId,
+      memberId: assignmentResult.memberId,
+      previousRole: assignmentResult.previousRole,
+      nextRole: assignmentResult.nextRole,
+      status: assignmentResult.status,
     });
 
-    return {
-      memberId,
-      clanId,
-      previousRole,
-      nextRole,
-      status: 'updated',
-    };
+    return assignmentResult;
   },
 );
 
@@ -265,6 +296,11 @@ function requireSupportedRole(data: unknown, key: string): string {
     );
   }
   return value;
+}
+
+function isActiveStatus(value: unknown): boolean {
+  const normalized = stringOrNull(value)?.toLowerCase();
+  return normalized == null || normalized === 'active';
 }
 
 function normalizeFirestoreValue(value: unknown): unknown {

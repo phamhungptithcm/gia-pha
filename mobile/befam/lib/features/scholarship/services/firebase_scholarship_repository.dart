@@ -117,8 +117,12 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
 
     final councilHeadMemberIds = results[3].docs
         .where((doc) {
-          final role = (doc.data()['primaryRole'] as String?)?.trim().toUpperCase();
-          final status = (doc.data()['status'] as String?)?.trim().toLowerCase();
+          final role = (doc.data()['primaryRole'] as String?)
+              ?.trim()
+              .toUpperCase();
+          final status = (doc.data()['status'] as String?)
+              ?.trim()
+              .toLowerCase();
           return role == GovernanceRoles.scholarshipCouncilHead &&
               (status == null || status.isEmpty || status == 'active');
         })
@@ -444,6 +448,14 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
         throw ScholarshipRepositoryException(
           ScholarshipRepositoryErrorCode.validationFailed,
           'duplicate_vote',
+        );
+      }
+      final normalizedMessage = (error.message ?? '').toLowerCase();
+      if (error.code == 'failed-precondition' &&
+          normalizedMessage.contains('exactly 3 active council heads')) {
+        throw ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.validationFailed,
+          'council_configuration_invalid',
         );
       }
       if (error.code == 'permission-denied') {
