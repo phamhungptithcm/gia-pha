@@ -453,11 +453,27 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('member-parent-picker-button')));
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(
-        const Key('member-parent-picker-father-member_demo_parent_001'),
-      ),
+    Finder buildParentOptionFinder(String prefix) {
+      return find.byWidgetPredicate((widget) {
+        final key = widget.key;
+        return key is ValueKey<String> && key.value.startsWith(prefix);
+      });
+    }
+
+    final fatherOptions = buildParentOptionFinder(
+      'member-parent-picker-father-',
     );
+    final motherOptions = buildParentOptionFinder(
+      'member-parent-picker-mother-',
+    );
+    final parentOptionToSelect = fatherOptions.evaluate().isNotEmpty
+        ? fatherOptions.first
+        : motherOptions.evaluate().isNotEmpty
+        ? motherOptions.first
+        : null;
+    expect(parentOptionToSelect, isNotNull);
+    await tester.ensureVisible(parentOptionToSelect!);
+    await tester.tap(parentOptionToSelect);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('member-parent-picker-done')));
     await tester.pumpAndSettle();

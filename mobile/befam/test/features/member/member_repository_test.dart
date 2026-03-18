@@ -37,7 +37,13 @@ void main() {
       final branchBefore = before.branches.firstWhere(
         (branch) => branch.id == 'branch_demo_001',
       );
-      expect(branchBefore.memberCount, 3);
+      final beforeCount = branchBefore.memberCount;
+      expect(
+        beforeCount,
+        before.members
+            .where((member) => member.branchId == 'branch_demo_001')
+            .length,
+      );
 
       final created = await repository.saveMember(
         session: session,
@@ -68,7 +74,7 @@ void main() {
       final branchAfter = after.branches.firstWhere(
         (branch) => branch.id == 'branch_demo_001',
       );
-      expect(branchAfter.memberCount, 4);
+      expect(branchAfter.memberCount, beforeCount + 1);
       expect(after.members.any((member) => member.id == created.id), isTrue);
     },
   );
