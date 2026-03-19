@@ -1033,6 +1033,15 @@ class _AppShellPageState extends State<AppShellPage> {
           ),
         ),
       ),
+      if (_selectedIndex == 1)
+        IconButton(
+          tooltip: l10n.pick(
+            vi: 'Yêu cầu bạn đã gửi',
+            en: 'Your submitted requests',
+          ),
+          onPressed: _openSubmittedJoinRequests,
+          icon: const Icon(Icons.list_alt_outlined),
+        ),
       if (canSwitchClan || canLogout)
         PopupMenuButton<_ShellOverflowAction>(
           tooltip: l10n.pick(vi: 'Tùy chọn', en: 'Options'),
@@ -1162,6 +1171,38 @@ class _AppShellPageState extends State<AppShellPage> {
       return;
     }
 
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return MyJoinRequestsPage(
+            session: _session,
+            repository: repository,
+            onOpenDiscoveryRequested: (query) async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) {
+                    return GenealogyDiscoveryPage(
+                      session: _session,
+                      repository: repository,
+                      onAddGenealogyRequested: _hasClanContext
+                          ? null
+                          : _openClanWorkspaceFromTreeAddAction,
+                      initialQuery: query,
+                    );
+                  },
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openSubmittedJoinRequests() async {
+    final repository = createDefaultGenealogyDiscoveryRepository(
+      session: _session,
+    );
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {

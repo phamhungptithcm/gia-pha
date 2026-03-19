@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/widgets/address_autocomplete_field.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/genealogy_discovery_result.dart';
@@ -294,6 +295,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
           MyJoinRequestItem(
             id: 'local_${result.clanId}_$nowEpochMs',
             clanId: result.clanId,
+            genealogyName: result.genealogyName,
             status: 'pending',
             submittedAtEpochMs: nowEpochMs,
             canCancel: false,
@@ -383,6 +385,26 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
     return formatter.format(
       DateTime.fromMillisecondsSinceEpoch(epochMs).toLocal(),
     );
+  }
+
+  String _resolveGenealogyName(String rawName) {
+    final trimmed = rawName.trim();
+    if (trimmed.isEmpty) {
+      return context.l10n.pick(
+        vi: 'Gia phả chưa đặt tên',
+        en: 'Unnamed genealogy',
+      );
+    }
+    final normalized = trimmed.toLowerCase();
+    if (normalized == 'pending join request' ||
+        normalized == 'requested genealogy' ||
+        normalized == 'join request') {
+      return context.l10n.pick(
+        vi: 'Gia phả đã gửi yêu cầu',
+        en: 'Requested genealogy',
+      );
+    }
+    return trimmed;
   }
 
   @override
@@ -519,47 +541,12 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                   ),
                 ),
               ],
-              if (widget.session != null) ...[
+              if (_myRequestsErrorMessage != null) ...[
                 const SizedBox(height: 16),
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.pick(
-                                  vi: 'Yêu cầu bạn đã gửi',
-                                  en: 'Your submitted requests',
-                                ),
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _myRequestsErrorMessage != null
-                                    ? _myRequestsErrorMessage!
-                                    : l10n.pick(
-                                        vi: 'Hiện có ${_myRequests.length} yêu cầu trong hệ thống.',
-                                        en: '${_myRequests.length} requests found in your account.',
-                                      ),
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        OutlinedButton.icon(
-                          onPressed: _openMyRequestsPage,
-                          icon: const Icon(Icons.open_in_new),
-                          label: Text(l10n.pick(vi: 'Xem riêng', en: 'Open')),
-                        ),
-                      ],
-                    ),
+                    padding: const EdgeInsets.all(14),
+                    child: Text(_myRequestsErrorMessage!),
                   ),
                 ),
               ],
@@ -601,96 +588,63 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                                     _cancelingRequestId == pendingRequest.id;
                                 final isSubmittingJoin = _submittingClanIds
                                     .contains(result.clanId);
-
-                                if (isPendingForCurrentUser) {
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.schedule,
-                                            size: 18,
-                                            color: theme
-                                                .colorScheme
-                                                .onSecondaryContainer,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            l10n.pick(
-                                              vi: 'Đã gửi yêu cầu tham gia',
-                                              en: 'Join request submitted',
-                                            ),
-                                            style: theme.textTheme.titleMedium
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        l10n.pick(
-                                          vi: 'Yêu cầu đã được gửi ngày ${_formatShortDate(pendingSinceEpochMs ?? DateTime.now().millisecondsSinceEpoch)}.',
-                                          en: 'Your request was submitted on ${_formatShortDate(pendingSinceEpochMs ?? DateTime.now().millisecondsSinceEpoch)}.',
-                                        ),
-                                        style: theme.textTheme.bodyMedium,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        l10n.pick(
-                                          vi: 'Trong thời gian chờ duyệt, bạn chưa thể xem thông tin của họ tộc này.',
-                                          en: 'While waiting for review, this clan information stays hidden.',
-                                        ),
-                                        style: theme.textTheme.bodySmall,
-                                      ),
-                                      if (pendingRequest != null) ...[
-                                        const SizedBox(height: 12),
-                                        OutlinedButton.icon(
-                                          onPressed: isCanceling
-                                              ? null
-                                              : () => _cancelRequest(
-                                                  pendingRequest,
-                                                ),
-                                          icon: isCanceling
-                                              ? const SizedBox.square(
-                                                  dimension: 16,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                      ),
-                                                )
-                                              : const Icon(
-                                                  Icons.cancel_outlined,
-                                                ),
-                                          label: Text(
-                                            l10n.pick(
-                                              vi: 'Hủy yêu cầu',
-                                              en: 'Cancel request',
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  );
-                                }
+                                final genealogyName = _resolveGenealogyName(
+                                  result.genealogyName,
+                                );
+                                final leaderName =
+                                    result.leaderName.trim().isEmpty
+                                    ? l10n.pick(
+                                        vi: 'Chưa có trưởng tộc',
+                                        en: 'Leader not set',
+                                      )
+                                    : result.leaderName;
+                                final provinceCity =
+                                    result.provinceCity.trim().isEmpty
+                                    ? l10n.pick(
+                                        vi: 'Chưa rõ địa phương',
+                                        en: 'Unknown location',
+                                      )
+                                    : result.provinceCity;
+                                final pendingSubmittedDate = _formatShortDate(
+                                  pendingSinceEpochMs ??
+                                      DateTime.now().millisecondsSinceEpoch,
+                                );
+                                final pendingCancelAction =
+                                    pendingRequest != null
+                                    ? () => _cancelRequest(pendingRequest)
+                                    : _openMyRequestsPage;
 
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      result.genealogyName,
+                                      genealogyName,
                                       style: theme.textTheme.titleMedium
                                           ?.copyWith(
                                             fontWeight: FontWeight.w800,
                                           ),
                                     ),
+                                    if (isPendingForCurrentUser) ...[
+                                      const SizedBox(height: 8),
+                                      Chip(
+                                        avatar: const Icon(
+                                          Icons.schedule,
+                                          size: 16,
+                                        ),
+                                        label: Text(
+                                          l10n.pick(
+                                            vi: 'Đã gửi yêu cầu',
+                                            en: 'Request submitted',
+                                          ),
+                                        ),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ],
                                     const SizedBox(height: 8),
                                     Text(
                                       l10n.pick(
-                                        vi: 'Trưởng tộc: ${result.leaderName} · ${result.provinceCity}',
-                                        en: 'Leader: ${result.leaderName} · ${result.provinceCity}',
+                                        vi: 'Trưởng tộc: $leaderName · $provinceCity',
+                                        en: 'Leader: $leaderName · $provinceCity',
                                       ),
                                       style: theme.textTheme.bodyMedium,
                                     ),
@@ -712,33 +666,83 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                                       ),
                                       style: theme.textTheme.labelLarge,
                                     ),
-                                    const SizedBox(height: 12),
-                                    FilledButton.tonalIcon(
-                                      onPressed: isSubmittingJoin
-                                          ? null
-                                          : () => _openJoinRequestSheet(result),
-                                      icon: isSubmittingJoin
-                                          ? const SizedBox.square(
-                                              dimension: 16,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.how_to_reg_outlined,
-                                            ),
-                                      label: Text(
-                                        isSubmittingJoin
-                                            ? l10n.pick(
-                                                vi: 'Đang gửi...',
-                                                en: 'Submitting...',
-                                              )
-                                            : l10n.pick(
-                                                vi: 'Gửi yêu cầu tham gia',
-                                                en: 'Request to join',
-                                              ),
+                                    if (isPendingForCurrentUser) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        l10n.pick(
+                                          vi: 'Yêu cầu đã gửi ngày $pendingSubmittedDate.',
+                                          en: 'Submitted on $pendingSubmittedDate.',
+                                        ),
+                                        style: theme.textTheme.bodySmall,
                                       ),
+                                    ],
+                                    const SizedBox(height: 12),
+                                    Wrap(
+                                      spacing: 10,
+                                      runSpacing: 10,
+                                      children: [
+                                        FilledButton.tonalIcon(
+                                          onPressed:
+                                              isSubmittingJoin || isCanceling
+                                              ? null
+                                              : isPendingForCurrentUser
+                                              ? pendingCancelAction
+                                              : () => _openJoinRequestSheet(
+                                                  result,
+                                                ),
+                                          icon: isSubmittingJoin
+                                              ? const SizedBox.square(
+                                                  dimension: 16,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : isPendingForCurrentUser
+                                              ? isCanceling
+                                                    ? const SizedBox.square(
+                                                        dimension: 16,
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                            ),
+                                                      )
+                                                    : const Icon(
+                                                        Icons.cancel_outlined,
+                                                      )
+                                              : const Icon(
+                                                  Icons.how_to_reg_outlined,
+                                                ),
+                                          label: Text(
+                                            isSubmittingJoin
+                                                ? l10n.pick(
+                                                    vi: 'Đang gửi...',
+                                                    en: 'Submitting...',
+                                                  )
+                                                : isPendingForCurrentUser
+                                                ? l10n.pick(
+                                                    vi: 'Hủy yêu cầu',
+                                                    en: 'Cancel request',
+                                                  )
+                                                : l10n.pick(
+                                                    vi: 'Gửi yêu cầu tham gia',
+                                                    en: 'Request to join',
+                                                  ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
+                                    if (isPendingForCurrentUser &&
+                                        pendingRequest == null) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        l10n.pick(
+                                          vi: 'Nếu cần hủy ngay, mở danh sách yêu cầu đã gửi ở góc trên bên phải.',
+                                          en: 'To cancel now, open your submitted requests from the top-right list button.',
+                                        ),
+                                        style: theme.textTheme.bodySmall,
+                                      ),
+                                    ],
                                   ],
                                 );
                               },
@@ -796,6 +800,20 @@ class _JoinRequestSheetState extends State<_JoinRequestSheet> {
     _contactController.dispose();
     _messageController.dispose();
     super.dispose();
+  }
+
+  String _displayGenealogyName(AppLocalizations l10n) {
+    final trimmed = widget.result.genealogyName.trim();
+    if (trimmed.isEmpty) {
+      return l10n.pick(vi: 'Gia phả chưa đặt tên', en: 'Unnamed genealogy');
+    }
+    final normalized = trimmed.toLowerCase();
+    if (normalized == 'pending join request' ||
+        normalized == 'requested genealogy' ||
+        normalized == 'join request') {
+      return l10n.pick(vi: 'Gia phả đã gửi yêu cầu', en: 'Requested genealogy');
+    }
+    return trimmed;
   }
 
   Future<void> _submit() async {
@@ -883,8 +901,8 @@ class _JoinRequestSheetState extends State<_JoinRequestSheet> {
             children: [
               Text(
                 l10n.pick(
-                  vi: 'Yêu cầu tham gia ${widget.result.genealogyName}',
-                  en: 'Join request for ${widget.result.genealogyName}',
+                  vi: 'Yêu cầu tham gia ${_displayGenealogyName(l10n)}',
+                  en: 'Join request for ${_displayGenealogyName(l10n)}',
                 ),
                 style: Theme.of(
                   context,

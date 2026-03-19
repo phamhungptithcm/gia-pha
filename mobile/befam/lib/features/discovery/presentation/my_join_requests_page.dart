@@ -75,6 +75,7 @@ class _MyJoinRequestsPageState extends State<MyJoinRequestsPage> {
     List<MyJoinRequestItem> requests,
   ) async {
     final clanIds = requests
+        .where((item) => (item.genealogyName ?? '').trim().isEmpty)
         .map((item) => item.clanId.trim())
         .where((id) => id.isNotEmpty)
         .toSet();
@@ -154,14 +155,39 @@ class _MyJoinRequestsPageState extends State<MyJoinRequestsPage> {
     if (action == null) {
       return;
     }
-    final clanName = _genealogyNameByClanId[request.clanId]?.trim() ?? '';
+    final clanName =
+        _genealogyNameByClanId[request.clanId]?.trim() ??
+        (request.genealogyName ?? '').trim();
     final query = clanName.isNotEmpty ? clanName : request.clanId;
     await action(query);
   }
 
+  String _resolveGenealogyName(MyJoinRequestItem request) {
+    final l10n = context.l10n;
+    final resolvedFromMap =
+        _genealogyNameByClanId[request.clanId]?.trim() ?? '';
+    if (resolvedFromMap.isNotEmpty) {
+      return resolvedFromMap;
+    }
+    final resolvedFromRequest = (request.genealogyName ?? '').trim();
+    final normalized = resolvedFromRequest.toLowerCase();
+    if (normalized == 'pending join request' ||
+        normalized == 'requested genealogy' ||
+        normalized == 'join request') {
+      return l10n.pick(vi: 'Gia phả đã gửi yêu cầu', en: 'Requested genealogy');
+    }
+    if (resolvedFromRequest.isNotEmpty) {
+      return resolvedFromRequest;
+    }
+    return l10n.pick(vi: 'Gia phả chưa đặt tên', en: 'Unnamed genealogy');
+  }
+
   String _statusLabel(String status) {
     return switch (status.trim().toLowerCase()) {
-      'pending' => context.l10n.pick(vi: 'Đang chờ duyệt', en: 'Pending'),
+      'pending' => context.l10n.pick(
+        vi: 'Đã gửi yêu cầu',
+        en: 'Request submitted',
+      ),
       'approved' => context.l10n.pick(vi: 'Đã duyệt', en: 'Approved'),
       'rejected' => context.l10n.pick(vi: 'Đã từ chối', en: 'Rejected'),
       'canceled' => context.l10n.pick(vi: 'Đã hủy', en: 'Canceled'),
@@ -237,100 +263,108 @@ class _MyJoinRequestsPageState extends State<MyJoinRequestsPage> {
                         ),
                       ),
                     for (final request in _requests)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _genealogyNameByClanId[request.clanId]
-                                              ?.trim()
-                                              .isNotEmpty ==
-                                          true
-                                      ? _genealogyNameByClanId[request.clanId]!
-                                      : l10n.pick(
-                                          vi: 'Gia phả ${request.clanId}',
-                                          en: 'Genealogy ${request.clanId}',
-                                        ),
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Chip(
-                                  backgroundColor: _statusBackground(
-                                    theme.colorScheme,
-                                    request.status,
-                                  ),
-                                  side: BorderSide.none,
-                                  label: Text(
-                                    _statusLabel(request.status),
-                                    style: theme.textTheme.labelLarge?.copyWith(
-                                      color: _statusForeground(
+                      Builder(
+                        builder: (context) {
+                          final isPending = request.isPending;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _resolveGenealogyName(request),
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Chip(
+                                      avatar: isPending
+                                          ? const Icon(Icons.schedule, size: 16)
+                                          : null,
+                                      backgroundColor: _statusBackground(
                                         theme.colorScheme,
                                         request.status,
                                       ),
+                                      side: BorderSide.none,
+                                      label: Text(
+                                        _statusLabel(request.status),
+                                        style: theme.textTheme.labelLarge
+                                            ?.copyWith(
+                                              color: _statusForeground(
+                                                theme.colorScheme,
+                                                request.status,
+                                              ),
+                                            ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  l10n.pick(
-                                    vi: 'Đã gửi: ${_submittedAtLabel(request.submittedAtEpochMs)}',
-                                    en: 'Submitted: ${_submittedAtLabel(request.submittedAtEpochMs)}',
-                                  ),
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                                const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: [
-                                    if (widget.onOpenDiscoveryRequested != null)
-                                      OutlinedButton.icon(
-                                        onPressed: () =>
-                                            _openDiscovery(request),
-                                        icon: const Icon(
-                                          Icons.travel_explore_outlined,
-                                        ),
-                                        label: Text(
-                                          l10n.pick(
-                                            vi: 'Xem trong tìm kiếm',
-                                            en: 'Open in discovery',
-                                          ),
-                                        ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      l10n.pick(
+                                        vi: 'Đã gửi: ${_submittedAtLabel(request.submittedAtEpochMs)}',
+                                        en: 'Submitted: ${_submittedAtLabel(request.submittedAtEpochMs)}',
                                       ),
-                                    if (request.canCancel)
-                                      FilledButton.tonalIcon(
-                                        onPressed:
-                                            _cancelingRequestId == request.id
-                                            ? null
-                                            : () => _cancelRequest(request),
-                                        icon: _cancelingRequestId == request.id
-                                            ? const SizedBox.square(
-                                                dimension: 16,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                              )
-                                            : const Icon(Icons.cancel_outlined),
-                                        label: Text(
-                                          l10n.pick(
-                                            vi: 'Hủy yêu cầu',
-                                            en: 'Cancel request',
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Wrap(
+                                      spacing: 10,
+                                      runSpacing: 10,
+                                      children: [
+                                        if (widget.onOpenDiscoveryRequested !=
+                                            null)
+                                          OutlinedButton.icon(
+                                            onPressed: () =>
+                                                _openDiscovery(request),
+                                            icon: const Icon(
+                                              Icons.travel_explore_outlined,
+                                            ),
+                                            label: Text(
+                                              l10n.pick(
+                                                vi: 'Xem trong tìm kiếm',
+                                                en: 'Open in discovery',
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
+                                        if (request.canCancel)
+                                          FilledButton.tonalIcon(
+                                            onPressed:
+                                                _cancelingRequestId ==
+                                                    request.id
+                                                ? null
+                                                : () => _cancelRequest(request),
+                                            icon:
+                                                _cancelingRequestId ==
+                                                    request.id
+                                                ? const SizedBox.square(
+                                                    dimension: 16,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                        ),
+                                                  )
+                                                : const Icon(
+                                                    Icons.cancel_outlined,
+                                                  ),
+                                            label: Text(
+                                              l10n.pick(
+                                                vi: 'Hủy yêu cầu',
+                                                en: 'Cancel request',
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
                   ],
                 ),
