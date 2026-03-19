@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/services/app_logger.dart';
 import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
@@ -20,7 +21,6 @@ class BillingController extends ChangeNotifier {
   bool _isProcessingPayment = false;
   bool _isCreatingCheckout = false;
   String? _errorMessage;
-  String? _actionMessage;
   BillingWorkspaceSnapshot? _workspace;
   BillingViewerSummary? _viewerSummary;
   BillingCheckoutResult? _lastCheckout;
@@ -30,7 +30,6 @@ class BillingController extends ChangeNotifier {
   bool get isProcessingPayment => _isProcessingPayment;
   bool get isCreatingCheckout => _isCreatingCheckout;
   String? get errorMessage => _errorMessage;
-  String? get actionMessage => _actionMessage;
   BillingWorkspaceSnapshot? get workspace => _workspace;
   BillingViewerSummary? get viewerSummary => _viewerSummary;
   BillingCheckoutResult? get lastCheckout => _lastCheckout;
@@ -66,11 +65,7 @@ class BillingController extends ChangeNotifier {
     if (!hasClanContext) {
       return true;
     }
-    final workspace = _workspace;
-    if (workspace == null) {
-      return false;
-    }
-    return workspace.scope.viewerIsOwner;
+    return canManageBilling;
   }
 
   bool get shouldShowAds {
@@ -91,8 +86,20 @@ class BillingController extends ChangeNotifier {
     notifyListeners();
     try {
       if (canManageBilling) {
-        _workspace = await _repository.loadWorkspace(session: _session);
-        _viewerSummary = null;
+        try {
+          _workspace = await _repository.loadWorkspace(session: _session);
+          _viewerSummary = null;
+        } on BillingRepositoryException catch (error) {
+          if (_shouldFallbackToViewer(error)) {
+            _viewerSummary = await _repository.loadViewerSummary(
+              session: _session,
+            );
+            _workspace = null;
+            _errorMessage = null;
+          } else {
+            rethrow;
+          }
+        }
       } else {
         _viewerSummary = await _repository.loadViewerSummary(session: _session);
         _workspace = null;
@@ -101,16 +108,31 @@ class BillingController extends ChangeNotifier {
       _errorMessage = error.toString();
       _workspace = null;
       _viewerSummary = null;
-      debugPrint('[billing] refresh repository error: $error');
+      AppLogger.warning('Billing refresh failed with repository error.', error);
     } catch (error) {
       _errorMessage = error.toString();
       _workspace = null;
       _viewerSummary = null;
-      debugPrint('[billing] refresh unexpected error: $error');
+      AppLogger.warning('Billing refresh failed unexpectedly.', error);
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  bool _shouldFallbackToViewer(BillingRepositoryException error) {
+    if (error.code == BillingRepositoryErrorCode.permissionDenied) {
+      return true;
+    }
+    if (error.code == BillingRepositoryErrorCode.failedPrecondition) {
+      final lower = (error.message ?? '').toLowerCase();
+      if (lower.contains('owner') ||
+          lower.contains('billing scope') ||
+          lower.contains('clan billing')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> updatePreferences({
@@ -120,7 +142,6 @@ class BillingController extends ChangeNotifier {
   }) async {
     _isSavingPreferences = true;
     _errorMessage = null;
-    _actionMessage = null;
     notifyListeners();
     try {
       await _repository.updatePreferences(
@@ -130,7 +151,6 @@ class BillingController extends ChangeNotifier {
         reminderDaysBefore: reminderDaysBefore,
       );
       _workspace = await _repository.loadWorkspace(session: _session);
-      _actionMessage = 'Billing preferences saved.';
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();
     } catch (error) {
@@ -152,7 +172,6 @@ class BillingController extends ChangeNotifier {
   }) async {
     _isCreatingCheckout = true;
     _errorMessage = null;
-    _actionMessage = null;
     notifyListeners();
     try {
       _lastCheckout = await _repository.createCheckout(
@@ -167,7 +186,6 @@ class BillingController extends ChangeNotifier {
       );
       _workspace = await _repository.loadWorkspace(session: _session);
       _viewerSummary = null;
-      _actionMessage = 'Checkout created successfully.';
       return _lastCheckout;
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();
@@ -184,7 +202,6 @@ class BillingController extends ChangeNotifier {
   Future<void> confirmCardPayment(String transactionId) async {
     _isProcessingPayment = true;
     _errorMessage = null;
-    _actionMessage = null;
     notifyListeners();
     try {
       await _repository.completeCardCheckout(
@@ -193,7 +210,6 @@ class BillingController extends ChangeNotifier {
       );
       _workspace = await _repository.loadWorkspace(session: _session);
       _viewerSummary = null;
-      _actionMessage = 'Card payment confirmed.';
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();
     } catch (error) {
@@ -207,7 +223,6 @@ class BillingController extends ChangeNotifier {
   Future<void> confirmVnpayPayment(String transactionId) async {
     _isProcessingPayment = true;
     _errorMessage = null;
-    _actionMessage = null;
     notifyListeners();
     try {
       await _repository.settleVnpayCheckout(
@@ -216,7 +231,6 @@ class BillingController extends ChangeNotifier {
       );
       _workspace = await _repository.loadWorkspace(session: _session);
       _viewerSummary = null;
-      _actionMessage = 'VNPay payment confirmed.';
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();
     } catch (error) {

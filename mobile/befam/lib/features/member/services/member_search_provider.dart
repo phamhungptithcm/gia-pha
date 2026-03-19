@@ -1,4 +1,5 @@
 import '../models/member_profile.dart';
+import '../../auth/services/phone_number_formatter.dart';
 
 class MemberSearchQuery {
   const MemberSearchQuery({
@@ -87,7 +88,12 @@ class LocalMemberSearchProvider implements MemberSearchProvider {
     final fullName = _normalizeForSearch(member.fullName);
     final normalizedFullName = _normalizeForSearch(member.normalizedFullName);
     final nickName = _normalizeForSearch(member.nickName);
-    final phone = (member.phoneE164 ?? '').toLowerCase().trim();
+    final normalizedPhoneQuery = normalizedQuery.replaceAll(
+      RegExp(r'[^0-9+]'),
+      '',
+    );
+    final normalizedPhoneDigitsQuery = normalizedPhoneQuery.replaceAll('+', '');
+    final phoneKeys = PhoneNumberFormatter.comparisonKeys(member.phoneE164);
 
     var score = -1;
     void apply(bool condition, int value) {
@@ -118,7 +124,18 @@ class LocalMemberSearchProvider implements MemberSearchProvider {
     apply(nickName.startsWith(normalizedQuery), 98);
     apply(nickName.contains(normalizedQuery), 82);
 
-    apply(phone.contains(normalizedQuery), 70);
+    apply(
+      normalizedPhoneQuery.isNotEmpty &&
+          phoneKeys.any(
+            (key) =>
+                key.contains(normalizedPhoneQuery) ||
+                (normalizedPhoneDigitsQuery.isNotEmpty &&
+                    key
+                        .replaceAll('+', '')
+                        .contains(normalizedPhoneDigitsQuery)),
+          ),
+      70,
+    );
 
     if (queryTokens.isNotEmpty) {
       final fullNameTokens = fullName

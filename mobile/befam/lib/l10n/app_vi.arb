@@ -7,10 +7,8 @@
   "authLoadingPendingDescription": "BeFam vẫn đang kiểm tra trạng thái Firebase trên thiết bị này.",
   "authFirebaseReadyChip": "Firebase sẵn sàng",
   "authBootstrapPendingChip": "Khởi tạo đang chờ",
-  "authSandboxChip": "Môi trường thử nghiệm",
   "authLiveFirebaseChip": "Xác thực Firebase thật",
   "authHeroTitle": "Xác thực là cột mốc tiếp theo của BeFam.",
-  "authHeroSandboxDescription": "Bản dựng cục bộ dùng môi trường OTP an toàn để thử luồng số điện thoại và mã trẻ em mà không cần chờ SMS thật. Dùng mã 123456 cho luồng demo.",
   "authHeroLiveDescription": "Bản dựng này dùng luồng xác thực Firebase thật cho xác minh số điện thoại và khôi phục phiên.",
   "authMethodPhoneTitle": "Tiếp tục bằng số điện thoại",
   "authMethodPhoneDescription": "Dùng số điện thoại của bạn để nhận OTP và khôi phục danh tính BeFam.",
@@ -19,10 +17,7 @@
   "authMethodChildDescription": "Bắt đầu từ mã trẻ em, xác định số điện thoại phụ huynh liên kết và xác minh quyền truy cập bằng OTP.",
   "authMethodChildButton": "Dùng mã trẻ em",
   "authBootstrapNoteTitle": "Ghi chú khởi tạo hiện tại",
-  "authBootstrapNoteReadySandbox": "Firebase đã sẵn sàng và môi trường xác thực thử nghiệm đang hoạt động để kiểm thử giao diện cục bộ.",
   "authBootstrapNoteReadyLive": "Firebase đã sẵn sàng và ứng dụng sẽ thử xác thực số điện thoại thật.",
-  "authBootstrapNotePending": "Khởi tạo Firebase vẫn cần được xử lý, vì vậy đăng nhập nên ở môi trường thử nghiệm cho tới khi cấu hình đám mây ổn định.",
-  "authPhoneHelperSandbox": "Dùng số demo bên dưới để kiểm thử cục bộ nhanh. BeFam có thể tự điền mã OTP thử nghiệm ở bước tiếp theo.",
   "authPhoneHelperLive": "Dùng số Việt Nam nội địa hoặc định dạng quốc tế đầy đủ. BeFam chỉ dùng số này để xác thực an toàn.",
   "authPhoneTitle": "Xác minh số điện thoại",
   "authPhoneDescription": "Nhập số điện thoại theo định dạng Việt Nam hoặc E.164 đầy đủ. BeFam sẽ gửi OTP đến số này.",
@@ -48,13 +43,6 @@
       "maskedDestination": {}
     }
   },
-  "authOtpDebugCode": "Mã OTP thử nghiệm: {hint}",
-  "@authOtpDebugCode": {
-    "placeholders": {
-      "hint": {}
-    }
-  },
-  "authOtpAutofillDemo": "Tự điền mã demo",
   "authOtpChildIdentifier": "Mã trẻ em: {childIdentifier}",
   "@authOtpChildIdentifier": {
     "placeholders": {
@@ -77,7 +65,6 @@
   "authQuickBenefitsDescription": "BeFam giữ luồng đăng nhập ngắn gọn, hướng dẫn từng bước và tự tiếp tục khi OTP hoàn tất.",
   "authQuickBenefitAutoContinue": "OTP 6 số tự tiếp tục",
   "authQuickBenefitMultipleAccess": "Hỗ trợ số điện thoại và mã trẻ em",
-  "authQuickBenefitSandbox": "Kiểm thử cục bộ an toàn",
   "authQuickBenefitLive": "Xác minh Firebase thật",
   "authBack": "Quay lại",
   "authEntryMethodPhoneSummary": "Đăng nhập bằng điện thoại",
@@ -243,7 +230,6 @@
   "shellAccessModeUnlinked": "Đăng nhập chưa liên kết hồ sơ",
   "shellAccessModeClaimed": "Phiên thành viên đã liên kết",
   "shellAccessModeChild": "Phiên truy cập trẻ em",
-  "shellSessionTypeSandbox": "Phiên thử nghiệm cục bộ",
   "shellSessionTypeFirebase": "Phiên xác thực Firebase",
   "shellFieldFirebaseProject": "Dự án Firebase",
   "shellFieldStorageBucket": "Storage bucket",

@@ -9,7 +9,7 @@ The mobile app lives in `mobile/befam` and uses a feature-first structure:
 ```text
 lib/
   app/            # shell, theme, bootstrap, home dashboard
-  core/           # runtime mode, firebase services, logging, crash reporting
+  core/           # firebase services, logging, crash reporting
   features/       # auth, clan, member, relationship, genealogy, calendar, funds, scholarship, notifications, profile
   l10n/           # vi/en ARB files and generated localization classes
 ```
@@ -19,15 +19,12 @@ lib/
 - `AuthController` orchestrates auth steps and session persistence
 - feature controllers (for example `MemberController`) use `ChangeNotifier`
   with repository abstractions
-- repositories switch between debug and Firebase implementations through
-  `RuntimeMode.shouldUseMockBackend`
+- repositories use Firebase-backed implementations in runtime flows
 
-## Runtime mode strategy
+## Runtime strategy
 
-- default debug behavior now uses live Firebase (`BEFAM_USE_LIVE_AUTH=true`)
-- mock path is still available for tests and explicit override
-- local OTP bypass exists for debug smoke tests and can be controlled with
-  `BEFAM_LOCAL_AUTH_BYPASS`
+- runtime app flow is Firebase-first (auth, callables, Firestore-backed data)
+- test suites can still use dedicated test doubles/fixtures
 - app bootstrap returns Firebase readiness metadata used by shell UX/tooltips
 
 ## Navigation shell

@@ -9,6 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf lib",
     "lint": "tsc --noEmit",
+    "purge:billing-owner-column": "node scripts/purge-billing-owner-column.mjs",
+    "purge:debug-auth-columns": "node scripts/purge-debug-auth-columns.mjs",
     "seed:demo": "node scripts/seed-demo-data.mjs",
     "test": "npm run build && node --test lib/contract-tests/*.contract.test.js"
   },

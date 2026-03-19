@@ -10,7 +10,7 @@ feature.
 ## Mẫu triển khai
 
 - controller giữ async action, cờ trạng thái và bề mặt lỗi
-- repository interface tách lớp Firebase và lớp debug/mock
+- repository interface tách lớp tích hợp Firebase cho runtime
 - UI bind bằng `AnimatedBuilder`, không gọi backend trực tiếp
 
 ## Ví dụ
@@ -32,7 +32,7 @@ feature.
   `GenealogySegmentCache.shared()`
 - ngữ cảnh phiên Firebase được sync vào `users/{uid}` để fallback rules
 
-## Chuyển runtime mode
+## Hành vi backend runtime
 
-- `RuntimeMode` quyết định repository/auth dùng mock hay live backend
-- mặc định là Firebase thật, trừ khi bật override rõ ràng
+- luồng app runtime dùng Firebase mặc định
+- fixture/mock chỉ giữ ở test layer

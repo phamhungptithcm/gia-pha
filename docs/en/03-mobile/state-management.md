@@ -10,7 +10,7 @@ feature repositories.
 ## Pattern in practice
 
 - controller class owns async actions, state flags, and error surface
-- repository interface abstracts Firebase vs debug/mock implementation
+- repository interface abstracts Firebase runtime integration
 - UI pages bind via `AnimatedBuilder` and do not mutate backend directly
 
 ## Examples
@@ -33,7 +33,7 @@ feature repositories.
   `GenealogySegmentCache.shared()`
 - Firebase session context is synced into `users/{uid}` docs for rule fallback
 
-## Runtime mode switching
+## Runtime backend behavior
 
-- `RuntimeMode` controls whether repositories and auth use mock or live backend
-- default behavior is live Firebase unless explicitly overridden
+- runtime app flows use Firebase services by default
+- test-only fixtures/mocks are kept inside test layers

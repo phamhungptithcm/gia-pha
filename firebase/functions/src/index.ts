@@ -4,13 +4,15 @@ import { setGlobalOptions } from 'firebase-functions/v2/options';
 import {
   bootstrapClanWorkspace,
   claimMemberRecord,
+  createUnlinkedPhoneIdentity,
   createInvite,
-  issueDebugProfileCustomToken,
-  listDebugLoginProfiles,
   listUserClanContexts,
   lookupMemberProfileByPhone,
   registerDeviceToken,
+  resolvePhoneIdentityAfterOtp,
   resolveChildLoginContext,
+  startMemberIdentityVerification,
+  submitMemberIdentityVerification,
   switchActiveClanContext,
 } from './auth/callables';
 import {
@@ -24,6 +26,7 @@ import {
 import { cardPaymentCallback, vnpayPaymentCallback } from './billing/webhooks';
 import { APP_REGION } from './config/runtime';
 import { onEventCreated, sendEventReminder } from './events/event-triggers';
+import { recordFundTransaction } from './funds/callables';
 import {
   createParentChildRelationship,
   createSpouseRelationship,
@@ -31,8 +34,10 @@ import {
 import { createClanMember } from './members/callables';
 import { onMemberDeathDateChanged } from './members/memorial-ritual-triggers';
 import {
+  cancelJoinRequest,
   detectDuplicateGenealogy,
   listJoinRequestsForReview,
+  listMyJoinRequests,
   reviewJoinRequest,
   searchGenealogyDiscovery,
   submitJoinRequest,
@@ -45,7 +50,10 @@ import {
   assignGovernanceRole,
   getTreasurerDashboard,
 } from './governance/callables';
-import { reviewScholarshipSubmission } from './scholarship/callables';
+import {
+  disburseScholarshipSubmissionFromFund,
+  reviewScholarshipSubmission,
+} from './scholarship/callables';
 import {
   billingPendingTimeoutJob,
   billingSubscriptionDelinquencyJob,
@@ -70,20 +78,22 @@ export {
   bootstrapClanWorkspace,
   cardPaymentCallback,
   claimMemberRecord,
+  createUnlinkedPhoneIdentity,
   completeCardCheckout,
+  cancelJoinRequest,
   createParentChildRelationship,
   createSpouseRelationship,
   createInvite,
   createClanMember,
-  issueDebugProfileCustomToken,
   createSubscriptionCheckout,
+  disburseScholarshipSubmissionFromFund,
   detectDuplicateGenealogy,
   expireInvitesJob,
   assignGovernanceRole,
   appHealthCheck,
   getTreasurerDashboard,
   listJoinRequestsForReview,
-  listDebugLoginProfiles,
+  listMyJoinRequests,
   listUserClanContexts,
   lookupMemberProfileByPhone,
   loadBillingWorkspace,
@@ -94,12 +104,16 @@ export {
   onSubmissionReviewed,
   onTransactionCreated,
   registerDeviceToken,
+  recordFundTransaction,
+  resolvePhoneIdentityAfterOtp,
   resolveBillingEntitlement,
   reviewJoinRequest,
   reviewScholarshipSubmission,
   resolveChildLoginContext,
   searchGenealogyDiscovery,
   sendEventReminder,
+  startMemberIdentityVerification,
+  submitMemberIdentityVerification,
   submitJoinRequest,
   simulateVnpaySettlement,
   switchActiveClanContext,

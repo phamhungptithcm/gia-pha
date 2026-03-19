@@ -6,10 +6,16 @@ import 'package:flutter/material.dart';
 import '../../../core/services/app_locale_controller.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/address_autocomplete_field.dart';
+import '../../../core/widgets/address_action_tools.dart';
+import '../../../core/widgets/member_phone_action.dart';
+import '../../../core/widgets/social_link_actions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/services/auth_session_store.dart';
+import '../../auth/services/phone_number_formatter.dart';
+import '../../auth/widgets/phone_country_selector_field.dart';
 import '../../billing/presentation/billing_workspace_page.dart';
 import '../../billing/services/billing_repository.dart';
 import '../../member/models/member_profile.dart';
@@ -191,10 +197,18 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         draft.phoneInput,
         widget.session.phoneE164,
       );
+      final normalizedPhoneInput =
+          PhoneNumberFormatter.tryParseE164(
+            phoneInput,
+            defaultCountryIso: PhoneNumberFormatter.inferCountryOption(
+              widget.session.phoneE164,
+            ).isoCode,
+          ) ??
+          phoneInput;
       final normalizedDraft = ProfileDraft(
         fullName: fullName,
         nickName: draft.nickName.trim(),
-        phoneInput: phoneInput,
+        phoneInput: normalizedPhoneInput,
         email: draft.email.trim(),
         addressText: draft.addressText.trim(),
         jobTitle: draft.jobTitle.trim(),
@@ -209,7 +223,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       );
       final updatedSession = widget.session.copyWith(
         displayName: fullName,
-        phoneE164: phoneInput,
+        phoneE164: normalizedPhoneInput,
       );
       await _sessionStore.write(updatedSession);
       widget.onSessionUpdated?.call(updatedSession);
@@ -534,7 +548,10 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                           _ProfileInfoCard(
                             icon: Icons.error_outline,
                             title: l10n.profileUpdateErrorTitle,
-                            description: _controller.errorMessage!,
+                            description: _friendlyProfileErrorMessage(
+                              _controller.errorMessage!,
+                              l10n,
+                            ),
                             tone: colorScheme.errorContainer,
                           ),
                           const SizedBox(height: 8),
@@ -565,6 +582,10 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                                 value: _blankIfMissing(
                                   displayProfile.phoneE164,
                                 ),
+                                trailing: MemberPhoneActionIconButton(
+                                  phoneNumber: displayProfile.phoneE164 ?? '',
+                                  contactName: displayProfile.displayName,
+                                ),
                               ),
                               _ProfileDetailRow(
                                 label: l10n.memberEmailLabel,
@@ -579,6 +600,10 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                                 value: _blankIfMissing(
                                   displayProfile.addressText,
                                 ),
+                                trailing: AddressDirectionIconButton(
+                                  address: displayProfile.addressText ?? '',
+                                  label: displayProfile.displayName,
+                                ),
                               ),
                               _ProfileDetailRow(
                                 label: l10n.memberBioLabel,
@@ -587,6 +612,62 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                               ),
                             ],
                           ),
+                        ),
+                        const SizedBox(height: 20),
+                        _ProfileSectionCard(
+                          title: l10n.memberSocialLinksTitle,
+                          child: displayProfile.socialLinks.isEmpty
+                              ? Text(
+                                  l10n.memberSocialLinksEmptyDescription,
+                                  style: theme.textTheme.bodyMedium,
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      l10n.pick(
+                                        vi: 'Bấm vào biểu tượng để mở ứng dụng mạng xã hội hoặc trình duyệt.',
+                                        en: 'Tap an icon to open the social app or browser.',
+                                      ),
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: [
+                                        if (displayProfile
+                                                .socialLinks
+                                                .facebook !=
+                                            null)
+                                          SocialLinkActionIconButton(
+                                            platform: SocialPlatform.facebook,
+                                            rawValue: displayProfile
+                                                .socialLinks
+                                                .facebook!,
+                                          ),
+                                        if (displayProfile.socialLinks.zalo !=
+                                            null)
+                                          SocialLinkActionIconButton(
+                                            platform: SocialPlatform.zalo,
+                                            rawValue: displayProfile
+                                                .socialLinks
+                                                .zalo!,
+                                          ),
+                                        if (displayProfile
+                                                .socialLinks
+                                                .linkedin !=
+                                            null)
+                                          SocialLinkActionIconButton(
+                                            platform: SocialPlatform.linkedin,
+                                            rawValue: displayProfile
+                                                .socialLinks
+                                                .linkedin!,
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                         ),
                         const SizedBox(height: 20),
                         _ProfileSectionCard(
@@ -1120,6 +1201,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
   late final TextEditingController _facebookController;
   late final TextEditingController _zaloController;
   late final TextEditingController _linkedinController;
+  late String _phoneCountryIsoCode;
+  bool _resolvedAutoPhoneCountry = false;
 
   MemberRepositoryErrorCode? _submitError;
   bool _isSubmitting = false;
@@ -1133,8 +1216,14 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     _nickNameController = TextEditingController(
       text: widget.initialDraft.nickName,
     );
+    _phoneCountryIsoCode = PhoneNumberFormatter.inferCountryOption(
+      widget.initialDraft.phoneInput,
+    ).isoCode;
     _phoneController = TextEditingController(
-      text: widget.initialDraft.phoneInput,
+      text: PhoneNumberFormatter.toNationalInput(
+        widget.initialDraft.phoneInput,
+        defaultCountryIso: _phoneCountryIsoCode,
+      ),
     );
     _emailController = TextEditingController(text: widget.initialDraft.email);
     _addressController = TextEditingController(
@@ -1168,6 +1257,32 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_resolvedAutoPhoneCountry || _phoneController.text.trim().isNotEmpty) {
+      return;
+    }
+    final locale = Localizations.localeOf(context);
+    _phoneCountryIsoCode = PhoneNumberFormatter.autoCountryIsoFromRegion(
+      locale.countryCode,
+    );
+    _resolvedAutoPhoneCountry = true;
+  }
+
+  void _normalizePhoneInputForCountry() {
+    final normalized = PhoneNumberFormatter.toNationalInput(
+      _phoneController.text,
+      defaultCountryIso: _phoneCountryIsoCode,
+    );
+    if (normalized == _phoneController.text.trim()) {
+      return;
+    }
+    _phoneController
+      ..text = normalized
+      ..selection = TextSelection.collapsed(offset: normalized.length);
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -1178,18 +1293,42 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
       _submitError = null;
     });
 
+    _normalizePhoneInputForCountry();
+    final trimmedPhone = _phoneController.text.trim();
+    final normalizedPhone = trimmedPhone.isEmpty
+        ? ''
+        : PhoneNumberFormatter.parse(
+            trimmedPhone,
+            defaultCountryIso: _phoneCountryIsoCode,
+          ).e164;
+
     final error = await widget.onSubmit(
       ProfileDraft(
         fullName: _fullNameController.text.trim(),
         nickName: _nickNameController.text.trim(),
-        phoneInput: _phoneController.text.trim(),
+        phoneInput: normalizedPhone,
         email: _emailController.text.trim(),
         addressText: _addressController.text.trim(),
         jobTitle: _jobTitleController.text.trim(),
         bio: _bioController.text.trim(),
-        facebook: _facebookController.text.trim(),
-        zalo: _zaloController.text.trim(),
-        linkedin: _linkedinController.text.trim(),
+        facebook:
+            normalizeSocialLinkForStorage(
+              SocialPlatform.facebook,
+              _facebookController.text,
+            ) ??
+            '',
+        zalo:
+            normalizeSocialLinkForStorage(
+              SocialPlatform.zalo,
+              _zaloController.text,
+            ) ??
+            '',
+        linkedin:
+            normalizeSocialLinkForStorage(
+              SocialPlatform.linkedin,
+              _linkedinController.text,
+            ) ??
+            '',
       ),
     );
 
@@ -1213,6 +1352,9 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     final insets = MediaQuery.viewInsetsOf(context);
     final theme = Theme.of(context);
     final l10n = context.l10n;
+    final phoneHint = PhoneNumberFormatter.nationalNumberHint(
+      _phoneCountryIsoCode,
+    );
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -1279,9 +1421,47 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
-                  controller: _phoneController,
-                  decoration: InputDecoration(labelText: l10n.memberPhoneLabel),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    PhoneCountrySelectorField(
+                      selectedIsoCode: _phoneCountryIsoCode,
+                      enabled: !_isSubmitting,
+                      onChanged: (value) {
+                        setState(() {
+                          _phoneCountryIsoCode = value;
+                          _normalizePhoneInputForCountry();
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _phoneController,
+                        decoration: InputDecoration(
+                          labelText: l10n.memberPhoneLabel,
+                          hintText: phoneHint,
+                        ),
+                        keyboardType: TextInputType.phone,
+                        onEditingComplete: _normalizePhoneInputForCountry,
+                        validator: (value) {
+                          final trimmed = value?.trim() ?? '';
+                          if (trimmed.isEmpty) {
+                            return null;
+                          }
+                          try {
+                            PhoneNumberFormatter.parse(
+                              trimmed,
+                              defaultCountryIso: _phoneCountryIsoCode,
+                            );
+                            return null;
+                          } catch (_) {
+                            return l10n.memberValidationPhoneInvalid;
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
@@ -1296,11 +1476,13 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
+                AddressAutocompleteField(
                   controller: _addressController,
                   maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: l10n.memberAddressLabel,
+                  labelText: l10n.memberAddressLabel,
+                  hintText: l10n.pick(
+                    vi: 'Số nhà, đường, phường/xã, quận/huyện...',
+                    en: 'Street, ward, district...',
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -1310,25 +1492,63 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                   decoration: InputDecoration(labelText: l10n.memberBioLabel),
                 ),
                 const SizedBox(height: 14),
+                Text(
+                  l10n.pick(
+                    vi: 'Nhập tên tài khoản hoặc liên kết. Bấm biểu tượng bên phải để mở app/web và liên kết nhanh.',
+                    en: 'Enter a username or link. Tap the right icon to open app/web for quick linking.',
+                  ),
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 10),
                 TextFormField(
                   controller: _facebookController,
                   decoration: InputDecoration(
                     labelText: l10n.profileFacebookUrlLabel,
+                    hintText: l10n.pick(
+                      vi: 'Tên tài khoản hoặc URL',
+                      en: 'Username or profile URL',
+                    ),
+                    prefixIcon: const Icon(Icons.facebook),
+                    suffixIcon: SocialLinkFieldConnectButton(
+                      platform: SocialPlatform.facebook,
+                      controller: _facebookController,
+                    ),
                   ),
+                  keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _zaloController,
                   decoration: InputDecoration(
                     labelText: l10n.profileZaloUrlLabel,
+                    hintText: l10n.pick(
+                      vi: 'Tên tài khoản hoặc URL',
+                      en: 'Username or profile URL',
+                    ),
+                    prefixIcon: const Icon(Icons.forum_outlined),
+                    suffixIcon: SocialLinkFieldConnectButton(
+                      platform: SocialPlatform.zalo,
+                      controller: _zaloController,
+                    ),
                   ),
+                  keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _linkedinController,
                   decoration: InputDecoration(
                     labelText: l10n.profileLinkedinUrlLabel,
+                    hintText: l10n.pick(
+                      vi: 'Tên tài khoản hoặc URL',
+                      en: 'Username or profile URL',
+                    ),
+                    prefixIcon: const Icon(Icons.work_outline),
+                    suffixIcon: SocialLinkFieldConnectButton(
+                      platform: SocialPlatform.linkedin,
+                      controller: _linkedinController,
+                    ),
                   ),
+                  keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 22),
                 SizedBox(
@@ -1401,11 +1621,13 @@ class _ProfileDetailRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.isLast = false,
+    this.trailing,
   });
 
   final String label;
   final String value;
   final bool isLast;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -1414,7 +1636,7 @@ class _ProfileDetailRow extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
             width: 110,
@@ -1426,7 +1648,18 @@ class _ProfileDetailRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+                if (trailing != null) ...[
+                  const SizedBox(width: 8),
+                  Align(alignment: Alignment.centerRight, child: trailing!),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1631,6 +1864,36 @@ class _ProfileEmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+String _friendlyProfileErrorMessage(String raw, AppLocalizations l10n) {
+  final normalized = raw.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return l10n.pick(
+      vi: 'Không thể tải hồ sơ lúc này. Vui lòng thử lại.',
+      en: 'Could not load profile right now. Please try again.',
+    );
+  }
+  if (normalized.contains('permission_denied') ||
+      normalized.contains('permission denied')) {
+    return l10n.pick(
+      vi: 'Bạn chưa có quyền cập nhật hồ sơ này.',
+      en: 'You do not have permission to update this profile.',
+    );
+  }
+  if (normalized.contains('network') ||
+      normalized.contains('unavailable') ||
+      normalized.contains('timeout') ||
+      normalized.contains('deadline')) {
+    return l10n.pick(
+      vi: 'Kết nối đang gián đoạn. Vui lòng kiểm tra mạng rồi thử lại.',
+      en: 'Connection is unstable. Please check your network and try again.',
+    );
+  }
+  return l10n.pick(
+    vi: 'Cập nhật hồ sơ chưa thành công. Vui lòng thử lại sau.',
+    en: 'Profile update failed. Please try again later.',
+  );
 }
 
 String _memberErrorMessage(

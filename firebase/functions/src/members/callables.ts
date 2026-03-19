@@ -214,13 +214,15 @@ async function createMemberInTransaction({
   }
 
   if (input.phoneE164 != null) {
-    const duplicatePhoneSnapshot = await transaction.get(
-      membersCollection
-        .where('clanId', '==', input.clanId)
-        .where('phoneE164', '==', input.phoneE164)
-        .limit(1),
+    const sameClanSnapshot = await transaction.get(
+      membersCollection.where('clanId', '==', input.clanId),
     );
-    if (!duplicatePhoneSnapshot.empty) {
+    const hasDuplicatePhone = sameClanSnapshot.docs.some((doc) => {
+      const data = asRecord(doc.data());
+      const existingPhone = normalizeNullableString(data?.phoneE164);
+      return phonesEquivalent(existingPhone, input.phoneE164);
+    });
+    if (hasDuplicatePhone) {
       throw new HttpsError(
         'already-exists',
         'A member with this phone number already exists in the clan.',
@@ -439,7 +441,7 @@ function parseCreateClanMemberInput(token: AuthToken, data: unknown): CreateClan
     gender: normalizeNullableString(payload.gender),
     birthDate: normalizeNullableString(payload.birthDate),
     deathDate: normalizeNullableString(payload.deathDate),
-    phoneE164: normalizeNullableString(payload.phoneE164),
+    phoneE164: normalizeNullablePhone(payload.phoneE164),
     email: normalizeNullableString(payload.email),
     addressText: normalizeNullableString(payload.addressText),
     jobTitle: normalizeNullableString(payload.jobTitle),
@@ -510,12 +512,11 @@ async function resolveClanOwnerScope(clanId: string): Promise<ClanOwnerScope> {
   if (clanData == null) {
     throw new HttpsError('not-found', 'Clan was not found.');
   }
-  const ownerUid =
-    normalizeString(clanData.billingOwnerUid) || normalizeString(clanData.ownerUid);
+  const ownerUid = normalizeString(clanData.ownerUid);
   if (ownerUid.length == 0) {
     throw new HttpsError(
       'failed-precondition',
-      'Clan billing owner is missing.',
+      'Clan owner is missing.',
     );
   }
 
@@ -835,6 +836,151 @@ function normalizeString(value: unknown): string {
 function normalizeNullableString(value: unknown): string | null {
   const normalized = normalizeString(value);
   return normalized.length > 0 ? normalized : null;
+}
+
+const supportedPhoneDialCodes = ['886', '84', '82', '81', '65', '61', '49', '44', '33', '1'];
+
+function normalizeNullablePhone(value: unknown): string | null {
+  const normalized = normalizeNullableString(value);
+  if (normalized == null) {
+    return null;
+  }
+  return normalizePhoneE164(normalized);
+}
+
+function normalizePhoneE164(input: string): string {
+  const trimmed = input.trim();
+  const digitsAndPlus = trimmed.replace(/[^0-9+]/g, '');
+  if (digitsAndPlus.length == 0) {
+    throw new HttpsError('invalid-argument', 'phoneE164 has invalid format.');
+  }
+
+  const digitsOnly = digitsAndPlus.replace(/[^0-9]/g, '');
+  let normalized = '';
+  if (digitsAndPlus.startsWith('+')) {
+    normalized = `+${digitsAndPlus.slice(1).replace(/[^0-9]/g, '')}`;
+  } else if (digitsAndPlus.startsWith('00')) {
+    normalized = `+${digitsAndPlus.slice(2).replace(/[^0-9]/g, '')}`;
+  } else if (digitsOnly.startsWith('0')) {
+    normalized = `+84${digitsOnly.slice(1)}`;
+  } else if (looksLikeInternationalPhoneDigits(digitsOnly, '84')) {
+    normalized = `+${digitsOnly}`;
+  } else {
+    normalized = `+84${digitsOnly}`;
+  }
+
+  if (normalized.startsWith('+840')) {
+    normalized = `+84${normalized.slice(4)}`;
+  }
+  if (normalized.startsWith('+84') && normalized.length > 3 && normalized[3] == '0') {
+    normalized = `+84${normalized.slice(4)}`;
+  }
+
+  if (!/^\+[1-9]\d{8,14}$/.test(normalized)) {
+    throw new HttpsError('invalid-argument', 'phoneE164 has invalid format.');
+  }
+  return normalized;
+}
+
+function looksLikeInternationalPhoneDigits(
+  digits: string,
+  fallbackDialCode: string,
+): boolean {
+  if (digits.length == 0) {
+    return false;
+  }
+  if (digits.startsWith(fallbackDialCode) && digits.length > fallbackDialCode.length + 6) {
+    return true;
+  }
+  const matchedDialCode = findPhoneDialCodePrefix(digits);
+  if (matchedDialCode == null) {
+    return false;
+  }
+  return digits.length > matchedDialCode.length + 6;
+}
+
+function findPhoneDialCodePrefix(digits: string): string | null {
+  for (const dialCode of supportedPhoneDialCodes) {
+    if (digits.startsWith(dialCode) && digits.length > dialCode.length) {
+      return dialCode;
+    }
+  }
+  return null;
+}
+
+function splitPhoneCountryAndNational(phoneE164: string): {
+  dialCode: string;
+  nationalDigits: string;
+} | null {
+  const digits = phoneE164.startsWith('+') ? phoneE164.slice(1) : phoneE164;
+  const dialCode = findPhoneDialCodePrefix(digits);
+  if (dialCode == null) {
+    return null;
+  }
+  const nationalDigits = digits.slice(dialCode.length);
+  if (nationalDigits.length == 0) {
+    return null;
+  }
+  return { dialCode, nationalDigits };
+}
+
+function phoneComparisonKeys(phone: string): Set<string> {
+  const keys = new Set<string>();
+  const normalized = normalizePhoneE164(phone);
+  keys.add(normalized);
+  keys.add(normalized.slice(1));
+  const split = splitPhoneCountryAndNational(normalized);
+  if (split != null) {
+    keys.add(split.nationalDigits);
+    if (!split.nationalDigits.startsWith('0')) {
+      keys.add(`0${split.nationalDigits}`);
+    }
+    keys.add(`${split.dialCode}${split.nationalDigits}`);
+  }
+  const rawDigits = phone.replace(/[^0-9]/g, '');
+  if (rawDigits.length > 0) {
+    keys.add(rawDigits);
+  }
+  return keys;
+}
+
+function phonesEquivalent(left: string | null, right: string | null): boolean {
+  if (left == null || right == null) {
+    return false;
+  }
+
+  const leftKeys = new Set<string>();
+  const rightKeys = new Set<string>();
+  try {
+    for (const key of phoneComparisonKeys(left)) {
+      leftKeys.add(key);
+    }
+  } catch {
+    const digits = left.replace(/[^0-9]/g, '');
+    if (digits.length > 0) {
+      leftKeys.add(digits);
+    }
+  }
+  try {
+    for (const key of phoneComparisonKeys(right)) {
+      rightKeys.add(key);
+    }
+  } catch {
+    const digits = right.replace(/[^0-9]/g, '');
+    if (digits.length > 0) {
+      rightKeys.add(digits);
+    }
+  }
+
+  if (leftKeys.size == 0 || rightKeys.size == 0) {
+    return false;
+  }
+  for (const key of leftKeys) {
+    if (rightKeys.has(key)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function normalizeStringList(value: unknown): Array<string> {

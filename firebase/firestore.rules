@@ -328,10 +328,6 @@ service cloud.firestore {
       }
     }
 
-    match /debug_login_profiles/{phoneE164} {
-      allow read, write: if false;
-    }
-
     match /clans/{clanId} {
       allow read: if hasClanAccess(clanId);
       allow create: if
@@ -342,8 +338,7 @@ service cloud.firestore {
         isClanSettingsAdmin() &&
         hasClanAccess(clanId) &&
         request.resource.data.id == clanId &&
-        request.resource.data.ownerUid == resource.data.ownerUid &&
-        request.resource.data.billingOwnerUid == resource.data.billingOwnerUid;
+        request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if false;
     }
 

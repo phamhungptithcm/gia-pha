@@ -25,12 +25,14 @@ class ClanDetailPage extends StatefulWidget {
     required this.repository,
     this.availableClanContexts = const [],
     this.onSwitchClanContext,
+    this.autoOpenClanEditorOnOpen = false,
   });
 
   final AuthSession session;
   final ClanRepository repository;
   final List<ClanContextOption> availableClanContexts;
   final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
+  final bool autoOpenClanEditorOnOpen;
 
   @override
   State<ClanDetailPage> createState() => _ClanDetailPageState();
@@ -42,6 +44,7 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
   bool _isSwitchingClanContext = false;
   bool _isHeroDescriptionExpanded = false;
   bool _isProfileDetailsExpanded = false;
+  bool _hasTriggeredAutoOpenClanEditor = false;
 
   static final Map<String, String> _lastSelectedClanByUid = <String, String>{};
 
@@ -55,6 +58,15 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
     }
     _controller = _createController(_session);
     unawaited(_controller.initialize());
+    if (widget.autoOpenClanEditorOnOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _hasTriggeredAutoOpenClanEditor) {
+          return;
+        }
+        _hasTriggeredAutoOpenClanEditor = true;
+        unawaited(_openClanEditor());
+      });
+    }
   }
 
   ClanController _createController(AuthSession session) {
@@ -83,23 +95,37 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
       },
     );
 
-    if (didSave == true && mounted) {
-      final createdFromUnlinkedSession =
-          (_session.clanId ?? '').trim().isEmpty &&
-          _controller.permissions.canBootstrapClan;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            createdFromUnlinkedSession
-                ? context.l10n.pick(
-                    vi: 'Đã tạo gia phả mới. Nếu chưa thấy dữ liệu đầy đủ, vui lòng đăng xuất và đăng nhập lại.',
-                    en: 'New clan workspace created. If data is not fully visible yet, please sign out and sign in again.',
-                  )
-                : context.l10n.clanSaveSuccess,
-          ),
-        ),
-      );
+    if (didSave != true || !mounted) {
+      return;
     }
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    final createdFromUnlinkedSession =
+        (_session.clanId ?? '').trim().isEmpty &&
+        _controller.permissions.canBootstrapClan;
+    if (createdFromUnlinkedSession &&
+        widget.onSwitchClanContext != null &&
+        _controller.clan != null) {
+      final createdClanId = _controller.clan!.id.trim();
+      if (createdClanId.isNotEmpty) {
+        await _switchClanContext(createdClanId);
+        if (!mounted) {
+          return;
+        }
+      }
+    }
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          createdFromUnlinkedSession
+              ? l10n.pick(
+                  vi: 'Đã tạo gia phả mới và chuyển sang không gian quản lý.',
+                  en: 'New clan workspace created and switched successfully.',
+                )
+              : l10n.clanSaveSuccess,
+        ),
+      ),
+    );
   }
 
   Future<void> _openBranchEditor({BranchProfile? branch}) async {
@@ -215,7 +241,9 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                   );
           },
           planLabelBuilder: (option) {
-            final planCode = (option.billingPlanCode ?? '').trim().toUpperCase();
+            final planCode = (option.billingPlanCode ?? '')
+                .trim()
+                .toUpperCase();
             return planCode.isEmpty
                 ? context.l10n.pick(vi: 'Gói: --', en: 'Plan: --')
                 : context.l10n.pick(
@@ -1519,7 +1547,7 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                   controller: _countryController,
                   decoration: InputDecoration(
                     labelText: l10n.clanFieldCountry,
-                    hintText: 'VN',
+                    hintText: l10n.pick(vi: 'VN', en: 'VN'),
                   ),
                   textCapitalization: TextCapitalization.characters,
                   textInputAction: TextInputAction.next,
@@ -1545,7 +1573,7 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                   controller: _logoUrlController,
                   decoration: InputDecoration(
                     labelText: l10n.clanFieldLogoUrl,
-                    hintText: 'https://...',
+                    hintText: l10n.pick(vi: 'https://...', en: 'https://...'),
                   ),
                   keyboardType: TextInputType.url,
                   textInputAction: TextInputAction.next,

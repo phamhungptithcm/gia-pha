@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -27,7 +26,6 @@ class BillingWorkspacePage extends StatefulWidget {
     this.externalUrlLauncher,
     this.vnpayPaymentMethodUrl,
     this.vnpayGateway,
-    this.allowQrCheckoutInDebug = false,
   });
 
   final AuthSession session;
@@ -36,7 +34,6 @@ class BillingWorkspacePage extends StatefulWidget {
   final ExternalUriLauncher? externalUrlLauncher;
   final String? vnpayPaymentMethodUrl;
   final VnpayMobileSdkGateway? vnpayGateway;
-  final bool allowQrCheckoutInDebug;
 
   @override
   State<BillingWorkspacePage> createState() => _BillingWorkspacePageState();
@@ -88,13 +85,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   }
 
   bool _shouldUseQrCheckout(BillingWorkspaceSnapshot workspace) {
-    if (!workspace.checkoutFlow.qrCheckoutEnabled) {
-      return false;
-    }
-    if (kReleaseMode) {
-      return true;
-    }
-    return widget.allowQrCheckoutInDebug;
+    return workspace.checkoutFlow.qrCheckoutEnabled;
   }
 
   Future<void> _openQrCheckoutFlow({
@@ -694,14 +685,12 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             _InfoCard(
               icon: Icons.lock_outline,
               title: l10n.pick(
-                vi: 'Chỉ owner được thanh toán và đổi gói',
-                en: 'Only owner can manage checkout',
+                vi: 'Chỉ tài khoản quản trị clan được thanh toán và đổi gói',
+                en: 'Only clan admin roles can manage checkout',
               ),
               description: l10n.pick(
-                vi:
-                    'Liên hệ $resolvedOwnerLabel để nâng cấp hoặc gia hạn gói.',
-                en:
-                    'Contact $resolvedOwnerLabel to upgrade or renew this subscription.',
+                vi: 'Gói dịch vụ được tính theo owner. Liên hệ $resolvedOwnerLabel để nâng cấp hoặc gia hạn khi vượt giới hạn thành viên.',
+                en: 'The subscription is enforced by owner scope. Contact $resolvedOwnerLabel to upgrade or renew when member limits are reached.',
               ),
               tone: colorScheme.primaryContainer,
             ),
@@ -709,8 +698,8 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
           const SizedBox(height: 16),
           _SectionCard(
             title: l10n.pick(
-              vi: 'Thanh toán & gia hạn',
-              en: 'Checkout & renewal',
+              vi: 'Gói dịch vụ & thanh toán',
+              en: 'Subscription & billing',
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -765,6 +754,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                                     .trim()
                                     .toUpperCase() ==
                                 currentPlanCode,
+                            isEnabled: canManage,
                             onTap: !canManage
                                 ? null
                                 : () {
@@ -997,8 +987,8 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                     en: 'Auto-renew switch',
                   ),
                   hint: l10n.pick(
-                    vi: 'Nếu bật, hệ thống tự thanh toán khi đến hạn.',
-                    en: 'When enabled, payment is processed automatically on due date.',
+                    vi: 'Nếu bật, BeFam sẽ nhắc hạn và chuẩn bị phiên gia hạn. Bạn vẫn xác nhận thanh toán trên VNPay.',
+                    en: 'When enabled, BeFam prepares renewal reminders and checkout. You still confirm payment on VNPay.',
                   ),
                   toggled: _autoRenewDraft,
                   child: Row(
@@ -1022,8 +1012,8 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                               const SizedBox(height: 4),
                               Text(
                                 l10n.pick(
-                                  vi: 'Nếu bật, hệ thống tự thanh toán khi đến hạn.',
-                                  en: 'When enabled, payment is processed automatically on due date.',
+                                  vi: 'Nếu bật, BeFam sẽ nhắc hạn và chuẩn bị phiên gia hạn. Bạn vẫn xác nhận thanh toán trên VNPay.',
+                                  en: 'When enabled, BeFam prepares renewal reminders and checkout. You still confirm payment on VNPay.',
                                 ),
                                 style: theme.textTheme.bodySmall,
                               ),
@@ -1668,22 +1658,28 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     return normalized == 'pending' || normalized == 'created';
   }
 
+  int get _pendingTimeoutMinutes {
+    final configured = AppEnvironment.billingPendingTimeoutMinutes;
+    return configured > 0 ? configured : 20;
+  }
+
   String _pendingTimeoutLabel(
     BillingPaymentTransaction tx,
     AppLocalizations l10n,
   ) {
     final createdAt = DateTime.tryParse(tx.createdAtIso ?? '')?.toUtc();
+    final timeoutMinutes = _pendingTimeoutMinutes;
     if (createdAt == null) {
       return l10n.pick(
-        vi: 'Tự hủy\nsau 20 phút',
-        en: 'Auto-cancel\nin 20 minutes',
+        vi: 'Tự hủy\nsau $timeoutMinutes phút',
+        en: 'Auto-cancel\nin $timeoutMinutes minutes',
       );
     }
     final elapsedMinutes = DateTime.now()
         .toUtc()
         .difference(createdAt)
         .inMinutes;
-    final remaining = 20 - elapsedMinutes;
+    final remaining = timeoutMinutes - elapsedMinutes;
     if (remaining <= 0) {
       return l10n.pick(vi: 'Đang\ntự hủy', en: 'Canceling\nnow');
     }
@@ -1923,6 +1919,7 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
     required this.priceLabel,
     required this.isSelected,
     required this.isCurrentPlan,
+    required this.isEnabled,
     required this.onTap,
   });
 
@@ -1931,6 +1928,7 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
   final String priceLabel;
   final bool isSelected;
   final bool isCurrentPlan;
+  final bool isEnabled;
   final VoidCallback? onTap;
 
   @override
@@ -1938,16 +1936,24 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final borderColor = isSelected ? colorScheme.primary : colorScheme.outline;
+    final isInteractive = isEnabled && onTap != null;
+    final borderColor = isSelected
+        ? colorScheme.primary
+        : isInteractive
+        ? colorScheme.outline
+        : colorScheme.outlineVariant;
     final backgroundColor = isSelected
         ? colorScheme.primaryContainer.withValues(alpha: 0.42)
-        : colorScheme.surface;
+        : isInteractive
+        ? colorScheme.surface
+        : colorScheme.surfaceContainerLowest;
+    final mutedColor = colorScheme.onSurfaceVariant;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
+        onTap: isInteractive ? onTap : null,
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
@@ -1967,7 +1973,9 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
                     size: 18,
                     color: isSelected
                         ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
+                        : isInteractive
+                        ? colorScheme.onSurfaceVariant
+                        : mutedColor,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1983,6 +1991,7 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
+                                  color: isInteractive ? null : mutedColor,
                                 ),
                               ),
                             ),
@@ -2014,7 +2023,9 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                            color: isInteractive
+                                ? colorScheme.onSurfaceVariant
+                                : mutedColor,
                           ),
                         ),
                       ],
@@ -2041,13 +2052,18 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
+                              color: isInteractive ? null : mutedColor,
                             ),
                           ),
                         ),
                         const SizedBox(width: 4),
                         Icon(
-                          Icons.chevron_right_rounded,
-                          color: colorScheme.onSurfaceVariant,
+                          isInteractive
+                              ? Icons.chevron_right_rounded
+                              : Icons.lock_outline_rounded,
+                          color: isInteractive
+                              ? colorScheme.onSurfaceVariant
+                              : mutedColor,
                         ),
                       ],
                     ),
@@ -2448,9 +2464,9 @@ class _VnpayCheckoutFormPageState extends State<_VnpayCheckoutFormPage> {
                         ),
                       ),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'VNPAYQR',
-                      child: Text('VNPayQR'),
+                      child: Text(l10n.pick(vi: 'VNPay QR', en: 'VNPay QR')),
                     ),
                     DropdownMenuItem(
                       value: 'VNBANK',
@@ -2748,6 +2764,10 @@ class _VnpayCheckoutProgressPageState
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final checkout = _checkout;
+    final pendingTimeoutMinutes =
+        AppEnvironment.billingPendingTimeoutMinutes > 0
+        ? AppEnvironment.billingPendingTimeoutMinutes
+        : 20;
 
     return Scaffold(
       appBar: AppBar(
@@ -2789,8 +2809,8 @@ class _VnpayCheckoutProgressPageState
                     en: 'Waiting for payment',
                   ),
                   description: l10n.pick(
-                    vi: 'Hoàn tất trên VNPay rồi quay lại ứng dụng để kiểm tra kết quả. Phiên chờ sẽ tự hủy sau 20 phút.',
-                    en: 'Complete payment on VNPay, then come back to verify status. Pending checkouts auto-cancel after 20 minutes.',
+                    vi: 'Hoàn tất trên VNPay rồi quay lại ứng dụng để kiểm tra kết quả. Phiên chờ sẽ tự hủy sau $pendingTimeoutMinutes phút.',
+                    en: 'Complete payment on VNPay, then come back to verify status. Pending checkouts auto-cancel after $pendingTimeoutMinutes minutes.',
                   ),
                   tone: colorScheme.secondaryContainer,
                 ),

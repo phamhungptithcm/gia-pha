@@ -1,9 +1,8 @@
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/genealogy_discovery_result.dart';
 import '../models/join_request_draft.dart';
 import '../models/join_request_review_item.dart';
-import 'debug_genealogy_discovery_repository.dart';
+import '../models/my_join_request_item.dart';
 import 'firebase_genealogy_discovery_repository.dart';
 
 abstract interface class GenealogyDiscoveryRepository {
@@ -17,6 +16,15 @@ abstract interface class GenealogyDiscoveryRepository {
   });
 
   Future<void> submitJoinRequest({required JoinRequestDraft draft});
+
+  Future<List<MyJoinRequestItem>> loadMyJoinRequests({
+    required AuthSession session,
+  });
+
+  Future<void> cancelJoinRequest({
+    required AuthSession session,
+    required String requestId,
+  });
 
   Future<List<JoinRequestReviewItem>> loadPendingJoinRequests({
     required AuthSession session,
@@ -33,9 +41,5 @@ abstract interface class GenealogyDiscoveryRepository {
 GenealogyDiscoveryRepository createDefaultGenealogyDiscoveryRepository({
   AuthSession? session,
 }) {
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return DebugGenealogyDiscoveryRepository.seeded();
-  }
   return FirebaseGenealogyDiscoveryRepository();
 }

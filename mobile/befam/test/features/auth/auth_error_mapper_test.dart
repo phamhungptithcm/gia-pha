@@ -1,7 +1,9 @@
-import 'package:befam/features/auth/models/auth_issue.dart';
-import 'package:befam/features/auth/services/auth_error_mapper.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:befam/features/auth/models/auth_issue.dart';
+import 'package:befam/features/auth/services/auth_error_mapper.dart';
 
 void main() {
   group('AuthErrorMapper', () {
@@ -35,6 +37,130 @@ void main() {
       );
 
       expect(issue.key, AuthIssueKey.recaptchaVerificationFailed);
+    });
+
+    test('maps firebase functions invalid argument to preparation failed', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'invalid-argument',
+          message: 'invalid payload',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.preparationFailed);
+    });
+
+    test('maps firebase permission denied to operation not allowed', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+          message: 'Missing or insufficient permissions.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.operationNotAllowed);
+    });
+
+    test(
+      'maps verification data insufficiency to member verification data unavailable',
+      () {
+        final issue = AuthErrorMapper.map(
+          FirebaseFunctionsException(
+            code: 'failed-precondition',
+            message:
+                'Verification data is not sufficient for automatic linking.',
+          ),
+        );
+
+        expect(issue.key, AuthIssueKey.memberVerificationDataUnavailable);
+      },
+    );
+
+    test('maps inactive profile precondition to operation not allowed', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'failed-precondition',
+          message:
+              'The selected member profile is inactive and cannot be linked automatically.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.operationNotAllowed);
+    });
+
+    test('maps temporary verification lock to member verification locked', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'failed-precondition',
+          message:
+              'Verification is temporarily locked. Please wait and try again.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.memberVerificationLocked);
+    });
+
+    test('maps structured reason payload to member verification locked', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'failed-precondition',
+          message: 'ignored',
+          details: <String, dynamic>{'reason': 'member_verification_locked'},
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.memberVerificationLocked);
+    });
+
+    test('maps duplicated member phone conflict to member claim conflict', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'failed-precondition',
+          message: 'Multiple member profiles share this phone number.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.memberClaimConflict);
+    });
+
+    test('maps generic firebase functions not-found to auth unavailable', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'not-found',
+          message: 'Callable function was not found.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.authUnavailable);
+    });
+
+    test('maps member profile not-found message to user not found', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'not-found',
+          message: 'The selected member profile no longer exists.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.userNotFound);
+    });
+
+    test('maps verification session not-found message to session expired', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'not-found',
+          message: 'Verification session was not found.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.sessionExpired);
+    });
+
+    test('maps unknown error to preparation failed', () {
+      final issue = AuthErrorMapper.map(StateError('boom'));
+
+      expect(issue.key, AuthIssueKey.preparationFailed);
     });
   });
 }

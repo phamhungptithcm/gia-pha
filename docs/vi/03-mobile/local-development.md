@@ -45,7 +45,7 @@ Kỳ vọng:
 ## Mở Android emulator
 
 ```bash
-./scripts/run_android_emulator.sh
+./scripts/run_flutter_targets.sh android-emulator-start
 ```
 
 Tên emulator:
@@ -57,7 +57,10 @@ flutter_android_test
 ## Chạy app
 
 ```bash
-./scripts/run_befam_android.sh
+./scripts/run_flutter_targets.sh
+./scripts/run_flutter_targets.sh android-sim
+./scripts/run_flutter_targets.sh ios-sim
+./scripts/run_flutter_targets.sh web-server 8080
 ```
 
 Hoặc chạy trực tiếp:
@@ -90,22 +93,12 @@ flutter analyze
 flutter test
 ```
 
-## Auth và runtime mode
+## Auth runtime
 
-Debug mặc định dùng Firebase thật.
+Ứng dụng dùng Firebase auth/runtime services cho luồng local thông thường và bám sát production.
 
-- mặc định live: `BEFAM_USE_LIVE_AUTH=true`
-- ép mock backend cho local sandbox/test:
+Các `--dart-define` hữu ích:
 
-```bash
-cd mobile/befam
-flutter run -d emulator-5554 --dart-define=BEFAM_USE_LIVE_AUTH=false
-```
-
-Giá trị debug tùy chọn:
-
-- OTP: `123456`
-- child identifiers: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
 - override vùng Functions:
   `--dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION=asia-southeast1`
 - override timezone mặc định:

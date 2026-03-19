@@ -16,8 +16,10 @@ import '../../../core/services/firebase_services.dart';
 import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/services/kinship_title_resolver.dart';
 import '../../../core/services/performance_measurement_logger.dart';
+import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/member_phone_action.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -3945,11 +3947,13 @@ class _FactLine extends StatelessWidget {
     required this.label,
     required this.value,
     this.isLast = false,
+    this.trailing,
   });
 
   final String label;
   final String value;
   final bool isLast;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -3968,7 +3972,15 @@ class _FactLine extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text(value)),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: Text(value)),
+                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -4192,6 +4204,10 @@ class _GenealogyMemberDetailPage extends StatelessWidget {
                     _FactLine(
                       label: l10n.memberPhoneLabel,
                       value: member.phoneE164 ?? l10n.memberFieldUnset,
+                      trailing: MemberPhoneActionIconButton(
+                        phoneNumber: member.phoneE164 ?? '',
+                        contactName: member.displayName,
+                      ),
                     ),
                     _FactLine(
                       label: l10n.memberEmailLabel,
@@ -4232,6 +4248,10 @@ class _GenealogyMemberDetailPage extends StatelessWidget {
                     _FactLine(
                       label: l10n.memberAddressLabel,
                       value: member.addressText ?? l10n.memberFieldUnset,
+                      trailing: AddressDirectionIconButton(
+                        address: member.addressText ?? '',
+                        label: member.displayName,
+                      ),
                     ),
                     _FactLine(
                       label: l10n.memberBioLabel,

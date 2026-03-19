@@ -33,6 +33,9 @@ const expiresAt = Timestamp.fromDate(
   new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
 );
 const clanId = 'clan_demo_001';
+const clanOwnerUid = 'seed_uid_member_demo_parent_001';
+const ownerBillingScopeId = `user_scope__${clanOwnerUid}`;
+const ownerScopedBillingDocId = `${ownerBillingScopeId}__${clanOwnerUid}`;
 
 function normalizeName(value) {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -174,7 +177,6 @@ const members = [
     generation: 3,
     jobTitle: 'Cố vấn họ tộc',
     bio: 'Thành viên lớn tuổi hỗ trợ kiểm thử danh sách.',
-    authUid: 'debug_phone_84907770011',
   }),
   createMember({
     id: 'member_demo_elder_spouse_001',
@@ -202,7 +204,6 @@ const members = [
     primaryRole: 'CLAN_ADMIN',
     jobTitle: 'Điều phối họ tộc',
     bio: 'Điều phối khởi tạo không gian họ tộc mẫu cho ứng dụng gia phả.',
-    authUid: 'debug_phone_84901234567',
   }),
   createMember({
     id: 'member_demo_spouse_001',
@@ -250,7 +251,6 @@ const members = [
     primaryRole: 'BRANCH_ADMIN',
     jobTitle: 'Trưởng chi phụ',
     bio: 'Trưởng chi phụ, điều phối hoạt động thành viên theo nam hệ.',
-    authUid: 'debug_phone_84908886655',
   }),
   createMember({
     id: 'member_demo_spouse_002',
@@ -1272,6 +1272,7 @@ const clan = {
     'Gia phả mẫu nhiều thế hệ với dữ liệu gần thực tế để kiểm thử trên quy mô lớn.',
   countryCode: 'VN',
   founderName: 'Nguyễn Minh',
+  ownerUid: clanOwnerUid,
   logoUrl: '',
   status: 'active',
   memberCount: normalizedMembers.length,
@@ -1386,121 +1387,6 @@ const invites = [
     expiresAt,
     createdAt: now,
     createdBy: 'seed-script',
-  },
-];
-
-const debugLoginProfiles = [
-  {
-    phoneE164: '+84901234567',
-    scenarioKey: 'clan_admin_existing',
-    title: 'Trưởng tộc đã có gia phả',
-    description:
-      'Tài khoản trưởng tộc đã liên kết thành viên và có dữ liệu gia phả.',
-    memberId: 'member_demo_parent_001',
-    clanId: 'clan_demo_001',
-    branchId: 'branch_demo_001',
-    primaryRole: 'CLAN_ADMIN',
-    accessMode: 'claimed',
-    linkedAuthUid: true,
-    debugOtpCode: '123456',
-    sortOrder: 10,
-    isActive: true,
-    isTestUser: true,
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    phoneE164: '+84908886655',
-    scenarioKey: 'branch_admin_existing',
-    title: 'Trưởng chi đã có gia phả',
-    description: 'Tài khoản trưởng chi đã liên kết và quản lý một chi hiện có.',
-    memberId: 'member_demo_parent_002',
-    clanId: 'clan_demo_001',
-    branchId: 'branch_demo_002',
-    primaryRole: 'BRANCH_ADMIN',
-    accessMode: 'claimed',
-    linkedAuthUid: true,
-    debugOtpCode: '123456',
-    sortOrder: 20,
-    isActive: true,
-    isTestUser: true,
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    phoneE164: '+84907770011',
-    scenarioKey: 'member_existing',
-    title: 'Thành viên thường đã vào gia phả',
-    description:
-      'Tài khoản thành viên thường đã liên kết hồ sơ để kiểm thử phân quyền.',
-    memberId: 'member_demo_elder_001',
-    clanId: 'clan_demo_001',
-    branchId: 'branch_demo_001',
-    primaryRole: 'MEMBER',
-    accessMode: 'claimed',
-    linkedAuthUid: true,
-    debugOtpCode: '123456',
-    sortOrder: 30,
-    isActive: true,
-    isTestUser: true,
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    phoneE164: '+84906660022',
-    scenarioKey: 'user_unlinked',
-    title: 'Người dùng chưa vào gia phả nào',
-    description: 'Tài khoản chưa liên kết thành viên/họ tộc để kiểm thử luồng bắt đầu.',
-    memberId: null,
-    clanId: null,
-    branchId: null,
-    primaryRole: null,
-    accessMode: 'unlinked',
-    linkedAuthUid: false,
-    debugOtpCode: '123456',
-    sortOrder: 40,
-    isActive: true,
-    isTestUser: true,
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    phoneE164: '+84905550033',
-    scenarioKey: 'branch_admin_unlinked',
-    title: 'Trưởng chi chưa gắn gia phả',
-    description:
-      'Tài khoản trưởng chi nhưng chưa gắn họ tộc/chi để kiểm thử phân quyền.',
-    memberId: null,
-    clanId: null,
-    branchId: null,
-    primaryRole: 'BRANCH_ADMIN',
-    accessMode: 'unlinked',
-    linkedAuthUid: false,
-    debugOtpCode: '123456',
-    sortOrder: 50,
-    isActive: true,
-    isTestUser: true,
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    phoneE164: '+84909990001',
-    scenarioKey: 'clan_admin_uninitialized',
-    title: 'Trưởng tộc chưa tạo gia phả',
-    description:
-      'Tài khoản trưởng tộc có ngữ cảnh tạo họ tộc mới nhưng chưa có dữ liệu.',
-    memberId: null,
-    clanId: 'clan_onboarding_001',
-    branchId: null,
-    primaryRole: 'CLAN_ADMIN',
-    accessMode: 'claimed',
-    linkedAuthUid: true,
-    debugOtpCode: '123456',
-    sortOrder: 60,
-    isActive: true,
-    isTestUser: true,
-    updatedAt: now,
-    createdAt: now,
   },
 ];
 
@@ -1838,8 +1724,9 @@ const scholarshipApprovalLogs = [
 
 const billingSettingsDocs = [
   {
-    id: clanId,
-    clanId,
+    id: ownerScopedBillingDocId,
+    clanId: ownerBillingScopeId,
+    ownerUid: clanOwnerUid,
     paymentMode: 'manual',
     autoRenew: false,
     reminderDaysBefore: [30, 14, 7, 3, 1],
@@ -1852,8 +1739,9 @@ const billingSettingsDocs = [
 
 const subscriptions = [
   {
-    id: clanId,
-    clanId,
+    id: ownerScopedBillingDocId,
+    clanId: ownerBillingScopeId,
+    ownerUid: clanOwnerUid,
     planCode: 'BASE',
     status: 'active',
     memberCount: normalizedMembers.length,
@@ -1877,9 +1765,12 @@ const subscriptions = [
   },
 ];
 
-if (normalizedMembers.length > 50 && subscriptions[0]?.planCode !== 'BASE') {
+if (
+  normalizedMembers.length > 50 &&
+  !subscriptions.some((subscription) => subscription.planCode === 'BASE')
+) {
   throw new Error(
-    `Expected BASE plan for dataset larger than 50 members, got "${subscriptions[0]?.planCode ?? 'null'}".`,
+    `Expected BASE plan for dataset larger than 50 members, got "${subscriptions.map((entry) => entry.planCode).join(',')}".`,
   );
 }
 
@@ -1887,7 +1778,8 @@ const paymentTransactions = [
   {
     id: 'paytxn_demo_001',
     clanId,
-    subscriptionId: clanId,
+    subscriptionOwnerUid: clanOwnerUid,
+    subscriptionId: ownerScopedBillingDocId,
     invoiceId: 'invoice_demo_001',
     paymentMethod: 'vnpay',
     paymentStatus: 'succeeded',
@@ -1912,7 +1804,8 @@ const subscriptionInvoices = [
   {
     id: 'invoice_demo_001',
     clanId,
-    subscriptionId: clanId,
+    subscriptionOwnerUid: clanOwnerUid,
+    subscriptionId: ownerScopedBillingDocId,
     transactionId: 'paytxn_demo_001',
     planCode: 'BASE',
     amountVnd: 49000,
@@ -1937,7 +1830,7 @@ const billingAuditLogs = [
     actorUid: 'seed-script',
     action: 'subscription_bootstrapped',
     entityType: 'subscription',
-    entityId: clanId,
+    entityId: ownerScopedBillingDocId,
     before: null,
     after: {
       planCode: 'BASE',
@@ -2083,147 +1976,6 @@ const governanceRoleAssignments = [
   },
 ];
 
-const userProfiles = [
-  {
-    uid: 'debug_phone_84901234567',
-    memberId: 'member_demo_parent_001',
-    clanId,
-    clanIds: [clanId],
-    branchId: 'branch_demo_001',
-    primaryRole: 'CLAN_ADMIN',
-    accessMode: 'claimed',
-    linkedAuthUid: true,
-    calendarRegion: 'VN',
-    calendarDisplayMode: 'dual',
-    languageCode: 'vi',
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    uid: 'debug_phone_84908886655',
-    memberId: 'member_demo_parent_002',
-    clanId,
-    clanIds: [clanId],
-    branchId: 'branch_demo_002',
-    primaryRole: 'BRANCH_ADMIN',
-    accessMode: 'claimed',
-    linkedAuthUid: true,
-    calendarRegion: 'VN',
-    calendarDisplayMode: 'dual',
-    languageCode: 'vi',
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    uid: 'debug_phone_84907770011',
-    memberId: 'member_demo_elder_001',
-    clanId,
-    clanIds: [clanId],
-    branchId: 'branch_demo_001',
-    primaryRole: 'MEMBER',
-    accessMode: 'claimed',
-    linkedAuthUid: true,
-    calendarRegion: 'VN',
-    calendarDisplayMode: 'dual',
-    languageCode: 'vi',
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    uid: 'debug_phone_84905550033',
-    memberId: null,
-    clanId: null,
-    clanIds: [],
-    branchId: null,
-    primaryRole: 'BRANCH_ADMIN',
-    accessMode: 'unlinked',
-    linkedAuthUid: false,
-    calendarRegion: 'VN',
-    calendarDisplayMode: 'dual',
-    languageCode: 'vi',
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    uid: 'debug_phone_84906660022',
-    memberId: null,
-    clanId: null,
-    clanIds: [],
-    branchId: null,
-    primaryRole: 'GUEST',
-    accessMode: 'unlinked',
-    linkedAuthUid: false,
-    calendarRegion: 'VN',
-    calendarDisplayMode: 'dual',
-    languageCode: 'vi',
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    uid: 'debug_phone_84909990001',
-    memberId: null,
-    clanId: null,
-    clanIds: [],
-    branchId: null,
-    primaryRole: 'CLAN_ADMIN',
-    accessMode: 'claimed',
-    linkedAuthUid: true,
-    calendarRegion: 'VN',
-    calendarDisplayMode: 'dual',
-    languageCode: 'vi',
-    updatedAt: now,
-    createdAt: now,
-  },
-];
-
-const notificationPreferences = [
-  {
-    uid: 'debug_phone_84901234567',
-    id: 'notifications',
-    memberId: 'member_demo_parent_001',
-    clanId,
-    branchId: 'branch_demo_001',
-    eventReminders: true,
-    scholarshipUpdates: true,
-    fundTransactions: true,
-    systemNotices: true,
-    quietHoursEnabled: false,
-    updatedBy: 'seed-script',
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    uid: 'debug_phone_84908886655',
-    id: 'notifications',
-    memberId: 'member_demo_parent_002',
-    clanId,
-    branchId: 'branch_demo_002',
-    eventReminders: true,
-    scholarshipUpdates: true,
-    fundTransactions: true,
-    systemNotices: true,
-    quietHoursEnabled: false,
-    updatedBy: 'seed-script',
-    updatedAt: now,
-    createdAt: now,
-  },
-  {
-    uid: 'debug_phone_84907770011',
-    id: 'notifications',
-    memberId: 'member_demo_elder_001',
-    clanId,
-    branchId: 'branch_demo_001',
-    eventReminders: true,
-    scholarshipUpdates: false,
-    fundTransactions: false,
-    systemNotices: true,
-    quietHoursEnabled: true,
-    updatedBy: 'seed-script',
-    updatedAt: now,
-    createdAt: now,
-  },
-];
-
 const subscriptionPackages = [
   {
     id: 'FREE',
@@ -2325,11 +2077,6 @@ async function seed() {
     batch.set(ref, invite, { merge: true });
   }
 
-  for (const profile of debugLoginProfiles) {
-    const ref = db.collection('debug_login_profiles').doc(profile.phoneE164);
-    batch.set(ref, profile, { merge: true });
-  }
-
   for (const fund of funds) {
     const ref = db.collection('funds').doc(fund.id);
     batch.set(ref, fund, { merge: true });
@@ -2410,20 +2157,6 @@ async function seed() {
     batch.set(ref, assignment, { merge: true });
   }
 
-  for (const user of userProfiles) {
-    const ref = db.collection('users').doc(user.uid);
-    batch.set(ref, user, { merge: true });
-  }
-
-  for (const preferences of notificationPreferences) {
-    const ref = db
-      .collection('users')
-      .doc(preferences.uid)
-      .collection('preferences')
-      .doc('notifications');
-    batch.set(ref, preferences, { merge: true });
-  }
-
   for (const plan of subscriptionPackages) {
     const ref = db.collection('subscriptionPackages').doc(plan.id);
     batch.set(ref, plan, { merge: true });
@@ -2438,7 +2171,6 @@ async function seed() {
   console.log(`Branches: ${branches.length}`);
   console.log(`Relationships: ${relationships.length}`);
   console.log(`Invites: ${invites.length}`);
-  console.log(`Debug login profiles: ${debugLoginProfiles.length}`);
   console.log(`Funds: ${funds.length}`);
   console.log(`Fund transactions: ${fundTransactions.length}`);
   console.log(`Events: ${events.length}`);
@@ -2455,8 +2187,6 @@ async function seed() {
   console.log(`Lunar holidays: ${lunarHolidays.length}`);
   console.log(`Discovery entries: ${discoveryEntries.length}`);
   console.log(`Governance role assignments: ${governanceRoleAssignments.length}`);
-  console.log(`Users: ${userProfiles.length}`);
-  console.log(`Notification preferences: ${notificationPreferences.length}`);
   console.log(`Subscription packages: ${subscriptionPackages.length}`);
 }
 

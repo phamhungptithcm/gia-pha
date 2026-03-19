@@ -72,10 +72,9 @@ Thứ tự ưu tiên runtime config billing:
 - timeout và limit cho pending checkout đọc từ env/runtime override
 - flow người dùng mobile đi theo VNPay-first
 
-## Hành vi signer cho auth
+## Hành vi auth runtime
 
-- debug token signer service account đọc từ
-  `DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT`
+- không dùng debug signer trong callable production
 - không còn hard-code theo project trong source
 
 ## Module hỗ trợ

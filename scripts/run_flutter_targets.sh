@@ -58,6 +58,12 @@ Examples:
   ./scripts/run_flutter_targets.sh ios-device-release
   ./scripts/run_flutter_targets.sh web-server 8080
   ./scripts/run_flutter_targets.sh android-sim emulator-5554 --dart-define=BEFAM_USE_LIVE_AUTH=false
+
+Notes:
+  - The script auto-injects `--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true`
+    unless you override it explicitly in extra Flutter args.
+  - Any exported `BEFAM_FIREBASE_*` env value will also be forwarded as `--dart-define`
+    so you can point to a different Firebase project without changing source files.
 EOF
 }
 
@@ -349,6 +355,45 @@ prompt_with_default() {
   fi
 }
 
+build_befam_dart_define_args() {
+  local allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+  BEFAM_DART_DEFINE_ARGS=(
+    "--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=${allow_bundled}"
+  )
+
+  local firebase_define_keys=(
+    BEFAM_FIREBASE_PROJECT_ID
+    BEFAM_FIREBASE_STORAGE_BUCKET
+    BEFAM_FIREBASE_ANDROID_API_KEY
+    BEFAM_FIREBASE_ANDROID_APP_ID
+    BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID
+    BEFAM_FIREBASE_IOS_API_KEY
+    BEFAM_FIREBASE_IOS_APP_ID
+    BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID
+    BEFAM_FIREBASE_IOS_BUNDLE_ID
+    BEFAM_FIREBASE_WEB_API_KEY
+    BEFAM_FIREBASE_WEB_APP_ID
+    BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+    BEFAM_FIREBASE_WEB_AUTH_DOMAIN
+    BEFAM_FIREBASE_WEB_MEASUREMENT_ID
+    BEFAM_FIREBASE_FUNCTIONS_REGION
+    BEFAM_DEFAULT_TIMEZONE
+    BEFAM_INVALID_CHECKOUT_HOSTS
+    BEFAM_ENABLE_APP_CHECK
+    BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
+    BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+  )
+
+  local key=""
+  local value=""
+  for key in "${firebase_define_keys[@]}"; do
+    value="${!key:-}"
+    if [[ -n "$value" ]]; then
+      BEFAM_DART_DEFINE_ARGS+=("--dart-define=${key}=${value}")
+    fi
+  done
+}
+
 TARGET="${1:-interactive}"
 if [[ "$#" -gt 0 ]]; then
   shift
@@ -364,6 +409,9 @@ require_cmd flutter
 if [[ "$TARGET" == "interactive" || "$TARGET" == "menu" ]]; then
   TARGET="$(select_target_interactive)"
 fi
+
+BEFAM_DART_DEFINE_ARGS=()
+build_befam_dart_define_args
 
 case "$TARGET" in
   devices)
@@ -389,7 +437,7 @@ case "$TARGET" in
     fi
     cd "$APP_DIR"
     flutter pub get
-    flutter run -d "$DEVICE_ID" "$@"
+    flutter run -d "$DEVICE_ID" "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 
   android-release)
@@ -401,7 +449,7 @@ case "$TARGET" in
     fi
     cd "$APP_DIR"
     flutter pub get
-    flutter run --release -d "$DEVICE_ID" "$@"
+    flutter run --release -d "$DEVICE_ID" "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 
   ios-sim)
@@ -413,7 +461,7 @@ case "$TARGET" in
     fi
     cd "$APP_DIR"
     flutter pub get
-    DEVELOPER_DIR="$IOS_DEVELOPER_DIR" flutter run -d "$DEVICE_ID" "$@"
+    DEVELOPER_DIR="$IOS_DEVELOPER_DIR" flutter run -d "$DEVICE_ID" "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 
   ios-device)
@@ -429,7 +477,7 @@ case "$TARGET" in
     fi
     cd "$APP_DIR"
     flutter pub get
-    DEVELOPER_DIR="$IOS_DEVELOPER_DIR" flutter run -d "$DEVICE_ID" "$@"
+    DEVELOPER_DIR="$IOS_DEVELOPER_DIR" flutter run -d "$DEVICE_ID" "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 
   ios-device-release)
@@ -445,13 +493,13 @@ case "$TARGET" in
     fi
     cd "$APP_DIR"
     flutter pub get
-    DEVELOPER_DIR="$IOS_DEVELOPER_DIR" flutter run --release -d "$DEVICE_ID" "$@"
+    DEVELOPER_DIR="$IOS_DEVELOPER_DIR" flutter run --release -d "$DEVICE_ID" "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 
   web-chrome)
     cd "$APP_DIR"
     flutter pub get
-    flutter run -d chrome "$@"
+    flutter run -d chrome "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 
   web-server)
@@ -463,13 +511,13 @@ case "$TARGET" in
     fi
     cd "$APP_DIR"
     flutter pub get
-    flutter run -d web-server --web-hostname 0.0.0.0 --web-port "$PORT" "$@"
+    flutter run -d web-server --web-hostname 0.0.0.0 --web-port "$PORT" "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 
   web-build-release)
     cd "$APP_DIR"
     flutter pub get
-    flutter build web --release "$@"
+    flutter build web --release "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 
   *)

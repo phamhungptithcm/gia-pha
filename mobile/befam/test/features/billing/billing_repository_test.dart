@@ -1,8 +1,8 @@
-import 'package:befam/core/services/debug_genealogy_store.dart';
+import '../../support/core/services/debug_genealogy_store.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
-import 'package:befam/features/billing/services/debug_billing_repository.dart';
+import '../../support/features/billing/services/debug_billing_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

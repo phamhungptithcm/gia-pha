@@ -1,8 +1,5 @@
-import '../../../core/services/debug_genealogy_store.dart';
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/relationship_record.dart';
-import 'debug_relationship_repository.dart';
 import 'firebase_relationship_repository.dart';
 
 enum RelationshipRepositoryErrorCode {
@@ -48,12 +45,5 @@ abstract interface class RelationshipRepository {
 RelationshipRepository createDefaultRelationshipRepository({
   AuthSession? session,
 }) {
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return DebugRelationshipRepository(
-      store: DebugGenealogyStore.sharedSeeded(),
-    );
-  }
-
   return FirebaseRelationshipRepository();
 }

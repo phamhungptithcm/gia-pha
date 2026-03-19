@@ -1,8 +1,5 @@
-import '../../../core/services/debug_genealogy_store.dart';
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/genealogy_read_segment.dart';
-import 'debug_genealogy_read_repository.dart';
 import 'firebase_genealogy_read_repository.dart';
 import 'genealogy_segment_cache.dart';
 
@@ -25,13 +22,5 @@ GenealogyReadRepository createDefaultGenealogyReadRepository({
   AuthSession? session,
 }) {
   final cache = GenealogySegmentCache.shared();
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return DebugGenealogyReadRepository(
-      store: DebugGenealogyStore.sharedSeeded(),
-      cache: cache,
-    );
-  }
-
   return FirebaseGenealogyReadRepository(cache: cache);
 }

@@ -1,11 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/genealogy_discovery_result.dart';
 import '../models/join_request_draft.dart';
+import '../models/my_join_request_item.dart';
+import 'my_join_requests_page.dart';
 import '../services/genealogy_discovery_repository.dart';
 
 class GenealogyDiscoveryPage extends StatefulWidget {
@@ -14,11 +18,13 @@ class GenealogyDiscoveryPage extends StatefulWidget {
     required this.repository,
     this.session,
     this.onAddGenealogyRequested,
+    this.initialQuery,
   });
 
   final GenealogyDiscoveryRepository repository;
   final AuthSession? session;
   final Future<void> Function()? onAddGenealogyRequested;
+  final String? initialQuery;
 
   @override
   State<GenealogyDiscoveryPage> createState() => _GenealogyDiscoveryPageState();
@@ -29,14 +35,23 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
   final _leaderController = TextEditingController();
   final _locationController = TextEditingController();
 
+  int _searchRequestSequence = 0;
   bool _isLoading = false;
   bool _isOpeningAddAction = false;
+  String? _cancelingRequestId;
   String? _errorMessage;
+  String? _myRequestsErrorMessage;
   List<GenealogyDiscoveryResult> _results = const [];
+  List<MyJoinRequestItem> _myRequests = const [];
+  final Set<String> _submittingClanIds = <String>{};
 
   @override
   void initState() {
     super.initState();
+    final initialQuery = widget.initialQuery?.trim() ?? '';
+    if (initialQuery.isNotEmpty) {
+      _queryController.text = initialQuery;
+    }
     _runSearch();
   }
 
@@ -49,43 +64,216 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
   }
 
   Future<void> _runSearch() async {
+    final requestId = ++_searchRequestSequence;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _myRequestsErrorMessage = null;
     });
 
-    try {
-      final items = await widget.repository.search(
-        query: _queryController.text,
-        leaderQuery: _leaderController.text,
-        locationQuery: _locationController.text,
-      );
-      if (!mounted) {
+    List<GenealogyDiscoveryResult> items = const [];
+    var myRequests = List<MyJoinRequestItem>.from(_myRequests);
+    Object? searchError;
+    Object? myRequestsError;
+
+    await Future.wait<void>([
+      () async {
+        try {
+          items = await widget.repository.search(
+            query: _queryController.text,
+            leaderQuery: _leaderController.text,
+            locationQuery: _locationController.text,
+          );
+        } catch (error) {
+          searchError = error;
+        }
+      }(),
+      () async {
+        final session = widget.session;
+        if (session == null) {
+          myRequests = const [];
+          return;
+        }
+        try {
+          myRequests = await widget.repository.loadMyJoinRequests(
+            session: session,
+          );
+        } catch (error) {
+          myRequestsError = error;
+        }
+      }(),
+    ]);
+
+    if (!mounted || requestId != _searchRequestSequence) {
+      return;
+    }
+    if (searchError != null) {
+      if (!mounted || requestId != _searchRequestSequence) {
         return;
       }
       setState(() {
-        _results = items;
-      });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
+        _results = const [];
         _errorMessage = context.l10n.pick(
           vi: 'Không thể tải danh sách gia phả công khai. Vui lòng thử lại.',
           en: 'Could not load public genealogy list. Please try again.',
         );
+        _myRequests = myRequests;
+        _myRequestsErrorMessage = myRequestsError == null
+            ? null
+            : context.l10n.pick(
+                vi: 'Không thể tải yêu cầu bạn đã gửi. Vui lòng thử lại.',
+                en: 'Could not load your submitted requests. Please try again.',
+              );
       });
+    } else {
+      setState(() {
+        _results = items;
+        if (myRequestsError == null) {
+          _myRequests = myRequests;
+        }
+        _myRequestsErrorMessage = myRequestsError == null
+            ? null
+            : context.l10n.pick(
+                vi: 'Không thể tải yêu cầu bạn đã gửi. Vui lòng thử lại.',
+                en: 'Could not load your submitted requests. Please try again.',
+              );
+      });
+    }
+
+    if (mounted && requestId == _searchRequestSequence) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Map<String, MyJoinRequestItem> get _pendingRequestsByClanId {
+    final byClan = <String, MyJoinRequestItem>{};
+    for (final request in _myRequests) {
+      if (!request.isPending) {
+        continue;
+      }
+      final clanId = request.clanId.trim();
+      if (clanId.isEmpty) {
+        continue;
+      }
+      final existing = byClan[clanId];
+      if (existing == null ||
+          request.submittedAtEpochMs >= existing.submittedAtEpochMs) {
+        byClan[clanId] = request;
+      }
+    }
+    return byClan;
+  }
+
+  Future<void> _cancelRequest(MyJoinRequestItem request) async {
+    final session = widget.session;
+    if (session == null || _cancelingRequestId != null) {
+      return;
+    }
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            l10n.pick(
+              vi: 'Hủy yêu cầu tham gia?',
+              en: 'Cancel this join request?',
+            ),
+          ),
+          content: Text(
+            l10n.pick(
+              vi: 'Bạn có thể gửi lại yêu cầu sau nếu cần.',
+              en: 'You can submit a new request again later.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.pick(vi: 'Giữ lại', en: 'Keep')),
+            ),
+            FilledButton.tonal(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l10n.pick(vi: 'Hủy yêu cầu', en: 'Cancel request')),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _cancelingRequestId = request.id;
+    });
+
+    try {
+      await widget.repository.cancelJoinRequest(
+        session: session,
+        requestId: request.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Đã hủy yêu cầu tham gia.',
+              en: 'Join request canceled.',
+            ),
+          ),
+        ),
+      );
+      await _runSearch();
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Không thể hủy yêu cầu lúc này. Vui lòng thử lại.',
+              en: 'Could not cancel request right now. Please retry.',
+            ),
+          ),
+        ),
+      );
     } finally {
-      if (mounted) {
+      if (mounted && _cancelingRequestId == request.id) {
         setState(() {
-          _isLoading = false;
+          _cancelingRequestId = null;
         });
       }
     }
   }
 
   Future<void> _openJoinRequestSheet(GenealogyDiscoveryResult result) async {
+    if (_submittingClanIds.contains(result.clanId)) {
+      return;
+    }
+    final pendingRequest = _pendingRequestsByClanId[result.clanId];
+    if (pendingRequest != null) {
+      final sentDate = _formatShortDate(pendingRequest.submittedAtEpochMs);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Bạn đã gửi yêu cầu vào $sentDate. Vui lòng chờ ban quản trị duyệt.',
+              en: 'You already submitted this request on $sentDate. Please wait for approval.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _submittingClanIds.add(result.clanId);
+    });
     final submitted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -100,6 +288,23 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
     );
 
     if (submitted == true && mounted) {
+      final nowEpochMs = DateTime.now().millisecondsSinceEpoch;
+      setState(() {
+        _myRequests = [
+          MyJoinRequestItem(
+            id: 'local_${result.clanId}_$nowEpochMs',
+            clanId: result.clanId,
+            status: 'pending',
+            submittedAtEpochMs: nowEpochMs,
+            canCancel: false,
+          ),
+          ..._myRequests.where(
+            (item) =>
+                !(item.clanId == result.clanId &&
+                    item.status.trim().toLowerCase() == 'pending'),
+          ),
+        ];
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -110,6 +315,12 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
           ),
         ),
       );
+      await _runSearch();
+    }
+    if (mounted) {
+      setState(() {
+        _submittingClanIds.remove(result.clanId);
+      });
     }
   }
 
@@ -132,10 +343,53 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
     }
   }
 
+  Future<void> _openMyRequestsPage() async {
+    final session = widget.session;
+    if (session == null) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return MyJoinRequestsPage(
+            session: session,
+            repository: widget.repository,
+            onOpenDiscoveryRequested: (query) async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) {
+                    return GenealogyDiscoveryPage(
+                      session: session,
+                      repository: widget.repository,
+                      onAddGenealogyRequested: widget.onAddGenealogyRequested,
+                      initialQuery: query,
+                    );
+                  },
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+    if (mounted) {
+      await _runSearch();
+    }
+  }
+
+  String _formatShortDate(int epochMs) {
+    final locale = context.l10n.localeName;
+    final formatter = DateFormat('dd/MM/yyyy', locale);
+    return formatter.format(
+      DateTime.fromMillisecondsSinceEpoch(epochMs).toLocal(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final pendingRequestsByClanId = _pendingRequestsByClanId;
 
     return Scaffold(
       appBar: AppBar(
@@ -166,22 +420,28 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
             children: [
               Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        l10n.pick(
-                          vi: 'Tìm theo trưởng tộc hoặc địa phương',
-                          en: 'Search by leader or location',
-                        ),
+                        l10n.pick(vi: 'Tìm gia phả', en: 'Find genealogies'),
                         style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                         ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.pick(
+                          vi: 'Nhập từ khóa, trưởng tộc hoặc địa phương để tìm nhanh.',
+                          en: 'Search by keyword, clan leader, or location.',
+                        ),
+                        style: theme.textTheme.bodySmall,
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _queryController,
+                        enabled: !_isLoading,
                         textInputAction: TextInputAction.search,
                         onSubmitted: (_) => _runSearch(),
                         decoration: InputDecoration(
@@ -192,12 +452,13 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                           prefixIcon: const Icon(Icons.search),
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
                             child: TextField(
                               controller: _leaderController,
+                              enabled: !_isLoading,
                               onSubmitted: (_) => _runSearch(),
                               decoration: InputDecoration(
                                 labelText: l10n.pick(
@@ -207,24 +468,29 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
-                            child: TextField(
+                            child: AddressAutocompleteField(
                               controller: _locationController,
+                              enabled: !_isLoading,
+                              cityCountryOnly: true,
                               onSubmitted: (_) => _runSearch(),
-                              decoration: InputDecoration(
-                                labelText: l10n.pick(
-                                  vi: 'Địa phương',
-                                  en: 'Location',
-                                ),
+                              labelText: l10n.pick(
+                                vi: 'Địa phương',
+                                en: 'Location',
                               ),
+                              hintText: l10n.pick(
+                                vi: 'Ví dụ: Đà Nẵng, Việt Nam',
+                                en: 'Example: Da Nang, Vietnam',
+                              ),
+                              textInputAction: TextInputAction.search,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
                         child: FilledButton.icon(
                           onPressed: _isLoading ? null : _runSearch,
                           icon: const Icon(Icons.travel_explore_outlined),
@@ -253,6 +519,50 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                   ),
                 ),
               ],
+              if (widget.session != null) ...[
+                const SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.pick(
+                                  vi: 'Yêu cầu bạn đã gửi',
+                                  en: 'Your submitted requests',
+                                ),
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _myRequestsErrorMessage != null
+                                    ? _myRequestsErrorMessage!
+                                    : l10n.pick(
+                                        vi: 'Hiện có ${_myRequests.length} yêu cầu trong hệ thống.',
+                                        en: '${_myRequests.length} requests found in your account.',
+                                      ),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        OutlinedButton.icon(
+                          onPressed: _openMyRequestsPage,
+                          icon: const Icon(Icons.open_in_new),
+                          label: Text(l10n.pick(vi: 'Xem riêng', en: 'Open')),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               if (_results.isEmpty && !_isLoading)
                 Card(
@@ -276,48 +586,162 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              result.genealogyName,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              l10n.pick(
-                                vi: 'Trưởng tộc: ${result.leaderName} · ${result.provinceCity}',
-                                en: 'Leader: ${result.leaderName} · ${result.provinceCity}',
-                              ),
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              result.summary.isEmpty
-                                  ? l10n.pick(
-                                      vi: 'Chưa có tóm tắt cho gia phả này.',
-                                      en: 'No summary available for this genealogy.',
-                                    )
-                                  : result.summary,
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              l10n.pick(
-                                vi: '${result.memberCount} thành viên · ${result.branchCount} chi',
-                                en: '${result.memberCount} members · ${result.branchCount} branches',
-                              ),
-                              style: theme.textTheme.labelLarge,
-                            ),
-                            const SizedBox(height: 12),
-                            FilledButton.tonalIcon(
-                              onPressed: () => _openJoinRequestSheet(result),
-                              icon: const Icon(Icons.how_to_reg_outlined),
-                              label: Text(
-                                l10n.pick(
-                                  vi: 'Gửi yêu cầu tham gia',
-                                  en: 'Request to join',
-                                ),
-                              ),
+                            Builder(
+                              builder: (context) {
+                                final pendingRequest =
+                                    pendingRequestsByClanId[result.clanId];
+                                final pendingSinceEpochMs =
+                                    pendingRequest?.submittedAtEpochMs ??
+                                    result.pendingJoinRequestSubmittedAtEpochMs;
+                                final isPendingForCurrentUser =
+                                    pendingSinceEpochMs != null ||
+                                    result.hasPendingJoinRequest;
+                                final isCanceling =
+                                    pendingRequest != null &&
+                                    _cancelingRequestId == pendingRequest.id;
+                                final isSubmittingJoin = _submittingClanIds
+                                    .contains(result.clanId);
+
+                                if (isPendingForCurrentUser) {
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.schedule,
+                                            size: 18,
+                                            color: theme
+                                                .colorScheme
+                                                .onSecondaryContainer,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            l10n.pick(
+                                              vi: 'Đã gửi yêu cầu tham gia',
+                                              en: 'Join request submitted',
+                                            ),
+                                            style: theme.textTheme.titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        l10n.pick(
+                                          vi: 'Yêu cầu đã được gửi ngày ${_formatShortDate(pendingSinceEpochMs ?? DateTime.now().millisecondsSinceEpoch)}.',
+                                          en: 'Your request was submitted on ${_formatShortDate(pendingSinceEpochMs ?? DateTime.now().millisecondsSinceEpoch)}.',
+                                        ),
+                                        style: theme.textTheme.bodyMedium,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        l10n.pick(
+                                          vi: 'Trong thời gian chờ duyệt, bạn chưa thể xem thông tin của họ tộc này.',
+                                          en: 'While waiting for review, this clan information stays hidden.',
+                                        ),
+                                        style: theme.textTheme.bodySmall,
+                                      ),
+                                      if (pendingRequest != null) ...[
+                                        const SizedBox(height: 12),
+                                        OutlinedButton.icon(
+                                          onPressed: isCanceling
+                                              ? null
+                                              : () => _cancelRequest(
+                                                  pendingRequest,
+                                                ),
+                                          icon: isCanceling
+                                              ? const SizedBox.square(
+                                                  dimension: 16,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : const Icon(
+                                                  Icons.cancel_outlined,
+                                                ),
+                                          label: Text(
+                                            l10n.pick(
+                                              vi: 'Hủy yêu cầu',
+                                              en: 'Cancel request',
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  );
+                                }
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      result.genealogyName,
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      l10n.pick(
+                                        vi: 'Trưởng tộc: ${result.leaderName} · ${result.provinceCity}',
+                                        en: 'Leader: ${result.leaderName} · ${result.provinceCity}',
+                                      ),
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      result.summary.isEmpty
+                                          ? l10n.pick(
+                                              vi: 'Chưa có tóm tắt cho gia phả này.',
+                                              en: 'No summary available for this genealogy.',
+                                            )
+                                          : result.summary,
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      l10n.pick(
+                                        vi: '${result.memberCount} thành viên · ${result.branchCount} chi',
+                                        en: '${result.memberCount} members · ${result.branchCount} branches',
+                                      ),
+                                      style: theme.textTheme.labelLarge,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    FilledButton.tonalIcon(
+                                      onPressed: isSubmittingJoin
+                                          ? null
+                                          : () => _openJoinRequestSheet(result),
+                                      icon: isSubmittingJoin
+                                          ? const SizedBox.square(
+                                              dimension: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.how_to_reg_outlined,
+                                            ),
+                                      label: Text(
+                                        isSubmittingJoin
+                                            ? l10n.pick(
+                                                vi: 'Đang gửi...',
+                                                en: 'Submitting...',
+                                              )
+                                            : l10n.pick(
+                                                vi: 'Gửi yêu cầu tham gia',
+                                                en: 'Request to join',
+                                              ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -361,6 +785,8 @@ class _JoinRequestSheetState extends State<_JoinRequestSheet> {
     _nameController = TextEditingController(
       text: widget.session?.displayName ?? '',
     );
+    _relationshipController.text = 'Con cháu trong họ';
+    _contactController.text = widget.session?.phoneE164.trim() ?? '';
   }
 
   @override
@@ -409,17 +835,27 @@ class _JoinRequestSheetState extends State<_JoinRequestSheet> {
         return;
       }
       Navigator.of(context).pop(true);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) {
         return;
       }
+      final errorText = error.toString().toLowerCase();
+      final alreadyRequested =
+          errorText.contains('already-exists') ||
+          errorText.contains('already exists') ||
+          errorText.contains('pending join request');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            l10n.pick(
-              vi: 'Gửi yêu cầu thất bại. Vui lòng thử lại.',
-              en: 'Could not submit join request. Please retry.',
-            ),
+            alreadyRequested
+                ? l10n.pick(
+                    vi: 'Bạn đã có yêu cầu đang chờ duyệt cho họ tộc này. Vui lòng chờ phản hồi hoặc hủy yêu cầu cũ.',
+                    en: 'You already have a pending request for this clan. Please wait for review or cancel your previous request.',
+                  )
+                : l10n.pick(
+                    vi: 'Gửi yêu cầu thất bại. Vui lòng thử lại.',
+                    en: 'Could not submit join request. Please retry.',
+                  ),
           ),
         ),
       );
@@ -466,7 +902,7 @@ class _JoinRequestSheetState extends State<_JoinRequestSheet> {
                 controller: _relationshipController,
                 decoration: InputDecoration(
                   labelText: l10n.pick(
-                    vi: 'Quan hệ với dòng tộc',
+                    vi: 'Quan hệ với gia phả',
                     en: 'Relationship to genealogy',
                   ),
                 ),

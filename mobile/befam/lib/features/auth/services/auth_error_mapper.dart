@@ -45,24 +45,116 @@ class AuthErrorMapper {
 
     if (error is FirebaseFunctionsException) {
       final message = error.message ?? '';
+      final normalizedMessage = message.toLowerCase();
+      String normalizedReason = '';
+      final details = error.details;
+      if (details is Map) {
+        final reasonValue = details['reason'];
+        if (reasonValue is String) {
+          normalizedReason = reasonValue.trim().toLowerCase();
+        }
+      }
+      if (normalizedReason.isNotEmpty) {
+        switch (normalizedReason) {
+          case 'parent_verification_mismatch':
+            return const AuthIssue(AuthIssueKey.parentVerificationMismatch);
+          case 'child_context_not_found':
+            return const AuthIssue(AuthIssueKey.childIdentifierInvalid);
+          case 'member_not_found':
+          case 'selected_member_not_found':
+            return const AuthIssue(AuthIssueKey.userNotFound);
+          case 'verification_session_not_found':
+            return const AuthIssue(AuthIssueKey.sessionExpired);
+          case 'member_verification_data_unavailable':
+            return const AuthIssue(
+              AuthIssueKey.memberVerificationDataUnavailable,
+            );
+          case 'member_verification_locked':
+          case 'member_verification_expired':
+            return const AuthIssue(AuthIssueKey.memberVerificationLocked);
+          case 'member_already_linked':
+            return const AuthIssue(AuthIssueKey.memberAlreadyLinked);
+          case 'member_inactive':
+          case 'member_verification_forbidden':
+            return const AuthIssue(AuthIssueKey.operationNotAllowed);
+          case 'member_claim_conflict':
+            return const AuthIssue(AuthIssueKey.memberClaimConflict);
+        }
+      }
       return switch (error.code) {
-        'not-found' => const AuthIssue(AuthIssueKey.userNotFound),
+        'not-found' when normalizedMessage.contains('child login context') =>
+          const AuthIssue(AuthIssueKey.childIdentifierInvalid),
+        'not-found' when normalizedMessage.contains('verification session') =>
+          const AuthIssue(AuthIssueKey.sessionExpired),
+        'not-found'
+            when normalizedMessage.contains('selected member profile') ||
+                normalizedMessage.contains('requested member profile') ||
+                normalizedMessage.contains('child member profile') =>
+          const AuthIssue(AuthIssueKey.userNotFound),
+        'not-found' => const AuthIssue(AuthIssueKey.authUnavailable),
         'already-exists' => const AuthIssue(AuthIssueKey.memberAlreadyLinked),
-        'failed-precondition' when message.contains('parent phone') =>
+        'failed-precondition' when normalizedMessage.contains('parent phone') =>
           const AuthIssue(AuthIssueKey.parentVerificationMismatch),
         'failed-precondition'
-            when message.contains('child identifier is not fully linked') ||
-                message.contains('child member record is not linked') =>
+            when normalizedMessage.contains(
+              'verification data is not sufficient',
+            ) =>
+          const AuthIssue(AuthIssueKey.memberVerificationDataUnavailable),
+        'failed-precondition'
+            when normalizedMessage.contains(
+              'verification session has expired',
+            ) =>
+          const AuthIssue(AuthIssueKey.sessionExpired),
+        'failed-precondition'
+            when normalizedMessage.contains(
+              'verification session is no longer active',
+            ) =>
+          const AuthIssue(AuthIssueKey.memberVerificationLocked),
+        'failed-precondition'
+            when normalizedMessage.contains(
+              'verification is temporarily locked',
+            ) =>
+          const AuthIssue(AuthIssueKey.memberVerificationLocked),
+        'failed-precondition'
+            when normalizedMessage.contains('inactive and cannot be linked') =>
+          const AuthIssue(AuthIssueKey.operationNotAllowed),
+        'failed-precondition'
+            when normalizedMessage.contains(
+              'cannot switch to create-new mode',
+            ) =>
+          const AuthIssue(AuthIssueKey.operationNotAllowed),
+        'failed-precondition'
+            when normalizedMessage.contains(
+                  'child identifier is not fully linked',
+                ) ||
+                normalizedMessage.contains(
+                  'child member record is not linked',
+                ) =>
           const AuthIssue(AuthIssueKey.childAccessNotReady),
         'failed-precondition'
-            when message.contains(
-              'Multiple member profiles share this phone',
+            when normalizedMessage.contains(
+              'multiple member profiles share this phone',
             ) =>
           const AuthIssue(AuthIssueKey.memberClaimConflict),
         'invalid-argument' => const AuthIssue(AuthIssueKey.preparationFailed),
         'permission-denied' => const AuthIssue(
           AuthIssueKey.operationNotAllowed,
         ),
+        _ => const AuthIssue(AuthIssueKey.authUnavailable),
+      };
+    }
+
+    if (error is FirebaseException) {
+      final normalizedCode = error.code.trim().toLowerCase();
+      return switch (normalizedCode) {
+        'permission-denied' || 'permission_denied' => const AuthIssue(
+          AuthIssueKey.operationNotAllowed,
+        ),
+        'unavailable' || 'network-request-failed' => const AuthIssue(
+          AuthIssueKey.networkRequestFailed,
+        ),
+        'failed-precondition' ||
+        'failed_precondition' => const AuthIssue(AuthIssueKey.authUnavailable),
         _ => const AuthIssue(AuthIssueKey.authUnavailable),
       };
     }

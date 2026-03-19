@@ -98,10 +98,9 @@ and TypeScript.
   - schedule is read from env (`BILLING_PENDING_TIMEOUT_JOB_SCHEDULE`)
   - timeout/limit use runtime override when available, else env defaults
 
-### Auth runtime signer behavior
+### Auth runtime behavior
 
-- debug token signer service account is now read from
-  `DEBUG_TOKEN_SIGNER_SERVICE_ACCOUNT` in `src/auth/callables.ts`
+- no debug signer account is used in production callables
 - no project-specific signer account is hard-coded in source
 
 ## Supporting modules

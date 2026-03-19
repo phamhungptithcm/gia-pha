@@ -1,4 +1,4 @@
-import 'package:befam/core/services/debug_genealogy_store.dart';
+import '../../support/core/services/debug_genealogy_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

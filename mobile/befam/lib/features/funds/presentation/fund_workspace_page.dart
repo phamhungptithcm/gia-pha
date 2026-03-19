@@ -18,6 +18,7 @@ import '../models/fund_draft.dart';
 import '../models/fund_profile.dart';
 import '../models/fund_transaction.dart';
 import '../models/fund_transaction_draft.dart';
+import '../models/treasurer_dashboard_snapshot.dart';
 import '../services/currency_minor_units.dart';
 import '../services/fund_repository.dart';
 import '../services/treasurer_dashboard_repository.dart';
@@ -457,8 +458,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                         value: option.clanId,
                         child: Text(
                           option.clanId == (_session.clanId ?? '').trim()
-                              ? '• ${option.clanName}'
-                              : option.clanName,
+                              ? '• ${_clanContextDisplayLabel(context, option)}'
+                              : _clanContextDisplayLabel(context, option),
                         ),
                       ),
                   ],
@@ -542,7 +543,11 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                           ),
                         if (_controller.canViewFunds)
                           const SizedBox(height: 16),
-                        if (_controller.errorMessage case final error?) ...[
+                        if (_friendlyRuntimeErrorMessage(
+                              context,
+                              _controller.errorMessage,
+                            )
+                            case final error?) ...[
                           _InfoCard(
                             icon: Icons.error_outline,
                             title: l10n.pick(
@@ -585,7 +590,33 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                               ),
                             ),
                           ),
-                        if (hasFunds) ...[
+                        if (currentFund != null &&
+                            _hasFundTransferInfo(currentFund))
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _FundTransferInfoCard(
+                              bankName: currentFund.bankName,
+                              accountNumber: currentFund.bankAccountNumber,
+                              accountHolder: currentFund.bankAccountHolder,
+                              onCopyAccountNumber: (value) =>
+                                  _copyFundTransferField(
+                                    value: value,
+                                    successMessage: l10n.pick(
+                                      vi: 'Đã sao chép số tài khoản.',
+                                      en: 'Account number copied.',
+                                    ),
+                                  ),
+                              onCopyAccountHolder: (value) =>
+                                  _copyFundTransferField(
+                                    value: value,
+                                    successMessage: l10n.pick(
+                                      vi: 'Đã sao chép chủ tài khoản.',
+                                      en: 'Account holder copied.',
+                                    ),
+                                  ),
+                            ),
+                          ),
+                        if (hasFunds && _shouldShowFundSummaryTiles()) ...[
                           _StatRow(
                             items: [
                               _StatTile(
@@ -707,16 +738,27 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         dashboard.transactions.isNotEmpty ||
         dashboard.scholarshipRequests.isNotEmpty ||
         dashboard.reportSummary.trim().isNotEmpty;
-    final loadError = _controller.treasurerDashboardErrorMessage;
+    final loadError = _friendlyRuntimeErrorMessage(
+      context,
+      _controller.treasurerDashboardErrorMessage,
+    );
     final dashboardClanId = dashboard.clanId.trim().isEmpty
         ? (_session.clanId ?? '').trim()
         : dashboard.clanId.trim();
+    final dashboardClanLabel = _clanDisplayNameForId(context, dashboardClanId);
+    final reportSummary = _buildTreasurerReportSummary(
+      context,
+      dashboard: dashboard,
+      displayCurrency: displayCurrency,
+      clanLabel: dashboardClanLabel,
+    );
+    final hasReportSummary = reportSummary.trim().isNotEmpty;
 
     if (_controller.isLoadingTreasurerDashboard && !hasDashboardData) {
       return _InfoCard(
         icon: Icons.analytics_outlined,
         title: l10n.pick(
-          vi: 'Đang tải dashboard thủ quỹ',
+          vi: 'Đang tải bảng điều hành thủ quỹ',
           en: 'Loading treasurer dashboard',
         ),
         description: l10n.pick(
@@ -731,7 +773,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       return _InfoCard(
         icon: Icons.error_outline,
         title: l10n.pick(
-          vi: 'Không tải được dashboard thủ quỹ',
+          vi: 'Không tải được bảng điều hành thủ quỹ',
           en: 'Unable to load treasurer dashboard',
         ),
         description: loadError,
@@ -740,7 +782,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     }
 
     return _SectionCard(
-      title: l10n.pick(vi: 'Dashboard thủ quỹ', en: 'Treasurer dashboard'),
+      title: l10n.pick(vi: 'Bảng điều hành thủ quỹ', en: 'Treasurer dashboard'),
       actionLabel: _controller.isLoadingTreasurerDashboard
           ? null
           : l10n.pick(vi: 'Làm mới', en: 'Refresh'),
@@ -755,8 +797,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
               padding: const EdgeInsets.only(bottom: 10),
               child: Text(
                 l10n.pick(
-                  vi: 'Phạm vi clan: $dashboardClanId',
-                  en: 'Clan scope: $dashboardClanId',
+                  vi: 'Phạm vi gia phả: $dashboardClanLabel',
+                  en: 'Clan scope: $dashboardClanLabel',
                 ),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
@@ -767,7 +809,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
             _InfoCard(
               icon: Icons.info_outline,
               title: l10n.pick(
-                vi: 'Dữ liệu dashboard chưa đồng bộ hoàn toàn',
+                vi: 'Dữ liệu thủ quỹ chưa đồng bộ hoàn toàn',
                 en: 'Dashboard data is partially synced',
               ),
               description: loadError,
@@ -952,48 +994,49 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
             ),
           ),
           const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: colorScheme.surfaceContainerHighest,
+          if (!hasReportSummary)
+            Text(
+              l10n.pick(
+                vi: 'Chưa có dữ liệu báo cáo.',
+                en: 'No report summary available.',
+              ),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final line in reportSummary.split('\n'))
+                  if (line.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(line, style: theme.textTheme.bodyMedium),
+                    ),
+              ],
             ),
-            child: Text(
-              dashboard.reportSummary.trim().isEmpty
-                  ? l10n.pick(
-                      vi: 'Chưa có dữ liệu báo cáo.',
-                      en: 'No report summary available.',
-                    )
-                  : dashboard.reportSummary,
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
           const SizedBox(height: 10),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              OutlinedButton.icon(
-                onPressed: dashboard.reportSummary.trim().isEmpty
-                    ? null
-                    : () =>
-                          _copyTreasurerReportSummary(dashboard.reportSummary),
-                icon: const Icon(Icons.copy_all_outlined),
-                label: Text(
-                  l10n.pick(vi: 'Sao chép báo cáo', en: 'Copy summary'),
-                ),
+              ActionChip(
+                onPressed: hasReportSummary
+                    ? () => _copyTreasurerReportSummary(reportSummary)
+                    : null,
+                avatar: const Icon(Icons.copy_all_outlined),
+                label: Text(l10n.pick(vi: 'Sao chép', en: 'Copy')),
               ),
-              FilledButton.icon(
-                onPressed:
-                    dashboard.reportSummary.trim().isEmpty ||
-                        _isExportingTreasurerReport
+              ActionChip(
+                onPressed: !hasReportSummary || _isExportingTreasurerReport
                     ? null
                     : () => _exportTreasurerReportSummaryPdf(
-                        reportSummary: dashboard.reportSummary,
+                        reportSummary: reportSummary,
                         clanId: dashboardClanId,
+                        clanLabel: dashboardClanLabel,
                       ),
-                icon: _isExportingTreasurerReport
+                avatar: _isExportingTreasurerReport
                     ? const SizedBox(
                         width: 14,
                         height: 14,
@@ -1003,10 +1046,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                 label: Text(
                   _isExportingTreasurerReport
                       ? l10n.pick(vi: 'Đang xuất...', en: 'Exporting...')
-                      : l10n.pick(
-                          vi: 'Xuất báo cáo PDF',
-                          en: 'Export PDF report',
-                        ),
+                      : l10n.pick(vi: 'Xuất PDF', en: 'Export PDF'),
                 ),
               ),
             ],
@@ -1014,6 +1054,98 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         ],
       ),
     );
+  }
+
+  bool _shouldShowFundSummaryTiles() {
+    final dashboard = _controller.treasurerDashboard;
+    final hasDashboardMetrics =
+        dashboard.funds.isNotEmpty ||
+        dashboard.transactions.isNotEmpty ||
+        dashboard.scholarshipRequests.isNotEmpty ||
+        dashboard.totals.totalBalanceMinor != 0 ||
+        dashboard.totals.totalDonationsMinor != 0 ||
+        dashboard.totals.totalExpensesMinor != 0;
+    return !(_controller.canViewFunds && hasDashboardMetrics);
+  }
+
+  String? _friendlyRuntimeErrorMessage(BuildContext context, String? rawError) {
+    final normalized = (rawError ?? '').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    final lowered = normalized.toLowerCase();
+    final l10n = context.l10n;
+    if (lowered == 'permission_denied' ||
+        lowered.contains('permission-denied') ||
+        lowered.contains('permission denied')) {
+      return l10n.pick(
+        vi: 'Bạn chưa có quyền truy cập dữ liệu quỹ của gia phả này.',
+        en: 'You do not have permission to access this clan fund data.',
+      );
+    }
+    return l10n.pick(
+      vi: 'Không thể đồng bộ dữ liệu quỹ lúc này. Vui lòng thử lại sau.',
+      en: 'Unable to sync fund data right now. Please try again later.',
+    );
+  }
+
+  String _clanDisplayNameForId(BuildContext context, String clanId) {
+    final normalizedClanId = clanId.trim();
+    if (normalizedClanId.isEmpty) {
+      return context.l10n.pick(vi: 'Gia phả hiện tại', en: 'Current clan');
+    }
+    final option = _clanContexts.firstWhere(
+      (item) => item.clanId.trim() == normalizedClanId,
+      orElse: () => ClanContextOption(
+        clanId: normalizedClanId,
+        clanName: normalizedClanId,
+        memberId: '',
+        primaryRole: 'MEMBER',
+      ),
+    );
+    return _clanContextDisplayLabel(context, option);
+  }
+
+  String _buildTreasurerReportSummary(
+    BuildContext context, {
+    required TreasurerDashboardSnapshot dashboard,
+    required String displayCurrency,
+    required String clanLabel,
+  }) {
+    final l10n = context.l10n;
+    final resolvedClanLabel = clanLabel.trim().isEmpty
+        ? l10n.pick(vi: 'Gia phả hiện tại', en: 'Current clan')
+        : clanLabel.trim();
+    final generatedAt = dashboard.transactions.isEmpty
+        ? DateTime.now()
+        : dashboard.transactions.first.occurredAt.toLocal();
+    final lines = <String>[
+      l10n.pick(
+        vi: 'Gia phả: $resolvedClanLabel',
+        en: 'Clan: $resolvedClanLabel',
+      ),
+      l10n.pick(
+        vi: 'Số dư hiện tại: ${_formatMoney(context, amountMinor: dashboard.totals.totalBalanceMinor, currency: displayCurrency)}',
+        en: 'Current balance: ${_formatMoney(context, amountMinor: dashboard.totals.totalBalanceMinor, currency: displayCurrency)}',
+      ),
+      l10n.pick(
+        vi: 'Tổng đóng góp: ${_formatMoney(context, amountMinor: dashboard.totals.totalDonationsMinor, currency: displayCurrency)}',
+        en: 'Total donations: ${_formatMoney(context, amountMinor: dashboard.totals.totalDonationsMinor, currency: displayCurrency)}',
+      ),
+      l10n.pick(
+        vi: 'Tổng chi: ${_formatMoney(context, amountMinor: dashboard.totals.totalExpensesMinor, currency: displayCurrency)}',
+        en: 'Total expenses: ${_formatMoney(context, amountMinor: dashboard.totals.totalExpensesMinor, currency: displayCurrency)}',
+      ),
+      l10n.pick(
+        vi: 'Hồ sơ khuyến học: ${dashboard.scholarshipRequests.length}',
+        en: 'Scholarship requests: ${dashboard.scholarshipRequests.length}',
+      ),
+      l10n.pick(
+        vi: 'Cập nhật lúc: ${_formatDateTime(context, generatedAt)}',
+        en: 'Updated at: ${_formatDateTime(context, generatedAt)}',
+      ),
+    ];
+    return lines.join('\n');
   }
 
   Future<void> _copyTreasurerReportSummary(String summary) async {
@@ -1034,9 +1166,32 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     );
   }
 
+  bool _hasFundTransferInfo(FundProfile fund) {
+    return (fund.bankAccountNumber ?? '').trim().isNotEmpty ||
+        (fund.bankAccountHolder ?? '').trim().isNotEmpty;
+  }
+
+  Future<void> _copyFundTransferField({
+    required String value,
+    required String successMessage,
+  }) async {
+    final normalized = value.trim();
+    if (normalized.isEmpty) {
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: normalized));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(successMessage)));
+  }
+
   Future<void> _exportTreasurerReportSummaryPdf({
     required String reportSummary,
     required String clanId,
+    required String clanLabel,
   }) async {
     if (_isExportingTreasurerReport) {
       return;
@@ -1049,6 +1204,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       final pdfBytes = await _buildTreasurerReportPdfBytes(
         reportSummary: reportSummary,
         clanId: clanId,
+        clanLabel: clanLabel,
       );
       final fileName = _treasurerReportFileName(clanId);
       await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
@@ -1093,21 +1249,37 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
   Future<Uint8List> _buildTreasurerReportPdfBytes({
     required String reportSummary,
     required String clanId,
+    required String clanLabel,
   }) async {
+    final l10n = context.l10n;
     final pdf = pw.Document();
-    final generatedAt = DateTime.now().toUtc().toIso8601String();
+    final generatedAt = _formatDateTime(context, DateTime.now());
+    final resolvedClanLabel = clanLabel.trim().isEmpty ? clanId : clanLabel;
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(24),
         build: (context) => [
           pw.Text(
-            'Treasurer Financial Summary',
+            l10n.pick(
+              vi: 'Tổng hợp tài chính dành cho thủ quỹ',
+              en: 'Treasurer Financial Summary',
+            ),
             style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 8),
-          pw.Text('Clan ID: $clanId'),
-          pw.Text('Generated at: $generatedAt'),
+          pw.Text(
+            l10n.pick(
+              vi: 'Gia phả: $resolvedClanLabel',
+              en: 'Clan: $resolvedClanLabel',
+            ),
+          ),
+          pw.Text(
+            l10n.pick(
+              vi: 'Thời điểm tạo: $generatedAt',
+              en: 'Generated at: $generatedAt',
+            ),
+          ),
           pw.SizedBox(height: 12),
           pw.Text(reportSummary.trim()),
         ],
@@ -1221,7 +1393,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     final activeClanId = (_session.clanId ?? '').trim();
     final fundClanId = currentFund.clanId.trim();
     if (activeClanId.isEmpty || fundClanId != activeClanId) {
-      return l10n.pick(vi: 'Ngoài phạm vi clan', en: 'Out of clan scope');
+      return l10n.pick(vi: 'Ngoài phạm vi gia phả', en: 'Out of clan scope');
     }
 
     final treasurerNames = _resolveTreasurerNamesForCurrentFund(
@@ -2285,7 +2457,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                             in widget.availableClanContexts)
                           DropdownMenuItem<String>(
                             value: contextOption.clanId,
-                            child: Text(contextOption.clanName),
+                            child: Text(
+                              _clanContextDisplayLabel(context, contextOption),
+                            ),
                           ),
                       ],
                       onChanged: (value) {
@@ -3228,7 +3402,9 @@ class _ClanScopeCard extends StatelessWidget {
                 for (final contextOption in clanContexts)
                   DropdownMenuItem<String>(
                     value: contextOption.clanId,
-                    child: Text(contextOption.clanName),
+                    child: Text(
+                      _clanContextDisplayLabel(context, contextOption),
+                    ),
                   ),
               ],
               onChanged: onSwitch == null || isSwitching
@@ -3361,6 +3537,121 @@ class _InfoCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FundTransferInfoCard extends StatelessWidget {
+  const _FundTransferInfoCard({
+    required this.accountNumber,
+    required this.accountHolder,
+    required this.onCopyAccountNumber,
+    required this.onCopyAccountHolder,
+    this.bankName,
+  });
+
+  final String? bankName;
+  final String? accountNumber;
+  final String? accountHolder;
+  final ValueChanged<String> onCopyAccountNumber;
+  final ValueChanged<String> onCopyAccountHolder;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final normalizedBankName = (bankName ?? '').trim();
+    final normalizedAccountNumber = (accountNumber ?? '').trim();
+    final normalizedAccountHolder = (accountHolder ?? '').trim();
+    if (normalizedAccountNumber.isEmpty && normalizedAccountHolder.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.pick(
+                vi: 'Thông tin chuyển khoản quỹ',
+                en: 'Fund transfer details',
+              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            if (normalizedBankName.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _FundTransferInfoRow(
+                label: l10n.pick(vi: 'Ngân hàng', en: 'Bank'),
+                value: normalizedBankName,
+                canCopy: false,
+              ),
+            ],
+            if (normalizedAccountNumber.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _FundTransferInfoRow(
+                label: l10n.pick(vi: 'Số tài khoản', en: 'Account number'),
+                value: normalizedAccountNumber,
+                canCopy: true,
+                onCopy: () => onCopyAccountNumber(normalizedAccountNumber),
+              ),
+            ],
+            if (normalizedAccountHolder.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _FundTransferInfoRow(
+                label: l10n.pick(vi: 'Chủ tài khoản', en: 'Account holder'),
+                value: normalizedAccountHolder,
+                canCopy: true,
+                onCopy: () => onCopyAccountHolder(normalizedAccountHolder),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FundTransferInfoRow extends StatelessWidget {
+  const _FundTransferInfoRow({
+    required this.label,
+    required this.value,
+    required this.canCopy,
+    this.onCopy,
+  });
+
+  final String label;
+  final String value;
+  final bool canCopy;
+  final VoidCallback? onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 110,
+          child: Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(value)),
+        const SizedBox(width: 8),
+        if (canCopy)
+          IconButton(
+            tooltip: context.l10n.pick(vi: 'Sao chép', en: 'Copy'),
+            icon: const Icon(Icons.copy_outlined),
+            visualDensity: VisualDensity.compact,
+            onPressed: onCopy,
+          ),
+      ],
     );
   }
 }
@@ -3613,8 +3904,8 @@ class _StatRow extends StatelessWidget {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final crossAxisCount = screenWidth > 840 ? 3 : 2;
     final textScale = MediaQuery.textScalerOf(context).scale(1);
-    final baseHeight = crossAxisCount == 2 ? 126.0 : 114.0;
-    final scaleBoost = ((textScale - 1).clamp(0.0, 1.2)).toDouble() * 24;
+    final baseHeight = crossAxisCount == 2 ? 158.0 : 142.0;
+    final scaleBoost = ((textScale - 1).clamp(0.0, 1.2)).toDouble() * 30;
 
     return GridView.builder(
       shrinkWrap: true,
@@ -3655,33 +3946,36 @@ class _StatTile extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              backgroundColor:
-                  iconBackgroundColor ?? colorScheme.primaryContainer,
-              radius: 22,
-              child: Icon(icon, size: 20),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(label, style: Theme.of(context).textTheme.labelMedium),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    maxLines: 1,
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor:
+                      iconBackgroundColor ?? colorScheme.primaryContainer,
+                  radius: 20,
+                  child: Icon(icon, size: 19),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: valueColor,
-                    ),
+                    style: Theme.of(context).textTheme.labelLarge,
                   ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: valueColor,
               ),
             ),
           ],
@@ -3747,6 +4041,76 @@ String _formatDate(BuildContext context, DateTime value) {
 String? _nullIfBlank(String? value) {
   final trimmed = value?.trim() ?? '';
   return trimmed.isEmpty ? null : trimmed;
+}
+
+String _clanContextDisplayLabel(
+  BuildContext context,
+  ClanContextOption option,
+) {
+  final explicitName = option.clanName.trim();
+  if (explicitName.isNotEmpty && !_looksLikeIdentifier(explicitName)) {
+    return explicitName;
+  }
+
+  final ownerName = (option.ownerDisplayName ?? '').trim();
+  if (ownerName.isNotEmpty) {
+    return context.l10n.pick(
+      vi: 'Gia phả của $ownerName',
+      en: "$ownerName's clan",
+    );
+  }
+
+  final memberName = (option.displayName ?? '').trim();
+  if (memberName.isNotEmpty) {
+    return context.l10n.pick(
+      vi: 'Gia phả của $memberName',
+      en: "$memberName's clan",
+    );
+  }
+
+  final readableClanId = _humanizeIdentifier(option.clanId);
+  return readableClanId.isEmpty ? option.clanId : readableClanId;
+}
+
+bool _looksLikeIdentifier(String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return false;
+  }
+  return RegExp(r'^[a-z0-9]+(?:[_-][a-z0-9]+)*$').hasMatch(normalized);
+}
+
+String _humanizeIdentifier(String value) {
+  final normalized = value.trim();
+  if (normalized.isEmpty) {
+    return '';
+  }
+  final noPrefix = normalized.replaceFirst(
+    RegExp(r'^(clan|gia[_-]?pha)[_-]?', caseSensitive: false),
+    '',
+  );
+  final tokens = (noPrefix.isEmpty ? normalized : noPrefix)
+      .replaceAll(RegExp(r'[_-]+'), ' ')
+      .split(RegExp(r'\s+'))
+      .where((item) => item.trim().isNotEmpty)
+      .map((item) {
+        final text = item.trim();
+        return '${text[0].toUpperCase()}${text.substring(1).toLowerCase()}';
+      })
+      .toList(growable: false);
+  if (tokens.isEmpty) {
+    return '';
+  }
+  return tokens.join(' ');
+}
+
+String _formatDateTime(BuildContext context, DateTime value) {
+  final local = value.toLocal();
+  final date = MaterialLocalizations.of(context).formatCompactDate(local);
+  final time = MaterialLocalizations.of(
+    context,
+  ).formatTimeOfDay(TimeOfDay.fromDateTime(local), alwaysUse24HourFormat: true);
+  return '$date • $time';
 }
 
 String _errorMessageForCode(

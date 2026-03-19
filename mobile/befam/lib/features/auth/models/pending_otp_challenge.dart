@@ -10,7 +10,6 @@ class PendingOtpChallenge {
     this.memberId,
     this.displayName,
     this.resendToken,
-    this.debugOtpHint,
   });
 
   final AuthEntryMethod loginMethod;
@@ -21,7 +20,6 @@ class PendingOtpChallenge {
   final String? memberId;
   final String? displayName;
   final int? resendToken;
-  final String? debugOtpHint;
 
   PendingOtpChallenge copyWith({
     AuthEntryMethod? loginMethod,
@@ -32,7 +30,6 @@ class PendingOtpChallenge {
     String? memberId,
     String? displayName,
     int? resendToken,
-    String? debugOtpHint,
   }) {
     return PendingOtpChallenge(
       loginMethod: loginMethod ?? this.loginMethod,
@@ -43,7 +40,6 @@ class PendingOtpChallenge {
       memberId: memberId ?? this.memberId,
       displayName: displayName ?? this.displayName,
       resendToken: resendToken ?? this.resendToken,
-      debugOtpHint: debugOtpHint ?? this.debugOtpHint,
     );
   }
 }

@@ -11,6 +11,9 @@ class FundProfile {
     required this.currency,
     required this.balanceMinor,
     required this.status,
+    this.bankName,
+    this.bankAccountNumber,
+    this.bankAccountHolder,
   });
 
   final String id;
@@ -24,6 +27,9 @@ class FundProfile {
   final String currency;
   final int balanceMinor;
   final String status;
+  final String? bankName;
+  final String? bankAccountNumber;
+  final String? bankAccountHolder;
 
   bool get isActive => status.trim().toLowerCase() == 'active';
 
@@ -40,6 +46,12 @@ class FundProfile {
     String? currency,
     int? balanceMinor,
     String? status,
+    String? bankName,
+    bool clearBankName = false,
+    String? bankAccountNumber,
+    bool clearBankAccountNumber = false,
+    String? bankAccountHolder,
+    bool clearBankAccountHolder = false,
   }) {
     return FundProfile(
       id: id ?? this.id,
@@ -57,6 +69,13 @@ class FundProfile {
       currency: currency ?? this.currency,
       balanceMinor: balanceMinor ?? this.balanceMinor,
       status: status ?? this.status,
+      bankName: clearBankName ? null : (bankName ?? this.bankName),
+      bankAccountNumber: clearBankAccountNumber
+          ? null
+          : (bankAccountNumber ?? this.bankAccountNumber),
+      bankAccountHolder: clearBankAccountHolder
+          ? null
+          : (bankAccountHolder ?? this.bankAccountHolder),
     );
   }
 
@@ -73,6 +92,9 @@ class FundProfile {
       'currency': currency,
       'balanceMinor': balanceMinor,
       'status': status,
+      'bankName': bankName,
+      'bankAccountNumber': bankAccountNumber,
+      'bankAccountHolder': bankAccountHolder,
     };
   }
 
@@ -89,6 +111,18 @@ class FundProfile {
       currency: (json['currency'] as String? ?? 'VND').trim().toUpperCase(),
       balanceMinor: _asInt(json['balanceMinor']),
       status: json['status'] as String? ?? 'active',
+      bankName: _nullableString(json['bankName'] ?? json['tenNganHang']),
+      bankAccountNumber: _nullableString(
+        json['bankAccountNumber'] ??
+            json['accountNumber'] ??
+            json['stk'] ??
+            json['soTaiKhoan'],
+      ),
+      bankAccountHolder: _nullableString(
+        json['bankAccountHolder'] ??
+            json['accountHolder'] ??
+            json['chuTaiKhoan'],
+      ),
     );
   }
 }

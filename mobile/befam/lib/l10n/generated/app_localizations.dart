@@ -140,12 +140,6 @@ abstract class AppLocalizations {
   /// **'Khởi tạo đang chờ'**
   String get authBootstrapPendingChip;
 
-  /// No description provided for @authSandboxChip.
-  ///
-  /// In vi, this message translates to:
-  /// **'Môi trường thử nghiệm'**
-  String get authSandboxChip;
-
   /// No description provided for @authLiveFirebaseChip.
   ///
   /// In vi, this message translates to:
@@ -157,12 +151,6 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Xác thực là cột mốc tiếp theo của BeFam.'**
   String get authHeroTitle;
-
-  /// No description provided for @authHeroSandboxDescription.
-  ///
-  /// In vi, this message translates to:
-  /// **'Bản dựng cục bộ dùng môi trường OTP an toàn để thử luồng số điện thoại và mã trẻ em mà không cần chờ SMS thật. Dùng mã 123456 cho luồng demo.'**
-  String get authHeroSandboxDescription;
 
   /// No description provided for @authHeroLiveDescription.
   ///
@@ -212,29 +200,11 @@ abstract class AppLocalizations {
   /// **'Ghi chú khởi tạo hiện tại'**
   String get authBootstrapNoteTitle;
 
-  /// No description provided for @authBootstrapNoteReadySandbox.
-  ///
-  /// In vi, this message translates to:
-  /// **'Firebase đã sẵn sàng và môi trường xác thực thử nghiệm đang hoạt động để kiểm thử giao diện cục bộ.'**
-  String get authBootstrapNoteReadySandbox;
-
   /// No description provided for @authBootstrapNoteReadyLive.
   ///
   /// In vi, this message translates to:
   /// **'Firebase đã sẵn sàng và ứng dụng sẽ thử xác thực số điện thoại thật.'**
   String get authBootstrapNoteReadyLive;
-
-  /// No description provided for @authBootstrapNotePending.
-  ///
-  /// In vi, this message translates to:
-  /// **'Khởi tạo Firebase vẫn cần được xử lý, vì vậy đăng nhập nên ở môi trường thử nghiệm cho tới khi cấu hình đám mây ổn định.'**
-  String get authBootstrapNotePending;
-
-  /// No description provided for @authPhoneHelperSandbox.
-  ///
-  /// In vi, this message translates to:
-  /// **'Dùng số demo bên dưới để kiểm thử cục bộ nhanh. BeFam có thể tự điền mã OTP thử nghiệm ở bước tiếp theo.'**
-  String get authPhoneHelperSandbox;
 
   /// No description provided for @authPhoneHelperLive.
   ///
@@ -356,18 +326,6 @@ abstract class AppLocalizations {
   /// **'Nhập mã gồm 6 chữ số đã gửi đến {maskedDestination}.'**
   String authOtpDescription(Object maskedDestination);
 
-  /// No description provided for @authOtpDebugCode.
-  ///
-  /// In vi, this message translates to:
-  /// **'Mã OTP thử nghiệm: {hint}'**
-  String authOtpDebugCode(Object hint);
-
-  /// No description provided for @authOtpAutofillDemo.
-  ///
-  /// In vi, this message translates to:
-  /// **'Tự điền mã demo'**
-  String get authOtpAutofillDemo;
-
   /// No description provided for @authOtpChildIdentifier.
   ///
   /// In vi, this message translates to:
@@ -427,12 +385,6 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Hỗ trợ số điện thoại và mã trẻ em'**
   String get authQuickBenefitMultipleAccess;
-
-  /// No description provided for @authQuickBenefitSandbox.
-  ///
-  /// In vi, this message translates to:
-  /// **'Kiểm thử cục bộ an toàn'**
-  String get authQuickBenefitSandbox;
 
   /// No description provided for @authQuickBenefitLive.
   ///
@@ -1153,12 +1105,6 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Phiên truy cập trẻ em'**
   String get shellAccessModeChild;
-
-  /// No description provided for @shellSessionTypeSandbox.
-  ///
-  /// In vi, this message translates to:
-  /// **'Phiên thử nghiệm cục bộ'**
-  String get shellSessionTypeSandbox;
 
   /// No description provided for @shellSessionTypeFirebase.
   ///

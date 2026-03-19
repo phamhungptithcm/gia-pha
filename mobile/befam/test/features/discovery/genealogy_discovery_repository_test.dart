@@ -2,7 +2,7 @@ import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/discovery/models/join_request_draft.dart';
-import 'package:befam/features/discovery/services/debug_genealogy_discovery_repository.dart';
+import '../../support/features/discovery/services/debug_genealogy_discovery_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

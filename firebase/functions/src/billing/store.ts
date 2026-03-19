@@ -119,6 +119,15 @@ function scopedBillingDocId({
   return `${clanId}__${ownerUid}`;
 }
 
+function personalBillingScopeId(uid: string): string {
+  return `user_scope__${uid.trim()}`;
+}
+
+function ownerBillingDocId(ownerUid: string): string {
+  const ownerScopeId = personalBillingScopeId(ownerUid);
+  return scopedBillingDocId({ clanId: ownerScopeId, ownerUid });
+}
+
 export async function countClanMembers(clanId: string): Promise<number> {
   const snapshot = await membersCollection.where('clanId', '==', clanId).count().get();
   return Number(snapshot.data().count ?? 0);
@@ -130,17 +139,14 @@ export async function listOwnerClansForBilling(ownerUid: string): Promise<Array<
     return [];
   }
 
-  const [ownerSnapshot, billingOwnerSnapshot] = await Promise.all([
-    clansCollection.where('ownerUid', '==', normalizedOwnerUid).limit(400).get(),
-    clansCollection.where('billingOwnerUid', '==', normalizedOwnerUid).limit(400).get(),
-  ]);
+  const ownerSnapshot = await clansCollection
+    .where('ownerUid', '==', normalizedOwnerUid)
+    .limit(400)
+    .get();
   const clanById = new Map<string, BillingOwnerClanSummary>();
-  for (const snapshot of [...ownerSnapshot.docs, ...billingOwnerSnapshot.docs]) {
+  for (const snapshot of ownerSnapshot.docs) {
     const data = snapshot.data() ?? {};
-    const resolvedOwnerUid = readString(
-      data.billingOwnerUid,
-      readString(data.ownerUid, ''),
-    );
+    const resolvedOwnerUid = readString(data.ownerUid, '');
     if (resolvedOwnerUid !== normalizedOwnerUid) {
       continue;
     }
@@ -216,15 +222,17 @@ export async function resolveOwnerBillingPolicy({
     subscriptionsById.set(doc.id, doc);
   }
 
-  const fallbackSnapshots = await Promise.all(
-    clansWithCounts.flatMap((clan) => [
+  const ownerScopedSubscriptionId = ownerBillingDocId(normalizedOwnerUid);
+  const fallbackSnapshots = await Promise.all([
+    subscriptionsCollection.doc(ownerScopedSubscriptionId).get(),
+    ...clansWithCounts.flatMap((clan) => [
       subscriptionsCollection.doc(scopedBillingDocId({
         clanId: clan.clanId,
         ownerUid: normalizedOwnerUid,
       })).get(),
       subscriptionsCollection.doc(clan.clanId).get(),
     ]),
-  );
+  ]);
   for (const snapshot of fallbackSnapshots) {
     if (!snapshot.exists) {
       continue;
@@ -234,11 +242,15 @@ export async function resolveOwnerBillingPolicy({
 
   let highestActiveTier = resolveTierByPlanCode('FREE');
   for (const clan of clansWithCounts) {
+    const ownerScopedId = ownerScopedSubscriptionId;
     const scopedId = scopedBillingDocId({
       clanId: clan.clanId,
       ownerUid: normalizedOwnerUid,
     });
-    const source = subscriptionsById.get(scopedId) ?? subscriptionsById.get(clan.clanId);
+    const source =
+      subscriptionsById.get(ownerScopedId) ??
+      subscriptionsById.get(scopedId) ??
+      subscriptionsById.get(clan.clanId);
     if (source == null || !source.exists) {
       continue;
     }
@@ -277,16 +289,22 @@ export async function loadBillingSettings(
   clanId: string,
   ownerUid: string,
 ): Promise<BillingSettingsRecord> {
+  const ownerScopedId = ownerBillingDocId(ownerUid);
   const scopedId = scopedBillingDocId({ clanId, ownerUid });
-  const [scopedSnapshot, legacySnapshot] = await Promise.all([
+  const [ownerScopedSnapshot, scopedSnapshot, legacySnapshot] = await Promise.all([
+    billingSettingsCollection.doc(ownerScopedId).get(),
     billingSettingsCollection.doc(scopedId).get(),
     billingSettingsCollection.doc(clanId).get(),
   ]);
-  const snapshot = scopedSnapshot.exists ? scopedSnapshot : legacySnapshot;
+  const snapshot = ownerScopedSnapshot.exists
+    ? ownerScopedSnapshot
+    : scopedSnapshot.exists
+      ? scopedSnapshot
+      : legacySnapshot;
   if (!snapshot.exists) {
     return {
-      id: scopedId,
-      clanId,
+      id: ownerScopedId,
+      clanId: personalBillingScopeId(ownerUid),
       ownerUid,
       paymentMode: 'manual',
       autoRenew: false,
@@ -296,8 +314,8 @@ export async function loadBillingSettings(
   }
   const data = snapshot.data() ?? {};
   return {
-    id: scopedId,
-    clanId: readString(data.clanId, clanId),
+    id: ownerScopedId,
+    clanId: readString(data.clanId, personalBillingScopeId(ownerUid)),
     ownerUid: readString(data.ownerUid, ownerUid),
     paymentMode: normalizePaymentMode(data.paymentMode),
     autoRenew: readBool(data.autoRenew, false),
@@ -321,12 +339,12 @@ export async function upsertBillingSettings({
   reminderDaysBefore?: Array<number>;
   actorUid: string;
 }): Promise<BillingSettingsRecord> {
-  const scopedId = scopedBillingDocId({ clanId, ownerUid });
+  const scopedId = ownerBillingDocId(ownerUid);
   const normalizedReminderDays = normalizeReminderDays(reminderDaysBefore);
   await billingSettingsCollection.doc(scopedId).set(
     {
       id: scopedId,
-      clanId,
+      clanId: personalBillingScopeId(ownerUid),
       ownerUid,
       paymentMode,
       autoRenew,
@@ -348,16 +366,22 @@ export async function loadSubscription({
   clanId: string;
   ownerUid: string;
 }): Promise<BillingSubscriptionRecord | null> {
+  const ownerScopedId = ownerBillingDocId(ownerUid);
   const scopedId = scopedBillingDocId({ clanId, ownerUid });
-  const [scopedSnapshot, legacySnapshot] = await Promise.all([
+  const [ownerScopedSnapshot, scopedSnapshot, legacySnapshot] = await Promise.all([
+    subscriptionsCollection.doc(ownerScopedId).get(),
     subscriptionsCollection.doc(scopedId).get(),
     subscriptionsCollection.doc(clanId).get(),
   ]);
-  const snapshot = scopedSnapshot.exists ? scopedSnapshot : legacySnapshot;
+  const snapshot = ownerScopedSnapshot.exists
+    ? ownerScopedSnapshot
+    : scopedSnapshot.exists
+      ? scopedSnapshot
+      : legacySnapshot;
   if (!snapshot.exists) {
     return null;
   }
-  return mapSubscription(scopedId, snapshot.data() ?? {}, {
+  return mapSubscription(snapshot.id, snapshot.data() ?? {}, {
     fallbackClanId: clanId,
     fallbackOwnerUid: ownerUid,
   });
@@ -374,10 +398,7 @@ export async function ensureSubscriptionForClan({
   actorUid?: string;
   now?: Date;
 }): Promise<EnsureSubscriptionResult> {
-  const scopedSubscriptionId = scopedBillingDocId({
-    clanId,
-    ownerUid,
-  });
+  const scopedSubscriptionId = ownerBillingDocId(ownerUid);
   const [memberCount, settings, existing] = await Promise.all([
     countClanMembers(clanId),
     loadBillingSettings(clanId, ownerUid),
@@ -386,7 +407,7 @@ export async function ensureSubscriptionForClan({
   const minimumTier = resolvePlanByMemberCount(memberCount);
 
   if (existing == null) {
-    const seeded = seedSubscription({
+    const seededDraft = seedSubscription({
       clanId,
       ownerUid,
       tier: minimumTier,
@@ -394,6 +415,12 @@ export async function ensureSubscriptionForClan({
       settings,
       now,
     });
+    const seeded: BillingSubscriptionRecord = {
+      ...seededDraft,
+      id: scopedSubscriptionId,
+      clanId: personalBillingScopeId(ownerUid),
+      ownerUid,
+    };
     await subscriptionsCollection.doc(scopedSubscriptionId).set(
       {
         ...toSubscriptionWriteMap(seeded),
@@ -435,6 +462,9 @@ export async function ensureSubscriptionForClan({
   const targetTier = resolveTierByPlanCode(existing.planCode);
   const updated: BillingSubscriptionRecord = {
     ...existing,
+    id: scopedSubscriptionId,
+    clanId: personalBillingScopeId(ownerUid),
+    ownerUid,
     planCode: existing.planCode,
     status: normalizeStatusForPlan({
       planCode: existing.planCode,

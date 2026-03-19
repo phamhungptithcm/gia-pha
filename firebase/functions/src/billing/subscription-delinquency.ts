@@ -564,7 +564,6 @@ async function loadClanMetadata({
     }
     const data = asRecord(snapshot.data()) ?? {};
     const ownerUid =
-      normalizeString(data.billingOwnerUid) ||
       normalizeString(data.ownerUid) ||
       fallbackOwnerUid;
     let ownerDisplayName = normalizeNullableString(data.founderName);
