@@ -246,6 +246,7 @@ export const resolveBillingEntitlement = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
+    const now = new Date();
     const scope = await resolveBillingScopeContext({
       uid: auth.uid,
       token: auth.token,
@@ -256,17 +257,26 @@ export const resolveBillingEntitlement = onCall(
       clanId: scope.clanId,
       ownerUid: scope.ownerUid,
       actorUid: auth.uid,
+      now,
+    });
+    const resolvedMemberCount = await resolveWorkspaceMemberCount({
+      scope,
+      fallbackMemberCount: ensured.memberCount,
+      now,
     });
     const entitlement = buildEntitlementFromSubscription(ensured.subscription);
 
     return {
       clanId: scope.clanId,
       scope: serializeBillingScope(scope),
-      subscription: serializeSubscription(ensured.subscription),
+      subscription: serializeSubscription({
+        ...ensured.subscription,
+        memberCount: resolvedMemberCount,
+      }),
       entitlement,
       pricingTiers: BILLING_PRICING_TIERS,
       settings: ensured.settings,
-      memberCount: ensured.memberCount,
+      memberCount: resolvedMemberCount,
     };
   },
 );
@@ -275,6 +285,7 @@ export const loadBillingWorkspace = onCall(
   { region: APP_REGION },
   async (request) => {
     const auth = requireAuth(request);
+    const now = new Date();
     const scope = await resolveBillingScopeContext({
       uid: auth.uid,
       token: auth.token,
@@ -295,6 +306,12 @@ export const loadBillingWorkspace = onCall(
       clanId: scope.clanId,
       ownerUid: scope.ownerUid,
       actorUid: auth.uid,
+      now,
+    });
+    const resolvedMemberCount = await resolveWorkspaceMemberCount({
+      scope,
+      fallbackMemberCount: ensured.memberCount,
+      now,
     });
     const [transactionsSnapshot, invoicesSnapshot, auditSnapshot] =
       await Promise.all([
@@ -318,12 +335,15 @@ export const loadBillingWorkspace = onCall(
     return {
       clanId: scope.clanId,
       scope: serializeBillingScope(scope),
-      subscription: serializeSubscription(ensured.subscription),
+      subscription: serializeSubscription({
+        ...ensured.subscription,
+        memberCount: resolvedMemberCount,
+      }),
       entitlement: buildEntitlementFromSubscription(ensured.subscription),
       settings: ensured.settings,
       checkoutFlow: buildCheckoutFlowConfig(runtimeConfig),
       pricingTiers: BILLING_PRICING_TIERS,
-      memberCount: ensured.memberCount,
+      memberCount: resolvedMemberCount,
       transactions: transactionsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...normalizeFirestoreJson(doc.data()),
@@ -888,6 +908,25 @@ function serializeBillingScope(
     clanStatus: scope.clanStatus,
     viewerIsOwner: scope.viewerIsOwner,
   };
+}
+
+async function resolveWorkspaceMemberCount({
+  scope,
+  fallbackMemberCount,
+  now,
+}: {
+  scope: BillingScopeContext;
+  fallbackMemberCount: number;
+  now: Date;
+}): Promise<number> {
+  if (!isPersonalBillingScope(scope.clanId, scope.ownerUid)) {
+    return fallbackMemberCount;
+  }
+  const policy = await resolveOwnerBillingPolicy({
+    ownerUid: scope.ownerUid,
+    now,
+  });
+  return policy.totalMemberCount;
 }
 
 function isSubscriptionActiveAndValid(
