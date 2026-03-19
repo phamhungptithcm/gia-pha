@@ -24,6 +24,11 @@ type SubmissionRecord = {
   clanId?: string | null;
   status?: string | null;
   title?: string | null;
+  memberId?: string | null;
+  awardLevelId?: string | null;
+  studentNameSnapshot?: string | null;
+  disbursementStatus?: string | null;
+  disbursedTransactionId?: string | null;
   approvalVotes?: Array<{
     memberId?: string | null;
     decision?: string | null;
@@ -38,9 +43,26 @@ type MemberRecord = {
   status?: string | null;
 };
 
+type AwardLevelRecord = {
+  clanId?: string | null;
+  rewardAmountMinor?: number | null;
+};
+
+type FundRecord = {
+  clanId?: string | null;
+  branchId?: string | null;
+  name?: string | null;
+  status?: string | null;
+  currency?: string | null;
+  balanceMinor?: number | null;
+};
+
 const submissionsCollection = db.collection('achievementSubmissions');
 const approvalLogsCollection = db.collection('scholarshipApprovalLogs');
 const membersCollection = db.collection('members');
+const awardLevelsCollection = db.collection('awardLevels');
+const fundsCollection = db.collection('funds');
+const transactionsCollection = db.collection('transactions');
 
 export const reviewScholarshipSubmission = onCall(
   { region: APP_REGION },
@@ -178,6 +200,29 @@ export const reviewScholarshipSubmission = onCall(
           reviewedAt: nextStatus === 'pending' ? null : FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
           updatedBy: memberId,
+          ...(nextStatus === 'approved'
+            ? {
+              disbursementStatus: 'pending',
+              disbursedFundId: null,
+              disbursedTransactionId: null,
+              disbursedAmountMinor: null,
+              disbursedCurrency: null,
+              disbursementNote: null,
+              disbursedAt: null,
+              disbursedBy: null,
+            }
+            : nextStatus === 'rejected'
+            ? {
+              disbursementStatus: null,
+              disbursedFundId: null,
+              disbursedTransactionId: null,
+              disbursedAmountMinor: null,
+              disbursedCurrency: null,
+              disbursementNote: null,
+              disbursedAt: null,
+              disbursedBy: null,
+            }
+            : {}),
         },
         { merge: true },
       );
@@ -226,6 +271,198 @@ export const reviewScholarshipSubmission = onCall(
     return {
       submission: normalizeFirestoreValue(submissionData),
       ...transactionResult,
+    };
+  },
+);
+
+export const disburseScholarshipSubmissionFromFund = onCall(
+  { region: APP_REGION },
+  async (request) => {
+    const auth = requireAuth(request);
+    ensureClaimedSession(auth.token);
+    ensureAnyRole(
+      auth.token,
+      [
+        GOVERNANCE_ROLES.superAdmin,
+        GOVERNANCE_ROLES.clanAdmin,
+        GOVERNANCE_ROLES.treasurer,
+      ],
+      'Only finance managers can disburse scholarship submissions.',
+    );
+
+    const submissionId = requireNonEmptyString(request.data, 'submissionId');
+    const fundId = requireNonEmptyString(request.data, 'fundId');
+    const note = optionalString(request.data, 'note');
+    if ((note ?? '').length > 280) {
+      throw new HttpsError('invalid-argument', 'note must not exceed 280 characters.');
+    }
+    const actorId = tokenMemberId(auth.token) ?? auth.uid;
+
+    const disbursementResult = await db.runTransaction(async (transaction) => {
+      const submissionRef = submissionsCollection.doc(submissionId);
+      const submissionSnapshot = await transaction.get(submissionRef);
+      if (!submissionSnapshot.exists || submissionSnapshot.data() == null) {
+        throw new HttpsError('not-found', 'submission_not_found');
+      }
+
+      const submission = submissionSnapshot.data() as SubmissionRecord;
+      const clanId = stringOrNull(submission.clanId);
+      if (clanId == null) {
+        throw new HttpsError('failed-precondition', 'submission_missing_clan_context');
+      }
+      ensureClanAccess(auth.token, clanId);
+
+      const submissionStatus = stringOrNull(submission.status)?.toLowerCase();
+      if (submissionStatus !== 'approved') {
+        throw new HttpsError('failed-precondition', 'submission_not_approved');
+      }
+      const disbursementStatus = stringOrNull(submission.disbursementStatus)?.toLowerCase();
+      if (
+        disbursementStatus === 'disbursed' ||
+        stringOrNull(submission.disbursedTransactionId) != null
+      ) {
+        throw new HttpsError('failed-precondition', 'submission_already_disbursed');
+      }
+
+      const awardLevelId = stringOrNull(submission.awardLevelId);
+      if (awardLevelId == null) {
+        throw new HttpsError('failed-precondition', 'submission_missing_award_level');
+      }
+      const awardLevelRef = awardLevelsCollection.doc(awardLevelId);
+      const awardLevelSnapshot = await transaction.get(awardLevelRef);
+      if (!awardLevelSnapshot.exists || awardLevelSnapshot.data() == null) {
+        throw new HttpsError('not-found', 'award_level_not_found');
+      }
+      const awardLevel = awardLevelSnapshot.data() as AwardLevelRecord;
+      if (stringOrNull(awardLevel.clanId) !== clanId) {
+        throw new HttpsError('permission-denied', 'award_level_clan_mismatch');
+      }
+      const disbursementAmountMinor = normalizePositiveInteger(
+        awardLevel.rewardAmountMinor,
+      );
+      if (disbursementAmountMinor <= 0) {
+        throw new HttpsError('failed-precondition', 'award_level_amount_invalid');
+      }
+
+      const fundRef = fundsCollection.doc(fundId);
+      const fundSnapshot = await transaction.get(fundRef);
+      if (!fundSnapshot.exists || fundSnapshot.data() == null) {
+        throw new HttpsError('not-found', 'fund_not_found');
+      }
+      const fund = fundSnapshot.data() as FundRecord;
+      if (stringOrNull(fund.clanId) !== clanId) {
+        throw new HttpsError('permission-denied', 'fund_clan_mismatch');
+      }
+      const fundStatus = stringOrNull(fund.status)?.toLowerCase();
+      if (
+        fundStatus === 'inactive' ||
+        fundStatus === 'archived' ||
+        fundStatus === 'deleted'
+      ) {
+        throw new HttpsError('failed-precondition', 'fund_inactive');
+      }
+      const currentBalanceMinor = normalizePositiveInteger(fund.balanceMinor);
+      if (disbursementAmountMinor > currentBalanceMinor) {
+        throw new HttpsError('failed-precondition', 'insufficient_fund_balance');
+      }
+
+      const currency = normalizeCurrencyCode(fund.currency);
+      const occurredAt = new Date();
+      const nextBalanceMinor = currentBalanceMinor - disbursementAmountMinor;
+      const transactionRef = transactionsCollection.doc();
+      const resolvedNote = note ??
+        [
+          'Scholarship disbursement',
+          stringOrNull(submission.studentNameSnapshot),
+          stringOrNull(submission.title),
+        ].filter((entry) => entry != null).join(' • ');
+      transaction.set(transactionRef, {
+        id: transactionRef.id,
+        fundId,
+        clanId,
+        branchId: stringOrNull(fund.branchId),
+        transactionType: 'expense',
+        amountMinor: disbursementAmountMinor,
+        currency,
+        memberId: stringOrNull(submission.memberId),
+        externalReference: `scholarship:${submissionId}`,
+        occurredAt: Timestamp.fromDate(occurredAt),
+        note: resolvedNote,
+        receiptUrl: null,
+        sourceType: 'scholarship',
+        sourceId: submissionId,
+        createdAt: FieldValue.serverTimestamp(),
+        createdBy: actorId,
+      });
+      transaction.set(
+        fundRef,
+        {
+          balanceMinor: nextBalanceMinor,
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: actorId,
+        },
+        { merge: true },
+      );
+      transaction.set(
+        submissionRef,
+        {
+          disbursementStatus: 'disbursed',
+          disbursedFundId: fundId,
+          disbursedTransactionId: transactionRef.id,
+          disbursedAmountMinor: disbursementAmountMinor,
+          disbursedCurrency: currency,
+          disbursementNote: resolvedNote,
+          disbursedAt: FieldValue.serverTimestamp(),
+          disbursedBy: actorId,
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: actorId,
+        },
+        { merge: true },
+      );
+
+      writeApprovalLog(transaction, {
+        clanId,
+        submissionId,
+        action: 'disbursed',
+        decision: 'disbursed',
+        actorMemberId: actorId,
+        actorRole: tokenPrimaryRole(auth.token),
+        note: resolvedNote,
+      });
+
+      return {
+        clanId,
+        fundId,
+        transactionId: transactionRef.id,
+        amountMinor: disbursementAmountMinor,
+        currency,
+        balanceMinor: nextBalanceMinor,
+      };
+    });
+
+    const updated = await submissionsCollection.doc(submissionId).get();
+    const submissionData = updated.data() ?? {};
+
+    logInfo('disburseScholarshipSubmissionFromFund succeeded', {
+      uid: auth.uid,
+      actorMemberId: tokenMemberId(auth.token),
+      actorRole: tokenPrimaryRole(auth.token),
+      submissionId,
+      fundId: disbursementResult.fundId,
+      clanId: disbursementResult.clanId,
+      transactionId: disbursementResult.transactionId,
+      amountMinor: disbursementResult.amountMinor,
+      currency: disbursementResult.currency,
+      balanceMinor: disbursementResult.balanceMinor,
+    });
+
+    return {
+      submission: normalizeFirestoreValue(submissionData),
+      transactionId: disbursementResult.transactionId,
+      amountMinor: disbursementResult.amountMinor,
+      currency: disbursementResult.currency,
+      fundId: disbursementResult.fundId,
+      balanceMinor: disbursementResult.balanceMinor,
     };
   },
 );
@@ -335,12 +572,29 @@ function requireNonEmptyString(data: unknown, key: string): string {
   return value.trim();
 }
 
+function optionalString(data: unknown, key: string): string | null {
+  if (data == null || typeof data !== 'object') {
+    return null;
+  }
+  return stringOrNull((data as Record<string, unknown>)[key]);
+}
+
 function requireDecision(data: unknown, key: string): 'approve' | 'reject' {
   const value = requireNonEmptyString(data, key).toLowerCase();
   if (value !== 'approve' && value !== 'reject') {
     throw new HttpsError('invalid-argument', `${key} must be approve or reject.`);
   }
   return value;
+}
+
+function normalizePositiveInteger(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && Math.trunc(value) > 0
+    ? Math.trunc(value)
+    : 0;
+}
+
+function normalizeCurrencyCode(value: unknown): string {
+  return stringOrNull(value)?.toUpperCase() ?? 'VND';
 }
 
 function normalizeFirestoreValue(value: unknown): unknown {

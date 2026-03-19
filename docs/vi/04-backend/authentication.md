@@ -40,10 +40,9 @@ giải hồ sơ thành viên theo dòng họ và đồng bộ ngữ cảnh vai t
 
 - luồng chính dùng Firebase Auth + callable functions
 - có fallback tạm thời khi callable không sẵn sàng:
-  - fallback child mapping local cho mã demo đã biết
+  - fallback tương thích callable trong giai đoạn rollout
   - fallback claim/session sync qua Firestore
-- `RuntimeMode` vẫn hỗ trợ mock mode cho test
-- bypass OTP debug chỉ dùng cho phát triển, không dùng cho production
+- không cho phép bypass OTP debug trong runtime production
 
 ## Lưu phiên
 

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
 
 import '../../../core/services/firebase_services.dart';
@@ -12,13 +13,16 @@ import '../models/fund_transaction_draft.dart';
 import '../models/fund_workspace_snapshot.dart';
 import 'currency_minor_units.dart';
 import 'fund_repository.dart';
-import 'fund_transaction_validation.dart';
 
 class FirebaseFundRepository implements FundRepository {
-  FirebaseFundRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseServices.firestore;
+  FirebaseFundRepository({
+    FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
+  }) : _firestore = firestore ?? FirebaseServices.firestore,
+       _functions = functions ?? FirebaseServices.functions;
 
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
   CollectionReference<Map<String, dynamic>> get _funds =>
       _firestore.collection('funds');
@@ -256,71 +260,49 @@ class FirebaseFundRepository implements FundRepository {
     );
 
     try {
-      return await _firestore.runTransaction((tx) async {
-        final fundRef = _funds.doc(draft.fundId);
-        final fundSnapshot = await tx.get(fundRef);
-
-        if (!fundSnapshot.exists || fundSnapshot.data() == null) {
-          throw const FundRepositoryException(
-            FundRepositoryErrorCode.fundNotFound,
-          );
-        }
-
-        final fund = FundProfile.fromJson(
-          _normalizeFirestoreMap(fundSnapshot.data()!, fallbackId: fundRef.id),
-        );
-        if (fund.clanId != clanId) {
-          throw const FundRepositoryException(
-            FundRepositoryErrorCode.permissionDenied,
-          );
-        }
-
-        try {
-          validateFundTransactionInput(
-            fundId: draft.fundId,
-            transactionType: draft.transactionType,
-            amountMinor: amountMinor,
-            currentBalanceMinor: fund.balanceMinor,
-            currency: normalizedCurrency,
-            occurredAt: draft.occurredAt,
-            note: draft.note,
-          );
-        } on FundTransactionValidationException catch (error) {
-          throw _mapValidationError(error);
-        }
-
-        final transactionRef = _transactions.doc();
-        final createdAt = DateTime.now().toUtc();
-        final created = FundTransaction(
-          id: transactionRef.id,
-          fundId: fund.id,
-          clanId: clanId,
-          branchId: fund.branchId,
-          transactionType: draft.transactionType,
-          amountMinor: amountMinor,
-          currency: normalizedCurrency,
-          memberId: _nullableTrim(draft.memberId) ?? session.memberId,
-          externalReference: _nullableTrim(draft.externalReference),
-          occurredAt: draft.occurredAt.toUtc(),
-          note: draft.note.trim(),
-          receiptUrl: _nullableTrim(draft.receiptUrl),
-          createdAt: createdAt,
-          createdBy: session.memberId ?? session.uid,
-        );
-
-        tx.set(transactionRef, {
-          ...created.toJson(),
-          'occurredAt': Timestamp.fromDate(created.occurredAt),
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        tx.set(fundRef, {
-          'balanceMinor': fund.balanceMinor + created.signedAmountMinor,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'updatedBy': session.memberId ?? session.uid,
-        }, SetOptions(merge: true));
-
-        return created;
+      final callable = _functions.httpsCallable('recordFundTransaction');
+      final response = await callable.call(<String, dynamic>{
+        'fundId': draft.fundId,
+        'transactionType': draft.transactionType.jsonValue,
+        'amountMinor': amountMinor,
+        'occurredAt': draft.occurredAt.toUtc().toIso8601String(),
+        'note': draft.note.trim(),
+        'memberId': _nullableTrim(draft.memberId) ?? session.memberId,
+        'externalReference': _nullableTrim(draft.externalReference),
+        'receiptUrl': _nullableTrim(draft.receiptUrl),
       });
+      final payload = response.data;
+      if (payload is Map && payload['transaction'] is Map<String, dynamic>) {
+        return FundTransaction.fromJson(
+          payload['transaction'] as Map<String, dynamic>,
+        );
+      }
+
+      final fallbackId = _stringOrEmpty(
+        payload is Map ? payload['fundId'] : null,
+      );
+      final latestSnapshot = await _loadTransactionSnapshot(clanId: clanId);
+      final fallback = latestSnapshot.docs
+          .map(
+            (doc) => FundTransaction.fromJson(
+              _normalizeFirestoreMap(doc.data(), fallbackId: doc.id),
+            ),
+          )
+          .sorted((left, right) => right.occurredAt.compareTo(left.occurredAt))
+          .firstWhereOrNull(
+            (entry) =>
+                entry.fundId == draft.fundId || entry.fundId == fallbackId,
+          );
+      if (fallback == null) {
+        throw const FundRepositoryException(
+          FundRepositoryErrorCode.writeFailed,
+        );
+      }
+      return fallback;
+    } on FundRepositoryException {
+      rethrow;
+    } on FirebaseFunctionsException catch (error) {
+      throw _mapFunctionsError(error);
     } on FirebaseException catch (error) {
       throw _mapFirebaseError(error);
     }
@@ -342,24 +324,6 @@ class FirebaseFundRepository implements FundRepository {
     }
   }
 
-  FundRepositoryException _mapValidationError(
-    FundTransactionValidationException error,
-  ) {
-    return switch (error.code) {
-      FundTransactionValidationErrorCode.insufficientBalance =>
-        const FundRepositoryException(
-          FundRepositoryErrorCode.insufficientBalance,
-        ),
-      FundTransactionValidationErrorCode.unsupportedCurrency =>
-        const FundRepositoryException(FundRepositoryErrorCode.invalidCurrency),
-      FundTransactionValidationErrorCode.amountNotPositive =>
-        const FundRepositoryException(FundRepositoryErrorCode.invalidAmount),
-      _ => const FundRepositoryException(
-        FundRepositoryErrorCode.validationFailed,
-      ),
-    };
-  }
-
   FundRepositoryException _mapFirebaseError(FirebaseException error) {
     if (error.code == 'permission-denied') {
       return FundRepositoryException(
@@ -371,6 +335,37 @@ class FirebaseFundRepository implements FundRepository {
     return FundRepositoryException(
       FundRepositoryErrorCode.writeFailed,
       error.message,
+    );
+  }
+
+  FundRepositoryException _mapFunctionsError(FirebaseFunctionsException error) {
+    if (error.code == 'permission-denied') {
+      return FundRepositoryException(
+        FundRepositoryErrorCode.permissionDenied,
+        error.message,
+      );
+    }
+    if (error.code == 'not-found') {
+      return const FundRepositoryException(
+        FundRepositoryErrorCode.fundNotFound,
+      );
+    }
+    final normalizedMessage = (error.message ?? '').toLowerCase();
+    if (normalizedMessage.contains('insufficient_fund_balance')) {
+      return const FundRepositoryException(
+        FundRepositoryErrorCode.insufficientBalance,
+      );
+    }
+    if (error.code == 'invalid-argument' ||
+        error.code == 'failed-precondition') {
+      return FundRepositoryException(
+        FundRepositoryErrorCode.validationFailed,
+        error.message ?? error.code,
+      );
+    }
+    return FundRepositoryException(
+      FundRepositoryErrorCode.writeFailed,
+      error.message ?? error.code,
     );
   }
 }

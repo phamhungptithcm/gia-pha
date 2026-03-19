@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/address_autocomplete_field.dart';
+import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
+import '../../calendar/services/lunar_conversion_engine.dart';
 import '../../clan/models/branch_profile.dart';
 import '../../member/models/member_profile.dart';
 import '../models/event_draft.dart';
@@ -22,25 +26,30 @@ class EventWorkspacePage extends StatefulWidget {
     super.key,
     required this.session,
     required this.repository,
+    this.nowProvider,
+    this.lunarConversionEngine,
   });
 
   final AuthSession session;
   final EventRepository repository;
+  final DateTime Function()? nowProvider;
+  final LunarConversionEngine? lunarConversionEngine;
 
   @override
   State<EventWorkspacePage> createState() => _EventWorkspacePageState();
 }
 
 class _EventWorkspacePageState extends State<EventWorkspacePage> {
+  static const int _eventBatchSize = 24;
+  static const double _eventLazyThresholdPx = 420;
+
   late final EventController _controller;
   late final TextEditingController _searchController;
   late final ScrollController _workspaceScrollController;
-  final GlobalKey _memorialSectionKey = GlobalKey(
-    debugLabel: 'event-memorial-section',
-  );
-  final GlobalKey _ritualSectionKey = GlobalKey(
-    debugLabel: 'event-ritual-section',
-  );
+  final GlobalKey _memorialSectionKey = GlobalKey();
+  final GlobalKey _ritualSectionKey = GlobalKey();
+  int _visibleEventCount = _eventBatchSize;
+  String _eventListSeed = '';
 
   @override
   void initState() {
@@ -48,18 +57,79 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     _controller = EventController(
       repository: widget.repository,
       session: widget.session,
+      nowProvider: widget.nowProvider,
+      lunarConversionEngine: widget.lunarConversionEngine,
     );
     _searchController = TextEditingController();
-    _workspaceScrollController = ScrollController();
+    _workspaceScrollController = ScrollController()
+      ..addListener(_handleWorkspaceScroll);
     unawaited(_controller.initialize());
   }
 
   @override
   void dispose() {
+    _workspaceScrollController.removeListener(_handleWorkspaceScroll);
     _workspaceScrollController.dispose();
     _searchController.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleWorkspaceScroll() {
+    if (!_workspaceScrollController.hasClients) {
+      return;
+    }
+    if (_workspaceScrollController.position.extentAfter >
+        _eventLazyThresholdPx) {
+      return;
+    }
+    final total = _controller.filteredEvents.length;
+    if (_visibleEventCount >= total) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _visibleEventCount = math.min(
+        total,
+        _visibleEventCount + _eventBatchSize,
+      );
+    });
+  }
+
+  void _syncVisibleEventState(List<EventRecord> filteredEvents) {
+    final seed = filteredEvents.isEmpty
+        ? '0'
+        : '${filteredEvents.length}:${filteredEvents.first.id}:${filteredEvents.last.id}';
+    if (seed == _eventListSeed) {
+      return;
+    }
+    _eventListSeed = seed;
+    _visibleEventCount = math.min(filteredEvents.length, _eventBatchSize);
+  }
+
+  List<_EventGroupBucket> _groupEventsByMonth(
+    BuildContext context,
+    List<EventRecord> events,
+  ) {
+    final nowUtc = DateTime.now().toUtc();
+    final grouped = <String, List<EventRecord>>{};
+    for (final event in events) {
+      final local = event.startsAt.toLocal();
+      final month = '${local.month.toString().padLeft(2, '0')}/${local.year}';
+      final isUpcoming = !event.startsAt.isBefore(nowUtc);
+      final label = context.l10n.pick(
+        vi: isUpcoming ? 'Sắp tới • $month' : 'Đã qua • $month',
+        en: isUpcoming ? 'Upcoming • $month' : 'Past • $month',
+      );
+      grouped.putIfAbsent(label, () => <EventRecord>[]).add(event);
+    }
+    return grouped.entries
+        .map(
+          (entry) => _EventGroupBucket(label: entry.key, events: entry.value),
+        )
+        .toList(growable: false);
   }
 
   Future<void> _scrollToChecklistSection(GlobalKey sectionKey) async {
@@ -152,6 +222,38 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
         member: item.member,
         deathDate: item.deathDate,
         milestone: milestoneItem.milestone,
+      ),
+    );
+  }
+
+  Future<void> _openLongevityCelebrationList() async {
+    final candidates = _controller.longevityCelebrationCandidates;
+    if (candidates.isEmpty) {
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => _LongevityCelebrationListPage(
+          candidates: candidates,
+          branchNameFor: _controller.branchName,
+          onOpenMemberDetail: _openLongevityMemberDetail,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openLongevityMemberDetail(
+    LongevityCelebrationCandidate candidate,
+  ) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => _LongevityMemberDetailPage(
+          member: candidate.member,
+          milestoneAge: candidate.milestoneAge,
+          celebrationDate: candidate.celebrationDate,
+          branchName: _controller.branchName(candidate.member.branchId),
+        ),
       ),
     );
   }
@@ -282,6 +384,15 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
         final l10n = context.l10n;
         final colorScheme = Theme.of(context).colorScheme;
         final filteredEvents = _controller.filteredEvents;
+        _syncVisibleEventState(filteredEvents);
+        final visibleEvents = filteredEvents
+            .take(_visibleEventCount)
+            .toList(growable: false);
+        final groupedVisibleEvents = _groupEventsByMonth(
+          context,
+          visibleEvents,
+        );
+        final hasMoreEvents = visibleEvents.length < filteredEvents.length;
 
         return Scaffold(
           appBar: AppBar(
@@ -295,12 +406,11 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
             ],
           ),
           floatingActionButton: _controller.permissions.canManageEvents
-              ? FloatingActionButton.extended(
+              ? FloatingActionButton(
                   key: const Key('event-create-button'),
                   onPressed: () => _openEventEditor(),
                   tooltip: l10n.eventCreateAction,
-                  icon: const Icon(Icons.add),
-                  label: Text(l10n.eventCreateAction),
+                  child: const Icon(Icons.add),
                 )
               : null,
           body: SafeArea(
@@ -329,11 +439,6 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                         _WorkspaceHero(
                           title: l10n.eventHeroTitle,
                           description: l10n.eventHeroDescription,
-                          canCreateEvents:
-                              _controller.permissions.canManageEvents,
-                          onCreateEvent: _controller.permissions.canManageEvents
-                              ? () => _openEventEditor()
-                              : null,
                         ),
                         const SizedBox(height: 20),
                         if (_controller.permissions.isReadOnly) ...[
@@ -397,6 +502,25 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                           },
                         ),
                         const SizedBox(height: 20),
+                        if (_controller.showLongevityReminderLink) ...[
+                          _SectionCard(
+                            title: l10n.pick(
+                              vi: 'Mừng thọ sắp tới',
+                              en: 'Upcoming longevity celebration',
+                            ),
+                            child: _LongevityReminderLinkCard(
+                              key: const Key(
+                                'event-longevity-reminder-link-card',
+                              ),
+                              candidates:
+                                  _controller.longevityCelebrationCandidates,
+                              celebrationDate:
+                                  _controller.longevityCelebrationDate,
+                              onOpenList: _openLongevityCelebrationList,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
                         KeyedSubtree(
                           key: _memorialSectionKey,
                           child: _SectionCard(
@@ -461,12 +585,6 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                         const SizedBox(height: 20),
                         _SectionCard(
                           title: l10n.eventListSectionTitle,
-                          actionLabel: _controller.permissions.canManageEvents
-                              ? l10n.eventCreateAction
-                              : null,
-                          onAction: _controller.permissions.canManageEvents
-                              ? () => _openEventEditor()
-                              : null,
                           child: filteredEvents.isEmpty
                               ? _WorkspaceEmptyState(
                                   icon: Icons.event_busy_outlined,
@@ -474,33 +592,72 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                                   description: l10n.eventListEmptyDescription,
                                 )
                               : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    for (
-                                      var i = 0;
-                                      i < filteredEvents.length;
-                                      i++
-                                    )
+                                    for (final bucket
+                                        in groupedVisibleEvents) ...[
                                       Padding(
-                                        padding: EdgeInsets.only(
-                                          bottom: i == filteredEvents.length - 1
-                                              ? 0
-                                              : 14,
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
                                         ),
-                                        child: _EventSummaryCard(
-                                          key: Key(
-                                            'event-row-${filteredEvents[i].id}',
-                                          ),
-                                          event: filteredEvents[i],
-                                          branchName: _controller.branchName(
-                                            filteredEvents[i].branchId,
-                                          ),
-                                          targetMemberName: _controller
-                                              .memberName(
-                                                filteredEvents[i]
-                                                    .targetMemberId,
+                                        child: Text(
+                                          bucket.label,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
                                               ),
-                                          onTap: () =>
-                                              _openDetail(filteredEvents[i]),
+                                        ),
+                                      ),
+                                      for (
+                                        var i = 0;
+                                        i < bucket.events.length;
+                                        i++
+                                      )
+                                        Padding(
+                                          padding: EdgeInsets.only(
+                                            bottom:
+                                                i == bucket.events.length - 1
+                                                ? 12
+                                                : 14,
+                                          ),
+                                          child: _EventSummaryCard(
+                                            key: Key(
+                                              'event-row-${bucket.events[i].id}',
+                                            ),
+                                            event: bucket.events[i],
+                                            branchName: _controller.branchName(
+                                              bucket.events[i].branchId,
+                                            ),
+                                            targetMemberName: _controller
+                                                .memberName(
+                                                  bucket
+                                                      .events[i]
+                                                      .targetMemberId,
+                                                ),
+                                            onTap: () =>
+                                                _openDetail(bucket.events[i]),
+                                          ),
+                                        ),
+                                    ],
+                                    if (hasMoreEvents)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          l10n.pick(
+                                            vi: 'Đang hiển thị ${visibleEvents.length}/${filteredEvents.length} sự kiện. Kéo xuống để tải thêm.',
+                                            en: 'Showing ${visibleEvents.length}/${filteredEvents.length} events. Scroll to load more.',
+                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
                                         ),
                                       ),
                                   ],
@@ -537,12 +694,13 @@ class _EventDetailPage extends StatelessWidget {
         title: Text(l10n.eventDetailTitle),
         actions: [
           if (event != null && controller.permissions.canManageEvents)
-            IconButton(
-              key: const Key('event-detail-edit-button'),
-              tooltip: l10n.eventEditAction,
-              onPressed: () => onEdit(event: event),
-              icon: const Icon(Icons.edit_outlined),
-            ),
+            if (!event.isAutoGenerated)
+              IconButton(
+                key: const Key('event-detail-edit-button'),
+                tooltip: l10n.eventEditAction,
+                onPressed: () => onEdit(event: event),
+                icon: const Icon(Icons.edit_outlined),
+              ),
         ],
       ),
       body: event == null
@@ -587,6 +745,10 @@ class _EventDetailPage extends StatelessWidget {
                         value: event.locationAddress.trim().isEmpty
                             ? l10n.eventFieldUnset
                             : event.locationAddress,
+                        trailing: AddressDirectionIconButton(
+                          address: event.locationAddress,
+                          label: event.title,
+                        ),
                       ),
                       _SummaryRow(
                         label: l10n.eventFieldDescription,
@@ -664,6 +826,210 @@ class _EventDetailPage extends StatelessWidget {
   }
 }
 
+class _LongevityReminderLinkCard extends StatelessWidget {
+  const _LongevityReminderLinkCard({
+    super.key,
+    required this.candidates,
+    required this.celebrationDate,
+    required this.onOpenList,
+  });
+
+  final List<LongevityCelebrationCandidate> candidates;
+  final DateTime? celebrationDate;
+  final VoidCallback onOpenList;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final count = candidates.length;
+    final celebrationText = celebrationDate == null
+        ? l10n.pick(vi: 'Chưa xác định', en: 'Not available')
+        : _formatDateInput(celebrationDate!);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.pick(
+            vi: 'Đợt mừng thọ 4/1 âm lịch sắp diễn ra vào $celebrationText. Có $count thành viên đạt mốc 70+ (mỗi 5 năm).',
+            en: 'The lunar 4/1 longevity event is coming on $celebrationText. $count members reached a 70+ milestone (every 5 years).',
+          ),
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          key: const Key('event-longevity-link-button'),
+          onPressed: onOpenList,
+          icon: const Icon(Icons.card_giftcard_outlined),
+          label: Text(
+            l10n.pick(
+              vi: 'Xem danh sách được mừng thọ',
+              en: 'View longevity list',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LongevityCelebrationListPage extends StatelessWidget {
+  const _LongevityCelebrationListPage({
+    required this.candidates,
+    required this.branchNameFor,
+    required this.onOpenMemberDetail,
+  });
+
+  final List<LongevityCelebrationCandidate> candidates;
+  final String Function(String? branchId) branchNameFor;
+  final Future<void> Function(LongevityCelebrationCandidate candidate)
+  onOpenMemberDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          l10n.pick(vi: 'Danh sách mừng thọ sắp tới', en: 'Upcoming longevity'),
+        ),
+      ),
+      body: candidates.isEmpty
+          ? _WorkspaceEmptyState(
+              icon: Icons.card_giftcard_outlined,
+              title: l10n.pick(
+                vi: 'Chưa có thành viên đạt mốc mừng thọ',
+                en: 'No longevity milestone yet',
+              ),
+              description: l10n.pick(
+                vi: 'Danh sách sẽ hiện khi có thành viên còn sống đạt mốc 70, 75, 80...',
+                en: 'This list appears when living members reach 70, 75, 80...',
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+              itemCount: candidates.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final candidate = candidates[index];
+                final member = candidate.member;
+                final branchName = branchNameFor(member.branchId);
+                final address = member.addressText?.trim() ?? '';
+                final ageLabel = l10n.pick(
+                  vi: '${candidate.milestoneAge} tuổi',
+                  en: '${candidate.milestoneAge} years',
+                );
+                return Card(
+                  child: ListTile(
+                    key: Key('event-longevity-member-row-${member.id}'),
+                    onTap: () => onOpenMemberDetail(candidate),
+                    title: Text(
+                      member.fullName,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (branchName.isNotEmpty)
+                            Text(
+                              branchName,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          if (address.isNotEmpty)
+                            Text(
+                              address,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: Colors.black54),
+                            ),
+                        ],
+                      ),
+                    ),
+                    trailing: Chip(label: Text(ageLabel)),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
+class _LongevityMemberDetailPage extends StatelessWidget {
+  const _LongevityMemberDetailPage({
+    required this.member,
+    required this.milestoneAge,
+    required this.celebrationDate,
+    required this.branchName,
+  });
+
+  final MemberProfile member;
+  final int milestoneAge;
+  final DateTime celebrationDate;
+  final String branchName;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final address = member.addressText?.trim() ?? '';
+    final ageLabel = l10n.pick(
+      vi: '$milestoneAge tuổi',
+      en: '$milestoneAge years',
+    );
+
+    return Scaffold(
+      appBar: AppBar(title: Text(member.fullName)),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        children: [
+          _SectionCard(
+            title: l10n.pick(vi: 'Chi tiết thành viên', en: 'Member details'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SummaryRow(
+                  label: l10n.pick(
+                    vi: 'Mốc mừng thọ',
+                    en: 'Longevity milestone',
+                  ),
+                  value: ageLabel,
+                ),
+                _SummaryRow(
+                  label: l10n.pick(vi: 'Ngày mừng thọ', en: 'Celebration date'),
+                  value: _formatDateInput(celebrationDate),
+                ),
+                _SummaryRow(
+                  label: l10n.pick(vi: 'Chi', en: 'Branch'),
+                  value: branchName.isEmpty ? l10n.eventFieldUnset : branchName,
+                ),
+                _SummaryRow(
+                  label: l10n.pick(vi: 'Ngày sinh', en: 'Birth date'),
+                  value: (member.birthDate ?? '').trim().isEmpty
+                      ? l10n.eventFieldUnset
+                      : member.birthDate!,
+                ),
+                _SummaryRow(
+                  label: l10n.pick(vi: 'Địa chỉ', en: 'Address'),
+                  value: address.isEmpty ? l10n.eventFieldUnset : address,
+                  trailing: address.isEmpty
+                      ? null
+                      : AddressDirectionIconButton(
+                          address: address,
+                          label: member.fullName,
+                        ),
+                  isLast: true,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EventEditorSheet extends StatefulWidget {
   const _EventEditorSheet({
     required this.title,
@@ -700,6 +1066,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   String? _selectedTargetMemberId;
   late bool _isRecurring;
   late List<int> _reminderOffsets;
+  int _step = 0;
+  bool _isSubmitting = false;
 
   EventValidationIssueCode? _validationIssue;
   EventRepositoryErrorCode? _submitError;
@@ -747,33 +1115,54 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    setState(() {
-      _validationIssue = null;
-      _submitError = null;
-    });
+  bool _validateStepZero() {
+    if (_titleController.text.trim().isEmpty) {
+      setState(() {
+        _validationIssue = EventValidationIssueCode.missingTitle;
+      });
+      return false;
+    }
+    if (_selectedType.isMemorial &&
+        (_selectedTargetMemberId == null ||
+            _selectedTargetMemberId!.trim().isEmpty)) {
+      setState(() {
+        _validationIssue =
+            EventValidationIssueCode.memorialRequiresTargetMember;
+      });
+      return false;
+    }
+    return true;
+  }
 
+  bool _validateStepOne() {
     final startsAt = _parseDateTimeInput(_startsAtController.text.trim());
     if (startsAt == null) {
       setState(() {
         _validationIssue = EventValidationIssueCode.invalidTimeRange;
       });
-      return;
+      return false;
     }
 
-    DateTime? endsAt;
     final endInput = _endsAtController.text.trim();
-    if (endInput.isNotEmpty) {
-      endsAt = _parseDateTimeInput(endInput);
-      if (endsAt == null) {
-        setState(() {
-          _validationIssue = EventValidationIssueCode.invalidTimeRange;
-        });
-        return;
-      }
+    if (endInput.isEmpty) {
+      return true;
     }
 
-    final draft = EventDraft(
+    final endsAt = _parseDateTimeInput(endInput);
+    if (endsAt == null || !endsAt.isAfter(startsAt)) {
+      setState(() {
+        _validationIssue = EventValidationIssueCode.invalidTimeRange;
+      });
+      return false;
+    }
+    return true;
+  }
+
+  EventDraft _buildDraft({
+    required DateTime startsAt,
+    required DateTime? endsAt,
+  }) {
+    return EventDraft(
       branchId: _selectedBranchId,
       title: _titleController.text,
       description: _descriptionController.text,
@@ -800,7 +1189,93 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       isAutoGenerated:
           _selectedType.isMemorial && widget.initialDraft.isAutoGenerated,
     );
+  }
 
+  void _moveToStep(int targetStep) {
+    if (targetStep <= _step) {
+      setState(() {
+        _validationIssue = null;
+        _submitError = null;
+        _step = targetStep;
+      });
+      return;
+    }
+
+    if (_step == 0 && !_validateStepZero()) {
+      return;
+    }
+    if (_step <= 1 && targetStep >= 2 && !_validateStepOne()) {
+      return;
+    }
+    setState(() {
+      _validationIssue = null;
+      _submitError = null;
+      _step = targetStep;
+    });
+  }
+
+  Future<void> _pickDateTime(TextEditingController controller) async {
+    final existing = _parseDateTimeInput(controller.text.trim())?.toLocal();
+    final now = DateTime.now();
+    final initial = existing ?? now;
+    final pickedDate = await showDatePicker(
+      context: context,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      initialDate: initial,
+    );
+    if (pickedDate == null || !mounted) {
+      return;
+    }
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (pickedTime == null || !mounted) {
+      return;
+    }
+    final selected = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+    setState(() {
+      controller.text = _formatDateTimeInput(selected);
+    });
+  }
+
+  Future<void> _submitOrContinue() async {
+    if (_isSubmitting || widget.isSaving) {
+      return;
+    }
+    setState(() {
+      _validationIssue = null;
+      _submitError = null;
+    });
+
+    if (_step == 0) {
+      if (_validateStepZero()) {
+        setState(() => _step = 1);
+      }
+      return;
+    }
+    if (_step == 1) {
+      if (_validateStepOne()) {
+        setState(() => _step = 2);
+      }
+      return;
+    }
+
+    if (!_validateStepZero() || !_validateStepOne()) {
+      return;
+    }
+
+    final startsAt = _parseDateTimeInput(_startsAtController.text.trim())!;
+    final endInput = _endsAtController.text.trim();
+    final endsAt = endInput.isEmpty ? null : _parseDateTimeInput(endInput);
+    final draft = _buildDraft(startsAt: startsAt, endsAt: endsAt);
     final validation = EventValidation.validate(draft);
     if (!validation.isValid) {
       setState(() {
@@ -809,17 +1284,21 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       return;
     }
 
+    setState(() {
+      _isSubmitting = true;
+    });
+
     final error = await widget.onSubmit(draft);
     if (!mounted) {
       return;
     }
-
     if (error == null) {
       Navigator.of(context).pop(true);
       return;
     }
 
     setState(() {
+      _isSubmitting = false;
       _submitError = error;
     });
   }
@@ -898,6 +1377,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     final l10n = context.l10n;
     final errorText = _errorText();
     final theme = Theme.of(context);
+    final isFinalStep = _step == 2;
+    final isBusy = _isSubmitting || widget.isSaving;
 
     return SafeArea(
       child: Material(
@@ -920,6 +1401,24 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.pick(
+                    vi: 'Điền thông tin theo từng bước để tránh thiếu sót.',
+                    en: 'Complete each step to avoid missing key details.',
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                _EventEditorStepIndicator(
+                  currentStep: _step,
+                  labels: [
+                    l10n.pick(vi: 'Thông tin', en: 'Info'),
+                    l10n.pick(vi: 'Thời gian', en: 'Schedule'),
+                    l10n.pick(vi: 'Nhắc lịch', en: 'Reminders'),
+                  ],
+                  onStepSelected: (step) => _moveToStep(step),
+                ),
                 const SizedBox(height: 16),
                 if (errorText != null) ...[
                   _MessageCard(
@@ -930,246 +1429,334 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                TextField(
-                  key: const Key('event-title-field'),
-                  controller: _titleController,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: l10n.eventFormTitleLabel,
-                    hintText: l10n.eventFormTitleHint,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<EventType>(
-                  key: Key('event-type-dropdown-${_selectedType.wireName}'),
-                  initialValue: _selectedType,
-                  decoration: InputDecoration(
-                    labelText: l10n.eventFormTypeLabel,
-                  ),
-                  items: [
-                    for (final type in EventType.values)
-                      DropdownMenuItem<EventType>(
-                        value: type,
-                        child: Text(l10n.eventTypeLabel(type)),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-
-                    setState(() {
-                      _selectedType = value;
-                      if (!_selectedType.isMemorial) {
-                        _selectedTargetMemberId = null;
-                        _isRecurring = false;
-                      }
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String?>(
-                  key: Key(
-                    'event-branch-dropdown-${_selectedBranchId ?? 'all'}',
-                  ),
-                  initialValue: _selectedBranchId,
-                  decoration: InputDecoration(
-                    labelText: l10n.eventFormBranchLabel,
-                  ),
-                  items: [
-                    DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text(l10n.eventFilterTypeAll),
+                if (_step == 0) ...[
+                  TextField(
+                    key: const Key('event-title-field'),
+                    controller: _titleController,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: l10n.eventFormTitleLabel,
+                      hintText: l10n.eventFormTitleHint,
                     ),
-                    for (final branch in widget.branches)
-                      DropdownMenuItem<String?>(
-                        value: branch.id,
-                        child: Text(branch.name),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedBranchId = value;
-                    });
-                  },
-                ),
-                if (_selectedType.isMemorial) ...[
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<EventType>(
+                    key: Key('event-type-dropdown-${_selectedType.wireName}'),
+                    initialValue: _selectedType,
+                    decoration: InputDecoration(
+                      labelText: l10n.eventFormTypeLabel,
+                    ),
+                    items: [
+                      for (final type in EventType.values)
+                        DropdownMenuItem<EventType>(
+                          value: type,
+                          child: Text(l10n.eventTypeLabel(type)),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+
+                      setState(() {
+                        _selectedType = value;
+                        if (!_selectedType.isMemorial) {
+                          _selectedTargetMemberId = null;
+                          _isRecurring = false;
+                        }
+                      });
+                    },
+                  ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String?>(
                     key: Key(
-                      'event-target-member-dropdown-${_selectedTargetMemberId ?? 'unset'}',
+                      'event-branch-dropdown-${_selectedBranchId ?? 'all'}',
                     ),
-                    initialValue: _selectedTargetMemberId,
+                    initialValue: _selectedBranchId,
                     decoration: InputDecoration(
-                      labelText: l10n.eventFormTargetMemberLabel,
+                      labelText: l10n.eventFormBranchLabel,
                     ),
                     items: [
                       DropdownMenuItem<String?>(
                         value: null,
-                        child: Text(l10n.eventFieldUnset),
+                        child: Text(l10n.eventFilterTypeAll),
                       ),
-                      for (final member in widget.members)
+                      for (final branch in widget.branches)
                         DropdownMenuItem<String?>(
-                          value: member.id,
-                          child: Text(member.fullName),
+                          value: branch.id,
+                          child: Text(branch.name),
                         ),
                     ],
                     onChanged: (value) {
                       setState(() {
-                        _selectedTargetMemberId = value;
+                        _selectedBranchId = value;
                       });
                     },
                   ),
+                  if (_selectedType.isMemorial) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String?>(
+                      key: Key(
+                        'event-target-member-dropdown-${_selectedTargetMemberId ?? 'unset'}',
+                      ),
+                      initialValue: _selectedTargetMemberId,
+                      decoration: InputDecoration(
+                        labelText: l10n.eventFormTargetMemberLabel,
+                      ),
+                      items: [
+                        DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text(l10n.eventFieldUnset),
+                        ),
+                        for (final member in widget.members)
+                          DropdownMenuItem<String?>(
+                            value: member.id,
+                            child: Text(member.fullName),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedTargetMemberId = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile.adaptive(
+                      key: const Key('event-recurring-switch'),
+                      value: _isRecurring,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(l10n.eventFormRecurringMemorialLabel),
+                      subtitle: _isRecurring
+                          ? Text(
+                              l10n.pick(
+                                vi: 'Lặp lại hằng năm',
+                                en: 'Repeats yearly',
+                              ),
+                            )
+                          : Text(l10n.eventRecurringNo),
+                      onChanged: (value) {
+                        setState(() {
+                          _isRecurring = value;
+                        });
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 12),
-                  SwitchListTile.adaptive(
-                    key: const Key('event-recurring-switch'),
-                    value: _isRecurring,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(l10n.eventFormRecurringMemorialLabel),
-                    subtitle: _isRecurring
-                        ? const Text('FREQ=YEARLY')
-                        : Text(l10n.eventRecurringNo),
-                    onChanged: (value) {
-                      setState(() {
-                        _isRecurring = value;
-                      });
-                    },
+                  TextField(
+                    controller: _descriptionController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: l10n.eventFormDescriptionLabel,
+                    ),
                   ),
                 ],
-                const SizedBox(height: 12),
+                if (_step == 1) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const Key('event-start-field'),
+                          controller: _startsAtController,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: l10n.eventFormStartsAtLabel,
+                            hintText: l10n.eventFormDateTimeHint,
+                            suffixIcon: IconButton(
+                              tooltip: l10n.pick(
+                                vi: 'Chọn thời gian bắt đầu',
+                                en: 'Pick start date and time',
+                              ),
+                              onPressed: isBusy
+                                  ? null
+                                  : () => _pickDateTime(_startsAtController),
+                              icon: const Icon(Icons.calendar_today_outlined),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          key: const Key('event-end-field'),
+                          controller: _endsAtController,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: l10n.eventFormEndsAtLabel,
+                            hintText: l10n.eventFormDateTimeHint,
+                            suffixIcon: IconButton(
+                              tooltip: l10n.pick(
+                                vi: 'Chọn thời gian kết thúc',
+                                en: 'Pick end date and time',
+                              ),
+                              onPressed: isBusy
+                                  ? null
+                                  : () => _pickDateTime(_endsAtController),
+                              icon: const Icon(Icons.calendar_today_outlined),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _timezoneController,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: l10n.eventFormTimezoneLabel,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _locationNameController,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: l10n.eventFormLocationNameLabel,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  AddressAutocompleteField(
+                    controller: _locationAddressController,
+                    textInputAction: TextInputAction.next,
+                    labelText: l10n.eventFormLocationAddressLabel,
+                    hintText: l10n.pick(
+                      vi: 'Số nhà, đường, phường/xã, quận/huyện...',
+                      en: 'Street, ward, district...',
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+                if (_step == 2) ...[
+                  Text(
+                    l10n.eventFormReminderSectionTitle,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final offset in _reminderOffsets)
+                        InputChip(
+                          key: Key('event-reminder-chip-$offset'),
+                          label: Text(_humanizeOffset(offset)),
+                          onDeleted: () => _removeReminderOffset(offset),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => _addReminderOffset(10080),
+                        child: Text(l10n.eventFormReminderPresetWeek),
+                      ),
+                      OutlinedButton(
+                        onPressed: () => _addReminderOffset(1440),
+                        child: Text(l10n.eventFormReminderPresetDay),
+                      ),
+                      OutlinedButton(
+                        onPressed: () => _addReminderOffset(120),
+                        child: Text(l10n.eventFormReminderPresetHours),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const Key('event-reminder-input'),
+                          controller: _reminderInputController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: l10n.eventFormReminderCustomLabel,
+                            hintText: l10n.eventFormReminderCustomHint,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.tonalIcon(
+                        key: const Key('event-reminder-add-button'),
+                        onPressed: _addReminderOffsetFromInput,
+                        icon: const Icon(Icons.add_alert_outlined),
+                        label: Text(l10n.eventFormReminderAddAction),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.pick(
+                              vi: 'Tóm tắt trước khi lưu',
+                              en: 'Review before saving',
+                            ),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _SummaryRow(
+                            label: l10n.eventFieldType,
+                            value: l10n.eventTypeLabel(_selectedType),
+                          ),
+                          _SummaryRow(
+                            label: l10n.eventFieldStartsAt,
+                            value: _startsAtController.text.trim(),
+                          ),
+                          _SummaryRow(
+                            label: l10n.eventFieldEndsAt,
+                            value: _endsAtController.text.trim().isEmpty
+                                ? l10n.eventFieldUnset
+                                : _endsAtController.text.trim(),
+                            isLast: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        key: const Key('event-start-field'),
-                        controller: _startsAtController,
-                        textInputAction: TextInputAction.next,
-                        decoration: InputDecoration(
-                          labelText: l10n.eventFormStartsAtLabel,
-                          hintText: l10n.eventFormDateTimeHint,
+                      child: OutlinedButton.icon(
+                        onPressed: isBusy
+                            ? null
+                            : _step == 0
+                            ? () => Navigator.of(context).pop()
+                            : () {
+                                setState(() {
+                                  _validationIssue = null;
+                                  _submitError = null;
+                                  _step -= 1;
+                                });
+                              },
+                        icon: Icon(_step == 0 ? Icons.close : Icons.arrow_back),
+                        label: Text(
+                          _step == 0
+                              ? l10n.profileCancelAction
+                              : l10n.pick(vi: 'Quay lại', en: 'Back'),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
-                        key: const Key('event-end-field'),
-                        controller: _endsAtController,
-                        textInputAction: TextInputAction.next,
-                        decoration: InputDecoration(
-                          labelText: l10n.eventFormEndsAtLabel,
-                          hintText: l10n.eventFormDateTimeHint,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _timezoneController,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: l10n.eventFormTimezoneLabel,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _locationNameController,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: l10n.eventFormLocationNameLabel,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _locationAddressController,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: l10n.eventFormLocationAddressLabel,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _descriptionController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: l10n.eventFormDescriptionLabel,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  l10n.eventFormReminderSectionTitle,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final offset in _reminderOffsets)
-                      InputChip(
-                        key: Key('event-reminder-chip-$offset'),
-                        label: Text(_humanizeOffset(offset)),
-                        onDeleted: () => _removeReminderOffset(offset),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () => _addReminderOffset(10080),
-                      child: Text(l10n.eventFormReminderPresetWeek),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => _addReminderOffset(1440),
-                      child: Text(l10n.eventFormReminderPresetDay),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => _addReminderOffset(120),
-                      child: Text(l10n.eventFormReminderPresetHours),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        key: const Key('event-reminder-input'),
-                        controller: _reminderInputController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: l10n.eventFormReminderCustomLabel,
-                          hintText: l10n.eventFormReminderCustomHint,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton.tonalIcon(
-                      key: const Key('event-reminder-add-button'),
-                      onPressed: _addReminderOffsetFromInput,
-                      icon: const Icon(Icons.add_alert_outlined),
-                      label: Text(l10n.eventFormReminderAddAction),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: AppAsyncAction(
-                    enabled: !widget.isSaving,
-                    onPressed: widget.isSaving ? null : _submit,
-                    builder: (context, onPressed, isLoading) {
-                      final showLoading = widget.isSaving || isLoading;
-                      return FilledButton.icon(
+                      child: FilledButton.icon(
                         key: const Key('event-save-button'),
-                        onPressed: onPressed,
-                        icon: showLoading
+                        onPressed: isBusy ? null : _submitOrContinue,
+                        icon: isBusy
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
@@ -1177,17 +1764,160 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.save_outlined),
-                        label: Text(l10n.eventFormSaveAction),
-                      );
-                    },
-                  ),
+                            : Icon(
+                                isFinalStep
+                                    ? Icons.save_outlined
+                                    : Icons.arrow_forward,
+                              ),
+                        label: Text(
+                          isFinalStep
+                              ? l10n.eventFormSaveAction
+                              : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _EventEditorStepIndicator extends StatelessWidget {
+  const _EventEditorStepIndicator({
+    required this.currentStep,
+    required this.labels,
+    required this.onStepSelected,
+  });
+
+  final int currentStep;
+  final List<String> labels;
+  final ValueChanged<int> onStepSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    const circleSize = 32.0;
+    const connectorThickness = 3.0;
+    const connectorHorizontalInset = 18.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: circleSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (labels.length > 1)
+                Positioned.fill(
+                  child: Row(
+                    children: [
+                      for (var index = 0; index < labels.length - 1; index++)
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              height: connectorThickness,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: connectorHorizontalInset,
+                              ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                color: index < currentStep
+                                    ? colorScheme.primary
+                                    : colorScheme.outlineVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              Row(
+                children: [
+                  for (var index = 0; index < labels.length; index++)
+                    Expanded(
+                      child: Center(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            key: Key('event-editor-step-${index + 1}-circle'),
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => onStepSelected(index),
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                width: circleSize,
+                                height: circleSize,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: index <= currentStep
+                                      ? colorScheme.primary
+                                      : colorScheme.surfaceContainerHighest,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '${index + 1}',
+                                  style: textTheme.titleSmall?.copyWith(
+                                    color: index <= currentStep
+                                        ? colorScheme.onPrimary
+                                        : colorScheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (var index = 0; index < labels.length; index++)
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    key: Key('event-editor-step-${index + 1}-label'),
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => onStepSelected(index),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      child: Text(
+                        labels[index],
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.labelLarge?.copyWith(
+                          fontWeight: index == currentStep
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -1842,22 +2572,14 @@ class _FilterPanel extends StatelessWidget {
 }
 
 class _WorkspaceHero extends StatelessWidget {
-  const _WorkspaceHero({
-    required this.title,
-    required this.description,
-    required this.canCreateEvents,
-    this.onCreateEvent,
-  });
+  const _WorkspaceHero({required this.title, required this.description});
 
   final String title;
   final String description;
-  final bool canCreateEvents;
-  final VoidCallback? onCreateEvent;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final l10n = context.l10n;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1886,22 +2608,17 @@ class _WorkspaceHero extends StatelessWidget {
               color: colorScheme.onPrimary.withValues(alpha: 0.9),
             ),
           ),
-          if (canCreateEvents) ...[
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: onCreateEvent,
-              style: FilledButton.styleFrom(
-                backgroundColor: colorScheme.onPrimary,
-                foregroundColor: colorScheme.primary,
-              ),
-              icon: const Icon(Icons.add),
-              label: Text(l10n.eventCreateAction),
-            ),
-          ],
         ],
       ),
     );
   }
+}
+
+class _EventGroupBucket {
+  const _EventGroupBucket({required this.label, required this.events});
+
+  final String label;
+  final List<EventRecord> events;
 }
 
 class _EventSummaryCard extends StatelessWidget {
@@ -1977,6 +2694,15 @@ class _EventSummaryCard extends StatelessWidget {
                   icon: Icons.place_outlined,
                   text: event.locationName,
                 ),
+              if (event.locationAddress.trim().isNotEmpty)
+                _CardInfoRow(
+                  icon: Icons.pin_drop_outlined,
+                  text: event.locationAddress.trim(),
+                  trailing: AddressDirectionIconButton(
+                    address: event.locationAddress.trim(),
+                    iconSize: 18,
+                  ),
+                ),
               if (event.reminderOffsetsMinutes.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Wrap(
@@ -2000,10 +2726,11 @@ class _EventSummaryCard extends StatelessWidget {
 }
 
 class _CardInfoRow extends StatelessWidget {
-  const _CardInfoRow({required this.icon, required this.text});
+  const _CardInfoRow({required this.icon, required this.text, this.trailing});
 
   final IconData icon;
   final String text;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -2014,6 +2741,7 @@ class _CardInfoRow extends StatelessWidget {
           Icon(icon, size: 16),
           const SizedBox(width: 8),
           Expanded(child: Text(text)),
+          if (trailing != null) ...[const SizedBox(width: 4), trailing!],
         ],
       ),
     );
@@ -2195,16 +2923,9 @@ class _ChecklistNavigationCard extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.child,
-    this.actionLabel,
-    this.onAction,
-  });
+  const _SectionCard({required this.title, required this.child});
 
   final String title;
-  final String? actionLabel;
-  final VoidCallback? onAction;
   final Widget child;
 
   @override
@@ -2225,12 +2946,6 @@ class _SectionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (actionLabel != null && onAction != null)
-                  TextButton.icon(
-                    onPressed: onAction,
-                    icon: const Icon(Icons.add),
-                    label: Text(actionLabel!),
-                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -2339,11 +3054,13 @@ class _SummaryRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.isLast = false,
+    this.trailing,
   });
 
   final String label;
   final String value;
   final bool isLast;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -2358,7 +3075,18 @@ class _SummaryRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+              ],
+            ),
           ),
         ],
       ),

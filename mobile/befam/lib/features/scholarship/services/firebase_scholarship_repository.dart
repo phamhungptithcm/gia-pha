@@ -14,6 +14,7 @@ import '../models/achievement_submission_draft.dart';
 import '../models/award_level.dart';
 import '../models/award_level_draft.dart';
 import '../models/scholarship_approval_log_entry.dart';
+import '../models/scholarship_disbursement_fund.dart';
 import '../models/scholarship_program.dart';
 import '../models/scholarship_program_draft.dart';
 import '../models/scholarship_workspace_snapshot.dart';
@@ -43,6 +44,9 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
 
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
+
+  CollectionReference<Map<String, dynamic>> get _funds =>
+      _firestore.collection('funds');
 
   CollectionReference<Map<String, dynamic>> get _approvalLogs =>
       _firestore.collection('scholarshipApprovalLogs');
@@ -498,6 +502,120 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       if (error.code == 'not-found') {
         throw const ScholarshipRepositoryException(
           ScholarshipRepositoryErrorCode.submissionNotFound,
+        );
+      }
+      throw ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.validationFailed,
+        error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<List<ScholarshipDisbursementFund>> loadDisbursementFunds({
+    required AuthSession session,
+  }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
+    final clanId = session.clanId?.trim() ?? '';
+    if (clanId.isEmpty || !GovernanceRoleMatrix.canManageFinance(session)) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+
+    final snapshot = await _funds.where('clanId', isEqualTo: clanId).get();
+    return snapshot.docs
+        .map((doc) {
+          final payload = doc.data();
+          return ScholarshipDisbursementFund.fromJson(<String, dynamic>{
+            ...payload,
+            'id': (payload['id'] as String?)?.trim().isNotEmpty == true
+                ? payload['id']
+                : doc.id,
+          });
+        })
+        .where((fund) => fund.isActive)
+        .sortedBy((fund) => fund.name.toLowerCase())
+        .toList(growable: false);
+  }
+
+  @override
+  Future<AchievementSubmission> disburseSubmission({
+    required AuthSession session,
+    required String submissionId,
+    required String fundId,
+    String? note,
+  }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
+    final clanId = session.clanId?.trim() ?? '';
+    if (clanId.isEmpty || !GovernanceRoleMatrix.canManageFinance(session)) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+
+    final callable = _functions.httpsCallable(
+      'disburseScholarshipSubmissionFromFund',
+    );
+    try {
+      final response = await callable.call(<String, dynamic>{
+        'submissionId': submissionId,
+        'fundId': fundId,
+        'note': _nullIfEmpty(note),
+      });
+      final data = response.data;
+      if (data is Map && data['submission'] is Map<String, dynamic>) {
+        return AchievementSubmission.fromJson(
+          data['submission'] as Map<String, dynamic>,
+        );
+      }
+      final updated = await _submissions.doc(submissionId).get();
+      if (!updated.exists || updated.data() == null) {
+        throw const ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.submissionNotFound,
+        );
+      }
+      return AchievementSubmission.fromJson(updated.data()!);
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code == 'permission-denied') {
+        throw ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.permissionDenied,
+          error.message,
+        );
+      }
+      if (error.code == 'not-found') {
+        final message = (error.message ?? '').toLowerCase();
+        if (message.contains('fund_not_found')) {
+          throw const ScholarshipRepositoryException(
+            ScholarshipRepositoryErrorCode.fundNotFound,
+          );
+        }
+        throw const ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.submissionNotFound,
+        );
+      }
+      final message = (error.message ?? '').toLowerCase();
+      if (message.contains('submission_already_disbursed')) {
+        throw const ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.submissionAlreadyDisbursed,
+        );
+      }
+      if (message.contains('insufficient_fund_balance')) {
+        throw const ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.insufficientFundBalance,
+        );
+      }
+      if (message.contains('fund_not_found')) {
+        throw const ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.fundNotFound,
         );
       }
       throw ScholarshipRepositoryException(

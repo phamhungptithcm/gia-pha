@@ -1,9 +1,9 @@
-import 'package:befam/core/services/debug_genealogy_store.dart';
+import '../../support/core/services/debug_genealogy_store.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/genealogy/presentation/genealogy_workspace_page.dart';
-import 'package:befam/features/genealogy/services/debug_genealogy_read_repository.dart';
+import '../../support/features/genealogy/services/debug_genealogy_read_repository.dart';
 import 'package:befam/features/genealogy/services/genealogy_segment_cache.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';

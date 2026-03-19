@@ -40,11 +40,9 @@ resolution and role context syncing.
 
 - primary path uses Firebase Auth + callable functions
 - fallback path exists for temporary callable unavailability:
-  - local child mapping fallback for known demo identifiers
+  - callable compatibility fallback for in-flight rollout safety
   - Firestore-based claim/session sync fallback
-- `RuntimeMode` still supports explicit mock mode for tests
-- debug local bypass mode exists for OTP smoke testing in development builds
-  and must be disabled in production-mode builds
+- no debug OTP bypass is allowed in production runtime flow
 
 ## Session persistence
 

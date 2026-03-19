@@ -9,7 +9,7 @@ _Cập nhật gần nhất: 17/03/2026_
 ```text
 lib/
   app/            # shell, theme, bootstrap, dashboard
-  core/           # runtime mode, firebase services, logging, crash reporting
+  core/           # firebase services, logging, crash reporting
   features/       # auth, clan, member, relationship, genealogy, calendar, funds, scholarship, notifications, profile
   l10n/           # file ARB vi/en và mã sinh tự động
 ```
@@ -19,15 +19,12 @@ lib/
 - `AuthController` điều phối các bước xác thực và lưu phiên
 - controller theo feature (ví dụ `MemberController`) dùng `ChangeNotifier`
   cùng abstraction repository
-- repository có thể đổi giữa debug và Firebase theo
-  `RuntimeMode.shouldUseMockBackend`
+- luồng runtime của repository dùng Firebase backend
 
-## Chiến lược runtime mode
+## Chiến lược runtime
 
-- debug mặc định đi theo Firebase thật (`BEFAM_USE_LIVE_AUTH=true`)
-- mock vẫn dùng cho test hoặc khi bật override rõ ràng
-- có chế độ bypass OTP local cho smoke test debug qua
-  `BEFAM_LOCAL_AUTH_BYPASS`
+- luồng app chạy theo Firebase-first (auth, callables, Firestore)
+- test suite vẫn dùng fixture/test double riêng khi cần
 - bootstrap trả metadata trạng thái Firebase để hiển thị UX phù hợp
 
 ## Shell điều hướng

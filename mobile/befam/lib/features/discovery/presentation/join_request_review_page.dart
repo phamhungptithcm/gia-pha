@@ -21,7 +21,7 @@ class JoinRequestReviewPage extends StatefulWidget {
 
 class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
   bool _isLoading = false;
-  bool _isSubmitting = false;
+  String? _submittingRequestId;
   String? _errorMessage;
   List<JoinRequestReviewItem> _requests = const [];
 
@@ -69,11 +69,11 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
     required JoinRequestReviewItem item,
     required bool approve,
   }) async {
-    if (_isSubmitting) {
+    if (_submittingRequestId != null) {
       return;
     }
     setState(() {
-      _isSubmitting = true;
+      _submittingRequestId = item.id;
     });
     try {
       await widget.repository.reviewJoinRequest(
@@ -114,7 +114,7 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
     } finally {
       if (mounted) {
         setState(() {
-          _isSubmitting = false;
+          _submittingRequestId = null;
         });
       }
     }
@@ -131,7 +131,9 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
         ),
         actions: [
           IconButton(
-            onPressed: _isLoading ? null : _load,
+            onPressed: _isLoading || _submittingRequestId != null
+                ? null
+                : _load,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -163,8 +165,10 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
                           ),
                         ),
                       ),
-                    ..._requests.map(
-                      (item) => Padding(
+                    ..._requests.map((item) {
+                      final isRowSubmitting = _submittingRequestId == item.id;
+                      final isSubmittingAny = _submittingRequestId != null;
+                      return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Card(
                           child: Padding(
@@ -197,13 +201,22 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
                                   children: [
                                     Expanded(
                                       child: OutlinedButton.icon(
-                                        onPressed: _isSubmitting
+                                        onPressed: isSubmittingAny
                                             ? null
                                             : () => _review(
                                                 item: item,
                                                 approve: false,
                                               ),
-                                        icon: const Icon(Icons.close),
+                                        icon: isRowSubmitting
+                                            ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : const Icon(Icons.close),
                                         label: Text(
                                           l10n.pick(
                                             vi: 'Từ chối',
@@ -215,13 +228,22 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: FilledButton.icon(
-                                        onPressed: _isSubmitting
+                                        onPressed: isSubmittingAny
                                             ? null
                                             : () => _review(
                                                 item: item,
                                                 approve: true,
                                               ),
-                                        icon: const Icon(Icons.check),
+                                        icon: isRowSubmitting
+                                            ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : const Icon(Icons.check),
                                         label: Text(
                                           l10n.pick(vi: 'Duyệt', en: 'Approve'),
                                         ),
@@ -233,8 +255,8 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
                             ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   ],
                 ),
               ),

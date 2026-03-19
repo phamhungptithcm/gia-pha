@@ -33,6 +33,9 @@ const expiresAt = Timestamp.fromDate(
   new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
 );
 const clanId = 'clan_demo_001';
+const clanOwnerUid = 'seed_uid_member_demo_parent_001';
+const ownerBillingScopeId = `user_scope__${clanOwnerUid}`;
+const ownerScopedBillingDocId = `${ownerBillingScopeId}__${clanOwnerUid}`;
 
 function normalizeName(value) {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -1269,6 +1272,7 @@ const clan = {
     'Gia phả mẫu nhiều thế hệ với dữ liệu gần thực tế để kiểm thử trên quy mô lớn.',
   countryCode: 'VN',
   founderName: 'Nguyễn Minh',
+  ownerUid: clanOwnerUid,
   logoUrl: '',
   status: 'active',
   memberCount: normalizedMembers.length,
@@ -1720,8 +1724,9 @@ const scholarshipApprovalLogs = [
 
 const billingSettingsDocs = [
   {
-    id: clanId,
-    clanId,
+    id: ownerScopedBillingDocId,
+    clanId: ownerBillingScopeId,
+    ownerUid: clanOwnerUid,
     paymentMode: 'manual',
     autoRenew: false,
     reminderDaysBefore: [30, 14, 7, 3, 1],
@@ -1734,8 +1739,9 @@ const billingSettingsDocs = [
 
 const subscriptions = [
   {
-    id: clanId,
-    clanId,
+    id: ownerScopedBillingDocId,
+    clanId: ownerBillingScopeId,
+    ownerUid: clanOwnerUid,
     planCode: 'BASE',
     status: 'active',
     memberCount: normalizedMembers.length,
@@ -1759,9 +1765,12 @@ const subscriptions = [
   },
 ];
 
-if (normalizedMembers.length > 50 && subscriptions[0]?.planCode !== 'BASE') {
+if (
+  normalizedMembers.length > 50 &&
+  !subscriptions.some((subscription) => subscription.planCode === 'BASE')
+) {
   throw new Error(
-    `Expected BASE plan for dataset larger than 50 members, got "${subscriptions[0]?.planCode ?? 'null'}".`,
+    `Expected BASE plan for dataset larger than 50 members, got "${subscriptions.map((entry) => entry.planCode).join(',')}".`,
   );
 }
 
@@ -1769,7 +1778,8 @@ const paymentTransactions = [
   {
     id: 'paytxn_demo_001',
     clanId,
-    subscriptionId: clanId,
+    subscriptionOwnerUid: clanOwnerUid,
+    subscriptionId: ownerScopedBillingDocId,
     invoiceId: 'invoice_demo_001',
     paymentMethod: 'vnpay',
     paymentStatus: 'succeeded',
@@ -1794,7 +1804,8 @@ const subscriptionInvoices = [
   {
     id: 'invoice_demo_001',
     clanId,
-    subscriptionId: clanId,
+    subscriptionOwnerUid: clanOwnerUid,
+    subscriptionId: ownerScopedBillingDocId,
     transactionId: 'paytxn_demo_001',
     planCode: 'BASE',
     amountVnd: 49000,
@@ -1819,7 +1830,7 @@ const billingAuditLogs = [
     actorUid: 'seed-script',
     action: 'subscription_bootstrapped',
     entityType: 'subscription',
-    entityId: clanId,
+    entityId: ownerScopedBillingDocId,
     before: null,
     after: {
       planCode: 'BASE',

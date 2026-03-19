@@ -450,15 +450,33 @@ class FirebaseMemberRepository implements MemberRepository {
       return;
     }
 
-    final duplicates = await _members
-        .where('clanId', isEqualTo: clanId)
-        .where('phoneE164', isEqualTo: phoneE164)
-        .limit(3)
-        .get();
-    final conflict = duplicates.docs.firstWhereOrNull(
-      (doc) => doc.id != memberId,
-    );
-    if (conflict != null) {
+    final variants = PhoneNumberFormatter.lookupVariants(phoneE164);
+    for (final variant in variants) {
+      final duplicates = await _members
+          .where('clanId', isEqualTo: clanId)
+          .where('phoneE164', isEqualTo: variant)
+          .limit(3)
+          .get();
+      final conflict = duplicates.docs.firstWhereOrNull(
+        (doc) => doc.id != memberId,
+      );
+      if (conflict != null) {
+        throw const MemberRepositoryException(
+          MemberRepositoryErrorCode.duplicatePhone,
+        );
+      }
+    }
+
+    final clanMembers = await _members.where('clanId', isEqualTo: clanId).get();
+    final conflictByCanonical = clanMembers.docs.firstWhereOrNull((doc) {
+      if (doc.id == memberId) {
+        return false;
+      }
+      final data = doc.data();
+      final existingPhone = (data['phoneE164'] as String?)?.trim();
+      return PhoneNumberFormatter.areEquivalent(existingPhone, phoneE164);
+    });
+    if (conflictByCanonical != null) {
       throw const MemberRepositoryException(
         MemberRepositoryErrorCode.duplicatePhone,
       );

@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 
 enum NotificationTargetType { event, scholarship, unknown }
@@ -76,17 +75,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void configurePushBackgroundHandler() {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-}
-
-class NoopPushNotificationService implements PushNotificationService {
-  @override
-  Future<void> start({
-    required AuthSession session,
-    void Function(NotificationDeepLink deepLink)? onDeepLink,
-  }) async {}
-
-  @override
-  Future<void> stop() async {}
 }
 
 class _TokenRegistrationContext {
@@ -321,9 +309,5 @@ class FirebasePushNotificationService implements PushNotificationService {
 PushNotificationService createDefaultPushNotificationService({
   AuthSession? session,
 }) {
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return NoopPushNotificationService();
-  }
   return FirebasePushNotificationService();
 }

@@ -48,6 +48,10 @@ type JoinRequestRecord = {
   accessProvisioningStatus?: string | null;
   accessProvisioned?: boolean | null;
   linkedApplicantMemberId?: string | null;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  reviewedAt?: unknown;
+  canceledAt?: unknown;
 };
 
 type MemberRecord = {
@@ -112,6 +116,7 @@ const reviewerRoles = [
   'VICE_LEADER',
   'SUPPORTER_OF_LEADER',
 ];
+const SUPPORTED_PHONE_DIAL_CODES = ['886', '84', '82', '81', '65', '61', '49', '44', '33', '1'];
 
 export const searchGenealogyDiscovery = onCall(
   { region: APP_REGION },
@@ -127,11 +132,15 @@ export const searchGenealogyDiscovery = onCall(
       .where('isPublic', '==', true)
       .limit(200)
       .get();
+    const pendingJoinRequestsByClanId = await loadPendingJoinRequestsByApplicant(auth.uid);
 
     const results = snapshot.docs
       .map((doc) => ({ id: doc.id, ...(doc.data() as DiscoveryRecord) }))
       .filter((entry) => matchesDiscoveryQuery(entry, { leaderQuery, locationQuery, query }))
-      .map((entry) => sanitizeDiscoveryResult(entry))
+      .map((entry) => sanitizeDiscoveryResult(entry, {
+        pendingRequestSubmittedAtEpochMs:
+          pendingJoinRequestsByClanId.get(stringOrNull(entry.clanId) ?? entry.id) ?? null,
+      }))
       .slice(0, limit);
 
     logInfo('searchGenealogyDiscovery succeeded', {
@@ -169,18 +178,38 @@ export const submitJoinRequest = onCall(
     if (!discoverySnapshot.exists || discovery?.isPublic !== true) {
       throw new HttpsError('not-found', 'Public genealogy discovery entry not found.');
     }
+    const claimantClanIdsRaw = Array.isArray(auth.token.clanIds) ? auth.token.clanIds : [];
+    const claimantClanIds = claimantClanIdsRaw
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+    if (claimantClanIds.includes(clanId) || stringOrNull(auth.token.clanId) === clanId) {
+      throw new HttpsError(
+        'failed-precondition',
+        'You are already a member of this clan.',
+      );
+    }
 
     const normalizedContact = normalizeContact(contactInfo);
-    const duplicatePending = await joinRequestsCollection
+    const duplicatePendingByApplicantSnapshot = await joinRequestsCollection
+      .where('applicantUid', '==', applicantUid)
+      .limit(300)
+      .get();
+    const duplicatePendingByApplicant = duplicatePendingByApplicantSnapshot.docs.some((doc) => {
+      const item = doc.data() as JoinRequestRecord;
+      return (stringOrNull(item.clanId) ?? '') === clanId &&
+        (stringOrNull(item.status)?.toLowerCase() ?? 'pending') === 'pending';
+    });
+    const duplicatePendingByContact = await joinRequestsCollection
       .where('clanId', '==', clanId)
       .where('contactInfoNormalized', '==', normalizedContact)
       .where('status', '==', 'pending')
       .limit(1)
       .get();
-    if (!duplicatePending.empty) {
+    if (duplicatePendingByApplicant || !duplicatePendingByContact.empty) {
       throw new HttpsError(
         'already-exists',
-        'A pending join request already exists for this contact and genealogy.',
+        'A pending join request already exists for this genealogy.',
       );
     }
 
@@ -236,6 +265,102 @@ export const submitJoinRequest = onCall(
       clanId,
       status: 'pending',
       notifiedReviewers: reviewerDelivery.audienceCount,
+    };
+  },
+);
+
+export const listMyJoinRequests = onCall(
+  { region: APP_REGION },
+  async (request) => {
+    const auth = requireAuth(request);
+    const statusFilterRaw = optionalString(request.data, 'status')?.trim().toLowerCase() ?? '';
+    const statusFilter = ['pending', 'approved', 'rejected', 'canceled'].includes(statusFilterRaw)
+      ? statusFilterRaw
+      : '';
+
+    const snapshot = await joinRequestsCollection
+      .where('applicantUid', '==', auth.uid)
+      .limit(300)
+      .get();
+
+    const requests = snapshot.docs
+      .map((doc) => {
+        const item = doc.data() as JoinRequestRecord;
+        const status = stringOrNull(item.status)?.toLowerCase() ?? 'pending';
+        return {
+          id: doc.id,
+          clanId: stringOrNull(item.clanId) ?? '',
+          status,
+          submittedAtEpochMs: timestampToEpochMillis(item.createdAt),
+          reviewedAtEpochMs: timestampToEpochMillis(item.reviewedAt),
+          canceledAtEpochMs: timestampToEpochMillis(item.canceledAt),
+          canCancel: status === 'pending',
+        };
+      })
+      .filter((entry) => entry.clanId.length > 0)
+      .filter((entry) => statusFilter.length == 0 || entry.status === statusFilter)
+      .sort((left, right) => (right.submittedAtEpochMs ?? 0) - (left.submittedAtEpochMs ?? 0));
+
+    return { requests };
+  },
+);
+
+export const cancelJoinRequest = onCall(
+  { region: APP_REGION },
+  async (request) => {
+    const auth = requireAuth(request);
+    const requestId = requireNonEmptyString(request.data, 'requestId');
+    const joinRequestRef = joinRequestsCollection.doc(requestId);
+    const joinRequestSnapshot = await joinRequestRef.get();
+    if (!joinRequestSnapshot.exists || joinRequestSnapshot.data() == null) {
+      throw new HttpsError('not-found', 'Join request was not found.');
+    }
+
+    const joinRequest = joinRequestSnapshot.data() as JoinRequestRecord;
+    const applicantUid = stringOrNull(joinRequest.applicantUid);
+    if (applicantUid == null || applicantUid !== auth.uid) {
+      throw new HttpsError('permission-denied', 'You can only cancel your own join request.');
+    }
+
+    const status = stringOrNull(joinRequest.status)?.toLowerCase() ?? 'pending';
+    if (status !== 'pending') {
+      throw new HttpsError('failed-precondition', 'Only pending join requests can be canceled.');
+    }
+
+    const clanId = stringOrNull(joinRequest.clanId) ?? '';
+    const memberId = tokenMemberId(auth.token);
+    await joinRequestRef.set(
+      {
+        status: 'canceled',
+        canceledAt: FieldValue.serverTimestamp(),
+        canceledByUid: auth.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    const auditRef = auditLogsCollection.doc();
+    await auditRef.set({
+      id: auditRef.id,
+      clanId,
+      action: 'join_request_canceled',
+      entityType: 'join_request',
+      entityId: requestId,
+      uid: auth.uid,
+      memberId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    logInfo('cancelJoinRequest succeeded', {
+      requestId,
+      clanId,
+      applicantUid: auth.uid,
+    });
+
+    return {
+      id: requestId,
+      status: 'canceled',
+      canceledAtEpochMs: Date.now(),
     };
   },
 );
@@ -411,6 +536,7 @@ export const listJoinRequestsForReview = onCall(
           stringOrNull(item.relationshipToFamily) ?? 'Unspecified relationship',
         contactInfo: stringOrNull(item.contactInfo) ?? '',
         message: stringOrNull(item.message),
+        submittedAtEpochMs: timestampToEpochMillis(item.createdAt),
       };
     });
 
@@ -982,7 +1108,28 @@ function buildJoinRequestReferencePath(clanId: string, joinRequestId: string): s
   return `/clans/${clanId}/join-requests/${joinRequestId}`;
 }
 
-function sanitizeDiscoveryResult(entry: { id: string } & DiscoveryRecord) {
+function sanitizeDiscoveryResult(
+  entry: { id: string } & DiscoveryRecord,
+  options?: { pendingRequestSubmittedAtEpochMs?: number | null },
+) {
+  const pendingRequestSubmittedAtEpochMs = options?.pendingRequestSubmittedAtEpochMs ?? null;
+  const hasPendingJoinRequest = pendingRequestSubmittedAtEpochMs != null;
+  if (hasPendingJoinRequest) {
+    return {
+      id: entry.id,
+      clanId: stringOrNull(entry.clanId) ?? entry.id,
+      genealogyName: 'Pending join request',
+      leaderName: '',
+      provinceCity: '',
+      summary: '',
+      memberCount: 0,
+      branchCount: 0,
+      hasPendingJoinRequest: true,
+      pendingJoinRequestSubmittedAtEpochMs: pendingRequestSubmittedAtEpochMs,
+      isHiddenWhilePending: true,
+    };
+  }
+
   return {
     id: entry.id,
     clanId: stringOrNull(entry.clanId) ?? entry.id,
@@ -992,6 +1139,9 @@ function sanitizeDiscoveryResult(entry: { id: string } & DiscoveryRecord) {
     summary: stringOrNull(entry.summary) ?? '',
     memberCount: typeof entry.memberCount === 'number' ? entry.memberCount : 0,
     branchCount: typeof entry.branchCount === 'number' ? entry.branchCount : 0,
+    hasPendingJoinRequest: false,
+    pendingJoinRequestSubmittedAtEpochMs: null,
+    isHiddenWhilePending: false,
   };
 }
 
@@ -1093,7 +1243,69 @@ function normalizeSearch(value: string | null): string {
 }
 
 function normalizeContact(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, '');
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return '';
+  }
+  const compact = trimmed.toLowerCase().replace(/\s+/g, '');
+  if (compact.includes('@')) {
+    return compact;
+  }
+  try {
+    return normalizePhoneE164ForContact(trimmed);
+  } catch {
+    return compact;
+  }
+}
+
+function normalizePhoneE164ForContact(input: string): string {
+  const trimmed = input.trim();
+  const digitsAndPlus = trimmed.replace(/[^0-9+]/g, '');
+  if (digitsAndPlus.length === 0) {
+    throw new Error('Invalid phone input');
+  }
+  const digitsOnly = digitsAndPlus.replace(/[^0-9]/g, '');
+  let normalized = '';
+  if (digitsAndPlus.startsWith('+')) {
+    normalized = `+${digitsAndPlus.slice(1).replace(/[^0-9]/g, '')}`;
+  } else if (digitsAndPlus.startsWith('00')) {
+    normalized = `+${digitsAndPlus.slice(2).replace(/[^0-9]/g, '')}`;
+  } else if (digitsOnly.startsWith('0')) {
+    normalized = `+84${digitsOnly.slice(1)}`;
+  } else if (looksLikeInternationalPhoneDigits(digitsOnly, '84')) {
+    normalized = `+${digitsOnly}`;
+  } else {
+    normalized = `+84${digitsOnly}`;
+  }
+
+  if (normalized.startsWith('+840')) {
+    normalized = `+84${normalized.slice(4)}`;
+  }
+  if (normalized.startsWith('+84') && normalized.length > 3 && normalized[3] === '0') {
+    normalized = `+84${normalized.slice(4)}`;
+  }
+  if (!/^\+[1-9]\d{8,14}$/.test(normalized)) {
+    throw new Error('Invalid phone format');
+  }
+  return normalized;
+}
+
+function looksLikeInternationalPhoneDigits(
+  digits: string,
+  fallbackDialCode: string,
+): boolean {
+  if (digits.length === 0) {
+    return false;
+  }
+  if (digits.startsWith(fallbackDialCode) && digits.length > fallbackDialCode.length + 6) {
+    return true;
+  }
+  for (const dialCode of SUPPORTED_PHONE_DIAL_CODES) {
+    if (digits.startsWith(dialCode) && digits.length > dialCode.length + 6) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function requireNonEmptyString(data: unknown, key: string): string {
@@ -1132,4 +1344,51 @@ function requireDecision(data: unknown, key: string): 'approve' | 'reject' {
     throw new HttpsError('invalid-argument', `${key} must be approve or reject.`);
   }
   return value;
+}
+
+async function loadPendingJoinRequestsByApplicant(uid: string): Promise<Map<string, number>> {
+  const snapshot = await joinRequestsCollection
+    .where('applicantUid', '==', uid)
+    .limit(300)
+    .get();
+
+  const pendingByClanId = new Map<string, number>();
+  for (const doc of snapshot.docs) {
+    const item = doc.data() as JoinRequestRecord;
+    const clanId = stringOrNull(item.clanId);
+    if (clanId == null) {
+      continue;
+    }
+    const status = stringOrNull(item.status)?.toLowerCase() ?? 'pending';
+    if (status !== 'pending') {
+      continue;
+    }
+    const submittedAtEpochMs = timestampToEpochMillis(item.createdAt) ?? 0;
+    const existing = pendingByClanId.get(clanId);
+    if (existing == null || submittedAtEpochMs > existing) {
+      pendingByClanId.set(clanId, submittedAtEpochMs);
+    }
+  }
+  return pendingByClanId;
+}
+
+function timestampToEpochMillis(value: unknown): number | null {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value === 'string') {
+    const epoch = Date.parse(value);
+    return Number.isFinite(epoch) ? epoch : null;
+  }
+  if (typeof value === 'object') {
+    const candidate = value as { toMillis?: () => number };
+    if (typeof candidate.toMillis === 'function') {
+      const epoch = candidate.toMillis();
+      return Number.isFinite(epoch) ? epoch : null;
+    }
+  }
+  return null;
 }

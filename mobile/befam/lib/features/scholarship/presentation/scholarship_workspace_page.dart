@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -12,6 +13,7 @@ import '../models/achievement_submission.dart';
 import '../models/achievement_submission_draft.dart';
 import '../models/award_level.dart';
 import '../models/award_level_draft.dart';
+import '../models/scholarship_disbursement_fund.dart';
 import '../models/scholarship_program_draft.dart';
 import '../services/scholarship_repository.dart';
 import 'scholarship_controller.dart';
@@ -379,6 +381,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
             onAddAwardLevel: _openAwardLevelForm,
             onCreateSubmission: _openSubmissionForm,
             onReviewSubmission: _reviewSubmission,
+            onDisburseSubmission: _disburseSubmission,
           );
         },
       ),
@@ -463,6 +466,260 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
         en: 'Could not review submission (${error.name}).',
       ),
     );
+  }
+
+  Future<void> _disburseSubmission({
+    required AchievementSubmission submission,
+  }) async {
+    if (_controller.isDisbursing) {
+      return;
+    }
+    final l10n = context.l10n;
+
+    List<ScholarshipDisbursementFund> funds;
+    try {
+      funds = await _controller.loadDisbursementFunds();
+    } on ScholarshipRepositoryException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      if (error.code == ScholarshipRepositoryErrorCode.permissionDenied) {
+        _showResultSnackBar(
+          l10n.pick(
+            vi: 'Bạn chưa có quyền thực hiện chi quỹ học bổng.',
+            en: 'Your role cannot disburse scholarship funds.',
+          ),
+        );
+        return;
+      }
+      _showResultSnackBar(
+        l10n.pick(
+          vi: 'Không thể tải danh sách quỹ để giải ngân.',
+          en: 'Could not load funds for disbursement.',
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+    if (funds.isEmpty) {
+      _showResultSnackBar(
+        l10n.pick(
+          vi: 'Chưa có quỹ hoạt động để chi học bổng.',
+          en: 'No active funds are available for disbursement.',
+        ),
+      );
+      return;
+    }
+
+    final disbursementInput = await _openDisbursementDialog(
+      submission: submission,
+      funds: funds,
+    );
+    if (!mounted || disbursementInput == null) {
+      return;
+    }
+
+    final error = await _controller.disburseSubmission(
+      submissionId: submission.id,
+      fundId: disbursementInput.fundId,
+      note: disbursementInput.note,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    if (error == null) {
+      _showResultSnackBar(
+        l10n.pick(
+          vi: 'Đã ghi nhận chi quỹ học bổng thành công.',
+          en: 'Scholarship disbursement has been recorded.',
+        ),
+      );
+      return;
+    }
+
+    switch (error) {
+      case ScholarshipRepositoryErrorCode.fundNotFound:
+        _showResultSnackBar(
+          l10n.pick(
+            vi: 'Quỹ đã chọn không còn khả dụng.',
+            en: 'The selected fund is no longer available.',
+          ),
+        );
+        return;
+      case ScholarshipRepositoryErrorCode.insufficientFundBalance:
+        _showResultSnackBar(
+          l10n.pick(
+            vi: 'Số dư quỹ không đủ để giải ngân hồ sơ này.',
+            en: 'The selected fund does not have enough balance.',
+          ),
+        );
+        return;
+      case ScholarshipRepositoryErrorCode.submissionAlreadyDisbursed:
+        _showResultSnackBar(
+          l10n.pick(
+            vi: 'Hồ sơ này đã được giải ngân trước đó.',
+            en: 'This submission was already disbursed.',
+          ),
+        );
+        return;
+      case ScholarshipRepositoryErrorCode.permissionDenied:
+        _showResultSnackBar(
+          l10n.pick(
+            vi: 'Bạn không có quyền chi quỹ học bổng.',
+            en: 'You do not have permission to disburse scholarship funds.',
+          ),
+        );
+        return;
+      default:
+        _showResultSnackBar(
+          l10n.pick(
+            vi: 'Không thể ghi nhận chi quỹ (${error.name}).',
+            en: 'Could not complete disbursement (${error.name}).',
+          ),
+        );
+        return;
+    }
+  }
+
+  Future<_ScholarshipDisbursementInput?> _openDisbursementDialog({
+    required AchievementSubmission submission,
+    required List<ScholarshipDisbursementFund> funds,
+  }) async {
+    var selectedFundId = funds.first.id;
+    final noteController = TextEditingController();
+    final l10n = context.l10n;
+    final awardLevel = _controller.awardLevelById(submission.awardLevelId);
+    final amountLabel = awardLevel == null
+        ? l10n.pick(vi: 'Không xác định', en: 'Unknown')
+        : '${_formatMinorAmount(awardLevel.rewardAmountMinor)} VND';
+
+    final result = await showDialog<_ScholarshipDisbursementInput>(
+      context: context,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(
+                l10n.pick(
+                  vi: 'Chi học bổng từ quỹ',
+                  en: 'Disburse scholarship from fund',
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.pick(
+                      vi: 'Hồ sơ: ${submission.title}',
+                      en: 'Submission: ${submission.title}',
+                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.pick(
+                      vi: 'Mức chi dự kiến: $amountLabel',
+                      en: 'Planned amount: $amountLabel',
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    key: const Key('scholarship-disbursement-fund-picker'),
+                    initialValue: selectedFundId,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Chọn quỹ', en: 'Select fund'),
+                    ),
+                    items: [
+                      for (final fund in funds)
+                        DropdownMenuItem<String>(
+                          value: fund.id,
+                          child: Text(
+                            '${fund.name} • ${_formatMinorAmount(fund.balanceMinor)} ${fund.currency}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return;
+                      }
+                      setState(() {
+                        selectedFundId = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const Key('scholarship-disbursement-note-input'),
+                    controller: noteController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Ghi chú (tuỳ chọn)',
+                        en: 'Note (optional)',
+                      ),
+                      hintText: l10n.pick(
+                        vi: 'Ví dụ: Đợt trao học bổng quý I',
+                        en: 'For example: Q1 scholarship disbursement',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(l10n.profileCancelAction),
+                ),
+                AppAsyncAction(
+                  onPressed: () async {
+                    Navigator.of(context).pop(
+                      _ScholarshipDisbursementInput(
+                        fundId: selectedFundId,
+                        note: _nullableText(noteController.text),
+                      ),
+                    );
+                  },
+                  builder: (context, onPressed, isLoading) {
+                    return FilledButton.icon(
+                      key: const Key('scholarship-disbursement-confirm-button'),
+                      onPressed: onPressed,
+                      icon: AppStableLoadingChild(
+                        isLoading: isLoading,
+                        indicatorSize: 16,
+                        indicatorStrokeWidth: 2,
+                        child: const Icon(
+                          Icons.account_balance_wallet_outlined,
+                        ),
+                      ),
+                      label: AppStableLoadingChild(
+                        isLoading: isLoading,
+                        child: Text(
+                          l10n.pick(
+                            vi: 'Ghi nhận chi quỹ',
+                            en: 'Record disbursement',
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    noteController.dispose();
+    return result;
   }
 
   Future<String?> _openReviewNoteDialog() async {
@@ -622,8 +879,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                         value: option.clanId,
                         child: Text(
                           option.clanId == (_session.clanId ?? '').trim()
-                              ? '• ${option.clanName}'
-                              : option.clanName,
+                              ? '• ${_clanContextDisplayLabel(context, option)}'
+                              : _clanContextDisplayLabel(context, option),
                         ),
                       ),
                   ],
@@ -1041,6 +1298,65 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                   en: 'Council votes: ${submission.approvalCount} approve • ${submission.rejectionCount} reject',
                                                 ),
                                               ),
+                                              if (submission.isApproved) ...[
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  l10n.pick(
+                                                    vi: 'Giải ngân: ${_disbursementStatusLabel(context, submission)}',
+                                                    en: 'Disbursement: ${_disbursementStatusLabel(context, submission)}',
+                                                  ),
+                                                ),
+                                              ],
+                                              if (_controller
+                                                      .canDisburseFromFund &&
+                                                  submission
+                                                      .isPendingDisbursement) ...[
+                                                const SizedBox(height: 10),
+                                                Align(
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child: AppAsyncAction(
+                                                    enabled: !_controller
+                                                        .isDisbursing,
+                                                    onPressed: () async {
+                                                      await _disburseSubmission(
+                                                        submission: submission,
+                                                      );
+                                                    },
+                                                    builder: (context, onPressed, isLoading) {
+                                                      return FilledButton.icon(
+                                                        key: Key(
+                                                          'scholarship-disburse-${submission.id}',
+                                                        ),
+                                                        onPressed: onPressed,
+                                                        icon: AppStableLoadingChild(
+                                                          isLoading:
+                                                              isLoading ||
+                                                              _controller
+                                                                  .isDisbursing,
+                                                          indicatorSize: 16,
+                                                          child: const Icon(
+                                                            Icons
+                                                                .account_balance_wallet_outlined,
+                                                          ),
+                                                        ),
+                                                        label: AppStableLoadingChild(
+                                                          isLoading:
+                                                              isLoading ||
+                                                              _controller
+                                                                  .isDisbursing,
+                                                          child: Text(
+                                                            l10n.pick(
+                                                              vi: 'Chi từ quỹ',
+                                                              en: 'Disburse from fund',
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                ),
+                                              ],
                                               if (submission.reviewNote !=
                                                       null &&
                                                   submission.reviewNote!
@@ -1297,6 +1613,7 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
     required this.onAddAwardLevel,
     required this.onCreateSubmission,
     required this.onReviewSubmission,
+    required this.onDisburseSubmission,
   });
 
   final ScholarshipController controller;
@@ -1308,6 +1625,8 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
     required bool approved,
   })
   onReviewSubmission;
+  final Future<void> Function({required AchievementSubmission submission})
+  onDisburseSubmission;
 
   @override
   Widget build(BuildContext context) {
@@ -1452,6 +1771,15 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
                                                 en: 'Council votes: ${submission.approvalCount} approve • ${submission.rejectionCount} reject',
                                               ),
                                             ),
+                                            if (submission.isApproved) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                l10n.pick(
+                                                  vi: 'Giải ngân: ${_disbursementStatusLabel(context, submission)}',
+                                                  en: 'Disbursement: ${_disbursementStatusLabel(context, submission)}',
+                                                ),
+                                              ),
+                                            ],
                                             if (submission.finalDecisionReason
                                                     ?.trim()
                                                     .isNotEmpty ==
@@ -1550,6 +1878,56 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
                                                     ),
                                                   ),
                                                 ],
+                                              ),
+                                            ],
+                                            if (controller
+                                                    .canDisburseFromFund &&
+                                                submission
+                                                    .isPendingDisbursement) ...[
+                                              const SizedBox(height: 10),
+                                              AppAsyncAction(
+                                                enabled:
+                                                    !controller.isDisbursing,
+                                                onPressed: () async {
+                                                  await onDisburseSubmission(
+                                                    submission: submission,
+                                                  );
+                                                },
+                                                builder: (context, onPressed, isLoading) {
+                                                  return Align(
+                                                    alignment:
+                                                        Alignment.centerLeft,
+                                                    child: FilledButton.icon(
+                                                      key: Key(
+                                                        'scholarship-detail-disburse-${submission.id}',
+                                                      ),
+                                                      onPressed: onPressed,
+                                                      icon: AppStableLoadingChild(
+                                                        isLoading:
+                                                            isLoading ||
+                                                            controller
+                                                                .isDisbursing,
+                                                        indicatorSize: 16,
+                                                        child: const Icon(
+                                                          Icons
+                                                              .account_balance_wallet_outlined,
+                                                        ),
+                                                      ),
+                                                      label: AppStableLoadingChild(
+                                                        isLoading:
+                                                            isLoading ||
+                                                            controller
+                                                                .isDisbursing,
+                                                        child: Text(
+                                                          l10n.pick(
+                                                            vi: 'Chi từ quỹ',
+                                                            en: 'Disburse from fund',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
                                               ),
                                             ],
                                           ],
@@ -1654,7 +2032,79 @@ class _SheetSectionHeading extends StatelessWidget {
   }
 }
 
+class _SheetStepIndicator extends StatelessWidget {
+  const _SheetStepIndicator({
+    required this.currentStep,
+    required this.labels,
+    this.onStepSelected,
+  });
+
+  final int currentStep;
+  final List<String> labels;
+  final ValueChanged<int>? onStepSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Row(
+      children: [
+        for (var index = 0; index < labels.length; index++) ...[
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: onStepSelected == null
+                  ? null
+                  : () => onStepSelected!(index),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: index <= currentStep
+                          ? colorScheme.primary
+                          : colorScheme.surfaceContainerHighest,
+                      foregroundColor: index <= currentStep
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSurfaceVariant,
+                      child: Text('${index + 1}'),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      labels[index],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: index == currentStep
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (index < labels.length - 1)
+            Expanded(
+              child: Container(
+                height: 2,
+                margin: const EdgeInsets.only(bottom: 24),
+                color: index < currentStep
+                    ? colorScheme.primary
+                    : colorScheme.outlineVariant,
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
 class _ProgramFormSheetState extends State<_ProgramFormSheet> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _yearController;
@@ -1662,6 +2112,9 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
   late final TextEditingController _submissionCloseController;
   late final TextEditingController _reviewCloseController;
   String _status = 'open';
+  int _step = 0;
+  String? _validationMessage;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -1685,17 +2138,109 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
     super.dispose();
   }
 
-  void _submit() {
-    final title = _titleController.text.trim();
-    if (title.isEmpty) {
+  bool _validateStepZero() {
+    final valid = _formKey.currentState?.validate() ?? false;
+    if (!valid) {
+      setState(() {
+        _validationMessage = context.l10n.pick(
+          vi: 'Hãy điền đủ thông tin cơ bản trước khi tiếp tục.',
+          en: 'Please complete the basic information before continuing.',
+        );
+      });
+      return false;
+    }
+    return true;
+  }
+
+  bool _validateStepOne() {
+    final l10n = context.l10n;
+    final open = DateTime.tryParse(_submissionOpenController.text.trim());
+    final close = DateTime.tryParse(_submissionCloseController.text.trim());
+    final review = DateTime.tryParse(_reviewCloseController.text.trim());
+    if (_submissionOpenController.text.trim().isNotEmpty && open == null) {
+      setState(() {
+        _validationMessage = l10n.pick(
+          vi: 'Ngày mở nhận hồ sơ chưa đúng định dạng.',
+          en: 'Submission open date is not a valid date.',
+        );
+      });
+      return false;
+    }
+    if (_submissionCloseController.text.trim().isNotEmpty && close == null) {
+      setState(() {
+        _validationMessage = l10n.pick(
+          vi: 'Ngày đóng nhận hồ sơ chưa đúng định dạng.',
+          en: 'Submission close date is not a valid date.',
+        );
+      });
+      return false;
+    }
+    if (_reviewCloseController.text.trim().isNotEmpty && review == null) {
+      setState(() {
+        _validationMessage = l10n.pick(
+          vi: 'Hạn xét duyệt chưa đúng định dạng.',
+          en: 'Review close date is not a valid date.',
+        );
+      });
+      return false;
+    }
+    if (open != null && close != null && close.isBefore(open)) {
+      setState(() {
+        _validationMessage = l10n.pick(
+          vi: 'Ngày đóng nhận hồ sơ phải sau ngày mở nhận hồ sơ.',
+          en: 'Submission close date must be after submission open date.',
+        );
+      });
+      return false;
+    }
+    if (close != null && review != null && review.isBefore(close)) {
+      setState(() {
+        _validationMessage = l10n.pick(
+          vi: 'Hạn xét duyệt phải sau ngày đóng nhận hồ sơ.',
+          en: 'Review close date must be after submission close date.',
+        );
+      });
+      return false;
+    }
+    return true;
+  }
+
+  void _submitOrContinue() {
+    if (_isSubmitting) {
       return;
     }
+    if (_step == 0) {
+      if (_validateStepZero()) {
+        setState(() {
+          _validationMessage = null;
+          _step = 1;
+        });
+      }
+      return;
+    }
+    if (_step == 1) {
+      if (_validateStepOne()) {
+        setState(() {
+          _validationMessage = null;
+          _step = 2;
+        });
+      }
+      return;
+    }
+
+    if (!_validateStepZero() || !_validateStepOne()) {
+      return;
+    }
+    setState(() {
+      _validationMessage = null;
+      _isSubmitting = true;
+    });
 
     final year =
         int.tryParse(_yearController.text.trim()) ?? DateTime.now().year;
     Navigator.of(context).pop(
       ScholarshipProgramDraft(
-        title: title,
+        title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         year: year,
         status: _status,
@@ -1729,202 +2274,330 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final isFinalStep = _step == 2;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 20, 20, bottomInset + 20),
       child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.pick(
-                vi: 'Tạo chương trình khuyến học',
-                en: 'Create scholarship program',
-              ),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 16),
-            _SheetHintCard(
-              icon: Icons.auto_awesome_outlined,
-              title: l10n.pick(
-                vi: 'Thiết lập nhanh trong 3 phần',
-                en: 'Set up in 3 quick sections',
-              ),
-              message: l10n.pick(
-                vi: 'Thông tin cơ bản, lịch nhận hồ sơ và ngày chốt xét duyệt.',
-                en: 'Basic info, submission timeline, and review deadline.',
-              ),
-            ),
-            const SizedBox(height: 14),
-            _SheetSectionHeading(
-              title: l10n.pick(vi: '1. Thông tin cơ bản', en: '1. Basic info'),
-              subtitle: l10n.pick(
-                vi: 'Tên chương trình, mô tả, năm và trạng thái hiện tại.',
-                en: 'Program name, description, year, and status.',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              key: const Key('scholarship-program-title-input'),
-              controller: _titleController,
-              decoration: InputDecoration(
-                labelText: l10n.pick(vi: 'Tiêu đề', en: 'Title'),
-                hintText: l10n.pick(
-                  vi: 'Chương trình khuyến học 2026',
-                  en: '2026 Scholarship Program',
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.pick(
+                  vi: 'Tạo chương trình khuyến học',
+                  en: 'Create scholarship program',
+                ),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('scholarship-program-description-input'),
-              controller: _descriptionController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+              const SizedBox(height: 16),
+              _SheetStepIndicator(
+                currentStep: _step,
+                labels: [
+                  l10n.pick(vi: 'Thông tin', en: 'Info'),
+                  l10n.pick(vi: 'Mốc thời gian', en: 'Timeline'),
+                  l10n.pick(vi: 'Xác nhận', en: 'Confirm'),
+                ],
+                onStepSelected: (targetStep) {
+                  if (targetStep <= _step) {
+                    setState(() {
+                      _validationMessage = null;
+                      _step = targetStep;
+                    });
+                    return;
+                  }
+                  if (_step == 0 && !_validateStepZero()) {
+                    return;
+                  }
+                  if (_step <= 1 && targetStep >= 2 && !_validateStepOne()) {
+                    return;
+                  }
+                  setState(() {
+                    _validationMessage = null;
+                    _step = targetStep;
+                  });
+                },
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    key: const Key('scholarship-program-year-input'),
-                    controller: _yearController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Năm', en: 'Year'),
+              const SizedBox(height: 14),
+              if (_validationMessage != null) ...[
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      _validationMessage!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    key: const Key('scholarship-program-status-input'),
-                    initialValue: _status,
-                    items: [
-                      DropdownMenuItem(
-                        value: 'open',
-                        child: Text(l10n.pick(vi: 'Đang mở', en: 'Open')),
+                const SizedBox(height: 12),
+              ],
+              if (_step == 0) ...[
+                _SheetHintCard(
+                  icon: Icons.auto_awesome_outlined,
+                  title: l10n.pick(
+                    vi: 'Thiết lập nhanh trong 3 phần',
+                    en: 'Set up in 3 quick sections',
+                  ),
+                  message: l10n.pick(
+                    vi: 'Thông tin cơ bản, lịch nhận hồ sơ và ngày chốt xét duyệt.',
+                    en: 'Basic info, submission timeline, and review deadline.',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _SheetSectionHeading(
+                  title: l10n.pick(
+                    vi: '1. Thông tin cơ bản',
+                    en: '1. Basic info',
+                  ),
+                  subtitle: l10n.pick(
+                    vi: 'Tên chương trình, mô tả, năm và trạng thái hiện tại.',
+                    en: 'Program name, description, year, and status.',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  key: const Key('scholarship-program-title-input'),
+                  controller: _titleController,
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return l10n.pick(
+                        vi: 'Vui lòng nhập tiêu đề chương trình.',
+                        en: 'Please enter a program title.',
+                      );
+                    }
+                    return null;
+                  },
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Tiêu đề', en: 'Title'),
+                    hintText: l10n.pick(
+                      vi: 'Chương trình khuyến học 2026',
+                      en: '2026 Scholarship Program',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('scholarship-program-description-input'),
+                  controller: _descriptionController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        key: const Key('scholarship-program-year-input'),
+                        controller: _yearController,
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          final parsed = int.tryParse((value ?? '').trim());
+                          if (parsed == null ||
+                              parsed < 2000 ||
+                              parsed > 2100) {
+                            return l10n.pick(
+                              vi: 'Năm cần nằm trong khoảng 2000-2100.',
+                              en: 'Year must be between 2000 and 2100.',
+                            );
+                          }
+                          return null;
+                        },
+                        decoration: InputDecoration(
+                          labelText: l10n.pick(vi: 'Năm', en: 'Year'),
+                        ),
                       ),
-                      DropdownMenuItem(
-                        value: 'draft',
-                        child: Text(l10n.pick(vi: 'Nháp', en: 'Draft')),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        key: const Key('scholarship-program-status-input'),
+                        initialValue: _status,
+                        items: [
+                          DropdownMenuItem(
+                            value: 'open',
+                            child: Text(l10n.pick(vi: 'Đang mở', en: 'Open')),
+                          ),
+                          DropdownMenuItem(
+                            value: 'draft',
+                            child: Text(l10n.pick(vi: 'Nháp', en: 'Draft')),
+                          ),
+                          DropdownMenuItem(
+                            value: 'closed',
+                            child: Text(l10n.pick(vi: 'Đã đóng', en: 'Closed')),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _status = value;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          labelText: l10n.pick(vi: 'Trạng thái', en: 'Status'),
+                        ),
                       ),
-                      DropdownMenuItem(
-                        value: 'closed',
-                        child: Text(l10n.pick(vi: 'Đã đóng', en: 'Closed')),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _status = value;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Trạng thái', en: 'Status'),
+                    ),
+                  ],
+                ),
+              ] else if (_step == 1) ...[
+                _SheetSectionHeading(
+                  title: l10n.pick(
+                    vi: '2. Mốc thời gian (tùy chọn)',
+                    en: '2. Timeline (optional)',
+                  ),
+                  subtitle: l10n.pick(
+                    vi: 'Chạm vào ô để chọn ngày thay vì nhập tay theo định dạng ISO.',
+                    en: 'Tap each field to pick a date instead of typing ISO manually.',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  key: const Key('scholarship-program-open-date-input'),
+                  controller: _submissionOpenController,
+                  readOnly: true,
+                  onTap: () => _pickIsoDate(_submissionOpenController),
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Mở nhận hồ sơ (ISO - tùy chọn)',
+                      en: 'Submission open (ISO date optional)',
+                    ),
+                    hintText: l10n.pick(vi: 'YYYY-MM-DD', en: 'YYYY-MM-DD'),
+                    suffixIcon: const Icon(Icons.calendar_today_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('scholarship-program-close-date-input'),
+                  controller: _submissionCloseController,
+                  readOnly: true,
+                  onTap: () => _pickIsoDate(_submissionCloseController),
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Đóng nhận hồ sơ (ISO - tùy chọn)',
+                      en: 'Submission close (ISO date optional)',
+                    ),
+                    hintText: l10n.pick(vi: 'YYYY-MM-DD', en: 'YYYY-MM-DD'),
+                    suffixIcon: const Icon(Icons.calendar_today_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('scholarship-program-review-date-input'),
+                  controller: _reviewCloseController,
+                  readOnly: true,
+                  onTap: () => _pickIsoDate(_reviewCloseController),
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Hạn xét duyệt (ISO - tùy chọn)',
+                      en: 'Review close (ISO date optional)',
+                    ),
+                    hintText: l10n.pick(vi: 'YYYY-MM-DD', en: 'YYYY-MM-DD'),
+                    suffixIcon: const Icon(Icons.calendar_today_outlined),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.pick(
+                    vi: 'Mẹo: để trống ngày nếu chưa chốt lịch. Bạn có thể chỉnh sửa sau.',
+                    en: 'Tip: leave dates empty if schedule is not finalized yet. You can update later.',
+                  ),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ] else ...[
+                _SheetSectionHeading(
+                  title: l10n.pick(vi: '3. Xác nhận', en: '3. Confirm'),
+                  subtitle: l10n.pick(
+                    vi: 'Lưu để tạo chương trình và bắt đầu cấu hình mức thưởng.',
+                    en: 'Save to create the program and start defining award levels.',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.pick(
+                            vi: 'Tiêu đề: ${_titleController.text.trim()}',
+                            en: 'Title: ${_titleController.text.trim()}',
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.pick(
+                            vi: 'Năm: ${_yearController.text.trim()} • ${_status.toUpperCase()}',
+                            en: 'Year: ${_yearController.text.trim()} • ${_status.toUpperCase()}',
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 14),
-            _SheetSectionHeading(
-              title: l10n.pick(
-                vi: '2. Mốc thời gian (tùy chọn)',
-                en: '2. Timeline (optional)',
-              ),
-              subtitle: l10n.pick(
-                vi: 'Chạm vào ô để chọn ngày thay vì nhập tay theo định dạng ISO.',
-                en: 'Tap each field to pick a date instead of typing ISO manually.',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              key: const Key('scholarship-program-open-date-input'),
-              controller: _submissionOpenController,
-              readOnly: true,
-              onTap: () => _pickIsoDate(_submissionOpenController),
-              decoration: InputDecoration(
-                labelText: l10n.pick(
-                  vi: 'Mở nhận hồ sơ (ISO - tùy chọn)',
-                  en: 'Submission open (ISO date optional)',
-                ),
-                hintText: 'YYYY-MM-DD',
-                suffixIcon: const Icon(Icons.calendar_today_outlined),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('scholarship-program-close-date-input'),
-              controller: _submissionCloseController,
-              readOnly: true,
-              onTap: () => _pickIsoDate(_submissionCloseController),
-              decoration: InputDecoration(
-                labelText: l10n.pick(
-                  vi: 'Đóng nhận hồ sơ (ISO - tùy chọn)',
-                  en: 'Submission close (ISO date optional)',
-                ),
-                hintText: 'YYYY-MM-DD',
-                suffixIcon: const Icon(Icons.calendar_today_outlined),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('scholarship-program-review-date-input'),
-              controller: _reviewCloseController,
-              readOnly: true,
-              onTap: () => _pickIsoDate(_reviewCloseController),
-              decoration: InputDecoration(
-                labelText: l10n.pick(
-                  vi: 'Hạn xét duyệt (ISO - tùy chọn)',
-                  en: 'Review close (ISO date optional)',
-                ),
-                hintText: 'YYYY-MM-DD',
-                suffixIcon: const Icon(Icons.calendar_today_outlined),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.pick(
-                vi: 'Mẹo: để trống ngày nếu chưa chốt lịch. Bạn có thể chỉnh sửa sau.',
-                en: 'Tip: leave dates empty if schedule is not finalized yet. You can update later.',
-              ),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 14),
-            _SheetSectionHeading(
-              title: l10n.pick(vi: '3. Xác nhận', en: '3. Confirm'),
-              subtitle: l10n.pick(
-                vi: 'Lưu để tạo chương trình và bắt đầu cấu hình mức thưởng.',
-                en: 'Save to create the program and start defining award levels.',
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(l10n.profileCancelAction),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : _step == 0
+                          ? () => Navigator.of(context).pop()
+                          : () {
+                              setState(() {
+                                _validationMessage = null;
+                                _step -= 1;
+                              });
+                            },
+                      child: Text(
+                        _step == 0
+                            ? l10n.profileCancelAction
+                            : l10n.pick(vi: 'Quay lại', en: 'Back'),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    key: const Key('scholarship-program-save-button'),
-                    onPressed: _submit,
-                    child: Text(l10n.pick(vi: 'Lưu', en: 'Save')),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      key: const Key('scholarship-program-save-button'),
+                      onPressed: _isSubmitting ? null : _submitOrContinue,
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              isFinalStep
+                                  ? l10n.pick(vi: 'Lưu', en: 'Save')
+                                  : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                            ),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1939,12 +2612,16 @@ class _AwardLevelFormSheet extends StatefulWidget {
 }
 
 class _AwardLevelFormSheetState extends State<_AwardLevelFormSheet> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _sortOrderController;
   late final TextEditingController _amountController;
   late final TextEditingController _criteriaController;
   String _rewardType = 'cash';
+  int _step = 0;
+  String? _validationMessage;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -1966,12 +2643,66 @@ class _AwardLevelFormSheetState extends State<_AwardLevelFormSheet> {
     super.dispose();
   }
 
-  void _submit() {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) {
+  bool _validateStepZero() {
+    final valid = _formKey.currentState?.validate() ?? false;
+    if (!valid) {
+      setState(() {
+        _validationMessage = context.l10n.pick(
+          vi: 'Hãy điền đủ thông tin nhận diện mức thưởng.',
+          en: 'Please complete the award identity information.',
+        );
+      });
+      return false;
+    }
+    return true;
+  }
+
+  bool _validateStepOne() {
+    final amount = int.tryParse(_amountController.text.trim());
+    if (amount == null || amount < 0) {
+      setState(() {
+        _validationMessage = context.l10n.pick(
+          vi: 'Giá trị phần thưởng cần là số không âm.',
+          en: 'Reward amount must be a non-negative number.',
+        );
+      });
+      return false;
+    }
+    return true;
+  }
+
+  void _submitOrContinue() {
+    if (_isSubmitting) {
+      return;
+    }
+    if (_step == 0) {
+      if (_validateStepZero()) {
+        setState(() {
+          _validationMessage = null;
+          _step = 1;
+        });
+      }
+      return;
+    }
+    if (_step == 1) {
+      if (_validateStepOne()) {
+        setState(() {
+          _validationMessage = null;
+          _step = 2;
+        });
+      }
       return;
     }
 
+    if (!_validateStepZero() || !_validateStepOne()) {
+      return;
+    }
+    setState(() {
+      _validationMessage = null;
+      _isSubmitting = true;
+    });
+
+    final name = _nameController.text.trim();
     final sortOrder = int.tryParse(_sortOrderController.text.trim()) ?? 10;
     final amount = int.tryParse(_amountController.text.trim()) ?? 0;
 
@@ -1992,201 +2723,296 @@ class _AwardLevelFormSheetState extends State<_AwardLevelFormSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final isFinalStep = _step == 2;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 20, 20, bottomInset + 20),
       child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.pick(vi: 'Tạo mức thưởng', en: 'Create award level'),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 16),
-            _SheetHintCard(
-              icon: Icons.tips_and_updates_outlined,
-              title: l10n.pick(
-                vi: 'Đặt mức thưởng rõ ràng',
-                en: 'Define a clear award level',
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.pick(vi: 'Tạo mức thưởng', en: 'Create award level'),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              message: l10n.pick(
-                vi: 'Tên ngắn gọn, tiêu chí cụ thể, giá trị dễ đối chiếu khi duyệt hồ sơ.',
-                en: 'Use a concise name, clear criteria, and measurable reward value.',
+              const SizedBox(height: 16),
+              _SheetStepIndicator(
+                currentStep: _step,
+                labels: [
+                  l10n.pick(vi: 'Nhận diện', en: 'Identity'),
+                  l10n.pick(vi: 'Giá trị', en: 'Value'),
+                  l10n.pick(vi: 'Xác nhận', en: 'Confirm'),
+                ],
+                onStepSelected: (targetStep) {
+                  if (targetStep <= _step) {
+                    setState(() {
+                      _validationMessage = null;
+                      _step = targetStep;
+                    });
+                    return;
+                  }
+                  if (_step == 0 && !_validateStepZero()) {
+                    return;
+                  }
+                  if (_step <= 1 && targetStep >= 2 && !_validateStepOne()) {
+                    return;
+                  }
+                  setState(() {
+                    _validationMessage = null;
+                    _step = targetStep;
+                  });
+                },
               ),
-            ),
-            const SizedBox(height: 14),
-            _SheetSectionHeading(
-              title: l10n.pick(
-                vi: '1. Nhận diện mức thưởng',
-                en: '1. Award identity',
-              ),
-              subtitle: l10n.pick(
-                vi: 'Tên và mô tả ngắn giúp gia đình hiểu mục tiêu của mức thưởng.',
-                en: 'Name and short description help families understand this level.',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              key: const Key('scholarship-award-name-input'),
-              controller: _nameController,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                labelText: l10n.pick(vi: 'Tên mức thưởng', en: 'Name'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('scholarship-award-description-input'),
-              controller: _descriptionController,
-              maxLines: 2,
-              decoration: InputDecoration(
-                labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    key: const Key('scholarship-award-sort-order-input'),
-                    controller: _sortOrderController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(
-                        vi: 'Thứ tự hiển thị',
-                        en: 'Sort order',
+              const SizedBox(height: 14),
+              if (_validationMessage != null) ...[
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      _validationMessage!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    key: const Key('scholarship-award-reward-type-input'),
-                    initialValue: _rewardType,
-                    items: [
-                      DropdownMenuItem(
-                        value: 'cash',
-                        child: Text(l10n.pick(vi: 'Tiền mặt', en: 'Cash')),
-                      ),
-                      DropdownMenuItem(
-                        value: 'gift',
-                        child: Text(l10n.pick(vi: 'Quà tặng', en: 'Gift')),
-                      ),
-                      DropdownMenuItem(
-                        value: 'certificate',
-                        child: Text(
-                          l10n.pick(vi: 'Chứng nhận', en: 'Certificate'),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _rewardType = value;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(
-                        vi: 'Loại phần thưởng',
-                        en: 'Reward type',
-                      ),
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 12),
               ],
-            ),
-            const SizedBox(height: 14),
-            _SheetSectionHeading(
-              title: l10n.pick(
-                vi: '2. Loại và giá trị',
-                en: '2. Type and value',
-              ),
-              subtitle: l10n.pick(
-                vi: 'Chọn loại phần thưởng trước, sau đó nhập giá trị tương ứng.',
-                en: 'Choose reward type first, then enter the corresponding value.',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              key: const Key('scholarship-award-amount-input'),
-              controller: _amountController,
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                labelText: l10n.pick(
-                  vi: 'Giá trị phần thưởng (đơn vị nhỏ)',
-                  en: 'Reward amount (minor)',
+              if (_step == 0) ...[
+                _SheetHintCard(
+                  icon: Icons.tips_and_updates_outlined,
+                  title: l10n.pick(
+                    vi: 'Đặt mức thưởng rõ ràng',
+                    en: 'Define a clear award level',
+                  ),
+                  message: l10n.pick(
+                    vi: 'Tên ngắn gọn, tiêu chí cụ thể, giá trị dễ đối chiếu khi duyệt hồ sơ.',
+                    en: 'Use a concise name, clear criteria, and measurable reward value.',
+                  ),
                 ),
-                hintText: _rewardType == 'cash' ? '500000' : '1',
-              ),
-            ),
-            const SizedBox(height: 14),
-            _SheetSectionHeading(
-              title: l10n.pick(
-                vi: '3. Tiêu chí và xem trước',
-                en: '3. Criteria and preview',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              key: const Key('scholarship-award-criteria-input'),
-              controller: _criteriaController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: l10n.pick(vi: 'Tiêu chí', en: 'Criteria'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
+                const SizedBox(height: 14),
+                _SheetSectionHeading(
+                  title: l10n.pick(
+                    vi: '1. Nhận diện mức thưởng',
+                    en: '1. Award identity',
+                  ),
+                  subtitle: l10n.pick(
+                    vi: 'Tên và mô tả ngắn giúp gia đình hiểu mục tiêu của mức thưởng.',
+                    en: 'Name and short description help families understand this level.',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  key: const Key('scholarship-award-name-input'),
+                  controller: _nameController,
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return l10n.pick(
+                        vi: 'Vui lòng nhập tên mức thưởng.',
+                        en: 'Please enter an award level name.',
+                      );
+                    }
+                    return null;
+                  },
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Tên mức thưởng', en: 'Name'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('scholarship-award-description-input'),
+                  controller: _descriptionController,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
                   children: [
-                    const Icon(Icons.preview_outlined, size: 18),
-                    const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        l10n.pick(
-                          vi: 'Xem trước: ${_nameController.text.trim().isEmpty ? 'Mức thưởng mới' : _nameController.text.trim()} • ${_rewardTypeLabel(context, _rewardType)} • Giá trị ${_amountController.text.trim().isEmpty ? '0' : _amountController.text.trim()}',
-                          en: 'Preview: ${_nameController.text.trim().isEmpty ? 'New award level' : _nameController.text.trim()} • ${_rewardTypeLabel(context, _rewardType)} • Amount ${_amountController.text.trim().isEmpty ? '0' : _amountController.text.trim()}',
+                      child: TextFormField(
+                        key: const Key('scholarship-award-sort-order-input'),
+                        controller: _sortOrderController,
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          final parsed = int.tryParse((value ?? '').trim());
+                          if (parsed == null || parsed <= 0) {
+                            return l10n.pick(
+                              vi: 'Thứ tự hiển thị cần là số dương.',
+                              en: 'Sort order must be a positive number.',
+                            );
+                          }
+                          return null;
+                        },
+                        decoration: InputDecoration(
+                          labelText: l10n.pick(
+                            vi: 'Thứ tự hiển thị',
+                            en: 'Sort order',
+                          ),
                         ),
-                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        key: const Key('scholarship-award-reward-type-input'),
+                        initialValue: _rewardType,
+                        items: [
+                          DropdownMenuItem(
+                            value: 'cash',
+                            child: Text(l10n.pick(vi: 'Tiền mặt', en: 'Cash')),
+                          ),
+                          DropdownMenuItem(
+                            value: 'gift',
+                            child: Text(l10n.pick(vi: 'Quà tặng', en: 'Gift')),
+                          ),
+                          DropdownMenuItem(
+                            value: 'certificate',
+                            child: Text(
+                              l10n.pick(vi: 'Chứng nhận', en: 'Certificate'),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _rewardType = value;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          labelText: l10n.pick(
+                            vi: 'Loại phần thưởng',
+                            en: 'Reward type',
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(l10n.profileCancelAction),
+              ] else if (_step == 1) ...[
+                _SheetSectionHeading(
+                  title: l10n.pick(
+                    vi: '2. Loại và giá trị',
+                    en: '2. Type and value',
+                  ),
+                  subtitle: l10n.pick(
+                    vi: 'Chọn loại phần thưởng trước, sau đó nhập giá trị tương ứng.',
+                    en: 'Choose reward type first, then enter the corresponding value.',
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    key: const Key('scholarship-award-save-button'),
-                    onPressed: _submit,
-                    child: Text(l10n.pick(vi: 'Lưu', en: 'Save')),
+                const SizedBox(height: 10),
+                TextFormField(
+                  key: const Key('scholarship-award-amount-input'),
+                  controller: _amountController,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Giá trị phần thưởng (đơn vị nhỏ)',
+                      en: 'Reward amount (minor)',
+                    ),
+                    hintText: _rewardType == 'cash' ? '500000' : '1',
+                  ),
+                ),
+              ] else ...[
+                _SheetSectionHeading(
+                  title: l10n.pick(
+                    vi: '3. Tiêu chí và xem trước',
+                    en: '3. Criteria and preview',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  key: const Key('scholarship-award-criteria-input'),
+                  controller: _criteriaController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Tiêu chí', en: 'Criteria'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.preview_outlined, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n.pick(
+                              vi: 'Xem trước: ${_nameController.text.trim().isEmpty ? 'Mức thưởng mới' : _nameController.text.trim()} • ${_rewardTypeLabel(context, _rewardType)} • Giá trị ${_amountController.text.trim().isEmpty ? '0' : _amountController.text.trim()}',
+                              en: 'Preview: ${_nameController.text.trim().isEmpty ? 'New award level' : _nameController.text.trim()} • ${_rewardTypeLabel(context, _rewardType)} • Amount ${_amountController.text.trim().isEmpty ? '0' : _amountController.text.trim()}',
+                            ),
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
-            ),
-          ],
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : _step == 0
+                          ? () => Navigator.of(context).pop()
+                          : () {
+                              setState(() {
+                                _validationMessage = null;
+                                _step -= 1;
+                              });
+                            },
+                      child: Text(
+                        _step == 0
+                            ? l10n.profileCancelAction
+                            : l10n.pick(vi: 'Quay lại', en: 'Back'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      key: const Key('scholarship-award-save-button'),
+                      onPressed: _isSubmitting ? null : _submitOrContinue,
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              isFinalStep
+                                  ? l10n.pick(vi: 'Lưu', en: 'Save')
+                                  : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2209,12 +3035,16 @@ class _SubmissionFormSheet extends StatefulWidget {
 }
 
 class _SubmissionFormSheetState extends State<_SubmissionFormSheet> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _studentNameController;
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _evidenceFileNameController;
   final List<String> _evidenceUrls = [];
   bool _isUploading = false;
+  bool _isSubmitting = false;
+  int _step = 0;
+  String? _validationMessage;
   String? _selectedAwardLevelId;
 
   @override
@@ -2266,17 +3096,74 @@ class _SubmissionFormSheetState extends State<_SubmissionFormSheet> {
     });
   }
 
-  void _submit() {
+  bool _validateStepZero() {
+    if (widget.awardLevels.isEmpty) {
+      setState(() {
+        _validationMessage = context.l10n.pick(
+          vi: 'Bạn cần tạo mức thưởng trước khi gửi hồ sơ.',
+          en: 'Create an award level before submitting.',
+        );
+      });
+      return false;
+    }
     final awardLevelId = _selectedAwardLevelId;
     if (awardLevelId == null || awardLevelId.isEmpty) {
-      return;
+      setState(() {
+        _validationMessage = context.l10n.pick(
+          vi: 'Vui lòng chọn mức thưởng cho hồ sơ.',
+          en: 'Please select an award level for this submission.',
+        );
+      });
+      return false;
     }
+    return true;
+  }
 
+  bool _validateStepOne() {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
+      setState(() {
+        _validationMessage = context.l10n.pick(
+          vi: 'Vui lòng nhập tiêu đề thành tích.',
+          en: 'Please enter an achievement title.',
+        );
+      });
+      return false;
+    }
+    return true;
+  }
+
+  void _submitOrContinue() {
+    if (_isSubmitting) {
       return;
     }
-
+    if (_step == 0) {
+      if (_validateStepZero()) {
+        setState(() {
+          _validationMessage = null;
+          _step = 1;
+        });
+      }
+      return;
+    }
+    if (_step == 1) {
+      if (_validateStepOne()) {
+        setState(() {
+          _validationMessage = null;
+          _step = 2;
+        });
+      }
+      return;
+    }
+    if (!_validateStepZero() || !_validateStepOne()) {
+      return;
+    }
+    setState(() {
+      _validationMessage = null;
+      _isSubmitting = true;
+    });
+    final awardLevelId = _selectedAwardLevelId!;
+    final title = _titleController.text.trim();
     Navigator.of(context).pop(
       AchievementSubmissionDraft(
         programId: widget.programId,
@@ -2293,163 +3180,246 @@ class _SubmissionFormSheetState extends State<_SubmissionFormSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final isFinalStep = _step == 2;
+    final primaryDisabled =
+        _isSubmitting || (_step == 0 && widget.awardLevels.isEmpty);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 20, 20, bottomInset + 20),
       child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.pick(vi: 'Tạo hồ sơ đề cử', en: 'Create submission'),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 16),
-            if (widget.awardLevels.isEmpty)
-              _InlineEmpty(
-                message: l10n.pick(
-                  vi: 'Hãy tạo mức thưởng trước. Hồ sơ đề cử yêu cầu chọn mức thưởng.',
-                  en: 'Create an award level first. Submissions require an award level.',
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.pick(vi: 'Tạo hồ sơ đề cử', en: 'Create submission'),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
-              )
-            else
-              DropdownButtonFormField<String>(
-                key: const Key('scholarship-submission-award-input'),
-                initialValue: _selectedAwardLevelId,
-                items: [
-                  for (final awardLevel in widget.awardLevels)
-                    DropdownMenuItem(
-                      value: awardLevel.id,
-                      child: Text(awardLevel.name),
-                    ),
+              ),
+              const SizedBox(height: 16),
+              _SheetStepIndicator(
+                currentStep: _step,
+                labels: [
+                  l10n.pick(vi: 'Mức thưởng', en: 'Award'),
+                  l10n.pick(vi: 'Thành tích', en: 'Achievement'),
+                  l10n.pick(vi: 'Minh chứng', en: 'Evidence'),
                 ],
-                onChanged: (value) {
+                onStepSelected: (targetStep) {
+                  if (targetStep <= _step) {
+                    setState(() {
+                      _validationMessage = null;
+                      _step = targetStep;
+                    });
+                    return;
+                  }
+                  if (_step == 0 && !_validateStepZero()) {
+                    return;
+                  }
+                  if (_step <= 1 && targetStep >= 2 && !_validateStepOne()) {
+                    return;
+                  }
                   setState(() {
-                    _selectedAwardLevelId = value;
+                    _validationMessage = null;
+                    _step = targetStep;
                   });
                 },
-                decoration: InputDecoration(
-                  labelText: l10n.pick(vi: 'Mức thưởng', en: 'Award level'),
-                ),
               ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('scholarship-submission-student-input'),
-              controller: _studentNameController,
-              decoration: InputDecoration(
-                labelText: l10n.pick(vi: 'Tên học sinh', en: 'Student name'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('scholarship-submission-title-input'),
-              controller: _titleController,
-              decoration: InputDecoration(
-                labelText: l10n.pick(
-                  vi: 'Tiêu đề thành tích',
-                  en: 'Achievement title',
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('scholarship-submission-description-input'),
-              controller: _descriptionController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('scholarship-evidence-file-input'),
-              controller: _evidenceFileNameController,
-              decoration: InputDecoration(
-                labelText: l10n.pick(
-                  vi: 'Tên tệp minh chứng',
-                  en: 'Evidence file name',
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    key: const Key('scholarship-upload-evidence-button'),
-                    onPressed: _isUploading ? null : _uploadEvidence,
-                    icon: _isUploading
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.upload_file_outlined),
-                    label: Text(
-                      l10n.pick(
-                        vi: 'Tải tệp minh chứng',
-                        en: 'Upload evidence file',
+              const SizedBox(height: 14),
+              if (_validationMessage != null) ...[
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      _validationMessage!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
                       ),
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
               ],
-            ),
-            const SizedBox(height: 10),
-            if (_evidenceUrls.isEmpty)
-              Text(
-                l10n.pick(
-                  vi: 'Chưa có minh chứng nào được tải lên.',
-                  en: 'No uploaded evidence yet.',
+              if (_step == 0) ...[
+                if (widget.awardLevels.isEmpty)
+                  _InlineEmpty(
+                    message: l10n.pick(
+                      vi: 'Hãy tạo mức thưởng trước. Hồ sơ đề cử yêu cầu chọn mức thưởng.',
+                      en: 'Create an award level first. Submissions require an award level.',
+                    ),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    key: const Key('scholarship-submission-award-input'),
+                    initialValue: _selectedAwardLevelId,
+                    items: [
+                      for (final awardLevel in widget.awardLevels)
+                        DropdownMenuItem(
+                          value: awardLevel.id,
+                          child: Text(awardLevel.name),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedAwardLevelId = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Mức thưởng', en: 'Award level'),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('scholarship-submission-student-input'),
+                  controller: _studentNameController,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Tên học sinh',
+                      en: 'Student name',
+                    ),
+                  ),
                 ),
-              )
-            else
-              Column(
-                children: [
-                  for (final entry in _evidenceUrls.indexed)
-                    ListTile(
-                      key: Key('scholarship-evidence-url-${entry.$1}'),
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.description_outlined),
-                      title: Text(
-                        entry.$2,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: IconButton(
-                        tooltip: l10n.pick(vi: 'Xóa', en: 'Remove'),
-                        onPressed: () {
-                          setState(() {
-                            _evidenceUrls.removeAt(entry.$1);
-                          });
-                        },
-                        icon: const Icon(Icons.close),
+              ] else if (_step == 1) ...[
+                TextField(
+                  key: const Key('scholarship-submission-title-input'),
+                  controller: _titleController,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Tiêu đề thành tích',
+                      en: 'Achievement title',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('scholarship-submission-description-input'),
+                  controller: _descriptionController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                  ),
+                ),
+              ] else ...[
+                TextField(
+                  key: const Key('scholarship-evidence-file-input'),
+                  controller: _evidenceFileNameController,
+                  decoration: InputDecoration(
+                    labelText: l10n.pick(
+                      vi: 'Tên tệp minh chứng',
+                      en: 'Evidence file name',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        key: const Key('scholarship-upload-evidence-button'),
+                        onPressed: _isUploading ? null : _uploadEvidence,
+                        icon: _isUploading
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.upload_file_outlined),
+                        label: Text(
+                          l10n.pick(
+                            vi: 'Tải tệp minh chứng',
+                            en: 'Upload evidence file',
+                          ),
+                        ),
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (_evidenceUrls.isEmpty)
+                  Text(
+                    l10n.pick(
+                      vi: 'Chưa có minh chứng nào được tải lên.',
+                      en: 'No uploaded evidence yet.',
+                    ),
+                  )
+                else
+                  Column(
+                    children: [
+                      for (final entry in _evidenceUrls.indexed)
+                        ListTile(
+                          key: Key('scholarship-evidence-url-${entry.$1}'),
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.description_outlined),
+                          title: Text(
+                            entry.$2,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton(
+                            tooltip: l10n.pick(vi: 'Xóa', en: 'Remove'),
+                            onPressed: () {
+                              setState(() {
+                                _evidenceUrls.removeAt(entry.$1);
+                              });
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                        ),
+                    ],
+                  ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : _step == 0
+                          ? () => Navigator.of(context).pop()
+                          : () {
+                              setState(() {
+                                _validationMessage = null;
+                                _step -= 1;
+                              });
+                            },
+                      child: Text(
+                        _step == 0
+                            ? l10n.profileCancelAction
+                            : l10n.pick(vi: 'Quay lại', en: 'Back'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      key: const Key('scholarship-submission-save-button'),
+                      onPressed: primaryDisabled ? null : _submitOrContinue,
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              isFinalStep
+                                  ? l10n.pick(vi: 'Gửi hồ sơ', en: 'Submit')
+                                  : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                            ),
+                    ),
+                  ),
                 ],
               ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(l10n.profileCancelAction),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    key: const Key('scholarship-submission-save-button'),
-                    onPressed: widget.awardLevels.isEmpty ? null : _submit,
-                    child: Text(l10n.pick(vi: 'Gửi hồ sơ', en: 'Submit')),
-                  ),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2593,7 +3563,7 @@ class _ScholarshipClanScopeCard extends StatelessWidget {
                 for (final option in clanContexts)
                   DropdownMenuItem<String>(
                     value: option.clanId,
-                    child: Text(option.clanName),
+                    child: Text(_clanContextDisplayLabel(context, option)),
                   ),
               ],
               onChanged: isSwitching || onSwitch == null
@@ -2703,6 +3673,16 @@ class _InlineEmpty extends StatelessWidget {
   }
 }
 
+class _ScholarshipDisbursementInput {
+  const _ScholarshipDisbursementInput({
+    required this.fundId,
+    required this.note,
+  });
+
+  final String fundId;
+  final String? note;
+}
+
 String _programStatusLabel(BuildContext context, String status) {
   final l10n = context.l10n;
   return switch (status.trim().toLowerCase()) {
@@ -2733,11 +3713,34 @@ String _submissionStatusLabel(BuildContext context, String status) {
   };
 }
 
+String _disbursementStatusLabel(
+  BuildContext context,
+  AchievementSubmission submission,
+) {
+  final l10n = context.l10n;
+  final status = submission.disbursementStatus.trim().toLowerCase();
+  if (status == 'disbursed') {
+    final fundId = submission.disbursedFundId?.trim() ?? '';
+    if (fundId.isNotEmpty) {
+      return l10n.pick(
+        vi: 'Đã chi từ quỹ $fundId',
+        en: 'Disbursed from fund $fundId',
+      );
+    }
+    return l10n.pick(vi: 'Đã chi quỹ', en: 'Disbursed');
+  }
+  if (submission.isApproved) {
+    return l10n.pick(vi: 'Chờ chi quỹ', en: 'Pending disbursement');
+  }
+  return l10n.pick(vi: 'Chưa áp dụng', en: 'Not applicable');
+}
+
 String _approvalActionLabel(BuildContext context, String action) {
   final l10n = context.l10n;
   return switch (action.trim().toLowerCase()) {
     'vote' => l10n.pick(vi: 'Bỏ phiếu', en: 'Vote'),
     'finalized' => l10n.pick(vi: 'Chốt kết quả', en: 'Finalized'),
+    'disbursed' => l10n.pick(vi: 'Chi quỹ', en: 'Disbursed'),
     _ => action.trim().toUpperCase(),
   };
 }
@@ -2747,6 +3750,7 @@ String _approvalDecisionLabel(BuildContext context, String? decision) {
   return switch (decision?.trim().toLowerCase()) {
     'approved' => l10n.pick(vi: 'Duyệt', en: 'Approved'),
     'rejected' => l10n.pick(vi: 'Từ chối', en: 'Rejected'),
+    'disbursed' => l10n.pick(vi: 'Đã chi', en: 'Disbursed'),
     null || '' => l10n.pick(vi: 'không có', en: 'n/a'),
     _ => decision!.toUpperCase(),
   };
@@ -2764,6 +3768,81 @@ String _formatApprovalLogTimestamp(BuildContext context, String value) {
       '${twoDigits(parsed.day)}/${twoDigits(parsed.month)}/${parsed.year} '
       '${twoDigits(parsed.hour)}:${twoDigits(parsed.minute)}';
   return l10n.pick(vi: 'Thời gian: $rendered', en: 'Time: $rendered');
+}
+
+String _formatMinorAmount(int amountMinor) {
+  final negative = amountMinor < 0;
+  final digits = amountMinor.abs().toString();
+  final buffer = StringBuffer();
+  for (var index = 0; index < digits.length; index++) {
+    final offset = digits.length - index;
+    buffer.write(digits[index]);
+    if (offset > 1 && offset % 3 == 1) {
+      buffer.write(',');
+    }
+  }
+  return negative ? '-${buffer.toString()}' : buffer.toString();
+}
+
+String _clanContextDisplayLabel(
+  BuildContext context,
+  ClanContextOption option,
+) {
+  final explicitName = option.clanName.trim();
+  if (explicitName.isNotEmpty && !_looksLikeIdentifier(explicitName)) {
+    return explicitName;
+  }
+
+  final ownerName = (option.ownerDisplayName ?? '').trim();
+  if (ownerName.isNotEmpty) {
+    return context.l10n.pick(
+      vi: 'Gia phả của $ownerName',
+      en: "$ownerName's clan",
+    );
+  }
+
+  final memberName = (option.displayName ?? '').trim();
+  if (memberName.isNotEmpty) {
+    return context.l10n.pick(
+      vi: 'Gia phả của $memberName',
+      en: "$memberName's clan",
+    );
+  }
+
+  final readableClanId = _humanizeIdentifier(option.clanId);
+  return readableClanId.isEmpty ? option.clanId : readableClanId;
+}
+
+bool _looksLikeIdentifier(String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return false;
+  }
+  return RegExp(r'^[a-z0-9]+(?:[_-][a-z0-9]+)*$').hasMatch(normalized);
+}
+
+String _humanizeIdentifier(String value) {
+  final normalized = value.trim();
+  if (normalized.isEmpty) {
+    return '';
+  }
+  final noPrefix = normalized.replaceFirst(
+    RegExp(r'^(clan|gia[_-]?pha)[_-]?', caseSensitive: false),
+    '',
+  );
+  final tokens = (noPrefix.isEmpty ? normalized : noPrefix)
+      .replaceAll(RegExp(r'[_-]+'), ' ')
+      .split(RegExp(r'\s+'))
+      .where((item) => item.trim().isNotEmpty)
+      .map((item) {
+        final text = item.trim();
+        return '${text[0].toUpperCase()}${text.substring(1).toLowerCase()}';
+      })
+      .toList(growable: false);
+  if (tokens.isEmpty) {
+    return '';
+  }
+  return tokens.join(' ');
 }
 
 String? _nullableText(String value) {

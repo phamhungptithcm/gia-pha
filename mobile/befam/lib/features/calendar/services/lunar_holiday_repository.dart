@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
-import '../../../core/services/runtime_mode.dart';
 import '../models/calendar_region.dart';
 import '../models/lunar_holiday.dart';
 
@@ -100,28 +99,6 @@ class FirebaseLunarHolidayRepository implements LunarHolidayRepository {
   }
 }
 
-class DebugLunarHolidayRepository implements LunarHolidayRepository {
-  DebugLunarHolidayRepository();
-
-  final Map<String, List<LunarHoliday>> _cache = {};
-
-  @override
-  Future<List<LunarHoliday>> loadHolidays({
-    required CalendarRegion region,
-  }) async {
-    final cached = _cache[region.code];
-    if (cached != null) {
-      return cached;
-    }
-    final values = FirebaseLunarHolidayRepository()._defaultHolidays(region);
-    _cache[region.code] = values;
-    return values;
-  }
-}
-
 LunarHolidayRepository createDefaultLunarHolidayRepository() {
-  if (RuntimeMode.shouldUseMockBackend) {
-    return DebugLunarHolidayRepository();
-  }
   return FirebaseLunarHolidayRepository();
 }

@@ -7,10 +7,8 @@
   "authLoadingPendingDescription": "BeFam is still checking Firebase readiness on this device.",
   "authFirebaseReadyChip": "Firebase ready",
   "authBootstrapPendingChip": "Bootstrap pending",
-  "authSandboxChip": "Debug auth sandbox",
   "authLiveFirebaseChip": "Live Firebase auth",
   "authHeroTitle": "Authentication is the next BeFam milestone.",
-  "authHeroSandboxDescription": "Local builds use a safe OTP sandbox so we can test phone and child access flows without waiting on real SMS infrastructure. Use OTP 123456 for the demo flow.",
   "authHeroLiveDescription": "This build uses the live Firebase authentication path for phone verification and session restore.",
   "authMethodPhoneTitle": "Continue with phone",
   "authMethodPhoneDescription": "Use your own phone number to request an OTP and restore your BeFam identity.",
@@ -19,10 +17,7 @@
   "authMethodChildDescription": "Start from a child identifier, resolve the linked parent phone, and verify access with OTP.",
   "authMethodChildButton": "Use child identifier",
   "authBootstrapNoteTitle": "Current bootstrap note",
-  "authBootstrapNoteReadySandbox": "Firebase is ready and the debug auth sandbox is active for local UI testing.",
   "authBootstrapNoteReadyLive": "Firebase is ready and the app will attempt live phone authentication.",
-  "authBootstrapNotePending": "Firebase startup still needs attention, so sign-in should stay in the sandbox until cloud setup is stable.",
-  "authPhoneHelperSandbox": "Use the demo number below for quick local testing. BeFam can auto-fill the sandbox OTP on the next step.",
   "authPhoneHelperLive": "Use a Vietnamese local number or full international format. BeFam only uses it for secure sign-in.",
   "authPhoneTitle": "Phone verification",
   "authPhoneDescription": "Enter a phone number in local Vietnamese format or full E.164 format. BeFam will request an OTP from this number.",
@@ -48,13 +43,6 @@
       "maskedDestination": {}
     }
   },
-  "authOtpDebugCode": "Debug sandbox OTP: {hint}",
-  "@authOtpDebugCode": {
-    "placeholders": {
-      "hint": {}
-    }
-  },
-  "authOtpAutofillDemo": "Auto-fill demo code",
   "authOtpChildIdentifier": "Child identifier: {childIdentifier}",
   "@authOtpChildIdentifier": {
     "placeholders": {
@@ -77,7 +65,6 @@
   "authQuickBenefitsDescription": "BeFam keeps sign-in short, guides users step by step, and automatically continues once the OTP is complete.",
   "authQuickBenefitAutoContinue": "6-digit OTP auto-continues",
   "authQuickBenefitMultipleAccess": "Phone or child access supported",
-  "authQuickBenefitSandbox": "Safe local sandbox testing",
   "authQuickBenefitLive": "Live Firebase verification",
   "authBack": "Back",
   "authEntryMethodPhoneSummary": "Phone login",
@@ -243,7 +230,6 @@
   "shellAccessModeUnlinked": "Signed in without member link",
   "shellAccessModeClaimed": "Linked member session",
   "shellAccessModeChild": "Child access session",
-  "shellSessionTypeSandbox": "Debug sandbox session",
   "shellSessionTypeFirebase": "Firebase auth session",
   "shellFieldFirebaseProject": "Firebase project",
   "shellFieldStorageBucket": "Storage bucket",

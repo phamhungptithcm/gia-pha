@@ -1,10 +1,7 @@
-import '../../../core/services/debug_genealogy_store.dart';
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/event_draft.dart';
 import '../models/event_record.dart';
 import '../models/event_workspace_snapshot.dart';
-import 'debug_event_repository.dart';
 import 'firebase_event_repository.dart';
 
 enum EventRepositoryErrorCode {
@@ -40,10 +37,5 @@ abstract interface class EventRepository {
 }
 
 EventRepository createDefaultEventRepository({AuthSession? session}) {
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return DebugEventRepository(store: DebugGenealogyStore.sharedSeeded());
-  }
-
   return FirebaseEventRepository();
 }

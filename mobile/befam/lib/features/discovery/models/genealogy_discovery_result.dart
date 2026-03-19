@@ -8,6 +8,9 @@ class GenealogyDiscoveryResult {
     required this.summary,
     required this.memberCount,
     required this.branchCount,
+    this.hasPendingJoinRequest = false,
+    this.pendingJoinRequestSubmittedAtEpochMs,
+    this.isHiddenWhilePending = false,
   });
 
   final String id;
@@ -18,6 +21,9 @@ class GenealogyDiscoveryResult {
   final String summary;
   final int memberCount;
   final int branchCount;
+  final bool hasPendingJoinRequest;
+  final int? pendingJoinRequestSubmittedAtEpochMs;
+  final bool isHiddenWhilePending;
 
   factory GenealogyDiscoveryResult.fromJson(Map<String, dynamic> json) {
     final id = (json['id'] as String? ?? '').trim();
@@ -34,6 +40,10 @@ class GenealogyDiscoveryResult {
       summary: (json['summary'] as String? ?? '').trim(),
       memberCount: (json['memberCount'] as num?)?.toInt() ?? 0,
       branchCount: (json['branchCount'] as num?)?.toInt() ?? 0,
+      hasPendingJoinRequest: json['hasPendingJoinRequest'] == true,
+      pendingJoinRequestSubmittedAtEpochMs:
+          (json['pendingJoinRequestSubmittedAtEpochMs'] as num?)?.toInt(),
+      isHiddenWhilePending: json['isHiddenWhilePending'] == true,
     );
   }
 }

@@ -3,8 +3,10 @@ import 'package:befam/app/home/app_shell_page.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
-import 'package:befam/features/clan/services/debug_clan_repository.dart';
-import 'package:befam/features/member/services/debug_member_repository.dart';
+import 'package:befam/features/profile/presentation/profile_workspace_page.dart';
+import '../../support/features/clan/services/debug_clan_repository.dart';
+import '../../support/features/member/services/debug_member_repository.dart';
+import '../../support/features/profile/services/debug_profile_notification_preferences_repository.dart';
 import 'package:befam/features/notifications/services/push_notification_service.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -16,42 +18,6 @@ void main() {
     for (var index = 0; index < frames; index += 1) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-  }
-
-  Future<void> openProfileTab(WidgetTester tester) async {
-    final railFinder = find.byType(NavigationRail);
-    if (tester.any(railFinder)) {
-      final profileIcon = find.descendant(
-        of: railFinder,
-        matching: find.byIcon(Icons.person_outline),
-      );
-      if (tester.any(profileIcon)) {
-        await tester.tap(profileIcon.first);
-        return;
-      }
-      final selectedProfileIcon = find.descendant(
-        of: railFinder,
-        matching: find.byIcon(Icons.person),
-      );
-      await tester.tap(selectedProfileIcon.first);
-      return;
-    }
-
-    final navBarFinder = find.byType(NavigationBar);
-    final profileIcon = find.descendant(
-      of: navBarFinder,
-      matching: find.byIcon(Icons.person_outline),
-    );
-    if (tester.any(profileIcon)) {
-      await tester.tap(profileIcon.first);
-      return;
-    }
-
-    final selectedProfileIcon = find.descendant(
-      of: navBarFinder,
-      matching: find.byIcon(Icons.person),
-    );
-    await tester.tap(selectedProfileIcon.first);
   }
 
   AuthSession buildSession() {
@@ -151,24 +117,21 @@ void main() {
     expect(find.text('submission_demo_001'), findsOneWidget);
   });
 
-  testWidgets('renders notification settings toggles on Profile tab', (
+  testWidgets('renders notification settings toggles on profile workspace', (
     tester,
   ) async {
     await tester.pumpWidget(
       _ShellTestApp(
-        child: AppShellPage(
-          status: buildReadyStatus(),
+        child: ProfileWorkspacePage(
           session: buildSession(),
-          clanRepository: DebugClanRepository.seeded(),
           memberRepository: DebugMemberRepository.seeded(),
-          pushNotificationService: _ControllablePushNotificationService(),
+          notificationPreferencesRepository:
+              DebugProfileNotificationPreferencesRepository.shared(),
+          showAppBar: true,
         ),
       ),
     );
-    await pumpUi(tester);
-
-    await openProfileTab(tester);
-    await pumpUi(tester, frames: 36);
+    await pumpUi(tester, frames: 120);
     await tester.tap(find.byTooltip('Open settings'));
     await pumpUi(tester, frames: 36);
 

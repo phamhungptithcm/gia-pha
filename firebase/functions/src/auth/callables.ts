@@ -99,7 +99,6 @@ type ClanRecord = {
   status?: string | null;
   founderName?: string | null;
   ownerUid?: string | null;
-  billingOwnerUid?: string | null;
 };
 
 type DiscoveryIndexRecord = {
@@ -138,21 +137,118 @@ type LookupMemberProfileResponse = {
   } | null;
 };
 
+type MaskedMemberCandidate = {
+  memberId: string;
+  displayNameMasked: string;
+  birthHint: string | null;
+  clanLabel: string | null;
+  roleLabel: string | null;
+  memberStatus: string | null;
+  selectable: boolean;
+  blockedReason: 'member_linked_other_account' | 'member_inactive' | null;
+};
+
+type VerificationQuestionOption = {
+  id: string;
+  label: string;
+};
+
+type VerificationQuestion = {
+  id: string;
+  category: 'personal' | 'clan';
+  prompt: string;
+  options: Array<VerificationQuestionOption>;
+  answerOptionId: string;
+};
+
+type VerificationSessionRecord = {
+  uid: string;
+  memberId: string;
+  phoneE164: string;
+  deviceTokenHash: string;
+  status: 'pending' | 'passed' | 'failed' | 'locked' | 'expired';
+  maxAttempts: number;
+  attemptsUsed: number;
+  questions: Array<{
+    id: string;
+    category: 'personal' | 'clan';
+    prompt: string;
+    options: Array<VerificationQuestionOption>;
+    answerOptionId: string;
+  }>;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+  expiresAt?: Timestamp | null;
+  passedAt?: Timestamp | null;
+  lastScore?: number | null;
+};
+
+type MemberVerificationGuardRecord = {
+  uid?: string | null;
+  memberId?: string | null;
+  failedAttempts?: number | null;
+  windowStartedAt?: Timestamp | null;
+  lockedUntil?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+};
+
+type SupportedLanguageCode = 'vi' | 'en';
+
+type UserSessionProfileRecord = {
+  memberId?: string | null;
+  clanId?: string | null;
+  clanIds?: Array<string> | null;
+  branchId?: string | null;
+  primaryRole?: string | null;
+  accessMode?: string | null;
+  linkedAuthUid?: boolean | null;
+  normalizedPhone?: string | null;
+};
+
+type TrustedDeviceRecord = {
+  uid?: string | null;
+  memberId?: string | null;
+  deviceTokenHash?: string | null;
+  trustStatus?: string | null;
+  expiresAt?: Timestamp | null;
+};
+
 const membersCollection = db.collection('members');
 const branchesCollection = db.collection('branches');
 const clansCollection = db.collection('clans');
 const invitesCollection = db.collection('invites');
 const auditLogsCollection = db.collection('auditLogs');
+const authEventLogsCollection = db.collection('authEventLogs');
 const usersCollection = db.collection('users');
 const genealogyDiscoveryCollection = db.collection('genealogyDiscoveryIndex');
 const authRateLimitsCollection = db.collection('authRateLimits');
+const trustedDevicesCollection = db.collection('trustedDevices');
+const memberVerificationSessionsCollection = db.collection('memberVerificationSessions');
+const memberVerificationGuardsCollection = db.collection('memberVerificationGuards');
 const subscriptionsCollection = db.collection('subscriptions');
 const CHILD_LOOKUP_WINDOW_MS = 5 * 60 * 1000;
 const CHILD_LOOKUP_MAX_REQUESTS = 8;
+const TRUSTED_DEVICE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+const MEMBER_VERIFICATION_SESSION_TTL_MS = 15 * 60 * 1000;
+const MEMBER_VERIFICATION_MAX_ATTEMPTS = 3;
+const MEMBER_VERIFICATION_TOTAL_QUESTIONS = 4;
+const MEMBER_VERIFICATION_REQUIRED_CORRECT = 3;
+const MEMBER_VERIFICATION_LOCK_WINDOW_MS = 30 * 60 * 1000;
+const MEMBER_VERIFICATION_LOCK_DURATION_MS = 30 * 60 * 1000;
 const APP_CHECK_CALLABLE_OPTIONS = {
   region: APP_REGION,
   enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
 } as const;
+const SUPPORTED_PHONE_DIAL_CODES = ['886', '84', '82', '81', '65', '61', '49', '44', '33', '1'];
+
+function personalBillingScopeId(uid: string): string {
+  return `user_scope__${uid.trim()}`;
+}
+
+function ownerBillingSubscriptionDocId(ownerUid: string): string {
+  const scopeId = personalBillingScopeId(ownerUid);
+  return `${scopeId}__${ownerUid.trim()}`;
+}
 
 export const resolveChildLoginContext = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
@@ -221,8 +317,7 @@ export const claimMemberRecord = onCall(APP_CHECK_CALLABLE_OPTIONS, async (reque
   const authPhone = typeof auth.token.phone_number === 'string'
     ? auth.token.phone_number
     : '';
-  const debugPhone = optionalString(auth.token, 'debugPhoneE164')?.trim() ?? '';
-  const effectiveAuthPhone = authPhone.length > 0 ? authPhone : debugPhone;
+  const effectiveAuthPhone = authPhone;
 
   if (loginMethod === 'child') {
     const childIdentifier = optionalString(request.data, 'childIdentifier')
@@ -266,20 +361,6 @@ export const claimMemberRecord = onCall(APP_CHECK_CALLABLE_OPTIONS, async (reque
   });
 
   if (claimedMember == null) {
-    const debugContext = extractDebugMemberSessionContext(auth.token);
-    if (debugContext != null) {
-      await applySessionClaims(auth.uid, debugContext);
-
-      logInfo('claimMemberRecord resolved via debug context', {
-        uid: auth.uid,
-        memberId: debugContext.memberId,
-        clanId: debugContext.clanId,
-        primaryRole: debugContext.primaryRole,
-      });
-
-      return debugContext;
-    }
-
     const context: MemberSessionContext = {
       memberId: null,
       displayName: null,
@@ -334,6 +415,683 @@ export const claimMemberRecord = onCall(APP_CHECK_CALLABLE_OPTIONS, async (reque
   return context;
 });
 
+export const resolvePhoneIdentityAfterOtp = onCall(
+  APP_CHECK_CALLABLE_OPTIONS,
+  async (request) => {
+    const auth = requireAuth(request);
+    const languageCode = resolvePreferredLanguageCode(request.data);
+    const deviceToken = requireNonEmptyString(request.data, 'deviceToken').trim();
+    if (deviceToken.length < 16) {
+      throw new HttpsError('invalid-argument', 'deviceToken is invalid.');
+    }
+    const deviceTokenHash = hashDeviceToken(deviceToken);
+    const authPhone = typeof auth.token.phone_number === 'string'
+      ? auth.token.phone_number
+      : '';
+    const effectiveAuthPhone = authPhone;
+    if (effectiveAuthPhone.length === 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'A verified phone number is required before identity reconciliation.',
+      );
+    }
+    const phoneE164 = normalizePhoneE164(effectiveAuthPhone);
+    const trustedDeviceActive = await isTrustedDeviceActive(auth.uid, deviceTokenHash);
+    let candidatesFromTrustedUnlinked: Array<MaskedMemberCandidate> | null = null;
+    let hasSelectableCandidateFromTrustedUnlinked = false;
+
+    const contexts = await loadLinkedClanContextsForUid(auth.uid);
+    const activeContext = resolveActiveClanContext({
+      contexts,
+      requestedClanId: null,
+      token: auth.token,
+    });
+    if (activeContext != null) {
+      if (!trustedDeviceActive) {
+        const linkedCandidate = await loadMaskedMemberCandidateById(
+          activeContext.memberId,
+          auth.uid,
+          languageCode,
+        );
+        const fallbackCandidates = linkedCandidate == null
+          ? await loadMaskedMemberCandidatesForPhone(phoneE164, auth.uid, languageCode)
+          : [];
+        const candidates = linkedCandidate == null
+          ? fallbackCandidates
+          : [linkedCandidate];
+        const hasSelectableCandidate = candidates.some((candidate) => candidate.selectable);
+        await writeAuthEvent({
+          uid: auth.uid,
+          action: 'phone_identity_step_up_required',
+          phoneE164,
+          memberId: activeContext.memberId,
+          metadata: {
+            candidateCount: candidates.length,
+            trustedDevice: false,
+          },
+        });
+        return {
+          status: hasSelectableCandidate ? 'needs_selection' : 'create_new_only',
+          trustedDevice: false,
+          allowCreateNew: false,
+          phoneE164,
+          context: null,
+          candidates,
+        };
+      }
+
+      const orderedClanIds = [
+        activeContext.clanId,
+        ...contexts
+          .map((context) => context.clanId)
+          .filter((clanId) => clanId != activeContext.clanId),
+      ];
+      const memberContext: MemberSessionContext = {
+        memberId: activeContext.memberId,
+        displayName: activeContext.displayName,
+        clanId: activeContext.clanId,
+        branchId: activeContext.branchId,
+        primaryRole: activeContext.primaryRole,
+        accessMode: 'claimed',
+        linkedAuthUid: true,
+      };
+      await applySessionClaims(auth.uid, memberContext, {
+        clanIds: orderedClanIds,
+      });
+      await upsertUserSessionProfile(auth.uid, memberContext, {
+        clanIds: orderedClanIds,
+        normalizedPhone: phoneE164,
+      });
+      await upsertTrustedDevice({
+        uid: auth.uid,
+        memberId: memberContext.memberId,
+        deviceTokenHash,
+        trustStatus: 'active',
+      });
+      await writeAuthEvent({
+        uid: auth.uid,
+        action: 'phone_identity_resolved_existing_link',
+        phoneE164,
+        memberId: memberContext.memberId,
+        metadata: {
+          activeClanId: memberContext.clanId,
+          clanIds: orderedClanIds,
+        },
+      });
+      return {
+        status: 'resolved',
+        trustedDevice: true,
+        allowCreateNew: false,
+        phoneE164,
+        context: serializeMemberSessionContext(memberContext),
+        candidates: [] as Array<MaskedMemberCandidate>,
+      };
+    }
+
+    if (trustedDeviceActive) {
+      const userProfileSnapshot = await usersCollection.doc(auth.uid).get();
+      if (userProfileSnapshot.exists) {
+        const profile = userProfileSnapshot.data() as UserSessionProfileRecord;
+        const profileMemberId = optionalTrimmedRecordString(profile.memberId);
+        const profileClanId = optionalTrimmedRecordString(profile.clanId);
+        const profilePhone = optionalTrimmedRecordString(profile.normalizedPhone);
+        const profileAccessMode = (profile.accessMode ?? '').trim().toLowerCase();
+        let phoneMatches = true;
+        if (profilePhone != null) {
+          try {
+            phoneMatches = normalizePhoneE164(profilePhone) == phoneE164;
+          } catch {
+            phoneMatches = false;
+          }
+        }
+        if (
+          phoneMatches &&
+          profileMemberId == null &&
+          profileClanId == null &&
+          (profileAccessMode.length == 0 || profileAccessMode == 'unlinked')
+        ) {
+          candidatesFromTrustedUnlinked = await loadMaskedMemberCandidatesForPhone(
+            phoneE164,
+            auth.uid,
+            languageCode,
+          );
+          hasSelectableCandidateFromTrustedUnlinked = candidatesFromTrustedUnlinked
+            .some((candidate) => candidate.selectable);
+          if (hasSelectableCandidateFromTrustedUnlinked) {
+            await writeAuthEvent({
+              uid: auth.uid,
+              action: 'phone_identity_candidates_found_trusted_unlinked',
+              phoneE164,
+              memberId: null,
+              metadata: {
+                candidateCount: candidatesFromTrustedUnlinked.length,
+                trustedDevice: true,
+              },
+            });
+            return {
+              status: 'needs_selection',
+              trustedDevice: true,
+              allowCreateNew: true,
+              phoneE164,
+              context: null,
+              candidates: candidatesFromTrustedUnlinked,
+            };
+          }
+          const context: MemberSessionContext = {
+            memberId: null,
+            displayName: optionalString(auth.token, 'name')?.trim() ?? null,
+            clanId: null,
+            branchId: null,
+            primaryRole: 'GUEST',
+            accessMode: 'unlinked',
+            linkedAuthUid: false,
+          };
+          await applySessionClaims(auth.uid, context, { clanIds: [] });
+          await upsertUserSessionProfile(auth.uid, context, {
+            clanIds: [],
+            normalizedPhone: phoneE164,
+          });
+          await writeAuthEvent({
+            uid: auth.uid,
+            action: 'phone_identity_resolved_trusted_unlinked',
+            phoneE164,
+            memberId: null,
+            metadata: {},
+          });
+          return {
+            status: 'resolved',
+            trustedDevice: true,
+            allowCreateNew: true,
+            phoneE164,
+            context: serializeMemberSessionContext(context),
+            candidates: [] as Array<MaskedMemberCandidate>,
+          };
+        }
+      }
+    }
+
+    const candidates = candidatesFromTrustedUnlinked ??
+      await loadMaskedMemberCandidatesForPhone(
+        phoneE164,
+        auth.uid,
+        languageCode,
+      );
+    const hasSelectableCandidate = candidates.some((candidate) => candidate.selectable);
+    await writeAuthEvent({
+      uid: auth.uid,
+      action: hasSelectableCandidate
+        ? 'phone_identity_candidates_found'
+        : 'phone_identity_candidates_not_selectable',
+      phoneE164,
+      memberId: null,
+      metadata: {
+        candidateCount: candidates.length,
+      },
+    });
+
+    return {
+      status: hasSelectableCandidate ? 'needs_selection' : 'create_new_only',
+      trustedDevice: false,
+      allowCreateNew: true,
+      phoneE164,
+      context: null,
+      candidates,
+    };
+  },
+);
+
+export const createUnlinkedPhoneIdentity = onCall(
+  APP_CHECK_CALLABLE_OPTIONS,
+  async (request) => {
+    const auth = requireAuth(request);
+    const deviceToken = requireNonEmptyString(request.data, 'deviceToken').trim();
+    if (deviceToken.length < 16) {
+      throw new HttpsError('invalid-argument', 'deviceToken is invalid.');
+    }
+    const deviceTokenHash = hashDeviceToken(deviceToken);
+    const authPhone = typeof auth.token.phone_number === 'string'
+      ? auth.token.phone_number
+      : '';
+    const effectiveAuthPhone = authPhone;
+    if (effectiveAuthPhone.length === 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'A verified phone number is required before creating an unlinked profile.',
+      );
+    }
+    const linkedContexts = await loadLinkedClanContextsForUid(auth.uid);
+    if (linkedContexts.length > 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This account is already linked to a member profile and cannot switch to create-new mode.',
+        { reason: 'member_already_linked' },
+      );
+    }
+    const phoneE164 = normalizePhoneE164(effectiveAuthPhone);
+    const context: MemberSessionContext = {
+      memberId: null,
+      displayName: optionalString(auth.token, 'name')?.trim() ?? null,
+      clanId: null,
+      branchId: null,
+      primaryRole: 'GUEST',
+      accessMode: 'unlinked',
+      linkedAuthUid: false,
+    };
+    await applySessionClaims(auth.uid, context, { clanIds: [] });
+    await upsertUserSessionProfile(auth.uid, context, {
+      clanIds: [],
+      normalizedPhone: phoneE164,
+    });
+    await upsertTrustedDevice({
+      uid: auth.uid,
+      memberId: null,
+      deviceTokenHash,
+      trustStatus: 'active',
+    });
+    await writeAuthEvent({
+      uid: auth.uid,
+      action: 'phone_identity_create_new_confirmed',
+      phoneE164,
+      memberId: null,
+      metadata: {},
+    });
+    return {
+      status: 'resolved',
+      trustedDevice: true,
+      phoneE164,
+      context: serializeMemberSessionContext(context),
+    };
+  },
+);
+
+export const startMemberIdentityVerification = onCall(
+  APP_CHECK_CALLABLE_OPTIONS,
+  async (request) => {
+    const auth = requireAuth(request);
+    const languageCode = resolvePreferredLanguageCode(request.data);
+    const memberId = requireNonEmptyString(request.data, 'memberId').trim();
+    const deviceToken = requireNonEmptyString(request.data, 'deviceToken').trim();
+    if (deviceToken.length < 16) {
+      throw new HttpsError('invalid-argument', 'deviceToken is invalid.');
+    }
+    const deviceTokenHash = hashDeviceToken(deviceToken);
+    const authPhone = typeof auth.token.phone_number === 'string'
+      ? auth.token.phone_number
+      : '';
+    const effectiveAuthPhone = authPhone;
+    if (effectiveAuthPhone.length === 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'A verified phone number is required before verification can start.',
+      );
+    }
+    const phoneE164 = normalizePhoneE164(effectiveAuthPhone);
+    const verificationGuard = await readMemberVerificationGuard(auth.uid, memberId);
+    if (verificationGuard.locked) {
+      await writeAuthEvent({
+        uid: auth.uid,
+        action: 'member_identity_verification_locked',
+        phoneE164,
+        memberId,
+        metadata: {
+          lockReason: 'window_attempts',
+        },
+      });
+      throw new HttpsError(
+        'failed-precondition',
+        'Verification is temporarily locked. Please wait and try again.',
+        { reason: 'member_verification_locked' },
+      );
+    }
+    const attemptsUsedFromWindow = Math.max(
+      MEMBER_VERIFICATION_MAX_ATTEMPTS - verificationGuard.remainingAttempts,
+      0,
+    );
+    const existingLinks = await membersCollection
+      .where('authUid', '==', auth.uid)
+      .limit(5)
+      .get();
+    if (
+      existingLinks.docs.some((doc) => doc.id != memberId)
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This account is already linked to another member profile.',
+        { reason: 'member_already_linked' },
+      );
+    }
+
+    const memberSnapshot = await membersCollection.doc(memberId).get();
+    if (!memberSnapshot.exists) {
+      throw new HttpsError('not-found', 'The selected member profile no longer exists.');
+    }
+    const memberData = memberSnapshot.data() as MemberRecord;
+    if (isMemberInactiveStatus(memberData.status)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'The selected member profile is inactive and cannot be linked automatically.',
+        { reason: 'member_inactive' },
+      );
+    }
+    const currentAuthUid = optionalTrimmedRecordString(memberData.authUid);
+    if (currentAuthUid != null && currentAuthUid != auth.uid) {
+      throw new HttpsError(
+        'already-exists',
+        'This member profile is already linked to another account.',
+        { reason: 'member_already_linked' },
+      );
+    }
+
+    const memberPhone = optionalTrimmedRecordString(memberData.phoneE164);
+    if (memberPhone != null) {
+      const normalizedMemberPhone = normalizePhoneE164(memberPhone);
+      if (normalizedMemberPhone != phoneE164 && currentAuthUid != auth.uid) {
+        throw new HttpsError(
+          'failed-precondition',
+          'The verified phone number does not match the selected member profile.',
+          { reason: 'parent_verification_mismatch' },
+        );
+      }
+    }
+
+    const questions = await buildMemberVerificationQuestions({
+      memberId,
+      memberData,
+      phoneE164,
+      languageCode,
+    });
+    if (questions.length < 3) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Verification data is not sufficient for automatic linking.',
+        { reason: 'member_verification_data_unavailable' },
+      );
+    }
+
+    const sessionRef = memberVerificationSessionsCollection.doc();
+    await sessionRef.set({
+      uid: auth.uid,
+      memberId,
+      phoneE164,
+      deviceTokenHash,
+      status: 'pending',
+      maxAttempts: MEMBER_VERIFICATION_MAX_ATTEMPTS,
+      attemptsUsed: attemptsUsedFromWindow,
+      questions: questions.map((question) => ({
+        id: question.id,
+        category: question.category,
+        prompt: question.prompt,
+        options: question.options,
+        answerOptionId: question.answerOptionId,
+      })),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(Date.now() + MEMBER_VERIFICATION_SESSION_TTL_MS),
+    }, { merge: true });
+
+    await writeAuthEvent({
+      uid: auth.uid,
+      action: 'member_identity_verification_started',
+      phoneE164,
+      memberId,
+      metadata: {
+        verificationSessionId: sessionRef.id,
+        questionCount: questions.length,
+      },
+    });
+
+    return {
+      verificationSessionId: sessionRef.id,
+      memberId,
+      maxAttempts: MEMBER_VERIFICATION_MAX_ATTEMPTS,
+      remainingAttempts: verificationGuard.remainingAttempts,
+      questionCount: questions.length,
+      questions: questions.map((question) => ({
+        id: question.id,
+        category: question.category,
+        prompt: question.prompt,
+        options: question.options,
+      })),
+    };
+  },
+);
+
+export const submitMemberIdentityVerification = onCall(
+  APP_CHECK_CALLABLE_OPTIONS,
+  async (request) => {
+    const auth = requireAuth(request);
+    const verificationSessionId = requireNonEmptyString(
+      request.data,
+      'verificationSessionId',
+    ).trim();
+    const answers = requireStringMap(request.data, 'answers');
+    const sessionRef = memberVerificationSessionsCollection.doc(verificationSessionId);
+    const snapshot = await sessionRef.get();
+    if (!snapshot.exists) {
+      throw new HttpsError('not-found', 'Verification session was not found.');
+    }
+
+    const session = snapshot.data() as VerificationSessionRecord;
+    if (session.uid != auth.uid) {
+      throw new HttpsError(
+        'permission-denied',
+        'This verification session belongs to another account.',
+        { reason: 'member_verification_forbidden' },
+      );
+    }
+    const expiresAtMs = session.expiresAt?.toMillis() ?? 0;
+    if (expiresAtMs > 0 && expiresAtMs < Date.now()) {
+      await sessionRef.set({
+        status: 'expired',
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      throw new HttpsError(
+        'failed-precondition',
+        'Verification session has expired. Please start again.',
+        { reason: 'member_verification_expired' },
+      );
+    }
+    if (
+      session.status !== 'pending' &&
+      session.status !== 'failed'
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Verification session is no longer active.',
+        { reason: 'member_verification_locked' },
+      );
+    }
+    const verificationGuard = await readMemberVerificationGuard(
+      auth.uid,
+      session.memberId,
+    );
+    if (verificationGuard.locked) {
+      await sessionRef.set({
+        status: 'locked',
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      await writeAuthEvent({
+        uid: auth.uid,
+        action: 'member_identity_verification_locked',
+        phoneE164: session.phoneE164,
+        memberId: session.memberId,
+        metadata: {
+          verificationSessionId,
+          lockReason: 'window_attempts',
+        },
+      });
+      throw new HttpsError(
+        'failed-precondition',
+        'Verification is temporarily locked. Please wait and try again.',
+        { reason: 'member_verification_locked' },
+      );
+    }
+
+    const questions = session.questions ?? [];
+    if (questions.length < 3) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Verification session is invalid. Please start again.',
+        { reason: 'member_verification_data_unavailable' },
+      );
+    }
+    const totalQuestions = questions.length;
+    let correctAnswers = 0;
+    let clanQuestionCount = 0;
+    let clanCorrectAnswers = 0;
+    for (const question of questions) {
+      const provided = answers[question.id]?.trim() ?? '';
+      const expected = question.answerOptionId.trim();
+      const isCorrect = provided.length > 0 && provided == expected;
+      if (isCorrect) {
+        correctAnswers += 1;
+      }
+      if (question.category == 'clan') {
+        clanQuestionCount += 1;
+        if (isCorrect) {
+          clanCorrectAnswers += 1;
+        }
+      }
+    }
+
+    const requiredCorrect = totalQuestions >= 4
+      ? MEMBER_VERIFICATION_REQUIRED_CORRECT
+      : totalQuestions;
+    const passed = correctAnswers >= requiredCorrect &&
+      (clanQuestionCount == 0 || clanCorrectAnswers >= 1);
+
+    if (!passed) {
+      const attemptsUsed = (session.attemptsUsed ?? 0) + 1;
+      const maxAttempts = session.maxAttempts ?? MEMBER_VERIFICATION_MAX_ATTEMPTS;
+      const guardState = await registerMemberVerificationFailure({
+        uid: auth.uid,
+        memberId: session.memberId,
+      });
+      const lockedBySession = attemptsUsed >= maxAttempts;
+      const locked = lockedBySession || guardState.locked;
+      await sessionRef.set({
+        attemptsUsed,
+        status: locked ? 'locked' : 'pending',
+        lastScore: correctAnswers,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      await writeAuthEvent({
+        uid: auth.uid,
+        action: locked
+          ? 'member_identity_verification_locked'
+          : 'member_identity_verification_failed',
+        phoneE164: session.phoneE164,
+        memberId: session.memberId,
+        metadata: {
+          verificationSessionId,
+          attemptsUsed,
+          maxAttempts,
+          score: correctAnswers,
+          questionCount: totalQuestions,
+          lockReason: lockedBySession
+            ? 'session_attempts'
+            : guardState.locked
+              ? 'window_attempts'
+              : null,
+        },
+      });
+
+      return {
+        passed: false,
+        locked,
+        remainingAttempts: locked
+          ? 0
+          : Math.max(
+              Math.min(maxAttempts - attemptsUsed, guardState.remainingAttempts),
+              0,
+            ),
+        score: correctAnswers,
+        requiredCorrect,
+      };
+    }
+
+    const memberRef = membersCollection.doc(session.memberId);
+    const inviteRefs = await loadMatchingPhoneInviteRefs(
+      session.phoneE164,
+      session.memberId,
+    );
+    const didLinkAuthUid = await claimMemberTransaction({
+      uid: auth.uid,
+      memberRef,
+      inviteRefs,
+    });
+    const memberSnapshot = await memberRef.get();
+    if (!memberSnapshot.exists) {
+      throw new HttpsError('not-found', 'The selected member profile no longer exists.');
+    }
+    const memberData = memberSnapshot.data() as MemberRecord;
+    const context = buildMemberSessionContext(
+      memberSnapshot.id,
+      memberData,
+      'claimed',
+      true,
+    );
+    await applySessionClaims(auth.uid, context);
+    await upsertUserSessionProfile(auth.uid, context, {
+      clanIds: context.clanId == null ? [] : [context.clanId],
+      normalizedPhone: session.phoneE164,
+    });
+    await upsertTrustedDevice({
+      uid: auth.uid,
+      memberId: context.memberId,
+      deviceTokenHash: session.deviceTokenHash,
+      trustStatus: 'active',
+    });
+    await clearMemberVerificationGuard({
+      uid: auth.uid,
+      memberId: session.memberId,
+    });
+    await sessionRef.set({
+      status: 'passed',
+      passedAt: FieldValue.serverTimestamp(),
+      attemptsUsed: session.attemptsUsed ?? 0,
+      lastScore: correctAnswers,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    await writeAuditLog({
+      uid: auth.uid,
+      memberId: context.memberId,
+      clanId: context.clanId,
+      action: didLinkAuthUid ? 'member_claimed_verified' : 'member_session_refreshed',
+      entityType: 'member',
+      entityId: context.memberId ?? memberSnapshot.id,
+      after: {
+        accessMode: context.accessMode,
+        linkedAuthUid: context.linkedAuthUid,
+        verificationSessionId,
+      },
+    });
+    await writeAuthEvent({
+      uid: auth.uid,
+      action: 'member_identity_verification_passed',
+      phoneE164: session.phoneE164,
+      memberId: session.memberId,
+      metadata: {
+        verificationSessionId,
+        score: correctAnswers,
+        questionCount: totalQuestions,
+      },
+    });
+
+    return {
+      passed: true,
+      locked: false,
+      remainingAttempts:
+        (session.maxAttempts ?? MEMBER_VERIFICATION_MAX_ATTEMPTS) -
+        (session.attemptsUsed ?? 0),
+      score: correctAnswers,
+      requiredCorrect,
+      context: serializeMemberSessionContext(context),
+    };
+  },
+);
+
 export const lookupMemberProfileByPhone = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
   async (request): Promise<LookupMemberProfileResponse> => {
@@ -348,16 +1106,13 @@ export const lookupMemberProfileByPhone = onCall(
 
     const phoneInput = requireNonEmptyString(request.data, 'phoneE164');
     const phoneE164 = normalizePhoneE164(phoneInput);
-    const snapshot = await membersCollection
-      .where('phoneE164', '==', phoneE164)
-      .limit(10)
-      .get();
+    const memberSnapshots = await loadPhoneMemberSnapshots(phoneE164);
 
-    if (snapshot.empty) {
+    if (memberSnapshots.length === 0) {
       return { found: false, profile: null };
     }
 
-    const candidate = [...snapshot.docs]
+    const candidate = memberSnapshots
       .map((doc) => ({ id: doc.id, data: doc.data() as MemberRecord }))
       .sort((left, right) => {
         const byScore = memberLookupScore(right.data) - memberLookupScore(left.data);
@@ -415,9 +1170,7 @@ export const bootstrapClanWorkspace = onCall(
     const activeMemberIdFromToken = optionalString(auth.token, 'memberId')?.trim() ?? null;
     const activeBranchIdFromToken = optionalString(auth.token, 'branchId')?.trim() ?? null;
     const activeRoleFromToken = normalizeRoleClaim(optionalString(auth.token, 'primaryRole'));
-    const activeDisplayNameFromToken = optionalString(auth.token, 'name')?.trim() ??
-      optionalString(auth.token, 'debugDisplayName')?.trim() ??
-      null;
+    const activeDisplayNameFromToken = optionalString(auth.token, 'name')?.trim() ?? null;
     const keepExistingActiveContext = allowExistingClan &&
       tokenClanIds.length > 0 &&
       activeClanIdFromToken != null &&
@@ -546,7 +1299,6 @@ export const bootstrapClanWorkspace = onCall(
         memberCount: 1,
         branchCount: 1,
         ownerUid: auth.uid,
-        billingOwnerUid: auth.uid,
         createdAt: now,
         createdBy: auth.uid,
         updatedAt: now,
@@ -891,16 +1643,29 @@ function requireNonEmptyString(data: unknown, key: string): string {
 function normalizePhoneE164(input: string): string {
   const trimmed = input.trim();
   const digitsAndPlus = trimmed.replace(/[^0-9+]/g, '');
+  if (digitsAndPlus.length === 0) {
+    throw new HttpsError('invalid-argument', 'phoneE164 has invalid format.');
+  }
+  const digitsOnly = digitsAndPlus.replace(/[^0-9]/g, '');
   let normalized = '';
 
   if (digitsAndPlus.startsWith('+')) {
     normalized = `+${digitsAndPlus.slice(1).replace(/[^0-9]/g, '')}`;
   } else if (digitsAndPlus.startsWith('00')) {
-    normalized = `+${digitsAndPlus.slice(2)}`;
-  } else if (digitsAndPlus.startsWith('0')) {
-    normalized = `+84${digitsAndPlus.slice(1)}`;
+    normalized = `+${digitsAndPlus.slice(2).replace(/[^0-9]/g, '')}`;
+  } else if (digitsOnly.startsWith('0')) {
+    normalized = `+84${digitsOnly.slice(1)}`;
+  } else if (looksLikeInternationalPhoneDigits(digitsOnly, '84')) {
+    normalized = `+${digitsOnly}`;
   } else {
-    normalized = `+${digitsAndPlus}`;
+    normalized = `+84${digitsOnly}`;
+  }
+
+  if (normalized.startsWith('+840')) {
+    normalized = `+84${normalized.slice(4)}`;
+  }
+  if (normalized.startsWith('+84') && normalized.length > 3 && normalized[3] === '0') {
+    normalized = `+84${normalized.slice(4)}`;
   }
 
   if (!/^\+[1-9]\d{8,14}$/.test(normalized)) {
@@ -908,6 +1673,48 @@ function normalizePhoneE164(input: string): string {
   }
 
   return normalized;
+}
+
+function looksLikeInternationalPhoneDigits(
+  digits: string,
+  fallbackDialCode: string,
+): boolean {
+  if (digits.length === 0) {
+    return false;
+  }
+  if (digits.startsWith(fallbackDialCode) && digits.length > fallbackDialCode.length + 6) {
+    return true;
+  }
+  const matchedDialCode = findPhoneDialCodePrefix(digits);
+  if (matchedDialCode == null) {
+    return false;
+  }
+  return digits.length > matchedDialCode.length + 6;
+}
+
+function findPhoneDialCodePrefix(digits: string): string | null {
+  for (const dialCode of SUPPORTED_PHONE_DIAL_CODES) {
+    if (digits.startsWith(dialCode) && digits.length > dialCode.length) {
+      return dialCode;
+    }
+  }
+  return null;
+}
+
+function splitPhoneCountryAndNational(phoneE164: string): {
+  dialCode: string;
+  nationalDigits: string;
+} | null {
+  const digits = phoneE164.startsWith('+') ? phoneE164.slice(1) : phoneE164;
+  const dialCode = findPhoneDialCodePrefix(digits);
+  if (dialCode == null) {
+    return null;
+  }
+  const nationalDigits = digits.slice(dialCode.length);
+  if (nationalDigits.length === 0) {
+    return null;
+  }
+  return { dialCode, nationalDigits };
 }
 
 function optionalTrimmedRecordString(value: unknown): string | null {
@@ -984,50 +1791,6 @@ function resolveMemberDisplayName(member: MemberRecord): string | null {
     return nickName;
   }
   return null;
-}
-
-function extractDebugMemberSessionContext(token: unknown): MemberSessionContext | null {
-  if (token == null || typeof token !== 'object') {
-    return null;
-  }
-  const claims = token as Record<string, unknown>;
-  if (claims.debugProfile !== true) {
-    return null;
-  }
-
-  const memberId = asNullableTrimmedString(claims.debugMemberId);
-  const displayName = asNullableTrimmedString(claims.debugDisplayName);
-  const clanId = asNullableTrimmedString(claims.debugClanId);
-  const branchId = asNullableTrimmedString(claims.debugBranchId);
-  const primaryRole = asNullableTrimmedString(claims.debugPrimaryRole);
-  const linkedAuthUid = claims.debugLinkedAuthUid === true;
-
-  const rawAccessMode = asTrimmedString(claims.debugAccessMode).toLowerCase();
-  const accessMode: MemberAccessMode = rawAccessMode === 'claimed'
-    ? 'claimed'
-    : rawAccessMode === 'child'
-      ? 'child'
-      : 'unlinked';
-
-  if (
-    memberId == null &&
-    displayName == null &&
-    clanId == null &&
-    branchId == null &&
-    primaryRole == null
-  ) {
-    return null;
-  }
-
-  return {
-    memberId,
-    displayName,
-    clanId,
-    branchId,
-    primaryRole,
-    accessMode,
-    linkedAuthUid,
-  };
 }
 
 function normalizeRoleClaim(value: unknown): string {
@@ -1261,6 +2024,36 @@ function hashValueForLog(value: string): string {
   return createHash('sha256').update(value).digest('hex').slice(0, 16);
 }
 
+function hashDeviceToken(deviceToken: string): string {
+  return createHash('sha256').update(deviceToken).digest('hex');
+}
+
+function requireStringMap(
+  data: unknown,
+  key: string,
+): Record<string, string> {
+  if (data == null || typeof data !== 'object') {
+    throw new HttpsError('invalid-argument', `${key} must be an object.`);
+  }
+  const value = (data as Record<string, unknown>)[key];
+  if (value == null || typeof value !== 'object') {
+    throw new HttpsError('invalid-argument', `${key} must be an object.`);
+  }
+  const output: Record<string, string> = {};
+  for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof entryValue !== 'string') {
+      continue;
+    }
+    const normalizedKey = entryKey.trim();
+    const normalizedValue = entryValue.trim();
+    if (normalizedKey.length == 0 || normalizedValue.length == 0) {
+      continue;
+    }
+    output[normalizedKey] = normalizedValue;
+  }
+  return output;
+}
+
 function extractPayloadKeys(data: unknown): Array<string> {
   if (data == null || typeof data !== 'object') {
     return [];
@@ -1472,6 +2265,53 @@ function buildResolvedChildContext(
   };
 }
 
+function buildPhoneLookupVariants(phoneE164: string): Array<string> {
+  const normalized = normalizePhoneE164(phoneE164);
+  const variants = new Set<string>([normalized]);
+  const digitsOnly = normalized.startsWith('+') ? normalized.slice(1) : normalized;
+  variants.add(digitsOnly);
+  const split = splitPhoneCountryAndNational(normalized);
+  if (split != null) {
+    variants.add(split.nationalDigits);
+    if (!split.nationalDigits.startsWith('0')) {
+      variants.add(`0${split.nationalDigits}`);
+    }
+    variants.add(`${split.dialCode}${split.nationalDigits}`);
+    variants.add(`+${split.dialCode}${split.nationalDigits}`);
+  }
+  return [...variants].filter((entry) => entry.trim().length > 0);
+}
+
+async function loadPhoneMemberSnapshots(phoneE164: string): Promise<Array<DocumentSnapshot>> {
+  const variants = buildPhoneLookupVariants(phoneE164);
+  const byId = new Map<string, DocumentSnapshot>();
+  for (const variant of variants) {
+    const snapshot = await membersCollection
+      .where('phoneE164', '==', variant)
+      .limit(10)
+      .get();
+    for (const doc of snapshot.docs) {
+      byId.set(doc.id, doc);
+    }
+  }
+  return [...byId.values()];
+}
+
+async function loadPhoneInviteSnapshots(phoneE164: string): Promise<Array<DocumentSnapshot>> {
+  const variants = buildPhoneLookupVariants(phoneE164);
+  const byId = new Map<string, DocumentSnapshot>();
+  for (const variant of variants) {
+    const snapshot = await invitesCollection
+      .where('phoneE164', '==', variant)
+      .limit(20)
+      .get();
+    for (const doc of snapshot.docs) {
+      byId.set(doc.id, doc);
+    }
+  }
+  return [...byId.values()];
+}
+
 async function resolvePhoneClaimMember({
   uid,
   authPhone,
@@ -1491,6 +2331,7 @@ async function resolvePhoneClaimMember({
       'A verified phone number is required before a member record can be claimed.',
     );
   }
+  const normalizedAuthPhone = normalizePhoneE164(authPhone);
 
   if (explicitMemberId != null && explicitMemberId.length > 0) {
     const explicitSnapshot = await membersCollection.doc(explicitMemberId).get();
@@ -1499,22 +2340,25 @@ async function resolvePhoneClaimMember({
     }
 
     const member = explicitSnapshot.data() as MemberRecord;
-    if (member.phoneE164 != null && member.phoneE164.length > 0 && member.phoneE164 !== authPhone) {
-      throw new HttpsError(
-        'failed-precondition',
-        'The verified phone number does not match the selected member profile.',
-      );
+    if (member.phoneE164 != null && member.phoneE164.length > 0) {
+      const memberPhone = normalizePhoneE164(member.phoneE164);
+      if (memberPhone != normalizedAuthPhone) {
+        throw new HttpsError(
+          'failed-precondition',
+          'The verified phone number does not match the selected member profile.',
+        );
+      }
     }
 
     return {
       memberId: explicitSnapshot.id,
       memberData: member,
-      phoneE164: authPhone,
+      phoneE164: normalizedAuthPhone,
     };
   }
 
-  const inviteSnapshot = await invitesCollection.where('phoneE164', '==', authPhone).limit(5).get();
-  const phoneInvite = inviteSnapshot.docs.find((doc) => {
+  const inviteSnapshots = await loadPhoneInviteSnapshots(normalizedAuthPhone);
+  const phoneInvite = inviteSnapshots.find((doc) => {
     const invite = doc.data() as InviteRecord;
     return inviteIsActive(invite) && invite.inviteType === 'phone_claim' && typeof invite.memberId === 'string' && invite.memberId.trim().length > 0;
   });
@@ -1525,32 +2369,32 @@ async function resolvePhoneClaimMember({
       return {
         memberId: memberSnapshot.id,
         memberData: memberSnapshot.data() as MemberRecord,
-        phoneE164: authPhone,
+        phoneE164: normalizedAuthPhone,
       };
     }
   }
 
-  const memberSnapshot = await membersCollection.where('phoneE164', '==', authPhone).limit(3).get();
-  if (memberSnapshot.docs.length === 0) {
+  const memberDocs = await loadPhoneMemberSnapshots(normalizedAuthPhone);
+  if (memberDocs.length === 0) {
     return null;
   }
 
-  if (memberSnapshot.docs.length === 1) {
+  if (memberDocs.length === 1) {
     return {
-      memberId: memberSnapshot.docs[0].id,
-      memberData: memberSnapshot.docs[0].data() as MemberRecord,
-      phoneE164: authPhone,
+      memberId: memberDocs[0].id,
+      memberData: memberDocs[0].data() as MemberRecord,
+      phoneE164: normalizedAuthPhone,
     };
   }
 
-  const currentLink = memberSnapshot.docs.find(
+  const currentLink = memberDocs.find(
     (doc) => (doc.data() as MemberRecord).authUid === uid,
   );
   if (currentLink != null) {
     return {
       memberId: currentLink.id,
       memberData: currentLink.data() as MemberRecord,
-      phoneE164: authPhone,
+      phoneE164: normalizedAuthPhone,
     };
   }
 
@@ -1564,13 +2408,614 @@ async function loadMatchingPhoneInviteRefs(
   phoneE164: string,
   memberId: string,
 ): Promise<Array<DocumentReference>> {
-  const snapshot = await invitesCollection.where('phoneE164', '==', phoneE164).limit(10).get();
-  return snapshot.docs
+  const snapshots = await loadPhoneInviteSnapshots(phoneE164);
+  return snapshots
     .filter((doc) => {
       const invite = doc.data() as InviteRecord;
       return inviteIsActive(invite) && invite.memberId === memberId;
     })
     .map((doc) => doc.ref);
+}
+
+async function loadMaskedMemberCandidatesForPhone(
+  phoneE164: string,
+  uid: string,
+  languageCode: SupportedLanguageCode,
+): Promise<Array<MaskedMemberCandidate>> {
+  const memberDocs = await loadPhoneMemberSnapshots(phoneE164);
+  if (memberDocs.length === 0) {
+    return [];
+  }
+
+  const clanIds = [...new Set(
+    memberDocs
+      .map((doc) => optionalTrimmedRecordString((doc.data() as MemberRecord).clanId))
+      .filter((entry): entry is string => entry != null),
+  )];
+  const clanNameById = new Map<string, string>();
+  if (clanIds.length > 0) {
+    const clanSnapshots = await Promise.all(
+      clanIds.map((clanId) => clansCollection.doc(clanId).get()),
+    );
+    for (const clanSnapshot of clanSnapshots) {
+      if (!clanSnapshot.exists) {
+        continue;
+      }
+      const clanData = clanSnapshot.data() as ClanRecord | undefined;
+      clanNameById.set(
+        clanSnapshot.id,
+        asNullableTrimmedString(clanData?.name) ?? clanSnapshot.id,
+      );
+    }
+  }
+
+  return memberDocs
+    .map((doc) => buildMaskedMemberCandidate({
+      memberId: doc.id,
+      member: doc.data() as MemberRecord,
+      uid,
+      clanNameById,
+      languageCode,
+    }))
+    .sort((left, right) => left.memberId.localeCompare(right.memberId));
+}
+
+async function loadMaskedMemberCandidateById(
+  memberId: string,
+  uid: string,
+  languageCode: SupportedLanguageCode,
+): Promise<MaskedMemberCandidate | null> {
+  const snapshot = await membersCollection.doc(memberId).get();
+  if (!snapshot.exists) {
+    return null;
+  }
+  const member = snapshot.data() as MemberRecord;
+  const clanId = optionalTrimmedRecordString(member.clanId);
+  const clanNameById = new Map<string, string>();
+  if (clanId != null) {
+    const clanSnapshot = await clansCollection.doc(clanId).get();
+    if (clanSnapshot.exists) {
+      const clanData = clanSnapshot.data() as ClanRecord | undefined;
+      clanNameById.set(
+        clanId,
+        asNullableTrimmedString(clanData?.name) ?? clanId,
+      );
+    }
+  }
+  return buildMaskedMemberCandidate({
+    memberId,
+    member,
+    uid,
+    clanNameById,
+    languageCode,
+  });
+}
+
+function buildMaskedMemberCandidate(input: {
+  memberId: string;
+  member: MemberRecord;
+  uid: string;
+  clanNameById: Map<string, string>;
+  languageCode: SupportedLanguageCode;
+}): MaskedMemberCandidate {
+  const memberStatus = asNullableTrimmedString(input.member.status)?.toLowerCase() ?? null;
+  const linkedAuthUid = optionalTrimmedRecordString(input.member.authUid);
+  const blockedReason = linkedAuthUid != null && linkedAuthUid !== input.uid
+    ? 'member_linked_other_account'
+    : isMemberInactiveStatus(memberStatus)
+      ? 'member_inactive'
+      : null;
+  const clanId = optionalTrimmedRecordString(input.member.clanId);
+  const clanLabel = clanId == null ? null : input.clanNameById.get(clanId) ?? clanId;
+  return {
+    memberId: input.memberId,
+    displayNameMasked: maskMemberDisplayName(
+      resolveMemberDisplayName(input.member) ?? memberFallbackDisplayName(input.languageCode),
+    ),
+    birthHint: buildMaskedBirthHint(input.member.birthDate ?? null),
+    clanLabel: clanLabel == null ? null : maskClanLabel(clanLabel),
+    roleLabel: roleLabelFromClaim(
+      normalizeRoleClaim(input.member.primaryRole),
+      input.languageCode,
+    ),
+    memberStatus,
+    selectable: blockedReason == null,
+    blockedReason,
+  } satisfies MaskedMemberCandidate;
+}
+
+function isMemberInactiveStatus(status: string | null | undefined): boolean {
+  const normalized = (status ?? '').trim().toLowerCase();
+  return normalized == 'inactive' ||
+    normalized == 'deactivated' ||
+    normalized == 'archived' ||
+    normalized == 'deleted';
+}
+
+function maskMemberDisplayName(name: string): string {
+  const normalized = name.trim();
+  if (normalized.length == 0) {
+    return '***';
+  }
+  return normalized
+    .split(/\s+/)
+    .filter((part) => part.length > 0)
+    .map((part) => {
+      if (part.length <= 1) {
+        return '*';
+      }
+      return `${part[0]}${'*'.repeat(Math.max(part.length - 1, 1))}`;
+    })
+    .join(' ');
+}
+
+function maskClanLabel(clanLabel: string): string {
+  return maskMemberDisplayName(clanLabel);
+}
+
+function memberFallbackDisplayName(languageCode: SupportedLanguageCode): string {
+  return languageCode == 'en' ? 'BeFam member' : 'Thành viên BeFam';
+}
+
+function buildMaskedBirthHint(birthDate: string | null): string | null {
+  const normalized = (birthDate ?? '').trim();
+  if (normalized.length == 0) {
+    return null;
+  }
+
+  const yyyyMmDd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  if (yyyyMmDd != null) {
+    return `${yyyyMmDd[2]}/${yyyyMmDd[1]}`;
+  }
+  const ddMmYyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(normalized);
+  if (ddMmYyyy != null) {
+    return `${ddMmYyyy[2]}/${ddMmYyyy[3]}`;
+  }
+  const yyyyOnly = /^(\d{4})$/.exec(normalized);
+  if (yyyyOnly != null) {
+    return yyyyOnly[1];
+  }
+  return normalized.length >= 4 ? normalized.substring(normalized.length - 4) : null;
+}
+
+function serializeMemberSessionContext(context: MemberSessionContext) {
+  return {
+    memberId: context.memberId,
+    displayName: context.displayName,
+    clanId: context.clanId,
+    branchId: context.branchId,
+    primaryRole: context.primaryRole,
+    accessMode: context.accessMode,
+    linkedAuthUid: context.linkedAuthUid,
+  };
+}
+
+async function upsertUserSessionProfile(
+  uid: string,
+  context: MemberSessionContext,
+  options?: {
+    clanIds?: Array<string>;
+    normalizedPhone?: string | null;
+  },
+): Promise<void> {
+  const clanIds = options?.clanIds != null
+    ? options.clanIds
+    : context.clanId == null
+      ? []
+      : [context.clanId];
+  const normalizedClanIds = [...new Set(
+    clanIds
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0),
+  )];
+  await usersCollection.doc(uid).set({
+    uid,
+    memberId: context.memberId ?? '',
+    clanId: context.clanId ?? '',
+    clanIds: normalizedClanIds,
+    branchId: context.branchId ?? '',
+    primaryRole: context.primaryRole ?? 'GUEST',
+    accessMode: context.accessMode,
+    linkedAuthUid: context.linkedAuthUid,
+    normalizedPhone: options?.normalizedPhone ?? null,
+    updatedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function upsertTrustedDevice(input: {
+  uid: string;
+  memberId: string | null;
+  deviceTokenHash: string;
+  trustStatus: 'active' | 'revoked';
+}): Promise<void> {
+  const uid = input.uid.trim();
+  const tokenHash = input.deviceTokenHash.trim();
+  if (uid.length == 0 || tokenHash.length == 0) {
+    return;
+  }
+  const docId = trustedDeviceDocId(uid, tokenHash);
+  await trustedDevicesCollection.doc(docId).set({
+    id: docId,
+    uid,
+    memberId: input.memberId,
+    deviceTokenHash: tokenHash,
+    trustStatus: input.trustStatus,
+    trustedAt: FieldValue.serverTimestamp(),
+    lastSeenAt: FieldValue.serverTimestamp(),
+    expiresAt: Timestamp.fromMillis(Date.now() + TRUSTED_DEVICE_TTL_MS),
+    updatedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function isTrustedDeviceActive(
+  uid: string,
+  deviceTokenHash: string,
+): Promise<boolean> {
+  const normalizedUid = uid.trim();
+  const normalizedTokenHash = deviceTokenHash.trim();
+  if (normalizedUid.length == 0 || normalizedTokenHash.length == 0) {
+    return false;
+  }
+  const docId = trustedDeviceDocId(normalizedUid, normalizedTokenHash);
+  const snapshot = await trustedDevicesCollection.doc(docId).get();
+  if (!snapshot.exists) {
+    return false;
+  }
+  const record = snapshot.data() as TrustedDeviceRecord;
+  const trustStatus = (record.trustStatus ?? '').trim().toLowerCase();
+  const storedTokenHash = (record.deviceTokenHash ?? '').trim();
+  const expiresAtMs = record.expiresAt?.toMillis() ?? 0;
+  if (
+    trustStatus != 'active' ||
+    storedTokenHash.length == 0 ||
+    storedTokenHash != normalizedTokenHash
+  ) {
+    return false;
+  }
+  if (expiresAtMs > 0 && expiresAtMs < Date.now()) {
+    await trustedDevicesCollection.doc(docId).set({
+      trustStatus: 'revoked',
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return false;
+  }
+  await trustedDevicesCollection.doc(docId).set({
+    lastSeenAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return true;
+}
+
+function trustedDeviceDocId(uid: string, deviceTokenHash: string): string {
+  return `${uid.trim()}_${deviceTokenHash.trim().slice(0, 32)}`;
+}
+
+function resolvePreferredLanguageCode(data: unknown): SupportedLanguageCode {
+  if (data == null || typeof data !== 'object') {
+    return 'vi';
+  }
+  const record = data as Record<string, unknown>;
+  const candidate = typeof record.languageCode === 'string'
+    ? record.languageCode
+    : typeof record.locale === 'string'
+      ? record.locale
+      : '';
+  const normalized = candidate.trim().toLowerCase();
+  return normalized.startsWith('en') ? 'en' : 'vi';
+}
+
+function memberVerificationGuardDocId(uid: string, memberId: string): string {
+  return `${uid.trim()}_${memberId.trim()}`;
+}
+
+async function readMemberVerificationGuard(
+  uid: string,
+  memberId: string,
+): Promise<{ locked: boolean; remainingAttempts: number }> {
+  const guardRef = memberVerificationGuardsCollection.doc(
+    memberVerificationGuardDocId(uid, memberId),
+  );
+  const snapshot = await guardRef.get();
+  if (!snapshot.exists) {
+    return {
+      locked: false,
+      remainingAttempts: MEMBER_VERIFICATION_MAX_ATTEMPTS,
+    };
+  }
+  const guard = snapshot.data() as MemberVerificationGuardRecord;
+  const nowMs = Date.now();
+  const lockedUntilMs = guard.lockedUntil?.toMillis() ?? 0;
+  if (lockedUntilMs > 0 && lockedUntilMs > nowMs) {
+    return {
+      locked: true,
+      remainingAttempts: 0,
+    };
+  }
+  const windowStartMs = guard.windowStartedAt?.toMillis() ?? 0;
+  const withinWindow = windowStartMs > 0 && (nowMs - windowStartMs) <= MEMBER_VERIFICATION_LOCK_WINDOW_MS;
+  const failedAttempts = withinWindow ? Math.max(guard.failedAttempts ?? 0, 0) : 0;
+  return {
+    locked: false,
+    remainingAttempts: Math.max(MEMBER_VERIFICATION_MAX_ATTEMPTS - failedAttempts, 0),
+  };
+}
+
+async function registerMemberVerificationFailure(input: {
+  uid: string;
+  memberId: string;
+}): Promise<{ locked: boolean; remainingAttempts: number }> {
+  const uid = input.uid.trim();
+  const memberId = input.memberId.trim();
+  if (uid.length == 0 || memberId.length == 0) {
+    return {
+      locked: false,
+      remainingAttempts: MEMBER_VERIFICATION_MAX_ATTEMPTS,
+    };
+  }
+  const guardRef = memberVerificationGuardsCollection.doc(
+    memberVerificationGuardDocId(uid, memberId),
+  );
+  const nowMs = Date.now();
+  const result = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(guardRef);
+    const guard = snapshot.exists
+      ? (snapshot.data() as MemberVerificationGuardRecord)
+      : null;
+    const lockedUntilMs = guard?.lockedUntil?.toMillis() ?? 0;
+    if (lockedUntilMs > nowMs) {
+      return {
+        locked: true,
+        remainingAttempts: 0,
+      };
+    }
+    const windowStartMs = guard?.windowStartedAt?.toMillis() ?? 0;
+    const sameWindow = windowStartMs > 0 && (nowMs - windowStartMs) <= MEMBER_VERIFICATION_LOCK_WINDOW_MS;
+    const nextAttempts = sameWindow
+      ? (guard?.failedAttempts ?? 0) + 1
+      : 1;
+    const windowStartedAtMs = sameWindow ? windowStartMs : nowMs;
+    const locked = nextAttempts >= MEMBER_VERIFICATION_MAX_ATTEMPTS;
+    transaction.set(guardRef, {
+      uid,
+      memberId,
+      failedAttempts: nextAttempts,
+      windowStartedAt: Timestamp.fromMillis(windowStartedAtMs),
+      lockedUntil: locked
+        ? Timestamp.fromMillis(nowMs + MEMBER_VERIFICATION_LOCK_DURATION_MS)
+        : null,
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return {
+      locked,
+      remainingAttempts: locked
+        ? 0
+        : Math.max(MEMBER_VERIFICATION_MAX_ATTEMPTS - nextAttempts, 0),
+    };
+  });
+  return result;
+}
+
+async function clearMemberVerificationGuard(input: {
+  uid: string;
+  memberId: string;
+}): Promise<void> {
+  const uid = input.uid.trim();
+  const memberId = input.memberId.trim();
+  if (uid.length == 0 || memberId.length == 0) {
+    return;
+  }
+  await memberVerificationGuardsCollection.doc(
+    memberVerificationGuardDocId(uid, memberId),
+  ).set({
+    failedAttempts: 0,
+    windowStartedAt: null,
+    lockedUntil: null,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function buildMemberVerificationQuestions(input: {
+  memberId: string;
+  memberData: MemberRecord;
+  phoneE164: string;
+  languageCode: SupportedLanguageCode;
+}): Promise<Array<VerificationQuestion>> {
+  const questions: Array<VerificationQuestion> = [];
+  const languageCode = input.languageCode;
+  const clanId = optionalTrimmedRecordString(input.memberData.clanId);
+  const clanSnapshot = clanId == null
+    ? null
+    : await clansCollection.doc(clanId).get();
+  const clanName = clanSnapshot != null && clanSnapshot.exists
+    ? asNullableTrimmedString((clanSnapshot.data() as ClanRecord | undefined)?.name)
+    : null;
+
+  const gender = asNullableTrimmedString(input.memberData.gender)?.toLowerCase();
+  if (gender != null) {
+    const normalizedGender = gender.startsWith('n')
+      ? 'male'
+      : gender.startsWith('f')
+        ? 'female'
+        : gender;
+    const options = shuffleOptions([
+      { id: 'gender_male', label: languageCode == 'en' ? 'Male' : 'Nam' },
+      { id: 'gender_female', label: languageCode == 'en' ? 'Female' : 'Nữ' },
+      {
+        id: 'gender_other',
+        label: languageCode == 'en'
+          ? 'Other / Unknown'
+          : 'Khác / Không xác định',
+      },
+    ]);
+    const answerOptionId = normalizedGender == 'male'
+      ? 'gender_male'
+      : normalizedGender == 'female'
+        ? 'gender_female'
+        : 'gender_other';
+    questions.push({
+      id: 'gender',
+      category: 'personal',
+      prompt: languageCode == 'en'
+        ? 'What is the gender listed on this profile?'
+        : 'Giới tính trong hồ sơ này là gì?',
+      options,
+      answerOptionId,
+    });
+  }
+
+  const birthHint = buildMaskedBirthHint(input.memberData.birthDate ?? null);
+  if (birthHint != null) {
+    const options = shuffleOptions([
+      { id: 'birth_correct', label: birthHint },
+      { id: 'birth_noise_a', label: makeBirthNoiseOption(birthHint, 1) },
+      { id: 'birth_noise_b', label: makeBirthNoiseOption(birthHint, 2) },
+      { id: 'birth_noise_c', label: makeBirthNoiseOption(birthHint, 3) },
+    ]);
+    questions.push({
+      id: 'birth_hint',
+      category: 'personal',
+      prompt: languageCode == 'en'
+        ? 'Which month/year of birth is the closest match for this profile?'
+        : 'Tháng/năm sinh gần đúng của hồ sơ này là gì?',
+      options,
+      answerOptionId: 'birth_correct',
+    });
+  }
+
+  if (clanName != null && clanName.trim().length > 0) {
+    const trimmedClanName = clanName.trim();
+    const options = shuffleOptions([
+      { id: 'clan_correct', label: trimmedClanName },
+      {
+        id: 'clan_noise_a',
+        label: languageCode == 'en'
+          ? `${trimmedClanName} (Sub-branch)`
+          : `${trimmedClanName} (Nhánh phụ)`,
+      },
+      {
+        id: 'clan_noise_b',
+        label: languageCode == 'en'
+          ? 'Another clan in the system'
+          : 'Gia tộc khác trong hệ thống',
+      },
+      {
+        id: 'clan_noise_c',
+        label: languageCode == 'en'
+          ? 'Not linked to any clan yet'
+          : 'Chưa tham gia họ tộc nào',
+      },
+    ]);
+    questions.push({
+      id: 'clan_name',
+      category: 'clan',
+      prompt: languageCode == 'en'
+        ? 'Which clan does this profile belong to?'
+        : 'Hồ sơ này thuộc dòng tộc nào?',
+      options,
+      answerOptionId: 'clan_correct',
+    });
+  }
+
+  const role = normalizeRoleClaim(input.memberData.primaryRole);
+  if (role.length > 0) {
+    const options = shuffleOptions([
+      { id: 'role_correct', label: roleLabelFromClaim(role, languageCode) },
+      {
+        id: 'role_noise_a',
+        label: languageCode == 'en' ? 'New member' : 'Thành viên mới',
+      },
+      {
+        id: 'role_noise_b',
+        label: languageCode == 'en' ? 'Unlinked guest' : 'Khách chưa liên kết',
+      },
+      {
+        id: 'role_noise_c',
+        label: languageCode == 'en' ? 'Unknown role' : 'Vai trò không xác định',
+      },
+    ]);
+    questions.push({
+      id: 'role',
+      category: role.includes('CLAN') || role.includes('BRANCH') ? 'clan' : 'personal',
+      prompt: languageCode == 'en'
+        ? 'Which role is the closest match for this profile in the clan?'
+        : 'Vai trò gần đúng của hồ sơ này trong họ tộc là gì?',
+      options,
+      answerOptionId: 'role_correct',
+    });
+  }
+
+  return questions.slice(0, MEMBER_VERIFICATION_TOTAL_QUESTIONS);
+}
+
+function roleLabelFromClaim(
+  role: string,
+  languageCode: SupportedLanguageCode = 'vi',
+): string {
+  switch (normalizeRoleClaim(role)) {
+    case 'SUPER_ADMIN':
+      return languageCode == 'en' ? 'System admin' : 'Quản trị hệ thống';
+    case 'CLAN_ADMIN':
+      return languageCode == 'en' ? 'Clan admin' : 'Quản trị họ tộc';
+    case 'CLAN_OWNER':
+      return languageCode == 'en' ? 'Clan owner' : 'Chủ tộc';
+    case 'CLAN_LEADER':
+      return languageCode == 'en' ? 'Clan leader' : 'Trưởng tộc';
+    case 'BRANCH_ADMIN':
+      return languageCode == 'en' ? 'Branch admin' : 'Quản trị chi';
+    case 'MEMBER':
+      return languageCode == 'en' ? 'Member' : 'Thành viên';
+    default:
+      return languageCode == 'en' ? 'Member' : 'Thành viên';
+  }
+}
+
+function makeBirthNoiseOption(seed: string, offset: number): string {
+  const yyyy = /(\d{4})$/.exec(seed)?.[1];
+  if (yyyy != null) {
+    const year = Number.parseInt(yyyy, 10);
+    if (Number.isFinite(year)) {
+      const nextYear = String(year + offset).padStart(4, '0');
+      if (seed.includes('/')) {
+        const month = seed.split('/')[0];
+        return `${month}/${nextYear}`;
+      }
+      return nextYear;
+    }
+  }
+  return `${seed}-${offset}`;
+}
+
+function shuffleOptions(
+  options: Array<VerificationQuestionOption>,
+): Array<VerificationQuestionOption> {
+  const copied = [...options];
+  for (let index = copied.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const current = copied[index];
+    copied[index] = copied[swapIndex];
+    copied[swapIndex] = current;
+  }
+  return copied;
+}
+
+async function writeAuthEvent(input: {
+  uid: string;
+  action: string;
+  phoneE164: string;
+  memberId: string | null;
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  await authEventLogsCollection.add({
+    uid: input.uid,
+    action: input.action,
+    phoneE164Masked: maskPhone(input.phoneE164),
+    memberId: input.memberId,
+    metadata: input.metadata,
+    createdAt: FieldValue.serverTimestamp(),
+  });
 }
 
 async function claimMemberTransaction({
@@ -1760,8 +3205,7 @@ async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedCl
     const data = snapshot.data() as ClanRecord | undefined;
     const clanName = asNullableTrimmedString(data?.name) ?? snapshot.id;
     const clanStatus = asNullableTrimmedString(data?.status)?.toLowerCase() ?? null;
-    const ownerUid = asNullableTrimmedString(data?.billingOwnerUid) ??
-      asNullableTrimmedString(data?.ownerUid);
+    const ownerUid = asNullableTrimmedString(data?.ownerUid);
     const ownerDisplayName = asNullableTrimmedString(data?.founderName);
     clanMetadataById.set(snapshot.id, {
       clanName,
@@ -1798,6 +3242,7 @@ async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedCl
   for (const clanId of clanIds) {
     const metadata = clanMetadataById.get(clanId);
     if (metadata?.ownerUid != null) {
+      subscriptionDocIds.add(ownerBillingSubscriptionDocId(metadata.ownerUid));
       subscriptionDocIds.add(`${clanId}__${metadata.ownerUid}`);
     }
     subscriptionDocIds.add(clanId);
@@ -1826,11 +3271,18 @@ async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedCl
     }
     const metadata = clanMetadataById.get(clanId);
     const ownerUid = metadata?.ownerUid ?? null;
+    const ownerScopedSubscription = ownerUid == null
+      ? null
+      : subscriptionByDocId.get(ownerBillingSubscriptionDocId(ownerUid));
     const scopedSubscription = ownerUid == null
       ? null
       : subscriptionByDocId.get(`${clanId}__${ownerUid}`);
     const legacySubscription = subscriptionByDocId.get(clanId);
-    const subscription = scopedSubscription ?? legacySubscription ?? null;
+    const subscription =
+      ownerScopedSubscription ??
+      scopedSubscription ??
+      legacySubscription ??
+      null;
     dedupByClan.set(clanId, {
       ...context,
       clanName: metadata?.clanName ?? context.clanName,

@@ -1,6 +1,6 @@
 # Production Configuration Setup
 
-_Last reviewed: March 17, 2026_
+_Last reviewed: March 18, 2026_
 
 This runbook explains how BeFam separates local and production runtime
 configuration safely.
@@ -10,6 +10,25 @@ configuration safely.
 1. GitHub Environment `production` (vars + secrets)
 2. Firestore runtime overrides (`runtimeConfig/global`, non-secret only)
 3. Flutter build-time defines (`--dart-define`)
+
+## Supported OS Versions
+
+Current production baseline:
+- iOS: `15.0+`
+- Android: `API 24+` (Android 7.0+)
+
+Where this is enforced:
+- iOS deployment target: `mobile/befam/ios/Podfile`
+- Android min SDK: `mobile/befam/android/app/build.gradle.kts` (via `flutter.minSdkVersion`)
+
+Important constraints from the current stack:
+- Flutter `3.41.x` defaults to Android min SDK `24`.
+- Firebase iOS plugins in use require iOS deployment target `15.0`.
+
+If you need to support lower OS versions:
+- run a dependency compatibility audit first
+- pin/downgrade affected plugins (if available)
+- re-test phone auth, Firebase messaging, billing, and print/export flows on real devices
 
 ## Required Keys
 

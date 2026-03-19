@@ -53,7 +53,7 @@ Expected result:
 Run:
 
 ```bash
-./scripts/run_android_emulator.sh
+./scripts/run_flutter_targets.sh android-emulator-start
 ```
 
 The configured emulator name is:
@@ -65,7 +65,10 @@ flutter_android_test
 ## Run the app
 
 ```bash
-./scripts/run_befam_android.sh
+./scripts/run_flutter_targets.sh
+./scripts/run_flutter_targets.sh android-sim
+./scripts/run_flutter_targets.sh ios-sim
+./scripts/run_flutter_targets.sh web-server 8080
 ```
 
 Run directly with Flutter (recommended for day-to-day):
@@ -105,22 +108,12 @@ flutter analyze
 flutter test
 ```
 
-## Auth and runtime mode
+## Auth runtime
 
-Debug builds now default to the live Firebase auth path.
+The app uses Firebase auth/runtime services for normal local development and production parity.
 
-- live path default: `BEFAM_USE_LIVE_AUTH=true`
-- force mock backend for local sandbox/testing:
+Useful compile-time overrides:
 
-```bash
-cd mobile/befam
-flutter run -d emulator-5554 --dart-define=BEFAM_USE_LIVE_AUTH=false
-```
-
-Optional debug sandbox values:
-
-- OTP: `123456`
-- child identifiers: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
 - Functions region override:
   `--dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION=asia-southeast1`
 - App timezone default override:

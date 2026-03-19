@@ -1,9 +1,9 @@
-import 'package:befam/core/services/debug_genealogy_store.dart';
+import '../../support/core/services/debug_genealogy_store.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/genealogy/models/genealogy_root_entry.dart';
-import 'package:befam/features/genealogy/services/debug_genealogy_read_repository.dart';
+import '../../support/features/genealogy/services/debug_genealogy_read_repository.dart';
 import 'package:befam/features/genealogy/services/genealogy_segment_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -59,11 +59,11 @@ void main() {
       final repository = DebugGenealogyReadRepository(store: store);
       final session = buildClanAdminSession();
 
-    final segment = await repository.loadBranchSegment(session: session);
-    final branchMemberIds = store.members.values
-        .where((member) => member.branchId == 'branch_demo_001')
-        .map((member) => member.id)
-        .toSet();
+      final segment = await repository.loadBranchSegment(session: session);
+      final branchMemberIds = store.members.values
+          .where((member) => member.branchId == 'branch_demo_001')
+          .map((member) => member.id)
+          .toSet();
       final segmentMemberIds = segment.members
           .map((member) => member.id)
           .toSet();

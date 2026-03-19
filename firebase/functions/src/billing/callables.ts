@@ -67,6 +67,11 @@ function personalBillingScopeId(uid: string): string {
   return `user_scope__${uid.trim()}`;
 }
 
+function ownerBillingDocId(ownerUid: string): string {
+  const ownerScopeId = personalBillingScopeId(ownerUid);
+  return scopedBillingDocId(ownerScopeId, ownerUid);
+}
+
 function isPersonalBillingScope(scopeId: string, uid: string): boolean {
   return scopeId.trim() === personalBillingScopeId(uid);
 }
@@ -194,13 +199,11 @@ async function resolveClanBillingScopeMetadata(
     );
   }
   const data = snapshot.data() ?? {};
-  const billingOwnerUid = normalizeString(data.billingOwnerUid);
   const ownerUid = normalizeString(data.ownerUid);
-  const resolved = billingOwnerUid.length > 0 ? billingOwnerUid : ownerUid;
-  if (resolved.length == 0) {
+  if (ownerUid.length == 0) {
     throw new HttpsError(
       "failed-precondition",
-      "Clan billing owner is missing.",
+      "Clan owner is missing.",
     );
   }
 
@@ -208,7 +211,7 @@ async function resolveClanBillingScopeMetadata(
   if (ownerDisplayName.length == 0) {
     const ownerMemberSnapshot = await membersCollection
       .where("clanId", "==", clanId)
-      .where("authUid", "==", resolved)
+      .where("authUid", "==", ownerUid)
       .limit(1)
       .get();
     if (!ownerMemberSnapshot.empty) {
@@ -219,7 +222,7 @@ async function resolveClanBillingScopeMetadata(
     }
   }
   return {
-    ownerUid: resolved,
+    ownerUid,
     ownerDisplayName: ownerDisplayName.length > 0 ? ownerDisplayName : null,
     clanStatus: normalizeClanStatus(data.status),
   };
@@ -276,7 +279,7 @@ export const loadBillingWorkspace = onCall(
       uid: auth.uid,
       token: auth.token,
       data: request.data,
-      requireOwnerMutationAccess: true,
+      requireManageRole: true,
     });
 
     const runtimeConfig = await loadBillingRuntimeConfig();
@@ -345,7 +348,7 @@ export const updateBillingPreferences = onCall(
       uid: auth.uid,
       token: auth.token,
       data: request.data,
-      requireOwnerMutationAccess: true,
+      requireManageRole: true,
     });
 
     const paymentMode = normalizePaymentModeFromInput(request.data);
@@ -366,7 +369,7 @@ export const updateBillingPreferences = onCall(
     });
 
     await subscriptionsCollection
-      .doc(scopedBillingDocId(scope.clanId, scope.ownerUid))
+      .doc(ownerBillingDocId(scope.ownerUid))
       .set(
         {
           paymentMode: settings.paymentMode,
@@ -402,7 +405,7 @@ export const createSubscriptionCheckout = onCall(
       uid: auth.uid,
       token: auth.token,
       data: request.data,
-      requireOwnerMutationAccess: true,
+      requireManageRole: true,
     });
 
     const paymentMethod = normalizePaymentMethod(request.data);

@@ -1,7 +1,5 @@
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/profile_notification_preferences.dart';
-import 'debug_profile_notification_preferences_repository.dart';
 import 'firebase_profile_notification_preferences_repository.dart';
 
 abstract interface class ProfileNotificationPreferencesRepository {
@@ -17,10 +15,5 @@ abstract interface class ProfileNotificationPreferencesRepository {
 
 ProfileNotificationPreferencesRepository
 createDefaultProfileNotificationPreferencesRepository({AuthSession? session}) {
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return DebugProfileNotificationPreferencesRepository.shared();
-  }
-
   return FirebaseProfileNotificationPreferencesRepository();
 }

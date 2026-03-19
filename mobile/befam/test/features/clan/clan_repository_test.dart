@@ -3,7 +3,7 @@ import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/clan/models/branch_draft.dart';
 import 'package:befam/features/clan/models/clan_draft.dart';
-import 'package:befam/features/clan/services/debug_clan_repository.dart';
+import '../../support/features/clan/services/debug_clan_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

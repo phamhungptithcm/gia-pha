@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:flutter/foundation.dart';
 
+import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../auth/models/auth_session.dart';
+import '../../auth/services/phone_number_formatter.dart';
 import '../models/billing_workspace_snapshot.dart';
 import 'billing_repository.dart';
 
@@ -105,6 +106,8 @@ class FirebaseBillingRepository implements BillingRepository {
     String? contactPhone,
   }) async {
     final clanId = _sessionClanId(session);
+    final normalizedContactPhone =
+        PhoneNumberFormatter.tryParseE164(contactPhone) ?? contactPhone?.trim();
     await _ensureSessionDocumentBestEffort(session);
     final payload = <String, dynamic>{
       'paymentMethod': paymentMethod,
@@ -117,8 +120,8 @@ class FirebaseBillingRepository implements BillingRepository {
         'orderNote': orderNote.trim(),
       if (bankCode != null && bankCode.trim().isNotEmpty)
         'bankCode': bankCode.trim().toUpperCase(),
-      if (contactPhone != null && contactPhone.trim().isNotEmpty)
-        'contactPhone': contactPhone.trim(),
+      if (normalizedContactPhone != null && normalizedContactPhone.isNotEmpty)
+        'contactPhone': normalizedContactPhone,
     };
     final result = await _call(
       'createSubscriptionCheckout',
@@ -172,10 +175,10 @@ class FirebaseBillingRepository implements BillingRepository {
         session: session,
       );
     } catch (error, stackTrace) {
-      debugPrint('[billing] user session sync skipped: $error');
-      debugPrintStack(
-        stackTrace: stackTrace,
-        label: '[billing] session sync stack',
+      AppLogger.warning(
+        'Skipped user session sync while loading billing workspace.',
+        error,
+        stackTrace,
       );
     }
   }
