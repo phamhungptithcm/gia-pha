@@ -30,6 +30,8 @@ class EventWorkspacePage extends StatefulWidget {
     this.availableClanContexts = const [],
     this.onSwitchClanContext,
     this.initialEventId,
+    this.initialEditEventId,
+    this.initialCreateDraft,
     this.nowProvider,
     this.lunarConversionEngine,
   });
@@ -39,6 +41,8 @@ class EventWorkspacePage extends StatefulWidget {
   final List<ClanContextOption> availableClanContexts;
   final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
   final String? initialEventId;
+  final String? initialEditEventId;
+  final EventDraft? initialCreateDraft;
   final DateTime Function()? nowProvider;
   final LunarConversionEngine? lunarConversionEngine;
 
@@ -57,6 +61,8 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
   int _visibleEventCount = _eventBatchSize;
   String _eventListSeed = '';
   String? _pendingInitialEventId;
+  String? _pendingInitialEditEventId;
+  EventDraft? _pendingInitialCreateDraft;
 
   AuthSession get _session => _activeSession;
 
@@ -71,7 +77,13 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     _workspaceScrollController = ScrollController()
       ..addListener(_handleWorkspaceScroll);
     _pendingInitialEventId = _normalizeInitialEventId(widget.initialEventId);
-    unawaited(_controller.initialize().then((_) => _tryOpenInitialEvent()));
+    _pendingInitialEditEventId = _normalizeInitialEventId(
+      widget.initialEditEventId,
+    );
+    _pendingInitialCreateDraft = widget.initialCreateDraft;
+    unawaited(
+      _controller.initialize().then((_) => _tryHandlePendingInitialAction()),
+    );
   }
 
   @override
@@ -82,10 +94,19 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     final nowProviderChanged = oldWidget.nowProvider != widget.nowProvider;
     final lunarEngineChanged =
         oldWidget.lunarConversionEngine != widget.lunarConversionEngine;
+    final initialEventChanged =
+        oldWidget.initialEventId != widget.initialEventId;
+    final initialEditEventChanged =
+        oldWidget.initialEditEventId != widget.initialEditEventId;
+    final initialCreateDraftChanged =
+        oldWidget.initialCreateDraft != widget.initialCreateDraft;
     if (!sessionChanged &&
         !repositoryChanged &&
         !nowProviderChanged &&
-        !lunarEngineChanged) {
+        !lunarEngineChanged &&
+        !initialEventChanged &&
+        !initialEditEventChanged &&
+        !initialCreateDraftChanged) {
       return;
     }
     _activeSession = widget.session;
@@ -97,7 +118,18 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     if (incomingInitialEventId != _pendingInitialEventId) {
       _pendingInitialEventId = incomingInitialEventId;
     }
-    unawaited(_controller.initialize().then((_) => _tryOpenInitialEvent()));
+    final incomingInitialEditEventId = _normalizeInitialEventId(
+      widget.initialEditEventId,
+    );
+    if (incomingInitialEditEventId != _pendingInitialEditEventId) {
+      _pendingInitialEditEventId = incomingInitialEditEventId;
+    }
+    if (initialCreateDraftChanged) {
+      _pendingInitialCreateDraft = widget.initialCreateDraft;
+    }
+    unawaited(
+      _controller.initialize().then((_) => _tryHandlePendingInitialAction()),
+    );
   }
 
   @override
@@ -126,21 +158,49 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     return normalized;
   }
 
-  void _tryOpenInitialEvent() {
-    final initialEventId = _pendingInitialEventId;
-    if (initialEventId == null || !mounted) {
+  void _tryHandlePendingInitialAction() {
+    final initialEditEventId = _pendingInitialEditEventId;
+    if (initialEditEventId != null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) {
+          return;
+        }
+        final event = _controller.eventById(initialEditEventId);
+        if (event == null) {
+          return;
+        }
+        _pendingInitialEditEventId = null;
+        await _openEventEditor(event: event);
+      });
       return;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+
+    final initialEventId = _pendingInitialEventId;
+    if (initialEventId != null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        final event = _controller.eventById(initialEventId);
+        if (event == null) {
+          return;
+        }
+        _pendingInitialEventId = null;
+        _openDetail(event);
+      });
+      return;
+    }
+
+    final initialCreateDraft = _pendingInitialCreateDraft;
+    if (initialCreateDraft == null || !mounted) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) {
         return;
       }
-      final event = _controller.eventById(initialEventId);
-      if (event == null) {
-        return;
-      }
-      _pendingInitialEventId = null;
-      _openDetail(event);
+      _pendingInitialCreateDraft = null;
+      await _openEventEditor(initialDraft: initialCreateDraft);
     });
   }
 

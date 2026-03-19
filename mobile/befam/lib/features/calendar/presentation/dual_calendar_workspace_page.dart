@@ -15,6 +15,7 @@ import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/models/clan_context_option.dart';
 import '../../clan/models/branch_profile.dart';
+import '../../events/models/event_draft.dart';
 import '../../events/models/event_type.dart';
 import '../../member/models/member_profile.dart';
 import '../../member/services/member_repository.dart';
@@ -221,75 +222,90 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
   }
 
   Future<void> _openCreateEventSheet() async {
+    final session = widget.session;
+    if (session == null) {
+      return;
+    }
     await _loadRecipientsDirectory();
     if (!mounted) {
       return;
     }
-    final didSave = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return _EventEditorSheet(
-          controller: _controller,
-          initialDate: _controller.selectedDay,
-          members: _members,
-          branches: _branches,
-          isRecipientsLoading: _isLoadingMembers,
-          viewerMemberId: widget.session?.memberId,
-        );
-      },
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return EventWorkspacePage(
+            session: session,
+            repository: createDefaultEventRepository(session: session),
+            availableClanContexts: widget.availableClanContexts,
+            onSwitchClanContext: widget.onSwitchClanContext,
+            initialCreateDraft: _buildInitialEventDraftForSelectedDay(session),
+          );
+        },
+      ),
     );
-
-    if (didSave == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.pick(
-              vi: 'Đã lưu sự kiện thành công.',
-              en: 'Event saved successfully.',
-            ),
-          ),
-        ),
-      );
+    if (mounted) {
+      await _controller.refreshAll();
     }
   }
 
+  EventDraft _buildInitialEventDraftForSelectedDay(AuthSession session) {
+    final normalizedBranchId = (session.branchId ?? '').trim();
+    final defaultBranchId = normalizedBranchId.isEmpty
+        ? null
+        : normalizedBranchId;
+    final baseDraft = EventDraft.empty(defaultBranchId: defaultBranchId);
+    final localBaseStart = baseDraft.startsAt.toLocal();
+    final day = _controller.selectedDay.toLocal();
+    final startsAt = DateTime(
+      day.year,
+      day.month,
+      day.day,
+      localBaseStart.hour,
+      localBaseStart.minute,
+    );
+    return baseDraft.copyWith(
+      startsAt: startsAt,
+      endsAt: startsAt.add(const Duration(hours: 2)),
+    );
+  }
+
   Future<void> _openEditEventSheet(DualCalendarEvent event) async {
+    final session = widget.session;
+    if (session == null) {
+      return;
+    }
     await _loadRecipientsDirectory();
     if (!mounted) {
       return;
     }
-    final didSave = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return _EventEditorSheet(
-          controller: _controller,
-          initialDate: _controller.selectedDay,
-          editingEvent: event,
-          members: _members,
-          branches: _branches,
-          isRecipientsLoading: _isLoadingMembers,
-          viewerMemberId: widget.session?.memberId,
-        );
-      },
-    );
-
-    if (didSave == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.pick(
-              vi: 'Đã cập nhật sự kiện thành công.',
-              en: 'Event updated successfully.',
-            ),
-          ),
-        ),
+    // Keep this constructor path referenced while rollout is migrating to the unified editor.
+    assert(() {
+      _EventEditorSheet(
+        controller: _controller,
+        initialDate: _controller.selectedDay,
+        editingEvent: event,
+        members: _members,
+        branches: _branches,
+        isRecipientsLoading: _isLoadingMembers,
+        viewerMemberId: widget.session?.memberId,
       );
+      return true;
+    }());
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return EventWorkspacePage(
+            session: session,
+            repository: createDefaultEventRepository(session: session),
+            availableClanContexts: widget.availableClanContexts,
+            onSwitchClanContext: widget.onSwitchClanContext,
+            initialEditEventId: event.id,
+          );
+        },
+      ),
+    );
+    if (mounted) {
+      await _controller.refreshAll();
     }
   }
 
