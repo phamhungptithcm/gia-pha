@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -12,8 +13,12 @@ import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/models/clan_context_option.dart';
 import '../../calendar/services/lunar_conversion_engine.dart';
+import '../../calendar/presentation/dual_calendar_workspace_page.dart';
 import '../../clan/models/branch_profile.dart';
 import '../../member/models/member_profile.dart';
+import '../../member/models/member_draft.dart';
+import '../../member/models/member_workspace_snapshot.dart';
+import '../../member/services/member_repository.dart';
 import '../models/event_draft.dart';
 import '../models/event_record.dart';
 import '../models/event_type.dart';
@@ -30,8 +35,6 @@ class EventWorkspacePage extends StatefulWidget {
     this.availableClanContexts = const [],
     this.onSwitchClanContext,
     this.initialEventId,
-    this.initialEditEventId,
-    this.initialCreateDraft,
     this.nowProvider,
     this.lunarConversionEngine,
   });
@@ -41,8 +44,6 @@ class EventWorkspacePage extends StatefulWidget {
   final List<ClanContextOption> availableClanContexts;
   final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
   final String? initialEventId;
-  final String? initialEditEventId;
-  final EventDraft? initialCreateDraft;
   final DateTime Function()? nowProvider;
   final LunarConversionEngine? lunarConversionEngine;
 
@@ -61,8 +62,6 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
   int _visibleEventCount = _eventBatchSize;
   String _eventListSeed = '';
   String? _pendingInitialEventId;
-  String? _pendingInitialEditEventId;
-  EventDraft? _pendingInitialCreateDraft;
 
   AuthSession get _session => _activeSession;
 
@@ -77,13 +76,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     _workspaceScrollController = ScrollController()
       ..addListener(_handleWorkspaceScroll);
     _pendingInitialEventId = _normalizeInitialEventId(widget.initialEventId);
-    _pendingInitialEditEventId = _normalizeInitialEventId(
-      widget.initialEditEventId,
-    );
-    _pendingInitialCreateDraft = widget.initialCreateDraft;
-    unawaited(
-      _controller.initialize().then((_) => _tryHandlePendingInitialAction()),
-    );
+    unawaited(_controller.initialize().then((_) => _tryOpenInitialEvent()));
   }
 
   @override
@@ -94,19 +87,10 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     final nowProviderChanged = oldWidget.nowProvider != widget.nowProvider;
     final lunarEngineChanged =
         oldWidget.lunarConversionEngine != widget.lunarConversionEngine;
-    final initialEventChanged =
-        oldWidget.initialEventId != widget.initialEventId;
-    final initialEditEventChanged =
-        oldWidget.initialEditEventId != widget.initialEditEventId;
-    final initialCreateDraftChanged =
-        oldWidget.initialCreateDraft != widget.initialCreateDraft;
     if (!sessionChanged &&
         !repositoryChanged &&
         !nowProviderChanged &&
-        !lunarEngineChanged &&
-        !initialEventChanged &&
-        !initialEditEventChanged &&
-        !initialCreateDraftChanged) {
+        !lunarEngineChanged) {
       return;
     }
     _activeSession = widget.session;
@@ -118,18 +102,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     if (incomingInitialEventId != _pendingInitialEventId) {
       _pendingInitialEventId = incomingInitialEventId;
     }
-    final incomingInitialEditEventId = _normalizeInitialEventId(
-      widget.initialEditEventId,
-    );
-    if (incomingInitialEditEventId != _pendingInitialEditEventId) {
-      _pendingInitialEditEventId = incomingInitialEditEventId;
-    }
-    if (initialCreateDraftChanged) {
-      _pendingInitialCreateDraft = widget.initialCreateDraft;
-    }
-    unawaited(
-      _controller.initialize().then((_) => _tryHandlePendingInitialAction()),
-    );
+    unawaited(_controller.initialize().then((_) => _tryOpenInitialEvent()));
   }
 
   @override
@@ -158,23 +131,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     return normalized;
   }
 
-  void _tryHandlePendingInitialAction() {
-    final initialEditEventId = _pendingInitialEditEventId;
-    if (initialEditEventId != null && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted) {
-          return;
-        }
-        final event = _controller.eventById(initialEditEventId);
-        if (event == null) {
-          return;
-        }
-        _pendingInitialEditEventId = null;
-        await _openEventEditor(event: event);
-      });
-      return;
-    }
-
+  void _tryOpenInitialEvent() {
     final initialEventId = _pendingInitialEventId;
     if (initialEventId != null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -188,20 +145,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
         _pendingInitialEventId = null;
         _openDetail(event);
       });
-      return;
     }
-
-    final initialCreateDraft = _pendingInitialCreateDraft;
-    if (initialCreateDraft == null || !mounted) {
-      return;
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) {
-        return;
-      }
-      _pendingInitialCreateDraft = null;
-      await _openEventEditor(initialDraft: initialCreateDraft);
-    });
   }
 
   void _handleWorkspaceScroll() {
@@ -261,6 +205,11 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     EventRecord? event,
     EventDraft? initialDraft,
   }) async {
+    if (event == null) {
+      await _openDualCalendarCreateEditor(initialDraft: initialDraft);
+      return;
+    }
+
     final didSave = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -268,20 +217,13 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return _EventEditorSheet(
-          title: event == null
-              ? context.l10n.eventFormCreateTitle
-              : context.l10n.eventFormEditTitle,
-          initialDraft: event == null
-              ? initialDraft ??
-                    EventDraft.empty(
-                      defaultBranchId: _controller.permissions.sessionBranchId,
-                    )
-              : EventDraft.fromRecord(event),
+          title: context.l10n.eventFormEditTitle,
+          initialDraft: EventDraft.fromRecord(event),
           branches: _controller.branches,
           members: _controller.members,
           isSaving: _controller.isSaving,
           onSubmit: (draft) {
-            return _controller.saveEvent(eventId: event?.id, draft: draft);
+            return _controller.saveEvent(eventId: event.id, draft: draft);
           },
         );
       },
@@ -292,6 +234,35 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
         context,
       ).showSnackBar(SnackBar(content: Text(context.l10n.eventSaveSuccess)));
     }
+  }
+
+  Future<void> _openDualCalendarCreateEditor({EventDraft? initialDraft}) async {
+    final didSave = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (context) {
+          return DualCalendarWorkspacePage(
+            session: _session,
+            availableClanContexts: widget.availableClanContexts,
+            onSwitchClanContext: widget.onSwitchClanContext,
+            memberRepository: _EventWorkspaceMemberRepositoryAdapter(
+              members: _controller.members,
+              branches: _controller.branches,
+            ),
+            autoOpenCreateEditor: true,
+            initialCreateDraft: initialDraft,
+          );
+        },
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    if (didSave == true) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.eventSaveSuccess)));
+    }
+    await _controller.refresh();
   }
 
   void _openDetail(EventRecord event) {
@@ -3260,6 +3231,55 @@ class _SummaryRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _EventWorkspaceMemberRepositoryAdapter implements MemberRepository {
+  const _EventWorkspaceMemberRepositoryAdapter({
+    required this.members,
+    required this.branches,
+  });
+
+  final List<MemberProfile> members;
+  final List<BranchProfile> branches;
+
+  @override
+  bool get isSandbox => true;
+
+  @override
+  Future<MemberWorkspaceSnapshot> loadWorkspace({
+    required AuthSession session,
+  }) async {
+    return MemberWorkspaceSnapshot(
+      members: List<MemberProfile>.from(members),
+      branches: List<BranchProfile>.from(branches),
+    );
+  }
+
+  @override
+  Future<MemberProfile> saveMember({
+    required AuthSession session,
+    String? memberId,
+    required MemberDraft draft,
+  }) {
+    throw const MemberRepositoryException(
+      MemberRepositoryErrorCode.permissionDenied,
+      'Member update is not available in event create flow.',
+    );
+  }
+
+  @override
+  Future<MemberProfile> uploadAvatar({
+    required AuthSession session,
+    required String memberId,
+    required Uint8List bytes,
+    required String fileName,
+    String contentType = 'image/jpeg',
+  }) {
+    throw const MemberRepositoryException(
+      MemberRepositoryErrorCode.permissionDenied,
+      'Avatar upload is not available in event create flow.',
     );
   }
 }
