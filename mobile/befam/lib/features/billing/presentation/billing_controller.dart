@@ -65,11 +65,7 @@ class BillingController extends ChangeNotifier {
     if (!hasClanContext) {
       return true;
     }
-    final workspace = _workspace;
-    if (workspace == null) {
-      return false;
-    }
-    return workspace.scope.viewerIsOwner;
+    return canManageBilling;
   }
 
   bool get shouldShowAds {
@@ -90,8 +86,20 @@ class BillingController extends ChangeNotifier {
     notifyListeners();
     try {
       if (canManageBilling) {
-        _workspace = await _repository.loadWorkspace(session: _session);
-        _viewerSummary = null;
+        try {
+          _workspace = await _repository.loadWorkspace(session: _session);
+          _viewerSummary = null;
+        } on BillingRepositoryException catch (error) {
+          if (_shouldFallbackToViewer(error)) {
+            _viewerSummary = await _repository.loadViewerSummary(
+              session: _session,
+            );
+            _workspace = null;
+            _errorMessage = null;
+          } else {
+            rethrow;
+          }
+        }
       } else {
         _viewerSummary = await _repository.loadViewerSummary(session: _session);
         _workspace = null;
@@ -110,6 +118,21 @@ class BillingController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  bool _shouldFallbackToViewer(BillingRepositoryException error) {
+    if (error.code == BillingRepositoryErrorCode.permissionDenied) {
+      return true;
+    }
+    if (error.code == BillingRepositoryErrorCode.failedPrecondition) {
+      final lower = (error.message ?? '').toLowerCase();
+      if (lower.contains('owner') ||
+          lower.contains('billing scope') ||
+          lower.contains('clan billing')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> updatePreferences({

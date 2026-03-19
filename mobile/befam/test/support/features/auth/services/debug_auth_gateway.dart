@@ -359,10 +359,12 @@ class DebugAuthGateway implements AuthGateway {
   }
 
   Future<MemberAccessContext?> _loadRemoteProfile(String phoneE164) async {
+    if (_firestore == null) {
+      return null;
+    }
+
     try {
-      final profiles = (_firestore ?? FirebaseFirestore.instance).collection(
-        'debug_login_profiles',
-      );
+      final profiles = _firestore.collection('debug_login_profiles');
       final variants = PhoneNumberFormatter.lookupVariants(phoneE164);
       Map<String, dynamic>? data;
       for (final variant in variants) {

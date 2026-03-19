@@ -584,7 +584,10 @@ class _AppShellPageState extends State<AppShellPage> {
       if (_visitedDestinationIndexes.contains(2))
         KeyedSubtree(
           key: ValueKey<String>('events-${_session.clanId ?? 'none'}'),
-          child: DualCalendarWorkspacePage(session: _session),
+          child: DualCalendarWorkspacePage(
+            session: _session,
+            memberRepository: widget.memberRepository,
+          ),
         )
       else
         const SizedBox.shrink(),

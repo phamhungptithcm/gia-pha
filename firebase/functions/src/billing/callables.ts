@@ -160,7 +160,10 @@ async function resolveBillingScopeContext({
       viewerIsOwner: true,
     };
   }
-  const clanScope = await resolveClanBillingScopeMetadata(scopeId);
+  const clanScope = await resolveClanBillingScopeMetadata(scopeId, {
+    fallbackOwnerUid: uid,
+    actorUid: uid,
+  });
   if (requireOwnerMutationAccess && uid !== clanScope.ownerUid) {
     const ownerLabel = clanScope.ownerDisplayName ?? clanScope.ownerUid;
     throw new HttpsError(
@@ -185,6 +188,10 @@ type ClanBillingScopeMetadata = {
 
 async function resolveClanBillingScopeMetadata(
   clanId: string,
+  options?: {
+    fallbackOwnerUid?: string;
+    actorUid?: string;
+  },
 ): Promise<ClanBillingScopeMetadata> {
   const snapshot = await clansCollection.doc(clanId).get();
   if (!snapshot.exists) {
@@ -196,11 +203,23 @@ async function resolveClanBillingScopeMetadata(
   const data = snapshot.data() ?? {};
   const billingOwnerUid = normalizeString(data.billingOwnerUid);
   const ownerUid = normalizeString(data.ownerUid);
-  const resolved = billingOwnerUid.length > 0 ? billingOwnerUid : ownerUid;
+  let resolved = billingOwnerUid.length > 0 ? billingOwnerUid : ownerUid;
   if (resolved.length == 0) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Clan billing owner is missing.",
+    const fallbackOwnerUid = normalizeString(options?.fallbackOwnerUid);
+    if (fallbackOwnerUid.length == 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Clan billing owner is missing.",
+      );
+    }
+    resolved = fallbackOwnerUid;
+    await clansCollection.doc(clanId).set(
+      {
+        billingOwnerUid: resolved,
+        updatedAt: new Date(),
+        updatedBy: normalizeString(options?.actorUid) || resolved,
+      },
+      { merge: true },
     );
   }
 
@@ -276,7 +295,7 @@ export const loadBillingWorkspace = onCall(
       uid: auth.uid,
       token: auth.token,
       data: request.data,
-      requireOwnerMutationAccess: true,
+      requireManageRole: true,
     });
 
     const runtimeConfig = await loadBillingRuntimeConfig();
@@ -345,7 +364,7 @@ export const updateBillingPreferences = onCall(
       uid: auth.uid,
       token: auth.token,
       data: request.data,
-      requireOwnerMutationAccess: true,
+      requireManageRole: true,
     });
 
     const paymentMode = normalizePaymentModeFromInput(request.data);
@@ -402,7 +421,7 @@ export const createSubscriptionCheckout = onCall(
       uid: auth.uid,
       token: auth.token,
       data: request.data,
-      requireOwnerMutationAccess: true,
+      requireManageRole: true,
     });
 
     const paymentMethod = normalizePaymentMethod(request.data);

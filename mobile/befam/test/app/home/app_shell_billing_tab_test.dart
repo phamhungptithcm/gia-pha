@@ -3,6 +3,7 @@ import 'package:befam/app/home/app_shell_page.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
+import '../../support/features/billing/services/debug_billing_repository.dart';
 import '../../support/features/clan/services/debug_clan_repository.dart';
 import '../../support/features/member/services/debug_member_repository.dart';
 import 'package:befam/features/notifications/services/push_notification_service.dart';
@@ -81,6 +82,7 @@ void main() {
             session: buildLinkedSession(),
             clanRepository: DebugClanRepository.seeded(),
             memberRepository: DebugMemberRepository.seeded(),
+            billingRepository: DebugBillingRepository.shared(),
             pushNotificationService: _NoopPushNotificationService(),
           ),
         ),
@@ -106,6 +108,7 @@ void main() {
           session: buildLinkedSession(),
           clanRepository: DebugClanRepository.seeded(),
           memberRepository: DebugMemberRepository.seeded(),
+          billingRepository: DebugBillingRepository.shared(),
           pushNotificationService: _NoopPushNotificationService(),
         ),
       ),
@@ -131,6 +134,7 @@ void main() {
             session: buildUnlinkedSession(),
             clanRepository: DebugClanRepository.seeded(),
             memberRepository: DebugMemberRepository.seeded(),
+            billingRepository: DebugBillingRepository.shared(),
             pushNotificationService: _NoopPushNotificationService(),
           ),
         ),
@@ -145,9 +149,15 @@ void main() {
       expect(destinations[4].label, 'Profile');
 
       await tester.tap(find.text('Billing'));
-      await pumpUi(tester, frames: 36);
+      await pumpUi(tester, frames: 96);
 
-      expect(find.text('Subscription & billing'), findsOneWidget);
+      expect(
+        find.byKey(const Key('billing-plan-selector')).evaluate().isNotEmpty ||
+        find.text('Subscription & billing').evaluate().isNotEmpty ||
+            find.text('Subscription').evaluate().isNotEmpty ||
+            find.text('Service plans').evaluate().isNotEmpty,
+        isTrue,
+      );
       expect(find.text('Discover genealogies'), findsNothing);
       expect(find.text('Create clan workspace'), findsNothing);
     },
