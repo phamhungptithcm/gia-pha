@@ -91,12 +91,18 @@ class MemberPhoneActionIconButton extends StatelessWidget {
     required this.contactName,
     this.visualDensity = VisualDensity.compact,
     this.iconSize = 20,
+    this.padding = EdgeInsets.zero,
+    this.constraints = const BoxConstraints(minWidth: 36, minHeight: 36),
+    this.alignment = Alignment.center,
   });
 
   final String phoneNumber;
   final String contactName;
   final VisualDensity visualDensity;
   final double iconSize;
+  final EdgeInsetsGeometry padding;
+  final BoxConstraints constraints;
+  final AlignmentGeometry alignment;
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +118,9 @@ class MemberPhoneActionIconButton extends StatelessWidget {
       ),
       visualDensity: visualDensity,
       iconSize: iconSize,
+      padding: padding,
+      constraints: constraints,
+      alignment: alignment,
       onPressed: () {
         showMemberPhoneActionSheet(
           context,

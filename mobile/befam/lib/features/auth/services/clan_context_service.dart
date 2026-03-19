@@ -74,6 +74,17 @@ class FirebaseClanContextService implements ClanContextService {
         }
       }
     }
+    if (active == null) {
+      final baseClanId = (baseSession.clanId ?? '').trim();
+      if (baseClanId.isNotEmpty) {
+        for (final item in contexts) {
+          if (item.clanId.trim() == baseClanId) {
+            active = item;
+            break;
+          }
+        }
+      }
+    }
     active ??= contexts.isEmpty ? null : contexts.first;
 
     if (active == null) {

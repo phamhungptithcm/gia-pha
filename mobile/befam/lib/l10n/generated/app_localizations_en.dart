@@ -226,7 +226,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get genealogyWorkspaceDescription =>
-      'Load the current clan or branch scope, inspect the root entry points, and verify ancestry, descendants, siblings, and cached tree data before the visual tree canvas arrives.';
+      'View the family tree by clan or current branch.';
 
   @override
   String get genealogyScopeClan => 'Clan scope';
@@ -281,7 +281,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get genealogyEmptyStateDescription =>
-      'Create the first member profiles or switch scopes to start building the family graph.';
+      'Add the first member or switch scope to begin.';
 
   @override
   String get genealogyGenerationLabel => 'Generation';
@@ -722,7 +722,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get clanCreateFirstDescription =>
-      'Set up the core clan record so the team has a home for branches, leadership assignments, and the first administration flows.';
+      'Create a clan profile to start managing branches and members.';
 
   @override
   String get clanPermissionEditor => 'Can manage settings';
@@ -777,7 +777,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get clanProfileEmptyDescription =>
-      'Start with the clan name, founder, and a short description so the rest of the workspace has the right context.';
+      'Start with clan name, founder, and a short description.';
 
   @override
   String get clanFieldName => 'Clan name';
@@ -814,7 +814,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get clanBranchEmptyDescription =>
-      'Create the first branch to assign leaders, operational scope, and future member flows.';
+      'Create the first branch for roles and member management.';
 
   @override
   String get clanBranchCodeLabel => 'Branch code';
@@ -869,7 +869,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get clanBranchEditorDescription =>
-      'Create or update a branch so the leadership, identifier, and generation hint are ready for later genealogy flows.';
+      'Update branch details, leadership, and generation hint.';
 
   @override
   String get clanBranchNameLabel => 'Branch name';
@@ -915,28 +915,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memberNoContextDescription =>
-      'Link this account to a member profile before managing the member directory in BeFam.';
+      'Link this account to a member profile to manage members.';
 
   @override
   String get memberWorkspaceHeroTitle => 'Manage the clan member directory';
 
   @override
   String get memberWorkspaceHeroDescription =>
-      'Create new profiles, update linked profiles, manage avatars, and prepare member data for the family tree, events, and permissions.';
+      'Manage member profiles by branch and generation.';
 
   @override
   String get memberReadOnlyTitle => 'This session is read-only';
 
   @override
   String get memberReadOnlyDescription =>
-      'This session can only review its own profile or linked member context. Only clan or branch administrators can add new members.';
+      'This session is view-only. Only clan or branch admins can add members.';
 
   @override
   String get memberLoadErrorTitle => 'The member workspace could not be loaded';
 
   @override
   String get memberLoadErrorDescription =>
-      'Something went wrong while loading member profiles. Try again or check the Firebase configuration.';
+      'Unable to load member profiles. Please try again.';
 
   @override
   String get memberStatCount => 'Total profiles';
@@ -967,7 +967,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memberListEmptyDescription =>
-      'Create the first member or adjust the filters to reveal more profiles.';
+      'No matching profiles. Create one or adjust filters.';
 
   @override
   String get memberSaveSuccess => 'Member profile saved.';
@@ -1055,7 +1055,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memberEditorDescription =>
-      'Capture the core details BeFam needs to search, verify, and present member profiles accurately across branches and generations.';
+      'Enter core details to create a member profile.';
 
   @override
   String get memberSaveErrorTitle => 'The member profile could not be saved';
@@ -1545,7 +1545,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventHeroDescription =>
-      'Track ceremonies, memorials, and reminders from one timeline for your clan.';
+      'Track ceremonies, memorials, and reminders in one place.';
 
   @override
   String get eventReadOnlyTitle => 'Read-only access';
@@ -1575,7 +1575,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventMemorialChecklistSectionDescription =>
-      'Cross-check deceased members and death dates against configured memorial events to avoid missing anniversaries.';
+      'Cross-check death dates and memorial events.';
 
   @override
   String eventMemorialChecklistConfiguredCount(int count) {
@@ -1639,7 +1639,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventRitualChecklistSectionDescription =>
-      'Track 49/50-day, 100-day, first-year, and second-year rites so important family memorial milestones are not missed.';
+      'Track 49/50-day, 100-day, first-year, and second-year rites.';
 
   @override
   String eventRitualChecklistConfiguredCount(int count) {

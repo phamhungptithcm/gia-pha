@@ -157,6 +157,17 @@ class FirebaseFundRepository implements FundRepository {
     try {
       final docRef = fundId == null ? _funds.doc() : _funds.doc(fundId);
       final existing = await docRef.get();
+      if (fundId != null && !existing.exists) {
+        throw const FundRepositoryException(
+          FundRepositoryErrorCode.fundNotFound,
+        );
+      }
+      if (existing.exists &&
+          (existing.data()?['clanId'] as String?)?.trim() != targetClanId) {
+        throw const FundRepositoryException(
+          FundRepositoryErrorCode.permissionDenied,
+        );
+      }
       final payload = <String, dynamic>{
         'id': docRef.id,
         'clanId': targetClanId,

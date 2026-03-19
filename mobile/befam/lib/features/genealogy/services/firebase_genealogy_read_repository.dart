@@ -46,8 +46,8 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
       session: session,
     );
 
-    final clanId = session.clanId;
-    if (clanId == null || clanId.isEmpty) {
+    final clanId = (session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
       return GenealogyReadSegment.empty(const GenealogyScope.clan(clanId: ''));
     }
 
@@ -105,17 +105,11 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
       session: session,
     );
 
-    final clanId = session.clanId;
-    final resolvedBranchId = branchId ?? session.branchId;
-    if (clanId == null ||
-        clanId.isEmpty ||
-        resolvedBranchId == null ||
-        resolvedBranchId.isEmpty) {
+    final clanId = (session.clanId ?? '').trim();
+    final resolvedBranchId = (branchId ?? session.branchId ?? '').trim();
+    if (clanId.isEmpty || resolvedBranchId.isEmpty) {
       return GenealogyReadSegment.empty(
-        GenealogyScope.branch(
-          clanId: clanId ?? '',
-          branchId: resolvedBranchId ?? '',
-        ),
+        GenealogyScope.branch(clanId: clanId, branchId: resolvedBranchId),
       );
     }
 
@@ -145,7 +139,9 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
         .toList(growable: false);
     final memberIds = members.map((member) => member.id).toSet();
     final branches = [
-      if (branchDoc.exists && branchDoc.data() != null)
+      if (branchDoc.exists &&
+          branchDoc.data() != null &&
+          (branchDoc.data()!['clanId'] as String?)?.trim() == clanId)
         BranchProfile.fromJson(branchDoc.data()!),
     ];
     final relationships = relationshipSnapshot.docs

@@ -155,12 +155,16 @@ class FirebaseClanRepository implements ClanRepository {
         ? _branches.doc()
         : _branches.doc(branchId);
     final existing = await branchRef.get();
+    if (existing.exists &&
+        (existing.data()?['clanId'] as String?)?.trim() != clanId) {
+      throw StateError('Cannot update a branch outside the active clan.');
+    }
     final actor = session.memberId ?? session.uid;
     final now = FieldValue.serverTimestamp();
     final existingMemberCount =
         existing.data()?['memberCount'] as int? ??
-        (await _members.where('branchId', isEqualTo: branchRef.id).get())
-            .docs
+        (await _members.where('branchId', isEqualTo: branchRef.id).get()).docs
+            .where((doc) => (doc.data()['clanId'] as String?)?.trim() == clanId)
             .length;
 
     final payload = {

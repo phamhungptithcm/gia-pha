@@ -112,7 +112,18 @@ class FirebaseMemberRepository implements MemberRepository {
 
     final memberRef = _members.doc(memberId);
     final existing = await memberRef.get();
-    final existingData = existing.data() ?? const <String, dynamic>{};
+    if (!existing.exists || existing.data() == null) {
+      throw const MemberRepositoryException(
+        MemberRepositoryErrorCode.memberNotFound,
+      );
+    }
+    final existingData = existing.data()!;
+    final existingClanId = (existingData['clanId'] as String?)?.trim() ?? '';
+    if (existingClanId != clanId) {
+      throw const MemberRepositoryException(
+        MemberRepositoryErrorCode.permissionDenied,
+      );
+    }
     final actor = session.memberId ?? session.uid;
     final previousBranchId = existingData['branchId'] as String?;
     final previousParentIds = _stringList(existingData['parentIds']);
@@ -415,6 +426,12 @@ class FirebaseMemberRepository implements MemberRepository {
         MemberRepositoryErrorCode.memberNotFound,
       );
     }
+    final memberClanId = (existing.data()!['clanId'] as String?)?.trim() ?? '';
+    if (memberClanId != clanId) {
+      throw const MemberRepositoryException(
+        MemberRepositoryErrorCode.permissionDenied,
+      );
+    }
 
     try {
       final storageRef = _storage.ref(
@@ -488,9 +505,13 @@ class FirebaseMemberRepository implements MemberRepository {
     String branchId,
     String actor,
   ) async {
-    final count = (await _members.where('branchId', isEqualTo: branchId).get())
-        .docs
-        .length;
+    final snapshot = await _members
+        .where('branchId', isEqualTo: branchId)
+        .get();
+    final count = snapshot.docs.where((doc) {
+      final data = doc.data();
+      return (data['clanId'] as String?)?.trim() == clanId;
+    }).length;
     await _branches.doc(branchId).set({
       'id': branchId,
       'clanId': clanId,

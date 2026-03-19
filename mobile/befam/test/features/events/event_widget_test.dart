@@ -53,16 +53,10 @@ class _FakeLunarConversionEngine implements LunarConversionEngine {
 void main() {
   Finder workspaceScroll() => find.byType(Scrollable).first;
 
-  Finder memorialQuickSetupButtons() => find.byWidgetPredicate((widget) {
+  Finder memorialEntryQuickSetupButtons() => find.byWidgetPredicate((widget) {
     final key = widget.key;
     return key is ValueKey<String> &&
-        key.value.startsWith('event-memorial-quick-setup-');
-  });
-
-  Finder ritualQuickSetupButtons() => find.byWidgetPredicate((widget) {
-    final key = widget.key;
-    return key is ValueKey<String> &&
-        key.value.startsWith('event-ritual-quick-setup-');
+        key.value.startsWith('event-memorial-entry-quick-setup-');
   });
 
   AuthSession buildClanAdminSession() {
@@ -181,16 +175,22 @@ void main() {
     );
     await pumpWorkspace(tester, repository);
 
-    final memorialChecklistTitle = find.text('Danh sách giỗ kỵ');
+    final memorialChecklistTitle = find.text('Truy cập nhanh');
     await tester.scrollUntilVisible(
       memorialChecklistTitle,
       320,
       scrollable: workspaceScroll(),
     );
     expect(memorialChecklistTitle, findsOneWidget);
-    expect(find.text('Chưa thiết lập'), findsWidgets);
+    await tester.tap(
+      find.byKey(const Key('event-memorial-access-anniversary')),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
-    final quickSetupButton = memorialQuickSetupButtons().first;
+    expect(find.text('Giỗ Kỵ (từ 3 năm trở đi)'), findsWidgets);
+
+    final quickSetupButton = memorialEntryQuickSetupButtons().first;
     await tester.ensureVisible(quickSetupButton);
     await tester.tap(quickSetupButton);
     await tester.pump();
@@ -221,18 +221,44 @@ void main() {
     );
     await pumpWorkspace(tester, repository);
 
-    final ritualChecklistTitle = find.text('Danh sách dỗ trạp');
+    final ritualChecklistTitle = find.text('Truy cập nhanh');
     await tester.scrollUntilVisible(
       ritualChecklistTitle,
       320,
       scrollable: workspaceScroll(),
     );
     expect(ritualChecklistTitle, findsOneWidget);
-    expect(
-      find.byKey(const Key('event-ritual-checklist-panel')),
-      findsOneWidget,
+    await tester.tap(find.byKey(const Key('event-memorial-access-prayer')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Lễ tiết cầu siêu (49/100 ngày)'), findsWidgets);
+    expect(find.byType(ChoiceChip), findsWidgets);
+    expect(memorialEntryQuickSetupButtons(), findsWidgets);
+  });
+
+  testWidgets('uses next yearly occurrence for recurring memorial events', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
     );
-    expect(ritualQuickSetupButtons(), findsWidgets);
+    await pumpWorkspace(
+      tester,
+      repository,
+      nowProvider: () => DateTime(2027, 1, 10, 9),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Sự kiện sắp tới gần nhất'),
+      260,
+      scrollable: workspaceScroll(),
+    );
+
+    expect(find.text('Giỗ cụ tổ mùa xuân'), findsOneWidget);
+    expect(find.textContaining('2027-04-04'), findsWidgets);
+    expect(find.text('Họp mặt đầu hè'), findsNothing);
   });
 
   testWidgets('creates a new event from the create form', (tester) async {
