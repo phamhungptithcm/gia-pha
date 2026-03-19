@@ -458,6 +458,51 @@ class FirebaseMemberRepository implements MemberRepository {
     }
   }
 
+  @override
+  Future<void> updateMemberLiveLocation({
+    required AuthSession session,
+    required String memberId,
+    required bool sharingEnabled,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+  }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
+    final clanId = (session.clanId ?? '').trim();
+    final normalizedMemberId = memberId.trim();
+    if (clanId.isEmpty || normalizedMemberId.isEmpty) {
+      throw const MemberRepositoryException(
+        MemberRepositoryErrorCode.permissionDenied,
+      );
+    }
+
+    final hasValidCoordinates =
+        latitude != null &&
+        longitude != null &&
+        _isValidLatitude(latitude) &&
+        _isValidLongitude(longitude);
+    final shouldShare = sharingEnabled && hasValidCoordinates;
+    final normalizedAccuracy = accuracyMeters != null && accuracyMeters.isFinite
+        ? accuracyMeters
+        : null;
+    final capturedAt = DateTime.now().toUtc().toIso8601String();
+    final actor = session.memberId ?? session.uid;
+
+    await _members.doc(normalizedMemberId).set({
+      'locationSharingEnabled': shouldShare,
+      'locationLatitude': shouldShare ? latitude : null,
+      'locationLongitude': shouldShare ? longitude : null,
+      'locationAccuracyMeters': shouldShare ? normalizedAccuracy : null,
+      'locationUpdatedAt': shouldShare ? capturedAt : null,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': actor,
+    }, SetOptions(merge: true));
+  }
+
   Future<void> _ensureUniquePhone({
     required String clanId,
     required String? phoneE164,
@@ -605,6 +650,14 @@ int? _asPositiveIntOrNull(dynamic value) {
     return value;
   }
   return null;
+}
+
+bool _isValidLatitude(double value) {
+  return value.isFinite && value >= -90 && value <= 90;
+}
+
+bool _isValidLongitude(double value) {
+  return value.isFinite && value >= -180 && value <= 180;
 }
 
 DateTime? _tryParseIsoDate(String? value) {

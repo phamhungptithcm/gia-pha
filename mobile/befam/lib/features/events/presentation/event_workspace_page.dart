@@ -3282,6 +3282,21 @@ class _EventWorkspaceMemberRepositoryAdapter implements MemberRepository {
       'Avatar upload is not available in event create flow.',
     );
   }
+
+  @override
+  Future<void> updateMemberLiveLocation({
+    required AuthSession session,
+    required String memberId,
+    required bool sharingEnabled,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+  }) {
+    throw const MemberRepositoryException(
+      MemberRepositoryErrorCode.permissionDenied,
+      'Location update is not available in event create flow.',
+    );
+  }
 }
 
 String _ritualMilestoneLabel(

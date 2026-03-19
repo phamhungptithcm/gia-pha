@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:geolocator/geolocator.dart';
 
 import '../../core/widgets/member_phone_action.dart';
@@ -2345,14 +2344,18 @@ class _NearbyRelativeLoadResult {
     required this.items,
     required this.message,
     this.canRetry = true,
+    this.settingsTarget,
   });
 
   final List<_NearbyRelative> items;
   final String message;
   final bool canRetry;
+  final _NearbySettingsTarget? settingsTarget;
 
   bool get hasItems => items.isNotEmpty;
 }
+
+enum _NearbySettingsTarget { appPermission, locationService }
 
 class _NearbyRelativesSection extends StatefulWidget {
   const _NearbyRelativesSection({
@@ -2370,9 +2373,8 @@ class _NearbyRelativesSection extends StatefulWidget {
 
 class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
   static const int _maxCandidateCount = 80;
+  static const Duration _liveLocationMaxAge = Duration(hours: 12);
 
-  final Map<String, geocoding.Location?> _addressCache =
-      <String, geocoding.Location?>{};
   late Future<_NearbyRelativeLoadResult> _future;
 
   @override
@@ -2412,6 +2414,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
           vi: 'Vui lòng bật dịch vụ vị trí để tìm người thân ở gần.',
           en: 'Please enable location services to discover nearby relatives.',
         ),
+        settingsTarget: _NearbySettingsTarget.locationService,
       );
     }
 
@@ -2428,6 +2431,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
           vi: 'Bạn chưa cấp quyền vị trí. Cấp quyền để xem khoảng cách người thân.',
           en: 'Location permission is required to calculate nearby relative distances.',
         ),
+        settingsTarget: _NearbySettingsTarget.appPermission,
       );
     }
 
@@ -2448,10 +2452,25 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
       );
     }
 
+    final activeMemberId = (widget.session.memberId ?? '').trim();
+    if (activeMemberId.isNotEmpty) {
+      try {
+        await widget.memberRepository.updateMemberLiveLocation(
+          session: widget.session,
+          memberId: activeMemberId,
+          sharingEnabled: true,
+          latitude: currentPosition.latitude,
+          longitude: currentPosition.longitude,
+          accuracyMeters: currentPosition.accuracy,
+        );
+      } catch (_) {
+        // Keep nearby discovery functional even if live-location sync fails.
+      }
+    }
+
     final snapshot = await widget.memberRepository.loadWorkspace(
       session: widget.session,
     );
-    final activeMemberId = (widget.session.memberId ?? '').trim();
     final activeUid = widget.session.uid.trim();
     final membersById = <String, MemberProfile>{
       for (final member in snapshot.members) member.id: member,
@@ -2462,10 +2481,9 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
           if (member.clanId.trim() != activeClanId) {
             return false;
           }
-          if ((member.phoneE164 ?? '').trim().isEmpty) {
-            return false;
-          }
-          if ((member.addressText ?? '').trim().isEmpty) {
+          if (!member.locationSharingEnabled ||
+              !_memberHasShareableCoordinates(member) ||
+              !_isMemberLocationFresh(member)) {
             return false;
           }
           if (activeMemberId.isNotEmpty && member.id == activeMemberId) {
@@ -2486,16 +2504,13 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
 
     final nearbyItems = <_NearbyRelative>[];
     for (final member in candidates) {
-      final memberAddress = member.addressText!.trim();
-      final location = await _resolveAddress(memberAddress);
-      if (location == null) {
-        continue;
-      }
+      final memberLatitude = member.locationLatitude!;
+      final memberLongitude = member.locationLongitude!;
       final distanceMeters = Geolocator.distanceBetween(
         currentPosition.latitude,
         currentPosition.longitude,
-        location.latitude,
-        location.longitude,
+        memberLatitude,
+        memberLongitude,
       );
       if (!distanceMeters.isFinite || distanceMeters < 0) {
         continue;
@@ -2520,10 +2535,10 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
     if (nearbyItems.isEmpty) {
       return _NearbyRelativeLoadResult(
         items: const [],
-        canRetry: false,
+        canRetry: true,
         message: l10n.pick(
-          vi: 'Chưa có đủ địa chỉ thành viên để tính khoảng cách gần bạn.',
-          en: 'Not enough member addresses to estimate nearby distances yet.',
+          vi: 'Chưa có người thân nào chia sẻ vị trí thực tế. Nhờ họ bật quyền vị trí và mở BeFam để cập nhật gần bạn.',
+          en: 'No relatives are sharing live location yet. Ask them to allow location and open BeFam to appear nearby.',
         ),
       );
     }
@@ -2537,20 +2552,31 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
     );
   }
 
-  Future<geocoding.Location?> _resolveAddress(String addressText) async {
-    final cacheKey = addressText.trim().toLowerCase();
-    if (_addressCache.containsKey(cacheKey)) {
-      return _addressCache[cacheKey];
+  bool _memberHasShareableCoordinates(MemberProfile member) {
+    final latitude = member.locationLatitude;
+    final longitude = member.locationLongitude;
+    if (latitude == null || longitude == null) {
+      return false;
     }
-    try {
-      final resolved = await geocoding.locationFromAddress(addressText);
-      final first = resolved.isEmpty ? null : resolved.first;
-      _addressCache[cacheKey] = first;
-      return first;
-    } catch (_) {
-      _addressCache[cacheKey] = null;
-      return null;
+    return latitude.isFinite &&
+        longitude.isFinite &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
+  }
+
+  bool _isMemberLocationFresh(MemberProfile member) {
+    final rawUpdatedAt = member.locationUpdatedAt?.trim() ?? '';
+    if (rawUpdatedAt.isEmpty) {
+      return false;
     }
+    final updatedAt = DateTime.tryParse(rawUpdatedAt);
+    if (updatedAt == null) {
+      return false;
+    }
+    return DateTime.now().difference(updatedAt.toLocal()) <=
+        _liveLocationMaxAge;
   }
 
   String _relationHintFor({
@@ -2681,6 +2707,8 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                 ),
                 canRetry: true,
                 onRetry: _reload,
+                onRadarScan: _reload,
+                onOpenSettings: _openNearbySettings,
               );
             }
 
@@ -2689,6 +2717,9 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                 message: result.message,
                 canRetry: result.canRetry,
                 onRetry: _reload,
+                onRadarScan: _reload,
+                settingsTarget: result.settingsTarget,
+                onOpenSettings: _openNearbySettings,
               );
             }
 
@@ -2714,8 +2745,30 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                         ),
                       ),
                     ),
+                    IconButton(
+                      tooltip: l10n.pick(
+                        vi: 'Rà lại người thân gần đây',
+                        en: 'Rescan nearby relatives',
+                      ),
+                      onPressed: _reload,
+                      icon: const Icon(Icons.radar),
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 36,
+                        height: 36,
+                      ),
+                    ),
                     TextButton(
                       onPressed: () => _openNearbySheet(result.items),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                       child: Text(
                         l10n.pick(vi: 'Xem danh sách', en: 'View list'),
                       ),
@@ -2772,6 +2825,28 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openNearbySettings(_NearbySettingsTarget target) async {
+    final l10n = context.l10n;
+    final opened = switch (target) {
+      _NearbySettingsTarget.appPermission => await Geolocator.openAppSettings(),
+      _NearbySettingsTarget.locationService =>
+        await Geolocator.openLocationSettings(),
+    };
+    if (!mounted || opened) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          l10n.pick(
+            vi: 'Không thể mở phần cài đặt vị trí trên thiết bị này.',
+            en: 'Unable to open location settings on this device.',
+          ),
         ),
       ),
     );
@@ -3008,11 +3083,17 @@ class _NearbyRelativesEmpty extends StatelessWidget {
     required this.message,
     required this.canRetry,
     required this.onRetry,
+    required this.onRadarScan,
+    this.settingsTarget,
+    this.onOpenSettings,
   });
 
   final String message;
   final bool canRetry;
   final VoidCallback onRetry;
+  final VoidCallback onRadarScan;
+  final _NearbySettingsTarget? settingsTarget;
+  final Future<void> Function(_NearbySettingsTarget target)? onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -3035,10 +3116,37 @@ class _NearbyRelativesEmpty extends StatelessWidget {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
+            IconButton(
+              tooltip: l10n.pick(
+                vi: 'Rà lại người thân gần đây',
+                en: 'Rescan nearby relatives',
+              ),
+              onPressed: onRadarScan,
+              icon: const Icon(Icons.radar),
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+            ),
           ],
         ),
         const SizedBox(height: 8),
         Text(message),
+        if (settingsTarget != null && onOpenSettings != null) ...[
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () => unawaited(onOpenSettings!(settingsTarget!)),
+            icon: const Icon(Icons.open_in_new),
+            label: Text(switch (settingsTarget!) {
+              _NearbySettingsTarget.appPermission => l10n.pick(
+                vi: 'Mở cài đặt quyền vị trí',
+                en: 'Open app location permission',
+              ),
+              _NearbySettingsTarget.locationService => l10n.pick(
+                vi: 'Mở dịch vụ vị trí của máy',
+                en: 'Open device location services',
+              ),
+            }),
+          ),
+        ],
         if (canRetry) ...[
           const SizedBox(height: 8),
           TextButton.icon(

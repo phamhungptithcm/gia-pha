@@ -42,6 +42,15 @@ abstract interface class MemberRepository {
     required String fileName,
     String contentType = 'image/jpeg',
   });
+
+  Future<void> updateMemberLiveLocation({
+    required AuthSession session,
+    required String memberId,
+    required bool sharingEnabled,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+  });
 }
 
 MemberRepository createDefaultMemberRepository({AuthSession? session}) {

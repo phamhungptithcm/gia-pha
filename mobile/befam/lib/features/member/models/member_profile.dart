@@ -27,6 +27,11 @@ class MemberProfile {
     required this.status,
     required this.isMinor,
     required this.authUid,
+    this.locationSharingEnabled = false,
+    this.locationLatitude,
+    this.locationLongitude,
+    this.locationAccuracyMeters,
+    this.locationUpdatedAt,
   });
 
   final String id;
@@ -54,6 +59,11 @@ class MemberProfile {
   final String status;
   final bool isMinor;
   final String? authUid;
+  final bool locationSharingEnabled;
+  final double? locationLatitude;
+  final double? locationLongitude;
+  final double? locationAccuracyMeters;
+  final String? locationUpdatedAt;
 
   bool get hasAvatar => avatarUrl != null && avatarUrl!.trim().isNotEmpty;
 
@@ -104,6 +114,11 @@ class MemberProfile {
     String? status,
     bool? isMinor,
     String? authUid,
+    bool? locationSharingEnabled,
+    double? locationLatitude,
+    double? locationLongitude,
+    double? locationAccuracyMeters,
+    String? locationUpdatedAt,
   }) {
     return MemberProfile(
       id: id ?? this.id,
@@ -131,6 +146,13 @@ class MemberProfile {
       status: status ?? this.status,
       isMinor: isMinor ?? this.isMinor,
       authUid: authUid ?? this.authUid,
+      locationSharingEnabled:
+          locationSharingEnabled ?? this.locationSharingEnabled,
+      locationLatitude: locationLatitude ?? this.locationLatitude,
+      locationLongitude: locationLongitude ?? this.locationLongitude,
+      locationAccuracyMeters:
+          locationAccuracyMeters ?? this.locationAccuracyMeters,
+      locationUpdatedAt: locationUpdatedAt ?? this.locationUpdatedAt,
     );
   }
 
@@ -161,6 +183,11 @@ class MemberProfile {
       'status': status,
       'isMinor': isMinor,
       'authUid': authUid,
+      'locationSharingEnabled': locationSharingEnabled,
+      'locationLatitude': locationLatitude,
+      'locationLongitude': locationLongitude,
+      'locationAccuracyMeters': locationAccuracyMeters,
+      'locationUpdatedAt': locationUpdatedAt,
     };
   }
 
@@ -195,6 +222,11 @@ class MemberProfile {
       status: json['status'] as String? ?? 'active',
       isMinor: json['isMinor'] as bool? ?? false,
       authUid: json['authUid'] as String?,
+      locationSharingEnabled: json['locationSharingEnabled'] as bool? ?? false,
+      locationLatitude: _asDoubleOrNull(json['locationLatitude']),
+      locationLongitude: _asDoubleOrNull(json['locationLongitude']),
+      locationAccuracyMeters: _asDoubleOrNull(json['locationAccuracyMeters']),
+      locationUpdatedAt: json['locationUpdatedAt'] as String?,
     );
   }
 }
@@ -216,6 +248,13 @@ List<String> _stringList(dynamic value) {
 int? _asPositiveIntOrNull(dynamic value) {
   if (value is int && value > 0) {
     return value;
+  }
+  return null;
+}
+
+double? _asDoubleOrNull(dynamic value) {
+  if (value is num) {
+    return value.toDouble();
   }
   return null;
 }

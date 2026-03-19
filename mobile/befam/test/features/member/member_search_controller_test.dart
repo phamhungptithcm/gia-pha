@@ -379,6 +379,16 @@ class _FakeMemberRepository implements MemberRepository {
   }) {
     throw UnimplementedError();
   }
+
+  @override
+  Future<void> updateMemberLiveLocation({
+    required AuthSession session,
+    required String memberId,
+    required bool sharingEnabled,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+  }) async {}
 }
 
 class _FlakySearchProvider implements MemberSearchProvider {
