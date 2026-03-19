@@ -1,11 +1,11 @@
-import '../../../core/services/governance_role_matrix.dart';
-import '../../auth/models/auth_session.dart';
+import 'package:befam/core/services/governance_role_matrix.dart';
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/funds/models/treasurer_dashboard_snapshot.dart';
+import 'package:befam/features/funds/services/fund_repository.dart';
+import 'package:befam/features/funds/services/treasurer_dashboard_repository.dart';
+import 'package:befam/features/scholarship/services/scholarship_repository.dart';
 import '../../scholarship/services/debug_scholarship_repository.dart';
-import '../../scholarship/services/scholarship_repository.dart';
-import '../models/treasurer_dashboard_snapshot.dart';
 import 'debug_fund_repository.dart';
-import 'fund_repository.dart';
-import 'treasurer_dashboard_repository.dart';
 
 class DebugTreasurerDashboardRepository
     implements TreasurerDashboardRepository {

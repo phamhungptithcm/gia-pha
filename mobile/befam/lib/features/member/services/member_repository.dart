@@ -1,9 +1,6 @@
 import 'dart:typed_data';
 
-import '../../../core/services/debug_genealogy_store.dart';
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
-import 'debug_member_repository.dart';
 import 'firebase_member_repository.dart';
 import '../models/member_draft.dart';
 import '../models/member_profile.dart';
@@ -48,10 +45,5 @@ abstract interface class MemberRepository {
 }
 
 MemberRepository createDefaultMemberRepository({AuthSession? session}) {
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return DebugMemberRepository(store: DebugGenealogyStore.sharedSeeded());
-  }
-
   return FirebaseMemberRepository();
 }

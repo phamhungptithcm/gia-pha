@@ -1,7 +1,5 @@
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/treasurer_dashboard_snapshot.dart';
-import 'debug_treasurer_dashboard_repository.dart';
 import 'firebase_treasurer_dashboard_repository.dart';
 
 enum TreasurerDashboardRepositoryErrorCode { permissionDenied, fetchFailed }
@@ -27,9 +25,5 @@ abstract interface class TreasurerDashboardRepository {
 TreasurerDashboardRepository createDefaultTreasurerDashboardRepository({
   AuthSession? session,
 }) {
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return DebugTreasurerDashboardRepository.shared();
-  }
   return FirebaseTreasurerDashboardRepository();
 }

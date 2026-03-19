@@ -63,10 +63,7 @@ class FirebaseGenealogyDiscoveryRepository
   Future<List<MyJoinRequestItem>> loadMyJoinRequests({
     required AuthSession session,
   }) async {
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: FirebaseServices.firestore,
-      session: session,
-    );
+    final _ = session;
     final callable = _functions.httpsCallable('listMyJoinRequests');
     final response = await callable.call(const <String, dynamic>{});
     final payload = _asMap(response.data);
@@ -89,10 +86,7 @@ class FirebaseGenealogyDiscoveryRepository
     required AuthSession session,
     required String requestId,
   }) async {
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: FirebaseServices.firestore,
-      session: session,
-    );
+    final _ = session;
     final callable = _functions.httpsCallable('cancelJoinRequest');
     await callable.call(<String, dynamic>{'requestId': requestId});
   }

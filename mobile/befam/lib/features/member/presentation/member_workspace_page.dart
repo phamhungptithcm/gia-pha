@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/firebase_services.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/member_phone_action.dart';
 import '../../../core/widgets/social_link_actions.dart';
@@ -13,6 +14,7 @@ import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/models/clan_context_option.dart';
 import '../../auth/services/phone_number_formatter.dart';
+import '../../auth/widgets/phone_country_selector_field.dart';
 import '../../clan/models/branch_profile.dart';
 import '../../relationship/presentation/relationship_inspector_panel.dart';
 import '../../relationship/services/relationship_repository.dart';
@@ -245,10 +247,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
       return baseDraft;
     }
 
-    late final String normalizedPhone;
-    try {
-      normalizedPhone = PhoneNumberFormatter.parse(trimmedPhone).e164;
-    } catch (_) {
+    final normalizedPhone = PhoneNumberFormatter.tryParseE164(trimmedPhone);
+    if (normalizedPhone == null) {
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)
           ?..hideCurrentSnackBar()
@@ -267,7 +267,10 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
     }
     MemberProfile? existingInClan;
     for (final candidate in _controller.members) {
-      if ((candidate.phoneE164 ?? '').trim() == normalizedPhone) {
+      if (PhoneNumberFormatter.areEquivalent(
+        candidate.phoneE164,
+        normalizedPhone,
+      )) {
         existingInClan = candidate;
         break;
       }
@@ -374,7 +377,11 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
       gender: _nullIfBlank(_asTrimmedString(profile['gender'])),
       birthDate: _nullIfBlank(_asTrimmedString(profile['birthDate'])),
       deathDate: _nullIfBlank(_asTrimmedString(profile['deathDate'])),
-      phoneInput: _asTrimmedString(profile['phoneE164'], fallback: phoneE164),
+      phoneInput:
+          PhoneNumberFormatter.tryParseE164(
+            _asTrimmedString(profile['phoneE164'], fallback: phoneE164),
+          ) ??
+          phoneE164,
       email: _asTrimmedString(profile['email']),
       addressText: _asTrimmedString(profile['addressText']),
       jobTitle: _asTrimmedString(profile['jobTitle']),
@@ -1113,11 +1120,27 @@ class _MemberPhoneLookupSheet extends StatefulWidget {
 class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _phoneController;
+  late String _selectedCountryIsoCode;
+  bool _resolvedAutoCountry = false;
 
   @override
   void initState() {
     super.initState();
     _phoneController = TextEditingController();
+    _selectedCountryIsoCode = PhoneNumberFormatter.defaultCountryIsoCode;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_resolvedAutoCountry) {
+      return;
+    }
+    final locale = Localizations.localeOf(context);
+    _selectedCountryIsoCode = PhoneNumberFormatter.autoCountryIsoFromRegion(
+      locale.countryCode,
+    );
+    _resolvedAutoCountry = true;
   }
 
   @override
@@ -1126,11 +1149,34 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
     super.dispose();
   }
 
+  void _normalizePhoneInputForCountry() {
+    final normalized = PhoneNumberFormatter.toNationalInput(
+      _phoneController.text,
+      defaultCountryIso: _selectedCountryIsoCode,
+    );
+    if (normalized == _phoneController.text.trim()) {
+      return;
+    }
+    _phoneController
+      ..text = normalized
+      ..selection = TextSelection.collapsed(offset: normalized.length);
+  }
+
   void _submit() {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    Navigator.of(context).pop(_phoneController.text.trim());
+    _normalizePhoneInputForCountry();
+    final trimmed = _phoneController.text.trim();
+    if (trimmed.isEmpty) {
+      Navigator.of(context).pop('');
+      return;
+    }
+    final normalized = PhoneNumberFormatter.parse(
+      trimmed,
+      defaultCountryIso: _selectedCountryIsoCode,
+    ).e164;
+    Navigator.of(context).pop(normalized);
   }
 
   @override
@@ -1138,6 +1184,9 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final insets = MediaQuery.viewInsetsOf(context);
+    final phoneHint = PhoneNumberFormatter.nationalNumberHint(
+      _selectedCountryIsoCode,
+    );
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
       child: DecoratedBox(
@@ -1181,31 +1230,52 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  key: const Key('member-phone-lookup-input'),
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  textInputAction: TextInputAction.done,
-                  decoration: InputDecoration(
-                    labelText: l10n.memberPhoneLabel,
-                    hintText: l10n.memberPhoneHint,
-                  ),
-                  onFieldSubmitted: (_) => _submit(),
-                  validator: (value) {
-                    final trimmed = value?.trim() ?? '';
-                    if (trimmed.isEmpty) {
-                      return null;
-                    }
-                    try {
-                      PhoneNumberFormatter.parse(trimmed);
-                      return null;
-                    } catch (_) {
-                      return l10n.pick(
-                        vi: 'Số điện thoại chưa đúng định dạng.',
-                        en: 'Invalid phone number format.',
-                      );
-                    }
-                  },
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    PhoneCountrySelectorField(
+                      selectedIsoCode: _selectedCountryIsoCode,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCountryIsoCode = value;
+                          _normalizePhoneInputForCountry();
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        key: const Key('member-phone-lookup-input'),
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.done,
+                        decoration: InputDecoration(
+                          labelText: l10n.memberPhoneLabel,
+                          hintText: phoneHint,
+                        ),
+                        onEditingComplete: _normalizePhoneInputForCountry,
+                        onFieldSubmitted: (_) => _submit(),
+                        validator: (value) {
+                          final trimmed = value?.trim() ?? '';
+                          if (trimmed.isEmpty) {
+                            return null;
+                          }
+                          try {
+                            PhoneNumberFormatter.parse(
+                              trimmed,
+                              defaultCountryIso: _selectedCountryIsoCode,
+                            );
+                            return null;
+                          } catch (_) {
+                            return l10n.pick(
+                              vi: 'Số điện thoại chưa đúng định dạng.',
+                              en: 'Invalid phone number format.',
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 LayoutBuilder(
@@ -1323,10 +1393,12 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
   String? _selectedFatherId;
   String? _selectedMotherId;
   String? _gender;
+  late String _phoneCountryIsoCode;
   String? _selectedPrimaryRole;
   MemberRepositoryException? _submitError;
   bool _isSubmitting = false;
   int _editorStep = 0;
+  bool _resolvedAutoPhoneCountry = false;
 
   @override
   void initState() {
@@ -1343,8 +1415,14 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
     _deathDateController = TextEditingController(
       text: widget.initialDraft.deathDate ?? '',
     );
+    _phoneCountryIsoCode = PhoneNumberFormatter.inferCountryOption(
+      widget.initialDraft.phoneInput,
+    ).isoCode;
     _phoneController = TextEditingController(
-      text: widget.initialDraft.phoneInput,
+      text: PhoneNumberFormatter.toNationalInput(
+        widget.initialDraft.phoneInput,
+        defaultCountryIso: _phoneCountryIsoCode,
+      ),
     );
     _emailController = TextEditingController(text: widget.initialDraft.email);
     _addressController = TextEditingController(
@@ -1397,6 +1475,32 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_resolvedAutoPhoneCountry || _phoneController.text.trim().isNotEmpty) {
+      return;
+    }
+    final locale = Localizations.localeOf(context);
+    _phoneCountryIsoCode = PhoneNumberFormatter.autoCountryIsoFromRegion(
+      locale.countryCode,
+    );
+    _resolvedAutoPhoneCountry = true;
+  }
+
+  void _normalizePhoneInputForCountry() {
+    final normalized = PhoneNumberFormatter.toNationalInput(
+      _phoneController.text,
+      defaultCountryIso: _phoneCountryIsoCode,
+    );
+    if (normalized == _phoneController.text.trim()) {
+      return;
+    }
+    _phoneController
+      ..text = normalized
+      ..selection = TextSelection.collapsed(offset: normalized.length);
+  }
+
   Future<void> _pickDate(TextEditingController controller) async {
     final current = _tryParseIsoDate(controller.text.trim());
     final picked = await showDatePicker(
@@ -1421,6 +1525,8 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+
+    _normalizePhoneInputForCountry();
 
     setState(() {
       _isSubmitting = true;
@@ -1460,6 +1566,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
     final insets = MediaQuery.viewInsetsOf(context);
     final selectedParent = _primarySelectedParent;
     final selectedParentBranchName = _branchNameById(selectedParent?.branchId);
+    final phoneHint = PhoneNumberFormatter.nationalNumberHint(
+      _phoneCountryIsoCode,
+    );
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -1621,30 +1730,51 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                     },
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
-                    key: const Key('member-phone-input'),
-                    controller: _phoneController,
-                    decoration: InputDecoration(
-                      labelText: l10n.memberPhoneLabel,
-                      hintText: l10n.memberPhoneHint,
-                    ),
-                    keyboardType: TextInputType.phone,
-                    textInputAction: TextInputAction.next,
-                    validator: (value) {
-                      final trimmed = value?.trim() ?? '';
-                      if (trimmed.isEmpty) {
-                        return l10n.pick(
-                          vi: 'Hãy nhập số điện thoại.',
-                          en: 'Please enter a phone number.',
-                        );
-                      }
-                      try {
-                        PhoneNumberFormatter.parse(trimmed);
-                        return null;
-                      } catch (_) {
-                        return l10n.memberValidationPhoneInvalid;
-                      }
-                    },
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      PhoneCountrySelectorField(
+                        selectedIsoCode: _phoneCountryIsoCode,
+                        onChanged: (value) {
+                          setState(() {
+                            _phoneCountryIsoCode = value;
+                            _normalizePhoneInputForCountry();
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextFormField(
+                          key: const Key('member-phone-input'),
+                          controller: _phoneController,
+                          decoration: InputDecoration(
+                            labelText: l10n.memberPhoneLabel,
+                            hintText: phoneHint,
+                          ),
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.next,
+                          onEditingComplete: _normalizePhoneInputForCountry,
+                          validator: (value) {
+                            final trimmed = value?.trim() ?? '';
+                            if (trimmed.isEmpty) {
+                              return l10n.pick(
+                                vi: 'Hãy nhập số điện thoại.',
+                                en: 'Please enter a phone number.',
+                              );
+                            }
+                            try {
+                              PhoneNumberFormatter.parse(
+                                trimmed,
+                                defaultCountryIso: _phoneCountryIsoCode,
+                              );
+                              return null;
+                            } catch (_) {
+                              return l10n.memberValidationPhoneInvalid;
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ],
                 if (_editorStep == 1) ...[
@@ -1935,17 +2065,14 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                     textInputAction: TextInputAction.next,
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
+                  AddressAutocompleteField(
                     key: const Key('member-address-input'),
                     controller: _addressController,
-                    decoration: InputDecoration(
-                      labelText: l10n.memberAddressLabel,
-                      hintText: l10n.memberAddressHint,
-                    ),
+                    labelText: l10n.memberAddressLabel,
+                    hintText: l10n.memberAddressHint,
                     textInputAction: TextInputAction.next,
+                    maxLines: 2,
                   ),
-                  const SizedBox(height: 8),
-                  AddressInputAssistRow(controller: _addressController),
                   const SizedBox(height: 14),
                   Text(
                     l10n.pick(
@@ -2145,7 +2272,7 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
       gender: _gender,
       birthDate: _nullIfBlank(_birthDateController.text),
       deathDate: _nullIfBlank(_deathDateController.text),
-      phoneInput: _phoneController.text.trim(),
+      phoneInput: _normalizedPhoneDraftInput,
       email: _emailController.text.trim(),
       addressText: _addressController.text.trim(),
       jobTitle: _jobTitleController.text.trim(),
@@ -2175,6 +2302,18 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
   String get _autoResolvedRole {
     final previewDraft = _composeDraft(primaryRole: 'MEMBER');
     return widget.resolveAutoRole(previewDraft);
+  }
+
+  String get _normalizedPhoneDraftInput {
+    final trimmed = _phoneController.text.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    final normalized = PhoneNumberFormatter.tryParseE164(
+      trimmed,
+      defaultCountryIso: _phoneCountryIsoCode,
+    );
+    return normalized ?? trimmed;
   }
 
   MemberProfile? get _selectedFather => _memberById(_selectedFatherId);
@@ -2864,6 +3003,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
       return;
     }
     _phoneController.text = fatherPhone;
+    _phoneCountryIsoCode = PhoneNumberFormatter.inferCountryOption(
+      fatherPhone,
+    ).isoCode;
   }
 
   String _branchNameById(String? branchId) {

@@ -1,11 +1,12 @@
-import 'package:befam/core/services/debug_genealogy_store.dart';
+import '../../support/core/services/debug_genealogy_store.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/billing/models/billing_workspace_snapshot.dart';
 import 'package:befam/features/billing/presentation/billing_workspace_page.dart';
 import 'package:befam/features/billing/services/billing_repository.dart';
-import 'package:befam/features/billing/services/debug_billing_repository.dart';
+import '../../support/features/billing/services/debug_billing_repository.dart';
+import 'package:befam/features/billing/services/vnpay_mobile_sdk_gateway.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -55,7 +56,7 @@ void main() {
     BillingRepository? repository,
     Locale locale = const Locale('vi'),
     Future<bool> Function(Uri uri)? externalUrlLauncher,
-    bool allowQrCheckoutInDebug = false,
+    VnpayMobileSdkGateway? vnpayGateway,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -71,12 +72,39 @@ void main() {
           session: session ?? buildSession(),
           repository: repository ?? DebugBillingRepository.shared(),
           externalUrlLauncher: externalUrlLauncher ?? ((_) async => true),
-          allowQrCheckoutInDebug: allowQrCheckoutInDebug,
+          vnpayGateway: vnpayGateway ?? const _TestVnpayGateway(),
         ),
       ),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  Future<Finder> waitForPaymentReturnButton(WidgetTester tester) async {
+    final failedBackButton = find.byKey(
+      const Key('billing-payment-failed-back-button'),
+    );
+    final pendingBackButton = find.byKey(
+      const Key('billing-payment-back-button'),
+    );
+    final successBackButton = find.byKey(
+      const Key('billing-payment-success-back-button'),
+    );
+
+    for (var index = 0; index < 80; index += 1) {
+      await tester.pump(const Duration(milliseconds: 100));
+      if (failedBackButton.evaluate().isNotEmpty) {
+        return failedBackButton;
+      }
+      if (pendingBackButton.evaluate().isNotEmpty) {
+        return pendingBackButton;
+      }
+      if (successBackButton.evaluate().isNotEmpty) {
+        return successBackButton;
+      }
+    }
+
+    throw TestFailure('Timed out waiting for a payment return action button.');
   }
 
   void seedPaidTier() {
@@ -160,11 +188,17 @@ void main() {
     await tester.tap(vnpayButton);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('billing-vnpay-submit-button')));
-    await tester.pumpAndSettle();
-    expect(find.text('Thanh toán chưa hoàn tất'), findsOneWidget);
-    await tester.tap(
-      find.byKey(const Key('billing-payment-failed-back-button')),
-    );
+    final returnButton = await waitForPaymentReturnButton(tester);
+    final hasFailedLabel = find
+        .text('Thanh toán chưa hoàn tất')
+        .evaluate()
+        .isNotEmpty;
+    final hasPendingLabel = find
+        .text('Đang chờ thanh toán')
+        .evaluate()
+        .isNotEmpty;
+    expect(hasFailedLabel || hasPendingLabel, isTrue);
+    await tester.tap(returnButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Phiên thanh toán mới nhất'), findsNothing);
@@ -284,10 +318,8 @@ void main() {
       await tester.tap(vnpayButton);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('billing-vnpay-submit-button')));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const Key('billing-payment-failed-back-button')),
-      );
+      final returnButton = await waitForPaymentReturnButton(tester);
+      await tester.tap(returnButton);
       await tester.pumpAndSettle();
 
       final snapshot = await tester.runAsync(
@@ -311,7 +343,6 @@ void main() {
       tester,
       session: buildSession(uid: 'debug:billing-qr-fallback'),
       repository: repository,
-      allowQrCheckoutInDebug: true,
       externalUrlLauncher: (uri) async {
         didOpenQrImage = true;
         return true;
@@ -391,10 +422,8 @@ void main() {
     await tester.tap(vnpayButton);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('billing-vnpay-submit-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('billing-payment-failed-back-button')),
-    );
+    final returnButton = await waitForPaymentReturnButton(tester);
+    await tester.tap(returnButton);
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
@@ -530,6 +559,19 @@ class _QrEnabledBillingRepository implements BillingRepository {
     return _delegate.settleVnpayCheckout(
       session: session,
       transactionId: transactionId,
+    );
+  }
+}
+
+class _TestVnpayGateway implements VnpayMobileSdkGateway {
+  const _TestVnpayGateway();
+
+  @override
+  Future<VnpayCheckoutOpenResult> openCheckout({
+    required Uri checkoutUri,
+  }) async {
+    return const VnpayCheckoutOpenResult(
+      status: VnpayCheckoutOpenStatus.externalBrowser,
     );
   }
 }

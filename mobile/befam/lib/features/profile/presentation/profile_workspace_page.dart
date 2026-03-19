@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../core/services/app_locale_controller.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/member_phone_action.dart';
 import '../../../core/widgets/social_link_actions.dart';
@@ -13,6 +14,8 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/services/auth_session_store.dart';
+import '../../auth/services/phone_number_formatter.dart';
+import '../../auth/widgets/phone_country_selector_field.dart';
 import '../../billing/presentation/billing_workspace_page.dart';
 import '../../billing/services/billing_repository.dart';
 import '../../member/models/member_profile.dart';
@@ -194,10 +197,18 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         draft.phoneInput,
         widget.session.phoneE164,
       );
+      final normalizedPhoneInput =
+          PhoneNumberFormatter.tryParseE164(
+            phoneInput,
+            defaultCountryIso: PhoneNumberFormatter.inferCountryOption(
+              widget.session.phoneE164,
+            ).isoCode,
+          ) ??
+          phoneInput;
       final normalizedDraft = ProfileDraft(
         fullName: fullName,
         nickName: draft.nickName.trim(),
-        phoneInput: phoneInput,
+        phoneInput: normalizedPhoneInput,
         email: draft.email.trim(),
         addressText: draft.addressText.trim(),
         jobTitle: draft.jobTitle.trim(),
@@ -212,7 +223,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       );
       final updatedSession = widget.session.copyWith(
         displayName: fullName,
-        phoneE164: phoneInput,
+        phoneE164: normalizedPhoneInput,
       );
       await _sessionStore.write(updatedSession);
       widget.onSessionUpdated?.call(updatedSession);
@@ -1190,6 +1201,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
   late final TextEditingController _facebookController;
   late final TextEditingController _zaloController;
   late final TextEditingController _linkedinController;
+  late String _phoneCountryIsoCode;
+  bool _resolvedAutoPhoneCountry = false;
 
   MemberRepositoryErrorCode? _submitError;
   bool _isSubmitting = false;
@@ -1203,8 +1216,14 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     _nickNameController = TextEditingController(
       text: widget.initialDraft.nickName,
     );
+    _phoneCountryIsoCode = PhoneNumberFormatter.inferCountryOption(
+      widget.initialDraft.phoneInput,
+    ).isoCode;
     _phoneController = TextEditingController(
-      text: widget.initialDraft.phoneInput,
+      text: PhoneNumberFormatter.toNationalInput(
+        widget.initialDraft.phoneInput,
+        defaultCountryIso: _phoneCountryIsoCode,
+      ),
     );
     _emailController = TextEditingController(text: widget.initialDraft.email);
     _addressController = TextEditingController(
@@ -1238,6 +1257,32 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_resolvedAutoPhoneCountry || _phoneController.text.trim().isNotEmpty) {
+      return;
+    }
+    final locale = Localizations.localeOf(context);
+    _phoneCountryIsoCode = PhoneNumberFormatter.autoCountryIsoFromRegion(
+      locale.countryCode,
+    );
+    _resolvedAutoPhoneCountry = true;
+  }
+
+  void _normalizePhoneInputForCountry() {
+    final normalized = PhoneNumberFormatter.toNationalInput(
+      _phoneController.text,
+      defaultCountryIso: _phoneCountryIsoCode,
+    );
+    if (normalized == _phoneController.text.trim()) {
+      return;
+    }
+    _phoneController
+      ..text = normalized
+      ..selection = TextSelection.collapsed(offset: normalized.length);
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -1248,11 +1293,20 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
       _submitError = null;
     });
 
+    _normalizePhoneInputForCountry();
+    final trimmedPhone = _phoneController.text.trim();
+    final normalizedPhone = trimmedPhone.isEmpty
+        ? ''
+        : PhoneNumberFormatter.parse(
+            trimmedPhone,
+            defaultCountryIso: _phoneCountryIsoCode,
+          ).e164;
+
     final error = await widget.onSubmit(
       ProfileDraft(
         fullName: _fullNameController.text.trim(),
         nickName: _nickNameController.text.trim(),
-        phoneInput: _phoneController.text.trim(),
+        phoneInput: normalizedPhone,
         email: _emailController.text.trim(),
         addressText: _addressController.text.trim(),
         jobTitle: _jobTitleController.text.trim(),
@@ -1298,6 +1352,9 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     final insets = MediaQuery.viewInsetsOf(context);
     final theme = Theme.of(context);
     final l10n = context.l10n;
+    final phoneHint = PhoneNumberFormatter.nationalNumberHint(
+      _phoneCountryIsoCode,
+    );
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -1364,9 +1421,47 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
-                  controller: _phoneController,
-                  decoration: InputDecoration(labelText: l10n.memberPhoneLabel),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    PhoneCountrySelectorField(
+                      selectedIsoCode: _phoneCountryIsoCode,
+                      enabled: !_isSubmitting,
+                      onChanged: (value) {
+                        setState(() {
+                          _phoneCountryIsoCode = value;
+                          _normalizePhoneInputForCountry();
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _phoneController,
+                        decoration: InputDecoration(
+                          labelText: l10n.memberPhoneLabel,
+                          hintText: phoneHint,
+                        ),
+                        keyboardType: TextInputType.phone,
+                        onEditingComplete: _normalizePhoneInputForCountry,
+                        validator: (value) {
+                          final trimmed = value?.trim() ?? '';
+                          if (trimmed.isEmpty) {
+                            return null;
+                          }
+                          try {
+                            PhoneNumberFormatter.parse(
+                              trimmed,
+                              defaultCountryIso: _phoneCountryIsoCode,
+                            );
+                            return null;
+                          } catch (_) {
+                            return l10n.memberValidationPhoneInvalid;
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
@@ -1381,15 +1476,15 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
+                AddressAutocompleteField(
                   controller: _addressController,
                   maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: l10n.memberAddressLabel,
+                  labelText: l10n.memberAddressLabel,
+                  hintText: l10n.pick(
+                    vi: 'Số nhà, đường, phường/xã, quận/huyện...',
+                    en: 'Street, ward, district...',
                   ),
                 ),
-                const SizedBox(height: 8),
-                AddressInputAssistRow(controller: _addressController),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _bioController,

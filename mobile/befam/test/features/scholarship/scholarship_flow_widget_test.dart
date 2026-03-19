@@ -2,7 +2,7 @@ import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/scholarship/presentation/scholarship_workspace_page.dart';
-import 'package:befam/features/scholarship/services/debug_scholarship_repository.dart';
+import '../../support/features/scholarship/services/debug_scholarship_repository.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -111,18 +111,9 @@ void main() {
       find.byKey(const Key('scholarship-program-year-input')),
       '2030',
     );
-    await tapButtonByKey(
-      tester,
-      const Key('scholarship-program-save-button'),
-    );
-    await tapButtonByKey(
-      tester,
-      const Key('scholarship-program-save-button'),
-    );
-    await tapButtonByKey(
-      tester,
-      const Key('scholarship-program-save-button'),
-    );
+    await tapButtonByKey(tester, const Key('scholarship-program-save-button'));
+    await tapButtonByKey(tester, const Key('scholarship-program-save-button'));
+    await tapButtonByKey(tester, const Key('scholarship-program-save-button'));
 
     expect(
       find.byKey(const Key('scholarship-program-save-button')),
@@ -149,22 +140,13 @@ void main() {
       find.byKey(const Key('scholarship-award-name-input')),
       'Merit Award',
     );
-    await tapButtonByKey(
-      tester,
-      const Key('scholarship-award-save-button'),
-    );
+    await tapButtonByKey(tester, const Key('scholarship-award-save-button'));
     await tester.enterText(
       find.byKey(const Key('scholarship-award-amount-input')),
       '500000',
     );
-    await tapButtonByKey(
-      tester,
-      const Key('scholarship-award-save-button'),
-    );
-    await tapButtonByKey(
-      tester,
-      const Key('scholarship-award-save-button'),
-    );
+    await tapButtonByKey(tester, const Key('scholarship-award-save-button'));
+    await tapButtonByKey(tester, const Key('scholarship-award-save-button'));
 
     expect(find.text('Merit Award'), findsOneWidget);
 

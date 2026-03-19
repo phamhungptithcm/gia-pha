@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/achievement_submission.dart';
 import '../models/achievement_submission_draft.dart';
@@ -10,7 +9,6 @@ import '../models/scholarship_disbursement_fund.dart';
 import '../models/scholarship_program.dart';
 import '../models/scholarship_program_draft.dart';
 import '../models/scholarship_workspace_snapshot.dart';
-import 'debug_scholarship_repository.dart';
 import 'firebase_scholarship_repository.dart';
 
 enum ScholarshipRepositoryErrorCode {
@@ -90,10 +88,5 @@ abstract interface class ScholarshipRepository {
 ScholarshipRepository createDefaultScholarshipRepository({
   AuthSession? session,
 }) {
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return DebugScholarshipRepository.shared();
-  }
-
   return FirebaseScholarshipRepository();
 }

@@ -1,9 +1,10 @@
 import 'dart:async';
 
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/auth/services/phone_number_formatter.dart';
+import 'package:befam/features/billing/models/billing_workspace_snapshot.dart';
+import 'package:befam/features/billing/services/billing_repository.dart';
 import '../../../core/services/debug_genealogy_store.dart';
-import '../../auth/models/auth_session.dart';
-import '../models/billing_workspace_snapshot.dart';
-import 'billing_repository.dart';
 
 class DebugBillingRepository implements BillingRepository {
   DebugBillingRepository._({required DebugGenealogyStore genealogyStore})
@@ -139,6 +140,8 @@ class DebugBillingRepository implements BillingRepository {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 140));
     final clanId = _clanIdOf(session);
+    final normalizedContactPhone =
+        PhoneNumberFormatter.tryParseE164(contactPhone) ?? contactPhone?.trim();
     final state = _ensureState(clanId: clanId, ownerUid: session.uid);
     _expireStalePendingTransactions(state);
     _syncStateWithMemberCount(state, clanId);
@@ -282,8 +285,8 @@ class DebugBillingRepository implements BillingRepository {
           'bankCode': bankCode.trim().toUpperCase(),
         if (orderNote != null && orderNote.trim().isNotEmpty)
           'orderNote': orderNote.trim(),
-        if (contactPhone != null && contactPhone.trim().isNotEmpty)
-          'contactPhone': contactPhone.trim(),
+        if (normalizedContactPhone != null && normalizedContactPhone.isNotEmpty)
+          'contactPhone': normalizedContactPhone,
         'mode': method,
         'debug': '1',
       },

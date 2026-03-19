@@ -98,7 +98,6 @@ class _FakeAuthGateway implements AuthGateway {
         phoneE164: phoneE164,
         maskedDestination: '+84******567',
         verificationId: 'fake-verification',
-        debugOtpHint: '123456',
       ),
     );
   }
@@ -116,9 +115,9 @@ class _FakeAuthGateway implements AuthGateway {
   @override
   Future<AuthOtpVerificationResult> verifyOtp(
     PendingOtpChallenge challenge,
-    String smsCode,
-    {String? languageCode}
-  ) async {
+    String smsCode, {
+    String? languageCode,
+  }) async {
     verifyOtpCount += 1;
     lastVerifiedCode = smsCode;
     return AuthOtpVerificationResult.session(
@@ -159,9 +158,9 @@ class _FakeAuthGateway implements AuthGateway {
 
   @override
   Future<MemberIdentityVerificationChallenge> startMemberIdentityVerification(
-    String memberId,
-    {String? languageCode}
-  ) async {
+    String memberId, {
+    String? languageCode,
+  }) async {
     return const MemberIdentityVerificationChallenge(
       verificationSessionId: 'session',
       memberId: 'member_demo_parent_001',

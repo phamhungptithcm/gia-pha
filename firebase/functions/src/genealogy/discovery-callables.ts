@@ -116,6 +116,7 @@ const reviewerRoles = [
   'VICE_LEADER',
   'SUPPORTER_OF_LEADER',
 ];
+const SUPPORTED_PHONE_DIAL_CODES = ['886', '84', '82', '81', '65', '61', '49', '44', '33', '1'];
 
 export const searchGenealogyDiscovery = onCall(
   { region: APP_REGION },
@@ -1242,7 +1243,69 @@ function normalizeSearch(value: string | null): string {
 }
 
 function normalizeContact(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, '');
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return '';
+  }
+  const compact = trimmed.toLowerCase().replace(/\s+/g, '');
+  if (compact.includes('@')) {
+    return compact;
+  }
+  try {
+    return normalizePhoneE164ForContact(trimmed);
+  } catch {
+    return compact;
+  }
+}
+
+function normalizePhoneE164ForContact(input: string): string {
+  const trimmed = input.trim();
+  const digitsAndPlus = trimmed.replace(/[^0-9+]/g, '');
+  if (digitsAndPlus.length === 0) {
+    throw new Error('Invalid phone input');
+  }
+  const digitsOnly = digitsAndPlus.replace(/[^0-9]/g, '');
+  let normalized = '';
+  if (digitsAndPlus.startsWith('+')) {
+    normalized = `+${digitsAndPlus.slice(1).replace(/[^0-9]/g, '')}`;
+  } else if (digitsAndPlus.startsWith('00')) {
+    normalized = `+${digitsAndPlus.slice(2).replace(/[^0-9]/g, '')}`;
+  } else if (digitsOnly.startsWith('0')) {
+    normalized = `+84${digitsOnly.slice(1)}`;
+  } else if (looksLikeInternationalPhoneDigits(digitsOnly, '84')) {
+    normalized = `+${digitsOnly}`;
+  } else {
+    normalized = `+84${digitsOnly}`;
+  }
+
+  if (normalized.startsWith('+840')) {
+    normalized = `+84${normalized.slice(4)}`;
+  }
+  if (normalized.startsWith('+84') && normalized.length > 3 && normalized[3] === '0') {
+    normalized = `+84${normalized.slice(4)}`;
+  }
+  if (!/^\+[1-9]\d{8,14}$/.test(normalized)) {
+    throw new Error('Invalid phone format');
+  }
+  return normalized;
+}
+
+function looksLikeInternationalPhoneDigits(
+  digits: string,
+  fallbackDialCode: string,
+): boolean {
+  if (digits.length === 0) {
+    return false;
+  }
+  if (digits.startsWith(fallbackDialCode) && digits.length > fallbackDialCode.length + 6) {
+    return true;
+  }
+  for (const dialCode of SUPPORTED_PHONE_DIAL_CODES) {
+    if (digits.startsWith(dialCode) && digits.length > dialCode.length + 6) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function requireNonEmptyString(data: unknown, key: string): string {

@@ -20,6 +20,8 @@ import '../../features/funds/services/fund_repository.dart';
 import '../../features/genealogy/presentation/genealogy_workspace_page.dart';
 import '../../features/genealogy/services/genealogy_read_repository.dart';
 import '../../features/discovery/presentation/genealogy_discovery_page.dart';
+import '../../features/discovery/presentation/join_request_review_page.dart';
+import '../../features/discovery/presentation/my_join_requests_page.dart';
 import '../../features/discovery/services/genealogy_discovery_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/models/member_profile.dart';
@@ -380,7 +382,11 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   Future<void> _loadClanContexts() async {
-    if (_isLoadingClanContexts || !_session.linkedAuthUid) {
+    if (_isLoadingClanContexts) {
+      return;
+    }
+    // Child-access sessions should keep their scoped context and skip clan sync.
+    if (_session.loginMethod == AuthEntryMethod.child) {
       return;
     }
     _isLoadingClanContexts = true;
@@ -546,6 +552,9 @@ class _AppShellPageState extends State<AppShellPage> {
         },
         onOpenMemorialChecklistRequested: () {
           unawaited(_openMemorialRitualWorkspace());
+        },
+        onOpenJoinRequestsRequested: () {
+          unawaited(_openJoinRequestsCenter());
         },
         onOpenProfileRequested: () {
           setState(() {
@@ -777,35 +786,12 @@ class _AppShellPageState extends State<AppShellPage> {
           ),
         ),
       ),
-      PopupMenuButton<String>(
-        key: const Key('shell-overflow-menu'),
-        icon: const Icon(Icons.more_vert),
-        tooltip: l10n.shellMoreActions,
-        onSelected: (value) async {
-          if (value == 'discover') {
-            _openGenealogyDiscoveryPage();
-            return;
-          }
-          if (value == 'logout') {
-            await _confirmLogoutRequest();
-          }
-        },
-        itemBuilder: (context) => [
-          PopupMenuItem<String>(
-            key: const Key('shell-overflow-discover-item'),
-            value: 'discover',
-            child: Text(
-              l10n.pick(vi: 'Tìm kiếm gia phả', en: 'Search genealogies'),
-            ),
-          ),
-          if (widget.onLogoutRequested != null)
-            PopupMenuItem<String>(
-              key: const Key('shell-overflow-logout-item'),
-              value: 'logout',
-              child: Text(l10n.shellLogout),
-            ),
-        ],
-      ),
+      if (widget.onLogoutRequested != null)
+        IconButton(
+          tooltip: l10n.shellLogout,
+          onPressed: _confirmLogoutRequest,
+          icon: const Icon(Icons.logout),
+        ),
     ];
   }
 
@@ -820,24 +806,6 @@ class _AppShellPageState extends State<AppShellPage> {
         ? l10n.pick(vi: 'Owner: --', en: 'Owner: --')
         : l10n.pick(vi: 'Owner: $ownerLabel', en: 'Owner: $ownerLabel');
     return '$planLabel · $ownerPart';
-  }
-
-  void _openGenealogyDiscoveryPage() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) {
-          return GenealogyDiscoveryPage(
-            session: _session,
-            repository: createDefaultGenealogyDiscoveryRepository(
-              session: _session,
-            ),
-            onAddGenealogyRequested: _hasClanContext
-                ? null
-                : _openClanWorkspaceFromTreeAddAction,
-          );
-        },
-      ),
-    );
   }
 
   Future<void> _openClanWorkspaceFromTreeAddAction() async {
@@ -864,6 +832,63 @@ class _AppShellPageState extends State<AppShellPage> {
           return EventWorkspacePage(
             session: _session,
             repository: createDefaultEventRepository(session: _session),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openJoinRequestsCenter() async {
+    final repository = createDefaultGenealogyDiscoveryRepository(
+      session: _session,
+    );
+    final role = (_session.primaryRole ?? '').trim().toUpperCase();
+    final canReview = <String>{
+      'SUPER_ADMIN',
+      'CLAN_ADMIN',
+      'CLAN_LEADER',
+      'BRANCH_ADMIN',
+      'ADMIN_SUPPORT',
+      'VICE_LEADER',
+      'SUPPORTER_OF_LEADER',
+    }.contains(role);
+
+    if (canReview && _hasClanContext) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) {
+            return JoinRequestReviewPage(
+              session: _session,
+              repository: repository,
+            );
+          },
+        ),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return MyJoinRequestsPage(
+            session: _session,
+            repository: repository,
+            onOpenDiscoveryRequested: (query) async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) {
+                    return GenealogyDiscoveryPage(
+                      session: _session,
+                      repository: repository,
+                      onAddGenealogyRequested: _hasClanContext
+                          ? null
+                          : _openClanWorkspaceFromTreeAddAction,
+                      initialQuery: query,
+                    );
+                  },
+                ),
+              );
+            },
           );
         },
       ),
@@ -995,6 +1020,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
     required this.onOpenMemorialChecklistRequested,
+    required this.onOpenJoinRequestsRequested,
   });
 
   final FirebaseSetupStatus status;
@@ -1008,33 +1034,17 @@ class _HomeDashboard extends StatelessWidget {
   final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
   final VoidCallback onOpenMemorialChecklistRequested;
+  final VoidCallback onOpenJoinRequestsRequested;
   bool get _hasClanContext => (session.clanId ?? '').trim().isNotEmpty;
 
   List<AppShortcut> get _availableShortcuts {
-    if (_hasClanContext) {
-      return bootstrapShortcuts;
-    }
-    return bootstrapShortcuts
-        .where(
-          (shortcut) =>
-              shortcut.id == 'tree' ||
-              shortcut.id == 'clan' ||
-              shortcut.id == 'events',
-        )
-        .toList(growable: false);
+    return bootstrapShortcuts;
   }
 
   List<AppShortcut> get _primaryShortcuts {
     final primary = _availableShortcuts.where((entry) => entry.isPrimary);
     final fallback = primary.isEmpty ? _availableShortcuts : primary;
     return fallback.take(4).toList(growable: false);
-  }
-
-  List<AppShortcut> get _secondaryShortcuts {
-    final primaryIds = _primaryShortcuts.map((entry) => entry.id).toSet();
-    return _availableShortcuts
-        .where((entry) => !primaryIds.contains(entry.id))
-        .toList(growable: false);
   }
 
   @override
@@ -1084,11 +1094,16 @@ class _HomeDashboard extends StatelessWidget {
                 _TodoSection(
                   status: status,
                   session: session,
+                  discoveryRepository:
+                      createDefaultGenealogyDiscoveryRepository(
+                        session: session,
+                      ),
                   onOpenTreeRequested: onOpenTreeRequested,
                   onOpenProfileRequested: onOpenProfileRequested,
                   onOpenEventsRequested: onOpenEventsRequested,
                   onOpenMemorialChecklistRequested:
                       onOpenMemorialChecklistRequested,
+                  onOpenJoinRequestsRequested: onOpenJoinRequestsRequested,
                 ),
                 const SizedBox(height: 24),
                 _NearbyRelativesSection(
@@ -1146,9 +1161,7 @@ class _HomeDashboard extends StatelessWidget {
       showDragHandle: true,
       builder: (sheetContext) {
         final l10n = sheetContext.l10n;
-        final shortcuts = _secondaryShortcuts.isEmpty
-            ? _availableShortcuts
-            : _secondaryShortcuts;
+        final shortcuts = _availableShortcuts;
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
           children: [
@@ -1722,26 +1735,122 @@ class _UpcomingEventData {
   final String? hostHousehold;
 }
 
-class _TodoSection extends StatelessWidget {
+class _TodoSection extends StatefulWidget {
   const _TodoSection({
     required this.status,
     required this.session,
+    required this.discoveryRepository,
     required this.onOpenTreeRequested,
     required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
     required this.onOpenMemorialChecklistRequested,
+    required this.onOpenJoinRequestsRequested,
   });
 
   final FirebaseSetupStatus status;
   final AuthSession session;
+  final GenealogyDiscoveryRepository discoveryRepository;
   final VoidCallback onOpenTreeRequested;
   final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
   final VoidCallback onOpenMemorialChecklistRequested;
+  final VoidCallback onOpenJoinRequestsRequested;
+
+  @override
+  State<_TodoSection> createState() => _TodoSectionState();
+}
+
+class _TodoSectionState extends State<_TodoSection> {
+  static const Set<String> _reviewerRoles = {
+    'SUPER_ADMIN',
+    'CLAN_ADMIN',
+    'CLAN_LEADER',
+    'BRANCH_ADMIN',
+    'ADMIN_SUPPORT',
+    'VICE_LEADER',
+    'SUPPORTER_OF_LEADER',
+  };
+
+  bool _isLoadingJoinRequestSignals = false;
+  bool _hasPendingJoinRequestsToReview = false;
+  bool _hasMySubmittedJoinRequests = false;
+
+  bool get _canReviewJoinRequests {
+    final role = (widget.session.primaryRole ?? '').trim().toUpperCase();
+    final clanId = (widget.session.clanId ?? '').trim();
+    return clanId.isNotEmpty && _reviewerRoles.contains(role);
+  }
+
+  bool get _isProfileLikelyComplete {
+    final hasDisplayName = widget.session.displayName.trim().isNotEmpty;
+    final hasPhone = widget.session.phoneE164.trim().isNotEmpty;
+    final hasMemberLink = (widget.session.memberId ?? '').trim().isNotEmpty;
+    return hasDisplayName &&
+        hasPhone &&
+        hasMemberLink &&
+        widget.session.accessMode == AuthMemberAccessMode.claimed;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadJoinRequestSignals());
+  }
+
+  @override
+  void didUpdateWidget(covariant _TodoSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session.uid != widget.session.uid ||
+        oldWidget.session.clanId != widget.session.clanId ||
+        oldWidget.session.primaryRole != widget.session.primaryRole) {
+      unawaited(_loadJoinRequestSignals());
+    }
+  }
+
+  Future<void> _loadJoinRequestSignals() async {
+    if (_isLoadingJoinRequestSignals) {
+      return;
+    }
+    setState(() {
+      _isLoadingJoinRequestSignals = true;
+    });
+
+    var hasMyRequests = false;
+    var hasPendingReview = false;
+    try {
+      final myRequests = await widget.discoveryRepository.loadMyJoinRequests(
+        session: widget.session,
+      );
+      hasMyRequests = myRequests.isNotEmpty;
+    } catch (_) {
+      hasMyRequests = false;
+    }
+
+    if (_canReviewJoinRequests) {
+      try {
+        final pendingForReview = await widget.discoveryRepository
+            .loadPendingJoinRequests(session: widget.session);
+        hasPendingReview = pendingForReview.isNotEmpty;
+      } catch (_) {
+        hasPendingReview = false;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _hasMySubmittedJoinRequests = hasMyRequests;
+      _hasPendingJoinRequestsToReview = hasPendingReview;
+      _isLoadingJoinRequestSignals = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final shouldShowJoinRequestsTask =
+        _hasPendingJoinRequestsToReview || _hasMySubmittedJoinRequests;
     final tasks = <({IconData icon, String title, VoidCallback onTap})>[
       (
         icon: Icons.event_available_outlined,
@@ -1749,7 +1858,7 @@ class _TodoSection extends StatelessWidget {
           vi: 'Kiểm tra sự kiện trong tuần',
           en: 'Review this week events',
         ),
-        onTap: onOpenEventsRequested,
+        onTap: widget.onOpenEventsRequested,
       ),
       (
         icon: Icons.history_edu_outlined,
@@ -1757,33 +1866,48 @@ class _TodoSection extends StatelessWidget {
           vi: 'Rà soát danh sách giỗ và dỗ trạp',
           en: 'Review memorial and ritual checklists',
         ),
-        onTap: onOpenMemorialChecklistRequested,
+        onTap: widget.onOpenMemorialChecklistRequested,
       ),
-      (
-        icon: Icons.person_outline,
-        title: l10n.pick(
-          vi: 'Cập nhật hồ sơ của bạn',
-          en: 'Update your profile',
+      if (!_isProfileLikelyComplete)
+        (
+          icon: Icons.person_outline,
+          title: l10n.pick(
+            vi: 'Cập nhật hồ sơ của bạn',
+            en: 'Update your profile',
+          ),
+          onTap: widget.onOpenProfileRequested,
         ),
-        onTap: onOpenProfileRequested,
-      ),
-      if (session.accessMode == AuthMemberAccessMode.unlinked)
+      if (!_isLoadingJoinRequestSignals && shouldShowJoinRequestsTask)
+        (
+          icon: Icons.fact_check_outlined,
+          title: _hasPendingJoinRequestsToReview
+              ? l10n.pick(
+                  vi: 'Xem yêu cầu gia nhập gia phả',
+                  en: 'Review join requests',
+                )
+              : l10n.pick(
+                  vi: 'Xem yêu cầu bạn đã gửi',
+                  en: 'View your submitted requests',
+                ),
+          onTap: widget.onOpenJoinRequestsRequested,
+        ),
+      if (widget.session.accessMode == AuthMemberAccessMode.unlinked)
         (
           icon: Icons.travel_explore_outlined,
           title: l10n.pick(
             vi: 'Tìm gia phả để tham gia',
             en: 'Discover genealogies to join',
           ),
-          onTap: onOpenTreeRequested,
+          onTap: widget.onOpenTreeRequested,
         ),
-      if (!status.isReady)
+      if (!widget.status.isReady)
         (
           icon: Icons.cloud_off,
           title: l10n.pick(
             vi: 'Kiểm tra kết nối Firebase',
             en: 'Check Firebase connectivity',
           ),
-          onTap: onOpenProfileRequested,
+          onTap: widget.onOpenProfileRequested,
         ),
     ];
 
@@ -1800,7 +1924,7 @@ class _TodoSection extends StatelessWidget {
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 10),
-            for (final entry in tasks.take(3))
+            for (final entry in tasks.take(4))
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,

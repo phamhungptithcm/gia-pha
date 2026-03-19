@@ -1,18 +1,17 @@
 import 'dart:async';
 
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/clan/models/branch_profile.dart';
+import 'package:befam/features/genealogy/models/genealogy_read_segment.dart';
+import 'package:befam/features/genealogy/models/genealogy_scope.dart';
+import 'package:befam/features/genealogy/services/genealogy_graph_algorithms.dart';
+import 'package:befam/features/genealogy/services/genealogy_read_repository.dart';
+import 'package:befam/features/genealogy/services/genealogy_root_entries.dart';
+import 'package:befam/features/genealogy/services/genealogy_segment_cache.dart';
+import 'package:befam/features/member/models/member_profile.dart';
+import 'package:befam/features/relationship/models/relationship_record.dart';
 import 'package:collection/collection.dart';
-
 import '../../../core/services/debug_genealogy_store.dart';
-import '../../auth/models/auth_session.dart';
-import '../../clan/models/branch_profile.dart';
-import '../../member/models/member_profile.dart';
-import '../../relationship/models/relationship_record.dart';
-import '../models/genealogy_read_segment.dart';
-import '../models/genealogy_scope.dart';
-import 'genealogy_graph_algorithms.dart';
-import 'genealogy_read_repository.dart';
-import 'genealogy_root_entries.dart';
-import 'genealogy_segment_cache.dart';
 
 class DebugGenealogyReadRepository implements GenealogyReadRepository {
   DebugGenealogyReadRepository({

@@ -14,7 +14,7 @@ class AddressDirectionIconButton extends StatelessWidget {
     required this.address,
     this.label,
     this.iconSize = 20,
-    this.visualDensity = VisualDensity.standard,
+    this.visualDensity = VisualDensity.compact,
   });
 
   final String address;
@@ -33,7 +33,7 @@ class AddressDirectionIconButton extends StatelessWidget {
       tooltip: context.l10n.pick(vi: 'Mở chỉ đường', en: 'Open directions'),
       visualDensity: visualDensity,
       iconSize: iconSize,
-      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
       onPressed: () async {
         await AddressActionTools.openDirections(
           context,
@@ -51,12 +51,10 @@ class AddressInputAssistRow extends StatefulWidget {
     super.key,
     required this.controller,
     this.onChanged,
-    this.enableMapPinAction = true,
   });
 
   final TextEditingController controller;
   final VoidCallback? onChanged;
-  final bool enableMapPinAction;
 
   @override
   State<AddressInputAssistRow> createState() => _AddressInputAssistRowState();
@@ -74,7 +72,7 @@ class _AddressInputAssistRowState extends State<AddressInputAssistRow> {
       _isResolvingCurrentLocation = true;
     });
     try {
-      final resolved = await AddressActionTools.addressFromCurrentLocation(
+      final resolved = await AddressActionTools.cityCountryFromCurrentLocation(
         context,
       );
       if (!mounted || resolved == null || resolved.trim().isEmpty) {
@@ -87,8 +85,8 @@ class _AddressInputAssistRowState extends State<AddressInputAssistRow> {
       widget.onChanged?.call();
       _showSnack(
         context.l10n.pick(
-          vi: 'Đã điền địa chỉ theo vị trí hiện tại của bạn.',
-          en: 'Address filled from your current location.',
+          vi: 'Đã điền thành phố và quốc gia từ vị trí hiện tại.',
+          en: 'Filled city and country from your current location.',
         ),
       );
       return;
@@ -126,7 +124,7 @@ class _AddressInputAssistRowState extends State<AddressInputAssistRow> {
       _isNormalizingAddress = true;
     });
     try {
-      final normalized = await AddressActionTools.normalizeAddress(
+      final normalized = await AddressActionTools.normalizeAddressToCityCountry(
         context,
         rawAddress: raw,
       );
@@ -141,16 +139,16 @@ class _AddressInputAssistRowState extends State<AddressInputAssistRow> {
       if (normalized.trim() == raw) {
         _showSnack(
           context.l10n.pick(
-            vi: 'Không tìm thấy địa chỉ chính xác hơn. Đã giữ nguyên nội dung bạn nhập.',
-            en: 'No more accurate result found. Your original address is kept.',
+            vi: 'Địa chỉ đã ở định dạng thành phố, quốc gia.',
+            en: 'Address is already in city, country format.',
           ),
         );
         return;
       }
       _showSnack(
         context.l10n.pick(
-          vi: 'Đã chuẩn hóa địa chỉ để chính xác hơn.',
-          en: 'Address normalized for better accuracy.',
+          vi: 'Đã chuẩn hóa về định dạng thành phố, quốc gia.',
+          en: 'Address normalized to city, country.',
         ),
       );
     } finally {
@@ -162,18 +160,6 @@ class _AddressInputAssistRowState extends State<AddressInputAssistRow> {
     }
   }
 
-  Future<void> _openMapPin() async {
-    final raw = widget.controller.text.trim();
-    await AddressActionTools.openMapSearch(
-      context,
-      query: raw,
-      label: context.l10n.pick(
-        vi: 'Địa chỉ cần xác thực',
-        en: 'Address to verify',
-      ),
-    );
-  }
-
   void _showSnack(String message) {
     ScaffoldMessenger.maybeOf(context)
       ?..hideCurrentSnackBar()
@@ -183,58 +169,31 @@ class _AddressInputAssistRowState extends State<AddressInputAssistRow> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            OutlinedButton.icon(
-              onPressed: _isResolvingCurrentLocation
-                  ? null
-                  : _useCurrentLocation,
-              icon: _isResolvingCurrentLocation
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.my_location_outlined),
-              label: Text(
-                l10n.pick(vi: 'Dùng vị trí của tôi', en: 'Use my location'),
-              ),
-            ),
-            OutlinedButton.icon(
-              onPressed: _isNormalizingAddress ? null : _normalizeAddress,
-              icon: _isNormalizingAddress
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_fix_high_outlined),
-              label: Text(
-                l10n.pick(vi: 'Kiểm tra địa chỉ', en: 'Validate address'),
-              ),
-            ),
-            if (widget.enableMapPinAction)
-              OutlinedButton.icon(
-                onPressed: _openMapPin,
-                icon: const Icon(Icons.map_outlined),
-                label: Text(
-                  l10n.pick(vi: 'Chọn trên bản đồ', en: 'Pick on map'),
-                ),
-              ),
-          ],
+        ActionChip(
+          onPressed: _isResolvingCurrentLocation ? null : _useCurrentLocation,
+          avatar: _isResolvingCurrentLocation
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.my_location_outlined, size: 18),
+          label: Text(l10n.pick(vi: 'Vị trí của tôi', en: 'My location')),
         ),
-        const SizedBox(height: 6),
-        Text(
-          l10n.pick(
-            vi: 'Mẹo: dùng vị trí hiện tại hoặc chọn trên bản đồ để địa chỉ chính xác hơn.',
-            en: 'Tip: use current location or map pin for better accuracy.',
-          ),
-          style: Theme.of(context).textTheme.bodySmall,
+        ActionChip(
+          onPressed: _isNormalizingAddress ? null : _normalizeAddress,
+          avatar: _isNormalizingAddress
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.auto_fix_high_outlined, size: 18),
+          label: Text(l10n.pick(vi: 'Chuẩn hóa', en: 'Normalize')),
         ),
       ],
     );
@@ -268,7 +227,7 @@ class AddressActionTools {
       latitude: location?.latitude,
       longitude: location?.longitude,
     );
-    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final launched = await launchUrl(uri, mode: _mapLaunchMode());
     if (launched || !context.mounted) {
       return;
     }
@@ -298,7 +257,7 @@ class AddressActionTools {
         : normalizedQuery;
 
     final uri = _buildSearchUri(query: targetQuery, label: label);
-    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final launched = await launchUrl(uri, mode: _mapLaunchMode());
     if (launched || !context.mounted) {
       return;
     }
@@ -364,6 +323,55 @@ class AddressActionTools {
     return resolved;
   }
 
+  static Future<String?> cityCountryFromCurrentLocation(
+    BuildContext context,
+  ) async {
+    final hasPermission = await _ensureLocationPermission(context);
+    if (!hasPermission) {
+      return null;
+    }
+
+    Position? position;
+    try {
+      position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+        ),
+      ).timeout(const Duration(seconds: 12));
+    } catch (_) {
+      position = await Geolocator.getLastKnownPosition();
+      if (position == null && context.mounted) {
+        _showSnack(
+          context,
+          context.l10n.pick(
+            vi: 'Không lấy được vị trí hiện tại.',
+            en: 'Unable to determine your current location.',
+          ),
+        );
+      }
+    }
+
+    if (position == null) {
+      return null;
+    }
+
+    final mark = await _reverseGeocodePlacemark(
+      latitude: position.latitude,
+      longitude: position.longitude,
+    );
+    final resolved = mark == null ? null : _formatPlacemarkCityCountry(mark);
+    if ((resolved ?? '').trim().isEmpty && context.mounted) {
+      _showSnack(
+        context,
+        context.l10n.pick(
+          vi: 'Đã lấy được vị trí nhưng chưa xác định được thành phố/quốc gia.',
+          en: 'Location found, but city/country could not be resolved yet.',
+        ),
+      );
+    }
+    return resolved;
+  }
+
   static Future<String?> normalizeAddress(
     BuildContext context, {
     required String rawAddress,
@@ -401,6 +409,94 @@ class AddressActionTools {
           );
       }
       return null;
+    }
+  }
+
+  static Future<String?> normalizeAddressToCityCountry(
+    BuildContext context, {
+    required String rawAddress,
+  }) async {
+    final normalizedRaw = rawAddress.trim();
+    if (normalizedRaw.isEmpty) {
+      return null;
+    }
+    try {
+      final locations = await geocoding.locationFromAddress(normalizedRaw);
+      if (locations.isEmpty) {
+        return normalizedRaw;
+      }
+      final first = locations.first;
+      final mark = await _reverseGeocodePlacemark(
+        latitude: first.latitude,
+        longitude: first.longitude,
+      );
+      if (mark == null) {
+        return normalizedRaw;
+      }
+      final resolved = _formatPlacemarkCityCountry(mark).trim();
+      return resolved.isEmpty ? normalizedRaw : resolved;
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.pick(
+                  vi: 'Không thể chuẩn hóa địa chỉ. Vui lòng kiểm tra lại.',
+                  en: 'Unable to normalize this address. Please check and retry.',
+                ),
+              ),
+            ),
+          );
+      }
+      return null;
+    }
+  }
+
+  static Future<List<String>> suggestAddresses({
+    required String query,
+    bool cityCountryOnly = false,
+    int limit = 6,
+  }) async {
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.length < 3 || limit <= 0) {
+      return const [];
+    }
+    try {
+      final locations = await geocoding.locationFromAddress(normalizedQuery);
+      if (locations.isEmpty) {
+        return const [];
+      }
+
+      final suggestions = <String>[];
+      final seen = <String>{};
+      for (final location in locations) {
+        if (suggestions.length >= limit) {
+          break;
+        }
+        final mark = await _reverseGeocodePlacemark(
+          latitude: location.latitude,
+          longitude: location.longitude,
+        );
+        final rawSuggestion = mark == null
+            ? normalizedQuery
+            : (cityCountryOnly
+                  ? _formatPlacemarkCityCountry(mark)
+                  : _formatPlacemark(mark));
+        final suggestion = rawSuggestion.trim();
+        if (suggestion.isEmpty) {
+          continue;
+        }
+        final key = suggestion.toLowerCase();
+        if (!seen.add(key)) {
+          continue;
+        }
+        suggestions.add(suggestion);
+      }
+      return suggestions;
+    } catch (_) {
+      return const [];
     }
   }
 
@@ -451,6 +547,20 @@ class AddressActionTools {
     required double latitude,
     required double longitude,
   }) async {
+    final mark = await _reverseGeocodePlacemark(
+      latitude: latitude,
+      longitude: longitude,
+    );
+    if (mark == null) {
+      return null;
+    }
+    return _formatPlacemark(mark);
+  }
+
+  static Future<geocoding.Placemark?> _reverseGeocodePlacemark({
+    required double latitude,
+    required double longitude,
+  }) async {
     try {
       final marks = await geocoding.placemarkFromCoordinates(
         latitude,
@@ -459,7 +569,7 @@ class AddressActionTools {
       if (marks.isEmpty) {
         return null;
       }
-      return _formatPlacemark(marks.first);
+      return marks.first;
     } catch (_) {
       return null;
     }
@@ -478,12 +588,34 @@ class AddressActionTools {
     return parts.join(', ');
   }
 
+  static String _formatPlacemarkCityCountry(geocoding.Placemark mark) {
+    final city = mark.locality?.trim().isNotEmpty == true
+        ? mark.locality!.trim()
+        : (mark.subAdministrativeArea?.trim().isNotEmpty == true
+              ? mark.subAdministrativeArea!.trim()
+              : mark.administrativeArea?.trim() ?? '');
+    final country = mark.country?.trim() ?? '';
+    final parts = <String>[
+      if (city.isNotEmpty) city,
+      if (country.isNotEmpty) country,
+    ];
+    return parts.join(', ');
+  }
+
   static Uri _buildDirectionsUri({
     required String address,
     String? label,
     double? latitude,
     double? longitude,
   }) {
+    if (kIsWeb) {
+      return _buildGoogleDirectionsUri(
+        address: address,
+        latitude: latitude,
+        longitude: longitude,
+      );
+    }
+
     if (defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS) {
       if (latitude != null && longitude != null) {
@@ -497,16 +629,36 @@ class AddressActionTools {
       );
     }
 
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      if (latitude != null && longitude != null) {
+        final displayLabel = (label?.trim().isNotEmpty == true)
+            ? label!.trim()
+            : address;
+        final encodedDisplayLabel = Uri.encodeQueryComponent(displayLabel);
+        return Uri.parse(
+          'geo:$latitude,$longitude?q=$latitude,$longitude($encodedDisplayLabel)',
+        );
+      }
+      return Uri.parse('geo:0,0?q=${Uri.encodeQueryComponent(address)}');
+    }
+
     final destination = (latitude != null && longitude != null)
         ? '$latitude,$longitude'
         : address;
     final queryLabel = (label?.trim().isNotEmpty == true)
         ? '${label!.trim()} $destination'
         : destination;
-    return Uri.parse('geo:0,0?q=${Uri.encodeQueryComponent(queryLabel)}');
+    return _buildGoogleSearchUri(query: queryLabel);
   }
 
   static Uri _buildSearchUri({required String query, String? label}) {
+    if (kIsWeb) {
+      final q = label?.trim().isNotEmpty == true
+          ? '${label!.trim()} $query'
+          : query;
+      return _buildGoogleSearchUri(query: q);
+    }
+
     if (defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS) {
       final q = label?.trim().isNotEmpty == true
@@ -516,10 +668,41 @@ class AddressActionTools {
         'http://maps.apple.com/?q=${Uri.encodeQueryComponent(q)}',
       );
     }
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final q = label?.trim().isNotEmpty == true
+          ? '${label!.trim()} $query'
+          : query;
+      return Uri.parse('geo:0,0?q=${Uri.encodeQueryComponent(q)}');
+    }
+
     final q = label?.trim().isNotEmpty == true
         ? '${label!.trim()} $query'
         : query;
-    return Uri.parse('geo:0,0?q=${Uri.encodeQueryComponent(q)}');
+    return _buildGoogleSearchUri(query: q);
+  }
+
+  static Uri _buildGoogleDirectionsUri({
+    required String address,
+    double? latitude,
+    double? longitude,
+  }) {
+    final destination = (latitude != null && longitude != null)
+        ? '$latitude,$longitude'
+        : address;
+    return Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=${Uri.encodeQueryComponent(destination)}',
+    );
+  }
+
+  static Uri _buildGoogleSearchUri({required String query}) {
+    return Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(query)}',
+    );
+  }
+
+  static LaunchMode _mapLaunchMode() {
+    return kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication;
   }
 
   static void _showSnack(

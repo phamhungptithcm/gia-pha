@@ -240,6 +240,7 @@ const APP_CHECK_CALLABLE_OPTIONS = {
   region: APP_REGION,
   enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
 } as const;
+const SUPPORTED_PHONE_DIAL_CODES = ['886', '84', '82', '81', '65', '61', '49', '44', '33', '1'];
 
 export const resolveChildLoginContext = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
@@ -308,8 +309,7 @@ export const claimMemberRecord = onCall(APP_CHECK_CALLABLE_OPTIONS, async (reque
   const authPhone = typeof auth.token.phone_number === 'string'
     ? auth.token.phone_number
     : '';
-  const debugPhone = optionalString(auth.token, 'debugPhoneE164')?.trim() ?? '';
-  const effectiveAuthPhone = authPhone.length > 0 ? authPhone : debugPhone;
+  const effectiveAuthPhone = authPhone;
 
   if (loginMethod === 'child') {
     const childIdentifier = optionalString(request.data, 'childIdentifier')
@@ -353,20 +353,6 @@ export const claimMemberRecord = onCall(APP_CHECK_CALLABLE_OPTIONS, async (reque
   });
 
   if (claimedMember == null) {
-    const debugContext = extractDebugMemberSessionContext(auth.token);
-    if (debugContext != null) {
-      await applySessionClaims(auth.uid, debugContext);
-
-      logInfo('claimMemberRecord resolved via debug context', {
-        uid: auth.uid,
-        memberId: debugContext.memberId,
-        clanId: debugContext.clanId,
-        primaryRole: debugContext.primaryRole,
-      });
-
-      return debugContext;
-    }
-
     const context: MemberSessionContext = {
       memberId: null,
       displayName: null,
@@ -434,8 +420,7 @@ export const resolvePhoneIdentityAfterOtp = onCall(
     const authPhone = typeof auth.token.phone_number === 'string'
       ? auth.token.phone_number
       : '';
-    const debugPhone = optionalString(auth.token, 'debugPhoneE164')?.trim() ?? '';
-    const effectiveAuthPhone = authPhone.length > 0 ? authPhone : debugPhone;
+    const effectiveAuthPhone = authPhone;
     if (effectiveAuthPhone.length === 0) {
       throw new HttpsError(
         'failed-precondition',
@@ -444,6 +429,8 @@ export const resolvePhoneIdentityAfterOtp = onCall(
     }
     const phoneE164 = normalizePhoneE164(effectiveAuthPhone);
     const trustedDeviceActive = await isTrustedDeviceActive(auth.uid, deviceTokenHash);
+    let candidatesFromTrustedUnlinked: Array<MaskedMemberCandidate> | null = null;
+    let hasSelectableCandidateFromTrustedUnlinked = false;
 
     const contexts = await loadLinkedClanContextsForUid(auth.uid);
     const activeContext = resolveActiveClanContext({
@@ -555,6 +542,33 @@ export const resolvePhoneIdentityAfterOtp = onCall(
           profileClanId == null &&
           (profileAccessMode.length == 0 || profileAccessMode == 'unlinked')
         ) {
+          candidatesFromTrustedUnlinked = await loadMaskedMemberCandidatesForPhone(
+            phoneE164,
+            auth.uid,
+            languageCode,
+          );
+          hasSelectableCandidateFromTrustedUnlinked = candidatesFromTrustedUnlinked
+            .some((candidate) => candidate.selectable);
+          if (hasSelectableCandidateFromTrustedUnlinked) {
+            await writeAuthEvent({
+              uid: auth.uid,
+              action: 'phone_identity_candidates_found_trusted_unlinked',
+              phoneE164,
+              memberId: null,
+              metadata: {
+                candidateCount: candidatesFromTrustedUnlinked.length,
+                trustedDevice: true,
+              },
+            });
+            return {
+              status: 'needs_selection',
+              trustedDevice: true,
+              allowCreateNew: true,
+              phoneE164,
+              context: null,
+              candidates: candidatesFromTrustedUnlinked,
+            };
+          }
           const context: MemberSessionContext = {
             memberId: null,
             displayName: optionalString(auth.token, 'name')?.trim() ?? null,
@@ -588,11 +602,12 @@ export const resolvePhoneIdentityAfterOtp = onCall(
       }
     }
 
-    const candidates = await loadMaskedMemberCandidatesForPhone(
-      phoneE164,
-      auth.uid,
-      languageCode,
-    );
+    const candidates = candidatesFromTrustedUnlinked ??
+      await loadMaskedMemberCandidatesForPhone(
+        phoneE164,
+        auth.uid,
+        languageCode,
+      );
     const hasSelectableCandidate = candidates.some((candidate) => candidate.selectable);
     await writeAuthEvent({
       uid: auth.uid,
@@ -629,8 +644,7 @@ export const createUnlinkedPhoneIdentity = onCall(
     const authPhone = typeof auth.token.phone_number === 'string'
       ? auth.token.phone_number
       : '';
-    const debugPhone = optionalString(auth.token, 'debugPhoneE164')?.trim() ?? '';
-    const effectiveAuthPhone = authPhone.length > 0 ? authPhone : debugPhone;
+    const effectiveAuthPhone = authPhone;
     if (effectiveAuthPhone.length === 0) {
       throw new HttpsError(
         'failed-precondition',
@@ -696,8 +710,7 @@ export const startMemberIdentityVerification = onCall(
     const authPhone = typeof auth.token.phone_number === 'string'
       ? auth.token.phone_number
       : '';
-    const debugPhone = optionalString(auth.token, 'debugPhoneE164')?.trim() ?? '';
-    const effectiveAuthPhone = authPhone.length > 0 ? authPhone : debugPhone;
+    const effectiveAuthPhone = authPhone;
     if (effectiveAuthPhone.length === 0) {
       throw new HttpsError(
         'failed-precondition',
@@ -1085,16 +1098,13 @@ export const lookupMemberProfileByPhone = onCall(
 
     const phoneInput = requireNonEmptyString(request.data, 'phoneE164');
     const phoneE164 = normalizePhoneE164(phoneInput);
-    const snapshot = await membersCollection
-      .where('phoneE164', '==', phoneE164)
-      .limit(10)
-      .get();
+    const memberSnapshots = await loadPhoneMemberSnapshots(phoneE164);
 
-    if (snapshot.empty) {
+    if (memberSnapshots.length === 0) {
       return { found: false, profile: null };
     }
 
-    const candidate = [...snapshot.docs]
+    const candidate = memberSnapshots
       .map((doc) => ({ id: doc.id, data: doc.data() as MemberRecord }))
       .sort((left, right) => {
         const byScore = memberLookupScore(right.data) - memberLookupScore(left.data);
@@ -1152,9 +1162,7 @@ export const bootstrapClanWorkspace = onCall(
     const activeMemberIdFromToken = optionalString(auth.token, 'memberId')?.trim() ?? null;
     const activeBranchIdFromToken = optionalString(auth.token, 'branchId')?.trim() ?? null;
     const activeRoleFromToken = normalizeRoleClaim(optionalString(auth.token, 'primaryRole'));
-    const activeDisplayNameFromToken = optionalString(auth.token, 'name')?.trim() ??
-      optionalString(auth.token, 'debugDisplayName')?.trim() ??
-      null;
+    const activeDisplayNameFromToken = optionalString(auth.token, 'name')?.trim() ?? null;
     const keepExistingActiveContext = allowExistingClan &&
       tokenClanIds.length > 0 &&
       activeClanIdFromToken != null &&
@@ -1628,16 +1636,22 @@ function requireNonEmptyString(data: unknown, key: string): string {
 function normalizePhoneE164(input: string): string {
   const trimmed = input.trim();
   const digitsAndPlus = trimmed.replace(/[^0-9+]/g, '');
+  if (digitsAndPlus.length === 0) {
+    throw new HttpsError('invalid-argument', 'phoneE164 has invalid format.');
+  }
+  const digitsOnly = digitsAndPlus.replace(/[^0-9]/g, '');
   let normalized = '';
 
   if (digitsAndPlus.startsWith('+')) {
     normalized = `+${digitsAndPlus.slice(1).replace(/[^0-9]/g, '')}`;
   } else if (digitsAndPlus.startsWith('00')) {
-    normalized = `+${digitsAndPlus.slice(2)}`;
-  } else if (digitsAndPlus.startsWith('0')) {
-    normalized = `+84${digitsAndPlus.slice(1)}`;
+    normalized = `+${digitsAndPlus.slice(2).replace(/[^0-9]/g, '')}`;
+  } else if (digitsOnly.startsWith('0')) {
+    normalized = `+84${digitsOnly.slice(1)}`;
+  } else if (looksLikeInternationalPhoneDigits(digitsOnly, '84')) {
+    normalized = `+${digitsOnly}`;
   } else {
-    normalized = `+${digitsAndPlus}`;
+    normalized = `+84${digitsOnly}`;
   }
 
   if (normalized.startsWith('+840')) {
@@ -1652,6 +1666,48 @@ function normalizePhoneE164(input: string): string {
   }
 
   return normalized;
+}
+
+function looksLikeInternationalPhoneDigits(
+  digits: string,
+  fallbackDialCode: string,
+): boolean {
+  if (digits.length === 0) {
+    return false;
+  }
+  if (digits.startsWith(fallbackDialCode) && digits.length > fallbackDialCode.length + 6) {
+    return true;
+  }
+  const matchedDialCode = findPhoneDialCodePrefix(digits);
+  if (matchedDialCode == null) {
+    return false;
+  }
+  return digits.length > matchedDialCode.length + 6;
+}
+
+function findPhoneDialCodePrefix(digits: string): string | null {
+  for (const dialCode of SUPPORTED_PHONE_DIAL_CODES) {
+    if (digits.startsWith(dialCode) && digits.length > dialCode.length) {
+      return dialCode;
+    }
+  }
+  return null;
+}
+
+function splitPhoneCountryAndNational(phoneE164: string): {
+  dialCode: string;
+  nationalDigits: string;
+} | null {
+  const digits = phoneE164.startsWith('+') ? phoneE164.slice(1) : phoneE164;
+  const dialCode = findPhoneDialCodePrefix(digits);
+  if (dialCode == null) {
+    return null;
+  }
+  const nationalDigits = digits.slice(dialCode.length);
+  if (nationalDigits.length === 0) {
+    return null;
+  }
+  return { dialCode, nationalDigits };
 }
 
 function optionalTrimmedRecordString(value: unknown): string | null {
@@ -1728,50 +1784,6 @@ function resolveMemberDisplayName(member: MemberRecord): string | null {
     return nickName;
   }
   return null;
-}
-
-function extractDebugMemberSessionContext(token: unknown): MemberSessionContext | null {
-  if (token == null || typeof token !== 'object') {
-    return null;
-  }
-  const claims = token as Record<string, unknown>;
-  if (claims.debugProfile !== true) {
-    return null;
-  }
-
-  const memberId = asNullableTrimmedString(claims.debugMemberId);
-  const displayName = asNullableTrimmedString(claims.debugDisplayName);
-  const clanId = asNullableTrimmedString(claims.debugClanId);
-  const branchId = asNullableTrimmedString(claims.debugBranchId);
-  const primaryRole = asNullableTrimmedString(claims.debugPrimaryRole);
-  const linkedAuthUid = claims.debugLinkedAuthUid === true;
-
-  const rawAccessMode = asTrimmedString(claims.debugAccessMode).toLowerCase();
-  const accessMode: MemberAccessMode = rawAccessMode === 'claimed'
-    ? 'claimed'
-    : rawAccessMode === 'child'
-      ? 'child'
-      : 'unlinked';
-
-  if (
-    memberId == null &&
-    displayName == null &&
-    clanId == null &&
-    branchId == null &&
-    primaryRole == null
-  ) {
-    return null;
-  }
-
-  return {
-    memberId,
-    displayName,
-    clanId,
-    branchId,
-    primaryRole,
-    accessMode,
-    linkedAuthUid,
-  };
 }
 
 function normalizeRoleClaim(value: unknown): string {
@@ -2251,13 +2263,14 @@ function buildPhoneLookupVariants(phoneE164: string): Array<string> {
   const variants = new Set<string>([normalized]);
   const digitsOnly = normalized.startsWith('+') ? normalized.slice(1) : normalized;
   variants.add(digitsOnly);
-  if (normalized.startsWith('+84')) {
-    const localDigits = normalized.slice(3);
-    if (localDigits.length > 0) {
-      variants.add(`0${localDigits}`);
-      variants.add(`84${localDigits}`);
-      variants.add(`+84${localDigits}`);
+  const split = splitPhoneCountryAndNational(normalized);
+  if (split != null) {
+    variants.add(split.nationalDigits);
+    if (!split.nationalDigits.startsWith('0')) {
+      variants.add(`0${split.nationalDigits}`);
     }
+    variants.add(`${split.dialCode}${split.nationalDigits}`);
+    variants.add(`+${split.dialCode}${split.nationalDigits}`);
   }
   return [...variants].filter((entry) => entry.trim().length > 0);
 }

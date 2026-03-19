@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import '../../../core/services/analytics_event_names.dart';
 import '../../../core/services/firebase_services.dart';
 
@@ -164,8 +162,5 @@ class NoopMemberSearchAnalyticsService implements MemberSearchAnalyticsService {
 }
 
 MemberSearchAnalyticsService createDefaultMemberSearchAnalyticsService() {
-  if (kDebugMode) {
-    return const NoopMemberSearchAnalyticsService();
-  }
   return const FirebaseMemberSearchAnalyticsService();
 }

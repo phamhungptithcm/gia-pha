@@ -1,6 +1,6 @@
-import '../../auth/models/auth_session.dart';
-import '../models/profile_notification_preferences.dart';
-import 'profile_notification_preferences_repository.dart';
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/profile/models/profile_notification_preferences.dart';
+import 'package:befam/features/profile/services/profile_notification_preferences_repository.dart';
 
 class DebugProfileNotificationPreferencesRepository
     implements ProfileNotificationPreferencesRepository {

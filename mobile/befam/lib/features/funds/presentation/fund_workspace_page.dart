@@ -585,6 +585,32 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                               ),
                             ),
                           ),
+                        if (currentFund != null &&
+                            _hasFundTransferInfo(currentFund))
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _FundTransferInfoCard(
+                              bankName: currentFund.bankName,
+                              accountNumber: currentFund.bankAccountNumber,
+                              accountHolder: currentFund.bankAccountHolder,
+                              onCopyAccountNumber: (value) =>
+                                  _copyFundTransferField(
+                                    value: value,
+                                    successMessage: l10n.pick(
+                                      vi: 'Đã sao chép số tài khoản.',
+                                      en: 'Account number copied.',
+                                    ),
+                                  ),
+                              onCopyAccountHolder: (value) =>
+                                  _copyFundTransferField(
+                                    value: value,
+                                    successMessage: l10n.pick(
+                                      vi: 'Đã sao chép chủ tài khoản.',
+                                      en: 'Account holder copied.',
+                                    ),
+                                  ),
+                            ),
+                          ),
                         if (hasFunds) ...[
                           _StatRow(
                             items: [
@@ -1032,6 +1058,28 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         ),
       ),
     );
+  }
+
+  bool _hasFundTransferInfo(FundProfile fund) {
+    return (fund.bankAccountNumber ?? '').trim().isNotEmpty ||
+        (fund.bankAccountHolder ?? '').trim().isNotEmpty;
+  }
+
+  Future<void> _copyFundTransferField({
+    required String value,
+    required String successMessage,
+  }) async {
+    final normalized = value.trim();
+    if (normalized.isEmpty) {
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: normalized));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(successMessage)));
   }
 
   Future<void> _exportTreasurerReportSummaryPdf({
@@ -3370,6 +3418,121 @@ class _InfoCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FundTransferInfoCard extends StatelessWidget {
+  const _FundTransferInfoCard({
+    required this.accountNumber,
+    required this.accountHolder,
+    required this.onCopyAccountNumber,
+    required this.onCopyAccountHolder,
+    this.bankName,
+  });
+
+  final String? bankName;
+  final String? accountNumber;
+  final String? accountHolder;
+  final ValueChanged<String> onCopyAccountNumber;
+  final ValueChanged<String> onCopyAccountHolder;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final normalizedBankName = (bankName ?? '').trim();
+    final normalizedAccountNumber = (accountNumber ?? '').trim();
+    final normalizedAccountHolder = (accountHolder ?? '').trim();
+    if (normalizedAccountNumber.isEmpty && normalizedAccountHolder.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.pick(
+                vi: 'Thông tin chuyển khoản quỹ',
+                en: 'Fund transfer details',
+              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            if (normalizedBankName.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _FundTransferInfoRow(
+                label: l10n.pick(vi: 'Ngân hàng', en: 'Bank'),
+                value: normalizedBankName,
+                canCopy: false,
+              ),
+            ],
+            if (normalizedAccountNumber.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _FundTransferInfoRow(
+                label: l10n.pick(vi: 'Số tài khoản', en: 'Account number'),
+                value: normalizedAccountNumber,
+                canCopy: true,
+                onCopy: () => onCopyAccountNumber(normalizedAccountNumber),
+              ),
+            ],
+            if (normalizedAccountHolder.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _FundTransferInfoRow(
+                label: l10n.pick(vi: 'Chủ tài khoản', en: 'Account holder'),
+                value: normalizedAccountHolder,
+                canCopy: true,
+                onCopy: () => onCopyAccountHolder(normalizedAccountHolder),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FundTransferInfoRow extends StatelessWidget {
+  const _FundTransferInfoRow({
+    required this.label,
+    required this.value,
+    required this.canCopy,
+    this.onCopy,
+  });
+
+  final String label;
+  final String value;
+  final bool canCopy;
+  final VoidCallback? onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 110,
+          child: Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(value)),
+        const SizedBox(width: 8),
+        if (canCopy)
+          IconButton(
+            tooltip: context.l10n.pick(vi: 'Sao chép', en: 'Copy'),
+            icon: const Icon(Icons.copy_outlined),
+            visualDensity: VisualDensity.compact,
+            onPressed: onCopy,
+          ),
+      ],
     );
   }
 }

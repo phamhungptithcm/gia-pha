@@ -15,8 +15,14 @@ The current app foundation includes:
 
 ## Firebase wiring
 
-The app is configured for Firebase project `be-fam-3ab23` with generated client
-configuration in:
+The app supports two Firebase bootstrap modes:
+
+1. Environment-driven (recommended for shared repo / fork):
+   - Pass `BEFAM_FIREBASE_*` values via `--dart-define` to avoid coupling to one project.
+2. Bundled fallback (convenience for local and CI):
+   - Enable with `--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true`.
+
+Generated bundled client configuration currently lives in:
 
 - `android/app/google-services.json`
 - `ios/Runner/GoogleService-Info.plist`
@@ -60,8 +66,15 @@ dart run build_runner build --delete-conflicting-outputs
 Run the app:
 
 ```bash
-../../scripts/run_befam_android.sh
+../../scripts/run_flutter_targets.sh
+../../scripts/run_flutter_targets.sh android-sim
+../../scripts/run_flutter_targets.sh ios-sim
+../../scripts/run_flutter_targets.sh web-chrome
 ```
+
+`run_flutter_targets.sh` auto-injects
+`--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true` for local runs and
+forwards any exported `BEFAM_FIREBASE_*` env variables as dart-defines.
 
 Validate the bootstrap foundation:
 

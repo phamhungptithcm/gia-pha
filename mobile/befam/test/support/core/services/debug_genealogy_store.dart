@@ -1,12 +1,12 @@
-import 'app_environment.dart';
-import '../../features/clan/models/branch_profile.dart';
-import '../../features/events/models/event_record.dart';
-import '../../features/events/models/event_type.dart';
-import '../../features/funds/models/fund_profile.dart';
-import '../../features/funds/models/fund_transaction.dart';
-import '../../features/member/models/member_profile.dart';
-import '../../features/member/models/member_social_links.dart';
-import '../../features/relationship/models/relationship_record.dart';
+import 'package:befam/core/services/app_environment.dart';
+import 'package:befam/features/clan/models/branch_profile.dart';
+import 'package:befam/features/events/models/event_record.dart';
+import 'package:befam/features/events/models/event_type.dart';
+import 'package:befam/features/funds/models/fund_profile.dart';
+import 'package:befam/features/funds/models/fund_transaction.dart';
+import 'package:befam/features/member/models/member_profile.dart';
+import 'package:befam/features/member/models/member_social_links.dart';
+import 'package:befam/features/relationship/models/relationship_record.dart';
 
 class DebugGenealogyStore {
   DebugGenealogyStore({

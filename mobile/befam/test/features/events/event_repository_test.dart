@@ -1,10 +1,10 @@
-import 'package:befam/core/services/debug_genealogy_store.dart';
+import '../../support/core/services/debug_genealogy_store.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/events/models/event_draft.dart';
 import 'package:befam/features/events/models/event_type.dart';
-import 'package:befam/features/events/services/debug_event_repository.dart';
+import '../../support/features/events/services/debug_event_repository.dart';
 import 'package:befam/features/events/services/event_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -1,14 +1,13 @@
 import 'dart:async';
 
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/member/models/member_profile.dart';
+import 'package:befam/features/relationship/models/relationship_record.dart';
+import 'package:befam/features/relationship/services/relationship_permissions.dart';
+import 'package:befam/features/relationship/services/relationship_repository.dart';
+import 'package:befam/features/relationship/services/relationship_validation.dart';
 import 'package:collection/collection.dart';
-
 import '../../../core/services/debug_genealogy_store.dart';
-import '../../auth/models/auth_session.dart';
-import '../../member/models/member_profile.dart';
-import '../models/relationship_record.dart';
-import 'relationship_permissions.dart';
-import 'relationship_repository.dart';
-import 'relationship_validation.dart';
 
 class DebugRelationshipRepository implements RelationshipRepository {
   DebugRelationshipRepository({required DebugGenealogyStore store})

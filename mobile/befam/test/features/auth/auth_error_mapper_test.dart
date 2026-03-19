@@ -68,7 +68,8 @@ void main() {
         final issue = AuthErrorMapper.map(
           FirebaseFunctionsException(
             code: 'failed-precondition',
-            message: 'Verification data is not sufficient for automatic linking.',
+            message:
+                'Verification data is not sufficient for automatic linking.',
           ),
         );
 
@@ -80,7 +81,8 @@ void main() {
       final issue = AuthErrorMapper.map(
         FirebaseFunctionsException(
           code: 'failed-precondition',
-          message: 'The selected member profile is inactive and cannot be linked automatically.',
+          message:
+              'The selected member profile is inactive and cannot be linked automatically.',
         ),
       );
 
@@ -91,7 +93,8 @@ void main() {
       final issue = AuthErrorMapper.map(
         FirebaseFunctionsException(
           code: 'failed-precondition',
-          message: 'Verification is temporarily locked. Please wait and try again.',
+          message:
+              'Verification is temporarily locked. Please wait and try again.',
         ),
       );
 
@@ -119,6 +122,39 @@ void main() {
       );
 
       expect(issue.key, AuthIssueKey.memberClaimConflict);
+    });
+
+    test('maps generic firebase functions not-found to auth unavailable', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'not-found',
+          message: 'Callable function was not found.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.authUnavailable);
+    });
+
+    test('maps member profile not-found message to user not found', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'not-found',
+          message: 'The selected member profile no longer exists.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.userNotFound);
+    });
+
+    test('maps verification session not-found message to session expired', () {
+      final issue = AuthErrorMapper.map(
+        FirebaseFunctionsException(
+          code: 'not-found',
+          message: 'Verification session was not found.',
+        ),
+      );
+
+      expect(issue.key, AuthIssueKey.sessionExpired);
     });
 
     test('maps unknown error to preparation failed', () {

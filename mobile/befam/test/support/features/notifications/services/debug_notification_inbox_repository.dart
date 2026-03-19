@@ -1,6 +1,6 @@
-import '../../auth/models/auth_session.dart';
-import '../models/notification_inbox_item.dart';
-import 'notification_inbox_repository.dart';
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/notifications/models/notification_inbox_item.dart';
+import 'package:befam/features/notifications/services/notification_inbox_repository.dart';
 
 class DebugNotificationInboxRepository implements NotificationInboxRepository {
   DebugNotificationInboxRepository({DateTime Function()? clock})
@@ -158,7 +158,8 @@ class DebugNotificationInboxRepository implements NotificationInboxRepository {
         clanId: clanId,
         type: 'generic',
         title: 'Thông tin chi đã được cập nhật',
-        body: 'Một thông tin của chi đã thay đổi và được đồng bộ cho mọi người.',
+        body:
+            'Một thông tin của chi đã thay đổi và được đồng bộ cho mọi người.',
         isRead: true,
         createdAt: now.subtract(const Duration(days: 2, hours: 1)),
         target: NotificationInboxTarget.generic,
@@ -171,7 +172,8 @@ class DebugNotificationInboxRepository implements NotificationInboxRepository {
         clanId: clanId,
         type: 'event_created',
         title: 'Lịch lễ tưởng niệm đã cập nhật',
-        body: 'Buổi họp mặt tưởng niệm hằng tháng đã có ngày mới được xác nhận.',
+        body:
+            'Buổi họp mặt tưởng niệm hằng tháng đã có ngày mới được xác nhận.',
         isRead: false,
         createdAt: now.subtract(const Duration(days: 2, hours: 6)),
         target: NotificationInboxTarget.event,

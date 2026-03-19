@@ -1,11 +1,11 @@
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
-import 'package:befam/core/services/debug_genealogy_store.dart';
+import '../../support/core/services/debug_genealogy_store.dart';
 import 'package:befam/features/funds/models/fund_draft.dart';
 import 'package:befam/features/funds/models/fund_transaction.dart';
 import 'package:befam/features/funds/models/fund_transaction_draft.dart';
-import 'package:befam/features/funds/services/debug_fund_repository.dart';
+import '../../support/features/funds/services/debug_fund_repository.dart';
 import 'package:befam/features/funds/services/fund_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 

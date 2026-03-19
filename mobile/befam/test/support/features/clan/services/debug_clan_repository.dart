@@ -1,15 +1,14 @@
 import 'dart:async';
 
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/clan/models/branch_draft.dart';
+import 'package:befam/features/clan/models/branch_profile.dart';
+import 'package:befam/features/clan/models/clan_draft.dart';
+import 'package:befam/features/clan/models/clan_member_summary.dart';
+import 'package:befam/features/clan/models/clan_profile.dart';
+import 'package:befam/features/clan/models/clan_workspace_snapshot.dart';
+import 'package:befam/features/clan/services/clan_repository.dart';
 import 'package:collection/collection.dart';
-
-import '../../auth/models/auth_session.dart';
-import '../models/branch_draft.dart';
-import '../models/branch_profile.dart';
-import '../models/clan_draft.dart';
-import '../models/clan_member_summary.dart';
-import '../models/clan_profile.dart';
-import '../models/clan_workspace_snapshot.dart';
-import 'clan_repository.dart';
 
 class DebugClanRepository implements ClanRepository {
   DebugClanRepository({
@@ -151,7 +150,9 @@ class DebugClanRepository implements ClanRepository {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
-      throw StateError('Cần có ngữ cảnh gia phả trước khi lưu thông tin họ tộc.');
+      throw StateError(
+        'Cần có ngữ cảnh gia phả trước khi lưu thông tin họ tộc.',
+      );
     }
 
     final branchCount = _branches.values

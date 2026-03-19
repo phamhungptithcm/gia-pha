@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
@@ -41,12 +42,8 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
   late final EventController _controller;
   late final TextEditingController _searchController;
   late final ScrollController _workspaceScrollController;
-  final GlobalKey _memorialSectionKey = GlobalKey(
-    debugLabel: 'event-memorial-section',
-  );
-  final GlobalKey _ritualSectionKey = GlobalKey(
-    debugLabel: 'event-ritual-section',
-  );
+  final GlobalKey _memorialSectionKey = GlobalKey();
+  final GlobalKey _ritualSectionKey = GlobalKey();
 
   @override
   void initState() {
@@ -1517,15 +1514,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AddressAutocompleteField(
                     controller: _locationAddressController,
                     textInputAction: TextInputAction.next,
-                    decoration: InputDecoration(
-                      labelText: l10n.eventFormLocationAddressLabel,
+                    labelText: l10n.eventFormLocationAddressLabel,
+                    hintText: l10n.pick(
+                      vi: 'Số nhà, đường, phường/xã, quận/huyện...',
+                      en: 'Street, ward, district...',
                     ),
+                    maxLines: 2,
                   ),
-                  const SizedBox(height: 8),
-                  AddressInputAssistRow(controller: _locationAddressController),
                 ],
                 if (_step == 2) ...[
                   Text(

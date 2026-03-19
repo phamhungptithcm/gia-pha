@@ -1,10 +1,8 @@
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/branch_draft.dart';
 import '../models/branch_profile.dart';
 import '../models/clan_draft.dart';
 import '../models/clan_workspace_snapshot.dart';
-import 'debug_clan_repository.dart';
 import 'firebase_clan_repository.dart';
 
 abstract interface class ClanRepository {
@@ -25,10 +23,5 @@ abstract interface class ClanRepository {
 }
 
 ClanRepository createDefaultClanRepository({AuthSession? session}) {
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return DebugClanRepository.seeded();
-  }
-
   return FirebaseClanRepository();
 }

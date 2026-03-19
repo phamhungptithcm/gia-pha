@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -27,7 +26,6 @@ class BillingWorkspacePage extends StatefulWidget {
     this.externalUrlLauncher,
     this.vnpayPaymentMethodUrl,
     this.vnpayGateway,
-    this.allowQrCheckoutInDebug = false,
   });
 
   final AuthSession session;
@@ -36,7 +34,6 @@ class BillingWorkspacePage extends StatefulWidget {
   final ExternalUriLauncher? externalUrlLauncher;
   final String? vnpayPaymentMethodUrl;
   final VnpayMobileSdkGateway? vnpayGateway;
-  final bool allowQrCheckoutInDebug;
 
   @override
   State<BillingWorkspacePage> createState() => _BillingWorkspacePageState();
@@ -88,13 +85,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   }
 
   bool _shouldUseQrCheckout(BillingWorkspaceSnapshot workspace) {
-    if (!workspace.checkoutFlow.qrCheckoutEnabled) {
-      return false;
-    }
-    if (kReleaseMode) {
-      return true;
-    }
-    return widget.allowQrCheckoutInDebug;
+    return workspace.checkoutFlow.qrCheckoutEnabled;
   }
 
   Future<void> _openQrCheckoutFlow({

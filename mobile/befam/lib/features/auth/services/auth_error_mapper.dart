@@ -58,8 +58,17 @@ class AuthErrorMapper {
         switch (normalizedReason) {
           case 'parent_verification_mismatch':
             return const AuthIssue(AuthIssueKey.parentVerificationMismatch);
+          case 'child_context_not_found':
+            return const AuthIssue(AuthIssueKey.childIdentifierInvalid);
+          case 'member_not_found':
+          case 'selected_member_not_found':
+            return const AuthIssue(AuthIssueKey.userNotFound);
+          case 'verification_session_not_found':
+            return const AuthIssue(AuthIssueKey.sessionExpired);
           case 'member_verification_data_unavailable':
-            return const AuthIssue(AuthIssueKey.memberVerificationDataUnavailable);
+            return const AuthIssue(
+              AuthIssueKey.memberVerificationDataUnavailable,
+            );
           case 'member_verification_locked':
           case 'member_verification_expired':
             return const AuthIssue(AuthIssueKey.memberVerificationLocked);
@@ -73,7 +82,16 @@ class AuthErrorMapper {
         }
       }
       return switch (error.code) {
-        'not-found' => const AuthIssue(AuthIssueKey.userNotFound),
+        'not-found' when normalizedMessage.contains('child login context') =>
+          const AuthIssue(AuthIssueKey.childIdentifierInvalid),
+        'not-found' when normalizedMessage.contains('verification session') =>
+          const AuthIssue(AuthIssueKey.sessionExpired),
+        'not-found'
+            when normalizedMessage.contains('selected member profile') ||
+                normalizedMessage.contains('requested member profile') ||
+                normalizedMessage.contains('child member profile') =>
+          const AuthIssue(AuthIssueKey.userNotFound),
+        'not-found' => const AuthIssue(AuthIssueKey.authUnavailable),
         'already-exists' => const AuthIssue(AuthIssueKey.memberAlreadyLinked),
         'failed-precondition' when normalizedMessage.contains('parent phone') =>
           const AuthIssue(AuthIssueKey.parentVerificationMismatch),
@@ -83,7 +101,9 @@ class AuthErrorMapper {
             ) =>
           const AuthIssue(AuthIssueKey.memberVerificationDataUnavailable),
         'failed-precondition'
-            when normalizedMessage.contains('verification session has expired') =>
+            when normalizedMessage.contains(
+              'verification session has expired',
+            ) =>
           const AuthIssue(AuthIssueKey.sessionExpired),
         'failed-precondition'
             when normalizedMessage.contains(
@@ -91,7 +111,9 @@ class AuthErrorMapper {
             ) =>
           const AuthIssue(AuthIssueKey.memberVerificationLocked),
         'failed-precondition'
-            when normalizedMessage.contains('verification is temporarily locked') =>
+            when normalizedMessage.contains(
+              'verification is temporarily locked',
+            ) =>
           const AuthIssue(AuthIssueKey.memberVerificationLocked),
         'failed-precondition'
             when normalizedMessage.contains('inactive and cannot be linked') =>

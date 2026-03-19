@@ -18,6 +18,8 @@ import '../services/auth_analytics_service.dart';
 import '../services/auth_gateway.dart';
 import '../services/auth_gateway_factory.dart';
 import '../services/auth_session_store.dart';
+import '../services/phone_number_formatter.dart';
+import '../widgets/phone_country_selector_field.dart';
 import 'auth_controller.dart';
 
 class AuthExperience extends StatefulWidget {
@@ -156,7 +158,12 @@ class _AuthScaffold extends StatelessWidget {
                 AuthStep.phoneNumber => _PhoneLoginCard(
                   isBusy: controller.isBusy,
                   onBack: controller.navigateBack,
-                  onSubmit: controller.submitPhoneNumber,
+                  onSubmit: (value, countryIsoCode) {
+                    return controller.submitPhoneNumber(
+                      value,
+                      countryIsoCode: countryIsoCode,
+                    );
+                  },
                 ),
                 AuthStep.childIdentifier => _ChildIdentifierCard(
                   isBusy: controller.isBusy,
@@ -602,7 +609,7 @@ class _PhoneLoginCard extends StatefulWidget {
 
   final bool isBusy;
   final VoidCallback onBack;
-  final Future<void> Function(String value) onSubmit;
+  final Future<void> Function(String value, String countryIsoCode) onSubmit;
 
   @override
   State<_PhoneLoginCard> createState() => _PhoneLoginCardState();
@@ -610,11 +617,27 @@ class _PhoneLoginCard extends StatefulWidget {
 
 class _PhoneLoginCardState extends State<_PhoneLoginCard> {
   late final TextEditingController _controller;
+  late String _selectedCountryIsoCode;
+  bool _resolvedAutoCountry = false;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController();
+    _selectedCountryIsoCode = PhoneNumberFormatter.defaultCountryIsoCode;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_resolvedAutoCountry) {
+      return;
+    }
+    final locale = Localizations.localeOf(context);
+    _selectedCountryIsoCode = PhoneNumberFormatter.autoCountryIsoFromRegion(
+      locale.countryCode,
+    );
+    _resolvedAutoCountry = true;
   }
 
   @override
@@ -623,9 +646,25 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
     super.dispose();
   }
 
+  void _normalizePhoneInputForCountry() {
+    final normalized = PhoneNumberFormatter.toNationalInput(
+      _controller.text,
+      defaultCountryIso: _selectedCountryIsoCode,
+    );
+    if (normalized == _controller.text.trim()) {
+      return;
+    }
+    _controller
+      ..text = normalized
+      ..selection = TextSelection.collapsed(offset: normalized.length);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final phoneHint = PhoneNumberFormatter.nationalNumberHint(
+      _selectedCountryIsoCode,
+    );
 
     return _AuthFormCard(
       title: l10n.authPhoneTitle,
@@ -636,21 +675,48 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AutofillGroup(
-            child: TextField(
-              controller: _controller,
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.done,
-              autofillHints: const [AutofillHints.telephoneNumber],
-              enabled: !widget.isBusy,
-              decoration: InputDecoration(
-                labelText: l10n.authPhoneLabel,
-                hintText: l10n.authPhoneHint,
-                prefixIcon: const Icon(Icons.phone_iphone),
-                helperText: l10n.authPhoneHelperLive,
-              ),
-              onSubmitted: widget.isBusy
-                  ? null
-                  : (value) => widget.onSubmit(value),
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    PhoneCountrySelectorField(
+                      selectedIsoCode: _selectedCountryIsoCode,
+                      enabled: !widget.isBusy,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCountryIsoCode = value;
+                          _normalizePhoneInputForCountry();
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.telephoneNumber],
+                        enabled: !widget.isBusy,
+                        decoration: InputDecoration(
+                          labelText: l10n.authPhoneLabel,
+                          hintText: phoneHint,
+                        ),
+                        onEditingComplete: _normalizePhoneInputForCountry,
+                        onSubmitted: widget.isBusy
+                            ? null
+                            : (_) {
+                                _normalizePhoneInputForCountry();
+                                widget.onSubmit(
+                                  _controller.text,
+                                  _selectedCountryIsoCode,
+                                );
+                              },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),
@@ -659,7 +725,13 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
             child: FilledButton(
               onPressed: widget.isBusy
                   ? null
-                  : () => widget.onSubmit(_controller.text),
+                  : () {
+                      _normalizePhoneInputForCountry();
+                      widget.onSubmit(
+                        _controller.text,
+                        _selectedCountryIsoCode,
+                      );
+                    },
               child: _AuthBusyButtonChild(
                 isBusy: widget.isBusy,
                 idleIcon: Icons.send_outlined,

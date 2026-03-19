@@ -36,9 +36,8 @@ class AppBootstrap {
         AppLogger.info('Starting BeFam bootstrap.');
 
         try {
-          await Firebase.initializeApp(
-            options: DefaultFirebaseOptions.currentPlatform,
-          );
+          final options = _resolveFirebaseOptions();
+          await Firebase.initializeApp(options: options);
           await _activateAppCheck();
 
           final crashReportingService = await CrashReportingService.create(
@@ -60,12 +59,12 @@ class AppBootstrap {
           );
         } catch (error, stackTrace) {
           AppLogger.error('Firebase bootstrap failed.', error, stackTrace);
-          final fallbackOptions = _resolveFallbackOptions();
+          final fallbackIdentity = _resolveFallbackIdentity();
 
           return AppBootstrapResult(
             status: FirebaseSetupStatus.failed(
-              projectId: fallbackOptions.projectId,
-              storageBucket: fallbackOptions.storageBucket ?? '',
+              projectId: fallbackIdentity.projectId,
+              storageBucket: fallbackIdentity.storageBucket,
               errorMessage: error.toString(),
             ),
             crashReportingService: const CrashReportingService.disabled(),
@@ -75,12 +74,120 @@ class AppBootstrap {
     );
   }
 
-  static FirebaseOptions _resolveFallbackOptions() {
-    try {
-      return DefaultFirebaseOptions.currentPlatform;
-    } catch (_) {
-      return DefaultFirebaseOptions.android;
+  static FirebaseOptions _resolveFirebaseOptions() {
+    final optionsFromEnvironment = _resolveFirebaseOptionsFromEnvironment();
+    if (optionsFromEnvironment != null) {
+      AppLogger.info(
+        'Firebase options loaded from BEFAM_FIREBASE_* dart-defines.',
+      );
+      return optionsFromEnvironment;
     }
+
+    if (AppEnvironment.allowBundledFirebaseOptions) {
+      AppLogger.warning(
+        'Using bundled Firebase options because BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true.',
+      );
+      return DefaultFirebaseOptions.currentPlatform;
+    }
+
+    throw StateError(
+      'Firebase is not configured. Provide BEFAM_FIREBASE_* dart-defines '
+      'or set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true for local/testing builds.',
+    );
+  }
+
+  static FirebaseOptions? _resolveFirebaseOptionsFromEnvironment() {
+    final projectId = AppEnvironment.firebaseProjectId.trim();
+    if (projectId.isEmpty) {
+      return null;
+    }
+
+    final storageBucket = AppEnvironment.firebaseStorageBucket.trim();
+
+    if (kIsWeb) {
+      final apiKey = AppEnvironment.firebaseWebApiKey.trim();
+      final appId = AppEnvironment.firebaseWebAppId.trim();
+      final messagingSenderId = AppEnvironment.firebaseWebMessagingSenderId
+          .trim();
+      if (apiKey.isEmpty || appId.isEmpty || messagingSenderId.isEmpty) {
+        return null;
+      }
+
+      final authDomain = AppEnvironment.firebaseWebAuthDomain.trim();
+      final measurementId = AppEnvironment.firebaseWebMeasurementId.trim();
+      return FirebaseOptions(
+        apiKey: apiKey,
+        appId: appId,
+        messagingSenderId: messagingSenderId,
+        projectId: projectId,
+        storageBucket: storageBucket.isEmpty ? null : storageBucket,
+        authDomain: authDomain.isEmpty ? null : authDomain,
+        measurementId: measurementId.isEmpty ? null : measurementId,
+      );
+    }
+
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        final apiKey = AppEnvironment.firebaseAndroidApiKey.trim();
+        final appId = AppEnvironment.firebaseAndroidAppId.trim();
+        final messagingSenderId = AppEnvironment
+            .firebaseAndroidMessagingSenderId
+            .trim();
+        if (apiKey.isEmpty || appId.isEmpty || messagingSenderId.isEmpty) {
+          return null;
+        }
+        return FirebaseOptions(
+          apiKey: apiKey,
+          appId: appId,
+          messagingSenderId: messagingSenderId,
+          projectId: projectId,
+          storageBucket: storageBucket.isEmpty ? null : storageBucket,
+        );
+      case TargetPlatform.iOS:
+        final apiKey = AppEnvironment.firebaseIosApiKey.trim();
+        final appId = AppEnvironment.firebaseIosAppId.trim();
+        final messagingSenderId = AppEnvironment.firebaseIosMessagingSenderId
+            .trim();
+        if (apiKey.isEmpty || appId.isEmpty || messagingSenderId.isEmpty) {
+          return null;
+        }
+        final bundleId = AppEnvironment.firebaseIosBundleId.trim();
+        return FirebaseOptions(
+          apiKey: apiKey,
+          appId: appId,
+          messagingSenderId: messagingSenderId,
+          projectId: projectId,
+          storageBucket: storageBucket.isEmpty ? null : storageBucket,
+          iosBundleId: bundleId.isEmpty ? null : bundleId,
+        );
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+      case TargetPlatform.fuchsia:
+        return null;
+    }
+  }
+
+  static ({String projectId, String storageBucket}) _resolveFallbackIdentity() {
+    final projectId = AppEnvironment.firebaseProjectId.trim();
+    final storageBucket = AppEnvironment.firebaseStorageBucket.trim();
+    if (projectId.isNotEmpty) {
+      return (projectId: projectId, storageBucket: storageBucket);
+    }
+
+    if (AppEnvironment.allowBundledFirebaseOptions) {
+      try {
+        final options = DefaultFirebaseOptions.currentPlatform;
+        return (
+          projectId: options.projectId,
+          storageBucket: options.storageBucket ?? '',
+        );
+      } catch (_) {
+        // Ignore and return a neutral placeholder below.
+      }
+    }
+
+    return (projectId: 'unconfigured', storageBucket: '');
   }
 
   static Future<void> _activateAppCheck() async {
@@ -115,7 +222,7 @@ class AppBootstrap {
           : const AppleDebugProvider(),
     );
     AppLogger.info(
-      'Firebase App Check activated (${kReleaseMode ? 'production' : 'debug'} provider).',
+      'Firebase App Check activated (${kReleaseMode ? 'production' : 'non-production'} provider).',
     );
   }
 }

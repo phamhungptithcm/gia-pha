@@ -1,4 +1,4 @@
-import 'package:befam/core/services/debug_genealogy_store.dart';
+import '../../support/core/services/debug_genealogy_store.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
@@ -6,7 +6,7 @@ import 'package:befam/features/calendar/models/calendar_region.dart';
 import 'package:befam/features/calendar/models/lunar_date.dart';
 import 'package:befam/features/calendar/services/lunar_conversion_engine.dart';
 import 'package:befam/features/events/presentation/event_workspace_page.dart';
-import 'package:befam/features/events/services/debug_event_repository.dart';
+import '../../support/features/events/services/debug_event_repository.dart';
 import 'package:befam/features/member/models/member_profile.dart';
 import 'package:befam/features/member/models/member_social_links.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';

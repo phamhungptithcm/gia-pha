@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/app_environment.dart';
 import '../../../core/services/kinship_title_resolver.dart';
+import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
-import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -56,17 +56,20 @@ class DualCalendarWorkspacePage extends StatefulWidget {
       _DualCalendarWorkspacePageState();
 }
 
-class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
+class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
+    with WidgetsBindingObserver {
   late final DualCalendarController _controller;
   late final bool _ownsController;
   late final MemberRepository _memberRepository;
   List<MemberProfile> _members = const [];
   List<BranchProfile> _branches = const [];
   bool _isLoadingMembers = false;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ownsController = widget.controller == null;
     _memberRepository =
         widget.memberRepository ??
@@ -74,14 +77,32 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
     _controller = widget.controller ?? _buildDefaultController();
     unawaited(_controller.initialize());
     unawaited(_loadRecipientsDirectory());
+    _autoRefreshTimer = Timer.periodic(const Duration(minutes: 4), (_) {
+      if (!mounted || _controller.isLoading || _controller.isSaving) {
+        return;
+      }
+      unawaited(_controller.refreshAll());
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autoRefreshTimer?.cancel();
     if (_ownsController) {
       _controller.dispose();
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed &&
+        !_controller.isLoading &&
+        !_controller.isSaving) {
+      unawaited(_controller.refreshAll());
+    }
   }
 
   @override
@@ -92,11 +113,30 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
       builder: (context, child) {
         final colorScheme = Theme.of(context).colorScheme;
         return Scaffold(
-          floatingActionButton: FloatingActionButton(
-            key: const Key('calendar-add-event-button'),
-            onPressed: _controller.isSaving ? null : _openCreateEventSheet,
-            tooltip: l10n.pick(vi: 'Tạo sự kiện', en: 'Create event'),
-            child: const Icon(Icons.add),
+          floatingActionButton: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FloatingActionButton.small(
+                heroTag: 'calendar-memorial-shortcut',
+                onPressed: _controller.isSaving
+                    ? null
+                    : () => unawaited(_openMemorialChecklistWorkspace()),
+                tooltip: l10n.pick(
+                  vi: 'Mở giỗ kỵ và dỗ trạp',
+                  en: 'Open memorial checklist',
+                ),
+                child: const Icon(Icons.history_edu_outlined, size: 20),
+              ),
+              const SizedBox(height: 10),
+              FloatingActionButton(
+                key: const Key('calendar-add-event-button'),
+                heroTag: 'calendar-add-event',
+                onPressed: _controller.isSaving ? null : _openCreateEventSheet,
+                tooltip: l10n.pick(vi: 'Tạo sự kiện', en: 'Create event'),
+                child: const Icon(Icons.add),
+              ),
+            ],
           ),
           body: SafeArea(
             child: _controller.isLoading
@@ -140,10 +180,6 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
                           const SizedBox(height: 16),
                         ],
                         _SettingsCard(controller: _controller),
-                        const SizedBox(height: 16),
-                        _MemorialChecklistEntryCard(
-                          onOpenChecklist: _openMemorialChecklistWorkspace,
-                        ),
                         const SizedBox(height: 16),
                         _MonthHeader(
                           label: _monthHeaderLabel(
@@ -434,66 +470,6 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage> {
     } finally {
       _isLoadingMembers = false;
     }
-  }
-}
-
-class _MemorialChecklistEntryCard extends StatelessWidget {
-  const _MemorialChecklistEntryCard({required this.onOpenChecklist});
-
-  final Future<void> Function() onOpenChecklist;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.pick(
-                vi: 'Giỗ kỵ và dỗ trạp',
-                en: 'Memorial rituals and checklist',
-              ),
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              l10n.pick(
-                vi: 'Xem danh sách người đã mất, mục nào đã thiết lập sự kiện và mục nào cần bổ sung.',
-                en: 'See which passed members already have ritual events and which still need setup.',
-              ),
-            ),
-            const SizedBox(height: 12),
-            AppAsyncAction(
-              onPressed: onOpenChecklist,
-              builder: (context, onPressed, isLoading) {
-                return FilledButton.tonalIcon(
-                  key: const Key('calendar-open-memorial-checklist'),
-                  onPressed: onPressed,
-                  icon: isLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.history_edu_outlined),
-                  label: Text(
-                    l10n.pick(
-                      vi: 'Mở danh sách giỗ & dỗ trạp',
-                      en: 'Open memorial checklist',
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -1060,10 +1036,13 @@ class _SelectedDayPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final day = controller.selectedDay;
     final l10n = context.l10n;
+    final theme = Theme.of(context);
     final lunarDate = controller.lunarDateForDay(day);
     final holidays = controller.holidaysForDay(day);
     final occurrences = controller.occurrencesForDay(day);
+    final todayOccurrences = controller.occurrencesForDay(DateTime.now());
     final timeLabel = '${_monthName(l10n, day.month)} ${day.day}, ${day.year}';
+    final isToday = _sameDay(day, DateTime.now());
 
     return Card(
       child: Padding(
@@ -1071,25 +1050,65 @@ class _SelectedDayPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.pick(vi: 'Ngày đã chọn', en: 'Selected day'),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (isToday)
+                  Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: const Icon(Icons.today, size: 16),
+                    label: Text(l10n.pick(vi: 'Hôm nay', en: 'Today')),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
             Text(
-              l10n.pick(
-                vi: 'Ngày đã chọn: $timeLabel',
-                en: 'Selected day: $timeLabel',
+              timeLabel,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
               ),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            Text(
-              lunarDate == null
-                  ? l10n.pick(
-                      vi: 'Ngày âm chưa có cho ngày này.',
-                      en: 'Lunar date unavailable for this day.',
-                    )
-                  : l10n.pick(
-                      vi: 'Âm lịch ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (tháng nhuận)' : ''}',
-                      en: 'Lunar ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (Leap month)' : ''}',
-                    ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+              ),
+              child: Text(
+                lunarDate == null
+                    ? l10n.pick(
+                        vi: 'Âm lịch: chưa có dữ liệu',
+                        en: 'Lunar: unavailable',
+                      )
+                    : l10n.pick(
+                        vi: 'Âm lịch ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (tháng nhuận)' : ''}',
+                        en: 'Lunar ${lunarDate.displayLabel}${lunarDate.isLeapMonth ? ' (Leap month)' : ''}',
+                      ),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
+            if (!isToday) ...[
+              const SizedBox(height: 8),
+              Text(
+                l10n.pick(
+                  vi: 'Hôm nay có ${todayOccurrences.length} sự kiện.',
+                  en: 'Today has ${todayOccurrences.length} events.',
+                ),
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
             if (holidays.isNotEmpty) ...[
               const SizedBox(height: 10),
               Wrap(
@@ -1108,18 +1127,31 @@ class _SelectedDayPanel extends StatelessWidget {
             Text(
               occurrences.isEmpty
                   ? l10n.pick(
-                      vi: 'Không có sự kiện cho ngày này.',
-                      en: 'No events for this day.',
+                      vi: 'Sự kiện trong ngày: 0',
+                      en: 'Events for this day: 0',
                     )
-                  : l10n.pick(vi: 'Sự kiện', en: 'Events'),
-              style: const TextStyle(fontWeight: FontWeight.w700),
+                  : l10n.pick(
+                      vi: 'Sự kiện trong ngày: ${occurrences.length}',
+                      en: 'Events for this day: ${occurrences.length}',
+                    ),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             if (occurrences.isEmpty)
-              Text(
-                l10n.pick(
-                  vi: 'Tạo sự kiện âm lịch hoặc dương lịch để bắt đầu.',
-                  en: 'Create a lunar or solar event to get started.',
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  l10n.pick(
+                    vi: 'Không có sự kiện cho ngày này.',
+                    en: 'No events for this day.',
+                  ),
                 ),
               )
             else
@@ -1149,22 +1181,48 @@ class _ReminderPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final reminders = controller.upcomingReminders;
     final l10n = context.l10n;
+    final theme = Theme.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              l10n.pick(vi: 'Lời nhắc sắp tới', en: 'Upcoming reminders'),
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.pick(vi: 'Lời nhắc sắp tới', en: 'Upcoming reminders'),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  label: Text(
+                    l10n.pick(
+                      vi: '${reminders.length}',
+                      en: '${reminders.length}',
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             if (reminders.isEmpty)
-              Text(
-                l10n.pick(
-                  vi: 'Không có lời nhắc trong khoảng thời gian hiện tại.',
-                  en: 'No reminders scheduled in the current window.',
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  l10n.pick(
+                    vi: 'Không có lời nhắc trong thời gian tới.',
+                    en: 'No upcoming reminders right now.',
+                  ),
                 ),
               )
             else
@@ -1172,20 +1230,32 @@ class _ReminderPanel extends StatelessWidget {
                 children: [
                   for (final reminder in reminders.take(6))
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.alarm, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              l10n.pick(
-                                vi: '${_formatDateTime(reminder.reminderAt)} · trước ${_formatReminderLeadTime(l10n, reminder.offsetMinutes)}',
-                                en: '${_formatDateTime(reminder.reminderAt)} · ${_formatReminderLeadTime(l10n, reminder.offsetMinutes)} before',
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerLowest,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.alarm, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                l10n.pick(
+                                  vi: '${_formatDateTime(reminder.reminderAt)} · trước ${_formatReminderLeadTime(l10n, reminder.offsetMinutes)}',
+                                  en: '${_formatDateTime(reminder.reminderAt)} · ${_formatReminderLeadTime(l10n, reminder.offsetMinutes)} before',
+                                ),
+                                style: theme.textTheme.bodyMedium,
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                 ],
@@ -1752,6 +1822,21 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       }
     }
 
+    if (event == null && _selectedHostMemberIds.isEmpty) {
+      final viewerMemberId = (widget.viewerMemberId ?? '').trim();
+      if (viewerMemberId.isNotEmpty &&
+          _aliveMembers.any((member) => member.id == viewerMemberId)) {
+        final viewer = _memberById(viewerMemberId);
+        if (viewer != null) {
+          _selectedHostMemberId = viewer.id;
+          _selectedHostMemberIds
+            ..clear()
+            ..add(viewer.id);
+          _hostHouseholdController.text = viewer.fullName;
+        }
+      }
+    }
+
     _refreshLunarPreview();
     _refreshSolarLunarPreview();
     if (_eventType.isMemorial && _selectedMemorialMemberId != null) {
@@ -1928,17 +2013,6 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
-                  if (_deceasedMembers.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        l10n.pick(
-                          vi: 'Chưa có thành viên đã mất để chọn giỗ.',
-                          en: 'No deceased members available for memorial.',
-                        ),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
                   if ((_selectedMemorialDeathDate != null) ||
                       _isResolvingMemorialDate ||
                       (_selectedMemorialDateError?.isNotEmpty == true))
@@ -1998,31 +2072,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                     ],
                   ),
                 ],
-                if (_aliveMembers.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      l10n.pick(
-                        vi: 'Chưa có thành viên còn sống để chọn nhà tổ chức.',
-                        en: 'No active members available for host household.',
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
                 const SizedBox(height: 12),
-                TextField(
+                AddressAutocompleteField(
                   controller: _locationAddressController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Địa chỉ', en: 'Address'),
-                    hintText: l10n.pick(
-                      vi: 'Số nhà, đường, phường/xã, quận/huyện...',
-                      en: 'Street, ward, district...',
-                    ),
-                    border: const OutlineInputBorder(),
+                  labelText: l10n.pick(vi: 'Địa chỉ', en: 'Address'),
+                  hintText: l10n.pick(
+                    vi: 'Số nhà, đường, phường/xã, quận/huyện...',
+                    en: 'Street, ward, district...',
                   ),
+                  maxLines: 2,
                 ),
-                const SizedBox(height: 8),
-                AddressInputAssistRow(controller: _locationAddressController),
                 const SizedBox(height: 12),
                 SegmentedButton<CalendarDateMode>(
                   showSelectedIcon: false,

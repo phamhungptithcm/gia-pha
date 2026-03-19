@@ -1,19 +1,18 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:befam/features/auth/models/auth_entry_method.dart';
+import 'package:befam/features/auth/models/auth_member_access_mode.dart';
+import 'package:befam/features/auth/models/auth_otp_request_result.dart';
+import 'package:befam/features/auth/models/auth_otp_verification_result.dart';
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/auth/models/member_access_context.dart';
+import 'package:befam/features/auth/models/member_identity_verification.dart';
+import 'package:befam/features/auth/models/pending_otp_challenge.dart';
+import 'package:befam/features/auth/models/resolved_child_access.dart';
+import 'package:befam/features/auth/services/auth_gateway.dart';
+import 'package:befam/features/auth/services/phone_number_formatter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-import '../models/auth_entry_method.dart';
-import '../models/auth_member_access_mode.dart';
-import '../models/auth_otp_request_result.dart';
-import '../models/auth_otp_verification_result.dart';
-import '../models/auth_session.dart';
-import '../models/member_identity_verification.dart';
-import '../models/member_access_context.dart';
-import '../models/pending_otp_challenge.dart';
-import '../models/resolved_child_access.dart';
-import 'auth_gateway.dart';
-import 'phone_number_formatter.dart';
 
 class DebugAuthGateway implements AuthGateway {
   DebugAuthGateway({FirebaseFirestore? firestore}) : _firestore = firestore;
@@ -103,16 +102,17 @@ class DebugAuthGateway implements AuthGateway {
   @override
   Future<AuthOtpRequestResult> requestPhoneOtp(String phoneE164) async {
     await Future<void>.delayed(_debugDelay);
-    final memberAccess = await _memberAccessForPhone(phoneE164);
+    final normalizedPhone =
+        PhoneNumberFormatter.tryParseE164(phoneE164) ?? phoneE164.trim();
+    final memberAccess = await _memberAccessForPhone(normalizedPhone);
     return AuthOtpRequestResult.challenge(
       PendingOtpChallenge(
         loginMethod: AuthEntryMethod.phone,
-        phoneE164: phoneE164,
-        maskedDestination: PhoneNumberFormatter.mask(phoneE164),
-        verificationId: 'debug-phone-$phoneE164',
+        phoneE164: normalizedPhone,
+        maskedDestination: PhoneNumberFormatter.mask(normalizedPhone),
+        verificationId: 'debug-phone-$normalizedPhone',
         memberId: memberAccess.memberId,
         displayName: memberAccess.displayName ?? 'Thành viên BeFam',
-        debugOtpHint: _debugOtp,
       ),
     );
   }
@@ -137,7 +137,6 @@ class DebugAuthGateway implements AuthGateway {
         childIdentifier: resolved.childIdentifier,
         memberId: resolved.memberId,
         displayName: resolved.displayName,
-        debugOtpHint: _debugOtp,
       ),
     );
   }
@@ -146,19 +145,16 @@ class DebugAuthGateway implements AuthGateway {
   Future<AuthOtpRequestResult> resendOtp(PendingOtpChallenge challenge) async {
     await Future<void>.delayed(_debugDelay);
     return AuthOtpRequestResult.challenge(
-      challenge.copyWith(
-        verificationId: '${challenge.verificationId}-resend',
-        debugOtpHint: _debugOtp,
-      ),
+      challenge.copyWith(verificationId: '${challenge.verificationId}-resend'),
     );
   }
 
   @override
   Future<AuthOtpVerificationResult> verifyOtp(
     PendingOtpChallenge challenge,
-    String smsCode,
-    {String? languageCode}
-  ) async {
+    String smsCode, {
+    String? languageCode,
+  }) async {
     await Future<void>.delayed(_debugDelay);
     if (smsCode != _debugOtp) {
       throw FirebaseAuthException(
@@ -210,9 +206,9 @@ class DebugAuthGateway implements AuthGateway {
 
   @override
   Future<MemberIdentityVerificationChallenge> startMemberIdentityVerification(
-    String memberId,
-    {String? languageCode}
-  ) async {
+    String memberId, {
+    String? languageCode,
+  }) async {
     await Future<void>.delayed(_debugDelay);
     final useEnglish = (languageCode ?? '').trim().toLowerCase().startsWith(
       'en',
@@ -230,7 +226,10 @@ class DebugAuthGateway implements AuthGateway {
               ? 'What is the gender listed on this profile?'
               : 'Giới tính trong hồ sơ này là gì?',
           options: [
-            MemberVerificationOption(id: 'a', label: useEnglish ? 'Male' : 'Nam'),
+            MemberVerificationOption(
+              id: 'a',
+              label: useEnglish ? 'Male' : 'Nam',
+            ),
             MemberVerificationOption(
               id: 'b',
               label: useEnglish ? 'Female' : 'Nữ',
@@ -284,7 +283,8 @@ class DebugAuthGateway implements AuthGateway {
     required Map<String, String> answers,
   }) async {
     await Future<void>.delayed(_debugDelay);
-    final passed = answers['debug-q1'] == 'a' &&
+    final passed =
+        answers['debug-q1'] == 'a' &&
         answers['debug-q2'] == 'a' &&
         answers['debug-q3'] == 'a';
     if (!passed) {
@@ -350,17 +350,30 @@ class DebugAuthGateway implements AuthGateway {
     if (remote != null) {
       return remote;
     }
-    return _phoneDirectory[phoneE164] ??
-        MemberAccessContext.unlinked(displayName: fallbackDisplayName);
+    for (final entry in _phoneDirectory.entries) {
+      if (PhoneNumberFormatter.areEquivalent(entry.key, phoneE164)) {
+        return entry.value;
+      }
+    }
+    return MemberAccessContext.unlinked(displayName: fallbackDisplayName);
   }
 
   Future<MemberAccessContext?> _loadRemoteProfile(String phoneE164) async {
     try {
-      final snapshot = await (_firestore ?? FirebaseFirestore.instance)
-          .collection('debug_login_profiles')
-          .doc(phoneE164)
-          .get();
-      final data = snapshot.data();
+      final profiles = (_firestore ?? FirebaseFirestore.instance).collection(
+        'debug_login_profiles',
+      );
+      final variants = PhoneNumberFormatter.lookupVariants(phoneE164);
+      Map<String, dynamic>? data;
+      for (final variant in variants) {
+        final snapshot = await profiles.doc(variant).get();
+        final candidate = snapshot.data();
+        if (candidate == null) {
+          continue;
+        }
+        data = candidate;
+        break;
+      }
       if (data == null ||
           data['isActive'] == false ||
           data['isTestUser'] != true) {

@@ -1,7 +1,5 @@
-import '../../../core/services/runtime_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/notification_inbox_item.dart';
-import 'debug_notification_inbox_repository.dart';
 import 'firebase_notification_inbox_repository.dart';
 
 class NotificationInboxCursor {
@@ -40,10 +38,5 @@ abstract interface class NotificationInboxRepository {
 NotificationInboxRepository createDefaultNotificationInboxRepository({
   AuthSession? session,
 }) {
-  final useMockBackend = session?.isSandbox ?? RuntimeMode.shouldUseMockBackend;
-  if (useMockBackend) {
-    return DebugNotificationInboxRepository();
-  }
-
   return FirebaseNotificationInboxRepository();
 }

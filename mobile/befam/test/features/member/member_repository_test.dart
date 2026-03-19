@@ -5,7 +5,7 @@ import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/member/models/member_draft.dart';
 import 'package:befam/features/member/models/member_social_links.dart';
-import 'package:befam/features/member/services/debug_member_repository.dart';
+import '../../support/features/member/services/debug_member_repository.dart';
 import 'package:befam/features/member/services/member_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -1,17 +1,16 @@
 import 'dart:async';
 
+import 'package:befam/core/services/app_environment.dart';
+import 'package:befam/core/services/governance_role_matrix.dart';
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/events/models/event_draft.dart';
+import 'package:befam/features/events/models/event_record.dart';
+import 'package:befam/features/events/models/event_type.dart';
+import 'package:befam/features/events/models/event_workspace_snapshot.dart';
+import 'package:befam/features/events/services/event_repository.dart';
+import 'package:befam/features/events/services/event_validation.dart';
 import 'package:collection/collection.dart';
-
-import '../../../core/services/app_environment.dart';
 import '../../../core/services/debug_genealogy_store.dart';
-import '../../../core/services/governance_role_matrix.dart';
-import '../../auth/models/auth_session.dart';
-import '../models/event_draft.dart';
-import '../models/event_record.dart';
-import '../models/event_workspace_snapshot.dart';
-import '../models/event_type.dart';
-import 'event_repository.dart';
-import 'event_validation.dart';
 
 class DebugEventRepository implements EventRepository {
   DebugEventRepository({

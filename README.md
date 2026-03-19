@@ -42,6 +42,23 @@ Current live capability baseline includes:
 
 ## Local Development
 
+### One-command setup
+
+Use this script to auto-setup the local environment for Flutter app + Firebase Functions:
+
+```bash
+./scripts/setup_project_env.sh
+```
+
+Useful options:
+
+```bash
+./scripts/setup_project_env.sh --mobile-only
+./scripts/setup_project_env.sh --functions-only
+./scripts/setup_project_env.sh --skip-ios-pods
+./scripts/setup_project_env.sh --install-missing
+```
+
 ### Preview docs
 
 ```bash

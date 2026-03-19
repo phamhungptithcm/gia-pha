@@ -1,15 +1,14 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/auth/services/phone_number_formatter.dart';
+import 'package:befam/features/member/models/member_draft.dart';
+import 'package:befam/features/member/models/member_profile.dart';
+import 'package:befam/features/member/models/member_workspace_snapshot.dart';
+import 'package:befam/features/member/services/member_repository.dart';
 import 'package:collection/collection.dart';
-
 import '../../../core/services/debug_genealogy_store.dart';
-import '../../auth/models/auth_session.dart';
-import '../../auth/services/phone_number_formatter.dart';
-import '../models/member_draft.dart';
-import '../models/member_profile.dart';
-import '../models/member_workspace_snapshot.dart';
-import 'member_repository.dart';
 
 class DebugMemberRepository implements MemberRepository {
   DebugMemberRepository({required DebugGenealogyStore store}) : _store = store;
@@ -173,7 +172,7 @@ class DebugMemberRepository implements MemberRepository {
     final duplicate = _store.members.values.firstWhereOrNull(
       (member) =>
           member.clanId == clanId &&
-          member.phoneE164 == phoneE164 &&
+          PhoneNumberFormatter.areEquivalent(member.phoneE164, phoneE164) &&
           member.id != memberId,
     );
     if (duplicate != null) {

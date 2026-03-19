@@ -32,17 +32,10 @@ class AppLocalizationsVi extends AppLocalizations {
   String get authBootstrapPendingChip => 'Khởi tạo đang chờ';
 
   @override
-  String get authSandboxChip => 'Môi trường thử nghiệm';
-
-  @override
   String get authLiveFirebaseChip => 'Xác thực Firebase thật';
 
   @override
   String get authHeroTitle => 'Xác thực là cột mốc tiếp theo của BeFam.';
-
-  @override
-  String get authHeroSandboxDescription =>
-      'Bản dựng cục bộ dùng môi trường OTP an toàn để thử luồng số điện thoại và mã trẻ em mà không cần chờ SMS thật. Dùng mã 123456 cho luồng demo.';
 
   @override
   String get authHeroLiveDescription =>
@@ -72,20 +65,8 @@ class AppLocalizationsVi extends AppLocalizations {
   String get authBootstrapNoteTitle => 'Ghi chú khởi tạo hiện tại';
 
   @override
-  String get authBootstrapNoteReadySandbox =>
-      'Firebase đã sẵn sàng và môi trường xác thực thử nghiệm đang hoạt động để kiểm thử giao diện cục bộ.';
-
-  @override
   String get authBootstrapNoteReadyLive =>
       'Firebase đã sẵn sàng và ứng dụng sẽ thử xác thực số điện thoại thật.';
-
-  @override
-  String get authBootstrapNotePending =>
-      'Khởi tạo Firebase vẫn cần được xử lý, vì vậy đăng nhập nên ở môi trường thử nghiệm cho tới khi cấu hình đám mây ổn định.';
-
-  @override
-  String get authPhoneHelperSandbox =>
-      'Dùng số demo bên dưới để kiểm thử cục bộ nhanh. BeFam có thể tự điền mã OTP thử nghiệm ở bước tiếp theo.';
 
   @override
   String get authPhoneHelperLive =>
@@ -155,14 +136,6 @@ class AppLocalizationsVi extends AppLocalizations {
   }
 
   @override
-  String authOtpDebugCode(Object hint) {
-    return 'Mã OTP thử nghiệm: $hint';
-  }
-
-  @override
-  String get authOtpAutofillDemo => 'Tự điền mã demo';
-
-  @override
   String authOtpChildIdentifier(Object childIdentifier) {
     return 'Mã trẻ em: $childIdentifier';
   }
@@ -198,9 +171,6 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get authQuickBenefitMultipleAccess =>
       'Hỗ trợ số điện thoại và mã trẻ em';
-
-  @override
-  String get authQuickBenefitSandbox => 'Kiểm thử cục bộ an toàn';
 
   @override
   String get authQuickBenefitLive => 'Xác minh Firebase thật';
@@ -593,9 +563,6 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get shellAccessModeChild => 'Phiên truy cập trẻ em';
-
-  @override
-  String get shellSessionTypeSandbox => 'Phiên thử nghiệm cục bộ';
 
   @override
   String get shellSessionTypeFirebase => 'Phiên xác thực Firebase';

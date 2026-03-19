@@ -6,7 +6,7 @@ import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/scholarship/models/achievement_submission_draft.dart';
 import 'package:befam/features/scholarship/models/award_level_draft.dart';
 import 'package:befam/features/scholarship/models/scholarship_program_draft.dart';
-import 'package:befam/features/scholarship/services/debug_scholarship_repository.dart';
+import '../../support/features/scholarship/services/debug_scholarship_repository.dart';
 import 'package:befam/features/scholarship/services/scholarship_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/services/app_logger.dart';
 import '../../../core/services/governance_role_matrix.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
@@ -99,12 +100,12 @@ class BillingController extends ChangeNotifier {
       _errorMessage = error.toString();
       _workspace = null;
       _viewerSummary = null;
-      debugPrint('[billing] refresh repository error: $error');
+      AppLogger.warning('Billing refresh failed with repository error.', error);
     } catch (error) {
       _errorMessage = error.toString();
       _workspace = null;
       _viewerSummary = null;
-      debugPrint('[billing] refresh unexpected error: $error');
+      AppLogger.warning('Billing refresh failed unexpectedly.', error);
     } finally {
       _isLoading = false;
       notifyListeners();

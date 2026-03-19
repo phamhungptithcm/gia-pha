@@ -32,17 +32,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authBootstrapPendingChip => 'Bootstrap pending';
 
   @override
-  String get authSandboxChip => 'Debug auth sandbox';
-
-  @override
   String get authLiveFirebaseChip => 'Live Firebase auth';
 
   @override
   String get authHeroTitle => 'Authentication is the next BeFam milestone.';
-
-  @override
-  String get authHeroSandboxDescription =>
-      'Local builds use a safe OTP sandbox so we can test phone and child access flows without waiting on real SMS infrastructure. Use OTP 123456 for the demo flow.';
 
   @override
   String get authHeroLiveDescription =>
@@ -72,20 +65,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authBootstrapNoteTitle => 'Current bootstrap note';
 
   @override
-  String get authBootstrapNoteReadySandbox =>
-      'Firebase is ready and the debug auth sandbox is active for local UI testing.';
-
-  @override
   String get authBootstrapNoteReadyLive =>
       'Firebase is ready and the app will attempt live phone authentication.';
-
-  @override
-  String get authBootstrapNotePending =>
-      'Firebase startup still needs attention, so sign-in should stay in the sandbox until cloud setup is stable.';
-
-  @override
-  String get authPhoneHelperSandbox =>
-      'Use the demo number below for quick local testing. BeFam can auto-fill the sandbox OTP on the next step.';
 
   @override
   String get authPhoneHelperLive =>
@@ -155,14 +136,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String authOtpDebugCode(Object hint) {
-    return 'Debug sandbox OTP: $hint';
-  }
-
-  @override
-  String get authOtpAutofillDemo => 'Auto-fill demo code';
-
-  @override
   String authOtpChildIdentifier(Object childIdentifier) {
     return 'Child identifier: $childIdentifier';
   }
@@ -198,9 +171,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get authQuickBenefitMultipleAccess =>
       'Phone or child access supported';
-
-  @override
-  String get authQuickBenefitSandbox => 'Safe local sandbox testing';
 
   @override
   String get authQuickBenefitLive => 'Live Firebase verification';
@@ -594,9 +564,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shellAccessModeChild => 'Child access session';
-
-  @override
-  String get shellSessionTypeSandbox => 'Debug sandbox session';
 
   @override
   String get shellSessionTypeFirebase => 'Firebase auth session';

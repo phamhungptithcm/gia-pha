@@ -166,10 +166,16 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  Future<void> submitPhoneNumber(String rawPhoneNumber) async {
+  Future<void> submitPhoneNumber(
+    String rawPhoneNumber, {
+    String? countryIsoCode,
+  }) async {
     late final String normalizedPhone;
     try {
-      normalizedPhone = PhoneNumberFormatter.parse(rawPhoneNumber).e164;
+      normalizedPhone = PhoneNumberFormatter.parse(
+        rawPhoneNumber,
+        defaultCountryIso: countryIsoCode,
+      ).e164;
     } catch (error) {
       this.error = AuthErrorMapper.map(error);
       _emit();
