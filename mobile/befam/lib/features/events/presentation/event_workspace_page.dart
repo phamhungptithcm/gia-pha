@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -39,11 +40,16 @@ class EventWorkspacePage extends StatefulWidget {
 }
 
 class _EventWorkspacePageState extends State<EventWorkspacePage> {
+  static const int _eventBatchSize = 24;
+  static const double _eventLazyThresholdPx = 420;
+
   late final EventController _controller;
   late final TextEditingController _searchController;
   late final ScrollController _workspaceScrollController;
   final GlobalKey _memorialSectionKey = GlobalKey();
   final GlobalKey _ritualSectionKey = GlobalKey();
+  int _visibleEventCount = _eventBatchSize;
+  String _eventListSeed = '';
 
   @override
   void initState() {
@@ -55,16 +61,75 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
       lunarConversionEngine: widget.lunarConversionEngine,
     );
     _searchController = TextEditingController();
-    _workspaceScrollController = ScrollController();
+    _workspaceScrollController = ScrollController()
+      ..addListener(_handleWorkspaceScroll);
     unawaited(_controller.initialize());
   }
 
   @override
   void dispose() {
+    _workspaceScrollController.removeListener(_handleWorkspaceScroll);
     _workspaceScrollController.dispose();
     _searchController.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleWorkspaceScroll() {
+    if (!_workspaceScrollController.hasClients) {
+      return;
+    }
+    if (_workspaceScrollController.position.extentAfter >
+        _eventLazyThresholdPx) {
+      return;
+    }
+    final total = _controller.filteredEvents.length;
+    if (_visibleEventCount >= total) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _visibleEventCount = math.min(
+        total,
+        _visibleEventCount + _eventBatchSize,
+      );
+    });
+  }
+
+  void _syncVisibleEventState(List<EventRecord> filteredEvents) {
+    final seed = filteredEvents.isEmpty
+        ? '0'
+        : '${filteredEvents.length}:${filteredEvents.first.id}:${filteredEvents.last.id}';
+    if (seed == _eventListSeed) {
+      return;
+    }
+    _eventListSeed = seed;
+    _visibleEventCount = math.min(filteredEvents.length, _eventBatchSize);
+  }
+
+  List<_EventGroupBucket> _groupEventsByMonth(
+    BuildContext context,
+    List<EventRecord> events,
+  ) {
+    final nowUtc = DateTime.now().toUtc();
+    final grouped = <String, List<EventRecord>>{};
+    for (final event in events) {
+      final local = event.startsAt.toLocal();
+      final month = '${local.month.toString().padLeft(2, '0')}/${local.year}';
+      final isUpcoming = !event.startsAt.isBefore(nowUtc);
+      final label = context.l10n.pick(
+        vi: isUpcoming ? 'Sắp tới • $month' : 'Đã qua • $month',
+        en: isUpcoming ? 'Upcoming • $month' : 'Past • $month',
+      );
+      grouped.putIfAbsent(label, () => <EventRecord>[]).add(event);
+    }
+    return grouped.entries
+        .map(
+          (entry) => _EventGroupBucket(label: entry.key, events: entry.value),
+        )
+        .toList(growable: false);
   }
 
   Future<void> _scrollToChecklistSection(GlobalKey sectionKey) async {
@@ -319,6 +384,15 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
         final l10n = context.l10n;
         final colorScheme = Theme.of(context).colorScheme;
         final filteredEvents = _controller.filteredEvents;
+        _syncVisibleEventState(filteredEvents);
+        final visibleEvents = filteredEvents
+            .take(_visibleEventCount)
+            .toList(growable: false);
+        final groupedVisibleEvents = _groupEventsByMonth(
+          context,
+          visibleEvents,
+        );
+        final hasMoreEvents = visibleEvents.length < filteredEvents.length;
 
         return Scaffold(
           appBar: AppBar(
@@ -332,12 +406,11 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
             ],
           ),
           floatingActionButton: _controller.permissions.canManageEvents
-              ? FloatingActionButton.extended(
+              ? FloatingActionButton(
                   key: const Key('event-create-button'),
                   onPressed: () => _openEventEditor(),
                   tooltip: l10n.eventCreateAction,
-                  icon: const Icon(Icons.add),
-                  label: Text(l10n.eventCreateAction),
+                  child: const Icon(Icons.add),
                 )
               : null,
           body: SafeArea(
@@ -366,11 +439,6 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                         _WorkspaceHero(
                           title: l10n.eventHeroTitle,
                           description: l10n.eventHeroDescription,
-                          canCreateEvents:
-                              _controller.permissions.canManageEvents,
-                          onCreateEvent: _controller.permissions.canManageEvents
-                              ? () => _openEventEditor()
-                              : null,
                         ),
                         const SizedBox(height: 20),
                         if (_controller.permissions.isReadOnly) ...[
@@ -517,12 +585,6 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                         const SizedBox(height: 20),
                         _SectionCard(
                           title: l10n.eventListSectionTitle,
-                          actionLabel: _controller.permissions.canManageEvents
-                              ? l10n.eventCreateAction
-                              : null,
-                          onAction: _controller.permissions.canManageEvents
-                              ? () => _openEventEditor()
-                              : null,
                           child: filteredEvents.isEmpty
                               ? _WorkspaceEmptyState(
                                   icon: Icons.event_busy_outlined,
@@ -530,33 +592,72 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                                   description: l10n.eventListEmptyDescription,
                                 )
                               : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    for (
-                                      var i = 0;
-                                      i < filteredEvents.length;
-                                      i++
-                                    )
+                                    for (final bucket
+                                        in groupedVisibleEvents) ...[
                                       Padding(
-                                        padding: EdgeInsets.only(
-                                          bottom: i == filteredEvents.length - 1
-                                              ? 0
-                                              : 14,
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
                                         ),
-                                        child: _EventSummaryCard(
-                                          key: Key(
-                                            'event-row-${filteredEvents[i].id}',
-                                          ),
-                                          event: filteredEvents[i],
-                                          branchName: _controller.branchName(
-                                            filteredEvents[i].branchId,
-                                          ),
-                                          targetMemberName: _controller
-                                              .memberName(
-                                                filteredEvents[i]
-                                                    .targetMemberId,
+                                        child: Text(
+                                          bucket.label,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
                                               ),
-                                          onTap: () =>
-                                              _openDetail(filteredEvents[i]),
+                                        ),
+                                      ),
+                                      for (
+                                        var i = 0;
+                                        i < bucket.events.length;
+                                        i++
+                                      )
+                                        Padding(
+                                          padding: EdgeInsets.only(
+                                            bottom:
+                                                i == bucket.events.length - 1
+                                                ? 12
+                                                : 14,
+                                          ),
+                                          child: _EventSummaryCard(
+                                            key: Key(
+                                              'event-row-${bucket.events[i].id}',
+                                            ),
+                                            event: bucket.events[i],
+                                            branchName: _controller.branchName(
+                                              bucket.events[i].branchId,
+                                            ),
+                                            targetMemberName: _controller
+                                                .memberName(
+                                                  bucket
+                                                      .events[i]
+                                                      .targetMemberId,
+                                                ),
+                                            onTap: () =>
+                                                _openDetail(bucket.events[i]),
+                                          ),
+                                        ),
+                                    ],
+                                    if (hasMoreEvents)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          l10n.pick(
+                                            vi: 'Đang hiển thị ${visibleEvents.length}/${filteredEvents.length} sự kiện. Kéo xuống để tải thêm.',
+                                            en: 'Showing ${visibleEvents.length}/${filteredEvents.length} events. Scroll to load more.',
+                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
                                         ),
                                       ),
                                   ],
@@ -2471,22 +2572,14 @@ class _FilterPanel extends StatelessWidget {
 }
 
 class _WorkspaceHero extends StatelessWidget {
-  const _WorkspaceHero({
-    required this.title,
-    required this.description,
-    required this.canCreateEvents,
-    this.onCreateEvent,
-  });
+  const _WorkspaceHero({required this.title, required this.description});
 
   final String title;
   final String description;
-  final bool canCreateEvents;
-  final VoidCallback? onCreateEvent;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final l10n = context.l10n;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -2515,22 +2608,17 @@ class _WorkspaceHero extends StatelessWidget {
               color: colorScheme.onPrimary.withValues(alpha: 0.9),
             ),
           ),
-          if (canCreateEvents) ...[
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: onCreateEvent,
-              style: FilledButton.styleFrom(
-                backgroundColor: colorScheme.onPrimary,
-                foregroundColor: colorScheme.primary,
-              ),
-              icon: const Icon(Icons.add),
-              label: Text(l10n.eventCreateAction),
-            ),
-          ],
         ],
       ),
     );
   }
+}
+
+class _EventGroupBucket {
+  const _EventGroupBucket({required this.label, required this.events});
+
+  final String label;
+  final List<EventRecord> events;
 }
 
 class _EventSummaryCard extends StatelessWidget {
@@ -2835,16 +2923,9 @@ class _ChecklistNavigationCard extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.child,
-    this.actionLabel,
-    this.onAction,
-  });
+  const _SectionCard({required this.title, required this.child});
 
   final String title;
-  final String? actionLabel;
-  final VoidCallback? onAction;
   final Widget child;
 
   @override
@@ -2865,12 +2946,6 @@ class _SectionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (actionLabel != null && onAction != null)
-                  TextButton.icon(
-                    onPressed: onAction,
-                    icon: const Icon(Icons.add),
-                    label: Text(actionLabel!),
-                  ),
               ],
             ),
             const SizedBox(height: 12),

@@ -685,12 +685,12 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             _InfoCard(
               icon: Icons.lock_outline,
               title: l10n.pick(
-                vi: 'Chỉ owner được thanh toán và đổi gói',
-                en: 'Only owner can manage checkout',
+                vi: 'Chỉ tài khoản quản trị clan được thanh toán và đổi gói',
+                en: 'Only clan admin roles can manage checkout',
               ),
               description: l10n.pick(
-                vi: 'Liên hệ $resolvedOwnerLabel để nâng cấp hoặc gia hạn gói.',
-                en: 'Contact $resolvedOwnerLabel to upgrade or renew this subscription.',
+                vi: 'Gói dịch vụ được tính theo owner. Liên hệ $resolvedOwnerLabel để nâng cấp hoặc gia hạn khi vượt giới hạn thành viên.',
+                en: 'The subscription is enforced by owner scope. Contact $resolvedOwnerLabel to upgrade or renew when member limits are reached.',
               ),
               tone: colorScheme.primaryContainer,
             ),

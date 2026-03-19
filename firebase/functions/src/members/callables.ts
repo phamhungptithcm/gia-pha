@@ -512,12 +512,11 @@ async function resolveClanOwnerScope(clanId: string): Promise<ClanOwnerScope> {
   if (clanData == null) {
     throw new HttpsError('not-found', 'Clan was not found.');
   }
-  const ownerUid =
-    normalizeString(clanData.billingOwnerUid) || normalizeString(clanData.ownerUid);
+  const ownerUid = normalizeString(clanData.ownerUid);
   if (ownerUid.length == 0) {
     throw new HttpsError(
       'failed-precondition',
-      'Clan billing owner is missing.',
+      'Clan owner is missing.',
     );
   }
 

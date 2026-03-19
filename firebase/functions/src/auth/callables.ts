@@ -99,7 +99,6 @@ type ClanRecord = {
   status?: string | null;
   founderName?: string | null;
   ownerUid?: string | null;
-  billingOwnerUid?: string | null;
 };
 
 type DiscoveryIndexRecord = {
@@ -241,6 +240,15 @@ const APP_CHECK_CALLABLE_OPTIONS = {
   enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
 } as const;
 const SUPPORTED_PHONE_DIAL_CODES = ['886', '84', '82', '81', '65', '61', '49', '44', '33', '1'];
+
+function personalBillingScopeId(uid: string): string {
+  return `user_scope__${uid.trim()}`;
+}
+
+function ownerBillingSubscriptionDocId(ownerUid: string): string {
+  const scopeId = personalBillingScopeId(ownerUid);
+  return `${scopeId}__${ownerUid.trim()}`;
+}
 
 export const resolveChildLoginContext = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
@@ -1291,7 +1299,6 @@ export const bootstrapClanWorkspace = onCall(
         memberCount: 1,
         branchCount: 1,
         ownerUid: auth.uid,
-        billingOwnerUid: auth.uid,
         createdAt: now,
         createdBy: auth.uid,
         updatedAt: now,
@@ -3198,8 +3205,7 @@ async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedCl
     const data = snapshot.data() as ClanRecord | undefined;
     const clanName = asNullableTrimmedString(data?.name) ?? snapshot.id;
     const clanStatus = asNullableTrimmedString(data?.status)?.toLowerCase() ?? null;
-    const ownerUid = asNullableTrimmedString(data?.billingOwnerUid) ??
-      asNullableTrimmedString(data?.ownerUid);
+    const ownerUid = asNullableTrimmedString(data?.ownerUid);
     const ownerDisplayName = asNullableTrimmedString(data?.founderName);
     clanMetadataById.set(snapshot.id, {
       clanName,
@@ -3236,6 +3242,7 @@ async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedCl
   for (const clanId of clanIds) {
     const metadata = clanMetadataById.get(clanId);
     if (metadata?.ownerUid != null) {
+      subscriptionDocIds.add(ownerBillingSubscriptionDocId(metadata.ownerUid));
       subscriptionDocIds.add(`${clanId}__${metadata.ownerUid}`);
     }
     subscriptionDocIds.add(clanId);
@@ -3264,11 +3271,18 @@ async function loadLinkedClanContextsForUid(uid: string): Promise<Array<LinkedCl
     }
     const metadata = clanMetadataById.get(clanId);
     const ownerUid = metadata?.ownerUid ?? null;
+    const ownerScopedSubscription = ownerUid == null
+      ? null
+      : subscriptionByDocId.get(ownerBillingSubscriptionDocId(ownerUid));
     const scopedSubscription = ownerUid == null
       ? null
       : subscriptionByDocId.get(`${clanId}__${ownerUid}`);
     const legacySubscription = subscriptionByDocId.get(clanId);
-    const subscription = scopedSubscription ?? legacySubscription ?? null;
+    const subscription =
+      ownerScopedSubscription ??
+      scopedSubscription ??
+      legacySubscription ??
+      null;
     dedupByClan.set(clanId, {
       ...context,
       clanName: metadata?.clanName ?? context.clanName,

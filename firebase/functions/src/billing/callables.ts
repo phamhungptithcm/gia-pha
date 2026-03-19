@@ -67,6 +67,11 @@ function personalBillingScopeId(uid: string): string {
   return `user_scope__${uid.trim()}`;
 }
 
+function ownerBillingDocId(ownerUid: string): string {
+  const ownerScopeId = personalBillingScopeId(ownerUid);
+  return scopedBillingDocId(ownerScopeId, ownerUid);
+}
+
 function isPersonalBillingScope(scopeId: string, uid: string): boolean {
   return scopeId.trim() === personalBillingScopeId(uid);
 }
@@ -160,10 +165,7 @@ async function resolveBillingScopeContext({
       viewerIsOwner: true,
     };
   }
-  const clanScope = await resolveClanBillingScopeMetadata(scopeId, {
-    fallbackOwnerUid: uid,
-    actorUid: uid,
-  });
+  const clanScope = await resolveClanBillingScopeMetadata(scopeId);
   if (requireOwnerMutationAccess && uid !== clanScope.ownerUid) {
     const ownerLabel = clanScope.ownerDisplayName ?? clanScope.ownerUid;
     throw new HttpsError(
@@ -188,10 +190,6 @@ type ClanBillingScopeMetadata = {
 
 async function resolveClanBillingScopeMetadata(
   clanId: string,
-  options?: {
-    fallbackOwnerUid?: string;
-    actorUid?: string;
-  },
 ): Promise<ClanBillingScopeMetadata> {
   const snapshot = await clansCollection.doc(clanId).get();
   if (!snapshot.exists) {
@@ -201,25 +199,11 @@ async function resolveClanBillingScopeMetadata(
     );
   }
   const data = snapshot.data() ?? {};
-  const billingOwnerUid = normalizeString(data.billingOwnerUid);
   const ownerUid = normalizeString(data.ownerUid);
-  let resolved = billingOwnerUid.length > 0 ? billingOwnerUid : ownerUid;
-  if (resolved.length == 0) {
-    const fallbackOwnerUid = normalizeString(options?.fallbackOwnerUid);
-    if (fallbackOwnerUid.length == 0) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Clan billing owner is missing.",
-      );
-    }
-    resolved = fallbackOwnerUid;
-    await clansCollection.doc(clanId).set(
-      {
-        billingOwnerUid: resolved,
-        updatedAt: new Date(),
-        updatedBy: normalizeString(options?.actorUid) || resolved,
-      },
-      { merge: true },
+  if (ownerUid.length == 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Clan owner is missing.",
     );
   }
 
@@ -227,7 +211,7 @@ async function resolveClanBillingScopeMetadata(
   if (ownerDisplayName.length == 0) {
     const ownerMemberSnapshot = await membersCollection
       .where("clanId", "==", clanId)
-      .where("authUid", "==", resolved)
+      .where("authUid", "==", ownerUid)
       .limit(1)
       .get();
     if (!ownerMemberSnapshot.empty) {
@@ -238,7 +222,7 @@ async function resolveClanBillingScopeMetadata(
     }
   }
   return {
-    ownerUid: resolved,
+    ownerUid,
     ownerDisplayName: ownerDisplayName.length > 0 ? ownerDisplayName : null,
     clanStatus: normalizeClanStatus(data.status),
   };
@@ -385,7 +369,7 @@ export const updateBillingPreferences = onCall(
     });
 
     await subscriptionsCollection
-      .doc(scopedBillingDocId(scope.clanId, scope.ownerUid))
+      .doc(ownerBillingDocId(scope.ownerUid))
       .set(
         {
           paymentMode: settings.paymentMode,

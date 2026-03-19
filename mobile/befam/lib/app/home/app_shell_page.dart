@@ -1069,10 +1069,13 @@ class _HomeDashboard extends StatelessWidget {
       maxCrossAxisCount,
     );
     final crossAxisCount = fitColumns;
-    final childAspectRatio = switch (layout.viewport) {
-      AppViewport.mobile => 1.05,
-      AppViewport.tablet => 0.95,
-      AppViewport.desktop => 1.08,
+    final childAspectRatio = switch ((layout.viewport, crossAxisCount)) {
+      (AppViewport.mobile, 1) => 2.05,
+      (AppViewport.tablet, 1) => 2.2,
+      (AppViewport.desktop, 1) => 2.35,
+      (AppViewport.mobile, _) => 1.2,
+      (AppViewport.tablet, _) => 1.08,
+      (AppViewport.desktop, _) => 1.15,
     };
 
     return ListView(
@@ -1361,13 +1364,11 @@ class _ShortcutCard extends StatelessWidget {
                       ],
                     ),
                     SizedBox(height: compact ? 6 : 10),
-                    Expanded(
-                      child: Text(
-                        _productionShortcutDescription(context, shortcut.id),
-                        style: theme.textTheme.bodyMedium,
-                        maxLines: hideStatusChip ? 1 : (compact ? 2 : 3),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    Text(
+                      _productionShortcutDescription(context, shortcut.id),
+                      style: theme.textTheme.bodyMedium,
+                      maxLines: hideStatusChip ? 1 : (compact ? 2 : 3),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -2431,7 +2432,7 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
   }
 
   List<_NearbyRelative> _visibleItems() {
-    return widget.items
+    final filtered = widget.items
         .where((item) {
           if (!_matchesDistance(item.distanceKm)) {
             return false;
@@ -2449,6 +2450,16 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
               relation.contains(_query);
         })
         .toList(growable: false);
+    filtered.sort((left, right) {
+      final distanceCompare = left.distanceKm.compareTo(right.distanceKm);
+      if (distanceCompare != 0) {
+        return distanceCompare;
+      }
+      return left.member.displayName.toLowerCase().compareTo(
+        right.member.displayName.toLowerCase(),
+      );
+    });
+    return filtered;
   }
 
   bool _matchesDistance(double distanceKm) {

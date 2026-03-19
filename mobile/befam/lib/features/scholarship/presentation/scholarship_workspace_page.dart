@@ -879,8 +879,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                         value: option.clanId,
                         child: Text(
                           option.clanId == (_session.clanId ?? '').trim()
-                              ? '• ${option.clanName}'
-                              : option.clanName,
+                              ? '• ${_clanContextDisplayLabel(context, option)}'
+                              : _clanContextDisplayLabel(context, option),
                         ),
                       ),
                   ],
@@ -3563,7 +3563,7 @@ class _ScholarshipClanScopeCard extends StatelessWidget {
                 for (final option in clanContexts)
                   DropdownMenuItem<String>(
                     value: option.clanId,
-                    child: Text(option.clanName),
+                    child: Text(_clanContextDisplayLabel(context, option)),
                   ),
               ],
               onChanged: isSwitching || onSwitch == null
@@ -3782,6 +3782,67 @@ String _formatMinorAmount(int amountMinor) {
     }
   }
   return negative ? '-${buffer.toString()}' : buffer.toString();
+}
+
+String _clanContextDisplayLabel(
+  BuildContext context,
+  ClanContextOption option,
+) {
+  final explicitName = option.clanName.trim();
+  if (explicitName.isNotEmpty && !_looksLikeIdentifier(explicitName)) {
+    return explicitName;
+  }
+
+  final ownerName = (option.ownerDisplayName ?? '').trim();
+  if (ownerName.isNotEmpty) {
+    return context.l10n.pick(
+      vi: 'Gia phả của $ownerName',
+      en: "$ownerName's clan",
+    );
+  }
+
+  final memberName = (option.displayName ?? '').trim();
+  if (memberName.isNotEmpty) {
+    return context.l10n.pick(
+      vi: 'Gia phả của $memberName',
+      en: "$memberName's clan",
+    );
+  }
+
+  final readableClanId = _humanizeIdentifier(option.clanId);
+  return readableClanId.isEmpty ? option.clanId : readableClanId;
+}
+
+bool _looksLikeIdentifier(String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return false;
+  }
+  return RegExp(r'^[a-z0-9]+(?:[_-][a-z0-9]+)*$').hasMatch(normalized);
+}
+
+String _humanizeIdentifier(String value) {
+  final normalized = value.trim();
+  if (normalized.isEmpty) {
+    return '';
+  }
+  final noPrefix = normalized.replaceFirst(
+    RegExp(r'^(clan|gia[_-]?pha)[_-]?', caseSensitive: false),
+    '',
+  );
+  final tokens = (noPrefix.isEmpty ? normalized : noPrefix)
+      .replaceAll(RegExp(r'[_-]+'), ' ')
+      .split(RegExp(r'\s+'))
+      .where((item) => item.trim().isNotEmpty)
+      .map((item) {
+        final text = item.trim();
+        return '${text[0].toUpperCase()}${text.substring(1).toLowerCase()}';
+      })
+      .toList(growable: false);
+  if (tokens.isEmpty) {
+    return '';
+  }
+  return tokens.join(' ');
 }
 
 String? _nullableText(String value) {

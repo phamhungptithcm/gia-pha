@@ -1636,7 +1636,7 @@ class _ProfileDetailRow extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
             width: 110,
@@ -1650,10 +1650,13 @@ class _ProfileDetailRow extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
-                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+                if (trailing != null) ...[
+                  const SizedBox(width: 8),
+                  Align(alignment: Alignment.centerRight, child: trailing!),
+                ],
               ],
             ),
           ),
