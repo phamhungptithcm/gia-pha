@@ -97,6 +97,8 @@ class _AppShellPageState extends State<AppShellPage> {
   bool _isLoadingClanContexts = false;
   bool _isSwitchingClanContext = false;
   List<ClanContextOption> _clanContexts = const [];
+  final Map<String, String> _resolvedClanNamesById = <String, String>{};
+  bool _isResolvingActiveClanName = false;
 
   AuthSession get _session => _activeSession;
 
@@ -180,6 +182,7 @@ class _AppShellPageState extends State<AppShellPage> {
       ),
     );
     unawaited(_loadClanContexts());
+    unawaited(_ensureActiveClanDisplayNameResolved());
     unawaited(_refreshBillingEntitlement());
     _syncAdBannerAutoHideTimer();
   }
@@ -196,6 +199,7 @@ class _AppShellPageState extends State<AppShellPage> {
         ),
       );
       unawaited(_loadClanContexts());
+      unawaited(_ensureActiveClanDisplayNameResolved());
       _dismissAdBannerForSession = false;
       unawaited(_refreshBillingEntitlement());
       _syncAdBannerAutoHideTimer();
@@ -399,15 +403,18 @@ class _AppShellPageState extends State<AppShellPage> {
       if (!mounted) {
         return;
       }
+      final resolvedNames = _extractNamedClanContexts(snapshot.contexts);
       setState(() {
         _activeSession = snapshot.activeSession;
         _clanContexts = snapshot.contexts;
+        _resolvedClanNamesById.addAll(resolvedNames);
       });
       await _sessionStore.write(_activeSession);
       await _pushNotificationService.start(
         session: _session,
         onDeepLink: _handleNotificationDeepLink,
       );
+      unawaited(_ensureActiveClanDisplayNameResolved());
       unawaited(_refreshBillingEntitlement());
     } catch (_) {
       // Keep the existing session context if callable is unavailable.
@@ -433,9 +440,11 @@ class _AppShellPageState extends State<AppShellPage> {
       if (!mounted) {
         return null;
       }
+      final resolvedNames = _extractNamedClanContexts(snapshot.contexts);
       setState(() {
         _activeSession = snapshot.activeSession;
         _clanContexts = snapshot.contexts;
+        _resolvedClanNamesById.addAll(resolvedNames);
         _visitedDestinationIndexes.add(_selectedIndex);
       });
       await _sessionStore.write(_activeSession);
@@ -443,6 +452,7 @@ class _AppShellPageState extends State<AppShellPage> {
         session: _session,
         onDeepLink: _handleNotificationDeepLink,
       );
+      unawaited(_ensureActiveClanDisplayNameResolved());
       unawaited(_refreshBillingEntitlement());
       return _activeSession;
     } catch (_) {
@@ -477,6 +487,7 @@ class _AppShellPageState extends State<AppShellPage> {
       session: _session,
       onDeepLink: _handleNotificationDeepLink,
     );
+    unawaited(_ensureActiveClanDisplayNameResolved());
     unawaited(_refreshBillingEntitlement());
   }
 
@@ -516,19 +527,11 @@ class _AppShellPageState extends State<AppShellPage> {
     if (activeClanId.isEmpty) {
       return 'BeFam';
     }
-    final activeContext = _clanContexts.firstWhere(
-      (option) => option.clanId.trim() == activeClanId,
-      orElse: () => ClanContextOption(
-        clanId: activeClanId,
-        clanName: activeClanId,
-        memberId: (_session.memberId ?? '').trim(),
-        primaryRole: (_session.primaryRole ?? 'MEMBER').trim().isEmpty
-            ? 'MEMBER'
-            : _session.primaryRole!.trim().toUpperCase(),
-      ),
-    );
-    final clanName = activeContext.clanName.trim();
-    return clanName.isEmpty ? activeClanId : clanName;
+    final resolvedName = _activeClanDisplayName();
+    if (resolvedName != null) {
+      return resolvedName;
+    }
+    return l10n.pick(vi: 'Gia phả hiện tại', en: 'Current clan');
   }
 
   Future<void> _openClanSwitcherSheet(AppLocalizations l10n) async {
@@ -588,9 +591,7 @@ class _AppShellPageState extends State<AppShellPage> {
                           : Icons.circle_outlined,
                     ),
                     title: Text(
-                      option.clanName.trim().isEmpty
-                          ? option.clanId
-                          : option.clanName,
+                      _displayClanNameForOption(option, l10n),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -638,6 +639,7 @@ class _AppShellPageState extends State<AppShellPage> {
         clanRepository: widget.clanRepository,
         memberRepository: widget.memberRepository,
         fundRepository: _fundRepository,
+        activeClanName: _activeClanDisplayName(),
         availableClanContexts: _clanContexts,
         onSwitchClanContext: _switchClanContext,
         onOpenTreeRequested: () {
@@ -819,6 +821,107 @@ class _AppShellPageState extends State<AppShellPage> {
         ],
       ),
     );
+  }
+
+  Map<String, String> _extractNamedClanContexts(
+    Iterable<ClanContextOption> options,
+  ) {
+    final named = <String, String>{};
+    for (final option in options) {
+      final clanId = option.clanId.trim();
+      final clanName = option.clanName.trim();
+      if (clanId.isEmpty || clanName.isEmpty) {
+        continue;
+      }
+      if (clanName.toLowerCase() == clanId.toLowerCase()) {
+        continue;
+      }
+      named[clanId] = clanName;
+    }
+    return named;
+  }
+
+  String? _activeClanDisplayName() {
+    final clanId = (_session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
+      return null;
+    }
+    final contextName = _clanContexts
+        .where((option) => option.clanId.trim() == clanId)
+        .map((option) => option.clanName.trim())
+        .firstWhere(
+          (name) =>
+              name.isNotEmpty && name.toLowerCase() != clanId.toLowerCase(),
+          orElse: () => '',
+        );
+    if (contextName.isNotEmpty) {
+      return contextName;
+    }
+    final cached = _resolvedClanNamesById[clanId]?.trim() ?? '';
+    if (cached.isNotEmpty && cached.toLowerCase() != clanId.toLowerCase()) {
+      return cached;
+    }
+    return null;
+  }
+
+  String _displayClanNameForOption(
+    ClanContextOption option,
+    AppLocalizations l10n,
+  ) {
+    final optionClanId = option.clanId.trim();
+    final explicitName = option.clanName.trim();
+    if (explicitName.isNotEmpty &&
+        explicitName.toLowerCase() != optionClanId.toLowerCase()) {
+      return explicitName;
+    }
+    final cached = _resolvedClanNamesById[optionClanId]?.trim() ?? '';
+    if (cached.isNotEmpty) {
+      return cached;
+    }
+    if (optionClanId == (_session.clanId ?? '').trim()) {
+      final active = _activeClanDisplayName();
+      if (active != null) {
+        return active;
+      }
+    }
+    return l10n.pick(vi: 'Gia phả', en: 'Clan');
+  }
+
+  Future<void> _ensureActiveClanDisplayNameResolved() async {
+    final clanId = (_session.clanId ?? '').trim();
+    if (clanId.isEmpty || _isResolvingActiveClanName) {
+      return;
+    }
+    final cachedName = _resolvedClanNamesById[clanId]?.trim() ?? '';
+    if (cachedName.isNotEmpty &&
+        cachedName.toLowerCase() != clanId.toLowerCase()) {
+      return;
+    }
+    final contextName = _activeClanDisplayName();
+    if (contextName != null) {
+      return;
+    }
+
+    _isResolvingActiveClanName = true;
+    try {
+      final workspace = await widget.clanRepository.loadWorkspace(
+        session: _session,
+      );
+      final clanName = workspace.clan?.name.trim() ?? '';
+      if (!mounted || clanName.isEmpty) {
+        return;
+      }
+      if (clanName.toLowerCase() == clanId.toLowerCase()) {
+        return;
+      }
+      setState(() {
+        _resolvedClanNamesById[clanId] = clanName;
+      });
+    } catch (_) {
+      // Keep fallback label when the clan profile cannot be loaded.
+    } finally {
+      _isResolvingActiveClanName = false;
+    }
   }
 
   void _handleDestinationSelected(int index) {
@@ -1149,6 +1252,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.clanRepository,
     required this.memberRepository,
     required this.fundRepository,
+    required this.activeClanName,
     required this.availableClanContexts,
     required this.onSwitchClanContext,
     required this.onOpenTreeRequested,
@@ -1164,6 +1268,7 @@ class _HomeDashboard extends StatelessWidget {
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
   final FundRepository fundRepository;
+  final String? activeClanName;
   final List<ClanContextOption> availableClanContexts;
   final Future<AuthSession?> Function(String clanId) onSwitchClanContext;
   final VoidCallback onOpenTreeRequested;
@@ -1175,6 +1280,10 @@ class _HomeDashboard extends StatelessWidget {
   bool get _hasClanContext => (session.clanId ?? '').trim().isNotEmpty;
 
   String? get _activeClanName {
+    final explicitActiveClanName = activeClanName?.trim() ?? '';
+    if (explicitActiveClanName.isNotEmpty) {
+      return explicitActiveClanName;
+    }
     final clanId = (session.clanId ?? '').trim();
     if (clanId.isEmpty) {
       return null;
@@ -1879,11 +1988,13 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
             final hostLabel = data.hostHousehold?.trim().isNotEmpty == true
                 ? data.hostHousehold!.trim()
                 : l10n.pick(vi: 'Cả họ', en: 'Clan-wide');
+            final clanLabel = data.clanName?.trim() ?? '';
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Icon(
                       Icons.event_outlined,
@@ -1896,12 +2007,25 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 4),
                     TextButton(
                       onPressed: () {
                         widget.onOpenEventDetailRequested(event);
                       },
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                       child: Text(
                         l10n.pick(vi: 'Xem chi tiết', en: 'View details'),
                       ),
@@ -1916,6 +2040,11 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
                           _upcomingFuture = _loadUpcomingEvent();
                         });
                       },
+                      constraints: const BoxConstraints.tightFor(
+                        width: 36,
+                        height: 36,
+                      ),
+                      visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.refresh),
                     ),
                   ],
@@ -1942,16 +2071,15 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
                   ),
                   style: theme.textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  l10n.pick(
-                    vi: 'Họ tộc: ${(data.clanName?.trim().isNotEmpty ?? false) ? data.clanName!.trim() : 'Họ tộc hiện tại'}',
-                    en: 'Clan: ${(data.clanName?.trim().isNotEmpty ?? false) ? data.clanName!.trim() : 'Current clan'}',
+                if (clanLabel.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    l10n.pick(vi: 'Họ tộc: $clanLabel', en: 'Clan: $clanLabel'),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
+                ],
                 if (event.locationAddress.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Row(
