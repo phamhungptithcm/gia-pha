@@ -75,6 +75,8 @@ nav:
       - DevOps:
           - CI/CD: vi/05-devops/ci-cd.md
           - Cấu hình Production: vi/05-devops/production-configuration.md
+          - Test Plan trước release: vi/05-devops/release-test-plan.md
+          - Test Execution Sheet: vi/05-devops/release-test-execution-guide.md
           - Checklist QA trước release: vi/05-devops/pre-release-qa-checklist.md
       - Bảo mật:
           - Mô hình quyền riêng tư: vi/06-security/privacy-model.md

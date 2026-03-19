@@ -9,6 +9,8 @@
 3. [Lộ trình phát triển](01-product/roadmap.md)
 4. [Quy trình CI/CD](05-devops/ci-cd.md)
 5. [Cấu hình Production](05-devops/production-configuration.md)
+6. [Test Plan trước release](05-devops/release-test-plan.md)
+7. [Test Execution Sheet (Google Sheets)](05-devops/release-test-execution-guide.md)
 
 ## Bối cảnh sản phẩm
 

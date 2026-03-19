@@ -1,6 +1,14 @@
 # Checklist QA trước release
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 19/03/2026_
+
+Tài liệu test đầy đủ (test plan + test cases + step-by-step):
+
+- [Test Plan và Test Cases trước Release Production](release-test-plan.md)
+- [Hướng dẫn dùng Test Execution Sheet](release-test-execution-guide.md)
+- [CSV Template để import Google Sheets](release-test-execution-template.csv)
+- [Excel Template (.xlsx) đã setup sẵn dropdown/màu/formula](release-test-execution-template.xlsx)
+- [CSV Dashboard Formula Template](release-test-dashboard-template.csv)
 
 ## Build và môi trường
 

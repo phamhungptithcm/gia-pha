@@ -1,0 +1,14 @@
+metric,formula_or_value,notes
+Total Cases,=COUNTA(Execution!C:C)-1,Total test case rows
+PASS,=COUNTIF(Execution!H:H,"PASS"),Passed test cases
+FAIL,=COUNTIF(Execution!H:H,"FAIL"),Failed test cases
+BLOCKED,=COUNTIF(Execution!H:H,"BLOCKED"),Blocked test cases
+NOT_RUN,=COUNTIF(Execution!H:H,"NOT_RUN"),Not executed yet
+N/A,=COUNTIF(Execution!H:H,"N/A"),Not applicable
+Pass Rate,=IFERROR(COUNTIF(Execution!H:H,"PASS")/(COUNTA(Execution!C:C)-1),0),Format as percentage
+P0 Total,=COUNTIF(Execution!D:D,"P0"),Total P0 cases
+P0 PASS,=COUNTIFS(Execution!D:D,"P0",Execution!H:H,"PASS"),Passed P0 cases
+P0 FAIL,=COUNTIFS(Execution!D:D,"P0",Execution!H:H,"FAIL"),Failed P0 cases
+P0 BLOCKED,=COUNTIFS(Execution!D:D,"P0",Execution!H:H,"BLOCKED"),Blocked P0 cases
+P1 Total,=COUNTIF(Execution!D:D,"P1"),Total P1 cases
+P1 PASS,=COUNTIFS(Execution!D:D,"P1",Execution!H:H,"PASS"),Passed P1 cases

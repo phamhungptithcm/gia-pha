@@ -2,6 +2,7 @@ class MyJoinRequestItem {
   const MyJoinRequestItem({
     required this.id,
     required this.clanId,
+    this.genealogyName,
     required this.status,
     required this.submittedAtEpochMs,
     this.reviewedAtEpochMs,
@@ -11,6 +12,7 @@ class MyJoinRequestItem {
 
   final String id;
   final String clanId;
+  final String? genealogyName;
   final String status;
   final int submittedAtEpochMs;
   final int? reviewedAtEpochMs;
@@ -24,6 +26,7 @@ class MyJoinRequestItem {
     return MyJoinRequestItem(
       id: id,
       clanId: (json['clanId'] as String? ?? '').trim(),
+      genealogyName: (json['genealogyName'] as String?)?.trim(),
       status: (json['status'] as String? ?? 'pending').trim().toLowerCase(),
       submittedAtEpochMs: _parseEpochMs(json['submittedAtEpochMs']) ?? 0,
       reviewedAtEpochMs: _parseEpochMs(json['reviewedAtEpochMs']),
