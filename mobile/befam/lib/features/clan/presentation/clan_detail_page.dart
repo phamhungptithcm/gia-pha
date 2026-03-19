@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
-import '../../../l10n/generated/app_localizations.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/models/clan_context_option.dart';
 import '../../discovery/presentation/join_request_review_page.dart';
@@ -186,94 +185,6 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
     );
   }
 
-  List<ClanContextOption> get _clanContexts {
-    final options = widget.availableClanContexts;
-    if (options.isNotEmpty) {
-      return options;
-    }
-    final clanId = (_session.clanId ?? '').trim();
-    if (clanId.isEmpty) {
-      return const [];
-    }
-    return [
-      ClanContextOption(
-        clanId: clanId,
-        clanName: _controller.clan?.name ?? clanId,
-        memberId: (_session.memberId ?? '').trim(),
-        primaryRole: (_session.primaryRole ?? 'MEMBER').trim().isEmpty
-            ? 'MEMBER'
-            : _session.primaryRole!.trim().toUpperCase(),
-        branchId: (_session.branchId ?? '').trim().isEmpty
-            ? null
-            : _session.branchId!.trim(),
-        displayName: _session.displayName,
-        ownerUid: _session.uid.trim().isEmpty ? null : _session.uid.trim(),
-        ownerDisplayName: _session.displayName,
-      ),
-    ];
-  }
-
-  Future<void> _openClanSwitcher() async {
-    if (_clanContexts.length < 2 ||
-        _isSwitchingClanContext ||
-        widget.onSwitchClanContext == null) {
-      return;
-    }
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (context) {
-        return _ClanContextPickerSheet(
-          activeClanId:
-              _lastSelectedClanByUid[_session.uid] ??
-              (_session.clanId ?? '').trim(),
-          contexts: _clanContexts,
-          roleLabelBuilder: (role) => context.l10n.roleLabel(role),
-          ownerLabelBuilder: (option) {
-            final ownerLabel =
-                (option.ownerDisplayName ?? option.ownerUid ?? '').trim();
-            return ownerLabel.isEmpty
-                ? context.l10n.pick(vi: 'Owner: --', en: 'Owner: --')
-                : context.l10n.pick(
-                    vi: 'Owner: $ownerLabel',
-                    en: 'Owner: $ownerLabel',
-                  );
-          },
-          planLabelBuilder: (option) {
-            final planCode = (option.billingPlanCode ?? '')
-                .trim()
-                .toUpperCase();
-            return planCode.isEmpty
-                ? context.l10n.pick(vi: 'Gói: --', en: 'Plan: --')
-                : context.l10n.pick(
-                    vi: 'Gói: $planCode',
-                    en: 'Plan: $planCode',
-                  );
-          },
-          statusLabelBuilder: (status) =>
-              _contextStatusLabel(context.l10n, status),
-          memberCountLabelBuilder: (option) {
-            final activeClanId = (_session.clanId ?? '').trim();
-            if (option.clanId.trim() == activeClanId) {
-              final count =
-                  _controller.clan?.memberCount ?? _controller.members.length;
-              return context.l10n.pick(
-                vi: '$count thành viên',
-                en: '$count members',
-              );
-            }
-            return context.l10n.pick(vi: 'Thành viên: --', en: 'Members: --');
-          },
-        );
-      },
-    );
-    if (!mounted || selected == null) {
-      return;
-    }
-    await _switchClanContext(selected);
-  }
-
   Future<void> _switchClanContext(String clanId) async {
     final normalized = clanId.trim();
     if (normalized.isEmpty || normalized == (_session.clanId ?? '').trim()) {
@@ -359,21 +270,6 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
-                        if (_clanContexts.length > 1) ...[
-                          _ClanContextSwitcherCard(
-                            activeClanId: (_session.clanId ?? '').trim(),
-                            activeClanName:
-                                _controller.clan?.name ??
-                                l10n.pick(
-                                  vi: 'Chưa chọn gia phả',
-                                  en: 'No clan',
-                                ),
-                            isEnabled: widget.onSwitchClanContext != null,
-                            isSwitching: _isSwitchingClanContext,
-                            onTap: _openClanSwitcher,
-                          ),
-                          const SizedBox(height: 16),
-                        ],
                         _WorkspaceHero(
                           title:
                               _controller.clan?.name ??
@@ -866,170 +762,6 @@ class _QuickStatCard extends StatelessWidget {
   }
 }
 
-class _ClanContextSwitcherCard extends StatelessWidget {
-  const _ClanContextSwitcherCard({
-    required this.activeClanId,
-    required this.activeClanName,
-    required this.isEnabled,
-    required this.isSwitching,
-    required this.onTap,
-  });
-
-  final String activeClanId;
-  final String activeClanName;
-  final bool isEnabled;
-  final bool isSwitching;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: colorScheme.outlineVariant),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: isSwitching || !isEnabled ? null : onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              const Icon(Icons.account_tree_outlined),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.pick(vi: 'Gia phả hiện tại', en: 'Current clan'),
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      activeClanName,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (activeClanId.isNotEmpty)
-                      Text(
-                        activeClanId,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (isSwitching)
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                const Icon(Icons.expand_more),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ClanContextPickerSheet extends StatelessWidget {
-  const _ClanContextPickerSheet({
-    required this.activeClanId,
-    required this.contexts,
-    required this.roleLabelBuilder,
-    required this.ownerLabelBuilder,
-    required this.planLabelBuilder,
-    required this.statusLabelBuilder,
-    required this.memberCountLabelBuilder,
-  });
-
-  final String activeClanId;
-  final List<ClanContextOption> contexts;
-  final String Function(String? role) roleLabelBuilder;
-  final String Function(ClanContextOption option) ownerLabelBuilder;
-  final String Function(ClanContextOption option) planLabelBuilder;
-  final String Function(String? status) statusLabelBuilder;
-  final String Function(ClanContextOption option) memberCountLabelBuilder;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          Text(
-            l10n.pick(vi: 'Chọn gia phả', en: 'Switch clan'),
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.pick(
-              vi: 'Mỗi tài khoản có thể thuộc nhiều gia phả. Chọn một gia phả để tiếp tục.',
-              en: 'Your account can belong to multiple clans. Pick one to continue.',
-            ),
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 14),
-          for (final option in contexts)
-            Card(
-              child: ListTile(
-                minVerticalPadding: 10,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
-                ),
-                onTap: () => Navigator.of(context).pop(option.clanId),
-                leading: Icon(
-                  option.clanId.trim() == activeClanId.trim()
-                      ? Icons.check_circle
-                      : Icons.circle_outlined,
-                ),
-                title: Text(
-                  option.clanName.trim().isEmpty
-                      ? option.clanId
-                      : option.clanName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    '${roleLabelBuilder(option.primaryRole)} · '
-                    '${planLabelBuilder(option)} · '
-                    '${ownerLabelBuilder(option)} · '
-                    '${memberCountLabelBuilder(option)} · '
-                    '${statusLabelBuilder(option.status)}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                trailing: const Icon(Icons.chevron_right),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ProfileSummary extends StatelessWidget {
   const _ProfileSummary({
     required this.rows,
@@ -1266,16 +998,6 @@ class _MiniPill extends StatelessWidget {
       ),
     );
   }
-}
-
-String _contextStatusLabel(AppLocalizations l10n, String? status) {
-  final normalized = status?.trim().toLowerCase() ?? '';
-  return switch (normalized) {
-    'active' || 'enabled' || '' => l10n.pick(vi: 'Đang dùng', en: 'Active'),
-    'pending' => l10n.pick(vi: 'Chờ kích hoạt', en: 'Pending'),
-    'suspended' || 'disabled' => l10n.pick(vi: 'Tạm ngưng', en: 'Suspended'),
-    _ => l10n.pick(vi: 'Đang dùng', en: 'Active'),
-  };
 }
 
 class _EmptySection extends StatelessWidget {

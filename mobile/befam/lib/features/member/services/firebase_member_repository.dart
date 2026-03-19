@@ -112,7 +112,18 @@ class FirebaseMemberRepository implements MemberRepository {
 
     final memberRef = _members.doc(memberId);
     final existing = await memberRef.get();
-    final existingData = existing.data() ?? const <String, dynamic>{};
+    if (!existing.exists || existing.data() == null) {
+      throw const MemberRepositoryException(
+        MemberRepositoryErrorCode.memberNotFound,
+      );
+    }
+    final existingData = existing.data()!;
+    final existingClanId = (existingData['clanId'] as String?)?.trim() ?? '';
+    if (existingClanId != clanId) {
+      throw const MemberRepositoryException(
+        MemberRepositoryErrorCode.permissionDenied,
+      );
+    }
     final actor = session.memberId ?? session.uid;
     final previousBranchId = existingData['branchId'] as String?;
     final previousParentIds = _stringList(existingData['parentIds']);
@@ -415,6 +426,12 @@ class FirebaseMemberRepository implements MemberRepository {
         MemberRepositoryErrorCode.memberNotFound,
       );
     }
+    final memberClanId = (existing.data()!['clanId'] as String?)?.trim() ?? '';
+    if (memberClanId != clanId) {
+      throw const MemberRepositoryException(
+        MemberRepositoryErrorCode.permissionDenied,
+      );
+    }
 
     try {
       final storageRef = _storage.ref(
@@ -439,6 +456,51 @@ class FirebaseMemberRepository implements MemberRepository {
         error.toString(),
       );
     }
+  }
+
+  @override
+  Future<void> updateMemberLiveLocation({
+    required AuthSession session,
+    required String memberId,
+    required bool sharingEnabled,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+  }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
+    final clanId = (session.clanId ?? '').trim();
+    final normalizedMemberId = memberId.trim();
+    if (clanId.isEmpty || normalizedMemberId.isEmpty) {
+      throw const MemberRepositoryException(
+        MemberRepositoryErrorCode.permissionDenied,
+      );
+    }
+
+    final hasValidCoordinates =
+        latitude != null &&
+        longitude != null &&
+        _isValidLatitude(latitude) &&
+        _isValidLongitude(longitude);
+    final shouldShare = sharingEnabled && hasValidCoordinates;
+    final normalizedAccuracy = accuracyMeters != null && accuracyMeters.isFinite
+        ? accuracyMeters
+        : null;
+    final capturedAt = DateTime.now().toUtc().toIso8601String();
+    final actor = session.memberId ?? session.uid;
+
+    await _members.doc(normalizedMemberId).set({
+      'locationSharingEnabled': shouldShare,
+      'locationLatitude': shouldShare ? latitude : null,
+      'locationLongitude': shouldShare ? longitude : null,
+      'locationAccuracyMeters': shouldShare ? normalizedAccuracy : null,
+      'locationUpdatedAt': shouldShare ? capturedAt : null,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': actor,
+    }, SetOptions(merge: true));
   }
 
   Future<void> _ensureUniquePhone({
@@ -488,9 +550,13 @@ class FirebaseMemberRepository implements MemberRepository {
     String branchId,
     String actor,
   ) async {
-    final count = (await _members.where('branchId', isEqualTo: branchId).get())
-        .docs
-        .length;
+    final snapshot = await _members
+        .where('branchId', isEqualTo: branchId)
+        .get();
+    final count = snapshot.docs.where((doc) {
+      final data = doc.data();
+      return (data['clanId'] as String?)?.trim() == clanId;
+    }).length;
     await _branches.doc(branchId).set({
       'id': branchId,
       'clanId': clanId,
@@ -584,6 +650,14 @@ int? _asPositiveIntOrNull(dynamic value) {
     return value;
   }
   return null;
+}
+
+bool _isValidLatitude(double value) {
+  return value.isFinite && value >= -90 && value <= 90;
+}
+
+bool _isValidLongitude(double value) {
+  return value.isFinite && value >= -180 && value <= 180;
 }
 
 DateTime? _tryParseIsoDate(String? value) {

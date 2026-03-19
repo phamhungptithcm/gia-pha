@@ -37,7 +37,7 @@ class FirebaseBillingRepository implements BillingRepository {
   Future<BillingViewerSummary> loadViewerSummary({
     required AuthSession session,
   }) async {
-    final clanId = _sessionClanId(session);
+    final scopeId = _sessionBillingScopeId(session);
     await _ensureSessionDocumentBestEffort(session);
     final result = await _call(
       'resolveBillingEntitlement',
@@ -48,10 +48,10 @@ class FirebaseBillingRepository implements BillingRepository {
     ).map((item) => _parsePricing(_asMap(item))).toList(growable: false);
     final ownerUidFallback = session.uid.trim();
     return BillingViewerSummary(
-      clanId: _readString(map, 'clanId', fallback: clanId),
+      clanId: _readString(map, 'clanId', fallback: scopeId),
       scope: _parseScope(
         _asMap(map['scope']),
-        fallbackClanId: clanId,
+        fallbackClanId: scopeId,
         fallbackOwnerUid: ownerUidFallback,
       ),
       subscription: _parseSubscription(_asMap(map['subscription'])),
@@ -105,7 +105,7 @@ class FirebaseBillingRepository implements BillingRepository {
     String? bankCode,
     String? contactPhone,
   }) async {
-    final clanId = _sessionClanId(session);
+    final scopeId = _sessionBillingScopeId(session);
     final normalizedContactPhone =
         PhoneNumberFormatter.tryParseE164(contactPhone) ?? contactPhone?.trim();
     await _ensureSessionDocumentBestEffort(session);
@@ -128,7 +128,7 @@ class FirebaseBillingRepository implements BillingRepository {
     ).call(_scopePayload(session, payload));
     final map = _asMap(result.data);
     return BillingCheckoutResult(
-      clanId: _readString(map, 'clanId', fallback: clanId),
+      clanId: _readString(map, 'clanId', fallback: scopeId),
       paymentMethod: _readString(map, 'paymentMethod', fallback: paymentMethod),
       planCode: _readString(map, 'planCode', fallback: 'FREE'),
       amountVnd: _readInt(map, 'amountVnd'),
@@ -187,12 +187,8 @@ class FirebaseBillingRepository implements BillingRepository {
     AuthSession session, [
     Map<String, dynamic>? payload,
   ]) {
-    final clanId = (session.clanId ?? '').trim();
     final uid = session.uid.trim();
     final base = <String, dynamic>{...?payload};
-    if (clanId.isNotEmpty) {
-      return <String, dynamic>{'clanId': clanId, ...base};
-    }
     return <String, dynamic>{'ownerUid': uid, ...base};
   }
 
@@ -382,11 +378,7 @@ class FirebaseBillingRepository implements BillingRepository {
     );
   }
 
-  String _sessionClanId(AuthSession session) {
-    final clanId = (session.clanId ?? '').trim();
-    if (clanId.isNotEmpty) {
-      return clanId;
-    }
+  String _sessionBillingScopeId(AuthSession session) {
     final uid = session.uid.trim();
     if (uid.isEmpty) {
       throw const BillingRepositoryException(

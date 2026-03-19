@@ -13,7 +13,9 @@ import '../../events/presentation/event_workspace_page.dart';
 import '../../events/services/event_repository.dart';
 import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
+import '../../auth/models/clan_context_option.dart';
 import '../../clan/models/branch_profile.dart';
+import '../../events/models/event_draft.dart';
 import '../../events/models/event_type.dart';
 import '../../member/models/member_profile.dart';
 import '../../member/services/member_repository.dart';
@@ -37,6 +39,10 @@ class DualCalendarWorkspacePage extends StatefulWidget {
   const DualCalendarWorkspacePage({
     super.key,
     this.session,
+    this.availableClanContexts = const [],
+    this.onSwitchClanContext,
+    this.autoOpenCreateEditor = false,
+    this.initialCreateDraft,
     this.controller,
     this.eventStore,
     this.holidayRepository,
@@ -45,6 +51,10 @@ class DualCalendarWorkspacePage extends StatefulWidget {
   });
 
   final AuthSession? session;
+  final List<ClanContextOption> availableClanContexts;
+  final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
+  final bool autoOpenCreateEditor;
+  final EventDraft? initialCreateDraft;
   final DualCalendarController? controller;
   final DualCalendarEventStore? eventStore;
   final LunarHolidayRepository? holidayRepository;
@@ -64,6 +74,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
   List<MemberProfile> _members = const [];
   List<BranchProfile> _branches = const [];
   bool _isLoadingMembers = false;
+  bool _hasAutoOpenedCreateEditor = false;
   Timer? _autoRefreshTimer;
 
   @override
@@ -77,6 +88,15 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
     _controller = widget.controller ?? _buildDefaultController();
     unawaited(_controller.initialize());
     unawaited(_loadRecipientsDirectory());
+    if (widget.autoOpenCreateEditor) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _hasAutoOpenedCreateEditor) {
+          return;
+        }
+        _hasAutoOpenedCreateEditor = true;
+        unawaited(_openCreateEventSheet());
+      });
+    }
     _autoRefreshTimer = Timer.periodic(const Duration(minutes: 4), (_) {
       if (!mounted || _controller.isLoading || _controller.isSaving) {
         return;
@@ -229,6 +249,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
         return _EventEditorSheet(
           controller: _controller,
           initialDate: _controller.selectedDay,
+          initialDraft: widget.initialCreateDraft,
           members: _members,
           branches: _branches,
           isRecipientsLoading: _isLoadingMembers,
@@ -237,7 +258,15 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
       },
     );
 
-    if (didSave == true && mounted) {
+    if (!mounted) {
+      return;
+    }
+    if (widget.autoOpenCreateEditor) {
+      Navigator.of(context).pop(didSave == true);
+      return;
+    }
+
+    if (didSave == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -404,6 +433,8 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
           return EventWorkspacePage(
             session: session,
             repository: createDefaultEventRepository(session: session),
+            availableClanContexts: widget.availableClanContexts,
+            onSwitchClanContext: widget.onSwitchClanContext,
           );
         },
       ),
@@ -1662,6 +1693,7 @@ class _EventEditorSheet extends StatefulWidget {
   const _EventEditorSheet({
     required this.controller,
     required this.initialDate,
+    this.initialDraft,
     required this.members,
     required this.branches,
     required this.isRecipientsLoading,
@@ -1671,6 +1703,7 @@ class _EventEditorSheet extends StatefulWidget {
 
   final DualCalendarController controller;
   final DateTime initialDate;
+  final EventDraft? initialDraft;
   final List<MemberProfile> members;
   final List<BranchProfile> branches;
   final bool isRecipientsLoading;
@@ -1758,6 +1791,47 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       _includeMemberIds.addAll(event.notificationAudience.includeMemberIds);
       _excludeMemberIds.addAll(event.notificationAudience.excludeMemberIds);
       _excludeRules.addAll(event.notificationAudience.excludeRules);
+    } else if (widget.initialDraft != null) {
+      final draft = widget.initialDraft!;
+      final startsLocal = draft.startsAt.toLocal();
+      _titleController.text = draft.title.trim();
+      _descriptionController.text = draft.description.trim();
+      _eventType = draft.eventType;
+      _hostHouseholdController.text = draft.locationName.trim();
+      _locationAddressController.text = draft.locationAddress.trim();
+      _dateMode = CalendarDateMode.solar;
+      _solarDate = DateTime(
+        startsLocal.year,
+        startsLocal.month,
+        startsLocal.day,
+        startsLocal.hour,
+        startsLocal.minute,
+      );
+      _timeOfDay = TimeOfDay(
+        hour: startsLocal.hour,
+        minute: startsLocal.minute,
+      );
+      _lunarYear = startsLocal.year;
+      _isAnnualRecurring = draft.isRecurring;
+      _reminderOffsets.addAll(draft.reminderOffsetsMinutes);
+
+      final targetBranchId = draft.branchId?.trim();
+      if (targetBranchId != null && targetBranchId.isNotEmpty) {
+        _audienceMode = EventNotificationAudienceMode.branchAll;
+        _audienceBranchId = targetBranchId;
+      }
+
+      final targetMemberId = draft.targetMemberId?.trim();
+      if (_eventType.isMemorial &&
+          targetMemberId != null &&
+          targetMemberId.isNotEmpty &&
+          _deceasedMembers.any((member) => member.id == targetMemberId)) {
+        _selectedMemorialMemberId = targetMemberId;
+        _selectedMemorialMemberIds
+          ..clear()
+          ..add(targetMemberId);
+        _memorialForController.text = _memberLabel(targetMemberId);
+      }
     } else {
       _solarDate = DateTime(
         initialDate.year,
@@ -2190,6 +2264,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
+                    key: const Key('calendar-event-continue-button'),
                     onPressed: _isSubmitting
                         ? null
                         : () {

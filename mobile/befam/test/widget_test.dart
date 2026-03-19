@@ -134,7 +134,14 @@ void main() {
   }
 
   Future<void> openMembersWorkspace(WidgetTester tester) async {
-    await tester.tap(find.byKey(const Key('shortcut-members')));
+    await waitFor(
+      tester,
+      condition: () =>
+          find.byKey(const Key('shortcut-members')).evaluate().isNotEmpty,
+    );
+    final shortcut = find.byKey(const Key('shortcut-members'));
+    await tester.ensureVisible(shortcut);
+    await tester.tap(shortcut);
     await safePumpAndSettle(tester);
   }
 
@@ -211,7 +218,6 @@ void main() {
     final shell = tester.widget<AppShellPage>(find.byType(AppShellPage));
     expect(shell.session.loginMethod, AuthEntryMethod.phone);
     expect(shell.session.accessMode, AuthMemberAccessMode.claimed);
-    expect(find.text('Trang tổng quan'), findsOneWidget);
     expect(find.byKey(const Key('shortcut-members')), findsOneWidget);
   });
 
@@ -238,7 +244,7 @@ void main() {
     expect(shell.session.loginMethod, AuthEntryMethod.child);
     expect(shell.session.accessMode, AuthMemberAccessMode.child);
     expect(shell.session.childIdentifier, 'BEFAM-CHILD-001');
-    expect(find.text('Trang tổng quan'), findsOneWidget);
+    expect(find.byType(AppShellPage), findsOneWidget);
   });
 
   testWidgets('opens the clan workspace for a linked clan admin', (
@@ -487,8 +493,6 @@ void main() {
     await safePumpAndSettle(tester);
     await tester.tap(find.byKey(const Key('member-phone-lookup-skip')));
     await safePumpAndSettle(tester);
-    await tester.tap(find.text('Thông tin chính').first);
-    await safePumpAndSettle(tester);
 
     await tester.enterText(
       find.byKey(const Key('member-full-name-input')),
@@ -503,7 +507,7 @@ void main() {
       '+84905554444',
     );
     await safePumpAndSettle(tester);
-    await tester.tap(find.text('Quan hệ').first);
+    await tester.tap(find.byKey(const Key('member-editor-step-2-label')));
     await safePumpAndSettle(tester);
     await tester.tap(find.byKey(const Key('member-parent-picker-button')));
     await safePumpAndSettle(tester);
@@ -531,7 +535,7 @@ void main() {
     await safePumpAndSettle(tester);
     await tester.tap(find.byKey(const Key('member-parent-picker-done')));
     await safePumpAndSettle(tester);
-    await tester.tap(find.text('Thông tin thêm').first);
+    await tester.tap(find.byKey(const Key('member-editor-step-3-label')));
     await safePumpAndSettle(tester);
     await tester.enterText(
       find.byKey(const Key('member-job-title-input')),
@@ -568,8 +572,6 @@ void main() {
       await safePumpAndSettle(tester);
       await tester.tap(find.byKey(const Key('member-phone-lookup-skip')));
       await safePumpAndSettle(tester);
-      await tester.tap(find.text('Thông tin chính').first);
-      await safePumpAndSettle(tester);
 
       await tester.enterText(
         find.byKey(const Key('member-birth-date-input')),
@@ -577,7 +579,7 @@ void main() {
       );
       await safePumpAndSettle(tester);
 
-      await tester.tap(find.text('Quan hệ').first);
+      await tester.tap(find.byKey(const Key('member-editor-step-2-label')));
       await safePumpAndSettle(tester);
 
       await tester.tap(find.byKey(const Key('member-parent-picker-button')));

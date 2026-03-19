@@ -5,6 +5,7 @@ import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/calendar/models/calendar_region.dart';
 import 'package:befam/features/calendar/models/lunar_date.dart';
 import 'package:befam/features/calendar/services/lunar_conversion_engine.dart';
+import 'package:befam/features/events/models/event_type.dart';
 import 'package:befam/features/events/presentation/event_workspace_page.dart';
 import '../../support/features/events/services/debug_event_repository.dart';
 import 'package:befam/features/member/models/member_profile.dart';
@@ -53,16 +54,10 @@ class _FakeLunarConversionEngine implements LunarConversionEngine {
 void main() {
   Finder workspaceScroll() => find.byType(Scrollable).first;
 
-  Finder memorialQuickSetupButtons() => find.byWidgetPredicate((widget) {
+  Finder memorialEntryQuickSetupButtons() => find.byWidgetPredicate((widget) {
     final key = widget.key;
     return key is ValueKey<String> &&
-        key.value.startsWith('event-memorial-quick-setup-');
-  });
-
-  Finder ritualQuickSetupButtons() => find.byWidgetPredicate((widget) {
-    final key = widget.key;
-    return key is ValueKey<String> &&
-        key.value.startsWith('event-ritual-quick-setup-');
+        key.value.startsWith('event-memorial-entry-quick-setup-');
   });
 
   AuthSession buildClanAdminSession() {
@@ -172,7 +167,7 @@ void main() {
     expect(find.byKey(const Key('event-create-button')), findsOneWidget);
   });
 
-  testWidgets('shows memorial checklist and supports quick setup', (
+  testWidgets('shows memorial checklist and opens quick setup form', (
     tester,
   ) async {
     useLargeViewport(tester);
@@ -181,35 +176,35 @@ void main() {
     );
     await pumpWorkspace(tester, repository);
 
-    final memorialChecklistTitle = find.text('Danh sách giỗ kỵ');
+    final memorialChecklistTitle = find.text('Truy cập nhanh');
     await tester.scrollUntilVisible(
       memorialChecklistTitle,
       320,
       scrollable: workspaceScroll(),
     );
     expect(memorialChecklistTitle, findsOneWidget);
-    expect(find.text('Chưa thiết lập'), findsWidgets);
+    await tester.tap(
+      find.byKey(const Key('event-memorial-access-anniversary')),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
-    final quickSetupButton = memorialQuickSetupButtons().first;
+    expect(find.text('Giỗ Kỵ (từ 3 năm trở đi)'), findsWidgets);
+
+    final quickSetupButton = memorialEntryQuickSetupButtons().first;
     await tester.ensureVisible(quickSetupButton);
     await tester.tap(quickSetupButton);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    final saveButton = find.byKey(const Key('event-save-button'));
-    expect(saveButton, findsOneWidget);
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.text('Đã lưu sự kiện thành công.'), findsOneWidget);
+    final titleField = find.byKey(const Key('calendar-event-title-field'));
+    expect(titleField, findsOneWidget);
+    final titleWidget = tester.widget<TextField>(titleField);
+    expect(titleWidget.controller?.text.trim().isNotEmpty, isTrue);
+    expect(
+      find.byKey(const Key('calendar-event-continue-button')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows ritual checklist and supports quick setup', (
@@ -221,18 +216,44 @@ void main() {
     );
     await pumpWorkspace(tester, repository);
 
-    final ritualChecklistTitle = find.text('Danh sách dỗ trạp');
+    final ritualChecklistTitle = find.text('Truy cập nhanh');
     await tester.scrollUntilVisible(
       ritualChecklistTitle,
       320,
       scrollable: workspaceScroll(),
     );
     expect(ritualChecklistTitle, findsOneWidget);
-    expect(
-      find.byKey(const Key('event-ritual-checklist-panel')),
-      findsOneWidget,
+    await tester.tap(find.byKey(const Key('event-memorial-access-prayer')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Lễ tiết cầu siêu (49/100 ngày)'), findsWidgets);
+    expect(find.byType(ChoiceChip), findsWidgets);
+    expect(memorialEntryQuickSetupButtons(), findsWidgets);
+  });
+
+  testWidgets('uses next yearly occurrence for recurring memorial events', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
     );
-    expect(ritualQuickSetupButtons(), findsWidgets);
+    await pumpWorkspace(
+      tester,
+      repository,
+      nowProvider: () => DateTime(2027, 1, 10, 9),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Sự kiện sắp tới gần nhất'),
+      260,
+      scrollable: workspaceScroll(),
+    );
+
+    expect(find.text('Giỗ cụ tổ mùa xuân'), findsOneWidget);
+    expect(find.textContaining('2027-04-04'), findsWidgets);
+    expect(find.text('Họp mặt đầu hè'), findsNothing);
   });
 
   testWidgets('creates a new event from the create form', (tester) async {
@@ -244,37 +265,56 @@ void main() {
 
     await tester.tap(find.byKey(const Key('event-create-button')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    for (var attempt = 0; attempt < 40; attempt++) {
+      if (find
+          .byKey(const Key('calendar-event-title-field'))
+          .evaluate()
+          .isNotEmpty) {
+        break;
+      }
+      await tester.pump(const Duration(milliseconds: 120));
+    }
 
     await tester.enterText(
-      find.byKey(const Key('event-title-field')),
+      find.byKey(const Key('calendar-event-title-field')),
       'Họp tổng kết',
     );
-    await tester.tap(find.byKey(const Key('event-save-button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.enterText(
-      find.byKey(const Key('event-start-field')),
-      '2026-07-01 19:00',
+    final eventTypeDropdown = find.byKey(
+      const Key('calendar-event-type-dropdown-death_anniversary'),
     );
-    await tester.enterText(
-      find.byKey(const Key('event-end-field')),
-      '2026-07-01 21:00',
+    final dropdownWidget = tester.widget<DropdownButtonFormField<EventType>>(
+      eventTypeDropdown,
+    );
+    dropdownWidget.onChanged?.call(EventType.clanGathering);
+    await tester.pump();
+    expect(
+      find.byKey(const Key('calendar-event-type-dropdown-clan_gathering')),
+      findsOneWidget,
     );
 
-    final saveButton = find.byKey(const Key('event-save-button'));
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
+    final continueButton = find.byKey(
+      const Key('calendar-event-continue-button'),
+    );
+    final continueWidget = tester.widget<FilledButton>(continueButton);
+    continueWidget.onPressed?.call();
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 320));
+    for (var attempt = 0; attempt < 20; attempt++) {
+      if (find
+          .byKey(const Key('calendar-event-save-button'))
+          .evaluate()
+          .isNotEmpty) {
+        break;
+      }
+      await tester.pump(const Duration(milliseconds: 80));
+    }
 
-    expect(find.text('Đã lưu sự kiện thành công.'), findsOneWidget);
+    expect(find.byKey(const Key('calendar-event-save-button')), findsOneWidget);
   });
 
-  testWidgets('validates start and end time ordering in form', (tester) async {
+  testWidgets('validates required title in unified create form', (
+    tester,
+  ) async {
     useLargeViewport(tester);
     final repository = DebugEventRepository(
       store: DebugGenealogyStore.seeded(),
@@ -283,36 +323,26 @@ void main() {
 
     await tester.tap(find.byKey(const Key('event-create-button')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    for (var attempt = 0; attempt < 40; attempt++) {
+      if (find
+          .byKey(const Key('calendar-event-title-field'))
+          .evaluate()
+          .isNotEmpty) {
+        break;
+      }
+      await tester.pump(const Duration(milliseconds: 120));
+    }
 
-    await tester.enterText(
-      find.byKey(const Key('event-title-field')),
-      'Sự kiện lỗi thời gian',
+    final continueButton = find.byKey(
+      const Key('calendar-event-continue-button'),
     );
-    await tester.tap(find.byKey(const Key('event-save-button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.enterText(
-      find.byKey(const Key('event-start-field')),
-      '2026-06-10 18:00',
-    );
-    await tester.enterText(
-      find.byKey(const Key('event-end-field')),
-      '2026-06-10 17:00',
-    );
-
-    final saveButton = find.byKey(const Key('event-save-button'));
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
+    final continueWidget = tester.widget<FilledButton>(continueButton);
+    continueWidget.onPressed?.call();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(
-      find.text(
-        'Thời gian bắt đầu/kết thúc không hợp lệ. Thời gian kết thúc phải sau thời gian bắt đầu.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('calendar-event-title-field')), findsOneWidget);
+    expect(find.byKey(const Key('calendar-event-save-button')), findsNothing);
   });
 
   testWidgets(

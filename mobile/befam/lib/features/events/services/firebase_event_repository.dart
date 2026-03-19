@@ -42,8 +42,8 @@ class FirebaseEventRepository implements EventRepository {
       session: session,
     );
 
-    final clanId = session.clanId;
-    if (clanId == null || clanId.isEmpty) {
+    final clanId = (session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
       return const EventWorkspaceSnapshot(
         events: [],
         members: [],
@@ -91,13 +91,24 @@ class FirebaseEventRepository implements EventRepository {
     _ensureCanManage(session);
     _validateDraft(draft);
 
-    final clanId = session.clanId!;
+    final clanId = (session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
+      throw const EventRepositoryException(
+        EventRepositoryErrorCode.permissionDenied,
+      );
+    }
     final eventRef = eventId == null ? _events.doc() : _events.doc(eventId);
     final existing = await eventRef.get();
 
     if (eventId != null && !existing.exists) {
       throw const EventRepositoryException(
         EventRepositoryErrorCode.eventNotFound,
+      );
+    }
+    if (existing.exists &&
+        (existing.data()?['clanId'] as String?)?.trim() != clanId) {
+      throw const EventRepositoryException(
+        EventRepositoryErrorCode.permissionDenied,
       );
     }
 

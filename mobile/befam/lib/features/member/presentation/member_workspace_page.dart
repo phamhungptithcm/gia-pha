@@ -62,15 +62,10 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
   late final TextEditingController _searchController;
   late final ScrollController _scrollController;
   late RelationshipRepository _relationshipRepository;
-  bool _isSwitchingClanContext = false;
   int _visibleMemberCount = _memberBatchSize;
   String _memberListSeed = '';
 
   AuthSession get _session => _activeSession;
-
-  List<ClanContextOption> get _clanContexts {
-    return widget.availableClanContexts;
-  }
 
   @override
   void initState() {
@@ -414,52 +409,6 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
     );
   }
 
-  Future<AuthSession?> _switchClanContext(String clanId) async {
-    final normalizedClanId = clanId.trim();
-    if (normalizedClanId.isEmpty) {
-      return null;
-    }
-    if ((_session.clanId ?? '').trim() == normalizedClanId) {
-      return _session;
-    }
-    final switcher = widget.onSwitchClanContext;
-    if (switcher == null || _isSwitchingClanContext) {
-      return null;
-    }
-
-    setState(() => _isSwitchingClanContext = true);
-    try {
-      final switched = await switcher(normalizedClanId);
-      if (switched == null) {
-        return null;
-      }
-      if (!mounted) {
-        return switched;
-      }
-      _activeSession = switched;
-      _controller.dispose();
-      _controller = MemberController(
-        repository: widget.repository,
-        session: _session,
-        searchProvider: widget.searchProvider,
-        searchAnalyticsService: widget.searchAnalyticsService,
-      );
-      _relationshipRepository =
-          widget.relationshipRepository ??
-          createDefaultRelationshipRepository(session: _session);
-      _searchController.clear();
-      setState(() {});
-      await _controller.initialize();
-      return _session;
-    } finally {
-      if (mounted) {
-        setState(() => _isSwitchingClanContext = false);
-      } else {
-        _isSwitchingClanContext = false;
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -483,15 +432,6 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
           appBar: AppBar(
             title: Text(l10n.memberWorkspaceTitle),
             actions: [
-              if (_isSwitchingClanContext)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
               IconButton(
                 tooltip: l10n.memberRefreshAction,
                 onPressed: _controller.isLoading ? null : _controller.refresh,
@@ -533,13 +473,6 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                             vi: 'Quản lý và cập nhật hồ sơ thành viên theo chi và đời.',
                             en: 'Manage and update member profiles by branch and generation.',
                           ),
-                          activeClanId: (_session.clanId ?? '').trim(),
-                          clanContexts: _clanContexts,
-                          isSwitchingClanContext: _isSwitchingClanContext,
-                          onSwitchClanContext:
-                              widget.onSwitchClanContext == null
-                              ? null
-                              : (clanId) => _switchClanContext(clanId),
                         ),
                         const SizedBox(height: 20),
                         if (_controller.permissions.isReadOnly) ...[
@@ -1623,9 +1556,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                 _MemberEditorStepIndicator(
                   currentStep: _editorStep,
                   labels: [
-                    l10n.pick(vi: 'Thông tin chính', en: 'Core info'),
+                    l10n.pick(vi: 'Thông tin', en: 'Info'),
                     l10n.pick(vi: 'Quan hệ', en: 'Relation'),
-                    l10n.pick(vi: 'Thông tin thêm', en: 'More info'),
+                    l10n.pick(vi: 'Bổ sung', en: 'More'),
                   ],
                   onStepSelected: (step) {
                     setState(() => _editorStep = step);
@@ -3083,118 +3016,131 @@ class _MemberEditorStepIndicator extends StatelessWidget {
     const circleSize = 34.0;
     const connectorThickness = 3.0;
     const connectorHorizontalInset = 16.0;
+    const labelRowHeight = 44.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
           height: circleSize,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              if (labels.length > 1)
-                Positioned.fill(
-                  child: Row(
-                    children: [
-                      for (var index = 0; index < labels.length - 1; index++)
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.center,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              height: connectorThickness,
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: connectorHorizontalInset,
-                              ),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(999),
-                                color: index < currentStep
-                                    ? colorScheme.primary
-                                    : colorScheme.outlineVariant,
-                              ),
-                            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final stepCount = labels.length;
+              final stepWidth = stepCount == 0
+                  ? 0.0
+                  : constraints.maxWidth / stepCount;
+              final connectorWidth =
+                  stepWidth - (connectorHorizontalInset * 2) > 0
+                  ? stepWidth - (connectorHorizontalInset * 2)
+                  : 0.0;
+
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (stepCount > 1)
+                    for (var index = 0; index < stepCount - 1; index++)
+                      Positioned(
+                        left:
+                            (stepWidth * (index + 0.5)) +
+                            connectorHorizontalInset,
+                        top: (circleSize - connectorThickness) / 2,
+                        width: connectorWidth,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          height: connectorThickness,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            color: index < currentStep
+                                ? colorScheme.primary
+                                : colorScheme.outlineVariant,
                           ),
                         ),
-                    ],
-                  ),
-                ),
-              Row(
-                children: [
-                  for (var index = 0; index < labels.length; index++)
-                    Expanded(
-                      child: Center(
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            key: Key('member-editor-step-${index + 1}-circle'),
-                            borderRadius: BorderRadius.circular(20),
-                            onTap: () => onStepSelected(index),
-                            child: Padding(
-                              padding: const EdgeInsets.all(2),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                width: circleSize,
-                                height: circleSize,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: index <= currentStep
-                                      ? colorScheme.primary
-                                      : colorScheme.surfaceContainerHighest,
+                      ),
+                  Row(
+                    children: [
+                      for (var index = 0; index < labels.length; index++)
+                        Expanded(
+                          child: Center(
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                key: Key(
+                                  'member-editor-step-${index + 1}-circle',
                                 ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  '${index + 1}',
-                                  style: textTheme.titleSmall?.copyWith(
-                                    color: index <= currentStep
-                                        ? colorScheme.onPrimary
-                                        : colorScheme.onSurfaceVariant,
-                                    fontWeight: FontWeight.w700,
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () => onStepSelected(index),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    width: circleSize,
+                                    height: circleSize,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: index <= currentStep
+                                          ? colorScheme.primary
+                                          : colorScheme.surfaceContainerHighest,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: textTheme.titleSmall?.copyWith(
+                                        color: index <= currentStep
+                                            ? colorScheme.onPrimary
+                                            : colorScheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
+                    ],
+                  ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            for (var index = 0; index < labels.length; index++) ...[
-              Expanded(
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    key: Key('member-editor-step-${index + 1}-label'),
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => onStepSelected(index),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      child: Text(
-                        labels[index],
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.labelLarge?.copyWith(
-                          fontWeight: index == currentStep
-                              ? FontWeight.w800
-                              : FontWeight.w600,
+        SizedBox(
+          height: labelRowHeight,
+          child: Row(
+            children: [
+              for (var index = 0; index < labels.length; index++) ...[
+                Expanded(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: Key('member-editor-step-${index + 1}-label'),
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => onStepSelected(index),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        child: Text(
+                          labels[index],
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.labelLarge?.copyWith(
+                            fontWeight: index == currentStep
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            height: 1.2,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ],
     );
@@ -3433,7 +3379,7 @@ class _MemberSummaryCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
                           child: _HighlightedText(
@@ -3453,6 +3399,10 @@ class _MemberSummaryCard extends StatelessWidget {
                             phoneNumber: member.phoneE164!,
                             contactName: member.displayName,
                             iconSize: 18,
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
                           ),
                       ],
                     ),
@@ -3501,38 +3451,15 @@ class _AvatarBadge extends StatelessWidget {
 }
 
 class _WorkspaceHero extends StatelessWidget {
-  const _WorkspaceHero({
-    required this.title,
-    required this.description,
-    required this.activeClanId,
-    required this.clanContexts,
-    required this.isSwitchingClanContext,
-    this.onSwitchClanContext,
-  });
+  const _WorkspaceHero({required this.title, required this.description});
 
   final String title;
   final String description;
-  final String activeClanId;
-  final List<ClanContextOption> clanContexts;
-  final bool isSwitchingClanContext;
-  final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final l10n = context.l10n;
-    final activeClanValue = clanContexts.isEmpty
-        ? ''
-        : clanContexts
-              .firstWhere(
-                (item) => item.clanId.trim() == activeClanId.trim(),
-                orElse: () => clanContexts.first,
-              )
-              .clanId
-              .trim();
-    final selectorFillColor = colorScheme.onPrimary.withValues(alpha: 0.2);
-    final selectorBorderColor = colorScheme.onPrimary.withValues(alpha: 0.3);
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -3563,97 +3490,6 @@ class _WorkspaceHero extends StatelessWidget {
               color: colorScheme.onPrimary.withValues(alpha: 0.92),
             ),
           ),
-          if (clanContexts.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.onPrimary.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: colorScheme.onPrimary.withValues(alpha: 0.2),
-                ),
-              ),
-              child: DropdownButtonFormField<String>(
-                key: const Key('member-active-clan-dropdown'),
-                isExpanded: true,
-                initialValue: activeClanValue.isEmpty ? null : activeClanValue,
-                dropdownColor: colorScheme.surface,
-                iconEnabledColor: colorScheme.onSurface.withValues(alpha: 0.8),
-                iconDisabledColor: colorScheme.onSurface.withValues(alpha: 0.5),
-                decoration: InputDecoration(
-                  labelText: l10n.pick(
-                    vi: 'Gia phả đang xem',
-                    en: 'Active genealogy',
-                  ),
-                  filled: true,
-                  fillColor: selectorFillColor,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide(color: selectorBorderColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide(
-                      color: colorScheme.onPrimary.withValues(alpha: 0.7),
-                      width: 1.4,
-                    ),
-                  ),
-                  disabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide(
-                      color: selectorBorderColor.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ),
-                items: [
-                  for (final option in clanContexts)
-                    DropdownMenuItem<String>(
-                      value: option.clanId,
-                      child: Text(
-                        option.clanName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: isSwitchingClanContext || onSwitchClanContext == null
-                    ? null
-                    : (value) {
-                        final resolved = _nullIfBlank(value ?? '');
-                        if (resolved == null) {
-                          return;
-                        }
-                        unawaited(onSwitchClanContext!(resolved));
-                      },
-              ),
-            ),
-            if (isSwitchingClanContext) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colorScheme.onPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    l10n.pick(
-                      vi: 'Đang chuyển gia phả...',
-                      en: 'Switching genealogy...',
-                    ),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onPrimary.withValues(alpha: 0.9),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
         ],
       ),
     );
@@ -4076,10 +3912,13 @@ class _DetailRow extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
-                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+                if (trailing != null) ...[
+                  const SizedBox(width: 8),
+                  Align(alignment: Alignment.centerRight, child: trailing!),
+                ],
               ],
             ),
           ),

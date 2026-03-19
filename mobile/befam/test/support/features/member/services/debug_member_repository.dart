@@ -160,6 +160,39 @@ class DebugMemberRepository implements MemberRepository {
     return updated;
   }
 
+  @override
+  Future<void> updateMemberLiveLocation({
+    required AuthSession session,
+    required String memberId,
+    required bool sharingEnabled,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    final existing = _store.members[memberId];
+    if (existing == null) {
+      return;
+    }
+    final validCoordinates =
+        latitude != null &&
+        longitude != null &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
+    final shouldShare = sharingEnabled && validCoordinates;
+    _store.members[memberId] = existing.copyWith(
+      locationSharingEnabled: shouldShare,
+      locationLatitude: shouldShare ? latitude : null,
+      locationLongitude: shouldShare ? longitude : null,
+      locationAccuracyMeters: shouldShare ? accuracyMeters : null,
+      locationUpdatedAt: shouldShare
+          ? DateTime.now().toUtc().toIso8601String()
+          : null,
+    );
+  }
+
   void _ensureUniquePhone({
     required String clanId,
     required String? phoneE164,

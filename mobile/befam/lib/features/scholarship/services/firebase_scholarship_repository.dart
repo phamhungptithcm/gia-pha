@@ -211,6 +211,12 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
         ScholarshipRepositoryErrorCode.programNotFound,
       );
     }
+    if (existing.exists &&
+        (existing.data()?['clanId'] as String?)?.trim() != clanId) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
 
     final actor = session.memberId ?? session.uid;
     final payload = <String, dynamic>{
@@ -275,6 +281,18 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
     if (awardLevelId != null && !existing.exists) {
       throw const ScholarshipRepositoryException(
         ScholarshipRepositoryErrorCode.awardLevelNotFound,
+      );
+    }
+    if (existing.exists &&
+        (existing.data()?['clanId'] as String?)?.trim() != clanId) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+    if (existing.exists &&
+        (existing.data()?['programId'] as String?)?.trim() != programId) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.validationFailed,
       );
     }
 
@@ -354,6 +372,18 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
     if (submissionId != null && !existing.exists) {
       throw const ScholarshipRepositoryException(
         ScholarshipRepositoryErrorCode.submissionNotFound,
+      );
+    }
+    if (existing.exists &&
+        (existing.data()?['clanId'] as String?)?.trim() != clanId) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
+      );
+    }
+    if (existing.exists &&
+        (existing.data()?['memberId'] as String?)?.trim() != memberId) {
+      throw const ScholarshipRepositoryException(
+        ScholarshipRepositoryErrorCode.permissionDenied,
       );
     }
 
@@ -477,6 +507,11 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
           ScholarshipRepositoryErrorCode.submissionNotFound,
         );
       }
+      if ((updated.data()!['clanId'] as String?)?.trim() != clanId) {
+        throw const ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.permissionDenied,
+        );
+      }
       return AchievementSubmission.fromJson(updated.data()!);
     } on FirebaseFunctionsException catch (error) {
       if (error.code == 'already-exists') {
@@ -581,6 +616,11 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       if (!updated.exists || updated.data() == null) {
         throw const ScholarshipRepositoryException(
           ScholarshipRepositoryErrorCode.submissionNotFound,
+        );
+      }
+      if ((updated.data()!['clanId'] as String?)?.trim() != clanId) {
+        throw const ScholarshipRepositoryException(
+          ScholarshipRepositoryErrorCode.permissionDenied,
         );
       }
       return AchievementSubmission.fromJson(updated.data()!);
