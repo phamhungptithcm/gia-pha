@@ -17,6 +17,11 @@ void main() {
   AuthSession buildSession({
     String memberId = 'member_demo_001',
     String uid = 'debug:+84901234567',
+    String clanId = 'clan_demo_001',
+    String branchId = 'branch_demo_001',
+    String primaryRole = 'MEMBER',
+    AuthMemberAccessMode accessMode = AuthMemberAccessMode.claimed,
+    bool linkedAuthUid = true,
   }) {
     return AuthSession(
       uid: uid,
@@ -24,11 +29,11 @@ void main() {
       phoneE164: '+84901234567',
       displayName: 'Nguyễn Minh',
       memberId: memberId,
-      clanId: 'clan_demo_001',
-      branchId: 'branch_demo_001',
-      primaryRole: 'MEMBER',
-      accessMode: AuthMemberAccessMode.claimed,
-      linkedAuthUid: true,
+      clanId: clanId,
+      branchId: branchId,
+      primaryRole: primaryRole,
+      accessMode: accessMode,
+      linkedAuthUid: linkedAuthUid,
       isSandbox: true,
       signedInAtIso: DateTime(2026, 3, 14).toIso8601String(),
     );
@@ -187,6 +192,38 @@ void main() {
     expect(controller.notificationPreferences.eventReminders, isFalse);
     expect(controller.notificationPreferences.quietHoursEnabled, isTrue);
   });
+
+  test(
+    'unlinked session skips remote profile and preference loading',
+    () async {
+      final repository = _FakeMemberRepository(profile: buildProfile());
+      final preferencesRepository =
+          _FakeProfileNotificationPreferencesRepository();
+      final controller = ProfileController(
+        memberRepository: repository,
+        session: buildSession(
+          memberId: '',
+          clanId: '',
+          branchId: '',
+          primaryRole: 'GUEST',
+          accessMode: AuthMemberAccessMode.unlinked,
+          linkedAuthUid: false,
+        ),
+        notificationPreferencesRepository: preferencesRepository,
+      );
+
+      await controller.initialize();
+
+      expect(controller.profile, isNull);
+      expect(controller.errorMessage, isNull);
+      expect(
+        controller.notificationPreferences,
+        const ProfileNotificationPreferences(),
+      );
+      expect(repository.loadWorkspaceCalls, 0);
+      expect(preferencesRepository.loadCalls, 0);
+    },
+  );
 }
 
 class _FakeMemberRepository implements MemberRepository {
@@ -195,6 +232,7 @@ class _FakeMemberRepository implements MemberRepository {
   MemberProfile profile;
   final bool failUpload;
   int uploadCalls = 0;
+  int loadWorkspaceCalls = 0;
 
   @override
   bool get isSandbox => true;
@@ -203,6 +241,7 @@ class _FakeMemberRepository implements MemberRepository {
   Future<MemberWorkspaceSnapshot> loadWorkspace({
     required AuthSession session,
   }) async {
+    loadWorkspaceCalls += 1;
     return MemberWorkspaceSnapshot(members: [profile], branches: const []);
   }
 
@@ -263,6 +302,7 @@ class _FakeProfileNotificationPreferencesRepository
 
   ProfileNotificationPreferences _preferences;
   int saveCalls = 0;
+  int loadCalls = 0;
 
   @override
   bool get isSandbox => true;
@@ -271,6 +311,7 @@ class _FakeProfileNotificationPreferencesRepository
   Future<ProfileNotificationPreferences> load({
     required AuthSession session,
   }) async {
+    loadCalls += 1;
     return _preferences;
   }
 
