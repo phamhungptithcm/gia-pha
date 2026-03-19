@@ -71,6 +71,23 @@ void main() {
     );
   }
 
+  AuthSession buildStaleUnlinkedSession() {
+    return AuthSession(
+      uid: 'debug:+84909991111',
+      loginMethod: AuthEntryMethod.phone,
+      phoneE164: '+84909991111',
+      displayName: 'Khách chưa liên kết',
+      memberId: 'member_demo_parent_001',
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_001',
+      primaryRole: 'CLAN_ADMIN',
+      accessMode: AuthMemberAccessMode.unlinked,
+      linkedAuthUid: true,
+      isSandbox: true,
+      signedInAtIso: DateTime(2026, 3, 15).toIso8601String(),
+    );
+  }
+
   testWidgets(
     'linked shell exposes billing before profile in bottom navigation',
     (tester) async {
@@ -153,13 +170,51 @@ void main() {
 
       expect(
         find.byKey(const Key('billing-plan-selector')).evaluate().isNotEmpty ||
-        find.text('Subscription & billing').evaluate().isNotEmpty ||
+            find.text('Subscription & billing').evaluate().isNotEmpty ||
             find.text('Subscription').evaluate().isNotEmpty ||
             find.text('Service plans').evaluate().isNotEmpty,
         isTrue,
       );
       expect(find.text('Discover genealogies'), findsNothing);
       expect(find.text('Create clan workspace'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'stale unlinked session falls back to genealogy discovery instead of clan tree',
+    (tester) async {
+      setMobileViewport(tester);
+      await tester.pumpWidget(
+        _ShellTestApp(
+          child: AppShellPage(
+            status: buildReadyStatus(),
+            session: buildStaleUnlinkedSession(),
+            clanRepository: DebugClanRepository.seeded(),
+            memberRepository: DebugMemberRepository.seeded(),
+            billingRepository: DebugBillingRepository.shared(),
+            pushNotificationService: _NoopPushNotificationService(),
+          ),
+        ),
+      );
+      await pumpUi(tester);
+
+      final destinations = tester
+          .widgetList<NavigationDestination>(find.byType(NavigationDestination))
+          .toList(growable: false);
+      expect(destinations.length, 5);
+
+      final treeLabel = destinations[1].label;
+      await tester.tap(find.text(treeLabel).first);
+      await pumpUi(tester, frames: 72);
+
+      expect(
+        find.byKey(const ValueKey<String>('tree-discovery')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('tree-clan_demo_001')),
+        findsNothing,
+      );
     },
   );
 }

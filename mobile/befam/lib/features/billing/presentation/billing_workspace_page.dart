@@ -337,10 +337,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                 ),
                 const SizedBox(height: 14),
                 _BillingDetailRow(
-                  label: l10n.pick(vi: 'Mã giao dịch', en: 'Transaction ID'),
-                  value: transaction.id,
-                ),
-                _BillingDetailRow(
                   label: l10n.pick(vi: 'Phương thức', en: 'Method'),
                   value: transaction.paymentMethod.toUpperCase(),
                 ),
@@ -363,14 +359,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                     l10n,
                   ).replaceAll('\n', ' '),
                 ),
-                if (transaction.gatewayReference?.trim().isNotEmpty == true)
-                  _BillingDetailRow(
-                    label: l10n.pick(
-                      vi: 'Mã cổng thanh toán',
-                      en: 'Gateway ref',
-                    ),
-                    value: transaction.gatewayReference!.trim(),
-                  ),
                 const SizedBox(height: 10),
                 Container(
                   width: double.infinity,
@@ -586,10 +574,9 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         .where((item) => item.planCode == entitlement.planCode)
         .firstOrNull;
     final canManage = _controller.canMutateBilling;
-    final ownerLabel =
-        (workspace.scope.ownerDisplayName ?? workspace.scope.ownerUid).trim();
+    final ownerLabel = (workspace.scope.ownerDisplayName ?? '').trim();
     final resolvedOwnerLabel = ownerLabel.isEmpty
-        ? l10n.pick(vi: 'owner của clan', en: 'the clan owner')
+        ? l10n.pick(vi: 'quản trị gia phả', en: 'the clan owner')
         : ownerLabel;
     final minimumTier = _minimumTierForMemberCount(
       workspace.pricingTiers,
@@ -921,8 +908,8 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                                     const SizedBox(height: 4),
                                     Text(
                                       l10n.pick(
-                                        vi: 'Mã: ${entry.value.id}',
-                                        en: 'Ref: ${entry.value.id}',
+                                        vi: 'Tạo lúc: ${_dateLabel(entry.value.createdAtIso, l10n)}',
+                                        en: 'Created: ${_dateLabel(entry.value.createdAtIso, l10n)}',
                                       ),
                                       style: theme.textTheme.bodyMedium,
                                     ),
@@ -1287,7 +1274,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                           contentPadding: EdgeInsets.zero,
                           title: Text(_humanizeAuditAction(log.action, l10n)),
                           subtitle: Text(
-                            '${_humanizeAuditEntityType(log.entityType, l10n)} • ${log.entityId}',
+                            _humanizeAuditEntityType(log.entityType, l10n),
                           ),
                           trailing: Text(
                             _dateLabel(log.createdAtIso, l10n),
@@ -2763,7 +2750,6 @@ class _VnpayCheckoutProgressPageState
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final checkout = _checkout;
     final pendingTimeoutMinutes =
         AppEnvironment.billingPendingTimeoutMinutes > 0
         ? AppEnvironment.billingPendingTimeoutMinutes
@@ -2815,17 +2801,6 @@ class _VnpayCheckoutProgressPageState
                   tone: colorScheme.secondaryContainer,
                 ),
                 const SizedBox(height: 12),
-                if (checkout != null)
-                  Text(
-                    l10n.pick(
-                      vi: 'Mã giao dịch: ${checkout.transactionId}',
-                      en: 'Transaction: ${checkout.transactionId}',
-                    ),
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                if (checkout != null) const SizedBox(height: 8),
                 Text(
                   l10n.pick(
                     vi: 'Trạng thái hiện tại: ${_statusLabel(_lastKnownStatus, l10n)}',
@@ -2945,14 +2920,6 @@ class _VnpayCheckoutProgressPageState
                       ),
                   tone: colorScheme.errorContainer,
                 ),
-                if (checkout != null) const SizedBox(height: 10),
-                if (checkout != null)
-                  Text(
-                    l10n.pick(
-                      vi: 'Mã giao dịch: ${checkout.transactionId}',
-                      en: 'Transaction: ${checkout.transactionId}',
-                    ),
-                  ),
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,

@@ -46,6 +46,14 @@ import 'app_shortcuts.dart';
 
 enum _ShellOverflowAction { switchClan, logout }
 
+bool _sessionHasClanContext(AuthSession session) {
+  final clanId = (session.clanId ?? '').trim();
+  if (clanId.isEmpty) {
+    return false;
+  }
+  return session.accessMode != AuthMemberAccessMode.unlinked;
+}
+
 class AppShellPage extends StatefulWidget {
   const AppShellPage({
     super.key,
@@ -101,7 +109,7 @@ class _AppShellPageState extends State<AppShellPage> {
 
   AuthSession get _session => _activeSession;
 
-  bool get _hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
+  bool get _hasClanContext => _sessionHasClanContext(_session);
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
@@ -161,7 +169,7 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void initState() {
     super.initState();
-    _activeSession = widget.session;
+    _activeSession = _sanitizeSessionContext(widget.session);
     _genealogyRepository =
         widget.genealogyRepository ??
         createDefaultGenealogyReadRepository(session: _session);
@@ -190,7 +198,7 @@ class _AppShellPageState extends State<AppShellPage> {
   void didUpdateWidget(covariant AppShellPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session) {
-      _activeSession = widget.session;
+      _activeSession = _sanitizeSessionContext(widget.session);
       unawaited(
         _pushNotificationService.start(
           session: _session,
@@ -383,7 +391,44 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   bool _hasBillingContext(AuthSession session) {
-    return (session.clanId ?? '').trim().isNotEmpty;
+    return _sessionHasClanContext(session);
+  }
+
+  AuthSession _sanitizeSessionContext(AuthSession session) {
+    final clanId = (session.clanId ?? '').trim();
+    final memberId = (session.memberId ?? '').trim();
+    final hasLinkedContext = clanId.isNotEmpty && memberId.isNotEmpty;
+
+    if (session.accessMode == AuthMemberAccessMode.unlinked) {
+      if (clanId.isEmpty &&
+          memberId.isEmpty &&
+          (session.branchId ?? '').trim().isEmpty &&
+          !session.linkedAuthUid &&
+          (session.primaryRole ?? '').trim().toUpperCase() == 'GUEST') {
+        return session;
+      }
+      return session.copyWith(
+        clanId: null,
+        memberId: null,
+        branchId: null,
+        primaryRole: 'GUEST',
+        linkedAuthUid: false,
+      );
+    }
+
+    if (session.accessMode == AuthMemberAccessMode.claimed &&
+        !hasLinkedContext) {
+      return session.copyWith(
+        clanId: null,
+        memberId: null,
+        branchId: null,
+        primaryRole: 'GUEST',
+        accessMode: AuthMemberAccessMode.unlinked,
+        linkedAuthUid: false,
+      );
+    }
+
+    return session;
   }
 
   Future<void> _loadClanContexts() async {
@@ -403,8 +448,9 @@ class _AppShellPageState extends State<AppShellPage> {
         return;
       }
       final resolvedNames = _extractNamedClanContexts(snapshot.contexts);
+      final sanitizedSession = _sanitizeSessionContext(snapshot.activeSession);
       setState(() {
-        _activeSession = snapshot.activeSession;
+        _activeSession = sanitizedSession;
         _clanContexts = snapshot.contexts;
         _resolvedClanNamesById.addAll(resolvedNames);
       });
@@ -416,7 +462,17 @@ class _AppShellPageState extends State<AppShellPage> {
       unawaited(_ensureActiveClanDisplayNameResolved());
       unawaited(_refreshBillingEntitlement());
     } catch (_) {
-      // Keep the existing session context if callable is unavailable.
+      final sanitizedSession = _sanitizeSessionContext(_session);
+      if (!mounted || sanitizedSession == _session) {
+        return;
+      }
+      setState(() {
+        _activeSession = sanitizedSession;
+        if (!_sessionHasClanContext(sanitizedSession)) {
+          _clanContexts = const [];
+        }
+      });
+      await _sessionStore.write(_activeSession);
     } finally {
       _isLoadingClanContexts = false;
     }
@@ -440,8 +496,9 @@ class _AppShellPageState extends State<AppShellPage> {
         return null;
       }
       final resolvedNames = _extractNamedClanContexts(snapshot.contexts);
+      final sanitizedSession = _sanitizeSessionContext(snapshot.activeSession);
       setState(() {
-        _activeSession = snapshot.activeSession;
+        _activeSession = sanitizedSession;
         _clanContexts = snapshot.contexts;
         _resolvedClanNamesById.addAll(resolvedNames);
         _visitedDestinationIndexes.add(_selectedIndex);
@@ -474,11 +531,12 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   Future<void> _updateSessionFromProfile(AuthSession session) async {
-    if (!mounted || session == _activeSession) {
+    final sanitizedSession = _sanitizeSessionContext(session);
+    if (!mounted || sanitizedSession == _activeSession) {
       return;
     }
     setState(() {
-      _activeSession = session;
+      _activeSession = sanitizedSession;
       _visitedDestinationIndexes.add(_selectedIndex);
     });
     await _sessionStore.write(_activeSession);
@@ -975,6 +1033,15 @@ class _AppShellPageState extends State<AppShellPage> {
           ),
         ),
       ),
+      if (_selectedIndex == 1)
+        IconButton(
+          tooltip: l10n.pick(
+            vi: 'Yêu cầu bạn đã gửi',
+            en: 'Your submitted requests',
+          ),
+          onPressed: _openSubmittedJoinRequests,
+          icon: const Icon(Icons.list_alt_outlined),
+        ),
       if (canSwitchClan || canLogout)
         PopupMenuButton<_ShellOverflowAction>(
           tooltip: l10n.pick(vi: 'Tùy chọn', en: 'Options'),
@@ -1104,6 +1171,38 @@ class _AppShellPageState extends State<AppShellPage> {
       return;
     }
 
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return MyJoinRequestsPage(
+            session: _session,
+            repository: repository,
+            onOpenDiscoveryRequested: (query) async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) {
+                    return GenealogyDiscoveryPage(
+                      session: _session,
+                      repository: repository,
+                      onAddGenealogyRequested: _hasClanContext
+                          ? null
+                          : _openClanWorkspaceFromTreeAddAction,
+                      initialQuery: query,
+                    );
+                  },
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openSubmittedJoinRequests() async {
+    final repository = createDefaultGenealogyDiscoveryRepository(
+      session: _session,
+    );
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
@@ -1276,7 +1375,7 @@ class _HomeDashboard extends StatelessWidget {
   final ValueChanged<EventRecord> onOpenUpcomingEventDetailRequested;
   final VoidCallback onOpenMemorialChecklistRequested;
   final VoidCallback onOpenJoinRequestsRequested;
-  bool get _hasClanContext => (session.clanId ?? '').trim().isNotEmpty;
+  bool get _hasClanContext => _sessionHasClanContext(session);
 
   String? get _activeClanName {
     final explicitActiveClanName = activeClanName?.trim() ?? '';
@@ -2164,8 +2263,9 @@ class _TodoSectionState extends State<_TodoSection> {
 
   bool get _canReviewJoinRequests {
     final role = (widget.session.primaryRole ?? '').trim().toUpperCase();
-    final clanId = (widget.session.clanId ?? '').trim();
-    return clanId.isNotEmpty && _reviewerRoles.contains(role);
+    return widget.session.accessMode == AuthMemberAccessMode.claimed &&
+        _sessionHasClanContext(widget.session) &&
+        _reviewerRoles.contains(role);
   }
 
   bool get _isProfileLikelyComplete {
@@ -2394,6 +2494,16 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
 
   Future<_NearbyRelativeLoadResult> _loadNearbyRelatives() async {
     final l10n = context.l10n;
+    if (!_sessionHasClanContext(widget.session)) {
+      return _NearbyRelativeLoadResult(
+        items: const [],
+        canRetry: false,
+        message: l10n.pick(
+          vi: 'Hãy tham gia gia phả để xem người thân ở gần bạn.',
+          en: 'Join a genealogy first to see nearby relatives.',
+        ),
+      );
+    }
     final activeClanId = (widget.session.clanId ?? '').trim();
     if (activeClanId.isEmpty) {
       return _NearbyRelativeLoadResult(

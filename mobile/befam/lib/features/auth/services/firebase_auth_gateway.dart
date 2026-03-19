@@ -1127,9 +1127,10 @@ class FirebaseAuthGateway implements AuthGateway {
         memberId: memberId,
         clanId: clanId,
       );
-      if (accessMode == AuthMemberAccessMode.unlinked &&
-          memberId == null &&
-          clanId == null) {
+      if (accessMode == AuthMemberAccessMode.unlinked) {
+        return null;
+      }
+      if (memberId == null || clanId == null) {
         return null;
       }
       return MemberAccessContext(
@@ -1141,7 +1142,7 @@ class FirebaseAuthGateway implements AuthGateway {
         accessMode: accessMode,
         linkedAuthUid:
             claims['linkedAuthUid'] == true ||
-            accessMode != AuthMemberAccessMode.unlinked,
+            accessMode == AuthMemberAccessMode.claimed,
       );
     } catch (error, stackTrace) {
       AppLogger.warning(
@@ -1180,13 +1181,18 @@ class FirebaseAuthGateway implements AuthGateway {
     required String? clanId,
   }) {
     final normalizedMode = rawMode?.trim().toLowerCase() ?? '';
+    final hasLinkedContext = memberId != null && clanId != null;
     if (normalizedMode == 'child') {
-      return AuthMemberAccessMode.child;
+      return hasLinkedContext
+          ? AuthMemberAccessMode.child
+          : AuthMemberAccessMode.unlinked;
     }
     if (normalizedMode == 'claimed') {
-      return AuthMemberAccessMode.claimed;
+      return hasLinkedContext
+          ? AuthMemberAccessMode.claimed
+          : AuthMemberAccessMode.unlinked;
     }
-    if (memberId != null || clanId != null) {
+    if (hasLinkedContext) {
       return AuthMemberAccessMode.claimed;
     }
     return AuthMemberAccessMode.unlinked;

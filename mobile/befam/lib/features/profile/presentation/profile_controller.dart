@@ -61,6 +61,15 @@ class ProfileController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    if (!hasMemberContext) {
+      _notificationPreferences = const ProfileNotificationPreferences();
+      _profile = null;
+      _errorMessage = null;
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
+
     String? failureMessage;
     try {
       _notificationPreferences = await _notificationPreferencesRepository.load(
@@ -68,14 +77,6 @@ class ProfileController extends ChangeNotifier {
       );
     } catch (error) {
       failureMessage = error.toString();
-    }
-
-    if (!hasMemberContext) {
-      _profile = null;
-      _errorMessage = failureMessage;
-      _isLoading = false;
-      notifyListeners();
-      return;
     }
 
     try {

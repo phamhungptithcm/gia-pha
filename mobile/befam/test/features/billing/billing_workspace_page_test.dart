@@ -216,7 +216,8 @@ void main() {
     await tester.tap(firstPendingCard);
     await tester.pumpAndSettle();
     expect(find.text('Chi tiết giao dịch chờ'), findsOneWidget);
-    expect(find.text('Mã giao dịch'), findsOneWidget);
+    expect(find.text('Phương thức'), findsOneWidget);
+    expect(find.text('Trạng thái'), findsOneWidget);
     expect(find.textContaining('Đánh dấu VNPay'), findsNothing);
   });
 
@@ -447,7 +448,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Checkout created'), findsWidgets);
-    expect(find.textContaining('Payment transaction •'), findsWidgets);
+    expect(find.text('Payment transaction'), findsWidgets);
     expect(find.text('checkout_created'), findsNothing);
     expect(find.text('paymentTransaction'), findsNothing);
   });

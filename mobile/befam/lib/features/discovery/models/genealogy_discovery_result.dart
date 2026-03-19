@@ -31,12 +31,9 @@ class GenealogyDiscoveryResult {
     return GenealogyDiscoveryResult(
       id: id.isEmpty ? clanId : id,
       clanId: clanId,
-      genealogyName:
-          (json['genealogyName'] as String? ?? 'Gia phả chưa đặt tên').trim(),
-      leaderName: (json['leaderName'] as String? ?? 'Chưa có trưởng tộc')
-          .trim(),
-      provinceCity: (json['provinceCity'] as String? ?? 'Chưa rõ địa phương')
-          .trim(),
+      genealogyName: (json['genealogyName'] as String? ?? '').trim(),
+      leaderName: (json['leaderName'] as String? ?? '').trim(),
+      provinceCity: (json['provinceCity'] as String? ?? '').trim(),
       summary: (json['summary'] as String? ?? '').trim(),
       memberCount: (json['memberCount'] as num?)?.toInt() ?? 0,
       branchCount: (json['branchCount'] as num?)?.toInt() ?? 0,

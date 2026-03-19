@@ -282,14 +282,20 @@ export const listMyJoinRequests = onCall(
       .where('applicantUid', '==', auth.uid)
       .limit(300)
       .get();
+    const clanIds = Array.from(new Set(snapshot.docs
+      .map((doc) => stringOrNull((doc.data() as JoinRequestRecord).clanId) ?? '')
+      .filter((clanId) => clanId.length > 0)));
+    const genealogyNameByClanId = await loadDiscoveryNamesByClanIds(clanIds);
 
     const requests = snapshot.docs
       .map((doc) => {
         const item = doc.data() as JoinRequestRecord;
         const status = stringOrNull(item.status)?.toLowerCase() ?? 'pending';
+        const clanId = stringOrNull(item.clanId) ?? '';
         return {
           id: doc.id,
-          clanId: stringOrNull(item.clanId) ?? '',
+          clanId,
+          genealogyName: genealogyNameByClanId.get(clanId) ?? '',
           status,
           submittedAtEpochMs: timestampToEpochMillis(item.createdAt),
           reviewedAtEpochMs: timestampToEpochMillis(item.reviewedAt),
@@ -1108,39 +1114,84 @@ function buildJoinRequestReferencePath(clanId: string, joinRequestId: string): s
   return `/clans/${clanId}/join-requests/${joinRequestId}`;
 }
 
+async function loadDiscoveryNamesByClanIds(clanIds: Array<string>): Promise<Map<string, string>> {
+  const namesByClanId = new Map<string, string>();
+  const normalizedClanIds = Array.from(
+    new Set(
+      clanIds
+        .map((clanId) => clanId.trim())
+        .filter((clanId) => clanId.length > 0),
+    ),
+  );
+  if (normalizedClanIds.length === 0) {
+    return namesByClanId;
+  }
+
+  for (const batch of chunkArray(normalizedClanIds, 30)) {
+    const snapshot = await discoveryCollection
+      .where('clanId', 'in', batch)
+      .limit(batch.length)
+      .get();
+    for (const doc of snapshot.docs) {
+      const data = doc.data() as DiscoveryRecord;
+      const clanId = stringOrNull(data.clanId) ?? '';
+      const name = stringOrNull(data.genealogyName) ?? '';
+      if (clanId.length === 0 || name.length === 0) {
+        continue;
+      }
+      namesByClanId.set(clanId, name);
+    }
+  }
+
+  const unresolvedClanIds = normalizedClanIds.filter((clanId) => !namesByClanId.has(clanId));
+  for (const clanId of unresolvedClanIds) {
+    const snapshot = await discoveryCollection.doc(clanId).get();
+    if (!snapshot.exists || snapshot.data() == null) {
+      continue;
+    }
+    const data = snapshot.data() as DiscoveryRecord;
+    const name = stringOrNull(data.genealogyName) ?? '';
+    if (name.length > 0) {
+      namesByClanId.set(clanId, name);
+    }
+  }
+
+  return namesByClanId;
+}
+
+function chunkArray<T>(values: Array<T>, size: number): Array<Array<T>> {
+  if (values.length === 0) {
+    return [];
+  }
+  const chunks: Array<Array<T>> = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
 function sanitizeDiscoveryResult(
   entry: { id: string } & DiscoveryRecord,
   options?: { pendingRequestSubmittedAtEpochMs?: number | null },
 ) {
   const pendingRequestSubmittedAtEpochMs = options?.pendingRequestSubmittedAtEpochMs ?? null;
   const hasPendingJoinRequest = pendingRequestSubmittedAtEpochMs != null;
-  if (hasPendingJoinRequest) {
-    return {
-      id: entry.id,
-      clanId: stringOrNull(entry.clanId) ?? entry.id,
-      genealogyName: 'Pending join request',
-      leaderName: '',
-      provinceCity: '',
-      summary: '',
-      memberCount: 0,
-      branchCount: 0,
-      hasPendingJoinRequest: true,
-      pendingJoinRequestSubmittedAtEpochMs: pendingRequestSubmittedAtEpochMs,
-      isHiddenWhilePending: true,
-    };
-  }
+  const clanId = stringOrNull(entry.clanId) ?? entry.id;
+  const genealogyName = stringOrNull(entry.genealogyName) ?? '';
+  const leaderName = stringOrNull(entry.leaderName) ?? '';
+  const provinceCity = stringOrNull(entry.provinceCity) ?? '';
 
   return {
     id: entry.id,
-    clanId: stringOrNull(entry.clanId) ?? entry.id,
-    genealogyName: stringOrNull(entry.genealogyName) ?? 'Unnamed genealogy',
-    leaderName: stringOrNull(entry.leaderName) ?? 'Unknown leader',
-    provinceCity: stringOrNull(entry.provinceCity) ?? 'Unknown location',
+    clanId,
+    genealogyName,
+    leaderName,
+    provinceCity,
     summary: stringOrNull(entry.summary) ?? '',
     memberCount: typeof entry.memberCount === 'number' ? entry.memberCount : 0,
     branchCount: typeof entry.branchCount === 'number' ? entry.branchCount : 0,
-    hasPendingJoinRequest: false,
-    pendingJoinRequestSubmittedAtEpochMs: null,
+    hasPendingJoinRequest,
+    pendingJoinRequestSubmittedAtEpochMs: pendingRequestSubmittedAtEpochMs,
     isHiddenWhilePending: false,
   };
 }

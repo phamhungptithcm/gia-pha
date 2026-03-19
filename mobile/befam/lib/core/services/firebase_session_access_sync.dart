@@ -17,49 +17,47 @@ class FirebaseSessionAccessSync {
     }
 
     final claims = await _resolveClaims(auth);
-    final claimClanIds = _asStringList(claims?['clanIds']);
-    final claimClanId = _clean(_asString(claims?['clanId']));
-    final claimActiveClanId = _clean(_asString(claims?['activeClanId']));
-    final sessionClanId = _clean(session.clanId);
+    if (claims == null) {
+      return;
+    }
+    final claimClanIds = _asStringList(claims['clanIds']);
+    final claimClanId = _clean(_asString(claims['clanId']));
+    final claimActiveClanId = _clean(_asString(claims['activeClanId']));
     final clanIds = _mergeClanIds(
       preferredClanId: claimActiveClanId.isNotEmpty
           ? claimActiveClanId
-          : (claimClanId.isNotEmpty ? claimClanId : sessionClanId),
-      clanIds: claimClanIds.isNotEmpty
-          ? claimClanIds
-          : (sessionClanId.isEmpty ? const <String>[] : [sessionClanId]),
+          : (claimClanId.isNotEmpty
+                ? claimClanId
+                : (claimClanIds.isNotEmpty ? claimClanIds.first : '')),
+      clanIds: claimClanIds,
     );
     final clanId = clanIds.isEmpty ? '' : clanIds.first;
-    final branchId = _clean(
-      _asString(claims?['branchId']),
-      fallback: _clean(session.branchId),
-    );
-    final memberId = _clean(
-      _asString(claims?['memberId']),
-      fallback: _clean(session.memberId),
-    );
-    final primaryRole = _clean(
-      _asString(claims?['primaryRole']),
-      fallback: _clean(session.primaryRole, fallback: 'GUEST'),
-    );
+    final branchId = _clean(_asString(claims['branchId']));
+    final memberId = _clean(_asString(claims['memberId']));
+    final primaryRole = _clean(_asString(claims['primaryRole']));
     final accessMode = _clean(
-      _asString(claims?['memberAccessMode']),
-      fallback: session.accessMode.name,
+      _asString(claims['memberAccessMode']),
+      fallback: 'unlinked',
     );
     final now = FieldValue.serverTimestamp();
 
-    await firestore.collection('users').doc(uid).set({
-      'uid': uid,
-      'memberId': memberId,
-      'clanId': clanId,
-      'clanIds': clanIds,
-      'branchId': branchId,
-      'primaryRole': primaryRole,
-      'accessMode': accessMode,
-      'linkedAuthUid': session.linkedAuthUid,
-      'updatedAt': now,
-      'createdAt': now,
-    }, SetOptions(merge: true));
+    try {
+      await firestore.collection('users').doc(uid).set({
+        'uid': uid,
+        'memberId': memberId,
+        'clanId': clanId,
+        'clanIds': clanIds,
+        'branchId': branchId,
+        'primaryRole': primaryRole,
+        'accessMode': accessMode,
+        'linkedAuthUid': session.linkedAuthUid,
+        'updatedAt': now,
+        'createdAt': now,
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Session sync is best-effort; do not block feature flows when claims/rules are in transition.
+      return;
+    }
   }
 
   static Future<Map<String, dynamic>?> _resolveClaims(

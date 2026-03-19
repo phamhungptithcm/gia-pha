@@ -2375,8 +2375,8 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                     controller: _branchIdController,
                     decoration: InputDecoration(
                       labelText: l10n.pick(
-                        vi: 'Mã chi (tuỳ chọn)',
-                        en: 'Branch id (optional)',
+                        vi: 'Chi áp dụng (tuỳ chọn)',
+                        en: 'Branch scope (optional)',
                       ),
                       hintText: l10n.pick(
                         vi: 'chi_demo_001',
@@ -2893,8 +2893,8 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   controller: _memberIdController,
                   decoration: InputDecoration(
                     labelText: l10n.pick(
-                      vi: 'Mã thành viên (tuỳ chọn)',
-                      en: 'Member id (optional)',
+                      vi: 'Thành viên liên quan (tuỳ chọn)',
+                      en: 'Linked member (optional)',
                     ),
                     hintText: l10n.pick(
                       vi: 'thanh_vien_demo_001',
@@ -3152,7 +3152,7 @@ class _TransactionRow extends StatelessWidget {
                       .isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      '${context.l10n.pick(vi: 'Mã: ', en: 'Ref: ')}${transaction.externalReference}',
+                      '${context.l10n.pick(vi: 'Tham chiếu: ', en: 'Reference: ')}${transaction.externalReference}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
