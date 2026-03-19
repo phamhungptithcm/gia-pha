@@ -425,7 +425,7 @@ abstract class AppLocalizations {
   /// No description provided for @shellHomeLabel.
   ///
   /// In vi, this message translates to:
-  /// **'Trang'**
+  /// **'Nhà'**
   String get shellHomeLabel;
 
   /// No description provided for @shellHomeTitle.
@@ -491,7 +491,7 @@ abstract class AppLocalizations {
   /// No description provided for @genealogyWorkspaceDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Tải phạm vi cả họ hoặc chi hiện tại, kiểm tra các điểm vào gốc, rồi mở cây trực quan để theo dõi tổ tiên, hậu duệ và quan hệ hôn phối dễ hiểu.'**
+  /// **'Xem cây gia phả theo phạm vi cả họ hoặc chi hiện tại.'**
   String get genealogyWorkspaceDescription;
 
   /// No description provided for @genealogyScopeClan.
@@ -593,7 +593,7 @@ abstract class AppLocalizations {
   /// No description provided for @genealogyEmptyStateDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Hãy tạo hồ sơ thành viên đầu tiên hoặc chuyển phạm vi để bắt đầu dựng đồ thị gia đình.'**
+  /// **'Hãy thêm thành viên đầu tiên hoặc đổi phạm vi để bắt đầu.'**
   String get genealogyEmptyStateDescription;
 
   /// No description provided for @genealogyGenerationLabel.
@@ -1385,7 +1385,7 @@ abstract class AppLocalizations {
   /// No description provided for @clanCreateFirstDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Tạo hồ sơ cốt lõi của họ tộc để nhóm có nơi quản lý các chi, ban điều hành và cấu trúc vận hành ban đầu.'**
+  /// **'Tạo hồ sơ họ tộc để bắt đầu quản lý chi và thành viên.'**
   String get clanCreateFirstDescription;
 
   /// No description provided for @clanPermissionEditor.
@@ -1487,7 +1487,7 @@ abstract class AppLocalizations {
   /// No description provided for @clanProfileEmptyDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Hãy bắt đầu bằng tên họ tộc, người khai sáng và mô tả ngắn để các phần sau có ngữ cảnh đầy đủ.'**
+  /// **'Bắt đầu với tên họ tộc, người khai sáng và mô tả ngắn.'**
   String get clanProfileEmptyDescription;
 
   /// No description provided for @clanFieldName.
@@ -1559,7 +1559,7 @@ abstract class AppLocalizations {
   /// No description provided for @clanBranchEmptyDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Tạo chi đầu tiên để phân bổ lãnh đạo, phạm vi vận hành và các màn hình thành viên theo chi.'**
+  /// **'Tạo chi đầu tiên để phân quyền và quản lý thành viên.'**
   String get clanBranchEmptyDescription;
 
   /// No description provided for @clanBranchCodeLabel.
@@ -1661,7 +1661,7 @@ abstract class AppLocalizations {
   /// No description provided for @clanBranchEditorDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Tạo hoặc cập nhật chi để sắp xếp người phụ trách, mã nhận diện và gợi ý đời cho các luồng gia phả sau này.'**
+  /// **'Cập nhật chi, người phụ trách và gợi ý đời.'**
   String get clanBranchEditorDescription;
 
   /// No description provided for @clanBranchNameLabel.
@@ -1745,7 +1745,7 @@ abstract class AppLocalizations {
   /// No description provided for @memberNoContextDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Hãy liên kết tài khoản với hồ sơ thành viên trước khi quản lý danh sách thành viên trong BeFam.'**
+  /// **'Liên kết tài khoản với hồ sơ thành viên để quản lý danh sách.'**
   String get memberNoContextDescription;
 
   /// No description provided for @memberWorkspaceHeroTitle.
@@ -1757,7 +1757,7 @@ abstract class AppLocalizations {
   /// No description provided for @memberWorkspaceHeroDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Tạo hồ sơ mới, chỉnh sửa hồ sơ đã liên kết, quản lý avatar và chuẩn bị dữ liệu thành viên cho cây gia phả, sự kiện và phân quyền.'**
+  /// **'Quản lý hồ sơ thành viên theo chi và đời.'**
   String get memberWorkspaceHeroDescription;
 
   /// No description provided for @memberReadOnlyTitle.
@@ -1769,7 +1769,7 @@ abstract class AppLocalizations {
   /// No description provided for @memberReadOnlyDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Phiên này chỉ xem được hồ sơ của chính mình hoặc ngữ cảnh thành viên đã liên kết. Chỉ quản trị họ tộc hoặc quản trị chi mới có thể thêm thành viên mới.'**
+  /// **'Phiên này chỉ có quyền xem. Chỉ quản trị họ tộc hoặc quản trị chi mới thêm thành viên.'**
   String get memberReadOnlyDescription;
 
   /// No description provided for @memberLoadErrorTitle.
@@ -1781,7 +1781,7 @@ abstract class AppLocalizations {
   /// No description provided for @memberLoadErrorDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Có lỗi xảy ra khi tải hồ sơ thành viên. Hãy thử tải lại hoặc kiểm tra cấu hình Firebase.'**
+  /// **'Không thể tải hồ sơ thành viên. Hãy thử lại.'**
   String get memberLoadErrorDescription;
 
   /// No description provided for @memberStatCount.
@@ -1841,7 +1841,7 @@ abstract class AppLocalizations {
   /// No description provided for @memberListEmptyDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Hãy tạo thành viên đầu tiên hoặc thay đổi bộ lọc để xem thêm hồ sơ.'**
+  /// **'Chưa có hồ sơ phù hợp. Hãy tạo mới hoặc đổi bộ lọc.'**
   String get memberListEmptyDescription;
 
   /// No description provided for @memberSaveSuccess.
@@ -2009,7 +2009,7 @@ abstract class AppLocalizations {
   /// No description provided for @memberEditorDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Điền thông tin cốt lõi để BeFam có thể tìm kiếm, xác minh và hiển thị hồ sơ thành viên chính xác theo chi và đời.'**
+  /// **'Điền thông tin chính để tạo hồ sơ thành viên.'**
   String get memberEditorDescription;
 
   /// No description provided for @memberSaveErrorTitle.
@@ -2873,7 +2873,7 @@ abstract class AppLocalizations {
   /// No description provided for @eventHeroDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Theo dõi lễ nghi, ngày giỗ và lời nhắc trong một dòng thời gian thống nhất.'**
+  /// **'Theo dõi lễ nghi, ngày giỗ và lời nhắc trong một nơi.'**
   String get eventHeroDescription;
 
   /// No description provided for @eventReadOnlyTitle.
@@ -2927,7 +2927,7 @@ abstract class AppLocalizations {
   /// No description provided for @eventMemorialChecklistSectionDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Đối chiếu thành viên đã mất và ngày mất với sự kiện giỗ đã thiết lập để tránh thiếu sót.'**
+  /// **'Đối chiếu ngày mất với sự kiện giỗ để tránh thiếu sót.'**
   String get eventMemorialChecklistSectionDescription;
 
   /// No description provided for @eventMemorialChecklistConfiguredCount.
@@ -3029,7 +3029,7 @@ abstract class AppLocalizations {
   /// No description provided for @eventRitualChecklistSectionDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Theo dõi các mốc 49/50 ngày, 100 ngày, giỗ đầu và giỗ hết để không bỏ sót nghi lễ quan trọng.'**
+  /// **'Theo dõi mốc 49/50 ngày, 100 ngày, giỗ đầu và giỗ hết.'**
   String get eventRitualChecklistSectionDescription;
 
   /// No description provided for @eventRitualChecklistConfiguredCount.

@@ -44,33 +44,12 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
   late ScholarshipController _controller;
   late AuthSession _activeSession;
   final ScrollController _workspaceScrollController = ScrollController();
-  bool _isSwitchingClanContext = false;
   bool _showAddFabMenu = false;
   int _visibleProgramCount = 0;
   int _visibleSubmissionCount = 0;
   String? _lazySubmissionProgramId;
 
   AuthSession get _session => _activeSession;
-
-  List<ClanContextOption> get _clanContexts {
-    if (widget.availableClanContexts.isNotEmpty) {
-      return widget.availableClanContexts;
-    }
-    final clanId = (_session.clanId ?? '').trim();
-    if (clanId.isEmpty) {
-      return const [];
-    }
-    return [
-      ClanContextOption(
-        clanId: clanId,
-        clanName: clanId,
-        memberId: (_session.memberId ?? '').trim(),
-        primaryRole: (_session.primaryRole ?? 'MEMBER').trim().toUpperCase(),
-        branchId: _nullIfBlank(_session.branchId),
-        displayName: _nullIfBlank(_session.displayName),
-      ),
-    ];
-  }
 
   @override
   void initState() {
@@ -766,53 +745,6 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<AuthSession?> _switchClanContext(String clanId) async {
-    final normalizedClanId = clanId.trim();
-    if (normalizedClanId.isEmpty) {
-      return null;
-    }
-    if (normalizedClanId == (_session.clanId ?? '').trim()) {
-      return _session;
-    }
-    final switcher = widget.onSwitchClanContext;
-    if (switcher == null) {
-      return null;
-    }
-    if (_isSwitchingClanContext) {
-      return null;
-    }
-
-    setState(() {
-      _isSwitchingClanContext = true;
-    });
-    try {
-      final switched = await switcher(normalizedClanId);
-      if (switched == null) {
-        return null;
-      }
-      if (!mounted) {
-        return switched;
-      }
-      _activeSession = switched;
-      _controller.dispose();
-      _controller = ScholarshipController(
-        repository: widget.repository,
-        session: _session,
-      );
-      setState(() {});
-      await _controller.initialize();
-      return _session;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSwitchingClanContext = false;
-        });
-      } else {
-        _isSwitchingClanContext = false;
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -858,34 +790,6 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
               ),
             ),
             actions: [
-              if (_isSwitchingClanContext)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              else if (_clanContexts.length > 1)
-                PopupMenuButton<String>(
-                  tooltip: l10n.pick(vi: 'Chuyển gia phả', en: 'Switch clan'),
-                  onSelected: (clanId) {
-                    unawaited(_switchClanContext(clanId));
-                  },
-                  itemBuilder: (context) => [
-                    for (final option in _clanContexts)
-                      PopupMenuItem<String>(
-                        value: option.clanId,
-                        child: Text(
-                          option.clanId == (_session.clanId ?? '').trim()
-                              ? '• ${_clanContextDisplayLabel(context, option)}'
-                              : _clanContextDisplayLabel(context, option),
-                        ),
-                      ),
-                  ],
-                  icon: const Icon(Icons.account_tree_outlined),
-                ),
               IconButton(
                 tooltip: l10n.pick(vi: 'Tải lại', en: 'Refresh'),
                 onPressed: _controller.isLoading ? null : _controller.refresh,
@@ -923,8 +827,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                       padding: const EdgeInsets.all(24),
                       child: Text(
                         l10n.pick(
-                          vi: 'Không gian khuyến học yêu cầu tài khoản có liên kết gia phả.',
-                          en: 'Scholarship workspace requires an active clan context.',
+                          vi: 'Khuyến học cần ngữ cảnh gia phả đang hoạt động.',
+                          en: 'Scholarship requires an active clan context.',
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -969,8 +873,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                               const SizedBox(height: 8),
                               Text(
                                 l10n.pick(
-                                  vi: 'Tạo chương trình, cấu hình mức thưởng, gửi thành tích và xét duyệt hồ sơ.',
-                                  en: 'Create programs, configure award levels, submit achievements, and review decisions.',
+                                  vi: 'Tạo chương trình, mức thưởng và duyệt hồ sơ.',
+                                  en: 'Create programs, set awards, and review submissions.',
                                 ),
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: colorScheme.onPrimary.withValues(
@@ -982,15 +886,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        _ScholarshipClanScopeCard(
-                          activeClanId: (_session.clanId ?? '').trim(),
-                          clanContexts: _clanContexts,
-                          isSwitching: _isSwitchingClanContext,
-                          onSwitch: widget.onSwitchClanContext == null
-                              ? null
-                              : (clanId) => _switchClanContext(clanId),
-                        ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 4),
                         if (_controller.permissions.isReadOnly) ...[
                           Card(
                             color: colorScheme.secondaryContainer,
@@ -1033,7 +929,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                   Text(
                                     l10n.pick(
                                       vi: 'Hồ sơ sẽ tự chốt khi đạt 2 phiếu duyệt (hoặc 2 phiếu từ chối).',
-                                      en: 'Scholarship submissions are finalized automatically at 2 approvals (or 2 rejections).',
+                                      en: 'Submissions auto-finalize at 2 approvals (or 2 rejections).',
                                     ),
                                   ),
                                   if (!_controller
@@ -1041,8 +937,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                     const SizedBox(height: 4),
                                     Text(
                                       l10n.pick(
-                                        vi: 'Cấu hình hiện tại chưa hợp lệ cho quy tắc 2/3. Cần đúng 3 Trưởng hội đồng hoạt động.',
-                                        en: 'Current council setup is not valid for the 2-of-3 rule. Exactly 3 active council heads are required.',
+                                        vi: 'Cần đúng 3 Trưởng hội đồng đang hoạt động để áp dụng quy tắc 2/3.',
+                                        en: 'Exactly 3 active council heads are required for the 2-of-3 rule.',
                                       ),
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(color: colorScheme.error),
@@ -1064,8 +960,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                         _controller.programs.isEmpty
                             ? _InlineEmpty(
                                 message: l10n.pick(
-                                  vi: 'Chưa có chương trình khuyến học. Hãy tạo mới để bắt đầu chu kỳ năm.',
-                                  en: 'No scholarship programs yet. Create one to start the yearly flow.',
+                                  vi: 'Chưa có chương trình. Hãy tạo mới để bắt đầu.',
+                                  en: 'No programs yet. Create one to get started.',
                                 ),
                               )
                             : Column(
@@ -1132,8 +1028,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                             child: selectedProgram == null
                                 ? _InlineEmpty(
                                     message: l10n.pick(
-                                      vi: 'Chọn một chương trình để xem mức thưởng và hồ sơ.',
-                                      en: 'Select a scholarship program to inspect award levels and submissions.',
+                                      vi: 'Chọn một chương trình để xem chi tiết.',
+                                      en: 'Select a program to view details.',
                                     ),
                                   )
                                 : Column(
@@ -1191,8 +1087,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                 : selectedProgramAwardLevels.isEmpty
                                 ? _InlineEmpty(
                                     message: l10n.pick(
-                                      vi: 'Chưa có mức thưởng. Hãy thêm ít nhất một mức để thành viên nộp hồ sơ.',
-                                      en: 'No award levels yet. Add at least one so members can submit.',
+                                      vi: 'Chưa có mức thưởng. Hãy thêm ít nhất một mức.',
+                                      en: 'No award levels yet. Add at least one.',
                                     ),
                                   )
                                 : Column(
@@ -2349,8 +2245,8 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                     en: 'Set up in 3 quick sections',
                   ),
                   message: l10n.pick(
-                    vi: 'Thông tin cơ bản, lịch nhận hồ sơ và ngày chốt xét duyệt.',
-                    en: 'Basic info, submission timeline, and review deadline.',
+                    vi: 'Thông tin cơ bản, mốc thời gian và xác nhận.',
+                    en: 'Basic info, timeline, and confirmation.',
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -2360,8 +2256,8 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                     en: '1. Basic info',
                   ),
                   subtitle: l10n.pick(
-                    vi: 'Tên chương trình, mô tả, năm và trạng thái hiện tại.',
-                    en: 'Program name, description, year, and status.',
+                    vi: 'Tên, mô tả, năm và trạng thái.',
+                    en: 'Name, description, year, and status.',
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -2460,8 +2356,8 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                     en: '2. Timeline (optional)',
                   ),
                   subtitle: l10n.pick(
-                    vi: 'Chạm vào ô để chọn ngày thay vì nhập tay theo định dạng ISO.',
-                    en: 'Tap each field to pick a date instead of typing ISO manually.',
+                    vi: 'Chạm để chọn ngày.',
+                    en: 'Tap to pick dates.',
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -2512,8 +2408,8 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                 const SizedBox(height: 8),
                 Text(
                   l10n.pick(
-                    vi: 'Mẹo: để trống ngày nếu chưa chốt lịch. Bạn có thể chỉnh sửa sau.',
-                    en: 'Tip: leave dates empty if schedule is not finalized yet. You can update later.',
+                    vi: 'Để trống nếu chưa chốt lịch. Có thể sửa sau.',
+                    en: 'Leave blank if not finalized. You can update later.',
                   ),
                   style: theme.textTheme.bodySmall,
                 ),
@@ -2521,8 +2417,8 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                 _SheetSectionHeading(
                   title: l10n.pick(vi: '3. Xác nhận', en: '3. Confirm'),
                   subtitle: l10n.pick(
-                    vi: 'Lưu để tạo chương trình và bắt đầu cấu hình mức thưởng.',
-                    en: 'Save to create the program and start defining award levels.',
+                    vi: 'Lưu để tạo chương trình.',
+                    en: 'Save to create the program.',
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -3500,89 +3396,6 @@ class _ScholarshipAddActionFab extends StatelessWidget {
   }
 }
 
-class _ScholarshipClanScopeCard extends StatelessWidget {
-  const _ScholarshipClanScopeCard({
-    required this.activeClanId,
-    required this.clanContexts,
-    required this.isSwitching,
-    this.onSwitch,
-  });
-
-  final String activeClanId;
-  final List<ClanContextOption> clanContexts;
-  final bool isSwitching;
-  final Future<AuthSession?> Function(String clanId)? onSwitch;
-
-  @override
-  Widget build(BuildContext context) {
-    if (clanContexts.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final activeContext = clanContexts.firstWhere(
-      (item) => item.clanId.trim() == activeClanId.trim(),
-      orElse: () => clanContexts.first,
-    );
-    final l10n = context.l10n;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.account_tree_outlined),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    l10n.pick(
-                      vi: 'Gia phả đang quản lý khuyến học',
-                      en: 'Scholarship clan scope',
-                    ),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                if (isSwitching)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: activeContext.clanId,
-              decoration: InputDecoration(
-                labelText: l10n.pick(vi: 'Gia phả', en: 'Clan'),
-              ),
-              items: [
-                for (final option in clanContexts)
-                  DropdownMenuItem<String>(
-                    value: option.clanId,
-                    child: Text(_clanContextDisplayLabel(context, option)),
-                  ),
-              ],
-              onChanged: isSwitching || onSwitch == null
-                  ? null
-                  : (value) {
-                      final resolved = _nullableText(value ?? '');
-                      if (resolved == null) {
-                        return;
-                      }
-                      unawaited(onSwitch!(resolved));
-                    },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.title,
@@ -3784,73 +3597,7 @@ String _formatMinorAmount(int amountMinor) {
   return negative ? '-${buffer.toString()}' : buffer.toString();
 }
 
-String _clanContextDisplayLabel(
-  BuildContext context,
-  ClanContextOption option,
-) {
-  final explicitName = option.clanName.trim();
-  if (explicitName.isNotEmpty && !_looksLikeIdentifier(explicitName)) {
-    return explicitName;
-  }
-
-  final ownerName = (option.ownerDisplayName ?? '').trim();
-  if (ownerName.isNotEmpty) {
-    return context.l10n.pick(
-      vi: 'Gia phả của $ownerName',
-      en: "$ownerName's clan",
-    );
-  }
-
-  final memberName = (option.displayName ?? '').trim();
-  if (memberName.isNotEmpty) {
-    return context.l10n.pick(
-      vi: 'Gia phả của $memberName',
-      en: "$memberName's clan",
-    );
-  }
-
-  final readableClanId = _humanizeIdentifier(option.clanId);
-  return readableClanId.isEmpty ? option.clanId : readableClanId;
-}
-
-bool _looksLikeIdentifier(String value) {
-  final normalized = value.trim().toLowerCase();
-  if (normalized.isEmpty) {
-    return false;
-  }
-  return RegExp(r'^[a-z0-9]+(?:[_-][a-z0-9]+)*$').hasMatch(normalized);
-}
-
-String _humanizeIdentifier(String value) {
-  final normalized = value.trim();
-  if (normalized.isEmpty) {
-    return '';
-  }
-  final noPrefix = normalized.replaceFirst(
-    RegExp(r'^(clan|gia[_-]?pha)[_-]?', caseSensitive: false),
-    '',
-  );
-  final tokens = (noPrefix.isEmpty ? normalized : noPrefix)
-      .replaceAll(RegExp(r'[_-]+'), ' ')
-      .split(RegExp(r'\s+'))
-      .where((item) => item.trim().isNotEmpty)
-      .map((item) {
-        final text = item.trim();
-        return '${text[0].toUpperCase()}${text.substring(1).toLowerCase()}';
-      })
-      .toList(growable: false);
-  if (tokens.isEmpty) {
-    return '';
-  }
-  return tokens.join(' ');
-}
-
 String? _nullableText(String value) {
   final trimmed = value.trim();
-  return trimmed.isEmpty ? null : trimmed;
-}
-
-String? _nullIfBlank(String? value) {
-  final trimmed = value?.trim() ?? '';
   return trimmed.isEmpty ? null : trimmed;
 }

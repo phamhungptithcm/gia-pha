@@ -32,7 +32,6 @@ class FundWorkspacePage extends StatefulWidget {
     this.treasurerDashboardRepository,
     this.memberRepository,
     this.availableClanContexts = const [],
-    this.onSwitchClanContext,
   });
 
   final AuthSession session;
@@ -40,7 +39,6 @@ class FundWorkspacePage extends StatefulWidget {
   final TreasurerDashboardRepository? treasurerDashboardRepository;
   final MemberRepository? memberRepository;
   final List<ClanContextOption> availableClanContexts;
-  final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
 
   @override
   State<FundWorkspacePage> createState() => _FundWorkspacePageState();
@@ -54,7 +52,6 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
   late MemberRepository _memberRepository;
   late TreasurerDashboardRepository _treasurerDashboardRepository;
   late final ScrollController _workspaceScrollController;
-  bool _isSwitchingClanContext = false;
   String _cachedMembersClanId = '';
   List<MemberProfile> _cachedMembers = const [];
   List<MemberProfile> _treasurerMembers = const [];
@@ -194,16 +191,18 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
               ? l10n.pick(vi: 'Tạo quỹ', en: 'Create fund')
               : l10n.pick(vi: 'Chỉnh sửa quỹ', en: 'Edit fund'),
           description: l10n.pick(
-            vi: 'Thiết lập hồ sơ quỹ để ghi nhận đóng góp, chi tiêu và theo dõi số dư minh bạch.',
-            en: 'Set up a fund profile for donations, expenses, and transparent balance tracking.',
+            vi: 'Thiết lập quỹ để ghi nhận thu, chi và số dư.',
+            en: 'Set up a fund to track income, expense, and balance.',
           ),
           initialDraft: fund == null
               ? FundDraft.empty()
               : FundDraft.fromProfile(fund),
-          availableClanContexts: _clanContexts,
           activeClanId: (_session.clanId ?? '').trim(),
+          activeClanLabel: _clanDisplayNameForId(
+            context,
+            (_session.clanId ?? '').trim(),
+          ),
           resolveViewerMemberId: () => _session.memberId,
-          onEnsureClanContext: _ensureClanContext,
           loadMembersForClan: _loadMembersForClan,
           isSaving: _controller.isSavingFund,
           onSubmit: (draft) {
@@ -232,19 +231,6 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     }
   }
 
-  Future<bool> _ensureClanContext(String clanId) async {
-    final normalizedClanId = clanId.trim();
-    if (normalizedClanId.isEmpty) {
-      return false;
-    }
-    if (normalizedClanId == (_session.clanId ?? '').trim()) {
-      return true;
-    }
-    final switched = await _switchClanContext(normalizedClanId);
-    return switched != null &&
-        (switched.clanId ?? '').trim() == normalizedClanId;
-  }
-
   Future<List<MemberProfile>> _loadMembersForClan(String clanId) async {
     final normalizedClanId = clanId.trim();
     if (normalizedClanId.isEmpty) {
@@ -254,75 +240,17 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       return _cachedMembers;
     }
 
-    AuthSession effectiveSession = _session;
     if ((_session.clanId ?? '').trim() != normalizedClanId) {
-      final switched = await _switchClanContext(normalizedClanId);
-      if (switched == null) {
-        return const [];
-      }
-      effectiveSession = switched;
+      return const [];
     }
 
-    final snapshot = await _memberRepository.loadWorkspace(
-      session: effectiveSession,
-    );
+    final snapshot = await _memberRepository.loadWorkspace(session: _session);
     final members = snapshot.members
         .where((member) => member.clanId.trim() == normalizedClanId)
         .toList(growable: false);
     _cachedMembersClanId = normalizedClanId;
     _cachedMembers = members;
     return members;
-  }
-
-  Future<AuthSession?> _switchClanContext(String clanId) async {
-    final normalizedClanId = clanId.trim();
-    if (normalizedClanId.isEmpty) {
-      return null;
-    }
-    if (normalizedClanId == (_session.clanId ?? '').trim()) {
-      return _session;
-    }
-    final switcher = widget.onSwitchClanContext;
-    if (switcher == null) {
-      return null;
-    }
-    if (_isSwitchingClanContext) {
-      return null;
-    }
-
-    setState(() {
-      _isSwitchingClanContext = true;
-    });
-    try {
-      final switched = await switcher(normalizedClanId);
-      if (switched == null) {
-        return null;
-      }
-      if (!mounted) {
-        return switched;
-      }
-      _activeSession = switched;
-      _cachedMembers = const [];
-      _cachedMembersClanId = '';
-      _controller.dispose();
-      _controller = FundController(
-        repository: widget.repository,
-        session: _session,
-        treasurerDashboardRepository: _treasurerDashboardRepository,
-      );
-      setState(() {});
-      await _controller.initialize();
-      unawaited(_refreshTreasurerRoster(force: true));
-      return _session;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSwitchingClanContext = false;
-        });
-      } else {
-        _isSwitchingClanContext = false;
-      }
-    }
   }
 
   void _openFundDetail(FundProfile fund) {
@@ -436,36 +364,6 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         return Scaffold(
           appBar: AppBar(
             title: Text(l10n.pick(vi: 'Quỹ', en: 'Funds')),
-            actions: [
-              if (_isSwitchingClanContext)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              else if (_clanContexts.length > 1)
-                PopupMenuButton<String>(
-                  tooltip: l10n.pick(vi: 'Chuyển gia phả', en: 'Switch clan'),
-                  onSelected: (clanId) {
-                    unawaited(_switchClanContext(clanId));
-                  },
-                  itemBuilder: (context) => [
-                    for (final option in _clanContexts)
-                      PopupMenuItem<String>(
-                        value: option.clanId,
-                        child: Text(
-                          option.clanId == (_session.clanId ?? '').trim()
-                              ? '• ${_clanContextDisplayLabel(context, option)}'
-                              : _clanContextDisplayLabel(context, option),
-                        ),
-                      ),
-                  ],
-                  icon: const Icon(Icons.account_tree_outlined),
-                ),
-            ],
           ),
           floatingActionButton: _controller.canManageFunds
               ? FloatingActionButton(
@@ -490,8 +388,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                       en: 'No finance access',
                     ),
                     description: l10n.pick(
-                      vi: 'Chỉ vai trò Trưởng tộc, Trưởng chi, hoặc Thủ quỹ mới xem được sổ quỹ.',
-                      en: 'Only Clan Lead, Branch Lead, or Treasurer roles can access the fund ledger.',
+                      vi: 'Chỉ Trưởng tộc, Trưởng chi hoặc Thủ quỹ được xem sổ quỹ.',
+                      en: 'Only Clan Lead, Branch Lead, or Treasurer can view the ledger.',
                     ),
                   )
                 : RefreshIndicator(
@@ -512,12 +410,12 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                           ),
                           description: hasFunds
                               ? l10n.pick(
-                                  vi: 'Theo dõi số dư và biến động theo từng quỹ.',
-                                  en: 'Monitor balances and movement across funds.',
+                                  vi: 'Theo dõi số dư và biến động theo quỹ.',
+                                  en: 'Track balance changes by fund.',
                                 )
                               : l10n.pick(
-                                  vi: 'Theo dõi đóng góp, chi tiêu, số dư hiện tại và lịch sử theo từng quỹ.',
-                                  en: 'Track donations, expenses, running balance, and history across each fund.',
+                                  vi: 'Theo dõi thu, chi và số dư theo từng quỹ.',
+                                  en: 'Track income, expense, and balance by fund.',
                                 ),
                           canManageFunds: _controller.canManageFunds,
                           compact: hasFunds,
@@ -525,15 +423,6 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                               _controller.canManageFunds && !hasFunds
                               ? () => _openFundEditor()
                               : null,
-                        ),
-                        const SizedBox(height: 12),
-                        _ClanScopeCard(
-                          activeClanId: (_session.clanId ?? '').trim(),
-                          clanContexts: _clanContexts,
-                          isSwitching: _isSwitchingClanContext,
-                          onSwitch: widget.onSwitchClanContext == null
-                              ? null
-                              : (clanId) => _switchClanContext(clanId),
                         ),
                         const SizedBox(height: 16),
                         if (_controller.canViewFunds)
@@ -762,8 +651,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           en: 'Loading treasurer dashboard',
         ),
         description: l10n.pick(
-          vi: 'Đang đồng bộ số dư quỹ, lịch sử đóng góp và hồ sơ học bổng...',
-          en: 'Syncing fund balance, donation history, and scholarship requests...',
+          vi: 'Đang đồng bộ số dư, lịch sử đóng góp và yêu cầu chi...',
+          en: 'Syncing balances, donations, and payout requests...',
         ),
         tone: colorScheme.surfaceContainerHighest,
       );
@@ -1815,8 +1704,8 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                             en: 'No transactions',
                           ),
                           description: l10n.pick(
-                            vi: 'Tạo giao dịch đóng góp hoặc chi tiêu để hiển thị sổ quỹ.',
-                            en: 'Create a donation or expense to populate this ledger.',
+                            vi: 'Thêm giao dịch thu hoặc chi để bắt đầu sổ quỹ.',
+                            en: 'Add an income or expense transaction to start the ledger.',
                           ),
                         )
                       : Column(
@@ -1847,10 +1736,9 @@ class _FundEditorSheet extends StatefulWidget {
     required this.title,
     required this.description,
     required this.initialDraft,
-    required this.availableClanContexts,
     required this.activeClanId,
+    required this.activeClanLabel,
     required this.resolveViewerMemberId,
-    required this.onEnsureClanContext,
     required this.loadMembersForClan,
     required this.isSaving,
     required this.onSubmit,
@@ -1859,10 +1747,9 @@ class _FundEditorSheet extends StatefulWidget {
   final String title;
   final String description;
   final FundDraft initialDraft;
-  final List<ClanContextOption> availableClanContexts;
   final String activeClanId;
+  final String activeClanLabel;
   final String? Function() resolveViewerMemberId;
-  final Future<bool> Function(String clanId) onEnsureClanContext;
   final Future<List<MemberProfile>> Function(String clanId) loadMembersForClan;
   final bool isSaving;
   final Future<FundRepositoryErrorCode?> Function(FundDraft draft) onSubmit;
@@ -1914,20 +1801,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
     _currency = _currencies.contains(widget.initialDraft.currency.toUpperCase())
         ? widget.initialDraft.currency.toUpperCase()
         : 'VND';
-    final candidateClanId =
-        _nullIfBlank(widget.initialDraft.clanId) ??
-        _nullIfBlank(widget.activeClanId) ??
-        (widget.availableClanContexts.isNotEmpty
-            ? widget.availableClanContexts.first.clanId
-            : '');
-    if (widget.availableClanContexts.isNotEmpty &&
-        !widget.availableClanContexts.any(
-          (entry) => entry.clanId.trim() == candidateClanId.trim(),
-        )) {
-      _selectedClanId = widget.availableClanContexts.first.clanId;
-    } else {
-      _selectedClanId = candidateClanId;
-    }
+    final activeClanId = _nullIfBlank(widget.activeClanId) ?? '';
+    final initialClanId = _nullIfBlank(widget.initialDraft.clanId) ?? '';
+    _selectedClanId = initialClanId.isNotEmpty ? initialClanId : activeClanId;
     _selectedMemberIds = widget.initialDraft.appliedMemberIds
         .map((entry) => entry.trim())
         .where((entry) => entry.isNotEmpty)
@@ -1957,8 +1833,8 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
           SnackBar(
             content: Text(
               l10n.pick(
-                vi: 'Hãy chọn gia phả quản lý trước khi tiếp tục.',
-                en: 'Choose a target clan before continuing.',
+                vi: 'Chưa có gia phả đang hoạt động. Hãy chọn gia phả ở menu trên cùng rồi thử lại.',
+                en: 'No active clan found. Please select a clan from the top menu and try again.',
               ),
             ),
           ),
@@ -2000,18 +1876,6 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
       setState(() {
         _isSubmitting = false;
         _submitError = FundRepositoryErrorCode.validationFailed;
-      });
-      return;
-    }
-
-    final clanReady = await widget.onEnsureClanContext(targetClanId);
-    if (!clanReady) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _isSubmitting = false;
-        _submitError = FundRepositoryErrorCode.permissionDenied;
       });
       return;
     }
@@ -2061,10 +1925,6 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
       _memberLoadError = null;
     });
     try {
-      final ensured = await widget.onEnsureClanContext(normalizedClanId);
-      if (!ensured) {
-        throw StateError('switch_context_failed');
-      }
       final members = await widget.loadMembersForClan(normalizedClanId);
       if (!mounted) {
         return;
@@ -2092,19 +1952,6 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
         );
       });
     }
-  }
-
-  Future<void> _handleClanChanged(String? clanId) async {
-    final normalizedClanId = _nullIfBlank(clanId);
-    if (normalizedClanId == null || normalizedClanId == _selectedClanId) {
-      return;
-    }
-    setState(() {
-      _selectedClanId = normalizedClanId;
-      _selectedMemberIds.clear();
-      _selectedTreasurerMemberIds.clear();
-    });
-    await _loadMembersForClan(normalizedClanId);
   }
 
   List<MemberProfile> _selectedMembersFor(Set<String> ids) {
@@ -2440,44 +2287,24 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                 ),
                 const SizedBox(height: 16),
                 if (_editorStep == 0) ...[
-                  if (widget.availableClanContexts.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                      key: const Key('fund-clan-selector'),
-                      initialValue: _selectedClanId.isEmpty
-                          ? null
-                          : _selectedClanId,
-                      decoration: InputDecoration(
-                        labelText: l10n.pick(
-                          vi: 'Gia phả quản lý',
-                          en: 'Target clan',
-                        ),
-                      ),
-                      items: [
-                        for (final contextOption
-                            in widget.availableClanContexts)
-                          DropdownMenuItem<String>(
-                            value: contextOption.clanId,
-                            child: Text(
-                              _clanContextDisplayLabel(context, contextOption),
-                            ),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        unawaited(_handleClanChanged(value));
-                      },
-                    )
-                  else
-                    InputDecorator(
-                      decoration: InputDecoration(
-                        labelText: l10n.pick(vi: 'Gia phả', en: 'Clan'),
-                      ),
-                      child: Text(
-                        l10n.pick(
-                          vi: 'Gia phả hiện tại',
-                          en: 'Current genealogy',
-                        ),
+                  InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Gia phả hiện tại',
+                        en: 'Current clan',
                       ),
                     ),
+                    child: Text(
+                      widget.activeClanLabel.trim().isNotEmpty
+                          ? widget.activeClanLabel
+                          : (_selectedClanId.trim().isNotEmpty
+                                ? _selectedClanId
+                                : l10n.pick(
+                                    vi: 'Chưa chọn gia phả',
+                                    en: 'No clan selected',
+                                  )),
+                    ),
+                  ),
                   const SizedBox(height: 14),
                   TextFormField(
                     key: const Key('fund-name-input'),
@@ -3331,91 +3158,6 @@ class _TransactionRow extends StatelessWidget {
                   ],
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ClanScopeCard extends StatelessWidget {
-  const _ClanScopeCard({
-    required this.activeClanId,
-    required this.clanContexts,
-    required this.isSwitching,
-    this.onSwitch,
-  });
-
-  final String activeClanId;
-  final List<ClanContextOption> clanContexts;
-  final bool isSwitching;
-  final Future<AuthSession?> Function(String clanId)? onSwitch;
-
-  @override
-  Widget build(BuildContext context) {
-    if (clanContexts.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final activeContext = clanContexts.firstWhere(
-      (item) => item.clanId.trim() == activeClanId.trim(),
-      orElse: () => clanContexts.first,
-    );
-    final l10n = context.l10n;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.account_tree_outlined),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    l10n.pick(
-                      vi: 'Phạm vi gia phả đang quản lý',
-                      en: 'Active clan scope',
-                    ),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                if (isSwitching)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: activeContext.clanId,
-              decoration: InputDecoration(
-                labelText: l10n.pick(vi: 'Gia phả', en: 'Clan'),
-              ),
-              items: [
-                for (final contextOption in clanContexts)
-                  DropdownMenuItem<String>(
-                    value: contextOption.clanId,
-                    child: Text(
-                      _clanContextDisplayLabel(context, contextOption),
-                    ),
-                  ),
-              ],
-              onChanged: onSwitch == null || isSwitching
-                  ? null
-                  : (value) {
-                      final resolved = _nullIfBlank(value);
-                      if (resolved == null) {
-                        return;
-                      }
-                      unawaited(onSwitch!(resolved));
-                    },
             ),
           ],
         ),

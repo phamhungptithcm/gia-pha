@@ -45,6 +45,8 @@ import '../bootstrap/firebase_setup_status.dart';
 import '../models/app_shortcut.dart';
 import 'app_shortcuts.dart';
 
+enum _ShellOverflowAction { switchClan, logout }
+
 class AppShellPage extends StatefulWidget {
   const AppShellPage({
     super.key,
@@ -509,6 +511,109 @@ class _AppShellPageState extends State<AppShellPage> {
     }
   }
 
+  String _activeClanAppBarTitle(AppLocalizations l10n) {
+    final activeClanId = (_session.clanId ?? '').trim();
+    if (activeClanId.isEmpty) {
+      return 'BeFam';
+    }
+    final activeContext = _clanContexts.firstWhere(
+      (option) => option.clanId.trim() == activeClanId,
+      orElse: () => ClanContextOption(
+        clanId: activeClanId,
+        clanName: activeClanId,
+        memberId: (_session.memberId ?? '').trim(),
+        primaryRole: (_session.primaryRole ?? 'MEMBER').trim().isEmpty
+            ? 'MEMBER'
+            : _session.primaryRole!.trim().toUpperCase(),
+      ),
+    );
+    final clanName = activeContext.clanName.trim();
+    return clanName.isEmpty ? activeClanId : clanName;
+  }
+
+  Future<void> _openClanSwitcherSheet(AppLocalizations l10n) async {
+    if (_isLoadingClanContexts || _isSwitchingClanContext) {
+      return;
+    }
+    if (_clanContexts.length < 2) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Bạn chỉ có một gia phả khả dụng.',
+              en: 'You only have one available clan.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final activeClanId = (_session.clanId ?? '').trim();
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+            children: [
+              Text(
+                l10n.pick(vi: 'Chuyển qua gia phả khác', en: 'Switch clan'),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.pick(
+                  vi: 'Chọn gia phả muốn làm việc. Toàn bộ dữ liệu theo clan sẽ cập nhật theo lựa chọn này.',
+                  en: 'Choose the clan to work with. All clan-scoped data will follow this selection.',
+                ),
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              for (final option in _clanContexts)
+                Card(
+                  child: ListTile(
+                    onTap: () => Navigator.of(context).pop(option.clanId),
+                    leading: Icon(
+                      option.clanId.trim() == activeClanId
+                          ? Icons.check_circle
+                          : Icons.circle_outlined,
+                    ),
+                    title: Text(
+                      option.clanName.trim().isEmpty
+                          ? option.clanId
+                          : option.clanName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      _clanContextPopupSubtitle(option, l10n),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || selected == null) {
+      return;
+    }
+    await _switchClanContext(selected);
+  }
+
   @override
   Widget build(BuildContext context) {
     final layout = ResponsiveLayout.of(context);
@@ -519,7 +624,6 @@ class _AppShellPageState extends State<AppShellPage> {
     if (_selectedIndex >= destinations.length) {
       _selectedIndex = 0;
     }
-    final destination = destinations[_selectedIndex];
     final sessionTooltip = l10n.authEntryMethodSummary(_session.loginMethod);
     final readinessTooltip = widget.status.isReady
         ? l10n.shellReadinessReady
@@ -549,6 +653,9 @@ class _AppShellPageState extends State<AppShellPage> {
             _visitedDestinationIndexes.add(2);
           });
           _syncAdBannerAutoHideTimer();
+        },
+        onOpenUpcomingEventDetailRequested: (event) {
+          unawaited(_openUpcomingEventDetail(event));
         },
         onOpenMemorialChecklistRequested: () {
           unawaited(_openMemorialRitualWorkspace());
@@ -587,6 +694,8 @@ class _AppShellPageState extends State<AppShellPage> {
           child: DualCalendarWorkspacePage(
             session: _session,
             memberRepository: widget.memberRepository,
+            availableClanContexts: _clanContexts,
+            onSwitchClanContext: _switchClanContext,
           ),
         )
       else
@@ -622,7 +731,7 @@ class _AppShellPageState extends State<AppShellPage> {
     ];
 
     final appBar = AppBar(
-      title: Text(l10n.shellDestinationTitle(destination.id)),
+      title: Text(_activeClanAppBarTitle(l10n)),
       actions: _buildAppBarActions(
         l10n: l10n,
         sessionTooltip: sessionTooltip,
@@ -721,10 +830,16 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   List<Widget> _buildAppBarActions({
-    required dynamic l10n,
+    required AppLocalizations l10n,
     required String sessionTooltip,
     required String readinessTooltip,
   }) {
+    final canSwitchClan =
+        !_isLoadingClanContexts &&
+        !_isSwitchingClanContext &&
+        _clanContexts.length > 1;
+    final canLogout = widget.onLogoutRequested != null;
+
     return [
       if (_selectedIndex == 0)
         Padding(
@@ -747,39 +862,8 @@ class _AppShellPageState extends State<AppShellPage> {
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
         )
-      else if (_clanContexts.length > 1)
-        PopupMenuButton<String>(
-          tooltip: l10n.pick(vi: 'Chọn gia phả', en: 'Select clan'),
-          onSelected: (clanId) {
-            unawaited(_switchClanContext(clanId));
-          },
-          itemBuilder: (context) => [
-            for (final contextOption in _clanContexts)
-              PopupMenuItem<String>(
-                value: contextOption.clanId,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      contextOption.clanId == (_session.clanId ?? '').trim()
-                          ? '• ${contextOption.clanName}'
-                          : contextOption.clanName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _clanContextPopupSubtitle(contextOption, l10n),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-          ],
-          icon: const Icon(Icons.account_tree_outlined),
-        ),
+      else
+        const SizedBox(width: 4),
       Padding(
         padding: const EdgeInsets.only(right: 8),
         child: Tooltip(
@@ -789,16 +873,43 @@ class _AppShellPageState extends State<AppShellPage> {
           ),
         ),
       ),
-      if (widget.onLogoutRequested != null)
-        IconButton(
-          tooltip: l10n.shellLogout,
-          onPressed: _confirmLogoutRequest,
-          icon: const Icon(Icons.logout),
+      if (canSwitchClan || canLogout)
+        PopupMenuButton<_ShellOverflowAction>(
+          tooltip: l10n.pick(vi: 'Tùy chọn', en: 'Options'),
+          onSelected: (action) {
+            switch (action) {
+              case _ShellOverflowAction.switchClan:
+                unawaited(_openClanSwitcherSheet(l10n));
+              case _ShellOverflowAction.logout:
+                unawaited(_confirmLogoutRequest());
+            }
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem<_ShellOverflowAction>(
+              value: _ShellOverflowAction.switchClan,
+              enabled: canSwitchClan,
+              child: Text(
+                l10n.pick(
+                  vi: 'Chuyển qua gia phả khác',
+                  en: 'Switch to another clan',
+                ),
+              ),
+            ),
+            if (canLogout)
+              PopupMenuItem<_ShellOverflowAction>(
+                value: _ShellOverflowAction.logout,
+                child: Text(l10n.shellLogout),
+              ),
+          ],
+          icon: const Icon(Icons.more_horiz),
         ),
     ];
   }
 
-  String _clanContextPopupSubtitle(ClanContextOption option, dynamic l10n) {
+  String _clanContextPopupSubtitle(
+    ClanContextOption option,
+    AppLocalizations l10n,
+  ) {
     final ownerLabel = (option.ownerDisplayName ?? option.ownerUid ?? '')
         .trim();
     final planCode = (option.billingPlanCode ?? '').trim().toUpperCase();
@@ -835,6 +946,27 @@ class _AppShellPageState extends State<AppShellPage> {
           return EventWorkspacePage(
             session: _session,
             repository: createDefaultEventRepository(session: _session),
+            availableClanContexts: _clanContexts,
+            onSwitchClanContext: _switchClanContext,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openUpcomingEventDetail(EventRecord event) async {
+    if ((_session.clanId ?? '').trim().isEmpty) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return EventWorkspacePage(
+            session: _session,
+            repository: createDefaultEventRepository(session: _session),
+            availableClanContexts: _clanContexts,
+            onSwitchClanContext: _switchClanContext,
+            initialEventId: event.id,
           );
         },
       ),
@@ -1022,6 +1154,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.onOpenTreeRequested,
     required this.onOpenProfileRequested,
     required this.onOpenEventsRequested,
+    required this.onOpenUpcomingEventDetailRequested,
     required this.onOpenMemorialChecklistRequested,
     required this.onOpenJoinRequestsRequested,
   });
@@ -1036,9 +1169,27 @@ class _HomeDashboard extends StatelessWidget {
   final VoidCallback onOpenTreeRequested;
   final VoidCallback onOpenProfileRequested;
   final VoidCallback onOpenEventsRequested;
+  final ValueChanged<EventRecord> onOpenUpcomingEventDetailRequested;
   final VoidCallback onOpenMemorialChecklistRequested;
   final VoidCallback onOpenJoinRequestsRequested;
   bool get _hasClanContext => (session.clanId ?? '').trim().isNotEmpty;
+
+  String? get _activeClanName {
+    final clanId = (session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
+      return null;
+    }
+    for (final option in availableClanContexts) {
+      if (option.normalizedClanId != clanId) {
+        continue;
+      }
+      final clanName = option.clanName.trim();
+      if (clanName.isNotEmpty) {
+        return clanName;
+      }
+    }
+    return null;
+  }
 
   List<AppShortcut> get _availableShortcuts {
     return bootstrapShortcuts;
@@ -1094,7 +1245,9 @@ class _HomeDashboard extends StatelessWidget {
               children: [
                 _UpcomingEventSection(
                   session: session,
-                  onOpenEventsRequested: onOpenEventsRequested,
+                  activeClanName: _activeClanName,
+                  onOpenEventDetailRequested:
+                      onOpenUpcomingEventDetailRequested,
                 ),
                 const SizedBox(height: 24),
                 _TodoSection(
@@ -1288,7 +1441,6 @@ class _HomeDashboard extends StatelessWidget {
                 repository: fundRepository,
                 memberRepository: memberRepository,
                 availableClanContexts: availableClanContexts,
-                onSwitchClanContext: onSwitchClanContext,
               );
             },
           ),
@@ -1465,11 +1617,13 @@ String _formatDashboardDateTime(DateTime utcValue) {
 class _UpcomingEventSection extends StatefulWidget {
   const _UpcomingEventSection({
     required this.session,
-    required this.onOpenEventsRequested,
+    required this.activeClanName,
+    required this.onOpenEventDetailRequested,
   });
 
   final AuthSession session;
-  final VoidCallback onOpenEventsRequested;
+  final String? activeClanName;
+  final ValueChanged<EventRecord> onOpenEventDetailRequested;
 
   @override
   State<_UpcomingEventSection> createState() => _UpcomingEventSectionState();
@@ -1502,7 +1656,8 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
   @override
   void didUpdateWidget(covariant _UpcomingEventSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.session != widget.session) {
+    if (oldWidget.session != widget.session ||
+        oldWidget.activeClanName != widget.activeClanName) {
       _eventRepository = createDefaultEventRepository(session: widget.session);
       setState(() {
         _upcomingFuture = _loadUpcomingEvent();
@@ -1532,9 +1687,18 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
       final snapshot = await _eventRepository.loadWorkspace(
         session: widget.session,
       );
-      final nowUtc = DateTime.now().toUtc();
+      final nowLocal = DateTime.now();
       final upcoming = snapshot.events
-          .where((event) => _isVisibleUpcomingEvent(event, nowUtc))
+          .map(
+            (event) => (
+              event: event,
+              nextStartsAt: _nextUpcomingStartAt(event, nowLocal),
+            ),
+          )
+          .where((entry) => entry.nextStartsAt != null)
+          .map(
+            (entry) => (event: entry.event, nextStartsAt: entry.nextStartsAt!),
+          )
           .toList(growable: false);
       if (upcoming.isEmpty) {
         return null;
@@ -1542,20 +1706,22 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
 
       final normalizedMemberId = (widget.session.memberId ?? '').trim();
       final userScopedUpcoming = normalizedMemberId.isEmpty
-          ? const <EventRecord>[]
+          ? const <({EventRecord event, DateTime nextStartsAt})>[]
           : upcoming
                 .where(
                   (event) =>
-                      (event.targetMemberId ?? '').trim() == normalizedMemberId,
+                      (event.event.targetMemberId ?? '').trim() ==
+                      normalizedMemberId,
                 )
                 .toList(growable: false);
       final prioritized = userScopedUpcoming.isNotEmpty
           ? userScopedUpcoming
           : upcoming;
       prioritized.sort(
-        (left, right) => left.startsAt.compareTo(right.startsAt),
+        (left, right) => left.nextStartsAt.compareTo(right.nextStartsAt),
       );
-      final event = prioritized.first;
+      final next = prioritized.first;
+      final event = next.event;
       final branchName = event.branchId == null
           ? null
           : snapshot.branches
@@ -1566,13 +1732,49 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
       final hostHousehold = event.locationName.trim().isNotEmpty
           ? event.locationName.trim()
           : branchName;
-      return _UpcomingEventData(event: event, hostHousehold: hostHousehold);
+      return _UpcomingEventData(
+        event: event,
+        hostHousehold: hostHousehold,
+        clanName: _resolvedClanName(),
+        startsAt: next.nextStartsAt,
+      );
     } catch (_) {
       return null;
     }
   }
 
-  bool _isVisibleUpcomingEvent(EventRecord event, DateTime nowUtc) {
+  String? _resolvedClanName() {
+    final activeClanName = widget.activeClanName?.trim() ?? '';
+    if (activeClanName.isNotEmpty) {
+      return activeClanName;
+    }
+    return null;
+  }
+
+  DateTime? _nextUpcomingStartAt(EventRecord event, DateTime nowLocal) {
+    if (!_isVisibleUpcomingEvent(event)) {
+      return null;
+    }
+
+    final localStart = event.startsAt.toLocal();
+    if (!localStart.isBefore(nowLocal)) {
+      return localStart;
+    }
+
+    if (!_isYearlyRecurringEvent(event)) {
+      return null;
+    }
+
+    var nextYear = nowLocal.year;
+    var yearlyOccurrence = _safeYearlyOccurrence(localStart, nextYear);
+    if (yearlyOccurrence.isBefore(nowLocal)) {
+      nextYear += 1;
+      yearlyOccurrence = _safeYearlyOccurrence(localStart, nextYear);
+    }
+    return yearlyOccurrence;
+  }
+
+  bool _isVisibleUpcomingEvent(EventRecord event) {
     final normalizedStatus = event.status.trim().toLowerCase();
     if (normalizedStatus == 'cancelled' ||
         normalizedStatus == 'canceled' ||
@@ -1582,8 +1784,43 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
       return false;
     }
 
-    final effectiveEndAt = event.endsAt ?? event.startsAt;
-    return !effectiveEndAt.isBefore(nowUtc);
+    return true;
+  }
+
+  bool _isYearlyRecurringEvent(EventRecord event) {
+    if (!event.isRecurring) {
+      return false;
+    }
+    final normalizedRule = event.recurrenceRule?.trim().toUpperCase() ?? '';
+    return normalizedRule.contains('FREQ=YEARLY');
+  }
+
+  DateTime _safeYearlyOccurrence(DateTime localStart, int year) {
+    final occurrence = DateTime(
+      year,
+      localStart.month,
+      localStart.day,
+      localStart.hour,
+      localStart.minute,
+      localStart.second,
+      localStart.millisecond,
+      localStart.microsecond,
+    );
+    if (occurrence.month == localStart.month &&
+        occurrence.day == localStart.day) {
+      return occurrence;
+    }
+    final fallbackDay = DateTime(year, localStart.month + 1, 0).day;
+    return DateTime(
+      year,
+      localStart.month,
+      fallbackDay,
+      localStart.hour,
+      localStart.minute,
+      localStart.second,
+      localStart.millisecond,
+      localStart.microsecond,
+    );
   }
 
   @override
@@ -1662,9 +1899,11 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
                       ),
                     ),
                     TextButton(
-                      onPressed: widget.onOpenEventsRequested,
+                      onPressed: () {
+                        widget.onOpenEventDetailRequested(event);
+                      },
                       child: Text(
-                        l10n.pick(vi: 'Mở lịch', en: 'Open calendar'),
+                        l10n.pick(vi: 'Xem chi tiết', en: 'View details'),
                       ),
                     ),
                     IconButton(
@@ -1690,7 +1929,7 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  _formatDashboardDateTime(event.startsAt),
+                  _formatDashboardDateTime(data.startsAt),
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -1702,6 +1941,16 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
                     en: 'Household/branch: $hostLabel',
                   ),
                   style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  l10n.pick(
+                    vi: 'Họ tộc: ${(data.clanName?.trim().isNotEmpty ?? false) ? data.clanName!.trim() : 'Họ tộc hiện tại'}',
+                    en: 'Clan: ${(data.clanName?.trim().isNotEmpty ?? false) ? data.clanName!.trim() : 'Current clan'}',
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 if (event.locationAddress.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -1733,10 +1982,17 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
 }
 
 class _UpcomingEventData {
-  const _UpcomingEventData({required this.event, required this.hostHousehold});
+  const _UpcomingEventData({
+    required this.event,
+    required this.hostHousehold,
+    required this.clanName,
+    required this.startsAt,
+  });
 
   final EventRecord event;
   final String? hostHousehold;
+  final String? clanName;
+  final DateTime startsAt;
 }
 
 class _TodoSection extends StatefulWidget {
@@ -1867,8 +2123,8 @@ class _TodoSectionState extends State<_TodoSection> {
       (
         icon: Icons.history_edu_outlined,
         title: l10n.pick(
-          vi: 'Rà soát danh sách giỗ và dỗ trạp',
-          en: 'Review memorial and ritual checklists',
+          vi: 'Xem danh sách giỗ kỵ',
+          en: 'View memorial checklist',
         ),
         onTap: widget.onOpenMemorialChecklistRequested,
       ),

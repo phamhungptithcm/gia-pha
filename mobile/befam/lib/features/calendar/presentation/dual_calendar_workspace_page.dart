@@ -13,6 +13,7 @@ import '../../events/presentation/event_workspace_page.dart';
 import '../../events/services/event_repository.dart';
 import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
+import '../../auth/models/clan_context_option.dart';
 import '../../clan/models/branch_profile.dart';
 import '../../events/models/event_type.dart';
 import '../../member/models/member_profile.dart';
@@ -37,6 +38,8 @@ class DualCalendarWorkspacePage extends StatefulWidget {
   const DualCalendarWorkspacePage({
     super.key,
     this.session,
+    this.availableClanContexts = const [],
+    this.onSwitchClanContext,
     this.controller,
     this.eventStore,
     this.holidayRepository,
@@ -45,6 +48,8 @@ class DualCalendarWorkspacePage extends StatefulWidget {
   });
 
   final AuthSession? session;
+  final List<ClanContextOption> availableClanContexts;
+  final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
   final DualCalendarController? controller;
   final DualCalendarEventStore? eventStore;
   final LunarHolidayRepository? holidayRepository;
@@ -404,6 +409,8 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
           return EventWorkspacePage(
             session: session,
             repository: createDefaultEventRepository(session: session),
+            availableClanContexts: widget.availableClanContexts,
+            onSwitchClanContext: widget.onSwitchClanContext,
           );
         },
       ),

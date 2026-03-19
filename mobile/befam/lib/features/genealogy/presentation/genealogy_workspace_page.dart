@@ -3974,10 +3974,13 @@ class _FactLine extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(child: Text(value)),
-                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+                if (trailing != null) ...[
+                  const SizedBox(width: 8),
+                  Align(alignment: Alignment.centerRight, child: trailing!),
+                ],
               ],
             ),
           ),

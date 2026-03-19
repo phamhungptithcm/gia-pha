@@ -175,6 +175,26 @@ class EventController extends ChangeNotifier {
 
   int get memorialCount => _memorialCount;
 
+  DateTime displayStartsAt(EventRecord event, {DateTime? now}) {
+    final referenceNow = (now ?? _nowProvider()).toLocal();
+    return _displayStartsAtLocal(event, nowLocal: referenceNow);
+  }
+
+  DateTime? displayEndsAt(EventRecord event, {DateTime? now}) {
+    final endsAt = event.endsAt;
+    if (endsAt == null) {
+      return null;
+    }
+    if (!_isYearlyRecurring(event)) {
+      return endsAt.toLocal();
+    }
+    final startLocal = event.startsAt.toLocal();
+    final endLocal = endsAt.toLocal();
+    final duration = endLocal.difference(startLocal);
+    final displayStart = displayStartsAt(event, now: now);
+    return displayStart.add(duration);
+  }
+
   List<MemorialChecklistItem> get memorialChecklistItems =>
       _memorialChecklistItems;
 
@@ -323,10 +343,6 @@ class EventController extends ChangeNotifier {
     bool allowLongevityPersistence = true,
   }) async {
     final nowLocal = _nowProvider().toLocal();
-    final now = nowLocal.toUtc();
-    _memorialCount = _events
-        .where((event) => event.eventType.isMemorial)
-        .length;
     _recomputeMemorialChecklist();
     _recomputeMemorialRitualChecklist();
     final draftsToPersist = await _recomputeLongevityCelebration(
@@ -345,9 +361,14 @@ class EventController extends ChangeNotifier {
       return;
     }
     _upcomingCount = _eventsForDisplay
-        .where((event) => !event.startsAt.isBefore(now))
+        .where((event) => _isUpcomingForDisplay(event, nowLocal: nowLocal))
+        .where((event) => !event.eventType.isMemorial)
         .length;
-    _recomputeFilteredEvents(now: now);
+    _memorialCount = _eventsForDisplay
+        .where((event) => _isUpcomingForDisplay(event, nowLocal: nowLocal))
+        .where((event) => event.eventType.isMemorial)
+        .length;
+    _recomputeFilteredEvents(nowLocal: nowLocal);
   }
 
   void _recomputeMemorialChecklist() {
@@ -720,12 +741,35 @@ class EventController extends ChangeNotifier {
     required int year,
     required int month,
     required int day,
+    int hour = 0,
+    int minute = 0,
+    int second = 0,
+    int millisecond = 0,
+    int microsecond = 0,
   }) {
-    final date = DateTime(year, month, day);
+    final date = DateTime(
+      year,
+      month,
+      day,
+      hour,
+      minute,
+      second,
+      millisecond,
+      microsecond,
+    );
     if (date.year == year && date.month == month && date.day == day) {
       return date;
     }
-    return DateTime(year, month + 1, 0);
+    return DateTime(
+      year,
+      month + 1,
+      0,
+      hour,
+      minute,
+      second,
+      millisecond,
+      microsecond,
+    );
   }
 
   bool _isMemberAlive(MemberProfile member) {
@@ -847,12 +891,15 @@ class EventController extends ChangeNotifier {
     }
   }
 
-  void _recomputeFilteredEvents({DateTime? now}) {
+  void _recomputeFilteredEvents({DateTime? nowLocal}) {
     final normalizedQuery = _query.trim().toLowerCase();
-    final nowDate = now ?? _nowProvider().toUtc();
+    final referenceNow = (nowLocal ?? _nowProvider()).toLocal();
 
     final values = _eventsForDisplay
         .where((event) {
+          if (!_isUpcomingForDisplay(event, nowLocal: referenceNow)) {
+            return false;
+          }
           if (_typeFilter != null && event.eventType != _typeFilter) {
             return false;
           }
@@ -870,16 +917,60 @@ class EventController extends ChangeNotifier {
         })
         .toList(growable: false);
 
-    values.sort((left, right) {
-      final leftUpcoming = !left.startsAt.isBefore(nowDate);
-      final rightUpcoming = !right.startsAt.isBefore(nowDate);
-      if (leftUpcoming != rightUpcoming) {
-        return leftUpcoming ? -1 : 1;
-      }
-      return left.startsAt.compareTo(right.startsAt);
-    });
+    values.sort(
+      (left, right) => _displayStartsAtLocal(
+        left,
+        nowLocal: referenceNow,
+      ).compareTo(_displayStartsAtLocal(right, nowLocal: referenceNow)),
+    );
 
     _filteredEvents = values;
+  }
+
+  bool _isUpcomingForDisplay(EventRecord event, {required DateTime nowLocal}) {
+    final displayStart = _displayStartsAtLocal(event, nowLocal: nowLocal);
+    return !displayStart.isBefore(nowLocal);
+  }
+
+  DateTime _displayStartsAtLocal(
+    EventRecord event, {
+    required DateTime nowLocal,
+  }) {
+    if (!_isYearlyRecurring(event)) {
+      return event.startsAt.toLocal();
+    }
+    final startsAtLocal = event.startsAt.toLocal();
+    var candidate = _safeLocalDate(
+      year: nowLocal.year,
+      month: startsAtLocal.month,
+      day: startsAtLocal.day,
+      hour: startsAtLocal.hour,
+      minute: startsAtLocal.minute,
+      second: startsAtLocal.second,
+      millisecond: startsAtLocal.millisecond,
+      microsecond: startsAtLocal.microsecond,
+    );
+    if (candidate.isBefore(nowLocal)) {
+      candidate = _safeLocalDate(
+        year: nowLocal.year + 1,
+        month: startsAtLocal.month,
+        day: startsAtLocal.day,
+        hour: startsAtLocal.hour,
+        minute: startsAtLocal.minute,
+        second: startsAtLocal.second,
+        millisecond: startsAtLocal.millisecond,
+        microsecond: startsAtLocal.microsecond,
+      );
+    }
+    return candidate;
+  }
+
+  bool _isYearlyRecurring(EventRecord event) {
+    if (!event.isRecurring) {
+      return false;
+    }
+    final recurrenceRule = event.recurrenceRule?.trim().toUpperCase() ?? '';
+    return recurrenceRule.contains('FREQ=YEARLY');
   }
 }
 
