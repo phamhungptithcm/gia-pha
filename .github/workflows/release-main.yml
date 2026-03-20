@@ -165,7 +165,7 @@ jobs:
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
-          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
@@ -329,7 +329,7 @@ jobs:
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
-          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY

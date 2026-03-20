@@ -138,8 +138,8 @@ export const searchGenealogyDiscovery = onCall(
     const limit = resolveLimit(request.data);
 
     const baseQuery = discoveryCollection.where('isPublic', '==', true);
-    const scanLimit = Math.max(200, limit * 12);
-    const pageSize = Math.min(100, Math.max(limit * 2, 40));
+    const scanLimit = Math.min(600, Math.max(120, limit * 6));
+    const pageSize = Math.min(80, Math.max(limit, 30));
     const candidates: Array<{ id: string } & DiscoveryRecord> = [];
     let scanned = 0;
     let cursor: QueryDocumentSnapshot<DocumentData> | null = null;

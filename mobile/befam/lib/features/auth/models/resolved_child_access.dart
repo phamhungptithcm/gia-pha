@@ -1,7 +1,7 @@
 class ResolvedChildAccess {
   const ResolvedChildAccess({
     required this.childIdentifier,
-    required this.parentPhoneE164,
+    required this.maskedDestination,
     this.memberId,
     this.displayName,
     this.clanId,
@@ -10,7 +10,7 @@ class ResolvedChildAccess {
   });
 
   final String childIdentifier;
-  final String parentPhoneE164;
+  final String maskedDestination;
   final String? memberId;
   final String? displayName;
   final String? clanId;

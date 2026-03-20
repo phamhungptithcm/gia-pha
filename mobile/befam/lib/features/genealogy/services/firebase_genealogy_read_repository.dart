@@ -170,7 +170,7 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
   Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchPagedDocuments(
     Query<Map<String, dynamic>> baseQuery, {
     int pageSize = 250,
-    int maxDocuments = 6000,
+    int maxDocuments = 3000,
   }) async {
     final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
     QueryDocumentSnapshot<Map<String, dynamic>>? cursor;

@@ -65,11 +65,11 @@ type InviteRecord = {
 
 type ResolvedChildLoginContext = {
   childIdentifier: string;
-  parentPhoneE164: string;
   maskedDestination: string;
 };
 
 type InternalResolvedChildLoginContext = ResolvedChildLoginContext & {
+  parentPhoneE164: string;
   memberId: string;
   displayName: string;
   clanId: string;
@@ -323,7 +323,6 @@ export const resolveChildLoginContext = onCall(
 
     return {
       childIdentifier: resolved.childIdentifier,
-      parentPhoneE164: resolved.parentPhoneE164,
       maskedDestination: resolved.maskedDestination,
     };
   },
@@ -397,7 +396,6 @@ export const requestOtpChallenge = onCall(
       provider: 'twilio',
       verificationId: sessionRef.id,
       maskedDestination: maskPhone(phoneE164),
-      phoneE164,
       loginMethod,
       childIdentifier,
       memberId,
@@ -1352,6 +1350,18 @@ export const lookupMemberProfileByPhone = onCall(
         'This session cannot lookup member profiles across the system.',
       );
     }
+    const allowCrossClanLookup = role === 'SUPER_ADMIN';
+    const scopedClanIds = new Set(extractTokenClanIds(auth.token));
+    const activeClanId = optionalString(auth.token, 'clanId')?.trim() ?? '';
+    if (activeClanId.length > 0) {
+      scopedClanIds.add(activeClanId);
+    }
+    if (!allowCrossClanLookup && scopedClanIds.size === 0) {
+      throw new HttpsError(
+        'permission-denied',
+        'This session has no clan scope for member profile lookup.',
+      );
+    }
 
     const phoneInput = requireNonEmptyString(request.data, 'phoneE164');
     const phoneE164 = normalizePhoneE164(phoneInput);
@@ -1363,6 +1373,13 @@ export const lookupMemberProfileByPhone = onCall(
 
     const candidate = memberSnapshots
       .map((doc) => ({ id: doc.id, data: doc.data() as MemberRecord }))
+      .filter(({ data }) => {
+        if (allowCrossClanLookup) {
+          return true;
+        }
+        const candidateClanId = optionalTrimmedRecordString(data.clanId);
+        return candidateClanId != null && scopedClanIds.has(candidateClanId);
+      })
       .sort((left, right) => {
         const byScore = memberLookupScore(right.data) - memberLookupScore(left.data);
         if (byScore !== 0) {
@@ -1370,6 +1387,9 @@ export const lookupMemberProfileByPhone = onCall(
         }
         return left.id.localeCompare(right.id);
       })[0];
+    if (candidate == null) {
+      return { found: false, profile: null };
+    }
 
     return {
       found: true,

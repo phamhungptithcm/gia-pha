@@ -2,6 +2,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import {
   BILLING_CONTACT_EMAIL_WEBHOOK_URL,
+  BILLING_CONTACT_NOTICE_REQUIRE_ENDPOINTS,
   BILLING_CONTACT_SMS_WEBHOOK_URL,
   BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS,
   BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES,
@@ -11,7 +12,7 @@ import {
 } from '../config/runtime';
 import { db } from '../shared/firestore';
 import { notifyMembers } from '../notifications/push-delivery';
-import { logInfo, logWarn } from '../shared/logger';
+import { logError, logInfo, logWarn } from '../shared/logger';
 import { resolveBillingAudienceMemberIds } from './store';
 
 type DelinquencyRunInput = {
@@ -846,6 +847,21 @@ export async function dispatchBillingContactNoticesRun(
     skippedNoEndpoint,
     skippedInvalidPayload,
   };
+  if (skippedNoEndpoint > 0) {
+    logError('billing contact notice dispatch skipped due to missing webhook endpoint', {
+      skippedNoEndpoint,
+      scanned: snapshot.size,
+      source: input.source,
+      smsEnabled: NOTIFICATION_ALLOW_NON_OTP_SMS,
+      smsWebhookConfigured: BILLING_CONTACT_SMS_WEBHOOK_URL.trim().length > 0,
+      emailWebhookConfigured: BILLING_CONTACT_EMAIL_WEBHOOK_URL.trim().length > 0,
+    });
+    if (BILLING_CONTACT_NOTICE_REQUIRE_ENDPOINTS) {
+      throw new Error(
+        `Missing billing contact notice webhook endpoints for ${skippedNoEndpoint} queued notices.`,
+      );
+    }
+  }
   logInfo('billing contact notice dispatch run complete', result);
   return result;
 }
