@@ -24,7 +24,7 @@ class DebugAuthGateway implements AuthGateway {
   static const Map<String, ResolvedChildAccess> _childDirectory = {
     'BEFAM-CHILD-001': ResolvedChildAccess(
       childIdentifier: 'BEFAM-CHILD-001',
-      parentPhoneE164: '+84901234567',
+      maskedDestination: '*** *** 4567',
       memberId: 'member_demo_child_001',
       displayName: 'Bé Minh',
       clanId: 'clan_demo_001',
@@ -33,7 +33,7 @@ class DebugAuthGateway implements AuthGateway {
     ),
     'BEFAM-CHILD-002': ResolvedChildAccess(
       childIdentifier: 'BEFAM-CHILD-002',
-      parentPhoneE164: '+84908886655',
+      maskedDestination: '*** *** 6655',
       memberId: 'member_demo_child_002',
       displayName: 'Bé Lan',
       clanId: 'clan_demo_001',
@@ -131,8 +131,8 @@ class DebugAuthGateway implements AuthGateway {
     return AuthOtpRequestResult.challenge(
       PendingOtpChallenge(
         loginMethod: AuthEntryMethod.child,
-        phoneE164: resolved.parentPhoneE164,
-        maskedDestination: PhoneNumberFormatter.mask(resolved.parentPhoneE164),
+        phoneE164: '',
+        maskedDestination: resolved.maskedDestination,
         verificationId: 'debug-child-${resolved.childIdentifier}',
         childIdentifier: resolved.childIdentifier,
         memberId: resolved.memberId,

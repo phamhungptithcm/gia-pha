@@ -81,23 +81,49 @@ def _extract_server_only_collections(firestore_rules: str) -> set[str]:
     return collections
 
 
+def _extract_storage_limit_for_match(
+    storage_rules: str,
+    match_path_pattern: str,
+) -> int | None:
+    block = re.search(
+        rf"match\s+/{match_path_pattern}\s*\{{(?P<body>.*?)\n\s*\}}",
+        storage_rules,
+        flags=re.DOTALL,
+    )
+    if not block:
+        return None
+
+    body = block.group("body")
+    direct = re.search(
+        r"request\.resource\.size\s*<\s*(\d+)\s*\*\s*1024\s*\*\s*1024",
+        body,
+    )
+    if direct:
+        return int(direct.group(1))
+
+    helper_call = re.search(
+        r"isValidWritePayload\(\s*(\d+)\s*\*\s*1024\s*\*\s*1024\s*\)",
+        body,
+    )
+    if helper_call:
+        return int(helper_call.group(1))
+
+    return None
+
+
 def _extract_storage_limits_mb(storage_rules: str) -> tuple[int, int]:
-    avatar_match = re.search(
-        r"match\s+/clans/\{clanId\}/members/\{memberId\}/avatar/\{fileName\}\s*\{.*?"
-        r"request\.resource\.size\s*<\s*(\d+)\s*\*\s*1024\s*\*\s*1024",
+    avatar_limit = _extract_storage_limit_for_match(
         storage_rules,
-        flags=re.DOTALL,
+        r"clans/\{clanId\}/members/\{memberId\}/avatar/\{fileName\}",
     )
-    submission_match = re.search(
-        r"match\s+/submissions/\{clanId\}/\{memberId\}/\{fileName\}\s*\{.*?"
-        r"request\.resource\.size\s*<\s*(\d+)\s*\*\s*1024\s*\*\s*1024",
+    submission_limit = _extract_storage_limit_for_match(
         storage_rules,
-        flags=re.DOTALL,
+        r"submissions/\{clanId\}/\{memberId\}/\{fileName\}",
     )
-    if not avatar_match or not submission_match:
+    if avatar_limit is None or submission_limit is None:
         raise ValueError("Unable to parse storage upload limits from firebase/storage.rules.")
 
-    return int(avatar_match.group(1)), int(submission_match.group(1))
+    return avatar_limit, submission_limit
 
 
 def main() -> int:
