@@ -25,15 +25,6 @@ const configPath = `${configCollection}/${configDocId}`;
 
 const billing = {
   ...optionalStringEntry('cardCheckoutUrlBase', 'BILLING_CARD_CHECKOUT_URL_BASE'),
-  ...optionalStringEntry('vnpayFallbackUrl', 'BILLING_VNPAY_FALLBACK_URL'),
-  ...optionalStringEntry('vnpayGatewayBaseUrl', 'BILLING_VNPAY_GATEWAY_BASE_URL'),
-  ...optionalStringEntry('vnpayReturnUrl', 'VNPAY_RETURN_URL'),
-  ...optionalStringEntry('vnpayIpAddress', 'BILLING_VNPAY_IP_ADDRESS'),
-  ...optionalStringEntry('vnpayLocale', 'BILLING_VNPAY_LOCALE'),
-  ...optionalBoolEntry('qrCheckoutEnabled', 'BILLING_QR_CHECKOUT_ENABLED'),
-  ...optionalStringEntry('qrImageBaseUrl', 'BILLING_QR_IMAGE_BASE_URL'),
-  ...optionalStringEntry('qrImagePlusUrl', 'BILLING_QR_IMAGE_PLUS_URL'),
-  ...optionalStringEntry('qrImageProUrl', 'BILLING_QR_IMAGE_PRO_URL'),
   ...optionalIntEntry('pendingTimeoutMinutes', 'BILLING_PENDING_TIMEOUT_MINUTES'),
   ...optionalIntEntry('pendingTimeoutLimit', 'BILLING_PENDING_TIMEOUT_LIMIT'),
   ...optionalIntEntry('delinquencyGraceDays', 'BILLING_DELINQUENCY_GRACE_DAYS'),
@@ -88,21 +79,6 @@ function optionalIntEntry(targetKey, sourceEnv) {
     return {};
   }
   return { [targetKey]: parsed };
-}
-
-function optionalBoolEntry(targetKey, sourceEnv) {
-  const raw = readString(sourceEnv);
-  if (!raw) {
-    return {};
-  }
-  const normalized = raw.toLowerCase();
-  if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
-    return { [targetKey]: true };
-  }
-  if (normalized === 'false' || normalized === '0' || normalized === 'no') {
-    return { [targetKey]: false };
-  }
-  return {};
 }
 
 function optionalIntListEntry(targetKey, sourceEnv) {

@@ -958,6 +958,28 @@ class _NotificationSettingsPanel extends StatelessWidget {
         ],
         const SizedBox(height: 8),
         SwitchListTile.adaptive(
+          key: const Key('notification-setting-push-enabled'),
+          value: prefs.pushEnabled,
+          onChanged: isSaving
+              ? null
+              : (value) {
+                  unawaited(controller.updatePushEnabledPreference(value));
+                },
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.notificationSettingsPushChannel),
+        ),
+        SwitchListTile.adaptive(
+          key: const Key('notification-setting-email-enabled'),
+          value: prefs.emailEnabled,
+          onChanged: isSaving
+              ? null
+              : (value) {
+                  unawaited(controller.updateEmailEnabledPreference(value));
+                },
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.notificationSettingsEmailChannel),
+        ),
+        SwitchListTile.adaptive(
           key: const Key('notification-setting-event-updates'),
           value: prefs.eventReminders,
           onChanged: isSaving
@@ -1013,6 +1035,11 @@ class _NotificationSettingsPanel extends StatelessWidget {
                 },
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.notificationSettingsQuietHours),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          l10n.notificationSettingsSmsOtpOnlyNote,
+          style: theme.textTheme.bodySmall,
         ),
       ],
     );

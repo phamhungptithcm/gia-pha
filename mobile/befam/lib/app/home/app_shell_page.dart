@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../core/services/firebase_services.dart';
 import '../../core/widgets/member_phone_action.dart';
 import '../../core/widgets/address_action_tools.dart';
 import '../../features/billing/presentation/billing_workspace_page.dart';
@@ -2473,9 +2475,14 @@ class _NearbyRelativesSection extends StatefulWidget {
 
 class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
   static const int _maxCandidateCount = 80;
+  static const int _nearbyQueryPageSize = 120;
+  static const int _maxNearbyScanDocuments = 1200;
   static const Duration _liveLocationMaxAge = Duration(hours: 12);
 
   late Future<_NearbyRelativeLoadResult> _future;
+
+  CollectionReference<Map<String, dynamic>> get _membersCollection =>
+      FirebaseServices.firestore.collection('members');
 
   @override
   void initState() {
@@ -2578,39 +2585,38 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
       }
     }
 
-    final snapshot = await widget.memberRepository.loadWorkspace(
-      session: widget.session,
-    );
     final activeUid = widget.session.uid.trim();
-    final membersById = <String, MemberProfile>{
-      for (final member in snapshot.members) member.id: member,
-    };
-
-    final candidates = snapshot.members
-        .where((member) {
-          if (member.clanId.trim() != activeClanId) {
-            return false;
-          }
-          if (!member.locationSharingEnabled ||
-              !_memberHasShareableCoordinates(member) ||
-              !_isMemberLocationFresh(member)) {
-            return false;
-          }
-          if (activeMemberId.isNotEmpty && member.id == activeMemberId) {
-            return false;
-          }
-          if (activeUid.isNotEmpty &&
-              (member.authUid ?? '').trim() == activeUid) {
-            return false;
-          }
-          final status = member.status.trim().toLowerCase();
-          if (status == 'inactive' || status == 'deleted') {
-            return false;
-          }
-          return true;
-        })
-        .take(_maxCandidateCount)
-        .toList(growable: false);
+    List<MemberProfile> candidates;
+    Map<String, MemberProfile> membersById;
+    try {
+      candidates = await _loadNearbyCandidateMembers(
+        clanId: activeClanId,
+        activeMemberId: activeMemberId,
+        activeUid: activeUid,
+      );
+      membersById = await _loadNearbyRelationContext(candidates);
+      for (final candidate in candidates) {
+        membersById[candidate.id] = candidate;
+      }
+    } catch (_) {
+      final snapshot = await widget.memberRepository.loadWorkspace(
+        session: widget.session,
+      );
+      membersById = <String, MemberProfile>{
+        for (final member in snapshot.members) member.id: member,
+      };
+      candidates = snapshot.members
+          .where(
+            (member) => _isNearbyCandidateMember(
+              member,
+              activeClanId: activeClanId,
+              activeMemberId: activeMemberId,
+              activeUid: activeUid,
+            ),
+          )
+          .take(_maxCandidateCount)
+          .toList(growable: false);
+    }
 
     final nearbyItems = <_NearbyRelative>[];
     for (final member in candidates) {
@@ -2660,6 +2666,153 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
         en: 'Found ${nearbyItems.length} relatives that may be near you.',
       ),
     );
+  }
+
+  Future<List<MemberProfile>> _loadNearbyCandidateMembers({
+    required String clanId,
+    required String activeMemberId,
+    required String activeUid,
+  }) async {
+    final candidates = <MemberProfile>[];
+    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
+    var scannedCount = 0;
+    while (candidates.length < _maxCandidateCount &&
+        scannedCount < _maxNearbyScanDocuments) {
+      Query<Map<String, dynamic>> query = _membersCollection
+          .where('clanId', isEqualTo: clanId)
+          .where('locationSharingEnabled', isEqualTo: true)
+          .limit(_nearbyQueryPageSize);
+      if (cursor != null) {
+        query = query.startAfterDocument(cursor);
+      }
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        break;
+      }
+      scannedCount += snapshot.docs.length;
+      cursor = snapshot.docs.last;
+
+      for (final doc in snapshot.docs) {
+        final member = _memberFromSnapshot(doc);
+        if (!_isNearbyCandidateMember(
+          member,
+          activeClanId: clanId,
+          activeMemberId: activeMemberId,
+          activeUid: activeUid,
+        )) {
+          continue;
+        }
+        candidates.add(member);
+        if (candidates.length >= _maxCandidateCount) {
+          break;
+        }
+      }
+
+      if (snapshot.docs.length < _nearbyQueryPageSize) {
+        break;
+      }
+    }
+    return candidates;
+  }
+
+  Future<Map<String, MemberProfile>> _loadNearbyRelationContext(
+    List<MemberProfile> candidates,
+  ) async {
+    final parentIds = <String>{};
+    for (final candidate in candidates) {
+      for (final parentId in candidate.parentIds) {
+        final normalized = parentId.trim();
+        if (normalized.isNotEmpty) {
+          parentIds.add(normalized);
+        }
+      }
+    }
+    final parentsById = await _loadMembersByIds(parentIds);
+    if (parentsById.isEmpty) {
+      return {};
+    }
+
+    final grandParentIds = <String>{};
+    for (final parent in parentsById.values) {
+      for (final grandParentId in parent.parentIds) {
+        final normalized = grandParentId.trim();
+        if (normalized.isNotEmpty) {
+          grandParentIds.add(normalized);
+        }
+      }
+    }
+    if (grandParentIds.isEmpty) {
+      return parentsById;
+    }
+    final grandParentsById = await _loadMembersByIds(grandParentIds);
+    return <String, MemberProfile>{...parentsById, ...grandParentsById};
+  }
+
+  Future<Map<String, MemberProfile>> _loadMembersByIds(
+    Set<String> memberIds,
+  ) async {
+    final normalized = memberIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (normalized.isEmpty) {
+      return {};
+    }
+
+    final membersById = <String, MemberProfile>{};
+    for (var offset = 0; offset < normalized.length; offset += 30) {
+      final nextOffset = math.min(offset + 30, normalized.length);
+      final chunk = normalized.sublist(offset, nextOffset);
+      final snapshot = await _membersCollection
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
+      for (final doc in snapshot.docs) {
+        final member = _memberFromSnapshot(doc);
+        if (member.id.trim().isNotEmpty) {
+          membersById[member.id] = member;
+        }
+      }
+    }
+    return membersById;
+  }
+
+  MemberProfile _memberFromSnapshot(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data();
+    final rawId = (data['id'] as String?)?.trim() ?? '';
+    return MemberProfile.fromJson({
+      ...data,
+      'id': rawId.isNotEmpty ? rawId : doc.id,
+    });
+  }
+
+  bool _isNearbyCandidateMember(
+    MemberProfile member, {
+    required String activeClanId,
+    required String activeMemberId,
+    required String activeUid,
+  }) {
+    if (member.clanId.trim() != activeClanId) {
+      return false;
+    }
+    if (!member.locationSharingEnabled ||
+        !_memberHasShareableCoordinates(member) ||
+        !_isMemberLocationFresh(member)) {
+      return false;
+    }
+    if (activeMemberId.isNotEmpty && member.id == activeMemberId) {
+      return false;
+    }
+    if (activeUid.isNotEmpty && (member.authUid ?? '').trim() == activeUid) {
+      return false;
+    }
+    final status = member.status.trim().toLowerCase();
+    if (status == 'inactive' || status == 'deleted') {
+      return false;
+    }
+    return true;
   }
 
   bool _memberHasShareableCoordinates(MemberProfile member) {

@@ -6,6 +6,7 @@ import {
   claimMemberRecord,
   createUnlinkedPhoneIdentity,
   createInvite,
+  requestOtpChallenge,
   listUserClanContexts,
   lookupMemberProfileByPhone,
   registerDeviceToken,
@@ -14,17 +15,17 @@ import {
   startMemberIdentityVerification,
   submitMemberIdentityVerification,
   switchActiveClanContext,
+  verifyOtpChallenge,
 } from './auth/callables';
 import {
   completeCardCheckout,
   createSubscriptionCheckout,
   loadBillingWorkspace,
   resolveBillingEntitlement,
-  simulateVnpaySettlement,
   verifyInAppPurchase,
   updateBillingPreferences,
 } from './billing/callables';
-import { cardPaymentCallback, vnpayPaymentCallback } from './billing/webhooks';
+import { cardPaymentCallback } from './billing/webhooks';
 import { appleIapWebhook, googleIapWebhook } from './billing/iap-webhooks';
 import { APP_REGION } from './config/runtime';
 import { onEventCreated, sendEventReminder } from './events/event-triggers';
@@ -91,6 +92,7 @@ export {
   createInvite,
   createClanMember,
   createSubscriptionCheckout,
+  requestOtpChallenge,
   disburseScholarshipSubmissionFromFund,
   detectDuplicateGenealogy,
   expireInvitesJob,
@@ -121,9 +123,8 @@ export {
   startMemberIdentityVerification,
   submitMemberIdentityVerification,
   submitJoinRequest,
-  simulateVnpaySettlement,
   switchActiveClanContext,
   updateBillingPreferences,
+  verifyOtpChallenge,
   verifyInAppPurchase,
-  vnpayPaymentCallback,
 };

@@ -32,12 +32,10 @@ class DebugNotificationInboxRepository implements NotificationInboxRepository {
       () => _buildSampleItems(memberId: memberId, clanId: clanId),
     );
 
-    final sorted = samples.toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    final cursorCreatedAt = cursor?.createdAt;
-    final filtered = cursorCreatedAt == null
+    final sorted = samples.toList()..sort(_compareInboxItemDesc);
+    final filtered = cursor == null
         ? sorted
-        : sorted.where((item) => item.createdAt.isBefore(cursorCreatedAt));
+        : sorted.where((item) => _isItemAfterCursor(item, cursor));
 
     final pageSize = limit.clamp(1, 100);
     final pageItems = filtered.take(pageSize + 1).toList(growable: false);
@@ -46,13 +44,41 @@ class DebugNotificationInboxRepository implements NotificationInboxRepository {
         ? pageItems.take(pageSize).toList(growable: false)
         : pageItems;
     final nextCursor = hasMore
-        ? NotificationInboxCursor(createdAt: visibleItems.last.createdAt)
+        ? NotificationInboxCursor(
+            createdAt: visibleItems.last.createdAt,
+            documentId: visibleItems.last.id,
+          )
         : null;
 
     return NotificationInboxPageResult(
       items: visibleItems,
       nextCursor: nextCursor,
     );
+  }
+
+  int _compareInboxItemDesc(
+    NotificationInboxItem left,
+    NotificationInboxItem right,
+  ) {
+    final byTime = right.createdAt.compareTo(left.createdAt);
+    if (byTime != 0) {
+      return byTime;
+    }
+    return right.id.compareTo(left.id);
+  }
+
+  bool _isItemAfterCursor(
+    NotificationInboxItem item,
+    NotificationInboxCursor cursor,
+  ) {
+    final cursorTime = cursor.createdAt;
+    if (item.createdAt.isBefore(cursorTime)) {
+      return true;
+    }
+    if (item.createdAt.isAfter(cursorTime)) {
+      return false;
+    }
+    return item.id.compareTo(cursor.documentId) < 0;
   }
 
   @override

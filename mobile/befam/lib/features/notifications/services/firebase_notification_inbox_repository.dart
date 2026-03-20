@@ -39,11 +39,16 @@ class FirebaseNotificationInboxRepository
     var query = _notifications
         .where('memberId', isEqualTo: memberId)
         .orderBy('createdAt', descending: true)
+        .orderBy(FieldPath.documentId, descending: true)
         .limit(pageSize + 1);
 
     final cursorCreatedAt = cursor?.createdAt;
-    if (cursorCreatedAt != null) {
-      query = query.startAfter([Timestamp.fromDate(cursorCreatedAt)]);
+    final cursorDocumentId = cursor?.documentId.trim() ?? '';
+    if (cursorCreatedAt != null && cursorDocumentId.isNotEmpty) {
+      query = query.startAfter([
+        Timestamp.fromDate(cursorCreatedAt),
+        cursorDocumentId,
+      ]);
     }
 
     final snapshot = await query.get();
@@ -66,7 +71,10 @@ class FirebaseNotificationInboxRepository
         ? mappedItems.take(pageSize).toList(growable: false)
         : mappedItems;
     final nextCursor = hasMore
-        ? NotificationInboxCursor(createdAt: visibleItems.last.createdAt)
+        ? NotificationInboxCursor(
+            createdAt: visibleItems.last.createdAt,
+            documentId: visibleItems.last.id,
+          )
         : null;
 
     return NotificationInboxPageResult(

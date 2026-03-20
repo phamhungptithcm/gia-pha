@@ -1168,8 +1168,11 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                     ),
                                                   ),
                                                   _StatusBadge(
-                                                    label: submission.status
-                                                        .toUpperCase(),
+                                                    label:
+                                                        _submissionStatusLabel(
+                                                          context,
+                                                          submission.status,
+                                                        ),
                                                   ),
                                                 ],
                                               ),
@@ -2441,8 +2444,8 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                         const SizedBox(height: 4),
                         Text(
                           l10n.pick(
-                            vi: 'Năm: ${_yearController.text.trim()} • ${_status.toUpperCase()}',
-                            en: 'Year: ${_yearController.text.trim()} • ${_status.toUpperCase()}',
+                            vi: 'Năm: ${_yearController.text.trim()} • ${_programStatusLabel(context, _status)}',
+                            en: 'Year: ${_yearController.text.trim()} • ${_programStatusLabel(context, _status)}',
                           ),
                         ),
                       ],

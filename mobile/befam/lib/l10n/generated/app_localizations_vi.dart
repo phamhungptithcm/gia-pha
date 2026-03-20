@@ -432,7 +432,8 @@ class AppLocalizationsVi extends AppLocalizations {
   String get profileLanguageEnglish => 'English';
 
   @override
-  String get profileLanguageEnglishSubtitle => 'Use English across all screens';
+  String get profileLanguageEnglishSubtitle =>
+      'Hiển thị tiếng Anh trên toàn bộ ứng dụng';
 
   @override
   String get profileSecuritySectionTitle => 'Riêng tư và bảo mật';
@@ -1406,6 +1407,16 @@ class AppLocalizationsVi extends AppLocalizations {
       'Quản lý lời nhắc và loại thông báo bạn muốn nhận trên thiết bị này.';
 
   @override
+  String get notificationSettingsPushChannel => 'Thông báo đẩy (khuyên dùng)';
+
+  @override
+  String get notificationSettingsEmailChannel => 'Thông báo qua email';
+
+  @override
+  String get notificationSettingsSmsOtpOnlyNote =>
+      'SMS chỉ dùng cho xác minh OTP.';
+
+  @override
   String get notificationSettingsEventUpdates =>
       'Nhắc lịch và cập nhật sự kiện';
 
@@ -1970,7 +1981,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webLandingFeatureBillingDescription =>
-      'Theo dõi gói đang dùng, gia hạn và lịch sử thanh toán VNPay ngay trong BeFam.';
+      'Theo dõi gói đang dùng, gia hạn và lịch sử thanh toán ngay trong BeFam.';
 
   @override
   String get webAboutTitle => 'Về chúng tôi';
@@ -2026,7 +2037,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webInfoBillingDescription =>
-      'Quản lý quyền lợi theo gói, trạng thái hiệu lực và luồng thanh toán VNPay cho tổ chức gia phả.';
+      'Quản lý quyền lợi theo gói, trạng thái hiệu lực và luồng thanh toán cho tổ chức gia phả.';
 
   @override
   String get webInfoHighlightsTitle => 'Điểm nổi bật hiện tại';

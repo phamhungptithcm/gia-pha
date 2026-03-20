@@ -28,29 +28,13 @@ class BillingWorkspaceSnapshot {
 
 class BillingCheckoutFlowConfig {
   const BillingCheckoutFlowConfig({
-    required this.qrCheckoutEnabled,
-    required this.qrImageUrlsByPlan,
     this.storeProductIdsByPlan = const <String, String>{},
     this.storeProductIdsByPlanByPlatform =
         const <String, Map<String, String>>{},
   });
 
-  final bool qrCheckoutEnabled;
-  final Map<String, String> qrImageUrlsByPlan;
   final Map<String, String> storeProductIdsByPlan;
   final Map<String, Map<String, String>> storeProductIdsByPlanByPlatform;
-
-  String? qrImageUrlForPlan(String planCode) {
-    final normalizedPlanCode = planCode.trim().toUpperCase();
-    if (normalizedPlanCode.isEmpty) {
-      return null;
-    }
-    final url = qrImageUrlsByPlan[normalizedPlanCode];
-    if (url == null || url.trim().isEmpty) {
-      return null;
-    }
-    return url.trim();
-  }
 
   String? storeProductIdForPlan(String planCode, {String? platform}) {
     final normalizedPlanCode = planCode.trim().toUpperCase();

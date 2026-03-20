@@ -114,6 +114,15 @@ class FirebaseAuthGateway implements AuthGateway {
     String smsCode, {
     String? languageCode,
   }) async {
+    final serverResult = await _verifyOtpViaServer(
+      challenge: challenge,
+      smsCode: smsCode,
+      languageCode: languageCode,
+    );
+    if (serverResult != null) {
+      return serverResult;
+    }
+
     if (kIsWeb) {
       final confirmationResult = _webConfirmationResults.remove(
         challenge.verificationId,
@@ -438,10 +447,22 @@ class FirebaseAuthGateway implements AuthGateway {
     int? forceResendingToken,
   }) async {
     final requestTag =
-        'firebase_otp_${DateTime.now().millisecondsSinceEpoch}_${loginMethod.name}';
+        'otp_${DateTime.now().millisecondsSinceEpoch}_${loginMethod.name}';
     AppLogger.info(
-      '[$requestTag] Preparing Firebase OTP request (method=${loginMethod.name}, phone=$phoneE164, forceResendingToken=${forceResendingToken ?? 'none'}).',
+      '[$requestTag] Preparing OTP request (method=${loginMethod.name}, phone=$phoneE164, forceResendingToken=${forceResendingToken ?? 'none'}).',
     );
+
+    final serverResult = await _requestOtpViaServer(
+      requestTag: requestTag,
+      loginMethod: loginMethod,
+      phoneE164: phoneE164,
+      childIdentifier: childIdentifier,
+      memberId: memberId,
+      displayName: displayName,
+    );
+    if (serverResult != null) {
+      return serverResult;
+    }
 
     if (kIsWeb) {
       return _requestOtpOnWeb(
@@ -587,6 +608,172 @@ class FirebaseAuthGateway implements AuthGateway {
         );
       },
     );
+  }
+
+  Future<AuthOtpRequestResult?> _requestOtpViaServer({
+    required String requestTag,
+    required AuthEntryMethod loginMethod,
+    required String phoneE164,
+    String? childIdentifier,
+    String? memberId,
+    String? displayName,
+  }) async {
+    final callable = _functions.httpsCallable('requestOtpChallenge');
+    try {
+      final payload = <String, dynamic>{
+        'loginMethod': loginMethod.name,
+        'languageCode': _preferredLanguageCode(),
+      };
+      if (loginMethod == AuthEntryMethod.child) {
+        payload['childIdentifier'] = childIdentifier;
+      } else {
+        payload['phoneE164'] = phoneE164;
+      }
+      if ((memberId ?? '').trim().isNotEmpty) {
+        payload['memberId'] = memberId!.trim();
+      }
+      if ((displayName ?? '').trim().isNotEmpty) {
+        payload['displayName'] = displayName!.trim();
+      }
+
+      final result = await callable.call(payload);
+      final data = (result.data is Map)
+          ? (result.data as Map).map(
+              (key, value) => MapEntry(key.toString(), value),
+            )
+          : const <String, dynamic>{};
+      final verificationId =
+          (data['verificationId'] as String?)?.trim() ?? '';
+      if (verificationId.isEmpty) {
+        throw FirebaseFunctionsException(
+          code: 'internal',
+          message: 'requestOtpChallenge did not return verificationId.',
+        );
+      }
+      final maskedDestination =
+          (data['maskedDestination'] as String?)?.trim().isNotEmpty == true
+          ? (data['maskedDestination'] as String).trim()
+          : PhoneNumberFormatter.mask(phoneE164);
+      final resolvedPhone =
+          (data['phoneE164'] as String?)?.trim().isNotEmpty == true
+          ? (data['phoneE164'] as String).trim()
+          : phoneE164;
+      final resolvedChildIdentifier =
+          (data['childIdentifier'] as String?)?.trim().isNotEmpty == true
+          ? (data['childIdentifier'] as String).trim()
+          : childIdentifier;
+      final resolvedMemberId =
+          (data['memberId'] as String?)?.trim().isNotEmpty == true
+          ? (data['memberId'] as String).trim()
+          : memberId;
+      final resolvedDisplayName =
+          (data['displayName'] as String?)?.trim().isNotEmpty == true
+          ? (data['displayName'] as String).trim()
+          : displayName;
+
+      AppLogger.info(
+        '[$requestTag] OTP challenge created by server provider.',
+      );
+      return AuthOtpRequestResult.challenge(
+        PendingOtpChallenge(
+          loginMethod: loginMethod,
+          phoneE164: resolvedPhone,
+          maskedDestination: maskedDestination,
+          verificationId: verificationId,
+          childIdentifier: resolvedChildIdentifier,
+          memberId: resolvedMemberId,
+          displayName: resolvedDisplayName,
+        ),
+      );
+    } on FirebaseFunctionsException catch (error, stackTrace) {
+      if (!_shouldUseClientFallback(error.code, message: error.message)) {
+        rethrow;
+      }
+      AppLogger.warning(
+        '[$requestTag] requestOtpChallenge callable unavailable; fallback to Firebase phone auth.',
+        error,
+        stackTrace,
+      );
+      return null;
+    }
+  }
+
+  Future<AuthOtpVerificationResult?> _verifyOtpViaServer({
+    required PendingOtpChallenge challenge,
+    required String smsCode,
+    String? languageCode,
+  }) async {
+    final callable = _functions.httpsCallable('verifyOtpChallenge');
+    try {
+      final result = await callable.call(<String, dynamic>{
+        'verificationId': challenge.verificationId,
+        'smsCode': smsCode,
+        'languageCode': _normalizeLanguageCode(languageCode),
+      });
+      final payload = (result.data is Map)
+          ? (result.data as Map).map(
+              (key, value) => MapEntry(key.toString(), value),
+            )
+          : const <String, dynamic>{};
+      final status = (payload['status'] as String?)?.trim().toLowerCase() ?? '';
+      if (status != 'approved') {
+        throw FirebaseFunctionsException(
+          code: 'failed-precondition',
+          message: 'verifyOtpChallenge returned non-approved status.',
+        );
+      }
+      final customToken = (payload['customToken'] as String?)?.trim() ?? '';
+      if (customToken.isEmpty) {
+        throw FirebaseFunctionsException(
+          code: 'internal',
+          message: 'verifyOtpChallenge did not return customToken.',
+        );
+      }
+      final phoneFromPayload =
+          (payload['phoneE164'] as String?)?.trim().isNotEmpty == true
+          ? (payload['phoneE164'] as String).trim()
+          : challenge.phoneE164;
+      final childIdentifier =
+          (payload['childIdentifier'] as String?)?.trim().isNotEmpty == true
+          ? (payload['childIdentifier'] as String).trim()
+          : challenge.childIdentifier;
+      final memberId = (payload['memberId'] as String?)?.trim().isNotEmpty == true
+          ? (payload['memberId'] as String).trim()
+          : challenge.memberId;
+      final displayName =
+          (payload['displayName'] as String?)?.trim().isNotEmpty == true
+          ? (payload['displayName'] as String).trim()
+          : challenge.displayName;
+
+      final userCredential = await _auth.signInWithCustomToken(customToken);
+      final user = userCredential.user;
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'Custom token sign-in did not return a user.',
+        );
+      }
+
+      return _handleVerifiedUser(
+        user,
+        loginMethod: challenge.loginMethod,
+        phoneE164: phoneFromPayload,
+        childIdentifier: childIdentifier,
+        memberId: memberId,
+        displayName: displayName,
+        languageCode: languageCode,
+      );
+    } on FirebaseFunctionsException catch (error, stackTrace) {
+      if (!_shouldUseClientFallback(error.code, message: error.message)) {
+        rethrow;
+      }
+      AppLogger.warning(
+        'verifyOtpChallenge callable unavailable; fallback to Firebase phone auth.',
+        error,
+        stackTrace,
+      );
+      return null;
+    }
   }
 
   String _preferredLanguageCode() {

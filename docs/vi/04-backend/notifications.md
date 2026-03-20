@@ -1,9 +1,9 @@
 # Thông báo
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 19/03/2026_
 
-Thông báo BeFam được phân phối qua Firestore + FCM, với mobile service hỗ trợ
-cả trạng thái foreground và mở app từ notification.
+Thông báo BeFam được phân phối qua Firestore + FCM (kênh chính), và có thể mở
+rộng thêm email thông qua Firebase Extension `firestore-send-email`.
 
 ## Luồng end-to-end
 
@@ -11,8 +11,16 @@ cả trạng thái foreground và mở app từ notification.
 2. Token thiết bị được đăng ký qua callable `registerDeviceToken`.
 3. Có fallback ghi token trực tiếp vào `users/{uid}/deviceTokens`.
 4. Trigger backend gọi `notifyMembers(...)`.
-5. `notifyMembers` ghi document `notifications` và gửi FCM multicast.
-6. Token FCM không hợp lệ được dọn khỏi Firestore.
+5. `notifyMembers` luôn ghi document `notifications` cho inbox trong app.
+6. Push được gửi theo channel toggle + category toggle của user.
+7. Email (nếu bật) được queue vào collection mail để extension xử lý.
+8. Token FCM không hợp lệ được dọn khỏi Firestore.
+
+## Chính sách kênh gửi
+
+- Push: kênh chính (free).
+- Email: kênh bổ sung (gần như free, qua SMTP/extension).
+- SMS: chỉ dùng cho OTP đăng nhập. SMS non-OTP bị tắt mặc định.
 
 ## Nhóm target hỗ trợ
 
@@ -47,15 +55,18 @@ Nguồn trigger mở rộng theo kế hoạch:
 - thành viên chỉ được đánh dấu đã đọc thông báo của chính mình
 - tạo/xóa thông báo là hành vi phía server
 
+## Mô hình cài đặt
+
+- Lưu tại `users/{uid}/preferences/notifications`.
+- Backend áp dụng:
+  - channel toggle (`pushEnabled`, `emailEnabled`)
+  - category toggle (`eventReminders`, `scholarshipUpdates`,
+    `fundTransactions`, `systemNotices`)
+- Việc tạo notification doc vẫn server-side để đảm bảo lịch sử trong app.
+
 ## Trạng thái hộp thư mobile
 
-- màn hình inbox đã có trong shell
-- đọc notifications theo member với phân trang tăng dần
+- inbox đã có trong shell
+- đọc notifications theo member + pagination
 - có thao tác mark-read
-- event/scholarship mở trang đích tương ứng
-- cài đặt notification vẫn ở mức placeholder cho profile-level
-
-## Bước tiếp theo
-
-- thay placeholder bằng trang chi tiết event/scholarship đầy đủ
-- lưu cài đặt notification xuống backend
+- event/scholarship deep-link mở đúng trang đích

@@ -1,5 +1,7 @@
 class ProfileNotificationPreferences {
   const ProfileNotificationPreferences({
+    this.pushEnabled = true,
+    this.emailEnabled = false,
     this.eventReminders = true,
     this.scholarshipUpdates = true,
     this.fundTransactions = true,
@@ -7,6 +9,8 @@ class ProfileNotificationPreferences {
     this.quietHoursEnabled = false,
   });
 
+  final bool pushEnabled;
+  final bool emailEnabled;
   final bool eventReminders;
   final bool scholarshipUpdates;
   final bool fundTransactions;
@@ -15,6 +19,8 @@ class ProfileNotificationPreferences {
 
   factory ProfileNotificationPreferences.fromJson(Map<String, dynamic> json) {
     return ProfileNotificationPreferences(
+      pushEnabled: _readBool(json, 'pushEnabled', defaultValue: true),
+      emailEnabled: _readBool(json, 'emailEnabled', defaultValue: false),
       eventReminders: _readBool(json, 'eventReminders', defaultValue: true),
       scholarshipUpdates: _readBool(
         json,
@@ -32,6 +38,8 @@ class ProfileNotificationPreferences {
   }
 
   ProfileNotificationPreferences copyWith({
+    bool? pushEnabled,
+    bool? emailEnabled,
     bool? eventReminders,
     bool? scholarshipUpdates,
     bool? fundTransactions,
@@ -39,6 +47,8 @@ class ProfileNotificationPreferences {
     bool? quietHoursEnabled,
   }) {
     return ProfileNotificationPreferences(
+      pushEnabled: pushEnabled ?? this.pushEnabled,
+      emailEnabled: emailEnabled ?? this.emailEnabled,
       eventReminders: eventReminders ?? this.eventReminders,
       scholarshipUpdates: scholarshipUpdates ?? this.scholarshipUpdates,
       fundTransactions: fundTransactions ?? this.fundTransactions,
@@ -49,6 +59,8 @@ class ProfileNotificationPreferences {
 
   Map<String, dynamic> toJson() {
     return {
+      'pushEnabled': pushEnabled,
+      'emailEnabled': emailEnabled,
       'eventReminders': eventReminders,
       'scholarshipUpdates': scholarshipUpdates,
       'fundTransactions': fundTransactions,

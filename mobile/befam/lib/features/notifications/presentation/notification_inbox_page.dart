@@ -117,7 +117,13 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
         }
 
         final deduped = merged.values.toList()
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          ..sort((a, b) {
+            final byTime = b.createdAt.compareTo(a.createdAt);
+            if (byTime != 0) {
+              return byTime;
+            }
+            return b.id.compareTo(a.id);
+          });
         _items = deduped;
         _nextCursor = result.nextCursor;
       });

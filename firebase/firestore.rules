@@ -241,6 +241,8 @@ service cloud.firestore {
           'memberId',
           'clanId',
           'branchId',
+          'pushEnabled',
+          'emailEnabled',
           'eventReminders',
           'scholarshipUpdates',
           'fundTransactions',
@@ -256,6 +258,8 @@ service cloud.firestore {
           'memberId',
           'clanId',
           'branchId',
+          'pushEnabled',
+          'emailEnabled',
           'eventReminders',
           'scholarshipUpdates',
           'fundTransactions',
@@ -273,6 +277,14 @@ service cloud.firestore {
         request.resource.data.memberId == memberIdClaim() &&
         request.resource.data.clanId == primaryClanId() &&
         request.resource.data.branchId == branchIdClaim() &&
+        (
+          !request.resource.data.keys().hasAny(['pushEnabled']) ||
+          request.resource.data.pushEnabled is bool
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(['emailEnabled']) ||
+          request.resource.data.emailEnabled is bool
+        ) &&
         request.resource.data.eventReminders is bool &&
         request.resource.data.scholarshipUpdates is bool &&
         request.resource.data.fundTransactions is bool &&
@@ -486,7 +498,8 @@ service cloud.firestore {
         resource.data.memberId == memberIdClaim() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'isRead'
-        ]);
+        ]) &&
+        request.resource.data.isRead is bool;
       allow create, delete: if false;
     }
 

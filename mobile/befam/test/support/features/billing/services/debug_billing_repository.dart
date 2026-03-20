@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:befam/features/auth/models/auth_session.dart';
-import 'package:befam/features/auth/services/phone_number_formatter.dart';
 import 'package:befam/features/billing/models/billing_workspace_snapshot.dart';
 import 'package:befam/features/billing/services/billing_repository.dart';
 import '../../../core/services/debug_genealogy_store.dart';
@@ -133,27 +132,18 @@ class DebugBillingRepository implements BillingRepository {
     required String paymentMethod,
     String? requestedPlanCode,
     String? returnUrl,
-    String? locale,
-    String? orderNote,
-    String? bankCode,
-    String? contactPhone,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 140));
     final clanId = _clanIdOf(session);
-    final normalizedContactPhone =
-        PhoneNumberFormatter.tryParseE164(contactPhone) ?? contactPhone?.trim();
     final state = _ensureState(clanId: clanId, ownerUid: session.uid);
     _expireStalePendingTransactions(state);
     _syncStateWithMemberCount(state, clanId);
 
     final method = paymentMethod.trim().toLowerCase();
-    if (method != 'card' &&
-        method != 'vnpay' &&
-        method != 'apple_iap' &&
-        method != 'google_play') {
+    if (method != 'card' && method != 'apple_iap' && method != 'google_play') {
       throw const BillingRepositoryException(
         BillingRepositoryErrorCode.invalidArgument,
-        'paymentMethod must be card, vnpay, apple_iap, or google_play.',
+        'paymentMethod must be card, apple_iap, or google_play.',
       );
     }
 
@@ -279,17 +269,10 @@ class DebugBillingRepository implements BillingRepository {
 
     final checkoutPath = method == 'apple_iap' || method == 'google_play'
         ? '/billing/store'
-        : '/billing/vnpay';
+        : '/billing/card';
     final checkoutUrl = Uri.https('checkout-debug.befam.local', checkoutPath, {
       'transactionId': transactionId,
       'amountVnd': '${tier.priceVndYear}',
-      if (locale != null && locale.trim().isNotEmpty) 'locale': locale.trim(),
-      if (bankCode != null && bankCode.trim().isNotEmpty)
-        'bankCode': bankCode.trim().toUpperCase(),
-      if (orderNote != null && orderNote.trim().isNotEmpty)
-        'orderNote': orderNote.trim(),
-      if (normalizedContactPhone != null && normalizedContactPhone.isNotEmpty)
-        'contactPhone': normalizedContactPhone,
       'mode': method,
       'debug': '1',
     }).toString();
@@ -324,28 +307,6 @@ class DebugBillingRepository implements BillingRepository {
       throw const BillingRepositoryException(
         BillingRepositoryErrorCode.invalidArgument,
         'Transaction is not a card checkout.',
-      );
-    }
-    _applySuccessfulPayment(
-      state,
-      transactionId: transactionId.trim(),
-      actorUid: session.uid,
-    );
-  }
-
-  @override
-  Future<void> settleVnpayCheckout({
-    required AuthSession session,
-    required String transactionId,
-  }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 130));
-    final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
-    final transaction = _findTransaction(state, transactionId);
-    if (transaction.paymentMethod != 'vnpay') {
-      throw const BillingRepositoryException(
-        BillingRepositoryErrorCode.invalidArgument,
-        'Transaction is not a VNPay checkout.',
       );
     }
     _applySuccessfulPayment(
@@ -946,10 +907,7 @@ class _DebugBillingState {
       subscription: subscription,
       entitlement: entitlement,
       settings: settings,
-      checkoutFlow: const BillingCheckoutFlowConfig(
-        qrCheckoutEnabled: false,
-        qrImageUrlsByPlan: <String, String>{},
-      ),
+      checkoutFlow: const BillingCheckoutFlowConfig(),
       pricingTiers: pricing,
       memberCount: memberCount,
       transactions: List.unmodifiable(transactions),

@@ -3,9 +3,13 @@ import '../models/notification_inbox_item.dart';
 import 'firebase_notification_inbox_repository.dart';
 
 class NotificationInboxCursor {
-  const NotificationInboxCursor({required this.createdAt});
+  const NotificationInboxCursor({
+    required this.createdAt,
+    required this.documentId,
+  });
 
   final DateTime createdAt;
+  final String documentId;
 }
 
 class NotificationInboxPageResult {

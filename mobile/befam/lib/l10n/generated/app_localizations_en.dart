@@ -424,7 +424,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose the display language used across the app.';
 
   @override
-  String get profileLanguageVietnamese => 'Tiếng Việt';
+  String get profileLanguageVietnamese => 'Vietnamese';
 
   @override
   String get profileLanguageVietnameseSubtitle =>
@@ -1413,6 +1413,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Manage which reminders and updates you want to receive on this device.';
 
   @override
+  String get notificationSettingsPushChannel =>
+      'Push notifications (recommended)';
+
+  @override
+  String get notificationSettingsEmailChannel => 'Email notifications';
+
+  @override
+  String get notificationSettingsSmsOtpOnlyNote =>
+      'SMS is reserved for OTP verification only.';
+
+  @override
   String get notificationSettingsEventUpdates => 'Event reminders and updates';
 
   @override
@@ -1979,7 +1990,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webLandingFeatureBillingDescription =>
-      'Monitor active plans, renewals, and VNPay payment history directly inside BeFam.';
+      'Monitor active plans, renewals, and payment history directly inside BeFam.';
 
   @override
   String get webAboutTitle => 'About Us';
@@ -2035,7 +2046,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webInfoBillingDescription =>
-      'Manage plan entitlements, subscription validity, and VNPay checkout flow for family organizations.';
+      'Manage plan entitlements, subscription validity, and checkout flow for family organizations.';
 
   @override
   String get webInfoHighlightsTitle => 'Current highlights';

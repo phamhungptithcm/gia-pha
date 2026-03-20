@@ -30,6 +30,7 @@ APP_LANG="${FQC_LANG:-en}"
 HISTORY_DIR="${HOME}/.firebase-query-console"
 HISTORY_FILE="${HISTORY_DIR}/query_history.jsonl"
 LAST_QUERY_FILE="${HISTORY_DIR}/last_query.json"
+HISTORY_REDACT_SENSITIVE="${FQC_HISTORY_REDACT_SENSITIVE:-true}"
 
 COLOR_RESET=""
 COLOR_DIM=""
@@ -74,6 +75,38 @@ normalize_language() {
       exit 1
       ;;
   esac
+}
+
+is_truthy() {
+  local raw="${1:-}"
+  local normalized
+  normalized="$(echo "$raw" | tr '[:upper:]' '[:lower:]')"
+  case "$normalized" in
+    1|true|yes|y|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+sanitize_history_sensitive_value() {
+  local value="${1:-}"
+  if [[ -z "$value" ]]; then
+    printf '%s' ""
+    return
+  fi
+  if ! is_truthy "$HISTORY_REDACT_SENSITIVE"; then
+    printf '%s' "$value"
+    return
+  fi
+  printf '[REDACTED:%s]' "${#value}"
+}
+
+restore_history_sensitive_value() {
+  local value="${1:-}"
+  if [[ "$value" == \[REDACTED:* ]]; then
+    printf '%s' ""
+    return
+  fi
+  printf '%s' "$value"
 }
 
 init_colors() {
@@ -664,6 +697,19 @@ record_query_history() {
   local title="$2"
   local filter="$3"
   local summary_json="$4"
+  local history_filter="$filter"
+  local history_uid="$LOG_UID"
+  local history_phone="$LOG_PHONE"
+  local history_member_id="$LOG_MEMBER_ID"
+  local history_txn_id="$LOG_TXN_ID"
+
+  if is_truthy "$HISTORY_REDACT_SENSITIVE"; then
+    history_filter='[REDACTED_SENSITIVE_FILTER]'
+    history_uid="$(sanitize_history_sensitive_value "$LOG_UID")"
+    history_phone="$(sanitize_history_sensitive_value "$LOG_PHONE")"
+    history_member_id="$(sanitize_history_sensitive_value "$LOG_MEMBER_ID")"
+    history_txn_id="$(sanitize_history_sensitive_value "$LOG_TXN_ID")"
+  fi
 
   local record
   record="$(jq -cn \
@@ -672,14 +718,14 @@ record_query_history() {
     --arg lang "$APP_LANG" \
     --arg action "$action_tag" \
     --arg title "$title" \
-    --arg filter "$filter" \
+    --arg filter "$history_filter" \
     --arg contains "$LOG_CONTAINS" \
     --arg function "$LOG_FUNCTION" \
     --arg trace "$LOG_TRACE" \
-    --arg uid "$LOG_UID" \
-    --arg phone "$LOG_PHONE" \
-    --arg memberId "$LOG_MEMBER_ID" \
-    --arg txnId "$LOG_TXN_ID" \
+    --arg uid "$history_uid" \
+    --arg phone "$history_phone" \
+    --arg memberId "$history_member_id" \
+    --arg txnId "$history_txn_id" \
     --arg preset "$LOG_PRESET" \
     --arg exportPath "$EXPORT_PATH" \
     --argjson sinceMinutes "$LOG_SINCE_MINUTES" \
@@ -764,16 +810,16 @@ load_last_query_defaults() {
     LOG_TRACE="$(echo "$last" | jq -r '.params.trace // ""')"
   fi
   if [[ -z "$LOG_UID" ]]; then
-    LOG_UID="$(echo "$last" | jq -r '.params.uid // ""')"
+    LOG_UID="$(restore_history_sensitive_value "$(echo "$last" | jq -r '.params.uid // ""')")"
   fi
   if [[ -z "$LOG_PHONE" ]]; then
-    LOG_PHONE="$(echo "$last" | jq -r '.params.phone // ""')"
+    LOG_PHONE="$(restore_history_sensitive_value "$(echo "$last" | jq -r '.params.phone // ""')")"
   fi
   if [[ -z "$LOG_MEMBER_ID" ]]; then
-    LOG_MEMBER_ID="$(echo "$last" | jq -r '.params.memberId // ""')"
+    LOG_MEMBER_ID="$(restore_history_sensitive_value "$(echo "$last" | jq -r '.params.memberId // ""')")"
   fi
   if [[ -z "$LOG_TXN_ID" ]]; then
-    LOG_TXN_ID="$(echo "$last" | jq -r '.params.txnId // ""')"
+    LOG_TXN_ID="$(restore_history_sensitive_value "$(echo "$last" | jq -r '.params.txnId // ""')")"
   fi
   if [[ -z "$LOG_PRESET" ]]; then
     LOG_PRESET="$(echo "$last" | jq -r '.params.preset // ""')"
@@ -825,7 +871,7 @@ apply_preset() {
     payment-fail)
       [[ "$LOG_SINCE_MINUTES" == "$DEFAULT_LOG_SINCE_MINUTES" ]] && LOG_SINCE_MINUTES=180
       [[ "$LOG_SEVERITY" == "$DEFAULT_LOG_SEVERITY" ]] && LOG_SEVERITY="ERROR"
-      [[ -z "$LOG_CONTAINS" ]] && LOG_CONTAINS="vnpay"
+      [[ -z "$LOG_CONTAINS" ]] && LOG_CONTAINS="billing"
       ;;
     push-fail)
       [[ "$LOG_SINCE_MINUTES" == "$DEFAULT_LOG_SINCE_MINUTES" ]] && LOG_SINCE_MINUTES=120
@@ -1848,6 +1894,7 @@ $(txt "Cách dùng:" "Usage:")
 $(txt "Tuỳ chọn env:" "Environment options:")
   FIREBASE_PROJECT_ID=<project-id>   # preset project khi mở script
   FQC_LANG=vi|en                     # default language (default: en)
+  FQC_HISTORY_REDACT_SENSITIVE=true|false  # redact uid/phone/memberId/txnId in local query history (default: true)
 
 $(txt "Tuỳ chọn CLI:" "CLI options:")
   --project <project-id>      # set project không cần chọn menu
@@ -1874,6 +1921,11 @@ USAGE
 main() {
   parse_args "$@"
   normalize_language
+  if is_truthy "$HISTORY_REDACT_SENSITIVE"; then
+    HISTORY_REDACT_SENSITIVE=true
+  else
+    HISTORY_REDACT_SENSITIVE=false
+  fi
   init_colors
   ensure_history_store
 

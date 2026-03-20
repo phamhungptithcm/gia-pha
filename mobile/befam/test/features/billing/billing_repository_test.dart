@@ -88,7 +88,7 @@ void main() {
 
       final checkout = await repository.createCheckout(
         session: session,
-        paymentMethod: 'vnpay',
+        paymentMethod: 'card',
         requestedPlanCode: 'BASE',
       );
       expect(checkout.planCode, 'BASE');
@@ -150,7 +150,7 @@ void main() {
       final repository = DebugBillingRepository.shared();
       final checkout = await repository.createCheckout(
         session: buildSession(clanId: clanId),
-        paymentMethod: 'vnpay',
+        paymentMethod: 'card',
         requestedPlanCode: 'PLUS',
       );
 
@@ -209,7 +209,7 @@ void main() {
       seedClanMembers(clanId: clanId, count: 120); // minimum BASE
       final downgradeCheckout = await repository.createCheckout(
         session: buildSession(clanId: clanId),
-        paymentMethod: 'vnpay',
+        paymentMethod: 'card',
         requestedPlanCode: 'BASE',
       );
 

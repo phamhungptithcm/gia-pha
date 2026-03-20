@@ -661,7 +661,8 @@ function isAuthorizedWithSharedBearer(
 ): boolean {
   const normalizedExpected = expectedToken.trim();
   if (normalizedExpected.length === 0) {
-    return true;
+    logWarn('IAP webhook bearer token is not configured; rejecting request.');
+    return false;
   }
   const bearer = readBearerToken(request.headers);
   if (bearer == null) {
