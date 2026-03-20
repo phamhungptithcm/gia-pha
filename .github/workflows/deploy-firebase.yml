@@ -75,6 +75,10 @@ jobs:
           APP_RUNTIME_CONFIG_COLLECTION: ${{ vars.APP_RUNTIME_CONFIG_COLLECTION }}
           APP_RUNTIME_CONFIG_DOC_ID: ${{ vars.APP_RUNTIME_CONFIG_DOC_ID }}
           EXPIRE_INVITES_JOB_SCHEDULE: ${{ vars.EXPIRE_INVITES_JOB_SCHEDULE }}
+          EVENT_REMINDER_JOB_SCHEDULE: ${{ vars.EVENT_REMINDER_JOB_SCHEDULE }}
+          EVENT_REMINDER_LOOKAHEAD_MINUTES: ${{ vars.EVENT_REMINDER_LOOKAHEAD_MINUTES }}
+          EVENT_REMINDER_SCAN_LIMIT: ${{ vars.EVENT_REMINDER_SCAN_LIMIT }}
+          EVENT_REMINDER_GRACE_MINUTES: ${{ vars.EVENT_REMINDER_GRACE_MINUTES }}
           BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE: ${{ vars.BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE }}
           BILLING_DELINQUENCY_JOB_SCHEDULE: ${{ vars.BILLING_DELINQUENCY_JOB_SCHEDULE }}
           BILLING_PENDING_TIMEOUT_JOB_SCHEDULE: ${{ vars.BILLING_PENDING_TIMEOUT_JOB_SCHEDULE }}
@@ -84,16 +88,26 @@ jobs:
           BILLING_DELINQUENCY_LIMIT: ${{ vars.BILLING_DELINQUENCY_LIMIT }}
           BILLING_DELINQUENCY_REMINDER_DAYS: ${{ vars.BILLING_DELINQUENCY_REMINDER_DAYS }}
           BILLING_ALLOW_MANUAL_SETTLEMENT: ${{ vars.BILLING_ALLOW_MANUAL_SETTLEMENT }}
-          BILLING_QR_CHECKOUT_ENABLED: ${{ vars.BILLING_QR_CHECKOUT_ENABLED }}
+          BILLING_ENABLE_LEGACY_CARD_FLOW: ${{ vars.BILLING_ENABLE_LEGACY_CARD_FLOW }}
           BILLING_CARD_CHECKOUT_URL_BASE: ${{ vars.BILLING_CARD_CHECKOUT_URL_BASE }}
-          BILLING_VNPAY_FALLBACK_URL: ${{ vars.BILLING_VNPAY_FALLBACK_URL }}
-          BILLING_VNPAY_GATEWAY_BASE_URL: ${{ vars.BILLING_VNPAY_GATEWAY_BASE_URL }}
-          VNPAY_RETURN_URL: ${{ vars.VNPAY_RETURN_URL }}
-          BILLING_VNPAY_IP_ADDRESS: ${{ vars.BILLING_VNPAY_IP_ADDRESS }}
-          BILLING_VNPAY_LOCALE: ${{ vars.BILLING_VNPAY_LOCALE }}
-          BILLING_QR_IMAGE_BASE_URL: ${{ vars.BILLING_QR_IMAGE_BASE_URL }}
-          BILLING_QR_IMAGE_PLUS_URL: ${{ vars.BILLING_QR_IMAGE_PLUS_URL }}
-          BILLING_QR_IMAGE_PRO_URL: ${{ vars.BILLING_QR_IMAGE_PRO_URL }}
+          NOTIFICATION_PUSH_ENABLED: ${{ vars.NOTIFICATION_PUSH_ENABLED }}
+          NOTIFICATION_EMAIL_ENABLED: ${{ vars.NOTIFICATION_EMAIL_ENABLED }}
+          NOTIFICATION_EMAIL_COLLECTION: ${{ vars.NOTIFICATION_EMAIL_COLLECTION }}
+          NOTIFICATION_DEFAULT_PUSH_ENABLED: ${{ vars.NOTIFICATION_DEFAULT_PUSH_ENABLED }}
+          NOTIFICATION_DEFAULT_EMAIL_ENABLED: ${{ vars.NOTIFICATION_DEFAULT_EMAIL_ENABLED }}
+          NOTIFICATION_ALLOW_NON_OTP_SMS: ${{ vars.NOTIFICATION_ALLOW_NON_OTP_SMS }}
+          NOTIFICATION_EVENT_MAX_AUDIENCE: ${{ vars.NOTIFICATION_EVENT_MAX_AUDIENCE }}
+          BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS: ${{ vars.BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS }}
+          BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES: ${{ vars.BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES }}
+          BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS: ${{ vars.BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS }}
+          BILLING_CONTACT_SMS_WEBHOOK_URL: ${{ vars.BILLING_CONTACT_SMS_WEBHOOK_URL }}
+          BILLING_CONTACT_EMAIL_WEBHOOK_URL: ${{ vars.BILLING_CONTACT_EMAIL_WEBHOOK_URL }}
+          OTP_PROVIDER: ${{ vars.OTP_PROVIDER }}
+          OTP_ALLOWED_DIAL_CODES: ${{ vars.OTP_ALLOWED_DIAL_CODES }}
+          OTP_TWILIO_VERIFY_SERVICE_SID: ${{ vars.OTP_TWILIO_VERIFY_SERVICE_SID }}
+          OTP_TWILIO_TIMEOUT_MS: ${{ vars.OTP_TWILIO_TIMEOUT_MS }}
+          OTP_TWILIO_MAX_RETRIES: ${{ vars.OTP_TWILIO_MAX_RETRIES }}
+          OTP_TWILIO_BACKOFF_MS: ${{ vars.OTP_TWILIO_BACKOFF_MS }}
           BILLING_IAP_ALLOW_TEST_MOCK: ${{ vars.BILLING_IAP_ALLOW_TEST_MOCK }}
           GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
           BILLING_IAP_PRODUCT_IDS_BASE: ${{ vars.BILLING_IAP_PRODUCT_IDS_BASE }}
@@ -113,11 +127,12 @@ jobs:
           BILLING_PRICING_CACHE_MS: ${{ vars.BILLING_PRICING_CACHE_MS }}
           BILLING_WEBHOOK_SECRET: ${{ secrets.BILLING_WEBHOOK_SECRET }}
           CARD_WEBHOOK_SECRET: ${{ secrets.CARD_WEBHOOK_SECRET }}
-          VNPAY_TMNCODE: ${{ secrets.VNPAY_TMNCODE }}
-          VNPAY_HASH_SECRET: ${{ secrets.VNPAY_HASH_SECRET }}
           APPLE_SHARED_SECRET: ${{ secrets.APPLE_SHARED_SECRET }}
+          OTP_TWILIO_ACCOUNT_SID: ${{ secrets.OTP_TWILIO_ACCOUNT_SID }}
+          OTP_TWILIO_AUTH_TOKEN: ${{ secrets.OTP_TWILIO_AUTH_TOKEN }}
           APPLE_IAP_WEBHOOK_BEARER_TOKEN: ${{ secrets.APPLE_IAP_WEBHOOK_BEARER_TOKEN }}
           GOOGLE_IAP_WEBHOOK_BEARER_TOKEN: ${{ secrets.GOOGLE_IAP_WEBHOOK_BEARER_TOKEN }}
+          BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN: ${{ secrets.BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN }}
         run: |
           test -n "$FIREBASE_PROJECT_ID"
           test -n "$FIREBASE_FUNCTIONS_REGION"
@@ -140,20 +155,38 @@ jobs:
           resolved_runtime_collection="${APP_RUNTIME_CONFIG_COLLECTION:-runtimeConfig}"
           resolved_runtime_doc="${APP_RUNTIME_CONFIG_DOC_ID:-global}"
           resolved_expire_invites_schedule="${EXPIRE_INVITES_JOB_SCHEDULE:-0 * * * *}"
+          resolved_event_reminder_schedule="${EVENT_REMINDER_JOB_SCHEDULE:-*/30 * * * *}"
+          resolved_event_reminder_lookahead_minutes="${EVENT_REMINDER_LOOKAHEAD_MINUTES:-43200}"
+          resolved_event_reminder_scan_limit="${EVENT_REMINDER_SCAN_LIMIT:-1500}"
+          resolved_event_reminder_grace_minutes="${EVENT_REMINDER_GRACE_MINUTES:-45}"
           resolved_reminder_schedule="${BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE:-0 7 * * *}"
           resolved_delinquency_schedule="${BILLING_DELINQUENCY_JOB_SCHEDULE:-0 8 * * *}"
           resolved_pending_schedule="${BILLING_PENDING_TIMEOUT_JOB_SCHEDULE:-*/5 * * * *}"
           resolved_pending_minutes="${BILLING_PENDING_TIMEOUT_MINUTES:-20}"
           resolved_pending_limit="${BILLING_PENDING_TIMEOUT_LIMIT:-800}"
+          resolved_contact_notice_timeout_ms="${BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS:-6000}"
+          resolved_contact_notice_max_retries="${BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES:-2}"
+          resolved_contact_notice_backoff_ms="${BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS:-300}"
+          resolved_contact_sms_webhook_url="${BILLING_CONTACT_SMS_WEBHOOK_URL:-}"
+          resolved_contact_email_webhook_url="${BILLING_CONTACT_EMAIL_WEBHOOK_URL:-}"
+          resolved_contact_notice_webhook_token="${BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN:-}"
+          resolved_otp_provider="${OTP_PROVIDER:-firebase}"
+          resolved_otp_allowed_dial_codes="${OTP_ALLOWED_DIAL_CODES:-84}"
+          resolved_otp_twilio_timeout_ms="${OTP_TWILIO_TIMEOUT_MS:-6000}"
+          resolved_otp_twilio_max_retries="${OTP_TWILIO_MAX_RETRIES:-2}"
+          resolved_otp_twilio_backoff_ms="${OTP_TWILIO_BACKOFF_MS:-300}"
           resolved_delinquency_grace_days="${BILLING_DELINQUENCY_GRACE_DAYS:-7}"
           resolved_delinquency_limit="${BILLING_DELINQUENCY_LIMIT:-800}"
           resolved_delinquency_reminder_days="${BILLING_DELINQUENCY_REMINDER_DAYS:-7,3,1}"
           resolved_allow_manual_settlement="${BILLING_ALLOW_MANUAL_SETTLEMENT:-false}"
-          resolved_qr_checkout_enabled="${BILLING_QR_CHECKOUT_ENABLED:-false}"
-          resolved_gateway_base_url="${BILLING_VNPAY_GATEWAY_BASE_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}"
-          resolved_return_url="${VNPAY_RETURN_URL:-https://${FIREBASE_FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/vnpayPaymentCallback}"
-          resolved_vnpay_ip="${BILLING_VNPAY_IP_ADDRESS:-127.0.0.1}"
-          resolved_vnpay_locale="${BILLING_VNPAY_LOCALE:-vn}"
+          resolved_enable_legacy_card_flow="${BILLING_ENABLE_LEGACY_CARD_FLOW:-false}"
+          resolved_notification_push_enabled="${NOTIFICATION_PUSH_ENABLED:-true}"
+          resolved_notification_email_enabled="${NOTIFICATION_EMAIL_ENABLED:-false}"
+          resolved_notification_email_collection="${NOTIFICATION_EMAIL_COLLECTION:-mail}"
+          resolved_notification_default_push_enabled="${NOTIFICATION_DEFAULT_PUSH_ENABLED:-true}"
+          resolved_notification_default_email_enabled="${NOTIFICATION_DEFAULT_EMAIL_ENABLED:-false}"
+          resolved_notification_allow_non_otp_sms="${NOTIFICATION_ALLOW_NON_OTP_SMS:-false}"
+          resolved_notification_event_max_audience="${NOTIFICATION_EVENT_MAX_AUDIENCE:-5000}"
           resolved_iap_allow_test_mock="${BILLING_IAP_ALLOW_TEST_MOCK:-false}"
           resolved_iap_ios_base="${BILLING_IAP_IOS_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
           resolved_iap_ios_plus="${BILLING_IAP_IOS_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
@@ -165,20 +198,44 @@ jobs:
           resolved_apple_verify_max_retries="${BILLING_IAP_APPLE_VERIFY_MAX_RETRIES:-2}"
           resolved_apple_verify_backoff_ms="${BILLING_IAP_APPLE_VERIFY_BACKOFF_MS:-350}"
           resolved_pricing_cache_ms="${BILLING_PRICING_CACHE_MS:-120000}"
-          case "$resolved_vnpay_locale" in
-            vn|en) ;;
-            *) echo "Unsupported BILLING_VNPAY_LOCALE: $resolved_vnpay_locale"; exit 1 ;;
-          esac
           case "$resolved_iap_allow_test_mock" in
             true|false|1|0|yes|no) ;;
             *) echo "Unsupported BILLING_IAP_ALLOW_TEST_MOCK: $resolved_iap_allow_test_mock"; exit 1 ;;
           esac
+          case "$resolved_notification_push_enabled" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported NOTIFICATION_PUSH_ENABLED: $resolved_notification_push_enabled"; exit 1 ;;
+          esac
+          case "$resolved_notification_email_enabled" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported NOTIFICATION_EMAIL_ENABLED: $resolved_notification_email_enabled"; exit 1 ;;
+          esac
+          case "$resolved_notification_default_push_enabled" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported NOTIFICATION_DEFAULT_PUSH_ENABLED: $resolved_notification_default_push_enabled"; exit 1 ;;
+          esac
+          case "$resolved_notification_default_email_enabled" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported NOTIFICATION_DEFAULT_EMAIL_ENABLED: $resolved_notification_default_email_enabled"; exit 1 ;;
+          esac
+          case "$resolved_notification_allow_non_otp_sms" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported NOTIFICATION_ALLOW_NON_OTP_SMS: $resolved_notification_allow_non_otp_sms"; exit 1 ;;
+          esac
+          case "$resolved_otp_provider" in
+            firebase|twilio) ;;
+            *) echo "Unsupported OTP_PROVIDER: $resolved_otp_provider"; exit 1 ;;
+          esac
+          if [[ "$resolved_otp_provider" == "twilio" ]]; then
+            test -n "$OTP_TWILIO_ACCOUNT_SID"
+            test -n "$OTP_TWILIO_AUTH_TOKEN"
+            test -n "$OTP_TWILIO_VERIFY_SERVICE_SID"
+          fi
           case "$resolved_iap_allow_test_mock" in
             true|1|yes) echo "BILLING_IAP_ALLOW_TEST_MOCK must be false in production."; exit 1 ;;
           esac
+          test -n "$resolved_notification_email_collection"
           resolved_iap_allow_test_mock=false
-          test -n "$resolved_return_url"
-          test -n "$resolved_gateway_base_url"
           env_file=".env.${FIREBASE_PROJECT_ID}"
           cat > "$env_file" <<EOF
           APP_REGION=${FIREBASE_FUNCTIONS_REGION}
@@ -186,29 +243,44 @@ jobs:
           APP_RUNTIME_CONFIG_COLLECTION=${resolved_runtime_collection}
           APP_RUNTIME_CONFIG_DOC_ID=${resolved_runtime_doc}
           EXPIRE_INVITES_JOB_SCHEDULE="${resolved_expire_invites_schedule}"
+          EVENT_REMINDER_JOB_SCHEDULE="${resolved_event_reminder_schedule}"
+          EVENT_REMINDER_LOOKAHEAD_MINUTES=${resolved_event_reminder_lookahead_minutes}
+          EVENT_REMINDER_SCAN_LIMIT=${resolved_event_reminder_scan_limit}
+          EVENT_REMINDER_GRACE_MINUTES=${resolved_event_reminder_grace_minutes}
           BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE="${resolved_reminder_schedule}"
           BILLING_DELINQUENCY_JOB_SCHEDULE="${resolved_delinquency_schedule}"
           BILLING_PENDING_TIMEOUT_JOB_SCHEDULE="${resolved_pending_schedule}"
           BILLING_PENDING_TIMEOUT_MINUTES=${resolved_pending_minutes}
           BILLING_PENDING_TIMEOUT_LIMIT=${resolved_pending_limit}
+          BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS=${resolved_contact_notice_timeout_ms}
+          BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES=${resolved_contact_notice_max_retries}
+          BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS=${resolved_contact_notice_backoff_ms}
+          BILLING_CONTACT_SMS_WEBHOOK_URL=${resolved_contact_sms_webhook_url}
+          BILLING_CONTACT_EMAIL_WEBHOOK_URL=${resolved_contact_email_webhook_url}
+          BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN=${resolved_contact_notice_webhook_token}
           BILLING_DELINQUENCY_GRACE_DAYS=${resolved_delinquency_grace_days}
           BILLING_DELINQUENCY_LIMIT=${resolved_delinquency_limit}
           BILLING_DELINQUENCY_REMINDER_DAYS=${resolved_delinquency_reminder_days}
           BILLING_ALLOW_MANUAL_SETTLEMENT=${resolved_allow_manual_settlement}
-          BILLING_QR_CHECKOUT_ENABLED=${resolved_qr_checkout_enabled}
+          BILLING_ENABLE_LEGACY_CARD_FLOW=${resolved_enable_legacy_card_flow}
+          OTP_PROVIDER=${resolved_otp_provider}
+          OTP_ALLOWED_DIAL_CODES=${resolved_otp_allowed_dial_codes}
+          OTP_TWILIO_ACCOUNT_SID=${OTP_TWILIO_ACCOUNT_SID}
+          OTP_TWILIO_VERIFY_SERVICE_SID=${OTP_TWILIO_VERIFY_SERVICE_SID}
+          OTP_TWILIO_AUTH_TOKEN=${OTP_TWILIO_AUTH_TOKEN}
+          OTP_TWILIO_TIMEOUT_MS=${resolved_otp_twilio_timeout_ms}
+          OTP_TWILIO_MAX_RETRIES=${resolved_otp_twilio_max_retries}
+          OTP_TWILIO_BACKOFF_MS=${resolved_otp_twilio_backoff_ms}
           BILLING_CARD_CHECKOUT_URL_BASE=${BILLING_CARD_CHECKOUT_URL_BASE}
-          BILLING_VNPAY_FALLBACK_URL=${BILLING_VNPAY_FALLBACK_URL}
-          BILLING_VNPAY_GATEWAY_BASE_URL=${resolved_gateway_base_url}
-          VNPAY_RETURN_URL=${resolved_return_url}
-          BILLING_VNPAY_IP_ADDRESS=${resolved_vnpay_ip}
-          BILLING_VNPAY_LOCALE=${resolved_vnpay_locale}
-          BILLING_QR_IMAGE_BASE_URL=${BILLING_QR_IMAGE_BASE_URL}
-          BILLING_QR_IMAGE_PLUS_URL=${BILLING_QR_IMAGE_PLUS_URL}
-          BILLING_QR_IMAGE_PRO_URL=${BILLING_QR_IMAGE_PRO_URL}
+          NOTIFICATION_PUSH_ENABLED=${resolved_notification_push_enabled}
+          NOTIFICATION_EMAIL_ENABLED=${resolved_notification_email_enabled}
+          NOTIFICATION_EMAIL_COLLECTION=${resolved_notification_email_collection}
+          NOTIFICATION_DEFAULT_PUSH_ENABLED=${resolved_notification_default_push_enabled}
+          NOTIFICATION_DEFAULT_EMAIL_ENABLED=${resolved_notification_default_email_enabled}
+          NOTIFICATION_ALLOW_NON_OTP_SMS=${resolved_notification_allow_non_otp_sms}
+          NOTIFICATION_EVENT_MAX_AUDIENCE=${resolved_notification_event_max_audience}
           BILLING_WEBHOOK_SECRET=${BILLING_WEBHOOK_SECRET}
           CARD_WEBHOOK_SECRET=${resolved_card_secret}
-          VNPAY_TMNCODE=${VNPAY_TMNCODE}
-          VNPAY_HASH_SECRET=${VNPAY_HASH_SECRET}
           APPLE_SHARED_SECRET=${APPLE_SHARED_SECRET}
           GOOGLE_PLAY_PACKAGE_NAME=${GOOGLE_PLAY_PACKAGE_NAME}
           BILLING_IAP_PRODUCT_IDS_BASE=${BILLING_IAP_PRODUCT_IDS_BASE}
@@ -232,21 +304,34 @@ jobs:
           EOF
           echo "APP_RUNTIME_CONFIG_COLLECTION=$resolved_runtime_collection" >> "$GITHUB_ENV"
           echo "APP_RUNTIME_CONFIG_DOC_ID=$resolved_runtime_doc" >> "$GITHUB_ENV"
+          echo "EVENT_REMINDER_JOB_SCHEDULE=$resolved_event_reminder_schedule" >> "$GITHUB_ENV"
+          echo "EVENT_REMINDER_LOOKAHEAD_MINUTES=$resolved_event_reminder_lookahead_minutes" >> "$GITHUB_ENV"
+          echo "EVENT_REMINDER_SCAN_LIMIT=$resolved_event_reminder_scan_limit" >> "$GITHUB_ENV"
+          echo "EVENT_REMINDER_GRACE_MINUTES=$resolved_event_reminder_grace_minutes" >> "$GITHUB_ENV"
           echo "BILLING_PENDING_TIMEOUT_MINUTES=$resolved_pending_minutes" >> "$GITHUB_ENV"
           echo "BILLING_PENDING_TIMEOUT_LIMIT=$resolved_pending_limit" >> "$GITHUB_ENV"
+          echo "BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS=$resolved_contact_notice_timeout_ms" >> "$GITHUB_ENV"
+          echo "BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES=$resolved_contact_notice_max_retries" >> "$GITHUB_ENV"
+          echo "BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS=$resolved_contact_notice_backoff_ms" >> "$GITHUB_ENV"
+          echo "BILLING_CONTACT_SMS_WEBHOOK_URL=$resolved_contact_sms_webhook_url" >> "$GITHUB_ENV"
+          echo "BILLING_CONTACT_EMAIL_WEBHOOK_URL=$resolved_contact_email_webhook_url" >> "$GITHUB_ENV"
           echo "BILLING_DELINQUENCY_GRACE_DAYS=$resolved_delinquency_grace_days" >> "$GITHUB_ENV"
           echo "BILLING_DELINQUENCY_LIMIT=$resolved_delinquency_limit" >> "$GITHUB_ENV"
           echo "BILLING_DELINQUENCY_REMINDER_DAYS=$resolved_delinquency_reminder_days" >> "$GITHUB_ENV"
-          echo "BILLING_QR_CHECKOUT_ENABLED=$resolved_qr_checkout_enabled" >> "$GITHUB_ENV"
+          echo "OTP_PROVIDER=$resolved_otp_provider" >> "$GITHUB_ENV"
+          echo "OTP_ALLOWED_DIAL_CODES=$resolved_otp_allowed_dial_codes" >> "$GITHUB_ENV"
+          echo "OTP_TWILIO_VERIFY_SERVICE_SID=$OTP_TWILIO_VERIFY_SERVICE_SID" >> "$GITHUB_ENV"
+          echo "OTP_TWILIO_TIMEOUT_MS=$resolved_otp_twilio_timeout_ms" >> "$GITHUB_ENV"
+          echo "OTP_TWILIO_MAX_RETRIES=$resolved_otp_twilio_max_retries" >> "$GITHUB_ENV"
+          echo "OTP_TWILIO_BACKOFF_MS=$resolved_otp_twilio_backoff_ms" >> "$GITHUB_ENV"
           echo "BILLING_CARD_CHECKOUT_URL_BASE=$BILLING_CARD_CHECKOUT_URL_BASE" >> "$GITHUB_ENV"
-          echo "BILLING_VNPAY_FALLBACK_URL=$BILLING_VNPAY_FALLBACK_URL" >> "$GITHUB_ENV"
-          echo "BILLING_VNPAY_GATEWAY_BASE_URL=$resolved_gateway_base_url" >> "$GITHUB_ENV"
-          echo "VNPAY_RETURN_URL=$resolved_return_url" >> "$GITHUB_ENV"
-          echo "BILLING_VNPAY_IP_ADDRESS=$resolved_vnpay_ip" >> "$GITHUB_ENV"
-          echo "BILLING_VNPAY_LOCALE=$resolved_vnpay_locale" >> "$GITHUB_ENV"
-          echo "BILLING_QR_IMAGE_BASE_URL=$BILLING_QR_IMAGE_BASE_URL" >> "$GITHUB_ENV"
-          echo "BILLING_QR_IMAGE_PLUS_URL=$BILLING_QR_IMAGE_PLUS_URL" >> "$GITHUB_ENV"
-          echo "BILLING_QR_IMAGE_PRO_URL=$BILLING_QR_IMAGE_PRO_URL" >> "$GITHUB_ENV"
+          echo "NOTIFICATION_PUSH_ENABLED=$resolved_notification_push_enabled" >> "$GITHUB_ENV"
+          echo "NOTIFICATION_EMAIL_ENABLED=$resolved_notification_email_enabled" >> "$GITHUB_ENV"
+          echo "NOTIFICATION_EMAIL_COLLECTION=$resolved_notification_email_collection" >> "$GITHUB_ENV"
+          echo "NOTIFICATION_DEFAULT_PUSH_ENABLED=$resolved_notification_default_push_enabled" >> "$GITHUB_ENV"
+          echo "NOTIFICATION_DEFAULT_EMAIL_ENABLED=$resolved_notification_default_email_enabled" >> "$GITHUB_ENV"
+          echo "NOTIFICATION_ALLOW_NON_OTP_SMS=$resolved_notification_allow_non_otp_sms" >> "$GITHUB_ENV"
+          echo "NOTIFICATION_EVENT_MAX_AUDIENCE=$resolved_notification_event_max_audience" >> "$GITHUB_ENV"
           echo "GOOGLE_PLAY_PACKAGE_NAME=$GOOGLE_PLAY_PACKAGE_NAME" >> "$GITHUB_ENV"
           echo "BILLING_IAP_PRODUCT_IDS_BASE=$BILLING_IAP_PRODUCT_IDS_BASE" >> "$GITHUB_ENV"
           echo "BILLING_IAP_PRODUCT_IDS_PLUS=$BILLING_IAP_PRODUCT_IDS_PLUS" >> "$GITHUB_ENV"
@@ -265,7 +350,6 @@ jobs:
           echo "GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL=$GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL" >> "$GITHUB_ENV"
           echo "BILLING_PRICING_CACHE_MS=$resolved_pricing_cache_ms" >> "$GITHUB_ENV"
           echo "Wrote runtime environment file: firebase/functions/$env_file"
-          echo "Resolved VNPay return URL: $resolved_return_url"
 
       - name: Verify Firebase access
         run: firebase use "${{ vars.FIREBASE_PROJECT_ID }}" --project "${{ vars.FIREBASE_PROJECT_ID }}"

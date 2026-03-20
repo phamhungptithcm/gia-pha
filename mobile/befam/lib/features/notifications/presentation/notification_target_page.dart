@@ -36,6 +36,15 @@ class NotificationTargetPage extends StatelessWidget {
         Icons.school_outlined,
         const Key('notification-target-scholarship'),
       ),
+      NotificationTargetType.billing => (
+        l10n.pick(vi: 'Thanh toán gói', en: 'Billing update'),
+        l10n.pick(
+          vi: 'Mở mục Gói để xem chi tiết thanh toán hoặc gia hạn.',
+          en: 'Open Billing to review payment or renewal details.',
+        ),
+        Icons.workspace_premium_outlined,
+        const Key('notification-target-billing'),
+      ),
       NotificationTargetType.unknown => (
         l10n.notificationTargetUnknownTitle,
         l10n.notificationTargetUnknownDescription,

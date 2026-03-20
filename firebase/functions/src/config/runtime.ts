@@ -107,6 +107,25 @@ export const EXPIRE_INVITES_JOB_SCHEDULE = readEnvString(
   'EXPIRE_INVITES_JOB_SCHEDULE',
   '0 * * * *',
 );
+export const EVENT_REMINDER_JOB_SCHEDULE = readEnvString(
+  'EVENT_REMINDER_JOB_SCHEDULE',
+  '*/30 * * * *',
+);
+export const EVENT_REMINDER_LOOKAHEAD_MINUTES = readEnvInt(
+  'EVENT_REMINDER_LOOKAHEAD_MINUTES',
+  43200,
+  { min: 60, max: 129600 },
+);
+export const EVENT_REMINDER_SCAN_LIMIT = readEnvInt(
+  'EVENT_REMINDER_SCAN_LIMIT',
+  1500,
+  { min: 100, max: 10000 },
+);
+export const EVENT_REMINDER_GRACE_MINUTES = readEnvInt(
+  'EVENT_REMINDER_GRACE_MINUTES',
+  45,
+  { min: 5, max: 180 },
+);
 export const BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE = readEnvString(
   'BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE',
   '0 7 * * *',
@@ -148,6 +167,21 @@ export const BILLING_CONTACT_NOTICE_BATCH_LIMIT = readEnvInt(
   200,
   { min: 10, max: 1000 },
 );
+export const BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS = readEnvInt(
+  'BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS',
+  6000,
+  { min: 1000, max: 30000 },
+);
+export const BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES = readEnvInt(
+  'BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES',
+  2,
+  { min: 0, max: 8 },
+);
+export const BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS = readEnvInt(
+  'BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS',
+  300,
+  { min: 50, max: 5000 },
+);
 export const BILLING_DELINQUENCY_REMINDER_DAYS = readEnvIntList(
   'BILLING_DELINQUENCY_REMINDER_DAYS',
   [7, 3, 1],
@@ -157,9 +191,9 @@ export const BILLING_ALLOW_MANUAL_SETTLEMENT = readEnvBoolean(
   'BILLING_ALLOW_MANUAL_SETTLEMENT',
   false,
 );
-export const BILLING_QR_CHECKOUT_ENABLED = readEnvBoolean(
-  'BILLING_QR_CHECKOUT_ENABLED',
-  false,
+export const BILLING_ENABLE_LEGACY_CARD_FLOW = readEnvBoolean(
+  'BILLING_ENABLE_LEGACY_CARD_FLOW',
+  readEnvString('FUNCTIONS_EMULATOR', 'false').toLowerCase() === 'true',
 );
 export const BILLING_IAP_ALLOW_TEST_MOCK = readEnvBoolean(
   'BILLING_IAP_ALLOW_TEST_MOCK',
@@ -187,14 +221,6 @@ export function getBillingWebhookSecret(): string {
 
 export function getCardWebhookSecret(): string {
   return readEnvString('CARD_WEBHOOK_SECRET', getBillingWebhookSecret());
-}
-
-export function getVnpayTmnCode(): string {
-  return readEnvString('VNPAY_TMNCODE');
-}
-
-export function getVnpayHashSecret(): string {
-  return readEnvString('VNPAY_HASH_SECRET');
 }
 
 export function getAppleSharedSecret(): string {
@@ -261,27 +287,34 @@ export const BILLING_IAP_ANDROID_PRODUCT_IDS_PRO = readEnvStringList(
 export const BILLING_CARD_CHECKOUT_URL_BASE = readEnvString(
   'BILLING_CARD_CHECKOUT_URL_BASE',
 );
-export const BILLING_VNPAY_FALLBACK_URL = readEnvString(
-  'BILLING_VNPAY_FALLBACK_URL',
+export const NOTIFICATION_PUSH_ENABLED = readEnvBoolean(
+  'NOTIFICATION_PUSH_ENABLED',
+  true,
 );
-export const BILLING_VNPAY_GATEWAY_BASE_URL = readEnvString(
-  'BILLING_VNPAY_GATEWAY_BASE_URL',
-  'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+export const NOTIFICATION_EMAIL_ENABLED = readEnvBoolean(
+  'NOTIFICATION_EMAIL_ENABLED',
+  false,
 );
-export const BILLING_VNPAY_RETURN_URL = readEnvString('VNPAY_RETURN_URL');
-export const BILLING_VNPAY_IP_ADDRESS = readEnvString(
-  'BILLING_VNPAY_IP_ADDRESS',
-  '127.0.0.1',
+export const NOTIFICATION_EMAIL_COLLECTION = readEnvString(
+  'NOTIFICATION_EMAIL_COLLECTION',
+  'mail',
 );
-export const BILLING_VNPAY_LOCALE = readEnvString('BILLING_VNPAY_LOCALE', 'vn');
-export const BILLING_QR_IMAGE_BASE_URL = readEnvString(
-  'BILLING_QR_IMAGE_BASE_URL',
+export const NOTIFICATION_DEFAULT_PUSH_ENABLED = readEnvBoolean(
+  'NOTIFICATION_DEFAULT_PUSH_ENABLED',
+  true,
 );
-export const BILLING_QR_IMAGE_PLUS_URL = readEnvString(
-  'BILLING_QR_IMAGE_PLUS_URL',
+export const NOTIFICATION_DEFAULT_EMAIL_ENABLED = readEnvBoolean(
+  'NOTIFICATION_DEFAULT_EMAIL_ENABLED',
+  false,
 );
-export const BILLING_QR_IMAGE_PRO_URL = readEnvString(
-  'BILLING_QR_IMAGE_PRO_URL',
+export const NOTIFICATION_ALLOW_NON_OTP_SMS = readEnvBoolean(
+  'NOTIFICATION_ALLOW_NON_OTP_SMS',
+  false,
+);
+export const NOTIFICATION_EVENT_MAX_AUDIENCE = readEnvInt(
+  'NOTIFICATION_EVENT_MAX_AUDIENCE',
+  5000,
+  { min: 100, max: 50000 },
 );
 export const BILLING_CONTACT_SMS_WEBHOOK_URL = readEnvString(
   'BILLING_CONTACT_SMS_WEBHOOK_URL',
@@ -298,3 +331,46 @@ export const CALLABLE_ENFORCE_APP_CHECK = readEnvBoolean(
   'CALLABLE_ENFORCE_APP_CHECK',
   readEnvString('FUNCTIONS_EMULATOR', 'false').toLowerCase() !== 'true',
 );
+
+export const OTP_PROVIDER = (() => {
+  const normalized = readEnvString('OTP_PROVIDER', 'firebase').toLowerCase();
+  if (normalized === 'twilio') {
+    return 'twilio';
+  }
+  return 'firebase';
+})();
+
+export const OTP_ALLOWED_DIAL_CODES = readEnvStringList(
+  'OTP_ALLOWED_DIAL_CODES',
+  ['84'],
+);
+
+export const OTP_TWILIO_ACCOUNT_SID = readEnvString(
+  'OTP_TWILIO_ACCOUNT_SID',
+);
+
+export const OTP_TWILIO_VERIFY_SERVICE_SID = readEnvString(
+  'OTP_TWILIO_VERIFY_SERVICE_SID',
+);
+
+export const OTP_TWILIO_TIMEOUT_MS = readEnvInt(
+  'OTP_TWILIO_TIMEOUT_MS',
+  6000,
+  { min: 1000, max: 30000 },
+);
+
+export const OTP_TWILIO_MAX_RETRIES = readEnvInt(
+  'OTP_TWILIO_MAX_RETRIES',
+  2,
+  { min: 0, max: 6 },
+);
+
+export const OTP_TWILIO_BACKOFF_MS = readEnvInt(
+  'OTP_TWILIO_BACKOFF_MS',
+  300,
+  { min: 50, max: 5000 },
+);
+
+export function getOtpTwilioAuthToken(): string {
+  return readEnvString('OTP_TWILIO_AUTH_TOKEN');
+}

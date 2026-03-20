@@ -1,4 +1,8 @@
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import {
+  FieldValue,
+  Timestamp,
+  type QueryDocumentSnapshot,
+} from 'firebase-admin/firestore';
 
 import {
   buildEntitlement,
@@ -1013,7 +1017,6 @@ export async function applyPaymentResult({
 }
 
 export async function resolveBillingAudienceMemberIds(clanId: string): Promise<Array<string>> {
-  const snapshot = await membersCollection.where('clanId', '==', clanId).limit(1000).get();
   const adminRoles = new Set([
     'SUPER_ADMIN',
     'CLAN_ADMIN',
@@ -1023,12 +1026,46 @@ export async function resolveBillingAudienceMemberIds(clanId: string): Promise<A
     'VICE_LEADER',
     'SUPPORTER_OF_LEADER',
   ]);
-  return snapshot.docs
-    .filter((doc) => {
+  const audienceMemberIds = new Set<string>();
+  const queryPageSize = 500;
+  const maxAudience = 10000;
+  let cursor: QueryDocumentSnapshot | null = null;
+
+  while (audienceMemberIds.size < maxAudience) {
+    let query = membersCollection
+      .where('clanId', '==', clanId)
+      .limit(Math.min(queryPageSize, maxAudience - audienceMemberIds.size));
+    if (cursor != null) {
+      query = query.startAfter(cursor);
+    }
+    const snapshot = await query.get();
+    if (snapshot.empty) {
+      break;
+    }
+    cursor = snapshot.docs[snapshot.docs.length - 1];
+
+    for (const doc of snapshot.docs) {
       const role = readString(doc.data().primaryRole, '').toUpperCase();
-      return adminRoles.has(role);
-    })
-    .map((doc) => doc.id);
+      if (adminRoles.has(role)) {
+        audienceMemberIds.add(doc.id);
+      }
+      if (audienceMemberIds.size >= maxAudience) {
+        break;
+      }
+    }
+    if (snapshot.docs.length < queryPageSize) {
+      break;
+    }
+  }
+
+  if (audienceMemberIds.size >= maxAudience) {
+    logWarn('billing audience truncated to configured max', {
+      clanId,
+      maxAudience,
+    });
+  }
+
+  return [...audienceMemberIds];
 }
 
 export async function writeBillingAuditLog({
@@ -1375,9 +1412,6 @@ function normalizePaymentMode(value: unknown): PaymentMode {
 
 function normalizePaymentMethod(value: unknown): PaymentMethod {
   const normalized = readString(value, 'card').toLowerCase();
-  if (normalized === 'vnpay') {
-    return 'vnpay';
-  }
   if (normalized === 'apple_iap') {
     return 'apple_iap';
   }

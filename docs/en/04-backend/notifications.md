@@ -1,9 +1,10 @@
 # Notifications
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: March 19, 2026_
 
-BeFam notifications are delivered through Firestore + FCM with a mobile service
-that supports both foreground and system-opened deep links.
+BeFam notifications are delivered through Firestore + FCM (primary channel),
+with optional email fan-out through the Firebase `firestore-send-email`
+extension.
 
 ## End-to-end flow
 
@@ -13,8 +14,19 @@ that supports both foreground and system-opened deep links.
      (member/clan/branch/access mode), even if the Firebase UID is unchanged
 3. Fallback path writes token directly to `users/{uid}/deviceTokens`.
 4. Backend triggers call `notifyMembers(...)`.
-5. `notifyMembers` writes `notifications` docs and sends FCM multicast.
-6. Invalid FCM tokens are cleaned up from Firestore token docs.
+5. `notifyMembers` always writes `notifications` inbox docs.
+6. Push delivery is routed by user preference + category setting, then sent via
+   FCM multicast.
+7. Optional email delivery is queued to Firestore `mail` (or configured email
+   collection) for extension processing.
+8. Invalid FCM tokens are cleaned up from Firestore token docs.
+
+## Channel policy
+
+- Push: default channel (free, primary).
+- Email: optional free channel (via Firebase extension + SMTP provider).
+- SMS: reserved for OTP authentication only. Non-OTP SMS notifications are
+  disabled by default in runtime config.
 
 ## Supported targets
 
@@ -49,18 +61,20 @@ Planned trigger sources:
 - members can mark their own notifications as read (`isRead` only)
 - creation/deletion is server-controlled
 
+## Preference model
+
+- User preferences are stored at
+  `users/{uid}/preferences/notifications`.
+- Backend applies:
+  - channel toggles (`pushEnabled`, `emailEnabled`)
+  - category toggles (`eventReminders`, `scholarshipUpdates`,
+    `fundTransactions`, `systemNotices`)
+- Inbox document creation remains server-controlled for auditability and
+  in-app history.
+
 ## Mobile inbox status
 
-- notification inbox screen is available in the shell Events destination
-- inbox reads notification documents for the active member with incremental
-  pagination
-- users can mark their notifications as read from inbox actions
-- event and scholarship notifications open dedicated mobile deep-link
-  destination placeholders
-- notification settings toggles are available as profile-level placeholders
-
-## Next delivery step
-
-- replace target placeholder pages with full event and scholarship detail
-  destinations
-- persist notification preference toggles to backend user settings
+- notification inbox screen is available in shell flows
+- inbox reads notification docs for active member with pagination
+- users can mark their own notifications as read
+- deep-link targets are resolved by payload (`event`, `scholarship`, `generic`)

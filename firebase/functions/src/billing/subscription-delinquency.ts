@@ -3,6 +3,10 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   BILLING_CONTACT_EMAIL_WEBHOOK_URL,
   BILLING_CONTACT_SMS_WEBHOOK_URL,
+  BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS,
+  BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES,
+  BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS,
+  NOTIFICATION_ALLOW_NON_OTP_SMS,
   getBillingContactNoticeWebhookToken,
 } from '../config/runtime';
 import { db } from '../shared/firestore';
@@ -60,6 +64,7 @@ const billingContactNoticesCollection = db.collection('billingContactNotices');
 
 const PAID_PLANS = new Set(['BASE', 'PLUS', 'PRO']);
 const NON_REACTIVATABLE_CLAN_STATUS = new Set(['archived', 'deleted']);
+const CONTACT_NOTICE_RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 export async function enforceSubscriptionDelinquencyRun(
   input: DelinquencyRunInput,
@@ -481,7 +486,7 @@ async function sendGraceReminder({
     body:
       `Payment is overdue. Complete renewal by ${formatDate(graceEndsAt)} ` +
       `to keep clan access active. Contact ${ownerLabel} for upgrade.`,
-    target: 'generic',
+    target: 'billing',
     targetId: subscriptionId,
     extraData: {
       billing: 'true',
@@ -533,7 +538,7 @@ async function sendDeactivatedNotice({
     body:
       `Subscription grace period has ended. Contact ${ownerLabel} to renew ` +
       'the plan and reactivate clan access.',
-    target: 'generic',
+    target: 'billing',
     targetId: subscriptionId,
     extraData: {
       billing: 'true',
@@ -684,12 +689,14 @@ async function queueOwnerContactNotice({
   message: string;
 }): Promise<void> {
   const channels = [
+    ...(NOTIFICATION_ALLOW_NON_OTP_SMS
+      ? [{
+          channel: 'sms' as const,
+          destination: ownerPhoneE164,
+        }]
+      : []),
     {
-      channel: 'sms',
-      destination: ownerPhoneE164,
-    },
-    {
-      channel: 'email',
+      channel: 'email' as const,
       destination: ownerEmail,
     },
   ].filter((entry): entry is { channel: 'sms' | 'email'; destination: string } =>
@@ -784,29 +791,19 @@ export async function dispatchBillingContactNoticesRun(
     }
 
     try {
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(webhookToken.length > 0
-            ? { authorization: `Bearer ${webhookToken}` }
-            : {}),
-        },
-        body: JSON.stringify({
+      await dispatchContactNoticeWithRetry({
+        id: doc.id,
+        webhookUrl,
+        webhookToken,
+        payload: {
           id: doc.id,
           channel,
           destination,
           subject,
           message,
           queuedAtIso: now.toISOString(),
-        }),
+        },
       });
-      if (!response.ok) {
-        const bodyText = await response.text();
-        throw new Error(
-          `provider_http_${response.status}:${truncateLogValue(bodyText, 240)}`,
-        );
-      }
 
       delivered += 1;
       await doc.ref.set(
@@ -853,6 +850,147 @@ export async function dispatchBillingContactNoticesRun(
   return result;
 }
 
+class ContactNoticeDispatchError extends Error {
+  constructor(message: string, readonly retryable: boolean) {
+    super(message);
+    this.name = 'ContactNoticeDispatchError';
+  }
+}
+
+async function dispatchContactNoticeWithRetry({
+  id,
+  webhookUrl,
+  webhookToken,
+  payload,
+}: {
+  id: string;
+  webhookUrl: string;
+  webhookToken: string;
+  payload: Record<string, unknown>;
+}): Promise<void> {
+  const timeoutMs = clamp(BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS, 1000, 30000);
+  const maxRetries = clamp(BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES, 0, 8);
+  const backoffMs = clamp(BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS, 50, 5000);
+  const maxAttempts = maxRetries + 1;
+  let attempt = 0;
+
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    try {
+      await dispatchContactNoticeOnce({
+        webhookUrl,
+        webhookToken,
+        payload,
+        timeoutMs,
+      });
+      return;
+    } catch (error) {
+      const dispatchError = toContactNoticeDispatchError(error, timeoutMs);
+      const shouldRetry = dispatchError.retryable && attempt < maxAttempts;
+      if (!shouldRetry) {
+        throw dispatchError;
+      }
+
+      const sleepMs = Math.min(backoffMs * Math.pow(2, attempt - 1), 20000);
+      logWarn('billing contact notice dispatch retry scheduled', {
+        noticeId: id,
+        attempt,
+        maxAttempts,
+        backoffMs: sleepMs,
+        reason: dispatchError.message,
+      });
+      await wait(sleepMs);
+    }
+  }
+}
+
+async function dispatchContactNoticeOnce({
+  webhookUrl,
+  webhookToken,
+  payload,
+  timeoutMs,
+}: {
+  webhookUrl: string;
+  webhookToken: string;
+  payload: Record<string, unknown>;
+  timeoutMs: number;
+}): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(webhookToken.length > 0
+          ? { authorization: `Bearer ${webhookToken}` }
+          : {}),
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const bodyText = await response.text();
+      throw new ContactNoticeDispatchError(
+        `provider_http_${response.status}:${truncateLogValue(bodyText, 240)}`,
+        CONTACT_NOTICE_RETRYABLE_STATUS_CODES.has(response.status),
+      );
+    }
+  } catch (error) {
+    throw toContactNoticeDispatchError(error, timeoutMs);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function toContactNoticeDispatchError(
+  error: unknown,
+  timeoutMs: number,
+): ContactNoticeDispatchError {
+  if (error instanceof ContactNoticeDispatchError) {
+    return error;
+  }
+  if (isAbortError(error)) {
+    return new ContactNoticeDispatchError(
+      `provider_timeout_${timeoutMs}ms`,
+      true,
+    );
+  }
+  const raw = truncateLogValue(`${error}`, 500);
+  return new ContactNoticeDispatchError(
+    raw,
+    isRetryableNetworkErrorMessage(raw),
+  );
+}
+
+function isAbortError(error: unknown): boolean {
+  if (error == null || typeof error !== 'object') {
+    return false;
+  }
+  const name = normalizeString((error as { name?: unknown }).name).toLowerCase();
+  return name === 'aborterror';
+}
+
+function isRetryableNetworkErrorMessage(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  return (
+    normalized.includes('timeout') ||
+    normalized.includes('timed out') ||
+    normalized.includes('econnreset') ||
+    normalized.includes('etimedout') ||
+    normalized.includes('eai_again') ||
+    normalized.includes('enotfound') ||
+    normalized.includes('econnrefused') ||
+    normalized.includes('network')
+  );
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 function buildOutboxNoticeId({
   clanId,
   subscriptionId,
@@ -875,6 +1013,9 @@ function buildOutboxNoticeId({
 
 function resolveContactNoticeWebhookUrl(channel: string): string {
   if (channel === 'sms') {
+    if (!NOTIFICATION_ALLOW_NON_OTP_SMS) {
+      return '';
+    }
     return BILLING_CONTACT_SMS_WEBHOOK_URL.trim();
   }
   if (channel === 'email') {

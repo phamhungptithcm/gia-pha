@@ -16,6 +16,10 @@ import '../models/clan_workspace_snapshot.dart';
 import 'clan_repository.dart';
 
 class FirebaseClanRepository implements ClanRepository {
+  static const int _workspacePageSize = 250;
+  static const int _workspaceMaxBranches = 1500;
+  static const int _workspaceMaxMembers = 3000;
+
   FirebaseClanRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
@@ -58,24 +62,32 @@ class FirebaseClanRepository implements ClanRepository {
       return const ClanWorkspaceSnapshot(clan: null, branches: [], members: []);
     }
 
-    final results = await Future.wait([
+    final results = await Future.wait<Object>([
       _clans.doc(clanId).get(),
-      _branches.where('clanId', isEqualTo: clanId).get(),
-      _members.where('clanId', isEqualTo: clanId).get(),
+      _fetchPagedDocuments(
+        _branches.where('clanId', isEqualTo: clanId),
+        maxDocuments: _workspaceMaxBranches,
+      ),
+      _fetchPagedDocuments(
+        _members.where('clanId', isEqualTo: clanId),
+        maxDocuments: _workspaceMaxMembers,
+      ),
     ]);
 
     final clanSnapshot = results[0] as DocumentSnapshot<Map<String, dynamic>>;
-    final branchSnapshot = results[1] as QuerySnapshot<Map<String, dynamic>>;
-    final memberSnapshot = results[2] as QuerySnapshot<Map<String, dynamic>>;
+    final branchDocs =
+        results[1] as List<QueryDocumentSnapshot<Map<String, dynamic>>>;
+    final memberDocs =
+        results[2] as List<QueryDocumentSnapshot<Map<String, dynamic>>>;
 
     final clan = clanSnapshot.data() == null
         ? null
         : ClanProfile.fromJson(clanSnapshot.data()!);
-    final branches = branchSnapshot.docs
+    final branches = branchDocs
         .map((doc) => BranchProfile.fromJson(doc.data()))
         .sortedBy((branch) => branch.name.toLowerCase())
         .toList(growable: false);
-    final members = memberSnapshot.docs
+    final members = memberDocs
         .map((doc) => ClanMemberSummary.fromJson(doc.data()))
         .sortedBy((member) => member.fullName.toLowerCase())
         .toList(growable: false);
@@ -250,5 +262,33 @@ class FirebaseClanRepository implements ClanRepository {
     }
 
     return null;
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _fetchPagedDocuments(
+    Query<Map<String, dynamic>> baseQuery, {
+    required int maxDocuments,
+  }) async {
+    final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
+    while (docs.length < maxDocuments) {
+      final remaining = maxDocuments - docs.length;
+      final pageLimit = remaining < _workspacePageSize
+          ? remaining
+          : _workspacePageSize;
+      final query = cursor == null
+          ? baseQuery.limit(pageLimit)
+          : baseQuery.limit(pageLimit).startAfterDocument(cursor);
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        break;
+      }
+      docs.addAll(snapshot.docs);
+      if (snapshot.docs.length < pageLimit) {
+        break;
+      }
+      cursor = snapshot.docs.last;
+    }
+    return docs;
   }
 }

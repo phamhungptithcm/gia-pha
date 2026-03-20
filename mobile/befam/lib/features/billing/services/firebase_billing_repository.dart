@@ -5,7 +5,6 @@ import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../auth/models/auth_session.dart';
-import '../../auth/services/phone_number_formatter.dart';
 import '../models/billing_workspace_snapshot.dart';
 import 'billing_repository.dart';
 
@@ -100,14 +99,8 @@ class FirebaseBillingRepository implements BillingRepository {
     required String paymentMethod,
     String? requestedPlanCode,
     String? returnUrl,
-    String? locale,
-    String? orderNote,
-    String? bankCode,
-    String? contactPhone,
   }) async {
     final scopeId = _sessionBillingScopeId(session);
-    final normalizedContactPhone =
-        PhoneNumberFormatter.tryParseE164(contactPhone) ?? contactPhone?.trim();
     await _ensureSessionDocumentBestEffort(session);
     final payload = <String, dynamic>{
       'paymentMethod': paymentMethod,
@@ -115,13 +108,6 @@ class FirebaseBillingRepository implements BillingRepository {
         'requestedPlanCode': requestedPlanCode.trim().toUpperCase(),
       if (returnUrl != null && returnUrl.trim().isNotEmpty)
         'returnUrl': returnUrl.trim(),
-      if (locale != null && locale.trim().isNotEmpty) 'locale': locale.trim(),
-      if (orderNote != null && orderNote.trim().isNotEmpty)
-        'orderNote': orderNote.trim(),
-      if (bankCode != null && bankCode.trim().isNotEmpty)
-        'bankCode': bankCode.trim().toUpperCase(),
-      if (normalizedContactPhone != null && normalizedContactPhone.isNotEmpty)
-        'contactPhone': normalizedContactPhone,
     };
     final result = await _call(
       'createSubscriptionCheckout',
@@ -154,17 +140,6 @@ class FirebaseBillingRepository implements BillingRepository {
     await _ensureSessionDocumentBestEffort(session);
     await _call(
       'completeCardCheckout',
-    ).call(_scopePayload(session, {'transactionId': transactionId.trim()}));
-  }
-
-  @override
-  Future<void> settleVnpayCheckout({
-    required AuthSession session,
-    required String transactionId,
-  }) async {
-    await _ensureSessionDocumentBestEffort(session);
-    await _call(
-      'simulateVnpaySettlement',
     ).call(_scopePayload(session, {'transactionId': transactionId.trim()}));
   }
 
@@ -323,10 +298,15 @@ class FirebaseBillingRepository implements BillingRepository {
       map['storeProductIdsByPlanByPlatform'],
     );
     return BillingCheckoutFlowConfig(
-      qrCheckoutEnabled: _readBool(map, 'qrCheckoutEnabled', fallback: false),
-      qrImageUrlsByPlan: _parsePlanQrImageUrls(map['qrImageUrlsByPlan']),
-      storeProductIdsByPlan: _parsePlanQrImageUrls(map['storeProductIdsByPlan']),
+      storeProductIdsByPlan: _parsePlanCodeStringMap(
+        map['storeProductIdsByPlan'],
+      ),
       storeProductIdsByPlanByPlatform: byPlatform,
+      allowLegacyCardCheckout: _readBool(
+        map,
+        'allowLegacyCardCheckout',
+        fallback: false,
+      ),
     );
   }
 
@@ -351,13 +331,15 @@ class FirebaseBillingRepository implements BillingRepository {
         if (platformEntry.key is! String || platformEntry.value is! String) {
           continue;
         }
-        final normalizedPlatform =
-            (platformEntry.key as String).trim().toLowerCase();
+        final normalizedPlatform = (platformEntry.key as String)
+            .trim()
+            .toLowerCase();
         if (normalizedPlatform != 'ios' && normalizedPlatform != 'android') {
           continue;
         }
-        final normalizedProduct =
-            (platformEntry.value as String).trim().toLowerCase();
+        final normalizedProduct = (platformEntry.value as String)
+            .trim()
+            .toLowerCase();
         if (normalizedProduct.isEmpty) {
           continue;
         }
@@ -370,7 +352,7 @@ class FirebaseBillingRepository implements BillingRepository {
     return output;
   }
 
-  Map<String, String> _parsePlanQrImageUrls(Object? raw) {
+  Map<String, String> _parsePlanCodeStringMap(Object? raw) {
     if (raw is! Map) {
       return const <String, String>{};
     }

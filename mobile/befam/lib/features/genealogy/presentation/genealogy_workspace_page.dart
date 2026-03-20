@@ -69,6 +69,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   static const _rowSpacing = 136.0;
   static const _columnSpacing = 58.0;
   static const _canvasPadding = 40.0;
+  static const _maxVisibleMembers = 320;
 
   final GlobalKey _treePrintBoundaryKey = GlobalKey();
   final GlobalKey _treeCanvasPrintBoundaryKey = GlobalKey();
@@ -1793,7 +1794,68 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     required GenealogyGraph graph,
     required String rootId,
   }) {
-    return graph.membersById.keys.toSet();
+    final allMemberIds = graph.membersById.keys.toSet();
+    if (allMemberIds.length <= _maxVisibleMembers) {
+      return allMemberIds;
+    }
+    if (!allMemberIds.contains(rootId)) {
+      return allMemberIds.take(_maxVisibleMembers).toSet();
+    }
+
+    final visible = <String>{rootId};
+    final queue = Queue<String>()..add(rootId);
+    while (queue.isNotEmpty && visible.length < _maxVisibleMembers) {
+      final currentId = queue.removeFirst();
+      final related =
+          <String>{
+              ...graph.parentsOf(currentId),
+              ...graph.childrenOf(currentId),
+              ...graph.spousesOf(currentId),
+            }.toList(growable: false)
+            ..sort(_compareMembersForLayoutWithFallback(graph));
+      for (final relatedId in related) {
+        if (!allMemberIds.contains(relatedId) || !visible.add(relatedId)) {
+          continue;
+        }
+        queue.addLast(relatedId);
+        if (visible.length >= _maxVisibleMembers) {
+          break;
+        }
+      }
+    }
+
+    if (visible.length >= _maxVisibleMembers) {
+      return visible;
+    }
+
+    final remaining = allMemberIds.difference(visible).toList(growable: false)
+      ..sort(_compareMembersForLayoutWithFallback(graph));
+    for (final memberId in remaining) {
+      visible.add(memberId);
+      if (visible.length >= _maxVisibleMembers) {
+        break;
+      }
+    }
+    return visible;
+  }
+
+  int Function(String, String) _compareMembersForLayoutWithFallback(
+    GenealogyGraph graph,
+  ) {
+    return (left, right) {
+      final hasLeft = graph.membersById.containsKey(left);
+      final hasRight = graph.membersById.containsKey(right);
+      if (hasLeft && hasRight) {
+        return _compareMembersForLayout(left, right, graph);
+      }
+      if (hasLeft) {
+        return -1;
+      }
+      if (hasRight) {
+        return 1;
+      }
+      return left.compareTo(right);
+    };
   }
 
   Map<String, int> _buildRelativeLevels({

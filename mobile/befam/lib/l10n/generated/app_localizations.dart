@@ -863,7 +863,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileLanguageEnglishSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'Use English across all screens'**
+  /// **'Hiển thị tiếng Anh trên toàn bộ ứng dụng'**
   String get profileLanguageEnglishSubtitle;
 
   /// No description provided for @profileSecuritySectionTitle.
@@ -2660,6 +2660,24 @@ abstract class AppLocalizations {
   /// **'Quản lý lời nhắc và loại thông báo bạn muốn nhận trên thiết bị này.'**
   String get notificationSettingsDescription;
 
+  /// No description provided for @notificationSettingsPushChannel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông báo đẩy (khuyên dùng)'**
+  String get notificationSettingsPushChannel;
+
+  /// No description provided for @notificationSettingsEmailChannel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thông báo qua email'**
+  String get notificationSettingsEmailChannel;
+
+  /// No description provided for @notificationSettingsSmsOtpOnlyNote.
+  ///
+  /// In vi, this message translates to:
+  /// **'SMS chỉ dùng cho xác minh OTP.'**
+  String get notificationSettingsSmsOtpOnlyNote;
+
   /// No description provided for @notificationSettingsEventUpdates.
   ///
   /// In vi, this message translates to:
@@ -3659,7 +3677,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingFeatureBillingDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Theo dõi gói đang dùng, gia hạn và lịch sử thanh toán VNPay ngay trong BeFam.'**
+  /// **'Theo dõi gói đang dùng, gia hạn và lịch sử thanh toán ngay trong BeFam.'**
   String get webLandingFeatureBillingDescription;
 
   /// No description provided for @webAboutTitle.
@@ -3755,7 +3773,7 @@ abstract class AppLocalizations {
   /// No description provided for @webInfoBillingDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Quản lý quyền lợi theo gói, trạng thái hiệu lực và luồng thanh toán VNPay cho tổ chức gia phả.'**
+  /// **'Quản lý quyền lợi theo gói, trạng thái hiệu lực và luồng thanh toán cho tổ chức gia phả.'**
   String get webInfoBillingDescription;
 
   /// No description provided for @webInfoHighlightsTitle.

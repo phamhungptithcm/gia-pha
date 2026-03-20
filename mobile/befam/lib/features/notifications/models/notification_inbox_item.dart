@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum NotificationInboxTarget { event, scholarship, generic, unknown }
+enum NotificationInboxTarget { event, scholarship, billing, generic, unknown }
 
 class NotificationInboxItem {
   const NotificationInboxItem({
@@ -33,7 +33,8 @@ class NotificationInboxItem {
   bool get canOpenTarget {
     return targetId?.trim().isNotEmpty == true &&
         (target == NotificationInboxTarget.event ||
-            target == NotificationInboxTarget.scholarship);
+            target == NotificationInboxTarget.scholarship ||
+            target == NotificationInboxTarget.billing);
   }
 
   NotificationInboxItem copyWith({
@@ -104,6 +105,8 @@ class NotificationInboxItem {
         return NotificationInboxTarget.event;
       case 'scholarship':
         return NotificationInboxTarget.scholarship;
+      case 'billing':
+        return NotificationInboxTarget.billing;
       case 'generic':
         return NotificationInboxTarget.generic;
     }
@@ -114,6 +117,10 @@ class NotificationInboxItem {
     }
     if (normalizedType.contains('scholarship')) {
       return NotificationInboxTarget.scholarship;
+    }
+    if (normalizedType.contains('billing') ||
+        normalizedType.contains('payment')) {
+      return NotificationInboxTarget.billing;
     }
     if (normalizedType.isNotEmpty) {
       return NotificationInboxTarget.generic;

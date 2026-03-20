@@ -4,10 +4,9 @@ import { onRequest } from 'firebase-functions/v2/https';
 
 import {
   APP_REGION,
+  BILLING_ENABLE_LEGACY_CARD_FLOW,
   getBillingWebhookSecret,
   getCardWebhookSecret,
-  getVnpayHashSecret,
-  getVnpayTmnCode,
 } from '../config/runtime';
 import {
   applyPaymentResult,
@@ -15,104 +14,15 @@ import {
   resolveBillingAudienceMemberIds,
 } from './store';
 import { notifyMembers } from '../notifications/push-delivery';
-import { logError, logInfo, logWarn } from '../shared/logger';
-
-export const vnpayPaymentCallback = onRequest(
-  { region: APP_REGION },
-  async (request, response) => {
-    if (request.method !== 'GET') {
-      response.status(405).json({ ok: false, message: 'Method not allowed' });
-      return;
-    }
-
-    const params = normalizeQueryParams(request.query);
-    const transactionId = params.vnp_TxnRef ?? '';
-    if (transactionId.length === 0) {
-      response.status(400).json({ ok: false, message: 'vnp_TxnRef is required' });
-      return;
-    }
-
-    const payloadHash = sha256(JSON.stringify(params));
-    const signatureValid = isValidVnpaySignature(params);
-    const externalEventId =
-      params.vnp_TransactionNo ?? params.vnp_TxnRef ?? `${Date.now()}`;
-
-    if (!signatureValid) {
-      logWarn('vnpay callback rejected due to invalid signature', {
-        transactionId,
-        externalEventId,
-      });
-      response.status(401).json({
-        ok: false,
-        message: 'Invalid VNPay signature',
-      });
-      return;
-    }
-
-    const webhookEvent = await recordPaymentWebhookEvent({
-      provider: 'vnpay',
-      externalEventId,
-      transactionId,
-      payloadHash,
-      validSignature: true,
-      rawPayload: params,
-    });
-    if (webhookEvent.alreadyProcessed) {
-      response.status(200).json({
-        ok: true,
-        idempotent: true,
-        transactionId,
-      });
-      return;
-    }
-
-    const responseCode = params.vnp_ResponseCode ?? '';
-    const paymentStatus =
-      responseCode === '00' ? 'succeeded' : responseCode === '24' ? 'canceled' : 'failed';
-
-    try {
-      const result = await applyPaymentResult({
-        transactionId,
-        provider: 'vnpay',
-        gatewayReference: params.vnp_TransactionNo ?? transactionId,
-        paymentStatus,
-        payloadHash,
-        actorUid: 'system:vnpay_webhook',
-      });
-      await notifyBillingWebhookResult({
-        clanId: result.clanId,
-        transactionId,
-        amountVnd: Number(result.transaction.amountVnd),
-        provider: 'vnpay',
-        approved: paymentStatus === 'succeeded',
-      });
-
-      logInfo('vnpay callback processed', {
-        transactionId,
-        paymentStatus,
-        responseCode,
-      });
-      response.status(200).json({
-        ok: true,
-        transactionId,
-        paymentStatus,
-      });
-    } catch (error) {
-      logError('vnpay callback processing failed', {
-        transactionId,
-        error: `${error}`,
-      });
-      response.status(500).json({
-        ok: false,
-        message: 'Could not process VNPay callback',
-      });
-    }
-  },
-);
+import { logError } from '../shared/logger';
 
 export const cardPaymentCallback = onRequest(
   { region: APP_REGION },
   async (request, response) => {
+    if (!BILLING_ENABLE_LEGACY_CARD_FLOW) {
+      response.status(404).json({ ok: false, message: 'Not found' });
+      return;
+    }
     if (!['GET', 'POST'].includes(request.method)) {
       response.status(405).json({ ok: false, message: 'Method not allowed' });
       return;
@@ -176,10 +86,14 @@ export const cardPaymentCallback = onRequest(
         paymentStatus,
       });
     } catch (error) {
+      logError('cardPaymentCallback failed', {
+        transactionId,
+        paymentStatus,
+        error: `${error}`,
+      });
       response.status(500).json({
         ok: false,
         message: 'Could not process card callback',
-        error: `${error}`,
       });
     }
   },
@@ -231,44 +145,6 @@ function isValidCardSignature(payload: CardPayload): boolean {
   return safeEqual(expected, payload.signature);
 }
 
-function normalizeQueryParams(query: unknown): Record<string, string> {
-  if (query == null || typeof query !== 'object') {
-    return {};
-  }
-  const output: Record<string, string> = {};
-  for (const [key, value] of Object.entries(query as Record<string, unknown>)) {
-    if (typeof value === 'string') {
-      output[key] = value.trim();
-      continue;
-    }
-    if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
-      output[key] = value[0].trim();
-    }
-  }
-  return output;
-}
-
-export function isValidVnpaySignature(params: Record<string, string>): boolean {
-  const secureHash = params.vnp_SecureHash;
-  const hashSecret = getVnpayHashSecret();
-  const expectedTmnCode = normalizeString(getVnpayTmnCode());
-  const callbackTmnCode = normalizeString(params.vnp_TmnCode);
-  if (secureHash == null || secureHash.length === 0 || hashSecret.length === 0) {
-    return false;
-  }
-  if (expectedTmnCode.length > 0 && callbackTmnCode !== expectedTmnCode) {
-    return false;
-  }
-
-  const canonical = Object.entries(params)
-    .filter(([key]) => key !== 'vnp_SecureHash' && key !== 'vnp_SecureHashType')
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-    .join('&');
-  const expected = createHmac('sha512', hashSecret).update(canonical).digest('hex');
-  return safeEqual(expected, secureHash);
-}
-
 async function notifyBillingWebhookResult({
   clanId,
   approved,
@@ -295,7 +171,7 @@ async function notifyBillingWebhookResult({
     body: approved
       ? `${formatVnd(amountVnd)} via ${provider.toUpperCase()} has been confirmed.`
       : `${formatVnd(amountVnd)} via ${provider.toUpperCase()} did not complete.`,
-    target: 'generic',
+    target: 'billing',
     targetId: transactionId,
     extraData: {
       transactionId,

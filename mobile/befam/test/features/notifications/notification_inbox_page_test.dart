@@ -230,12 +230,25 @@ class _FakeNotificationInboxRepository implements NotificationInboxRepository {
     NotificationInboxCursor? cursor,
   }) async {
     final sorted = _items.toList(growable: false)
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    final cursorTime = cursor?.createdAt;
+      ..sort((a, b) {
+        final byTime = b.createdAt.compareTo(a.createdAt);
+        if (byTime != 0) {
+          return byTime;
+        }
+        return b.id.compareTo(a.id);
+      });
 
-    final filtered = cursorTime == null
+    final filtered = cursor == null
         ? sorted
-        : sorted.where((item) => item.createdAt.isBefore(cursorTime));
+        : sorted.where((item) {
+            if (item.createdAt.isBefore(cursor.createdAt)) {
+              return true;
+            }
+            if (item.createdAt.isAfter(cursor.createdAt)) {
+              return false;
+            }
+            return item.id.compareTo(cursor.documentId) < 0;
+          });
     final pageItems = filtered.take(limit + 1).toList(growable: false);
     final hasMore = pageItems.length > limit;
     final visibleItems = hasMore
@@ -245,7 +258,10 @@ class _FakeNotificationInboxRepository implements NotificationInboxRepository {
     return NotificationInboxPageResult(
       items: visibleItems,
       nextCursor: hasMore
-          ? NotificationInboxCursor(createdAt: visibleItems.last.createdAt)
+          ? NotificationInboxCursor(
+              createdAt: visibleItems.last.createdAt,
+              documentId: visibleItems.last.id,
+            )
           : null,
     );
   }

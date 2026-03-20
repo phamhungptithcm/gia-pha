@@ -179,6 +179,18 @@ class ProfileController extends ChangeNotifier {
     );
   }
 
+  Future<void> updatePushEnabledPreference(bool enabled) {
+    return _updateNotificationPreference(
+      _notificationPreferences.copyWith(pushEnabled: enabled),
+    );
+  }
+
+  Future<void> updateEmailEnabledPreference(bool enabled) {
+    return _updateNotificationPreference(
+      _notificationPreferences.copyWith(emailEnabled: enabled),
+    );
+  }
+
   Future<void> updateScholarshipUpdatesPreference(bool enabled) {
     return _updateNotificationPreference(
       _notificationPreferences.copyWith(scholarshipUpdates: enabled),

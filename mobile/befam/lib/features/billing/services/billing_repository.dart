@@ -46,18 +46,9 @@ abstract interface class BillingRepository {
     required String paymentMethod,
     String? requestedPlanCode,
     String? returnUrl,
-    String? locale,
-    String? orderNote,
-    String? bankCode,
-    String? contactPhone,
   });
 
   Future<void> completeCardCheckout({
-    required AuthSession session,
-    required String transactionId,
-  });
-
-  Future<void> settleVnpayCheckout({
     required AuthSession session,
     required String transactionId,
   });

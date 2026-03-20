@@ -166,10 +166,6 @@ class BillingController extends ChangeNotifier {
     required String paymentMethod,
     String? requestedPlanCode,
     String? returnUrl,
-    String? locale,
-    String? orderNote,
-    String? bankCode,
-    String? contactPhone,
   }) async {
     _isCreatingCheckout = true;
     _errorMessage = null;
@@ -180,10 +176,6 @@ class BillingController extends ChangeNotifier {
         paymentMethod: paymentMethod,
         requestedPlanCode: requestedPlanCode,
         returnUrl: returnUrl,
-        locale: locale,
-        orderNote: orderNote,
-        bankCode: bankCode,
-        contactPhone: contactPhone,
       );
       _workspace = await _repository.loadWorkspace(session: _session);
       _viewerSummary = null;
@@ -206,27 +198,6 @@ class BillingController extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.completeCardCheckout(
-        session: _session,
-        transactionId: transactionId,
-      );
-      _workspace = await _repository.loadWorkspace(session: _session);
-      _viewerSummary = null;
-    } on BillingRepositoryException catch (error) {
-      _errorMessage = error.toString();
-    } catch (error) {
-      _errorMessage = error.toString();
-    } finally {
-      _isProcessingPayment = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> confirmVnpayPayment(String transactionId) async {
-    _isProcessingPayment = true;
-    _errorMessage = null;
-    notifyListeners();
-    try {
-      await _repository.settleVnpayCheckout(
         session: _session,
         transactionId: transactionId,
       );

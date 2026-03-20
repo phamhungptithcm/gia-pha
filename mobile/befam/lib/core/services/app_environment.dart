@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class AppEnvironment {
   const AppEnvironment._();
 
@@ -101,6 +103,13 @@ class AppEnvironment {
     'BEFAM_ENABLE_APP_CHECK',
     defaultValue: true,
   );
+
+  static const bool allowFirebasePhoneAuthFallback =
+      !kReleaseMode &&
+      bool.fromEnvironment(
+        'BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK',
+        defaultValue: false,
+      );
 
   static const String appCheckWebRecaptchaSiteKey = String.fromEnvironment(
     'BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY',

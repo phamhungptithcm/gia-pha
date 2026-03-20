@@ -56,6 +56,18 @@ class AuthErrorMapper {
       }
       if (normalizedReason.isNotEmpty) {
         switch (normalizedReason) {
+          case 'otp_invalid_code':
+            return const AuthIssue(AuthIssueKey.invalidVerificationCode);
+          case 'otp_verify_attempt_limit':
+          case 'otp_request_rate_limited':
+            return const AuthIssue(AuthIssueKey.tooManyRequests);
+          case 'otp_country_not_allowed':
+          case 'otp_provider_auth_failed':
+            return const AuthIssue(AuthIssueKey.operationNotAllowed);
+          case 'otp_invalid_payload':
+            return const AuthIssue(AuthIssueKey.invalidPhoneNumber);
+          case 'otp_provider_unavailable':
+            return const AuthIssue(AuthIssueKey.networkRequestFailed);
           case 'parent_verification_mismatch':
             return const AuthIssue(AuthIssueKey.parentVerificationMismatch);
           case 'child_context_not_found':
@@ -93,6 +105,7 @@ class AuthErrorMapper {
           const AuthIssue(AuthIssueKey.userNotFound),
         'not-found' => const AuthIssue(AuthIssueKey.authUnavailable),
         'already-exists' => const AuthIssue(AuthIssueKey.memberAlreadyLinked),
+        'resource-exhausted' => const AuthIssue(AuthIssueKey.tooManyRequests),
         'failed-precondition' when normalizedMessage.contains('parent phone') =>
           const AuthIssue(AuthIssueKey.parentVerificationMismatch),
         'failed-precondition'

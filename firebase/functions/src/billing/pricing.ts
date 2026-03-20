@@ -11,7 +11,7 @@ export type SubscriptionStatus =
   | 'canceled';
 
 export type PaymentMode = 'auto_renew' | 'manual';
-export type PaymentMethod = 'card' | 'vnpay' | 'apple_iap' | 'google_play';
+export type PaymentMethod = 'card' | 'apple_iap' | 'google_play';
 export type PaymentStatus =
   | 'created'
   | 'pending'

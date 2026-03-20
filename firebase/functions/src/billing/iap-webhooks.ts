@@ -14,6 +14,7 @@ import {
 } from '../config/runtime';
 import type { BillingPlanCode } from './pricing';
 import {
+  refreshIapProductCatalogFromFirestore,
   resolvePlanCodeForIapProductId,
   verifyInAppStorePurchase,
   type IapPlatform,
@@ -88,6 +89,7 @@ export const appleIapWebhook = onRequest(
         signedRenewalInfo.length > 0
           ? await verifySignedAppleJws(signedRenewalInfo)
           : {};
+      await refreshIapProductCatalogFromFirestore();
       const productId = normalizeString(transactionInfo.productId).toLowerCase();
       if (productId.length === 0) {
         response
@@ -661,7 +663,8 @@ function isAuthorizedWithSharedBearer(
 ): boolean {
   const normalizedExpected = expectedToken.trim();
   if (normalizedExpected.length === 0) {
-    return true;
+    logWarn('IAP webhook bearer token is not configured; rejecting request.');
+    return false;
   }
   const bearer = readBearerToken(request.headers);
   if (bearer == null) {

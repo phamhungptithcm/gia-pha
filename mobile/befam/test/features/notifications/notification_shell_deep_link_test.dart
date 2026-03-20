@@ -3,6 +3,7 @@ import 'package:befam/app/home/app_shell_page.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/billing/presentation/billing_workspace_page.dart';
 import 'package:befam/features/profile/presentation/profile_workspace_page.dart';
 import '../../support/features/clan/services/debug_clan_repository.dart';
 import '../../support/features/member/services/debug_member_repository.dart';
@@ -115,6 +116,38 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('submission_demo_001'), findsOneWidget);
+  });
+
+  testWidgets('opens billing tab from opened-app deep link', (tester) async {
+    final pushService = _ControllablePushNotificationService();
+
+    await tester.pumpWidget(
+      _ShellTestApp(
+        child: AppShellPage(
+          status: buildReadyStatus(),
+          session: buildSession(),
+          clanRepository: DebugClanRepository.seeded(),
+          memberRepository: DebugMemberRepository.seeded(),
+          pushNotificationService: pushService,
+        ),
+      ),
+    );
+    await pumpUi(tester);
+
+    pushService.emit(
+      const NotificationDeepLink(
+        targetType: NotificationTargetType.billing,
+        referenceId: 'txn_demo_001',
+        messageId: 'message_billing_001',
+        origin: NotificationMessageOrigin.openedApp,
+        title: 'Payment status updated',
+        body: 'Open billing to review your subscription status.',
+      ),
+    );
+    await pumpUi(tester, frames: 36);
+
+    expect(find.byType(BillingWorkspacePage), findsOneWidget);
+    expect(find.byKey(const Key('notification-target-billing')), findsNothing);
   });
 
   testWidgets('renders notification settings toggles on profile workspace', (

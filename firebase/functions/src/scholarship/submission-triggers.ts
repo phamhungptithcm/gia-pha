@@ -53,10 +53,7 @@ export const onSubmissionReviewed = onDocumentUpdated(
       return;
     }
 
-    const title = toStatus === 'approved'
-      ? 'Scholarship submission approved'
-      : 'Scholarship submission update';
-    const body = buildSubmissionBody({
+    const content = buildSubmissionNotificationContent({
       status: toStatus,
       reviewNote: afterData.reviewNote,
       submissionTitle: afterData.title,
@@ -65,8 +62,9 @@ export const onSubmissionReviewed = onDocumentUpdated(
       clanId,
       memberIds: [memberId],
       type: 'scholarship_reviewed',
-      title,
-      body,
+      title: content.vi.title,
+      body: content.vi.body,
+      localized: content,
       target: 'scholarship',
       targetId: event.params.submissionId,
       extraData: {
@@ -87,7 +85,7 @@ export const onSubmissionReviewed = onDocumentUpdated(
   },
 );
 
-function buildSubmissionBody({
+function buildSubmissionNotificationContent({
   status,
   reviewNote,
   submissionTitle,
@@ -95,21 +93,46 @@ function buildSubmissionBody({
   status: string;
   reviewNote: string | null | undefined;
   submissionTitle: string | null | undefined;
-}): string {
+}): {
+  vi: { title: string; body: string };
+  en: { title: string; body: string };
+} {
   const trimmedTitle = submissionTitle?.trim() ?? '';
   const trimmedReview = reviewNote?.trim() ?? '';
-  const titlePrefix = trimmedTitle.length > 0 ? `"${trimmedTitle}"` : 'Your submission';
+  const titlePrefixVi =
+    trimmedTitle.length > 0 ? `"${trimmedTitle}"` : 'Hồ sơ của bạn';
+  const titlePrefixEn =
+    trimmedTitle.length > 0 ? `"${trimmedTitle}"` : 'Your submission';
 
   if (status == 'approved') {
-    if (trimmedReview.length > 0) {
-      return `${titlePrefix} was approved. Note: ${trimmedReview}`;
-    }
-    return `${titlePrefix} was approved.`;
+    return {
+      vi: {
+        title: 'Hồ sơ khuyến học đã được duyệt',
+        body: trimmedReview.length > 0
+          ? `${titlePrefixVi} đã được duyệt. Ghi chú: ${trimmedReview}`
+          : `${titlePrefixVi} đã được duyệt.`,
+      },
+      en: {
+        title: 'Scholarship submission approved',
+        body: trimmedReview.length > 0
+          ? `${titlePrefixEn} was approved. Note: ${trimmedReview}`
+          : `${titlePrefixEn} was approved.`,
+      },
+    };
   }
 
-  if (trimmedReview.length > 0) {
-    return `${titlePrefix} was not approved. Reason: ${trimmedReview}`;
-  }
-
-  return `${titlePrefix} was not approved. Open BeFam to review details.`;
+  return {
+    vi: {
+      title: 'Cập nhật hồ sơ khuyến học',
+      body: trimmedReview.length > 0
+        ? `${titlePrefixVi} chưa được duyệt. Lý do: ${trimmedReview}`
+        : `${titlePrefixVi} chưa được duyệt. Mở BeFam để xem chi tiết.`,
+    },
+    en: {
+      title: 'Scholarship submission update',
+      body: trimmedReview.length > 0
+        ? `${titlePrefixEn} was not approved. Reason: ${trimmedReview}`
+        : `${titlePrefixEn} was not approved. Open BeFam to review details.`,
+    },
+  };
 }

@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
 import test from 'node:test';
 
 import {
@@ -118,45 +117,6 @@ test('billing contract: lifecycle status normalizes by expiry and grace period',
     }),
     'expired',
   );
-});
-
-test('billing contract: VNPay callback signature is validated', async () => {
-  process.env.VNPAY_HASH_SECRET = 'contract-test-secret';
-  process.env.VNPAY_TMNCODE = 'DEMO1234';
-  const { isValidVnpaySignature } = await import('../billing/webhooks');
-
-  const params: Record<string, string> = {
-    vnp_Amount: '4900000',
-    vnp_Command: 'pay',
-    vnp_CreateDate: '20260315120000',
-    vnp_CurrCode: 'VND',
-    vnp_Locale: 'vn',
-    vnp_OrderInfo: 'BeFam BASE annual subscription',
-    vnp_OrderType: 'billpayment',
-    vnp_ResponseCode: '00',
-    vnp_TmnCode: 'DEMO1234',
-    vnp_TransactionNo: '15190022',
-    vnp_TxnRef: 'txn_contract_001',
-    vnp_Version: '2.1.0',
-  };
-
-  const canonical = Object.entries(params)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-    .join('&');
-
-  params.vnp_SecureHash = createHmac('sha512', process.env.VNPAY_HASH_SECRET)
-    .update(canonical)
-    .digest('hex');
-
-  assert.equal(isValidVnpaySignature(params), true);
-
-  params.vnp_TmnCode = 'WRONG_TMNCODE';
-  assert.equal(isValidVnpaySignature(params), false);
-
-  params.vnp_TmnCode = 'DEMO1234';
-  params.vnp_SecureHash = `${params.vnp_SecureHash.substring(0, 30)}broken`;
-  assert.equal(isValidVnpaySignature(params), false);
 });
 
 test(

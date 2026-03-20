@@ -16,6 +16,14 @@ import {
 import {
   APP_REGION,
   CALLABLE_ENFORCE_APP_CHECK,
+  OTP_ALLOWED_DIAL_CODES,
+  OTP_PROVIDER,
+  OTP_TWILIO_ACCOUNT_SID,
+  OTP_TWILIO_BACKOFF_MS,
+  OTP_TWILIO_MAX_RETRIES,
+  OTP_TWILIO_TIMEOUT_MS,
+  OTP_TWILIO_VERIFY_SERVICE_SID,
+  getOtpTwilioAuthToken,
 } from '../config/runtime';
 import { db } from '../shared/firestore';
 import { requireAuth } from '../shared/errors';
@@ -213,6 +221,30 @@ type TrustedDeviceRecord = {
   expiresAt?: Timestamp | null;
 };
 
+type OtpChallengeSessionRecord = {
+  provider?: string | null;
+  status?: string | null;
+  loginMethod?: LoginMethod | string | null;
+  phoneE164?: string | null;
+  maskedDestination?: string | null;
+  childIdentifier?: string | null;
+  memberId?: string | null;
+  displayName?: string | null;
+  appId?: string | null;
+  fingerprintHash?: string | null;
+  twilioVerificationSid?: string | null;
+  verifyAttempts?: number | null;
+  maxVerifyAttempts?: number | null;
+  expiresAt?: Timestamp | null;
+  uid?: string | null;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+  approvedAt?: Timestamp | null;
+  failedAt?: Timestamp | null;
+  failureCode?: string | null;
+  failureReason?: string | null;
+};
+
 const membersCollection = db.collection('members');
 const branchesCollection = db.collection('branches');
 const clansCollection = db.collection('clans');
@@ -225,9 +257,15 @@ const authRateLimitsCollection = db.collection('authRateLimits');
 const trustedDevicesCollection = db.collection('trustedDevices');
 const memberVerificationSessionsCollection = db.collection('memberVerificationSessions');
 const memberVerificationGuardsCollection = db.collection('memberVerificationGuards');
+const authOtpSessionsCollection = db.collection('authOtpSessions');
+const phoneAuthIdentitiesCollection = db.collection('phoneAuthIdentities');
 const subscriptionsCollection = db.collection('subscriptions');
 const CHILD_LOOKUP_WINDOW_MS = 5 * 60 * 1000;
 const CHILD_LOOKUP_MAX_REQUESTS = 8;
+const OTP_REQUEST_WINDOW_MS = 10 * 60 * 1000;
+const OTP_REQUEST_MAX_REQUESTS = 6;
+const OTP_CHALLENGE_TTL_MS = 10 * 60 * 1000;
+const OTP_CHALLENGE_MAX_VERIFY_ATTEMPTS = 6;
 const TRUSTED_DEVICE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const MEMBER_VERIFICATION_SESSION_TTL_MS = 15 * 60 * 1000;
 const MEMBER_VERIFICATION_MAX_ATTEMPTS = 3;
@@ -291,6 +329,247 @@ export const resolveChildLoginContext = onCall(
   },
 );
 
+export const requestOtpChallenge = onCall(
+  APP_CHECK_CALLABLE_OPTIONS,
+  async (request) => {
+    ensureTwilioOtpEnabled();
+    const loginMethod = requireLoginMethod(request.data);
+    const languageCode = resolvePreferredLanguageCode(request.data);
+
+    let phoneE164 = '';
+    let childIdentifier: string | null = null;
+    let memberId: string | null = null;
+    let displayName: string | null = null;
+    if (loginMethod === 'child') {
+      childIdentifier = requireNonEmptyString(request.data, 'childIdentifier')
+        .trim()
+        .toUpperCase();
+      await enforceChildLookupRateLimit(request, childIdentifier);
+      const resolved = await findChildLoginContext(childIdentifier);
+      phoneE164 = normalizePhoneE164(resolved.parentPhoneE164);
+      memberId = resolved.memberId;
+      displayName = resolved.displayName;
+    } else {
+      phoneE164 = normalizePhoneE164(
+        requireNonEmptyString(request.data, 'phoneE164'),
+      );
+      memberId = optionalString(request.data, 'memberId')?.trim() ?? null;
+      displayName = optionalString(request.data, 'displayName')?.trim() ?? null;
+    }
+
+    assertOtpDialCodeAllowed(phoneE164);
+    await enforceOtpRequestRateLimit(request, phoneE164);
+
+    const providerResponse = await requestTwilioOtp({
+      phoneE164,
+      languageCode,
+    });
+    const sessionRef = authOtpSessionsCollection.doc();
+    const fingerprint = resolveOtpRequestFingerprint(request, phoneE164);
+    await sessionRef.set({
+      id: sessionRef.id,
+      provider: 'twilio',
+      status: 'pending',
+      loginMethod,
+      phoneE164,
+      maskedDestination: maskPhone(phoneE164),
+      childIdentifier,
+      memberId,
+      displayName,
+      appId: request.app?.appId ?? null,
+      fingerprintHash: hashValueForLog(fingerprint),
+      twilioVerificationSid: providerResponse.sid,
+      verifyAttempts: 0,
+      maxVerifyAttempts: OTP_CHALLENGE_MAX_VERIFY_ATTEMPTS,
+      expiresAt: Timestamp.fromMillis(Date.now() + OTP_CHALLENGE_TTL_MS),
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    logInfo('requestOtpChallenge dispatched', {
+      loginMethod,
+      challengeId: sessionRef.id,
+      phoneMasked: maskPhone(phoneE164),
+      appId: request.app?.appId ?? null,
+    });
+
+    return {
+      provider: 'twilio',
+      verificationId: sessionRef.id,
+      maskedDestination: maskPhone(phoneE164),
+      phoneE164,
+      loginMethod,
+      childIdentifier,
+      memberId,
+      displayName,
+      expiresInSeconds: Math.floor(OTP_CHALLENGE_TTL_MS / 1000),
+    };
+  },
+);
+
+export const verifyOtpChallenge = onCall(
+  APP_CHECK_CALLABLE_OPTIONS,
+  async (request) => {
+    ensureTwilioOtpEnabled();
+    const verificationId = requireNonEmptyString(
+      request.data,
+      'verificationId',
+    ).trim();
+    const smsCode = requireNonEmptyString(request.data, 'smsCode').trim();
+    if (!/^\d{4,10}$/.test(smsCode)) {
+      throw new HttpsError(
+        'invalid-argument',
+        'The verification code is invalid.',
+        { reason: 'otp_invalid_code' },
+      );
+    }
+
+    const sessionRef = authOtpSessionsCollection.doc(verificationId);
+    const sessionSnapshot = await sessionRef.get();
+    if (!sessionSnapshot.exists) {
+      throw new HttpsError(
+        'not-found',
+        'The verification session no longer exists.',
+        { reason: 'verification_session_not_found' },
+      );
+    }
+    const session = sessionSnapshot.data() as OtpChallengeSessionRecord;
+    const phoneE164 = optionalTrimmedRecordString(session.phoneE164);
+    if (phoneE164 == null) {
+      throw new HttpsError(
+        'failed-precondition',
+        'The verification session has an invalid phone number.',
+        { reason: 'verification_session_phone_missing' },
+      );
+    }
+    const status = (session.status ?? 'pending').trim().toLowerCase();
+    const expiresAtMs = session.expiresAt?.toMillis() ?? 0;
+    if (expiresAtMs > 0 && expiresAtMs <= Date.now()) {
+      await sessionRef.set({
+        status: 'expired',
+        failedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        failureCode: 'session_expired',
+      }, { merge: true });
+      throw new HttpsError(
+        'not-found',
+        'The verification session has expired.',
+        { reason: 'verification_session_not_found' },
+      );
+    }
+
+    if (status === 'approved') {
+      const uid = optionalTrimmedRecordString(session.uid);
+      if (uid == null) {
+        throw new HttpsError(
+          'failed-precondition',
+          'The verification session is missing user context.',
+          { reason: 'verification_session_inactive' },
+        );
+      }
+      const customToken = await issuePhoneCustomToken(uid, phoneE164);
+      return buildOtpApprovedResponse({
+        customToken,
+        uid,
+        phoneE164,
+        session,
+      });
+    }
+    if (status !== 'pending') {
+      throw new HttpsError(
+        'failed-precondition',
+        'The verification session is no longer active.',
+        { reason: 'verification_session_inactive' },
+      );
+    }
+
+    const verifyAttempts = Math.max(Math.trunc(session.verifyAttempts ?? 0), 0);
+    const maxVerifyAttempts = Math.max(
+      Math.trunc(session.maxVerifyAttempts ?? OTP_CHALLENGE_MAX_VERIFY_ATTEMPTS),
+      1,
+    );
+    if (verifyAttempts >= maxVerifyAttempts) {
+      await sessionRef.set({
+        status: 'failed',
+        failedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        failureCode: 'attempt_limit',
+      }, { merge: true });
+      throw new HttpsError(
+        'resource-exhausted',
+        'Too many verification attempts. Request a new OTP and try again.',
+        { reason: 'otp_verify_attempt_limit' },
+      );
+    }
+
+    await sessionRef.set({
+      verifyAttempts: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    const verification = await verifyTwilioOtpCode({
+      phoneE164,
+      smsCode,
+    });
+    if (!verification.approved) {
+      const exhausted = verifyAttempts + 1 >= maxVerifyAttempts;
+      await sessionRef.set({
+        status: exhausted ? 'failed' : 'pending',
+        failedAt: exhausted ? FieldValue.serverTimestamp() : null,
+        updatedAt: FieldValue.serverTimestamp(),
+        failureCode: exhausted ? 'attempt_limit' : 'invalid_code',
+        failureReason: verification.status,
+      }, { merge: true });
+      throw new HttpsError(
+        exhausted ? 'resource-exhausted' : 'invalid-argument',
+        exhausted
+          ? 'Too many verification attempts. Request a new OTP and try again.'
+          : 'The verification code is invalid or expired.',
+        {
+          reason: exhausted
+            ? 'otp_verify_attempt_limit'
+            : 'otp_invalid_code',
+        },
+      );
+    }
+
+    const identity = await ensurePhoneAuthIdentity({
+      phoneE164,
+      displayName: optionalTrimmedRecordString(session.displayName),
+    });
+    const customToken = await issuePhoneCustomToken(identity.uid, phoneE164);
+    await usersCollection.doc(identity.uid).set({
+      uid: identity.uid,
+      normalizedPhone: phoneE164,
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    await sessionRef.set({
+      status: 'approved',
+      approvedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      uid: identity.uid,
+      failureCode: null,
+      failureReason: null,
+    }, { merge: true });
+
+    logInfo('verifyOtpChallenge approved', {
+      challengeId: verificationId,
+      uid: identity.uid,
+      phoneMasked: maskPhone(phoneE164),
+      loginMethod: session.loginMethod ?? 'phone',
+      isNewIdentity: identity.isNew,
+    });
+
+    return buildOtpApprovedResponse({
+      customToken,
+      uid: identity.uid,
+      phoneE164,
+      session,
+    });
+  },
+);
+
 export const createInvite = onCall(APP_CHECK_CALLABLE_OPTIONS, async (request) => {
   const auth = requireAuth(request);
 
@@ -314,10 +593,7 @@ export const claimMemberRecord = onCall(APP_CHECK_CALLABLE_OPTIONS, async (reque
     loginMethod,
   });
 
-  const authPhone = typeof auth.token.phone_number === 'string'
-    ? auth.token.phone_number
-    : '';
-  const effectiveAuthPhone = authPhone;
+  const verifiedPhoneE164 = await resolveVerifiedPhoneForAuth(auth);
 
   if (loginMethod === 'child') {
     const childIdentifier = optionalString(request.data, 'childIdentifier')
@@ -328,7 +604,10 @@ export const claimMemberRecord = onCall(APP_CHECK_CALLABLE_OPTIONS, async (reque
       ? await findChildLoginContext(childIdentifier)
       : await findChildLoginContextByMemberId(providedMemberId);
 
-    if (authPhone.length === 0 || authPhone !== resolved.parentPhoneE164) {
+    if (
+      normalizePhoneE164(verifiedPhoneE164) !==
+      normalizePhoneE164(resolved.parentPhoneE164)
+    ) {
       throw new HttpsError(
         'failed-precondition',
         'The verified phone number does not match the linked parent phone.',
@@ -356,7 +635,7 @@ export const claimMemberRecord = onCall(APP_CHECK_CALLABLE_OPTIONS, async (reque
   const explicitMemberId = optionalString(request.data, 'memberId')?.trim();
   const claimedMember = await resolvePhoneClaimMember({
     uid: auth.uid,
-    authPhone: effectiveAuthPhone,
+    authPhone: verifiedPhoneE164,
     explicitMemberId,
   });
 
@@ -374,7 +653,7 @@ export const claimMemberRecord = onCall(APP_CHECK_CALLABLE_OPTIONS, async (reque
 
     logWarn('claimMemberRecord found no member match', {
       uid: auth.uid,
-      maskedPhoneE164: maskPhone(effectiveAuthPhone),
+      maskedPhoneE164: maskPhone(verifiedPhoneE164),
     });
 
     return context;
@@ -425,17 +704,7 @@ export const resolvePhoneIdentityAfterOtp = onCall(
       throw new HttpsError('invalid-argument', 'deviceToken is invalid.');
     }
     const deviceTokenHash = hashDeviceToken(deviceToken);
-    const authPhone = typeof auth.token.phone_number === 'string'
-      ? auth.token.phone_number
-      : '';
-    const effectiveAuthPhone = authPhone;
-    if (effectiveAuthPhone.length === 0) {
-      throw new HttpsError(
-        'failed-precondition',
-        'A verified phone number is required before identity reconciliation.',
-      );
-    }
-    const phoneE164 = normalizePhoneE164(effectiveAuthPhone);
+    const phoneE164 = await resolveVerifiedPhoneForAuth(auth);
     const trustedDeviceActive = await isTrustedDeviceActive(auth.uid, deviceTokenHash);
     let candidatesFromTrustedUnlinked: Array<MaskedMemberCandidate> | null = null;
     let hasSelectableCandidateFromTrustedUnlinked = false;
@@ -649,16 +918,7 @@ export const createUnlinkedPhoneIdentity = onCall(
       throw new HttpsError('invalid-argument', 'deviceToken is invalid.');
     }
     const deviceTokenHash = hashDeviceToken(deviceToken);
-    const authPhone = typeof auth.token.phone_number === 'string'
-      ? auth.token.phone_number
-      : '';
-    const effectiveAuthPhone = authPhone;
-    if (effectiveAuthPhone.length === 0) {
-      throw new HttpsError(
-        'failed-precondition',
-        'A verified phone number is required before creating an unlinked profile.',
-      );
-    }
+    const phoneE164 = await resolveVerifiedPhoneForAuth(auth);
     const linkedContexts = await loadLinkedClanContextsForUid(auth.uid);
     if (linkedContexts.length > 0) {
       throw new HttpsError(
@@ -667,7 +927,6 @@ export const createUnlinkedPhoneIdentity = onCall(
         { reason: 'member_already_linked' },
       );
     }
-    const phoneE164 = normalizePhoneE164(effectiveAuthPhone);
     const context: MemberSessionContext = {
       memberId: null,
       displayName: optionalString(auth.token, 'name')?.trim() ?? null,
@@ -715,17 +974,7 @@ export const startMemberIdentityVerification = onCall(
       throw new HttpsError('invalid-argument', 'deviceToken is invalid.');
     }
     const deviceTokenHash = hashDeviceToken(deviceToken);
-    const authPhone = typeof auth.token.phone_number === 'string'
-      ? auth.token.phone_number
-      : '';
-    const effectiveAuthPhone = authPhone;
-    if (effectiveAuthPhone.length === 0) {
-      throw new HttpsError(
-        'failed-precondition',
-        'A verified phone number is required before verification can start.',
-      );
-    }
-    const phoneE164 = normalizePhoneE164(effectiveAuthPhone);
+    const phoneE164 = await resolveVerifiedPhoneForAuth(auth);
     const verificationGuard = await readMemberVerificationGuard(auth.uid, memberId);
     if (verificationGuard.locked) {
       await writeAuthEvent({
@@ -1766,6 +2015,57 @@ function optionalString(data: unknown, key: string): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+async function resolveVerifiedPhoneForAuth(
+  auth: NonNullable<CallableRequest<unknown>['auth']>,
+): Promise<string> {
+  const tokenPhoneCandidates = [
+    optionalString(auth.token, 'phone_number'),
+    optionalString(auth.token, 'phoneE164Verified'),
+    optionalString(auth.token, 'phoneE164'),
+    optionalString(auth.token, 'phone_e164'),
+    optionalString(auth.token, 'normalizedPhone'),
+  ]
+    .map((value) => value?.trim() ?? '')
+    .filter((value) => value.length > 0);
+
+  for (const candidate of tokenPhoneCandidates) {
+    try {
+      return normalizePhoneE164(candidate);
+    } catch {
+      // Continue with the next candidate.
+    }
+  }
+
+  const userSnapshot = await usersCollection.doc(auth.uid).get();
+  if (userSnapshot.exists) {
+    const userData = userSnapshot.data() as UserSessionProfileRecord;
+    const profilePhone = optionalTrimmedRecordString(userData.normalizedPhone);
+    if (profilePhone != null) {
+      try {
+        return normalizePhoneE164(profilePhone);
+      } catch {
+        // Continue with Auth user fallback.
+      }
+    }
+  }
+
+  try {
+    const authUser = await getAuth().getUser(auth.uid);
+    const authPhone = optionalTrimmedRecordString(authUser.phoneNumber);
+    if (authPhone != null) {
+      return normalizePhoneE164(authPhone);
+    }
+  } catch {
+    // Ignore and throw canonical precondition below.
+  }
+
+  throw new HttpsError(
+    'failed-precondition',
+    'A verified phone number is required before continuing.',
+    { reason: 'verified_phone_missing' },
+  );
+}
+
 function asTrimmedString(value: unknown, fallback = ''): string {
   if (typeof value !== 'string') {
     return fallback.trim();
@@ -2110,6 +2410,514 @@ async function enforceChildLookupRateLimit(
       expiresAt: Timestamp.fromMillis(nowMs + (CHILD_LOOKUP_WINDOW_MS * 2)),
     }, { merge: true });
   });
+}
+
+function ensureTwilioOtpEnabled(): void {
+  if (OTP_PROVIDER !== 'twilio') {
+    throw new HttpsError(
+      'unimplemented',
+      'Server-side OTP provider is not enabled for this environment.',
+      { reason: 'otp_provider_unavailable' },
+    );
+  }
+  if (
+    OTP_TWILIO_ACCOUNT_SID.length === 0 ||
+    OTP_TWILIO_VERIFY_SERVICE_SID.length === 0 ||
+    getOtpTwilioAuthToken().length === 0
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Twilio OTP provider is not configured.',
+      { reason: 'otp_provider_misconfigured' },
+    );
+  }
+}
+
+function assertOtpDialCodeAllowed(phoneE164: string): void {
+  const allowedDialCodes = OTP_ALLOWED_DIAL_CODES
+    .map((value) => value.replace(/[^0-9]/g, ''))
+    .filter((value) => value.length > 0);
+  if (allowedDialCodes.length === 0) {
+    return;
+  }
+  const split = splitPhoneCountryAndNational(phoneE164);
+  const dialCode = split?.dialCode ?? null;
+  if (dialCode == null || !allowedDialCodes.includes(dialCode)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'OTP delivery is not enabled for this destination country.',
+      { reason: 'otp_country_not_allowed' },
+    );
+  }
+}
+
+async function enforceOtpRequestRateLimit(
+  request: CallableRequest<unknown>,
+  phoneE164: string,
+): Promise<void> {
+  const nowMs = Date.now();
+  const currentWindowStartMs = nowMs - (nowMs % OTP_REQUEST_WINDOW_MS);
+  const fingerprint = resolveOtpRequestFingerprint(request, phoneE164);
+  const docId = `otp_request_${hashValueForLog(fingerprint)}`;
+  const rateLimitRef = authRateLimitsCollection.doc(docId);
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(rateLimitRef);
+    const existing = snapshot.data() as {
+      windowStartMs?: number | null;
+      requestCount?: number | null;
+    } | undefined;
+    const existingWindowStartMs = typeof existing?.windowStartMs === 'number'
+      ? Math.trunc(existing.windowStartMs)
+      : null;
+    const existingRequestCount = typeof existing?.requestCount === 'number'
+      ? Math.trunc(existing.requestCount)
+      : 0;
+    const isCurrentWindow = existingWindowStartMs === currentWindowStartMs;
+    const nextCount = isCurrentWindow ? existingRequestCount + 1 : 1;
+    if (isCurrentWindow && existingRequestCount >= OTP_REQUEST_MAX_REQUESTS) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'Too many OTP requests. Please wait a few minutes and try again.',
+        { reason: 'otp_request_rate_limited' },
+      );
+    }
+
+    transaction.set(rateLimitRef, {
+      id: docId,
+      type: 'otp_request',
+      fingerprintHash: hashValueForLog(fingerprint),
+      phoneHash: hashValueForLog(phoneE164),
+      windowStartMs: currentWindowStartMs,
+      requestCount: nextCount,
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(nowMs + (OTP_REQUEST_WINDOW_MS * 2)),
+    }, { merge: true });
+  });
+}
+
+function resolveOtpRequestFingerprint(
+  request: CallableRequest<unknown>,
+  phoneE164: string,
+): string {
+  return `${resolveChildLookupFingerprint(request)}|phone:${hashValueForLog(phoneE164)}`;
+}
+
+async function requestTwilioOtp(input: {
+  phoneE164: string;
+  languageCode: SupportedLanguageCode;
+}): Promise<{ sid: string; status: string }> {
+  const payload = new URLSearchParams({
+    To: input.phoneE164,
+    Channel: 'sms',
+    Locale: input.languageCode == 'en' ? 'en' : 'vi',
+  });
+  const response = await callTwilioVerifyApi('/Verifications', payload);
+  const sid = readTwilioResponseString(response, 'sid');
+  const status = readTwilioResponseString(response, 'status');
+  if (sid.length === 0) {
+    throw new HttpsError(
+      'unavailable',
+      'OTP provider did not return a verification identifier.',
+      { reason: 'otp_provider_unavailable' },
+    );
+  }
+  return { sid, status };
+}
+
+async function verifyTwilioOtpCode(input: {
+  phoneE164: string;
+  smsCode: string;
+}): Promise<{ approved: boolean; status: string }> {
+  const payload = new URLSearchParams({
+    To: input.phoneE164,
+    Code: input.smsCode,
+  });
+  const response = await callTwilioVerifyApi('/VerificationCheck', payload);
+  const status = readTwilioResponseString(response, 'status').toLowerCase();
+  return {
+    approved: status === 'approved',
+    status,
+  };
+}
+
+async function callTwilioVerifyApi(
+  path: string,
+  payload: URLSearchParams,
+): Promise<Record<string, unknown>> {
+  const servicePath = `/v2/Services/${encodeURIComponent(OTP_TWILIO_VERIFY_SERVICE_SID)}${path}`;
+  const endpoint = `https://verify.twilio.com${servicePath}`;
+  const authToken = getOtpTwilioAuthToken();
+  const authHeader = Buffer
+    .from(`${OTP_TWILIO_ACCOUNT_SID}:${authToken}`, 'utf8')
+    .toString('base64');
+  const maxRetries = Math.max(0, OTP_TWILIO_MAX_RETRIES);
+  const maxAttempts = maxRetries + 1;
+  let attempt = 0;
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), OTP_TWILIO_TIMEOUT_MS);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          authorization: `Basic ${authHeader}`,
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: payload.toString(),
+        signal: controller.signal,
+      });
+      const body = await parseTwilioJsonBody(response);
+      if (response.ok) {
+        return body;
+      }
+      const retryable = response.status >= 500 || response.status === 429;
+      if (retryable && attempt < maxAttempts) {
+        const sleepMs = Math.min(
+          OTP_TWILIO_BACKOFF_MS * Math.pow(2, attempt - 1),
+          10000,
+        );
+        await waitMs(sleepMs);
+        continue;
+      }
+      throw mapTwilioHttpError(response.status, body);
+    } catch (error) {
+      const retryable = isRetryableTwilioNetworkError(error);
+      if (retryable && attempt < maxAttempts) {
+        const sleepMs = Math.min(
+          OTP_TWILIO_BACKOFF_MS * Math.pow(2, attempt - 1),
+          10000,
+        );
+        await waitMs(sleepMs);
+        continue;
+      }
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError(
+        retryable ? 'unavailable' : 'internal',
+        retryable
+          ? 'OTP provider is temporarily unavailable. Please retry.'
+          : 'OTP provider request failed.',
+        {
+          reason: retryable
+            ? 'otp_provider_unavailable'
+            : 'otp_provider_error',
+        },
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw new HttpsError(
+    'unavailable',
+    'OTP provider is temporarily unavailable. Please retry.',
+    { reason: 'otp_provider_unavailable' },
+  );
+}
+
+function readTwilioResponseString(
+  data: Record<string, unknown>,
+  key: string,
+): string {
+  const value = data[key];
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim();
+}
+
+async function parseTwilioJsonBody(
+  response: Response,
+): Promise<Record<string, unknown>> {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    const rawText = await response.text();
+    return {
+      rawText: rawText.slice(0, 500),
+    };
+  }
+  try {
+    const parsed = await response.json();
+    if (parsed != null && typeof parsed === 'object') {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Ignore parse failures and return empty payload.
+  }
+  return {};
+}
+
+function mapTwilioHttpError(
+  status: number,
+  body: Record<string, unknown>,
+): HttpsError {
+  const providerCode = typeof body.code === 'number'
+    ? Math.trunc(body.code)
+    : null;
+  const providerMessage = typeof body.message === 'string'
+    ? body.message.trim().slice(0, 240)
+    : '';
+  if (status === 400 || status === 404) {
+    if (providerCode === 60200 || providerCode === 20404) {
+      return new HttpsError(
+        'invalid-argument',
+        'The verification code is invalid or expired.',
+        { reason: 'otp_invalid_code' },
+      );
+    }
+    return new HttpsError(
+      'invalid-argument',
+      'The phone number or verification payload is invalid.',
+      {
+        reason: 'otp_invalid_payload',
+        providerCode,
+      },
+    );
+  }
+  if (status === 401 || status === 403) {
+    return new HttpsError(
+      'failed-precondition',
+      'OTP provider credentials are invalid or missing permissions.',
+      { reason: 'otp_provider_auth_failed' },
+    );
+  }
+  if (status === 429) {
+    return new HttpsError(
+      'resource-exhausted',
+      'Too many OTP attempts. Please try again later.',
+      { reason: 'otp_request_rate_limited' },
+    );
+  }
+  if (status >= 500) {
+    return new HttpsError(
+      'unavailable',
+      'OTP provider is temporarily unavailable.',
+      { reason: 'otp_provider_unavailable' },
+    );
+  }
+  return new HttpsError(
+    'internal',
+    providerMessage.length > 0
+      ? `OTP provider error: ${providerMessage}`
+      : 'OTP provider error.',
+    {
+      reason: 'otp_provider_error',
+      providerCode,
+    },
+  );
+}
+
+function isRetryableTwilioNetworkError(error: unknown): boolean {
+  const message = `${error ?? ''}`.toLowerCase();
+  return message.includes('abort') ||
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('econnreset') ||
+    message.includes('ecconnreset') ||
+    message.includes('econnrefused') ||
+    message.includes('enotfound') ||
+    message.includes('eai_again') ||
+    message.includes('network');
+}
+
+function waitMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function phoneIdentityDocId(phoneE164: string): string {
+  return createHash('sha256').update(phoneE164).digest('hex');
+}
+
+async function ensurePhoneAuthIdentity(input: {
+  phoneE164: string;
+  displayName: string | null;
+}): Promise<{ uid: string; isNew: boolean }> {
+  const phoneE164 = normalizePhoneE164(input.phoneE164);
+  const docId = phoneIdentityDocId(phoneE164);
+  const identityRef = phoneAuthIdentitiesCollection.doc(docId);
+  const identitySnapshot = await identityRef.get();
+  const mappedUid = optionalTrimmedRecordString(identitySnapshot.data()?.uid);
+  const authAdmin = getAuth();
+
+  if (mappedUid != null) {
+    try {
+      await syncAuthUserPhoneProfile({
+        uid: mappedUid,
+        phoneE164,
+        displayName: input.displayName,
+      });
+      await writePhoneAuthIdentity(identityRef, phoneE164, mappedUid);
+      return { uid: mappedUid, isNew: false };
+    } catch {
+      // Continue with fallback resolution when mapped UID is stale.
+    }
+  }
+
+  const existingByPhoneUid = await findAuthUidByPhone(phoneE164);
+  if (existingByPhoneUid != null) {
+    await syncAuthUserPhoneProfile({
+      uid: existingByPhoneUid,
+      phoneE164,
+      displayName: input.displayName,
+    });
+    await writePhoneAuthIdentity(identityRef, phoneE164, existingByPhoneUid);
+    return { uid: existingByPhoneUid, isNew: false };
+  }
+
+  const deterministicUid = `phone_${createHash('sha256')
+    .update(phoneE164)
+    .digest('hex')
+    .slice(0, 28)}`;
+  let created = false;
+  try {
+    await authAdmin.createUser({
+      uid: deterministicUid,
+      phoneNumber: phoneE164,
+      displayName: input.displayName ?? undefined,
+    });
+    created = true;
+  } catch (error) {
+    const code = resolveAuthAdminErrorCode(error);
+    if (code === 'uid-already-exists') {
+      created = false;
+    } else if (code === 'phone-number-already-exists') {
+      const existingUid = await findAuthUidByPhone(phoneE164);
+      if (existingUid == null) {
+        throw error;
+      }
+      await syncAuthUserPhoneProfile({
+        uid: existingUid,
+        phoneE164,
+        displayName: input.displayName,
+      });
+      await writePhoneAuthIdentity(identityRef, phoneE164, existingUid);
+      return { uid: existingUid, isNew: false };
+    } else {
+      throw error;
+    }
+  }
+
+  await syncAuthUserPhoneProfile({
+    uid: deterministicUid,
+    phoneE164,
+    displayName: input.displayName,
+  });
+  await writePhoneAuthIdentity(identityRef, phoneE164, deterministicUid);
+  return { uid: deterministicUid, isNew: created };
+}
+
+async function findAuthUidByPhone(phoneE164: string): Promise<string | null> {
+  const authAdmin = getAuth();
+  try {
+    const user = await authAdmin.getUserByPhoneNumber(phoneE164);
+    return user.uid;
+  } catch (error) {
+    const code = resolveAuthAdminErrorCode(error);
+    if (code === 'user-not-found') {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function syncAuthUserPhoneProfile(input: {
+  uid: string;
+  phoneE164: string;
+  displayName: string | null;
+}): Promise<void> {
+  const authAdmin = getAuth();
+  const user = await authAdmin.getUser(input.uid);
+  const updates: {
+    phoneNumber?: string;
+    displayName?: string;
+  } = {};
+  if (user.phoneNumber !== input.phoneE164) {
+    updates.phoneNumber = input.phoneE164;
+  }
+  const desiredDisplayName = input.displayName?.trim() ?? '';
+  if (
+    desiredDisplayName.length > 0 &&
+    (user.displayName ?? '').trim().length === 0
+  ) {
+    updates.displayName = desiredDisplayName;
+  }
+  if (Object.keys(updates).length > 0) {
+    await authAdmin.updateUser(input.uid, updates);
+  }
+}
+
+async function writePhoneAuthIdentity(
+  identityRef: DocumentReference,
+  phoneE164: string,
+  uid: string,
+): Promise<void> {
+  await identityRef.set({
+    id: identityRef.id,
+    provider: 'twilio',
+    phoneE164,
+    uid,
+    lastVerifiedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+function resolveAuthAdminErrorCode(error: unknown): string {
+  if (error == null || typeof error !== 'object') {
+    return '';
+  }
+  const source = error as { code?: unknown };
+  if (typeof source.code !== 'string') {
+    return '';
+  }
+  const code = source.code.trim().toLowerCase();
+  if (code.startsWith('auth/')) {
+    return code.slice(5);
+  }
+  return code;
+}
+
+async function issuePhoneCustomToken(
+  uid: string,
+  phoneE164: string,
+): Promise<string> {
+  const authAdmin = getAuth();
+  const user = await authAdmin.getUser(uid);
+  const existingClaims = user.customClaims ?? {};
+  const nextClaims = {
+    ...existingClaims,
+    phoneE164Verified: phoneE164,
+  };
+  await authAdmin.setCustomUserClaims(uid, nextClaims);
+  return authAdmin.createCustomToken(uid, {
+    phoneE164Verified: phoneE164,
+  });
+}
+
+function buildOtpApprovedResponse(input: {
+  customToken: string;
+  uid: string;
+  phoneE164: string;
+  session: OtpChallengeSessionRecord;
+}) {
+  const loginMethod = input.session.loginMethod === 'child'
+    ? 'child'
+    : 'phone';
+  return {
+    status: 'approved',
+    provider: 'twilio',
+    customToken: input.customToken,
+    uid: input.uid,
+    phoneE164: input.phoneE164,
+    loginMethod,
+    childIdentifier: optionalTrimmedRecordString(input.session.childIdentifier),
+    memberId: optionalTrimmedRecordString(input.session.memberId),
+    displayName: optionalTrimmedRecordString(input.session.displayName),
+  };
 }
 
 function resolveChildLookupFingerprint(request: CallableRequest<unknown>): string {

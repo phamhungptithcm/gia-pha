@@ -1981,6 +1981,12 @@ const subscriptionPackages = [
     id: 'FREE',
     planCode: 'FREE',
     displayName: 'Miễn phí',
+    displayNameEn: 'BeFam Free',
+    displayNameVi: 'Miễn phí',
+    descriptionEn:
+      'Manage your family tree with up to 10 members (with ads)',
+    descriptionVi:
+      'Quản lý gia phả tối đa 10 thành viên (có quảng cáo)',
     minMembers: 0,
     maxMembers: 10,
     priceVndYear: 0,
@@ -1998,7 +2004,17 @@ const subscriptionPackages = [
   {
     id: 'BASE',
     planCode: 'BASE',
-    displayName: 'Cơ bản',
+    displayName: 'Gói Cơ bản',
+    displayNameEn: 'BeFam Base',
+    displayNameVi: 'Gói Cơ bản',
+    descriptionEn:
+      'Manage your family tree with up to 200 members (with ads)',
+    descriptionVi:
+      'Quản lý gia phả tối đa 200 thành viên (có quảng cáo)',
+    storeProductIds: {
+      ios: 'befam.base.yearly',
+      android: 'befam.base.yearly',
+    },
     minMembers: 11,
     maxMembers: 200,
     priceVndYear: 49000,
@@ -2016,7 +2032,17 @@ const subscriptionPackages = [
   {
     id: 'PLUS',
     planCode: 'PLUS',
-    displayName: 'Nâng cao',
+    displayName: 'Gói Nâng cao',
+    displayNameEn: 'BeFam Plus',
+    displayNameVi: 'Gói Nâng cao',
+    descriptionEn:
+      'Advanced family tree management with up to 700 members (no ads)',
+    descriptionVi:
+      'Quản lý gia phả nâng cao đến 700 thành viên (không quảng cáo)',
+    storeProductIds: {
+      ios: 'befam.plus.yearly',
+      android: 'befam.plus.yearly',
+    },
     minMembers: 201,
     maxMembers: 700,
     priceVndYear: 89000,
@@ -2034,7 +2060,17 @@ const subscriptionPackages = [
   {
     id: 'PRO',
     planCode: 'PRO',
-    displayName: 'Chuyên nghiệp',
+    displayName: 'Gói Chuyên nghiệp',
+    displayNameEn: 'BeFam Pro',
+    displayNameVi: 'Gói Chuyên nghiệp',
+    descriptionEn:
+      'Unlimited members with all premium features (no ads)',
+    descriptionVi:
+      'Không giới hạn thành viên, đầy đủ tính năng (không quảng cáo)',
+    storeProductIds: {
+      ios: 'befam.pro.yearly',
+      android: 'befam.pro.yearly',
+    },
     minMembers: 701,
     maxMembers: null,
     priceVndYear: 119000,
