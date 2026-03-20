@@ -302,6 +302,11 @@ class FirebaseBillingRepository implements BillingRepository {
         map['storeProductIdsByPlan'],
       ),
       storeProductIdsByPlanByPlatform: byPlatform,
+      allowLegacyCardCheckout: _readBool(
+        map,
+        'allowLegacyCardCheckout',
+        fallback: false,
+      ),
     );
   }
 

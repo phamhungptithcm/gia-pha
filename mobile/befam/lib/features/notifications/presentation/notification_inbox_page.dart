@@ -413,6 +413,7 @@ class _NotificationCard extends StatelessWidget {
     final targetIcon = switch (item.target) {
       NotificationInboxTarget.event => Icons.event_outlined,
       NotificationInboxTarget.scholarship => Icons.school_outlined,
+      NotificationInboxTarget.billing => Icons.workspace_premium_outlined,
       NotificationInboxTarget.generic => Icons.notifications_active_outlined,
       NotificationInboxTarget.unknown => Icons.notifications_none_outlined,
     };
@@ -421,6 +422,7 @@ class _NotificationCard extends StatelessWidget {
       NotificationInboxTarget.event => l10n.notificationInboxTargetEvent,
       NotificationInboxTarget.scholarship =>
         l10n.notificationInboxTargetScholarship,
+      NotificationInboxTarget.billing => l10n.notificationInboxTargetGeneric,
       NotificationInboxTarget.generic => l10n.notificationInboxTargetGeneric,
       NotificationInboxTarget.unknown => l10n.notificationInboxTargetUnknown,
     };

@@ -81,15 +81,18 @@ export async function sendSubscriptionRemindersRun(
       continue;
     }
 
+    const reminderContent = buildSubscriptionReminderContent({
+      daysLeft,
+      expiresAt,
+    });
     await notifyMembers({
       clanId,
       memberIds,
       type: 'billing_subscription_expiry_reminder',
-      title: daysLeft <= 1
-        ? 'Subscription expires tomorrow'
-        : `Subscription expires in ${daysLeft} days`,
-      body: `Current plan will expire on ${formatDate(expiresAt)}. Open Billing to renew.`,
-      target: 'generic',
+      title: reminderContent.vi.title,
+      body: reminderContent.vi.body,
+      localized: reminderContent,
+      target: 'billing',
       targetId: doc.id,
       extraData: {
         billing: 'true',
@@ -175,4 +178,28 @@ function formatDate(value: Date): string {
   const day = `${value.getUTCDate()}`.padStart(2, '0');
   const month = `${value.getUTCMonth() + 1}`.padStart(2, '0');
   return `${day}/${month}/${value.getUTCFullYear()}`;
+}
+
+function buildSubscriptionReminderContent(input: {
+  daysLeft: number;
+  expiresAt: Date;
+}): {
+  vi: { title: string; body: string };
+  en: { title: string; body: string };
+} {
+  const dateLabel = formatDate(input.expiresAt);
+  return {
+    vi: {
+      title: input.daysLeft <= 1
+        ? 'Gói dịch vụ sẽ hết hạn vào ngày mai'
+        : `Gói dịch vụ sẽ hết hạn sau ${input.daysLeft} ngày`,
+      body: `Gói hiện tại sẽ hết hạn vào ${dateLabel}. Mở phần Gói để gia hạn.`,
+    },
+    en: {
+      title: input.daysLeft <= 1
+        ? 'Subscription expires tomorrow'
+        : `Subscription expires in ${input.daysLeft} days`,
+      body: `Current plan will expire on ${dateLabel}. Open Billing to renew.`,
+    },
+  };
 }

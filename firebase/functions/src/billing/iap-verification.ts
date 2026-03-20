@@ -21,12 +21,15 @@ import {
   getGooglePlayPackageName,
 } from '../config/runtime';
 import type { BillingPlanCode } from './pricing';
+import { db } from '../shared/firestore';
 import { logWarn } from '../shared/logger';
 
 const APPLE_VERIFY_PRODUCTION_URL = 'https://buy.itunes.apple.com/verifyReceipt';
 const APPLE_VERIFY_SANDBOX_URL = 'https://sandbox.itunes.apple.com/verifyReceipt';
 const GOOGLE_PLAY_ANDROID_PUBLISHER_SCOPE =
   'https://www.googleapis.com/auth/androidpublisher';
+const subscriptionPackagesCollection = db.collection('subscriptionPackages');
+const IAP_PRODUCT_CATALOG_CACHE_MS = 2 * 60 * 1000;
 
 export type IapPlatform = 'ios' | 'android';
 
@@ -117,6 +120,7 @@ export async function verifyInAppStorePurchase({
   platform: IapPlatform;
   payload: Record<string, unknown>;
 }): Promise<VerifiedStorePurchase> {
+  await refreshIapProductCatalogFromFirestore();
   if (BILLING_IAP_ALLOW_TEST_MOCK && readBoolean(payload.mock, false)) {
     return buildMockPurchase(platform, payload);
   }
@@ -531,9 +535,57 @@ type IapProductCatalog = {
 
 let cachedCatalog: IapProductCatalog | null = null;
 let cachedCatalogSignature: string | null = null;
+let firestoreCatalogOverrides: IapProductCatalog | null = null;
+let firestoreCatalogSignature = '';
+let firestoreCatalogLoadedAtMs = 0;
+let firestoreCatalogRefreshInFlight: Promise<void> | null = null;
+
+export async function refreshIapProductCatalogFromFirestore({
+  force = false,
+}: {
+  force?: boolean;
+} = {}): Promise<void> {
+  const now = Date.now();
+  if (
+    !force &&
+    firestoreCatalogLoadedAtMs > 0 &&
+    now - firestoreCatalogLoadedAtMs <= IAP_PRODUCT_CATALOG_CACHE_MS
+  ) {
+    return;
+  }
+  if (firestoreCatalogRefreshInFlight != null) {
+    return firestoreCatalogRefreshInFlight;
+  }
+  firestoreCatalogRefreshInFlight = (async () => {
+    try {
+      const snapshot = await subscriptionPackagesCollection
+        .where('isActive', '==', true)
+        .limit(20)
+        .get();
+      const parsed = parseFirestoreIapCatalog(snapshot.docs.map((doc) => ({
+        id: doc.id,
+        data: doc.data() as Record<string, unknown>,
+      })));
+      firestoreCatalogOverrides = parsed.catalog;
+      firestoreCatalogSignature = parsed.signature;
+      firestoreCatalogLoadedAtMs = Date.now();
+      cachedCatalog = null;
+      cachedCatalogSignature = null;
+    } catch (error) {
+      logWarn('IAP product catalog refresh from Firestore failed; using env mapping', {
+        error: `${error}`,
+      });
+      firestoreCatalogLoadedAtMs = Date.now();
+    } finally {
+      firestoreCatalogRefreshInFlight = null;
+    }
+  })();
+  return firestoreCatalogRefreshInFlight;
+}
 
 function loadIapProductCatalog(): IapProductCatalog {
   const sourceSignature = [
+    firestoreCatalogSignature,
     BILLING_IAP_IOS_PRODUCT_IDS_BASE.join(','),
     BILLING_IAP_IOS_PRODUCT_IDS_PLUS.join(','),
     BILLING_IAP_IOS_PRODUCT_IDS_PRO.join(','),
@@ -562,6 +614,10 @@ function loadIapProductCatalog(): IapProductCatalog {
     android: {},
   };
 
+  if (firestoreCatalogOverrides != null) {
+    registerCatalog(firestoreCatalogOverrides);
+  }
+
   registerPlanProductIds('ios', 'BASE', BILLING_IAP_IOS_PRODUCT_IDS_BASE);
   registerPlanProductIds('ios', 'PLUS', BILLING_IAP_IOS_PRODUCT_IDS_PLUS);
   registerPlanProductIds('ios', 'PRO', BILLING_IAP_IOS_PRODUCT_IDS_PRO);
@@ -584,6 +640,39 @@ function loadIapProductCatalog(): IapProductCatalog {
   };
   cachedCatalogSignature = sourceSignature;
   return cachedCatalog;
+
+  function registerCatalog(catalog: IapProductCatalog): void {
+    for (const platform of ['ios', 'android'] as const) {
+      const primaryByPlan = catalog.primaryProductIdByPlanByPlatform[platform];
+      for (const [planCodeRaw, productIdRaw] of Object.entries(primaryByPlan)) {
+        const planCode = normalizeBillingPlanCode(planCodeRaw);
+        const productId = normalizeProductId(productIdRaw);
+        if (planCode == null || productId.length === 0) {
+          continue;
+        }
+        if (primaryProductIdByPlanByPlatform[platform][planCode] == null) {
+          primaryProductIdByPlanByPlatform[platform][planCode] = productId;
+        }
+      }
+      const productIdMap = catalog.productIdToPlanCodeByPlatform[platform];
+      for (const [productIdRaw, planCodeRaw] of Object.entries(productIdMap)) {
+        const planCode = normalizeBillingPlanCode(planCodeRaw);
+        const productId = normalizeProductId(productIdRaw);
+        if (planCode == null || productId.length === 0) {
+          continue;
+        }
+        const existingPlanCode =
+          productIdToPlanCodeByPlatform[platform][productId];
+        if (existingPlanCode != null && existingPlanCode !== planCode) {
+          throw new HttpsError(
+            'failed-precondition',
+            `IAP ${platform} productId "${productId}" is mapped to multiple plans (${existingPlanCode}, ${planCode}).`,
+          );
+        }
+        productIdToPlanCodeByPlatform[platform][productId] = planCode;
+      }
+    }
+  }
 
   function registerPlanProductIds(
     platform: IapPlatform,
@@ -611,4 +700,138 @@ function loadIapProductCatalog(): IapProductCatalog {
       productIdToPlanCodeByPlatform[platform][productId] = planCode;
     }
   }
+}
+
+function parseFirestoreIapCatalog(
+  docs: Array<{ id: string; data: Record<string, unknown> }>,
+): { catalog: IapProductCatalog | null; signature: string } {
+  const productIdToPlanCodeByPlatform: Record<
+    IapPlatform,
+    Record<string, BillingPlanCode>
+  > = {
+    ios: {},
+    android: {},
+  };
+  const primaryProductIdByPlanByPlatform: Record<
+    IapPlatform,
+    Partial<Record<BillingPlanCode, string>>
+  > = {
+    ios: {},
+    android: {},
+  };
+  const signatureParts: Array<string> = [];
+
+  for (const doc of docs) {
+    const planCode = normalizeBillingPlanCode(
+      normalizeString(doc.data.planCode) ||
+      normalizeString(doc.data.id) ||
+      doc.id,
+    );
+    if (planCode == null || planCode === 'FREE') {
+      continue;
+    }
+    for (const platform of ['ios', 'android'] as const) {
+      const productIds = extractPackageProductIds(doc.data, platform);
+      if (productIds.length === 0) {
+        continue;
+      }
+      if (primaryProductIdByPlanByPlatform[platform][planCode] == null) {
+        primaryProductIdByPlanByPlatform[platform][planCode] = productIds[0];
+      }
+      for (const productId of productIds) {
+        const existingPlanCode =
+          productIdToPlanCodeByPlatform[platform][productId];
+        if (existingPlanCode != null && existingPlanCode !== planCode) {
+          throw new HttpsError(
+            'failed-precondition',
+            `subscriptionPackages maps ${platform} productId "${productId}" to multiple plans (${existingPlanCode}, ${planCode}).`,
+          );
+        }
+        productIdToPlanCodeByPlatform[platform][productId] = planCode;
+      }
+      signatureParts.push(`${planCode}:${platform}:${productIds.join(',')}`);
+    }
+  }
+
+  if (signatureParts.length === 0) {
+    return { catalog: null, signature: 'none' };
+  }
+  return {
+    catalog: {
+      productIdToPlanCodeByPlatform,
+      primaryProductIdByPlanByPlatform,
+    },
+    signature: signatureParts.sort().join('|'),
+  };
+}
+
+function extractPackageProductIds(
+  data: Record<string, unknown>,
+  platform: IapPlatform,
+): Array<string> {
+  const values: Array<unknown> = [];
+  if (platform === 'ios') {
+    values.push(
+      data.iosProductId,
+      data.iosProductIds,
+      data.iosIapProductId,
+      data.iosIapProductIds,
+    );
+  } else {
+    values.push(
+      data.androidProductId,
+      data.androidProductIds,
+      data.androidIapProductId,
+      data.androidIapProductIds,
+    );
+  }
+  values.push(data.productId, data.productIds);
+
+  for (const groupedKey of ['storeProductIds', 'iapProductIds', 'productIds']) {
+    const grouped = data[groupedKey];
+    if (!isRecord(grouped)) {
+      continue;
+    }
+    values.push(
+      grouped[platform],
+      grouped.default,
+      grouped.all,
+    );
+  }
+
+  return [...new Set(
+    values.flatMap((value) => readProductIdTokens(value)),
+  )];
+}
+
+function readProductIdTokens(value: unknown): Array<string> {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return [];
+    }
+    const tokens = trimmed.includes(',')
+      ? trimmed.split(',')
+      : [trimmed];
+    return tokens
+      .map((entry) => normalizeProductId(entry))
+      .filter((entry) => entry.length > 0);
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => readProductIdTokens(entry));
+  }
+  return [];
+}
+
+function normalizeBillingPlanCode(value: unknown): BillingPlanCode | null {
+  const normalized = normalizeString(value).toUpperCase();
+  if (
+    normalized === 'FREE' ||
+    normalized === 'BASE' ||
+    normalized === 'PLUS' ||
+    normalized === 'PRO'
+  ) {
+    return normalized;
+  }
+  return null;
 }

@@ -56,12 +56,11 @@ class FirebaseMemberRepository implements MemberRepository {
       return const MemberWorkspaceSnapshot(members: [], branches: []);
     }
 
-    final results = await Future.wait<
-      List<QueryDocumentSnapshot<Map<String, dynamic>>>
-    >([
-      _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
-      _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
-    ]);
+    final results =
+        await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
+          _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
+          _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
+        ]);
 
     final members = results[0]
         .map((doc) => MemberProfile.fromJson(doc.data()))
@@ -75,10 +74,11 @@ class FirebaseMemberRepository implements MemberRepository {
     return MemberWorkspaceSnapshot(members: members, branches: branches);
   }
 
-  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchPagedDocuments(
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _fetchPagedDocuments(
     Query<Map<String, dynamic>> baseQuery, {
-    int pageSize = 250,
-    int maxDocuments = 5000,
+    int pageSize = 200,
+    int maxDocuments = 2500,
   }) async {
     final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
     QueryDocumentSnapshot<Map<String, dynamic>>? cursor;

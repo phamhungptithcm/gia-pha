@@ -4,16 +4,28 @@ import { FieldValue, type QueryDocumentSnapshot } from 'firebase-admin/firestore
 import { getMessaging } from 'firebase-admin/messaging';
 
 import {
+  APP_TIMEZONE,
   NOTIFICATION_DEFAULT_EMAIL_ENABLED,
   NOTIFICATION_DEFAULT_PUSH_ENABLED,
   NOTIFICATION_EMAIL_COLLECTION,
   NOTIFICATION_EMAIL_ENABLED,
+  NOTIFICATION_EVENT_MAX_AUDIENCE,
   NOTIFICATION_PUSH_ENABLED,
 } from '../config/runtime';
 import { db } from '../shared/firestore';
 import { logInfo, logWarn } from '../shared/logger';
 
-type NotificationTarget = 'event' | 'scholarship' | 'generic';
+type NotificationTarget = 'event' | 'scholarship' | 'billing' | 'generic';
+type NotificationLanguageCode = 'vi' | 'en';
+
+type LocalizedNotificationMessage = {
+  title: string;
+  body: string;
+};
+
+type LocalizedNotificationContent = Partial<
+  Record<NotificationLanguageCode, LocalizedNotificationMessage>
+>;
 
 type NotifyMembersInput = {
   clanId: string;
@@ -21,6 +33,7 @@ type NotifyMembersInput = {
   type: string;
   title: string;
   body: string;
+  localized?: LocalizedNotificationContent;
   target: NotificationTarget;
   targetId: string;
   extraData?: Record<string, string>;
@@ -35,6 +48,7 @@ type NotifyMembersResult = {
   pushAudienceCount: number;
   emailAudienceCount: number;
   emailQueuedCount: number;
+  quietHoursSuppressedCount: number;
 };
 
 type DeviceTokenRecord = {
@@ -54,6 +68,9 @@ type UserNotificationPreferenceRecord = {
   scholarshipUpdates?: unknown;
   fundTransactions?: unknown;
   systemNotices?: unknown;
+  quietHoursEnabled?: unknown;
+  languageCode?: unknown;
+  locale?: unknown;
 };
 
 type UserNotificationSettings = {
@@ -63,7 +80,9 @@ type UserNotificationSettings = {
   scholarshipUpdates: boolean;
   fundTransactions: boolean;
   systemNotices: boolean;
+  quietHoursEnabled: boolean;
   email: string | null;
+  languageCode: NotificationLanguageCode;
 };
 
 type NotificationPreferenceCategory =
@@ -87,12 +106,19 @@ const invalidTokenErrorCodes = new Set([
   'messaging/invalid-registration-token',
   'messaging/registration-token-not-registered',
 ]);
+const QUIET_HOURS_START_HOUR = 22;
+const QUIET_HOURS_END_HOUR = 7;
+const appTimezoneHourFormatter = new Intl.DateTimeFormat('en-US', {
+  hour: '2-digit',
+  hourCycle: 'h23',
+  timeZone: APP_TIMEZONE,
+});
 
 export async function resolveAudienceMemberIdsByEventScope({
   clanId,
   branchId,
   visibility,
-  maxAudience = 500,
+  maxAudience = NOTIFICATION_EVENT_MAX_AUDIENCE,
 }: {
   clanId: string;
   branchId: string | null;
@@ -101,7 +127,7 @@ export async function resolveAudienceMemberIdsByEventScope({
 }): Promise<Array<string>> {
   const normalizedVisibility = visibility.trim().toLowerCase();
   const normalizedBranchId = branchId?.trim() ?? '';
-  const safeMaxAudience = Math.max(10, Math.min(10000, Math.trunc(maxAudience)));
+  const safeMaxAudience = Math.max(10, Math.min(50000, Math.trunc(maxAudience)));
   const queryPageSize = Math.min(500, safeMaxAudience);
   const memberIds = new Set<string>();
   let cursor: QueryDocumentSnapshot | null = null;
@@ -161,21 +187,11 @@ export async function notifyMembers(
     pushAudienceCount: 0,
     emailAudienceCount: 0,
     emailQueuedCount: 0,
+    quietHoursSuppressedCount: 0,
   };
   if (memberIds.length === 0) {
     return emptyResult;
   }
-
-  await writeNotificationDocuments({
-    clanId: input.clanId,
-    memberIds,
-    type: input.type,
-    title: input.title,
-    body: input.body,
-    target: input.target,
-    targetId: input.targetId,
-    extraData: input.extraData,
-  });
 
   const memberProfiles = await loadMemberDeliveryProfiles(memberIds);
   if (memberProfiles.length === 0) {
@@ -189,11 +205,25 @@ export async function notifyMembers(
   )];
   const userSettingsByUid = await loadUserNotificationSettings(authUids);
 
-  const pushAudienceUids = new Set<string>();
+  const defaultContent: LocalizedNotificationMessage = {
+    title: input.title,
+    body: input.body,
+  };
+  const contentByMemberId = new Map<string, LocalizedNotificationMessage>();
+  const pushAudienceUidsByLanguage = new Map<NotificationLanguageCode, Set<string>>();
   const emailAudienceByAddress = new Map<
     string,
-    { uid: string; memberId: string; email: string }
+    {
+      uid: string;
+      memberId: string;
+      email: string;
+      title: string;
+      body: string;
+    }
   >();
+  const now = new Date();
+  const quietHoursActiveNow = isWithinQuietHours(now);
+  let quietHoursSuppressedCount = 0;
   for (const profile of memberProfiles) {
     const authUid = profile.authUid;
     if (authUid == null || authUid.length === 0) {
@@ -203,8 +233,21 @@ export async function notifyMembers(
     if (!isCategoryEnabled(settings, category)) {
       continue;
     }
+    const localizedContent = resolveLocalizedMessageForUser({
+      defaultContent,
+      localized: input.localized,
+      languageCode: settings.languageCode,
+    });
+    contentByMemberId.set(profile.memberId, localizedContent);
+    if (quietHoursActiveNow && settings.quietHoursEnabled) {
+      quietHoursSuppressedCount += 1;
+      continue;
+    }
     if (NOTIFICATION_PUSH_ENABLED && settings.pushEnabled) {
-      pushAudienceUids.add(authUid);
+      const localeBucket =
+        pushAudienceUidsByLanguage.get(settings.languageCode) ?? new Set<string>();
+      localeBucket.add(authUid);
+      pushAudienceUidsByLanguage.set(settings.languageCode, localeBucket);
     }
     if (!NOTIFICATION_EMAIL_ENABLED || !settings.emailEnabled) {
       continue;
@@ -219,9 +262,22 @@ export async function notifyMembers(
         uid: authUid,
         memberId: profile.memberId,
         email: resolvedEmail,
+        title: localizedContent.title,
+        body: localizedContent.body,
       });
     }
   }
+
+  await writeNotificationDocuments({
+    clanId: input.clanId,
+    memberIds,
+    type: input.type,
+    defaultContent,
+    contentByMemberId,
+    target: input.target,
+    targetId: input.targetId,
+    extraData: input.extraData,
+  });
 
   const payloadData: Record<string, string> = {
     target: input.target,
@@ -229,17 +285,30 @@ export async function notifyMembers(
     clanId: input.clanId,
     ...input.extraData,
   };
-  const pushResult = await sendPushToAudience({
-    authUids: [...pushAudienceUids],
-    title: input.title,
-    body: input.body,
-    payloadData,
-  });
+  let pushTokenCount = 0;
+  let pushSentCount = 0;
+  let pushFailedCount = 0;
+  let pushInvalidTokenCount = 0;
+  for (const [languageCode, authUids] of pushAudienceUidsByLanguage.entries()) {
+    const localizedContent = resolveLocalizedMessageForUser({
+      defaultContent,
+      localized: input.localized,
+      languageCode,
+    });
+    const pushResult = await sendPushToAudience({
+      authUids: [...authUids],
+      title: localizedContent.title,
+      body: localizedContent.body,
+      payloadData,
+    });
+    pushTokenCount += pushResult.tokenCount;
+    pushSentCount += pushResult.sentCount;
+    pushFailedCount += pushResult.failedCount;
+    pushInvalidTokenCount += pushResult.invalidTokenCount;
+  }
   const emailAudience = [...emailAudienceByAddress.values()];
   const emailQueuedCount = await queueEmailNotifications({
     audience: emailAudience,
-    title: input.title,
-    body: input.body,
     clanId: input.clanId,
     type: input.type,
     target: input.target,
@@ -249,13 +318,17 @@ export async function notifyMembers(
 
   const result: NotifyMembersResult = {
     audienceCount: memberIds.length,
-    tokenCount: pushResult.tokenCount,
-    sentCount: pushResult.sentCount,
-    failedCount: pushResult.failedCount,
-    invalidTokenCount: pushResult.invalidTokenCount,
-    pushAudienceCount: pushAudienceUids.size,
+    tokenCount: pushTokenCount,
+    sentCount: pushSentCount,
+    failedCount: pushFailedCount,
+    invalidTokenCount: pushInvalidTokenCount,
+    pushAudienceCount: [...pushAudienceUidsByLanguage.values()].reduce(
+      (sum, audience) => sum + audience.size,
+      0,
+    ),
     emailAudienceCount: emailAudience.length,
     emailQueuedCount,
+    quietHoursSuppressedCount,
   };
 
   logInfo('notification delivery result', {
@@ -273,8 +346,8 @@ async function writeNotificationDocuments({
   clanId,
   memberIds,
   type,
-  title,
-  body,
+  defaultContent,
+  contentByMemberId,
   target,
   targetId,
   extraData,
@@ -282,8 +355,8 @@ async function writeNotificationDocuments({
   clanId: string;
   memberIds: Array<string>;
   type: string;
-  title: string;
-  body: string;
+  defaultContent: LocalizedNotificationMessage;
+  contentByMemberId: Map<string, LocalizedNotificationMessage>;
   target: NotificationTarget;
   targetId: string;
   extraData?: Record<string, string>;
@@ -298,14 +371,15 @@ async function writeNotificationDocuments({
     const batch = db.batch();
 
     for (const memberId of memberChunk) {
+      const content = contentByMemberId.get(memberId) ?? defaultContent;
       const docRef = notificationsCollection.doc();
       batch.set(docRef, {
         id: docRef.id,
         memberId,
         clanId,
         type,
-        title,
-        body,
+        title: content.title,
+        body: content.body,
         data: sharedData,
         isRead: false,
         sentAt: FieldValue.serverTimestamp(),
@@ -323,23 +397,24 @@ async function loadMemberDeliveryProfiles(
   if (memberIds.length === 0) {
     return [];
   }
-  const refs = memberIds.map((memberId) => membersCollection.doc(memberId));
-  const snapshots = await db.getAll(...refs);
-
   const profiles: Array<MemberDeliveryProfile> = [];
-  for (const snapshot of snapshots) {
-    if (!snapshot.exists) {
-      continue;
-    }
+  for (const memberChunk of chunk(memberIds, 400)) {
+    const refs = memberChunk.map((memberId) => membersCollection.doc(memberId));
+    const snapshots = await db.getAll(...refs);
+    for (const snapshot of snapshots) {
+      if (!snapshot.exists) {
+        continue;
+      }
 
-    const data = snapshot.data() as Record<string, unknown> | undefined;
-    const authUid = normalizeNullableString(data?.authUid);
-    const email = normalizeNullableEmail(data?.email);
-    profiles.push({
-      memberId: snapshot.id,
-      authUid,
-      email,
-    });
+      const data = snapshot.data() as Record<string, unknown> | undefined;
+      const authUid = normalizeNullableString(data?.authUid);
+      const email = normalizeNullableEmail(data?.email);
+      profiles.push({
+        memberId: snapshot.id,
+        authUid,
+        email,
+      });
+    }
   }
 
   return profiles;
@@ -380,36 +455,46 @@ async function loadUserNotificationSettings(
   if (uniqueUids.length === 0) {
     return new Map();
   }
-  const userRefs = uniqueUids.map((uid) => usersCollection.doc(uid));
-  const preferenceRefs = uniqueUids.map((uid) => usersCollection
-    .doc(uid)
-    .collection('preferences')
-    .doc('notifications'));
-  const [userSnapshots, preferenceSnapshots] = await Promise.all([
-    db.getAll(...userRefs),
-    db.getAll(...preferenceRefs),
-  ]);
 
   const settingsByUid = new Map<string, UserNotificationSettings>();
-  for (let i = 0; i < uniqueUids.length; i += 1) {
-    const uid = uniqueUids[i];
-    const userData = userSnapshots[i]?.data() as Record<string, unknown> | undefined;
-    const preferenceData = preferenceSnapshots[i]?.data() as UserNotificationPreferenceRecord | undefined;
-    settingsByUid.set(uid, {
-      pushEnabled: readBoolean(
-        preferenceData?.pushEnabled,
-        NOTIFICATION_DEFAULT_PUSH_ENABLED,
-      ),
-      emailEnabled: readBoolean(
-        preferenceData?.emailEnabled,
-        NOTIFICATION_DEFAULT_EMAIL_ENABLED,
-      ),
-      eventReminders: readBoolean(preferenceData?.eventReminders, true),
-      scholarshipUpdates: readBoolean(preferenceData?.scholarshipUpdates, true),
-      fundTransactions: readBoolean(preferenceData?.fundTransactions, true),
-      systemNotices: readBoolean(preferenceData?.systemNotices, true),
-      email: normalizeNullableEmail(userData?.email),
-    });
+  for (const uidChunk of chunk(uniqueUids, 400)) {
+    const userRefs = uidChunk.map((uid) => usersCollection.doc(uid));
+    const preferenceRefs = uidChunk.map((uid) => usersCollection
+      .doc(uid)
+      .collection('preferences')
+      .doc('notifications'));
+    const [userSnapshots, preferenceSnapshots] = await Promise.all([
+      db.getAll(...userRefs),
+      db.getAll(...preferenceRefs),
+    ]);
+
+    for (let i = 0; i < uidChunk.length; i += 1) {
+      const uid = uidChunk[i];
+      const userData = userSnapshots[i]?.data() as Record<string, unknown> | undefined;
+      const preferenceData = preferenceSnapshots[i]?.data() as UserNotificationPreferenceRecord | undefined;
+      settingsByUid.set(uid, {
+        pushEnabled: readBoolean(
+          preferenceData?.pushEnabled,
+          NOTIFICATION_DEFAULT_PUSH_ENABLED,
+        ),
+        emailEnabled: readBoolean(
+          preferenceData?.emailEnabled,
+          NOTIFICATION_DEFAULT_EMAIL_ENABLED,
+        ),
+        eventReminders: readBoolean(preferenceData?.eventReminders, true),
+        scholarshipUpdates: readBoolean(preferenceData?.scholarshipUpdates, true),
+        fundTransactions: readBoolean(preferenceData?.fundTransactions, true),
+        systemNotices: readBoolean(preferenceData?.systemNotices, true),
+        quietHoursEnabled: readBoolean(preferenceData?.quietHoursEnabled, false),
+        email: normalizeNullableEmail(userData?.email),
+        languageCode: resolveNotificationLanguageCode(
+          preferenceData?.languageCode,
+          preferenceData?.locale,
+          userData?.languageCode,
+          userData?.locale,
+        ),
+      });
+    }
   }
   return settingsByUid;
 }
@@ -518,17 +603,19 @@ async function sendPushToAudience({
 
 async function queueEmailNotifications({
   audience,
-  title,
-  body,
   clanId,
   type,
   target,
   targetId,
   extraData,
 }: {
-  audience: Array<{ uid: string; memberId: string; email: string }>;
-  title: string;
-  body: string;
+  audience: Array<{
+    uid: string;
+    memberId: string;
+    email: string;
+    title: string;
+    body: string;
+  }>;
   clanId: string;
   type: string;
   target: NotificationTarget;
@@ -552,8 +639,8 @@ async function queueEmailNotifications({
         id: docRef.id,
         to: [recipient.email],
         message: {
-          subject: title,
-          text: body,
+          subject: recipient.title,
+          text: recipient.body,
         },
         notification: {
           clanId,
@@ -618,8 +705,29 @@ function buildDefaultUserNotificationSettings(): UserNotificationSettings {
     scholarshipUpdates: true,
     fundTransactions: true,
     systemNotices: true,
+    quietHoursEnabled: false,
     email: null,
+    languageCode: 'vi',
   };
+}
+
+function isWithinQuietHours(value: Date): boolean {
+  const nowHour = readHourInAppTimezone(value);
+  if (QUIET_HOURS_START_HOUR < QUIET_HOURS_END_HOUR) {
+    return nowHour >= QUIET_HOURS_START_HOUR &&
+      nowHour < QUIET_HOURS_END_HOUR;
+  }
+  return nowHour >= QUIET_HOURS_START_HOUR ||
+    nowHour < QUIET_HOURS_END_HOUR;
+}
+
+function readHourInAppTimezone(value: Date): number {
+  const hourToken = appTimezoneHourFormatter.format(value);
+  const parsed = Number.parseInt(hourToken, 10);
+  if (!Number.isFinite(parsed)) {
+    return value.getUTCHours();
+  }
+  return Math.max(0, Math.min(23, Math.trunc(parsed)));
 }
 
 function isCategoryEnabled(
@@ -656,6 +764,55 @@ function normalizeNullableEmail(value: unknown): string | null {
     return null;
   }
   return normalized;
+}
+
+function resolveNotificationLanguageCode(
+  ...candidates: Array<unknown>
+): NotificationLanguageCode {
+  for (const candidate of candidates) {
+    const normalized = normalizeNullableString(candidate)?.toLowerCase() ?? '';
+    if (normalized.startsWith('en')) {
+      return 'en';
+    }
+    if (normalized.startsWith('vi')) {
+      return 'vi';
+    }
+  }
+  return 'vi';
+}
+
+function resolveLocalizedMessageForUser(input: {
+  defaultContent: LocalizedNotificationMessage;
+  localized?: LocalizedNotificationContent;
+  languageCode: NotificationLanguageCode;
+}): LocalizedNotificationMessage {
+  const preferred = input.localized?.[input.languageCode];
+  if (
+    preferred != null &&
+    preferred.title.trim().length > 0 &&
+    preferred.body.trim().length > 0
+  ) {
+    return {
+      title: preferred.title.trim(),
+      body: preferred.body.trim(),
+    };
+  }
+  const fallbackLanguage = input.languageCode === 'en' ? 'vi' : 'en';
+  const fallback = input.localized?.[fallbackLanguage];
+  if (
+    fallback != null &&
+    fallback.title.trim().length > 0 &&
+    fallback.body.trim().length > 0
+  ) {
+    return {
+      title: fallback.title.trim(),
+      body: fallback.body.trim(),
+    };
+  }
+  return {
+    title: input.defaultContent.title.trim(),
+    body: input.defaultContent.body.trim(),
+  };
 }
 
 function chunk<T>(values: Array<T>, size: number): Array<Array<T>> {

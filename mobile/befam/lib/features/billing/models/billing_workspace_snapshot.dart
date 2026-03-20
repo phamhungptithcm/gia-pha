@@ -31,10 +31,12 @@ class BillingCheckoutFlowConfig {
     this.storeProductIdsByPlan = const <String, String>{},
     this.storeProductIdsByPlanByPlatform =
         const <String, Map<String, String>>{},
+    this.allowLegacyCardCheckout = false,
   });
 
   final Map<String, String> storeProductIdsByPlan;
   final Map<String, Map<String, String>> storeProductIdsByPlanByPlatform;
+  final bool allowLegacyCardCheckout;
 
   String? storeProductIdForPlan(String planCode, {String? platform}) {
     final normalizedPlanCode = planCode.trim().toUpperCase();

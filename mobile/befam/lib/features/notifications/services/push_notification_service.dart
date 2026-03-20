@@ -9,7 +9,7 @@ import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
 
-enum NotificationTargetType { event, scholarship, unknown }
+enum NotificationTargetType { event, scholarship, billing, unknown }
 
 enum NotificationMessageOrigin { foreground, openedApp, launchedFromTerminated }
 
@@ -44,6 +44,7 @@ class NotificationDeepLink {
     final targetType = switch (targetRaw) {
       'event' => NotificationTargetType.event,
       'scholarship' => NotificationTargetType.scholarship,
+      'billing' => NotificationTargetType.billing,
       _ => NotificationTargetType.unknown,
     };
     return NotificationDeepLink(

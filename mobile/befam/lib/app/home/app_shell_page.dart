@@ -227,23 +227,26 @@ class _AppShellPageState extends State<AppShellPage> {
       return;
     }
 
-    final shouldOpenTargetPage =
-        deepLink.openedFromSystemNotification &&
-        (deepLink.targetType == NotificationTargetType.event ||
-            deepLink.targetType == NotificationTargetType.scholarship);
-    if (shouldOpenTargetPage) {
+    final destinationIndex = _destinationIndexForNotificationTarget(
+      deepLink.targetType,
+    );
+    final shouldOpenTargetDestination =
+        deepLink.openedFromSystemNotification && destinationIndex != null;
+    if (shouldOpenTargetDestination) {
       setState(() {
-        _selectedIndex = 2;
-        _visitedDestinationIndexes.add(2);
+        _selectedIndex = destinationIndex;
+        _visitedDestinationIndexes.add(destinationIndex);
       });
       _syncAdBannerAutoHideTimer();
-      _openNotificationTargetPage(
-        targetType: deepLink.targetType,
-        referenceId: deepLink.referenceId,
-        sourceTitle: deepLink.title,
-        sourceBody: deepLink.body,
-        messageId: deepLink.messageId,
-      );
+      if (deepLink.targetType != NotificationTargetType.billing) {
+        _openNotificationTargetPage(
+          targetType: deepLink.targetType,
+          referenceId: deepLink.referenceId,
+          sourceTitle: deepLink.title,
+          sourceBody: deepLink.body,
+          messageId: deepLink.messageId,
+        );
+      }
     }
 
     final defaultMessage = _defaultNotificationMessage(
@@ -270,7 +273,8 @@ class _AppShellPageState extends State<AppShellPage> {
     required String? sourceBody,
     String? messageId,
   }) {
-    if (targetType == NotificationTargetType.unknown) {
+    if (targetType == NotificationTargetType.unknown ||
+        targetType == NotificationTargetType.billing) {
       return;
     }
     if (!_shouldOpenNotificationMessage(messageId)) {
@@ -322,6 +326,7 @@ class _AppShellPageState extends State<AppShellPage> {
         NotificationTargetType.event => l10n.notificationOpenedEvent,
         NotificationTargetType.scholarship =>
           l10n.notificationOpenedScholarship,
+        NotificationTargetType.billing => l10n.notificationOpenedGeneral,
         NotificationTargetType.unknown => l10n.notificationOpenedGeneral,
       };
     }
@@ -330,7 +335,18 @@ class _AppShellPageState extends State<AppShellPage> {
       NotificationTargetType.event => l10n.notificationForegroundEvent,
       NotificationTargetType.scholarship =>
         l10n.notificationForegroundScholarship,
+      NotificationTargetType.billing => l10n.notificationForegroundGeneral,
       NotificationTargetType.unknown => l10n.notificationForegroundGeneral,
+    };
+  }
+
+  int? _destinationIndexForNotificationTarget(
+    NotificationTargetType targetType,
+  ) {
+    return switch (targetType) {
+      NotificationTargetType.event || NotificationTargetType.scholarship => 2,
+      NotificationTargetType.billing => 3,
+      NotificationTargetType.unknown => null,
     };
   }
 
@@ -2599,23 +2615,14 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
         membersById[candidate.id] = candidate;
       }
     } catch (_) {
-      final snapshot = await widget.memberRepository.loadWorkspace(
-        session: widget.session,
+      return _NearbyRelativeLoadResult(
+        items: const [],
+        canRetry: true,
+        message: l10n.pick(
+          vi: 'Không tải được danh sách người thân ở gần lúc này. Vui lòng thử lại.',
+          en: 'Unable to load nearby relatives right now. Please retry.',
+        ),
       );
-      membersById = <String, MemberProfile>{
-        for (final member in snapshot.members) member.id: member,
-      };
-      candidates = snapshot.members
-          .where(
-            (member) => _isNearbyCandidateMember(
-              member,
-              activeClanId: activeClanId,
-              activeMemberId: activeMemberId,
-              activeUid: activeUid,
-            ),
-          )
-          .take(_maxCandidateCount)
-          .toList(growable: false);
     }
 
     final nearbyItems = <_NearbyRelative>[];

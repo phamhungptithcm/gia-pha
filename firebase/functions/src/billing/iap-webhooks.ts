@@ -14,6 +14,7 @@ import {
 } from '../config/runtime';
 import type { BillingPlanCode } from './pricing';
 import {
+  refreshIapProductCatalogFromFirestore,
   resolvePlanCodeForIapProductId,
   verifyInAppStorePurchase,
   type IapPlatform,
@@ -88,6 +89,7 @@ export const appleIapWebhook = onRequest(
         signedRenewalInfo.length > 0
           ? await verifySignedAppleJws(signedRenewalInfo)
           : {};
+      await refreshIapProductCatalogFromFirestore();
       const productId = normalizeString(transactionInfo.productId).toLowerCase();
       if (productId.length === 0) {
         response

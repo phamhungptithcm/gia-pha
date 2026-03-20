@@ -107,6 +107,25 @@ export const EXPIRE_INVITES_JOB_SCHEDULE = readEnvString(
   'EXPIRE_INVITES_JOB_SCHEDULE',
   '0 * * * *',
 );
+export const EVENT_REMINDER_JOB_SCHEDULE = readEnvString(
+  'EVENT_REMINDER_JOB_SCHEDULE',
+  '*/30 * * * *',
+);
+export const EVENT_REMINDER_LOOKAHEAD_MINUTES = readEnvInt(
+  'EVENT_REMINDER_LOOKAHEAD_MINUTES',
+  43200,
+  { min: 60, max: 129600 },
+);
+export const EVENT_REMINDER_SCAN_LIMIT = readEnvInt(
+  'EVENT_REMINDER_SCAN_LIMIT',
+  1500,
+  { min: 100, max: 10000 },
+);
+export const EVENT_REMINDER_GRACE_MINUTES = readEnvInt(
+  'EVENT_REMINDER_GRACE_MINUTES',
+  45,
+  { min: 5, max: 180 },
+);
 export const BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE = readEnvString(
   'BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE',
   '0 7 * * *',
@@ -171,6 +190,10 @@ export const BILLING_DELINQUENCY_REMINDER_DAYS = readEnvIntList(
 export const BILLING_ALLOW_MANUAL_SETTLEMENT = readEnvBoolean(
   'BILLING_ALLOW_MANUAL_SETTLEMENT',
   false,
+);
+export const BILLING_ENABLE_LEGACY_CARD_FLOW = readEnvBoolean(
+  'BILLING_ENABLE_LEGACY_CARD_FLOW',
+  readEnvString('FUNCTIONS_EMULATOR', 'false').toLowerCase() === 'true',
 );
 export const BILLING_IAP_ALLOW_TEST_MOCK = readEnvBoolean(
   'BILLING_IAP_ALLOW_TEST_MOCK',
@@ -287,6 +310,11 @@ export const NOTIFICATION_DEFAULT_EMAIL_ENABLED = readEnvBoolean(
 export const NOTIFICATION_ALLOW_NON_OTP_SMS = readEnvBoolean(
   'NOTIFICATION_ALLOW_NON_OTP_SMS',
   false,
+);
+export const NOTIFICATION_EVENT_MAX_AUDIENCE = readEnvInt(
+  'NOTIFICATION_EVENT_MAX_AUDIENCE',
+  5000,
+  { min: 100, max: 50000 },
 );
 export const BILLING_CONTACT_SMS_WEBHOOK_URL = readEnvString(
   'BILLING_CONTACT_SMS_WEBHOOK_URL',

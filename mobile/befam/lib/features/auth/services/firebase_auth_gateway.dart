@@ -1,10 +1,8 @@
-import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/app_environment.dart';
@@ -43,10 +41,6 @@ class FirebaseAuthGateway implements AuthGateway {
   final FirebaseFunctions _functions;
   final FirebaseFirestore _firestore;
   final AuthTrustedDeviceStore _trustedDeviceStore;
-  static bool _phoneAuthSettingsConfigured = false;
-  final Map<String, ConfirmationResult> _webConfirmationResults =
-      <String, ConfirmationResult>{};
-
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
 
@@ -104,7 +98,6 @@ class FirebaseAuthGateway implements AuthGateway {
       childIdentifier: challenge.childIdentifier,
       memberId: challenge.memberId,
       displayName: challenge.displayName,
-      forceResendingToken: challenge.resendToken,
     );
   }
 
@@ -114,60 +107,9 @@ class FirebaseAuthGateway implements AuthGateway {
     String smsCode, {
     String? languageCode,
   }) async {
-    final serverResult = await _verifyOtpViaServer(
+    return _verifyOtpViaServer(
       challenge: challenge,
       smsCode: smsCode,
-      languageCode: languageCode,
-    );
-    if (serverResult != null) {
-      return serverResult;
-    }
-
-    if (kIsWeb) {
-      final confirmationResult = _webConfirmationResults.remove(
-        challenge.verificationId,
-      );
-      if (confirmationResult != null) {
-        final userCredential = await confirmationResult.confirm(smsCode);
-        final user = userCredential.user;
-        if (user == null) {
-          throw FirebaseAuthException(
-            code: 'unknown',
-            message: 'Firebase did not return a signed-in user.',
-          );
-        }
-        return _handleVerifiedUser(
-          user,
-          loginMethod: challenge.loginMethod,
-          phoneE164: challenge.phoneE164,
-          childIdentifier: challenge.childIdentifier,
-          memberId: challenge.memberId,
-          displayName: challenge.displayName,
-          languageCode: languageCode,
-        );
-      }
-    }
-
-    final credential = PhoneAuthProvider.credential(
-      verificationId: challenge.verificationId,
-      smsCode: smsCode,
-    );
-    final userCredential = await _auth.signInWithCredential(credential);
-    final user = userCredential.user;
-    if (user == null) {
-      throw FirebaseAuthException(
-        code: 'unknown',
-        message: 'Firebase did not return a signed-in user.',
-      );
-    }
-
-    return _handleVerifiedUser(
-      user,
-      loginMethod: challenge.loginMethod,
-      phoneE164: challenge.phoneE164,
-      childIdentifier: challenge.childIdentifier,
-      memberId: challenge.memberId,
-      displayName: challenge.displayName,
       languageCode: languageCode,
     );
   }
@@ -444,15 +386,14 @@ class FirebaseAuthGateway implements AuthGateway {
     String? childIdentifier,
     String? memberId,
     String? displayName,
-    int? forceResendingToken,
   }) async {
     final requestTag =
         'otp_${DateTime.now().millisecondsSinceEpoch}_${loginMethod.name}';
     AppLogger.info(
-      '[$requestTag] Preparing OTP request (method=${loginMethod.name}, phone=$phoneE164, forceResendingToken=${forceResendingToken ?? 'none'}).',
+      '[$requestTag] Preparing OTP request (method=${loginMethod.name}, phone=$phoneE164).',
     );
 
-    final serverResult = await _requestOtpViaServer(
+    return _requestOtpViaServer(
       requestTag: requestTag,
       loginMethod: loginMethod,
       phoneE164: phoneE164,
@@ -460,157 +401,9 @@ class FirebaseAuthGateway implements AuthGateway {
       memberId: memberId,
       displayName: displayName,
     );
-    if (serverResult != null) {
-      return serverResult;
-    }
-
-    if (kIsWeb) {
-      return _requestOtpOnWeb(
-        requestTag: requestTag,
-        loginMethod: loginMethod,
-        phoneE164: phoneE164,
-        childIdentifier: childIdentifier,
-        memberId: memberId,
-        displayName: displayName,
-      );
-    }
-
-    await _configurePhoneAuthSettings();
-    final completer = Completer<AuthOtpRequestResult>();
-
-    try {
-      AppLogger.info('[$requestTag] Calling FirebaseAuth.verifyPhoneNumber.');
-      await _auth.verifyPhoneNumber(
-        phoneNumber: phoneE164,
-        forceResendingToken: forceResendingToken,
-        verificationCompleted: (credential) async {
-          if (completer.isCompleted) {
-            return;
-          }
-
-          AppLogger.info(
-            '[$requestTag] verificationCompleted callback received.',
-          );
-          if (loginMethod == AuthEntryMethod.phone) {
-            AppLogger.info(
-              '[$requestTag] Skipping auto-complete for phone login to preserve identity reconciliation flow.',
-            );
-            return;
-          }
-          try {
-            final userCredential = await _auth.signInWithCredential(credential);
-            final user = userCredential.user;
-            if (user == null) {
-              completer.completeError(
-                FirebaseAuthException(
-                  code: 'unknown',
-                  message: 'Firebase did not return a signed-in user.',
-                ),
-              );
-              return;
-            }
-
-            completer.complete(
-              AuthOtpRequestResult.session(
-                await _buildSession(
-                  user,
-                  loginMethod: loginMethod,
-                  phoneE164: phoneE164,
-                  childIdentifier: childIdentifier,
-                  memberId: memberId,
-                  displayName: displayName,
-                ),
-              ),
-            );
-          } catch (error, stackTrace) {
-            AppLogger.error(
-              '[$requestTag] Failed to complete auto verification.',
-              error,
-              stackTrace,
-            );
-            completer.completeError(error);
-          }
-        },
-        verificationFailed: (error) {
-          AppLogger.warning(
-            '[$requestTag] verificationFailed callback.',
-            error,
-            StackTrace.current,
-          );
-          if (!completer.isCompleted) {
-            completer.completeError(error);
-          }
-        },
-        codeSent: (verificationId, resendToken) {
-          AppLogger.info(
-            '[$requestTag] codeSent callback (verificationId=$verificationId, resendToken=${resendToken ?? 'none'}).',
-          );
-          if (!completer.isCompleted) {
-            completer.complete(
-              AuthOtpRequestResult.challenge(
-                PendingOtpChallenge(
-                  loginMethod: loginMethod,
-                  phoneE164: phoneE164,
-                  maskedDestination: PhoneNumberFormatter.mask(phoneE164),
-                  verificationId: verificationId,
-                  childIdentifier: childIdentifier,
-                  memberId: memberId,
-                  displayName: displayName,
-                  resendToken: resendToken,
-                ),
-              ),
-            );
-          }
-        },
-        codeAutoRetrievalTimeout: (verificationId) {
-          AppLogger.info(
-            '[$requestTag] codeAutoRetrievalTimeout callback (verificationId=$verificationId).',
-          );
-          if (!completer.isCompleted) {
-            completer.complete(
-              AuthOtpRequestResult.challenge(
-                PendingOtpChallenge(
-                  loginMethod: loginMethod,
-                  phoneE164: phoneE164,
-                  maskedDestination: PhoneNumberFormatter.mask(phoneE164),
-                  verificationId: verificationId,
-                  childIdentifier: childIdentifier,
-                  memberId: memberId,
-                  displayName: displayName,
-                  resendToken: forceResendingToken,
-                ),
-              ),
-            );
-          }
-        },
-      );
-      AppLogger.info(
-        '[$requestTag] verifyPhoneNumber call returned to Dart layer.',
-      );
-    } catch (error, stackTrace) {
-      AppLogger.error(
-        '[$requestTag] verifyPhoneNumber threw before callbacks.',
-        error,
-        stackTrace,
-      );
-      rethrow;
-    }
-
-    return completer.future.timeout(
-      const Duration(seconds: 60),
-      onTimeout: () {
-        AppLogger.warning(
-          '[$requestTag] Phone auth request timed out for $phoneE164.',
-        );
-        throw FirebaseAuthException(
-          code: 'session-expired',
-          message: 'The verification session expired before the OTP arrived.',
-        );
-      },
-    );
   }
 
-  Future<AuthOtpRequestResult?> _requestOtpViaServer({
+  Future<AuthOtpRequestResult> _requestOtpViaServer({
     required String requestTag,
     required AuthEntryMethod loginMethod,
     required String phoneE164,
@@ -642,8 +435,7 @@ class FirebaseAuthGateway implements AuthGateway {
               (key, value) => MapEntry(key.toString(), value),
             )
           : const <String, dynamic>{};
-      final verificationId =
-          (data['verificationId'] as String?)?.trim() ?? '';
+      final verificationId = (data['verificationId'] as String?)?.trim() ?? '';
       if (verificationId.isEmpty) {
         throw FirebaseFunctionsException(
           code: 'internal',
@@ -671,9 +463,7 @@ class FirebaseAuthGateway implements AuthGateway {
           ? (data['displayName'] as String).trim()
           : displayName;
 
-      AppLogger.info(
-        '[$requestTag] OTP challenge created by server provider.',
-      );
+      AppLogger.info('[$requestTag] OTP challenge created by server provider.');
       return AuthOtpRequestResult.challenge(
         PendingOtpChallenge(
           loginMethod: loginMethod,
@@ -686,19 +476,16 @@ class FirebaseAuthGateway implements AuthGateway {
         ),
       );
     } on FirebaseFunctionsException catch (error, stackTrace) {
-      if (!_shouldUseClientFallback(error.code, message: error.message)) {
-        rethrow;
-      }
-      AppLogger.warning(
-        '[$requestTag] requestOtpChallenge callable unavailable; fallback to Firebase phone auth.',
+      AppLogger.error(
+        '[$requestTag] requestOtpChallenge callable failed.',
         error,
         stackTrace,
       );
-      return null;
+      rethrow;
     }
   }
 
-  Future<AuthOtpVerificationResult?> _verifyOtpViaServer({
+  Future<AuthOtpVerificationResult> _verifyOtpViaServer({
     required PendingOtpChallenge challenge,
     required String smsCode,
     String? languageCode,
@@ -737,7 +524,8 @@ class FirebaseAuthGateway implements AuthGateway {
           (payload['childIdentifier'] as String?)?.trim().isNotEmpty == true
           ? (payload['childIdentifier'] as String).trim()
           : challenge.childIdentifier;
-      final memberId = (payload['memberId'] as String?)?.trim().isNotEmpty == true
+      final memberId =
+          (payload['memberId'] as String?)?.trim().isNotEmpty == true
           ? (payload['memberId'] as String).trim()
           : challenge.memberId;
       final displayName =
@@ -764,15 +552,8 @@ class FirebaseAuthGateway implements AuthGateway {
         languageCode: languageCode,
       );
     } on FirebaseFunctionsException catch (error, stackTrace) {
-      if (!_shouldUseClientFallback(error.code, message: error.message)) {
-        rethrow;
-      }
-      AppLogger.warning(
-        'verifyOtpChallenge callable unavailable; fallback to Firebase phone auth.',
-        error,
-        stackTrace,
-      );
-      return null;
+      AppLogger.error('verifyOtpChallenge callable failed.', error, stackTrace);
+      rethrow;
     }
   }
 
@@ -792,64 +573,6 @@ class FirebaseAuthGateway implements AuthGateway {
       return 'vi';
     }
     return _preferredLanguageCode();
-  }
-
-  Future<AuthOtpRequestResult> _requestOtpOnWeb({
-    required String requestTag,
-    required AuthEntryMethod loginMethod,
-    required String phoneE164,
-    String? childIdentifier,
-    String? memberId,
-    String? displayName,
-  }) async {
-    AppLogger.info('[$requestTag] Calling FirebaseAuth.signInWithPhoneNumber.');
-    final confirmationResult = await _auth.signInWithPhoneNumber(phoneE164);
-    final verificationId = confirmationResult.verificationId.trim();
-    if (verificationId.isEmpty) {
-      throw FirebaseAuthException(
-        code: 'session-expired',
-        message:
-            'The verification session expired before the OTP challenge was created.',
-      );
-    }
-    _webConfirmationResults[verificationId] = confirmationResult;
-    while (_webConfirmationResults.length > 20) {
-      final oldestKey = _webConfirmationResults.keys.first;
-      _webConfirmationResults.remove(oldestKey);
-    }
-
-    AppLogger.info(
-      '[$requestTag] Web OTP challenge created (verificationId=$verificationId).',
-    );
-
-    return AuthOtpRequestResult.challenge(
-      PendingOtpChallenge(
-        loginMethod: loginMethod,
-        phoneE164: phoneE164,
-        maskedDestination: PhoneNumberFormatter.mask(phoneE164),
-        verificationId: verificationId,
-        childIdentifier: childIdentifier,
-        memberId: memberId,
-        displayName: displayName,
-      ),
-    );
-  }
-
-  Future<void> _configurePhoneAuthSettings() async {
-    if (_phoneAuthSettingsConfigured) {
-      return;
-    }
-    _phoneAuthSettingsConfigured = true;
-    try {
-      await _auth.setSettings(appVerificationDisabledForTesting: false);
-      AppLogger.info('Using live Firebase phone verification flow.');
-    } catch (error, stackTrace) {
-      AppLogger.warning(
-        'Could not apply FirebaseAuth phone verification settings.',
-        error,
-        stackTrace,
-      );
-    }
   }
 
   Future<ResolvedChildAccess> _resolveChildAccess(
@@ -1394,6 +1117,9 @@ class FirebaseAuthGateway implements AuthGateway {
   }
 
   bool _shouldUseClientFallback(String code, {String? message}) {
+    if (!AppEnvironment.allowFirebasePhoneAuthFallback) {
+      return false;
+    }
     if (code == 'not-found' ||
         code == 'unimplemented' ||
         code == 'unavailable') {

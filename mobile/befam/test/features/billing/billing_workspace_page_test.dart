@@ -126,14 +126,18 @@ void main() {
 
     expect(find.text('Gói cá nhân của bạn'), findsNothing);
     expect(find.text('Gói dịch vụ & thanh toán'), findsOneWidget);
+    final selector = find.byKey(const Key('billing-plan-selector'));
+    expect(selector, findsOneWidget);
+    final baseOption = find.byKey(const Key('billing-plan-option-base'));
+    expect(baseOption, findsOneWidget);
+    await tester.tap(baseOption);
+    await tester.pumpAndSettle();
+
     final checkoutButton = find.byKey(
       const Key('billing-open-checkout-button'),
     );
-    await tester.scrollUntilVisible(
-      checkoutButton,
-      280,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await tester.ensureVisible(checkoutButton);
+    await tester.pumpAndSettle();
     expect(checkoutButton, findsOneWidget);
   });
 

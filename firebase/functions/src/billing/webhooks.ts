@@ -4,6 +4,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 
 import {
   APP_REGION,
+  BILLING_ENABLE_LEGACY_CARD_FLOW,
   getBillingWebhookSecret,
   getCardWebhookSecret,
 } from '../config/runtime';
@@ -13,10 +14,15 @@ import {
   resolveBillingAudienceMemberIds,
 } from './store';
 import { notifyMembers } from '../notifications/push-delivery';
+import { logError } from '../shared/logger';
 
 export const cardPaymentCallback = onRequest(
   { region: APP_REGION },
   async (request, response) => {
+    if (!BILLING_ENABLE_LEGACY_CARD_FLOW) {
+      response.status(404).json({ ok: false, message: 'Not found' });
+      return;
+    }
     if (!['GET', 'POST'].includes(request.method)) {
       response.status(405).json({ ok: false, message: 'Method not allowed' });
       return;
@@ -80,10 +86,14 @@ export const cardPaymentCallback = onRequest(
         paymentStatus,
       });
     } catch (error) {
+      logError('cardPaymentCallback failed', {
+        transactionId,
+        paymentStatus,
+        error: `${error}`,
+      });
       response.status(500).json({
         ok: false,
         message: 'Could not process card callback',
-        error: `${error}`,
       });
     }
   },
@@ -161,7 +171,7 @@ async function notifyBillingWebhookResult({
     body: approved
       ? `${formatVnd(amountVnd)} via ${provider.toUpperCase()} has been confirmed.`
       : `${formatVnd(amountVnd)} via ${provider.toUpperCase()} did not complete.`,
-    target: 'generic',
+    target: 'billing',
     targetId: transactionId,
     extraData: {
       transactionId,

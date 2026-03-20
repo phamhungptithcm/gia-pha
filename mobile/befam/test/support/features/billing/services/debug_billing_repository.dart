@@ -907,7 +907,28 @@ class _DebugBillingState {
       subscription: subscription,
       entitlement: entitlement,
       settings: settings,
-      checkoutFlow: const BillingCheckoutFlowConfig(),
+      checkoutFlow: const BillingCheckoutFlowConfig(
+        storeProductIdsByPlan: <String, String>{
+          'BASE': 'befam.base.yearly',
+          'PLUS': 'befam.plus.yearly',
+          'PRO': 'befam.pro.yearly',
+        },
+        storeProductIdsByPlanByPlatform: <String, Map<String, String>>{
+          'BASE': <String, String>{
+            'ios': 'befam.base.yearly',
+            'android': 'befam.base.yearly',
+          },
+          'PLUS': <String, String>{
+            'ios': 'befam.plus.yearly',
+            'android': 'befam.plus.yearly',
+          },
+          'PRO': <String, String>{
+            'ios': 'befam.pro.yearly',
+            'android': 'befam.pro.yearly',
+          },
+        },
+        allowLegacyCardCheckout: true,
+      ),
       pricingTiers: pricing,
       memberCount: memberCount,
       transactions: List.unmodifiable(transactions),

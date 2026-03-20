@@ -2714,6 +2714,7 @@ function isRetryableTwilioNetworkError(error: unknown): boolean {
   return message.includes('abort') ||
     message.includes('timeout') ||
     message.includes('timed out') ||
+    message.includes('econnreset') ||
     message.includes('ecconnreset') ||
     message.includes('econnrefused') ||
     message.includes('enotfound') ||

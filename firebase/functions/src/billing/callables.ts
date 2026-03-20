@@ -6,6 +6,7 @@ import {
   APP_REGION,
   CALLABLE_ENFORCE_APP_CHECK,
   BILLING_ALLOW_MANUAL_SETTLEMENT,
+  BILLING_ENABLE_LEGACY_CARD_FLOW,
   getBillingWebhookSecret,
 } from "../config/runtime";
 import {
@@ -33,6 +34,7 @@ import {
   type PaymentMode,
 } from "./pricing";
 import {
+  refreshIapProductCatalogFromFirestore,
   normalizeIapPlatform,
   resolvePlanCodeForIapProductId,
   resolveStoreProductIdsByPlan,
@@ -266,6 +268,7 @@ export const resolveBillingEntitlement = onCall(
     const auth = requireAuth(request);
     const now = new Date();
     await refreshBillingPricingTiers();
+    await refreshIapProductCatalogFromFirestore();
     const scope = await resolveBillingScopeContext({
       uid: auth.uid,
       token: auth.token,
@@ -306,6 +309,7 @@ export const loadBillingWorkspace = onCall(
     const auth = requireAuth(request);
     const now = new Date();
     await refreshBillingPricingTiers();
+    await refreshIapProductCatalogFromFirestore();
     const scope = await resolveBillingScopeContext({
       uid: auth.uid,
       token: auth.token,
@@ -442,6 +446,7 @@ export const createSubscriptionCheckout = onCall(
   async (request) => {
     const auth = requireAuth(request);
     await refreshBillingPricingTiers();
+    await refreshIapProductCatalogFromFirestore();
     const scope = await resolveBillingScopeContext({
       uid: auth.uid,
       token: auth.token,
@@ -541,6 +546,12 @@ export const createSubscriptionCheckout = onCall(
       checkoutUrl = "";
       requiresManualConfirmation = false;
     } else {
+      if (!BILLING_ENABLE_LEGACY_CARD_FLOW) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Legacy card checkout is disabled in this environment.",
+        );
+      }
       checkoutUrl = buildCardCheckoutHintUrl({
         transactionId: checkout.transaction.id,
         runtimeConfig,
@@ -860,6 +871,12 @@ export const verifyInAppPurchase = onCall(
 export const completeCardCheckout = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
+    if (!BILLING_ENABLE_LEGACY_CARD_FLOW) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Legacy card checkout is disabled in this environment.",
+      );
+    }
     const auth = requireAuth(request);
     const scope = await resolveBillingScopeContext({
       uid: auth.uid,
@@ -943,7 +960,7 @@ async function notifyBillingResult({
     body: approved
       ? `Confirmed ${formatVnd(amountVnd)} via ${provider.toUpperCase()}.`
       : `Could not confirm ${formatVnd(amountVnd)} via ${provider.toUpperCase()}.`,
-    target: "generic",
+    target: "billing",
     targetId: transactionId,
     extraData: {
       transactionId,
@@ -1031,6 +1048,12 @@ function canRenewCurrentPlan(
 function normalizePaymentMethod(data: unknown): PaymentMethod {
   const method = readString(data, "paymentMethod")?.toLowerCase();
   if (method === "card") {
+    if (!BILLING_ENABLE_LEGACY_CARD_FLOW) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Legacy card checkout is disabled in this environment.",
+      );
+    }
     return "card";
   }
   if (method === "apple_iap") {
@@ -1041,7 +1064,9 @@ function normalizePaymentMethod(data: unknown): PaymentMethod {
   }
   throw new HttpsError(
     "invalid-argument",
-    'paymentMethod must be "card", "apple_iap", or "google_play".',
+    BILLING_ENABLE_LEGACY_CARD_FLOW
+      ? 'paymentMethod must be "card", "apple_iap", or "google_play".'
+      : 'paymentMethod must be "apple_iap" or "google_play".',
   );
 }
 
@@ -1345,5 +1370,6 @@ function buildCheckoutFlowConfig(): Record<string, unknown> {
   return {
     storeProductIdsByPlan,
     storeProductIdsByPlanByPlatform,
+    allowLegacyCardCheckout: BILLING_ENABLE_LEGACY_CARD_FLOW,
   };
 }

@@ -486,7 +486,7 @@ async function sendGraceReminder({
     body:
       `Payment is overdue. Complete renewal by ${formatDate(graceEndsAt)} ` +
       `to keep clan access active. Contact ${ownerLabel} for upgrade.`,
-    target: 'generic',
+    target: 'billing',
     targetId: subscriptionId,
     extraData: {
       billing: 'true',
@@ -538,7 +538,7 @@ async function sendDeactivatedNotice({
     body:
       `Subscription grace period has ended. Contact ${ownerLabel} to renew ` +
       'the plan and reactivate clan access.',
-    target: 'generic',
+    target: 'billing',
     targetId: subscriptionId,
     extraData: {
       billing: 'true',

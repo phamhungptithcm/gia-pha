@@ -651,15 +651,20 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     final isRenewSelection = selectedPlanRank == currentPlanRank;
     final isUpgradeSelection = selectedPlanRank > currentPlanRank;
     final useStoreCheckout = _shouldUseStoreCheckout;
+    final allowLegacyCardCheckout =
+        workspace.checkoutFlow.allowLegacyCardCheckout;
     final hasStoreProductConfig =
         _iapProductIdForPlan(workspace, selectedTier.planCode) != null;
+    final supportsSelectedCheckoutPath = useStoreCheckout
+        ? hasStoreProductConfig
+        : allowLegacyCardCheckout;
     final isBelowMinimumForMemberCount = selectedPlanRank < minimumPlanRank;
     final canCheckoutSelectedPlan =
         selectedTier.priceVndYear > 0 &&
         canManage &&
         !_controller.isCreatingCheckout &&
         hasSelectablePlans &&
-        (!useStoreCheckout || hasStoreProductConfig) &&
+        supportsSelectedCheckoutPath &&
         !isBelowMinimumForMemberCount &&
         (isUpgradeSelection || (isRenewSelection && canRenewCurrentPlan));
     final pendingTransactions = workspace.transactions
@@ -856,6 +861,19 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       en: '${_localizedPlanName(selectedTier.planCode, l10n)} is not mapped to a store productId on the server.',
                     ),
                     tone: colorScheme.errorContainer,
+                  )
+                else if (!useStoreCheckout && !allowLegacyCardCheckout)
+                  _InfoCard(
+                    icon: Icons.info_outline,
+                    title: l10n.pick(
+                      vi: 'Thanh toán chuyển sang IAP',
+                      en: 'Checkout moved to IAP',
+                    ),
+                    description: l10n.pick(
+                      vi: 'Thanh toán thẻ truyền thống đã tắt trong môi trường này. Vui lòng dùng ứng dụng iOS/Android để gia hạn hoặc nâng cấp.',
+                      en: 'Legacy card checkout is disabled in this environment. Please use iOS/Android app stores to renew or upgrade.',
+                    ),
+                    tone: colorScheme.tertiaryContainer,
                   )
                 else if (isBelowMinimumForMemberCount)
                   _InfoCard(
