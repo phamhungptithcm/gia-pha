@@ -3,6 +3,8 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import {
   APP_REGION,
   APP_TIMEZONE,
+  BILLING_CONTACT_NOTICE_BATCH_LIMIT,
+  BILLING_CONTACT_NOTICE_JOB_SCHEDULE,
   BILLING_DELINQUENCY_JOB_SCHEDULE,
   BILLING_PENDING_TIMEOUT_JOB_SCHEDULE,
   BILLING_PENDING_TIMEOUT_LIMIT,
@@ -15,7 +17,10 @@ import { expireInvitesJobRun } from './invite-expiration';
 import { logInfo } from '../shared/logger';
 import { sendSubscriptionRemindersRun } from '../billing/subscription-reminders';
 import { cancelStalePendingTransactionsRun } from '../billing/store';
-import { enforceSubscriptionDelinquencyRun } from '../billing/subscription-delinquency';
+import {
+  dispatchBillingContactNoticesRun,
+  enforceSubscriptionDelinquencyRun,
+} from '../billing/subscription-delinquency';
 
 export const expireInvitesJob = onSchedule(
   {
@@ -85,5 +90,20 @@ export const billingSubscriptionDelinquencyJob = onSchedule(
       reminderDays: runtimeConfig.delinquencyReminderDays,
     });
     logInfo('billingSubscriptionDelinquencyJob tick complete', result);
+  },
+);
+
+export const billingContactNoticeJob = onSchedule(
+  {
+    schedule: BILLING_CONTACT_NOTICE_JOB_SCHEDULE,
+    region: APP_REGION,
+    timeZone: APP_TIMEZONE,
+  },
+  async () => {
+    const result = await dispatchBillingContactNoticesRun({
+      source: 'function:billingContactNoticeJob',
+      limit: BILLING_CONTACT_NOTICE_BATCH_LIMIT,
+    });
+    logInfo('billingContactNoticeJob tick complete', result);
   },
 );

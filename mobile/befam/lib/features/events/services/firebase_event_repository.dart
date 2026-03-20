@@ -51,21 +51,25 @@ class FirebaseEventRepository implements EventRepository {
       );
     }
 
-    final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-      _events.where('clanId', isEqualTo: clanId).orderBy('startsAt').get(),
-      _members.where('clanId', isEqualTo: clanId).get(),
-      _branches.where('clanId', isEqualTo: clanId).get(),
+    final results = await Future.wait<
+      List<QueryDocumentSnapshot<Map<String, dynamic>>>
+    >([
+      _fetchPagedDocuments(
+        _events.where('clanId', isEqualTo: clanId).orderBy('startsAt'),
+      ),
+      _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
+      _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
     ]);
 
-    final events = results[0].docs
+    final events = results[0]
         .map((doc) => EventRecord.fromJson(doc.data()))
         .sortedBy((event) => event.startsAt)
         .toList(growable: false);
-    final members = results[1].docs
+    final members = results[1]
         .map((doc) => MemberProfile.fromJson(doc.data()))
         .sortedBy((member) => member.fullName.toLowerCase())
         .toList(growable: false);
-    final branches = results[2].docs
+    final branches = results[2]
         .map((doc) => BranchProfile.fromJson(doc.data()))
         .sortedBy((branch) => branch.name.toLowerCase())
         .toList(growable: false);
@@ -75,6 +79,33 @@ class FirebaseEventRepository implements EventRepository {
       members: members,
       branches: branches,
     );
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchPagedDocuments(
+    Query<Map<String, dynamic>> baseQuery, {
+    int pageSize = 250,
+    int maxDocuments = 5000,
+  }) async {
+    final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
+    while (docs.length < maxDocuments) {
+      final query = cursor == null
+          ? baseQuery.limit(pageSize)
+          : baseQuery.limit(pageSize).startAfterDocument(cursor);
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        break;
+      }
+      docs.addAll(snapshot.docs);
+      if (snapshot.docs.length < pageSize) {
+        break;
+      }
+      cursor = snapshot.docs.last;
+    }
+    if (docs.length > maxDocuments) {
+      return docs.take(maxDocuments).toList(growable: false);
+    }
+    return docs;
   }
 
   @override

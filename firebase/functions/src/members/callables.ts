@@ -8,8 +8,11 @@ import {
   resolveOwnerBillingPolicy,
   type OwnerBillingPolicySummary,
 } from '../billing/store';
-import { resolvePlanByMemberCount } from '../billing/pricing';
-import { APP_REGION } from '../config/runtime';
+import {
+  refreshBillingPricingTiers,
+  resolvePlanByMemberCount,
+} from '../billing/pricing';
+import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from '../config/runtime';
 import { requireAuth } from '../shared/errors';
 import { db } from '../shared/firestore';
 import { logWarn } from '../shared/logger';
@@ -31,6 +34,10 @@ const CLAN_MEMBER_MANAGER_ROLES = new Set([
   'ADMIN_SUPPORT',
 ]);
 const BRANCH_ADMIN_ROLE = 'BRANCH_ADMIN';
+const APP_CHECK_CALLABLE_OPTIONS = {
+  region: APP_REGION,
+  enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
+} as const;
 
 type CreateClanMemberInput = {
   clanId: string;
@@ -72,7 +79,7 @@ type ActorRoleContext = {
   branchId: string | null;
 };
 
-export const createClanMember = onCall({ region: APP_REGION }, async (request) => {
+export const createClanMember = onCall(APP_CHECK_CALLABLE_OPTIONS, async (request) => {
   const auth = requireAuth(request);
   ensureClaimedSession(auth.token);
 
@@ -80,6 +87,7 @@ export const createClanMember = onCall({ region: APP_REGION }, async (request) =
   const actorUid = auth.uid;
   const actorId = normalizeString(auth.token.memberId) || actorUid;
   const now = new Date();
+  await refreshBillingPricingTiers();
   const clanOwnerScope = await resolveClanOwnerScope(input.clanId);
   const ownerPolicy = await resolveOwnerBillingPolicy({
     ownerUid: clanOwnerScope.ownerUid,

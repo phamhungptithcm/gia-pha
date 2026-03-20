@@ -59,22 +59,24 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
       }
     }
 
-    final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-      _members.where('clanId', isEqualTo: clanId).get(),
-      _branches.where('clanId', isEqualTo: clanId).get(),
-      _relationships.where('clanId', isEqualTo: clanId).get(),
+    final results = await Future.wait<
+      List<QueryDocumentSnapshot<Map<String, dynamic>>>
+    >([
+      _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
+      _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
+      _fetchPagedDocuments(_relationships.where('clanId', isEqualTo: clanId)),
     ]);
 
-    final members = results[0].docs
+    final members = results[0]
         .map((doc) => MemberProfile.fromJson(doc.data()))
         .sortedBy((member) => member.fullName.toLowerCase())
         .toList(growable: false);
-    final branches = results[1].docs
+    final branches = results[1]
         .map((doc) => BranchProfile.fromJson(doc.data()))
         .sortedBy((branch) => branch.name.toLowerCase())
         .toList(growable: false);
     final memberIds = members.map((member) => member.id).toSet();
-    final relationships = results[2].docs
+    final relationships = results[2]
         .map((doc) => RelationshipRecord.fromJson(doc.data()))
         .where(
           (relationship) =>
@@ -124,16 +126,17 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
       }
     }
 
-    final memberSnapshot = await _members
-        .where('clanId', isEqualTo: clanId)
-        .where('branchId', isEqualTo: resolvedBranchId)
-        .get();
+    final memberSnapshot = await _fetchPagedDocuments(
+      _members
+          .where('clanId', isEqualTo: clanId)
+          .where('branchId', isEqualTo: resolvedBranchId),
+    );
     final branchDoc = await _branches.doc(resolvedBranchId).get();
-    final relationshipSnapshot = await _relationships
-        .where('clanId', isEqualTo: clanId)
-        .get();
+    final relationshipSnapshot = await _fetchPagedDocuments(
+      _relationships.where('clanId', isEqualTo: clanId),
+    );
 
-    final members = memberSnapshot.docs
+    final members = memberSnapshot
         .map((doc) => MemberProfile.fromJson(doc.data()))
         .sortedBy((member) => member.fullName.toLowerCase())
         .toList(growable: false);
@@ -144,7 +147,7 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
           (branchDoc.data()!['clanId'] as String?)?.trim() == clanId)
         BranchProfile.fromJson(branchDoc.data()!),
     ];
-    final relationships = relationshipSnapshot.docs
+    final relationships = relationshipSnapshot
         .map((doc) => RelationshipRecord.fromJson(doc.data()))
         .where(
           (relationship) =>
@@ -162,6 +165,33 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
       branches: branches,
       relationships: relationships,
     );
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchPagedDocuments(
+    Query<Map<String, dynamic>> baseQuery, {
+    int pageSize = 250,
+    int maxDocuments = 6000,
+  }) async {
+    final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
+    while (docs.length < maxDocuments) {
+      final query = cursor == null
+          ? baseQuery.limit(pageSize)
+          : baseQuery.limit(pageSize).startAfterDocument(cursor);
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        break;
+      }
+      docs.addAll(snapshot.docs);
+      if (snapshot.docs.length < pageSize) {
+        break;
+      }
+      cursor = snapshot.docs.last;
+    }
+    if (docs.length > maxDocuments) {
+      return docs.take(maxDocuments).toList(growable: false);
+    }
+    return docs;
   }
 
   GenealogyReadSegment _buildAndCacheSegment({

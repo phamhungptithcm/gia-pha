@@ -4,6 +4,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 
 import {
   APP_REGION,
+  CALLABLE_ENFORCE_APP_CHECK,
   BILLING_ALLOW_MANUAL_SETTLEMENT,
   getBillingWebhookSecret,
   getVnpayHashSecret,
@@ -23,15 +24,25 @@ import {
   resolveBillingAudienceMemberIds,
   upsertBillingSettings,
   writeBillingAuditLog,
+  resolveTierByPlanCode,
 } from "./store";
 import {
   BILLING_PRICING_TIERS,
+  refreshBillingPricingTiers,
   rankPlanCode,
   type BillingPlanCode,
   type PaymentMethod,
   type PaymentMode,
 } from "./pricing";
+import {
+  normalizeIapPlatform,
+  resolvePlanCodeForIapProductId,
+  resolveStoreProductIdsByPlan,
+  verifyInAppStorePurchase,
+  type IapPlatform,
+} from "./iap-verification";
 import { requireAuth } from "../shared/errors";
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "../shared/firestore";
 import { notifyMembers } from "../notifications/push-delivery";
 import { logInfo } from "../shared/logger";
@@ -46,9 +57,14 @@ import {
 const subscriptionsCollection = db.collection("subscriptions");
 const clansCollection = db.collection("clans");
 const membersCollection = db.collection("members");
+const usersCollection = db.collection("users");
 const transactionsCollection = db.collection("paymentTransactions");
 const invoicesCollection = db.collection("subscriptionInvoices");
 const billingAuditLogsCollection = db.collection("billingAuditLogs");
+const iapPurchaseVerificationsCollection = db.collection(
+  "iapPurchaseVerifications",
+);
+const iapPurchaseLineagesCollection = db.collection("iapPurchaseLineages");
 const BILLING_ADMIN_ROLES = [
   "SUPER_ADMIN",
   "CLAN_ADMIN",
@@ -58,6 +74,10 @@ const BILLING_ADMIN_ROLES = [
   "VICE_LEADER",
   "SUPPORTER_OF_LEADER",
 ];
+const APP_CHECK_CALLABLE_OPTIONS = {
+  region: APP_REGION,
+  enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
+} as const;
 
 function scopedBillingDocId(clanId: string, ownerUid: string): string {
   return `${clanId}__${ownerUid}`;
@@ -243,10 +263,11 @@ function ensureManualSettlementAllowed(token: AuthToken): void {
 }
 
 export const resolveBillingEntitlement = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const now = new Date();
+    await refreshBillingPricingTiers();
     const scope = await resolveBillingScopeContext({
       uid: auth.uid,
       token: auth.token,
@@ -282,10 +303,11 @@ export const resolveBillingEntitlement = onCall(
 );
 
 export const loadBillingWorkspace = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const now = new Date();
+    await refreshBillingPricingTiers();
     const scope = await resolveBillingScopeContext({
       uid: auth.uid,
       token: auth.token,
@@ -361,7 +383,7 @@ export const loadBillingWorkspace = onCall(
 );
 
 export const updateBillingPreferences = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const scope = await resolveBillingScopeContext({
@@ -418,14 +440,16 @@ export const updateBillingPreferences = onCall(
 );
 
 export const createSubscriptionCheckout = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
+    await refreshBillingPricingTiers();
     const scope = await resolveBillingScopeContext({
       uid: auth.uid,
       token: auth.token,
       data: request.data,
       requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const paymentMethod = normalizePaymentMethod(request.data);
@@ -516,6 +540,12 @@ export const createSubscriptionCheckout = onCall(
     if (checkout.tier.planCode === "FREE") {
       checkoutUrl = "";
       requiresManualConfirmation = false;
+    } else if (
+      paymentMethod === "apple_iap" ||
+      paymentMethod === "google_play"
+    ) {
+      checkoutUrl = "";
+      requiresManualConfirmation = false;
     } else if (paymentMethod === "vnpay") {
       const vnpayCheckout = buildVnpayCheckoutUrl({
         transactionId: checkout.transaction.id,
@@ -584,8 +614,279 @@ export const createSubscriptionCheckout = onCall(
   },
 );
 
+export const verifyInAppPurchase = onCall(
+  APP_CHECK_CALLABLE_OPTIONS,
+  async (request) => {
+    const auth = requireAuth(request);
+    const now = new Date();
+    await refreshBillingPricingTiers();
+    const scope = await resolveBillingScopeContext({
+      uid: auth.uid,
+      token: auth.token,
+      data: request.data,
+      requireManageRole: true,
+    });
+
+    const platform = normalizeIapPlatform(
+      readString(request.data, "platform"),
+    );
+    const payload = readRecord(request.data, "payload");
+    if (payload == null) {
+      throw new HttpsError(
+        "invalid-argument",
+        "payload is required for store purchase verification.",
+      );
+    }
+
+    const verifiedPurchase = await verifyInAppStorePurchase({
+      platform,
+      payload,
+    });
+    if (verifiedPurchase.status !== "active") {
+      throw new HttpsError(
+        "failed-precondition",
+        "The submitted store purchase is not active.",
+      );
+    }
+
+    const requestedPlanCode = normalizeRequestedPlanCode(request.data);
+    const productPlanCode =
+      resolvePlanCodeForIapProductId(verifiedPurchase.productId, platform) ??
+      verifiedPurchase.planCode;
+    if (
+      requestedPlanCode != null &&
+      requestedPlanCode !== productPlanCode
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Requested plan ${requestedPlanCode} does not match purchased product ${verifiedPurchase.productId}.`,
+      );
+    }
+
+    const verificationId = verifiedPurchase.storeTransactionKey;
+    const verificationRef =
+      iapPurchaseVerificationsCollection.doc(verificationId);
+    const lineageRef = iapPurchaseLineagesCollection.doc(
+      verifiedPurchase.lineageKey,
+    );
+
+    let lockAcquired = false;
+    try {
+      await verificationRef.create({
+        id: verificationId,
+        uid: auth.uid,
+        clanId: scope.clanId,
+        ownerUid: scope.ownerUid,
+        productId: verifiedPurchase.productId,
+        planCode: productPlanCode,
+        platform: verifiedPurchase.platform,
+        externalTransactionId: verifiedPurchase.externalTransactionId,
+        status: "processing",
+        idempotencyKey: verifiedPurchase.idempotencyKey,
+        storeTransactionKey: verifiedPurchase.storeTransactionKey,
+        lineageKey: verifiedPurchase.lineageKey,
+        updatedAt: FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      lockAcquired = true;
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) {
+        throw error;
+      }
+      const existingVerification = await verificationRef.get();
+      const existingData = existingVerification.data() ?? {};
+      const existingStatus = normalizeString(existingData.status).toLowerCase();
+      const existingClanId = normalizeString(existingData.clanId);
+      const existingOwnerUid = normalizeString(existingData.ownerUid);
+      if (
+        existingClanId.length > 0 &&
+        existingOwnerUid.length > 0 &&
+        (existingClanId !== scope.clanId || existingOwnerUid !== scope.ownerUid)
+      ) {
+        throw new HttpsError(
+          "permission-denied",
+          "This store transaction is already attached to another billing scope.",
+        );
+      }
+      if (existingStatus === "succeeded") {
+        const ensured = await ensureSubscriptionForClan({
+          clanId: scope.clanId,
+          ownerUid: scope.ownerUid,
+          actorUid: auth.uid,
+          now,
+        });
+        const resolvedMemberCount = await resolveWorkspaceMemberCount({
+          scope,
+          fallbackMemberCount: ensured.memberCount,
+          now,
+        });
+        const entitlement = buildEntitlementFromSubscription(
+          ensured.subscription,
+        );
+        await upsertUserIapEntitlementSnapshot({
+          uid: auth.uid,
+          purchase: verifiedPurchase,
+          planCode: ensured.subscription.planCode,
+          entitlement,
+        });
+        return {
+          clanId: scope.clanId,
+          scope: serializeBillingScope(scope),
+          replayed: true,
+          subscription: serializeSubscription({
+            ...ensured.subscription,
+            memberCount: resolvedMemberCount,
+          }),
+          entitlement,
+          productId: verifiedPurchase.productId,
+          platform: verifiedPurchase.platform,
+        };
+      }
+      if (existingStatus === "processing") {
+        throw new HttpsError(
+          "aborted",
+          "This store transaction is being processed. Please retry in a moment.",
+        );
+      }
+      if (existingStatus !== "failed") {
+        throw new HttpsError(
+          "failed-precondition",
+          "This store transaction cannot be processed again.",
+        );
+      }
+      await db.runTransaction(async (tx) => {
+        const latest = await tx.get(verificationRef);
+        const latestData = latest.data() ?? {};
+        const latestStatus = normalizeString(latestData.status).toLowerCase();
+        if (latestStatus !== "failed") {
+          throw new HttpsError(
+            "aborted",
+            "This store transaction is already being processed.",
+          );
+        }
+        tx.update(verificationRef, {
+          status: "processing",
+          retryCount: FieldValue.increment(1),
+          retryRequestedBy: auth.uid,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+      lockAcquired = true;
+    }
+
+    if (!lockAcquired) {
+      throw new HttpsError(
+        "aborted",
+        "Could not acquire purchase verification lock.",
+      );
+    }
+
+    try {
+      const ownerPolicy = await resolveOwnerBillingPolicy({
+        ownerUid: scope.ownerUid,
+        now,
+      });
+      const checkout = await createPendingCheckout({
+        clanId: scope.clanId,
+        ownerUid: scope.ownerUid,
+        actorUid: auth.uid,
+        paymentMethod: iapPlatformToPaymentMethod(platform),
+        requestedPlanCode: productPlanCode,
+        policyMemberCount: ownerPolicy.totalMemberCount,
+        now,
+      });
+
+      const payment = await applyPaymentResult({
+        transactionId: checkout.transaction.id,
+        provider: iapPlatformToPaymentMethod(platform),
+        gatewayReference: verifiedPurchase.externalTransactionId,
+        paymentStatus: "succeeded",
+        payloadHash: verifiedPurchase.storeTransactionKey,
+        actorUid: auth.uid,
+        now,
+      });
+
+      const activeSubscription = payment.subscription ?? checkout.subscription;
+      const entitlement = buildEntitlementFromSubscription(activeSubscription);
+
+      await Promise.all([
+        verificationRef.set(
+          {
+            status: "succeeded",
+            transactionId: checkout.transaction.id,
+            invoiceId: checkout.invoice.id,
+            verifiedExpiresAtMs: verifiedPurchase.expiresAtMs,
+            sourcePayload: verifiedPurchase.sourcePayload,
+            lineageKey: verifiedPurchase.lineageKey,
+            storeTransactionKey: verifiedPurchase.storeTransactionKey,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        ),
+        lineageRef.set(
+          {
+            id: verifiedPurchase.lineageKey,
+            clanId: scope.clanId,
+            ownerUid: scope.ownerUid,
+            platform: verifiedPurchase.platform,
+            productId: verifiedPurchase.productId,
+            planCode: productPlanCode,
+            lastExternalTransactionId: verifiedPurchase.externalTransactionId,
+            lastStoreTransactionKey: verifiedPurchase.storeTransactionKey,
+            lastVerificationId: verificationId,
+            lastTransactionId: checkout.transaction.id,
+            lastInvoiceId: checkout.invoice.id,
+            verifiedExpiresAtMs: verifiedPurchase.expiresAtMs,
+            updatedAt: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        ),
+      ]);
+
+      await upsertUserIapEntitlementSnapshot({
+        uid: auth.uid,
+        purchase: verifiedPurchase,
+        planCode: activeSubscription.planCode,
+        entitlement,
+      });
+
+      await notifyBillingResult({
+        clanId: scope.clanId,
+        approved: true,
+        amountVnd: Number(checkout.transaction.amountVnd),
+        transactionId: checkout.transaction.id,
+        provider: iapPlatformToPaymentMethod(platform),
+      });
+
+      return {
+        clanId: scope.clanId,
+        scope: serializeBillingScope(scope),
+        replayed: false,
+        productId: verifiedPurchase.productId,
+        platform: verifiedPurchase.platform,
+        transactionId: checkout.transaction.id,
+        subscription: serializeSubscription(activeSubscription),
+        entitlement,
+        invoice: payment.invoice,
+      };
+    } catch (error) {
+      await verificationRef.set(
+        {
+          status: "failed",
+          errorCode: normalizeStoreProcessingErrorCode(error),
+          errorMessage: normalizeStoreProcessingErrorMessage(error),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      throw error;
+    }
+  },
+);
+
 export const completeCardCheckout = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const scope = await resolveBillingScopeContext({
@@ -646,7 +947,7 @@ export const completeCardCheckout = onCall(
 );
 
 export const simulateVnpaySettlement = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const scope = await resolveBillingScopeContext({
@@ -726,10 +1027,10 @@ async function notifyBillingResult({
     clanId,
     memberIds,
     type: approved ? "billing_payment_succeeded" : "billing_payment_failed",
-    title: approved ? "Subscription updated successfully" : "Payment failed",
+    title: approved ? "Billing payment succeeded" : "Billing payment failed",
     body: approved
-      ? `Payment ${formatVnd(amountVnd)} via ${provider.toUpperCase()} was confirmed.`
-      : `Payment attempt for ${formatVnd(amountVnd)} failed.`,
+      ? `Confirmed ${formatVnd(amountVnd)} via ${provider.toUpperCase()}.`
+      : `Could not confirm ${formatVnd(amountVnd)} via ${provider.toUpperCase()}.`,
     target: "generic",
     targetId: transactionId,
     extraData: {
@@ -739,6 +1040,52 @@ async function notifyBillingResult({
       provider,
     },
   });
+}
+
+function iapPlatformToPaymentMethod(platform: IapPlatform): PaymentMethod {
+  return platform === "ios" ? "apple_iap" : "google_play";
+}
+
+async function upsertUserIapEntitlementSnapshot({
+  uid,
+  purchase,
+  planCode,
+  entitlement,
+}: {
+  uid: string;
+  purchase: {
+    productId: string;
+    platform: IapPlatform;
+    status: "active" | "expired";
+    expiresAtMs: number;
+  };
+  planCode: BillingPlanCode;
+  entitlement: {
+    adFree?: unknown;
+    showAds?: unknown;
+  };
+}): Promise<void> {
+  const tier = resolveTierByPlanCode(planCode);
+  const maxClanMembers = tier.maxMembers ?? 999999;
+  const adFree = readTruthy(entitlement.adFree) || !readTruthy(entitlement.showAds);
+  await usersCollection.doc(uid).set(
+    {
+      subscription: {
+        productId: purchase.productId,
+        platform: purchase.platform,
+        status: purchase.status.toUpperCase(),
+        planCode,
+        expiresAt: purchase.expiresAtMs,
+      },
+      entitlements: {
+        ads_free: adFree,
+        max_clan_members: maxClanMembers,
+        plan_code: planCode,
+      },
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
 }
 
 function canRenewCurrentPlan(
@@ -777,9 +1124,15 @@ function normalizePaymentMethod(data: unknown): PaymentMethod {
   if (method === "vnpay") {
     return "vnpay";
   }
+  if (method === "apple_iap") {
+    return "apple_iap";
+  }
+  if (method === "google_play") {
+    return "google_play";
+  }
   throw new HttpsError(
     "invalid-argument",
-    'paymentMethod must be "card" or "vnpay".',
+    'paymentMethod must be "card", "vnpay", "apple_iap", or "google_play".',
   );
 }
 
@@ -881,6 +1234,20 @@ function readString(data: unknown, key: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function readRecord(
+  data: unknown,
+  key: string,
+): Record<string, unknown> | null {
+  if (data == null || typeof data !== "object") {
+    return null;
+  }
+  const value = (data as Record<string, unknown>)[key];
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
 function readBoolean(data: unknown, key: string, fallback: boolean): boolean {
   if (data == null || typeof data !== "object") {
     return fallback;
@@ -891,6 +1258,44 @@ function readBoolean(data: unknown, key: string, fallback: boolean): boolean {
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+  const code = (error as { code?: unknown })?.code;
+  const message = `${error}`.toLowerCase();
+  return (
+    code === 6 ||
+    code === "already-exists" ||
+    message.includes("already exists")
+  );
+}
+
+function normalizeStoreProcessingErrorCode(error: unknown): string {
+  if (error instanceof HttpsError) {
+    return error.code;
+  }
+  return "internal";
+}
+
+function normalizeStoreProcessingErrorMessage(error: unknown): string {
+  if (error instanceof HttpsError) {
+    return normalizeString(error.message) || "Store transaction processing failed.";
+  }
+  return "Store transaction processing failed.";
+}
+
+function readTruthy(value: unknown): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  return false;
 }
 
 function normalizeClanStatus(value: unknown): string {
@@ -1189,9 +1594,15 @@ function buildCheckoutFlowConfig(
   runtimeConfig: BillingRuntimeConfig,
 ): Record<string, unknown> {
   const qrImageUrlsByPlan: Record<string, string> = {};
+  const storeProductIdsByPlan: Record<string, string> = {};
+  const storeProductIdsByPlanByPlatform: Record<
+    string,
+    Record<string, string>
+  > = {};
   const baseQr = normalizeHttpUrl(runtimeConfig.qrImageBaseUrl);
   const plusQr = normalizeHttpUrl(runtimeConfig.qrImagePlusUrl);
   const proQr = normalizeHttpUrl(runtimeConfig.qrImageProUrl);
+  const configuredStoreProducts = resolveStoreProductIdsByPlan();
   if (baseQr != null) {
     qrImageUrlsByPlan.BASE = baseQr;
   }
@@ -1201,8 +1612,39 @@ function buildCheckoutFlowConfig(
   if (proQr != null) {
     qrImageUrlsByPlan.PRO = proQr;
   }
+  for (const [planCode, platformProducts] of Object.entries(configuredStoreProducts)) {
+    const normalizedPlanCode = normalizeString(planCode).toUpperCase();
+    if (
+      normalizedPlanCode.length === 0 ||
+      platformProducts == null ||
+      typeof platformProducts !== "object" ||
+      Array.isArray(platformProducts)
+    ) {
+      continue;
+    }
+    const perPlatform: Record<string, string> = {};
+    for (const [platformKey, productId] of Object.entries(platformProducts)) {
+      const normalizedPlatform = normalizeString(platformKey).toLowerCase();
+      const normalizedProductId = normalizeString(productId).toLowerCase();
+      if (
+        (normalizedPlatform !== "ios" && normalizedPlatform !== "android") ||
+        normalizedProductId.length === 0
+      ) {
+        continue;
+      }
+      perPlatform[normalizedPlatform] = normalizedProductId;
+    }
+    if (Object.keys(perPlatform).length === 0) {
+      continue;
+    }
+    storeProductIdsByPlanByPlatform[normalizedPlanCode] = perPlatform;
+    storeProductIdsByPlan[normalizedPlanCode] =
+      perPlatform.ios ?? perPlatform.android ?? "";
+  }
   return {
     qrCheckoutEnabled: runtimeConfig.qrCheckoutEnabled,
     qrImageUrlsByPlan,
+    storeProductIdsByPlan,
+    storeProductIdsByPlanByPlatform,
   };
 }

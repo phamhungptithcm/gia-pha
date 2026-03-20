@@ -36,21 +36,27 @@ Biến bắt buộc:
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_FUNCTIONS_REGION`
 - `APP_TIMEZONE`
+- `GOOGLE_PLAY_PACKAGE_NAME`
+- `BILLING_IAP_PRODUCT_IDS_BASE`
+- `BILLING_IAP_PRODUCT_IDS_PLUS`
+- `BILLING_IAP_PRODUCT_IDS_PRO`
 
 Secret bắt buộc:
 - `FIREBASE_SERVICE_ACCOUNT`
 - `BILLING_WEBHOOK_SECRET`
-- `VNPAY_TMNCODE`
-- `VNPAY_HASH_SECRET`
+- `APPLE_SHARED_SECRET`
 
 Secret tùy chọn:
 - `CARD_WEBHOOK_SECRET`
+- `VNPAY_TMNCODE` (chỉ cho đường tương thích VNPay cũ)
+- `VNPAY_HASH_SECRET` (chỉ cho đường tương thích VNPay cũ)
 
 ## Checklist trước khi release production
 
 - xác nhận đủ biến và secret bắt buộc
-- xác nhận cấu hình VNPay là production, không phải sandbox
-- xác nhận `VNPAY_RETURN_URL` hợp lệ
+- xác nhận product ID IAP khớp với gói đã publish trên App Store / Google Play
+- xác nhận `BILLING_IAP_ALLOW_TEST_MOCK=false` ở production
+- nếu vẫn giữ luồng VNPay tương thích, xác nhận `VNPAY_RETURN_URL` và secret VNPay hợp lệ
 - giữ `BILLING_ALLOW_MANUAL_SETTLEMENT=false` nếu không có nhu cầu vận hành đặc biệt
 
 ## Checklist sau khi deploy

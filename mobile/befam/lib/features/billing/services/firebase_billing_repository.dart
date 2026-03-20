@@ -168,6 +168,24 @@ class FirebaseBillingRepository implements BillingRepository {
     ).call(_scopePayload(session, {'transactionId': transactionId.trim()}));
   }
 
+  @override
+  Future<BillingEntitlement> verifyInAppPurchase({
+    required AuthSession session,
+    required String platform,
+    required String productId,
+    required Map<String, dynamic> payload,
+  }) async {
+    await _ensureSessionDocumentBestEffort(session);
+    final result = await _call('verifyInAppPurchase').call(
+      _scopePayload(session, <String, dynamic>{
+        'platform': platform.trim(),
+        'payload': <String, dynamic>{...payload, 'productId': productId.trim()},
+      }),
+    );
+    final map = _asMap(result.data);
+    return _parseEntitlement(_asMap(map['entitlement']));
+  }
+
   Future<void> _ensureSessionDocumentBestEffort(AuthSession session) async {
     try {
       await FirebaseSessionAccessSync.ensureUserSessionDocument(
@@ -301,10 +319,55 @@ class FirebaseBillingRepository implements BillingRepository {
   }
 
   BillingCheckoutFlowConfig _parseCheckoutFlow(Map<String, dynamic> map) {
+    final byPlatform = _parseStoreProductIdsByPlanByPlatform(
+      map['storeProductIdsByPlanByPlatform'],
+    );
     return BillingCheckoutFlowConfig(
       qrCheckoutEnabled: _readBool(map, 'qrCheckoutEnabled', fallback: false),
       qrImageUrlsByPlan: _parsePlanQrImageUrls(map['qrImageUrlsByPlan']),
+      storeProductIdsByPlan: _parsePlanQrImageUrls(map['storeProductIdsByPlan']),
+      storeProductIdsByPlanByPlatform: byPlatform,
     );
+  }
+
+  Map<String, Map<String, String>> _parseStoreProductIdsByPlanByPlatform(
+    Object? raw,
+  ) {
+    if (raw is! Map) {
+      return const <String, Map<String, String>>{};
+    }
+    final output = <String, Map<String, String>>{};
+    for (final entry in raw.entries) {
+      if (entry.key is! String || entry.value is! Map) {
+        continue;
+      }
+      final normalizedPlan = (entry.key as String).trim().toUpperCase();
+      if (normalizedPlan.isEmpty) {
+        continue;
+      }
+      final perPlatform = <String, String>{};
+      final platformMap = entry.value as Map;
+      for (final platformEntry in platformMap.entries) {
+        if (platformEntry.key is! String || platformEntry.value is! String) {
+          continue;
+        }
+        final normalizedPlatform =
+            (platformEntry.key as String).trim().toLowerCase();
+        if (normalizedPlatform != 'ios' && normalizedPlatform != 'android') {
+          continue;
+        }
+        final normalizedProduct =
+            (platformEntry.value as String).trim().toLowerCase();
+        if (normalizedProduct.isEmpty) {
+          continue;
+        }
+        perPlatform[normalizedPlatform] = normalizedProduct;
+      }
+      if (perPlatform.isNotEmpty) {
+        output[normalizedPlan] = perPlatform;
+      }
+    }
+    return output;
   }
 
   Map<String, String> _parsePlanQrImageUrls(Object? raw) {

@@ -22,7 +22,7 @@ Current live capability baseline includes:
 - funds and scholarship modules
 - discovery and join-request flow
 - profile and settings baseline
-- VNPay-first billing and subscription flow
+- Store IAP billing flow (Apple App Store / Google Play) with legacy VNPay compatibility paths
 
 ## Repository Structure
 

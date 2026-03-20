@@ -1,5 +1,10 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
+import {
+  BILLING_CONTACT_EMAIL_WEBHOOK_URL,
+  BILLING_CONTACT_SMS_WEBHOOK_URL,
+  getBillingContactNoticeWebhookToken,
+} from '../config/runtime';
 import { db } from '../shared/firestore';
 import { notifyMembers } from '../notifications/push-delivery';
 import { logInfo, logWarn } from '../shared/logger';
@@ -22,6 +27,20 @@ type DelinquencyRunResult = {
   skippedNoClan: number;
   skippedNoExpiry: number;
   skippedFreePlan: number;
+};
+
+type BillingContactNoticeDispatchRunInput = {
+  source: string;
+  now?: Date;
+  limit?: number;
+};
+
+type BillingContactNoticeDispatchRunResult = {
+  scanned: number;
+  delivered: number;
+  failed: number;
+  skippedNoEndpoint: number;
+  skippedInvalidPayload: number;
 };
 
 type ClanMetadata = {
@@ -709,6 +728,131 @@ async function queueOwnerContactNotice({
   }
 }
 
+export async function dispatchBillingContactNoticesRun(
+  input: BillingContactNoticeDispatchRunInput,
+): Promise<BillingContactNoticeDispatchRunResult> {
+  const now = input.now ?? new Date();
+  const limit = clamp(readInt(input.limit, 200), 10, 1000);
+  const snapshot = await billingContactNoticesCollection
+    .where('status', '==', 'queued')
+    .limit(limit)
+    .get();
+
+  let delivered = 0;
+  let failed = 0;
+  let skippedNoEndpoint = 0;
+  let skippedInvalidPayload = 0;
+  const webhookToken = getBillingContactNoticeWebhookToken();
+
+  for (const doc of snapshot.docs) {
+    const data = asRecord(doc.data()) ?? {};
+    const channel = normalizeString(data.channel).toLowerCase();
+    const destination = normalizeNullableString(data.destination);
+    const subject = normalizeString(data.subject);
+    const message = normalizeString(data.message);
+    const webhookUrl = resolveContactNoticeWebhookUrl(channel);
+    if (destination == null || message.length === 0 || channel.length === 0) {
+      skippedInvalidPayload += 1;
+      await doc.ref.set(
+        {
+          status: 'failed',
+          failedAt: FieldValue.serverTimestamp(),
+          failureCode: 'invalid_payload',
+          failureReason:
+            'Missing channel, destination, or message for contact notice dispatch.',
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: input.source,
+          deliveryAttempts: FieldValue.increment(1),
+        },
+        { merge: true },
+      );
+      continue;
+    }
+    if (webhookUrl.length === 0) {
+      skippedNoEndpoint += 1;
+      await doc.ref.set(
+        {
+          status: 'skipped_no_endpoint',
+          skippedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: input.source,
+          deliveryAttempts: FieldValue.increment(1),
+        },
+        { merge: true },
+      );
+      continue;
+    }
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(webhookToken.length > 0
+            ? { authorization: `Bearer ${webhookToken}` }
+            : {}),
+        },
+        body: JSON.stringify({
+          id: doc.id,
+          channel,
+          destination,
+          subject,
+          message,
+          queuedAtIso: now.toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        const bodyText = await response.text();
+        throw new Error(
+          `provider_http_${response.status}:${truncateLogValue(bodyText, 240)}`,
+        );
+      }
+
+      delivered += 1;
+      await doc.ref.set(
+        {
+          status: 'sent',
+          sentAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: input.source,
+          deliveryAttempts: FieldValue.increment(1),
+        },
+        { merge: true },
+      );
+    } catch (error) {
+      failed += 1;
+      await doc.ref.set(
+        {
+          status: 'failed',
+          failedAt: FieldValue.serverTimestamp(),
+          failureCode: 'provider_error',
+          failureReason: truncateLogValue(`${error}`, 500),
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: input.source,
+          deliveryAttempts: FieldValue.increment(1),
+        },
+        { merge: true },
+      );
+      logWarn('billing contact notice dispatch failed', {
+        noticeId: doc.id,
+        channel,
+        destination: maskContactDestination(destination),
+        error: `${error}`,
+      });
+    }
+  }
+
+  const result: BillingContactNoticeDispatchRunResult = {
+    scanned: snapshot.size,
+    delivered,
+    failed,
+    skippedNoEndpoint,
+    skippedInvalidPayload,
+  };
+  logInfo('billing contact notice dispatch run complete', result);
+  return result;
+}
+
 function buildOutboxNoticeId({
   clanId,
   subscriptionId,
@@ -727,6 +871,31 @@ function buildOutboxNoticeId({
     .toLowerCase()
     .replace(/[^a-z0-9_]+/g, '_')
     .slice(0, 160);
+}
+
+function resolveContactNoticeWebhookUrl(channel: string): string {
+  if (channel === 'sms') {
+    return BILLING_CONTACT_SMS_WEBHOOK_URL.trim();
+  }
+  if (channel === 'email') {
+    return BILLING_CONTACT_EMAIL_WEBHOOK_URL.trim();
+  }
+  return '';
+}
+
+function maskContactDestination(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= 4) {
+    return '****';
+  }
+  return `${trimmed.slice(0, 2)}***${trimmed.slice(-2)}`;
+}
+
+function truncateLogValue(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength)}...`;
 }
 
 async function resolveAudienceMemberIds(
