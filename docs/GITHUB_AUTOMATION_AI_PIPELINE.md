@@ -57,8 +57,8 @@ On `main` pushes:
 - computes next semver tag
 - creates tag when needed
 - generates friendly release notes
-- builds Android release APK
-- builds unsigned iOS archive and zips artifact
+- builds Android release AAB
+- builds signed iOS IPA artifact
 - publishes GitHub release with artifacts
 - builds/pushes GHCR images:
   - `befam-mobile-builder`

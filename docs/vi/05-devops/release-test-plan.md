@@ -70,7 +70,7 @@ Tài liệu này là bộ kiểm thử đầy đủ để xác minh BeFam sẵn 
    - `cd mobile/befam && flutter pub get && flutter gen-l10n && flutter analyze && flutter test --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true`
 4. Build artifact kiểm tra:
    - web release build
-   - Android release APK
+   - Android release AAB
    - iOS release build (local CI/runner nội bộ)
 5. Chạy manual P0 suite (Auth -> Multi-clan -> Core operations -> Billing -> Notifications).
 6. Chạy manual P1 suite (UX edge cases, localization, permission denial, long list/lazy loading).

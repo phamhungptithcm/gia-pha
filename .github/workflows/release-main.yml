@@ -66,7 +66,7 @@ jobs:
           cat <<EOF >> dist/release-notes.md
 
           ## Release artifacts
-          - Android APK: \`befam-${RELEASE_VERSION}-android-release.apk\`
+          - Android AAB: \`befam-${RELEASE_VERSION}-android-release.aab\`
           - iOS IPA: \`befam-${RELEASE_VERSION}-ios-release.ipa\`
           - Mobile builder image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/befam-mobile-builder:${RELEASE_TAG}\`
           - Firebase tooling image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/befam-firebase-tools:${RELEASE_TAG}\`
@@ -135,7 +135,7 @@ jobs:
           echo "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
           echo "ANDROID_KEYSTORE_PATH=$keystore_path" >> "$GITHUB_ENV"
 
-      - name: Build Android release APK
+      - name: Build Android release AAB
         env:
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
@@ -187,7 +187,7 @@ jobs:
               optional_firebase_defines+=(--dart-define="${key}=${value}")
             fi
           done
-          flutter build apk \
+          flutter build appbundle \
             --release \
             --build-name "${{ needs.prepare-release.outputs.version }}" \
             --build-number "${{ needs.prepare-release.outputs.build_number }}" \
@@ -197,11 +197,11 @@ jobs:
             --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
             "${optional_firebase_defines[@]}"
 
-      - name: Upload Android release APK
+      - name: Upload Android release AAB
         uses: actions/upload-artifact@v4
         with:
-          name: android-release-apk
-          path: mobile/befam/build/app/outputs/flutter-apk/app-release.apk
+          name: android-release-aab
+          path: mobile/befam/build/app/outputs/bundle/release/app-release.aab
 
   build-ios-release:
     name: Build iOS release IPA
@@ -507,10 +507,10 @@ jobs:
           name: release-notes
           path: dist
 
-      - name: Download Android release APK
+      - name: Download Android release AAB
         uses: actions/download-artifact@v4
         with:
-          name: android-release-apk
+          name: android-release-aab
           path: dist/android
 
       - name: Download signed iOS release IPA
@@ -526,8 +526,8 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           title="BeFam ${RELEASE_TAG}"
-          android_asset_path="dist/android/app-release.apk"
-          android_asset_name="befam-${RELEASE_VERSION}-android-release.apk"
+          android_asset_path="dist/android/app-release.aab"
+          android_asset_name="befam-${RELEASE_VERSION}-android-release.aab"
           ios_asset_path="dist/ios/befam-${RELEASE_VERSION}-ios-release.ipa"
           ios_asset_name="befam-${RELEASE_VERSION}-ios-release.ipa"
 

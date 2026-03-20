@@ -84,6 +84,21 @@ flutter test
 flutter run
 ```
 
+### Android Release (Production Best Practice)
+
+```bash
+cd mobile/befam
+flutter clean
+flutter pub get
+flutter build appbundle --release
+```
+
+Mental model:
+
+- Flutter code -> Gradle -> AAB -> Google Play -> device-specific APK
+- Keep Crashlytics enabled for release builds
+- Avoid `print`-style logging in release code paths
+
 ### Flutter Run Helper Script
 
 Use the helper script when you want a simple guided menu to run on Android, iOS, or Web without manually typing every target/device flag.
@@ -97,8 +112,22 @@ You can still call specific targets directly if needed:
 ```bash
 ./scripts/run_flutter_targets.sh devices
 ./scripts/run_flutter_targets.sh android-sim
+./scripts/run_flutter_targets.sh android-build-aab
+./scripts/run_flutter_targets.sh android-build-aab-ci
 ./scripts/run_flutter_targets.sh ios-device-release
 ./scripts/run_flutter_targets.sh web-server 8080
+```
+
+Android production-style local build (same sequence as CI):
+
+```bash
+./scripts/run_flutter_targets.sh android-build-aab
+```
+
+Optional build metadata override:
+
+```bash
+BEFAM_BUILD_NAME=1.2.3 BEFAM_BUILD_NUMBER=123 ./scripts/run_flutter_targets.sh android-build-aab
 ```
 
 Interactive wizard example:

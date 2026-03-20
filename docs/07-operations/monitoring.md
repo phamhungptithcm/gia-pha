@@ -61,7 +61,7 @@ When release issues appear:
 
 1. check GitHub Actions workflow run details
 2. verify Firebase deploy credentials and project variables
-3. confirm app build artifact outputs (APK and iOS archive)
+3. confirm app build artifact outputs (Android AAB and iOS IPA)
 4. review function logs for trigger/callable failures
 5. inspect mobile logs for `perf.*` warnings to identify regressions
 6. verify fallback UI occurrence and Crashlytics traces for render failures

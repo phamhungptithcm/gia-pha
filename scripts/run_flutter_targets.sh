@@ -32,6 +32,15 @@ Targets:
   android-release [device_id]
     - Run Android in release mode (choose device if omitted)
 
+  android-build-aab [extra flutter args...]
+    - CI-like local release build:
+      flutter clean -> flutter pub get -> flutter gen-l10n -> flutter build appbundle --release
+    - Requires release signing envs (or key.properties)
+
+  android-build-aab-ci [extra flutter args...]
+    - Same as android-build-aab, but auto-generates a temporary signing keystore
+      if release signing envs are not available (for quick local test only)
+
   ios-sim [device_id]
     - Run iOS Simulator in debug mode (choose simulator if omitted)
 
@@ -54,6 +63,8 @@ Examples:
   ./scripts/run_flutter_targets.sh
   ./scripts/run_flutter_targets.sh devices
   ./scripts/run_flutter_targets.sh android-sim
+  ./scripts/run_flutter_targets.sh android-build-aab
+  ./scripts/run_flutter_targets.sh android-build-aab-ci
   ./scripts/run_flutter_targets.sh ios-sim ios
   ./scripts/run_flutter_targets.sh ios-device-release
   ./scripts/run_flutter_targets.sh web-server 8080
@@ -64,6 +75,9 @@ Notes:
     unless you override it explicitly in extra Flutter args.
   - Any exported `BEFAM_FIREBASE_*` env value will also be forwarded as `--dart-define`
     so you can point to a different Firebase project without changing source files.
+  - For AAB build targets, you can override version metadata with:
+      BEFAM_BUILD_NAME=1.2.3
+      BEFAM_BUILD_NUMBER=123
 EOF
 }
 
@@ -136,6 +150,8 @@ select_android_target_interactive() {
   local options=(
     "Android simulator/device (Debug)"
     "Android simulator/device (Release)"
+    "Build Android AAB (Release)"
+    "Build Android AAB (CI-like local test)"
     "Back"
   )
   local choice=""
@@ -156,6 +172,14 @@ select_android_target_interactive() {
         return 0
         ;;
       3)
+        echo "android-build-aab"
+        return 0
+        ;;
+      4)
+        echo "android-build-aab-ci"
+        return 0
+        ;;
+      5)
         echo "$(select_target_interactive)"
         return 0
         ;;
@@ -164,6 +188,82 @@ select_android_target_interactive() {
         ;;
     esac
   done
+}
+
+prepare_android_release_signing() {
+  local allow_temp_signing="${1:-false}"
+
+  if [[ -n "${ANDROID_KEYSTORE_PATH:-}" ]] && \
+     [[ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ]] && \
+     [[ -n "${ANDROID_KEY_ALIAS:-}" ]] && \
+     [[ -n "${ANDROID_KEY_PASSWORD:-}" ]] && \
+     [[ -f "${ANDROID_KEYSTORE_PATH}" ]]; then
+    return 0
+  fi
+
+  if [[ -n "${ANDROID_RELEASE_KEYSTORE_BASE64:-}" ]] && \
+     [[ -n "${ANDROID_RELEASE_KEYSTORE_PASSWORD:-}" ]] && \
+     [[ -n "${ANDROID_RELEASE_KEY_ALIAS:-}" ]] && \
+     [[ -n "${ANDROID_RELEASE_KEY_PASSWORD:-}" ]]; then
+    local decoded_keystore_path
+    decoded_keystore_path="$(mktemp "${TMPDIR:-/tmp}/befam-android-release-XXXXXX.keystore")"
+    echo "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$decoded_keystore_path"
+    export ANDROID_KEYSTORE_PATH="$decoded_keystore_path"
+    export ANDROID_KEYSTORE_PASSWORD="$ANDROID_RELEASE_KEYSTORE_PASSWORD"
+    export ANDROID_KEY_ALIAS="$ANDROID_RELEASE_KEY_ALIAS"
+    export ANDROID_KEY_PASSWORD="$ANDROID_RELEASE_KEY_PASSWORD"
+    return 0
+  fi
+
+  if [[ "$allow_temp_signing" == "true" ]]; then
+    require_cmd keytool
+    local temp_keystore_path
+    temp_keystore_path="$(mktemp "${TMPDIR:-/tmp}/befam-android-ci-XXXXXX.keystore")"
+    keytool -genkeypair \
+      -v \
+      -storetype PKCS12 \
+      -keystore "$temp_keystore_path" \
+      -storepass "android" \
+      -alias "ci-upload" \
+      -keyalg RSA \
+      -keysize 2048 \
+      -validity 3650 \
+      -keypass "android" \
+      -dname "CN=BeFam Local CI, OU=CI, O=BeFam, L=HCMC, S=HCMC, C=VN" >/dev/null 2>&1
+    export ANDROID_KEYSTORE_PATH="$temp_keystore_path"
+    export ANDROID_KEYSTORE_PASSWORD="android"
+    export ANDROID_KEY_ALIAS="ci-upload"
+    export ANDROID_KEY_PASSWORD="android"
+    return 0
+  fi
+
+  echo "Missing Android release signing configuration." >&2
+  echo "Provide one of these options before building AAB:" >&2
+  echo "  1) ANDROID_KEYSTORE_PATH + ANDROID_KEYSTORE_PASSWORD + ANDROID_KEY_ALIAS + ANDROID_KEY_PASSWORD" >&2
+  echo "  2) ANDROID_RELEASE_KEYSTORE_BASE64 + ANDROID_RELEASE_KEYSTORE_PASSWORD + ANDROID_RELEASE_KEY_ALIAS + ANDROID_RELEASE_KEY_PASSWORD" >&2
+  return 1
+}
+
+build_android_aab_release() {
+  local allow_temp_signing="${1:-false}"
+  shift || true
+
+  cd "$APP_DIR"
+  flutter clean
+  flutter pub get
+  flutter gen-l10n
+  prepare_android_release_signing "$allow_temp_signing"
+
+  local build_name="${BEFAM_BUILD_NAME:-0.0.0}"
+  local build_number="${BEFAM_BUILD_NUMBER:-1}"
+  flutter build appbundle \
+    --release \
+    --build-name "$build_name" \
+    --build-number "$build_number" \
+    "${BEFAM_DART_DEFINE_ARGS[@]}" \
+    "$@"
+
+  echo "AAB generated at: $APP_DIR/build/app/outputs/bundle/release/app-release.aab"
 }
 
 select_ios_target_interactive() {
@@ -450,6 +550,14 @@ case "$TARGET" in
     cd "$APP_DIR"
     flutter pub get
     flutter run --release -d "$DEVICE_ID" "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
+    ;;
+
+  android-build-aab)
+    build_android_aab_release "false" "$@"
+    ;;
+
+  android-build-aab-ci)
+    build_android_aab_release "true" "$@"
     ;;
 
   ios-sim)
