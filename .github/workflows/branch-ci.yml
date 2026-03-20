@@ -175,7 +175,7 @@ jobs:
             --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
             "${optional_firebase_defines[@]}"
 
-      - name: Build Android APK
+      - name: Build Android AAB
         env:
           BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
           BEFAM_FIREBASE_PROJECT_ID: ${{ vars.BEFAM_FIREBASE_PROJECT_ID }}
@@ -237,10 +237,29 @@ jobs:
             export ANDROID_KEYSTORE_PASSWORD="$ANDROID_RELEASE_KEYSTORE_PASSWORD"
             export ANDROID_KEY_ALIAS="$ANDROID_RELEASE_KEY_ALIAS"
             export ANDROID_KEY_PASSWORD="$ANDROID_RELEASE_KEY_PASSWORD"
-            flutter build apk --release "${build_common_args[@]}"
+            flutter build appbundle --release "${build_common_args[@]}"
           else
-            echo "Release signing secrets are unavailable in this CI context. Building debug APK."
-            flutter build apk --debug "${build_common_args[@]}"
+            echo "Release signing secrets are unavailable in this CI context. Generating temporary CI signing key for release AAB."
+            temp_keystore_path="$RUNNER_TEMP/android-ci-release.keystore"
+            temp_keystore_password="android"
+            temp_key_alias="ci-upload"
+            temp_key_password="android"
+            keytool -genkeypair \
+              -v \
+              -storetype PKCS12 \
+              -keystore "$temp_keystore_path" \
+              -storepass "$temp_keystore_password" \
+              -alias "$temp_key_alias" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 3650 \
+              -keypass "$temp_key_password" \
+              -dname "CN=BeFam CI, OU=CI, O=BeFam, L=HCMC, S=HCMC, C=VN"
+            export ANDROID_KEYSTORE_PATH="$temp_keystore_path"
+            export ANDROID_KEYSTORE_PASSWORD="$temp_keystore_password"
+            export ANDROID_KEY_ALIAS="$temp_key_alias"
+            export ANDROID_KEY_PASSWORD="$temp_key_password"
+            flutter build appbundle --release "${build_common_args[@]}"
           fi
 
       - name: Build mobile release image
