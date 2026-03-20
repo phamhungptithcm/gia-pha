@@ -1,7 +1,7 @@
 import { FieldValue, Timestamp, type DocumentData } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { APP_REGION } from '../config/runtime';
+import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from '../config/runtime';
 import { requireAuth } from '../shared/errors';
 import { db } from '../shared/firestore';
 import { logInfo } from '../shared/logger';
@@ -26,9 +26,13 @@ type FundRecord = {
 
 const fundsCollection = db.collection('funds');
 const transactionsCollection = db.collection('transactions');
+const APP_CHECK_CALLABLE_OPTIONS = {
+  region: APP_REGION,
+  enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
+} as const;
 
 export const recordFundTransaction = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     ensureClaimedSession(auth.token);

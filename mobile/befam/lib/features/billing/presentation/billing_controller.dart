@@ -33,6 +33,7 @@ class BillingController extends ChangeNotifier {
   BillingWorkspaceSnapshot? get workspace => _workspace;
   BillingViewerSummary? get viewerSummary => _viewerSummary;
   BillingCheckoutResult? get lastCheckout => _lastCheckout;
+  bool get isRepositorySandbox => _repository.isSandbox;
 
   bool get hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
 
@@ -235,6 +236,36 @@ class BillingController extends ChangeNotifier {
       _errorMessage = error.toString();
     } catch (error) {
       _errorMessage = error.toString();
+    } finally {
+      _isProcessingPayment = false;
+      notifyListeners();
+    }
+  }
+
+  Future<BillingEntitlement?> verifyInAppPurchase({
+    required String platform,
+    required String productId,
+    required Map<String, dynamic> payload,
+  }) async {
+    _isProcessingPayment = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final entitlement = await _repository.verifyInAppPurchase(
+        session: _session,
+        platform: platform,
+        productId: productId,
+        payload: payload,
+      );
+      _workspace = await _repository.loadWorkspace(session: _session);
+      _viewerSummary = null;
+      return entitlement;
+    } on BillingRepositoryException catch (error) {
+      _errorMessage = error.toString();
+      return null;
+    } catch (error) {
+      _errorMessage = error.toString();
+      return null;
     } finally {
       _isProcessingPayment = false;
       notifyListeners();

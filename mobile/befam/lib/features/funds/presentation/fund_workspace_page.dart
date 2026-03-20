@@ -2379,8 +2379,8 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                         en: 'Branch scope (optional)',
                       ),
                       hintText: l10n.pick(
-                        vi: 'chi_demo_001',
-                        en: 'branch_demo_001',
+                        vi: 'chi-truong',
+                        en: 'branch-main',
                       ),
                     ),
                   ),
@@ -2897,8 +2897,8 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                       en: 'Linked member (optional)',
                     ),
                     hintText: l10n.pick(
-                      vi: 'thanh_vien_demo_001',
-                      en: 'member_demo_parent_001',
+                      vi: 'nguyen-minh',
+                      en: 'nguyen-minh',
                     ),
                   ),
                 ),

@@ -56,24 +56,50 @@ class FirebaseMemberRepository implements MemberRepository {
       return const MemberWorkspaceSnapshot(members: [], branches: []);
     }
 
-    final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-      _members.where('clanId', isEqualTo: clanId).get(),
-      _branches.where('clanId', isEqualTo: clanId).get(),
+    final results = await Future.wait<
+      List<QueryDocumentSnapshot<Map<String, dynamic>>>
+    >([
+      _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
+      _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
     ]);
 
-    final memberSnapshot = results[0];
-    final branchSnapshot = results[1];
-
-    final members = memberSnapshot.docs
+    final members = results[0]
         .map((doc) => MemberProfile.fromJson(doc.data()))
         .sortedBy((member) => member.fullName.toLowerCase())
         .toList(growable: false);
-    final branches = branchSnapshot.docs
+    final branches = results[1]
         .map((doc) => BranchProfile.fromJson(doc.data()))
         .sortedBy((branch) => branch.name.toLowerCase())
         .toList(growable: false);
 
     return MemberWorkspaceSnapshot(members: members, branches: branches);
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchPagedDocuments(
+    Query<Map<String, dynamic>> baseQuery, {
+    int pageSize = 250,
+    int maxDocuments = 5000,
+  }) async {
+    final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
+    while (docs.length < maxDocuments) {
+      final query = cursor == null
+          ? baseQuery.limit(pageSize)
+          : baseQuery.limit(pageSize).startAfterDocument(cursor);
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        break;
+      }
+      docs.addAll(snapshot.docs);
+      if (snapshot.docs.length < pageSize) {
+        break;
+      }
+      cursor = snapshot.docs.last;
+    }
+    if (docs.length > maxDocuments) {
+      return docs.take(maxDocuments).toList(growable: false);
+    }
+    return docs;
   }
 
   @override

@@ -94,17 +94,48 @@ jobs:
           BILLING_QR_IMAGE_BASE_URL: ${{ vars.BILLING_QR_IMAGE_BASE_URL }}
           BILLING_QR_IMAGE_PLUS_URL: ${{ vars.BILLING_QR_IMAGE_PLUS_URL }}
           BILLING_QR_IMAGE_PRO_URL: ${{ vars.BILLING_QR_IMAGE_PRO_URL }}
+          BILLING_IAP_ALLOW_TEST_MOCK: ${{ vars.BILLING_IAP_ALLOW_TEST_MOCK }}
+          GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
+          BILLING_IAP_PRODUCT_IDS_BASE: ${{ vars.BILLING_IAP_PRODUCT_IDS_BASE }}
+          BILLING_IAP_PRODUCT_IDS_PLUS: ${{ vars.BILLING_IAP_PRODUCT_IDS_PLUS }}
+          BILLING_IAP_PRODUCT_IDS_PRO: ${{ vars.BILLING_IAP_PRODUCT_IDS_PRO }}
+          BILLING_IAP_IOS_PRODUCT_IDS_BASE: ${{ vars.BILLING_IAP_IOS_PRODUCT_IDS_BASE }}
+          BILLING_IAP_IOS_PRODUCT_IDS_PLUS: ${{ vars.BILLING_IAP_IOS_PRODUCT_IDS_PLUS }}
+          BILLING_IAP_IOS_PRODUCT_IDS_PRO: ${{ vars.BILLING_IAP_IOS_PRODUCT_IDS_PRO }}
+          BILLING_IAP_ANDROID_PRODUCT_IDS_BASE: ${{ vars.BILLING_IAP_ANDROID_PRODUCT_IDS_BASE }}
+          BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS: ${{ vars.BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS }}
+          BILLING_IAP_ANDROID_PRODUCT_IDS_PRO: ${{ vars.BILLING_IAP_ANDROID_PRODUCT_IDS_PRO }}
+          BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS: ${{ vars.BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS }}
+          BILLING_IAP_APPLE_VERIFY_MAX_RETRIES: ${{ vars.BILLING_IAP_APPLE_VERIFY_MAX_RETRIES }}
+          BILLING_IAP_APPLE_VERIFY_BACKOFF_MS: ${{ vars.BILLING_IAP_APPLE_VERIFY_BACKOFF_MS }}
+          GOOGLE_IAP_RTDN_AUDIENCE: ${{ vars.GOOGLE_IAP_RTDN_AUDIENCE }}
+          GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL: ${{ vars.GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL }}
+          BILLING_PRICING_CACHE_MS: ${{ vars.BILLING_PRICING_CACHE_MS }}
           BILLING_WEBHOOK_SECRET: ${{ secrets.BILLING_WEBHOOK_SECRET }}
           CARD_WEBHOOK_SECRET: ${{ secrets.CARD_WEBHOOK_SECRET }}
           VNPAY_TMNCODE: ${{ secrets.VNPAY_TMNCODE }}
           VNPAY_HASH_SECRET: ${{ secrets.VNPAY_HASH_SECRET }}
+          APPLE_SHARED_SECRET: ${{ secrets.APPLE_SHARED_SECRET }}
+          APPLE_IAP_WEBHOOK_BEARER_TOKEN: ${{ secrets.APPLE_IAP_WEBHOOK_BEARER_TOKEN }}
+          GOOGLE_IAP_WEBHOOK_BEARER_TOKEN: ${{ secrets.GOOGLE_IAP_WEBHOOK_BEARER_TOKEN }}
         run: |
           test -n "$FIREBASE_PROJECT_ID"
           test -n "$FIREBASE_FUNCTIONS_REGION"
           test -n "$BILLING_WEBHOOK_SECRET"
-          test -n "$VNPAY_TMNCODE"
-          test -n "$VNPAY_HASH_SECRET"
+          test -n "$APPLE_SHARED_SECRET"
+          test -n "$GOOGLE_PLAY_PACKAGE_NAME"
+          test -n "$BILLING_IAP_PRODUCT_IDS_BASE"
+          test -n "$BILLING_IAP_PRODUCT_IDS_PLUS"
+          test -n "$BILLING_IAP_PRODUCT_IDS_PRO"
+          test -n "${BILLING_IAP_IOS_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
+          test -n "${BILLING_IAP_IOS_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
+          test -n "${BILLING_IAP_IOS_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
+          test -n "${BILLING_IAP_ANDROID_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
+          test -n "${BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
+          test -n "${BILLING_IAP_ANDROID_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
           resolved_card_secret="${CARD_WEBHOOK_SECRET:-$BILLING_WEBHOOK_SECRET}"
+          resolved_apple_iap_webhook_token="${APPLE_IAP_WEBHOOK_BEARER_TOKEN:-$BILLING_WEBHOOK_SECRET}"
+          resolved_google_iap_webhook_token="${GOOGLE_IAP_WEBHOOK_BEARER_TOKEN:-$BILLING_WEBHOOK_SECRET}"
           resolved_app_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           resolved_runtime_collection="${APP_RUNTIME_CONFIG_COLLECTION:-runtimeConfig}"
           resolved_runtime_doc="${APP_RUNTIME_CONFIG_DOC_ID:-global}"
@@ -123,10 +154,29 @@ jobs:
           resolved_return_url="${VNPAY_RETURN_URL:-https://${FIREBASE_FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/vnpayPaymentCallback}"
           resolved_vnpay_ip="${BILLING_VNPAY_IP_ADDRESS:-127.0.0.1}"
           resolved_vnpay_locale="${BILLING_VNPAY_LOCALE:-vn}"
+          resolved_iap_allow_test_mock="${BILLING_IAP_ALLOW_TEST_MOCK:-false}"
+          resolved_iap_ios_base="${BILLING_IAP_IOS_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
+          resolved_iap_ios_plus="${BILLING_IAP_IOS_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
+          resolved_iap_ios_pro="${BILLING_IAP_IOS_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
+          resolved_iap_android_base="${BILLING_IAP_ANDROID_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
+          resolved_iap_android_plus="${BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
+          resolved_iap_android_pro="${BILLING_IAP_ANDROID_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
+          resolved_apple_verify_timeout_ms="${BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS:-5000}"
+          resolved_apple_verify_max_retries="${BILLING_IAP_APPLE_VERIFY_MAX_RETRIES:-2}"
+          resolved_apple_verify_backoff_ms="${BILLING_IAP_APPLE_VERIFY_BACKOFF_MS:-350}"
+          resolved_pricing_cache_ms="${BILLING_PRICING_CACHE_MS:-120000}"
           case "$resolved_vnpay_locale" in
             vn|en) ;;
             *) echo "Unsupported BILLING_VNPAY_LOCALE: $resolved_vnpay_locale"; exit 1 ;;
           esac
+          case "$resolved_iap_allow_test_mock" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported BILLING_IAP_ALLOW_TEST_MOCK: $resolved_iap_allow_test_mock"; exit 1 ;;
+          esac
+          case "$resolved_iap_allow_test_mock" in
+            true|1|yes) echo "BILLING_IAP_ALLOW_TEST_MOCK must be false in production."; exit 1 ;;
+          esac
+          resolved_iap_allow_test_mock=false
           test -n "$resolved_return_url"
           test -n "$resolved_gateway_base_url"
           env_file=".env.${FIREBASE_PROJECT_ID}"
@@ -159,6 +209,26 @@ jobs:
           CARD_WEBHOOK_SECRET=${resolved_card_secret}
           VNPAY_TMNCODE=${VNPAY_TMNCODE}
           VNPAY_HASH_SECRET=${VNPAY_HASH_SECRET}
+          APPLE_SHARED_SECRET=${APPLE_SHARED_SECRET}
+          GOOGLE_PLAY_PACKAGE_NAME=${GOOGLE_PLAY_PACKAGE_NAME}
+          BILLING_IAP_PRODUCT_IDS_BASE=${BILLING_IAP_PRODUCT_IDS_BASE}
+          BILLING_IAP_PRODUCT_IDS_PLUS=${BILLING_IAP_PRODUCT_IDS_PLUS}
+          BILLING_IAP_PRODUCT_IDS_PRO=${BILLING_IAP_PRODUCT_IDS_PRO}
+          BILLING_IAP_IOS_PRODUCT_IDS_BASE=${resolved_iap_ios_base}
+          BILLING_IAP_IOS_PRODUCT_IDS_PLUS=${resolved_iap_ios_plus}
+          BILLING_IAP_IOS_PRODUCT_IDS_PRO=${resolved_iap_ios_pro}
+          BILLING_IAP_ANDROID_PRODUCT_IDS_BASE=${resolved_iap_android_base}
+          BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS=${resolved_iap_android_plus}
+          BILLING_IAP_ANDROID_PRODUCT_IDS_PRO=${resolved_iap_android_pro}
+          BILLING_IAP_ALLOW_TEST_MOCK=${resolved_iap_allow_test_mock}
+          BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS=${resolved_apple_verify_timeout_ms}
+          BILLING_IAP_APPLE_VERIFY_MAX_RETRIES=${resolved_apple_verify_max_retries}
+          BILLING_IAP_APPLE_VERIFY_BACKOFF_MS=${resolved_apple_verify_backoff_ms}
+          APPLE_IAP_WEBHOOK_BEARER_TOKEN=${resolved_apple_iap_webhook_token}
+          GOOGLE_IAP_WEBHOOK_BEARER_TOKEN=${resolved_google_iap_webhook_token}
+          GOOGLE_IAP_RTDN_AUDIENCE=${GOOGLE_IAP_RTDN_AUDIENCE}
+          GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL=${GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL}
+          BILLING_PRICING_CACHE_MS=${resolved_pricing_cache_ms}
           EOF
           echo "APP_RUNTIME_CONFIG_COLLECTION=$resolved_runtime_collection" >> "$GITHUB_ENV"
           echo "APP_RUNTIME_CONFIG_DOC_ID=$resolved_runtime_doc" >> "$GITHUB_ENV"
@@ -177,6 +247,23 @@ jobs:
           echo "BILLING_QR_IMAGE_BASE_URL=$BILLING_QR_IMAGE_BASE_URL" >> "$GITHUB_ENV"
           echo "BILLING_QR_IMAGE_PLUS_URL=$BILLING_QR_IMAGE_PLUS_URL" >> "$GITHUB_ENV"
           echo "BILLING_QR_IMAGE_PRO_URL=$BILLING_QR_IMAGE_PRO_URL" >> "$GITHUB_ENV"
+          echo "GOOGLE_PLAY_PACKAGE_NAME=$GOOGLE_PLAY_PACKAGE_NAME" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_PRODUCT_IDS_BASE=$BILLING_IAP_PRODUCT_IDS_BASE" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_PRODUCT_IDS_PLUS=$BILLING_IAP_PRODUCT_IDS_PLUS" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_PRODUCT_IDS_PRO=$BILLING_IAP_PRODUCT_IDS_PRO" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_IOS_PRODUCT_IDS_BASE=$resolved_iap_ios_base" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_IOS_PRODUCT_IDS_PLUS=$resolved_iap_ios_plus" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_IOS_PRODUCT_IDS_PRO=$resolved_iap_ios_pro" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_ANDROID_PRODUCT_IDS_BASE=$resolved_iap_android_base" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS=$resolved_iap_android_plus" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_ANDROID_PRODUCT_IDS_PRO=$resolved_iap_android_pro" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_ALLOW_TEST_MOCK=$resolved_iap_allow_test_mock" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS=$resolved_apple_verify_timeout_ms" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_APPLE_VERIFY_MAX_RETRIES=$resolved_apple_verify_max_retries" >> "$GITHUB_ENV"
+          echo "BILLING_IAP_APPLE_VERIFY_BACKOFF_MS=$resolved_apple_verify_backoff_ms" >> "$GITHUB_ENV"
+          echo "GOOGLE_IAP_RTDN_AUDIENCE=$GOOGLE_IAP_RTDN_AUDIENCE" >> "$GITHUB_ENV"
+          echo "GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL=$GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL" >> "$GITHUB_ENV"
+          echo "BILLING_PRICING_CACHE_MS=$resolved_pricing_cache_ms" >> "$GITHUB_ENV"
           echo "Wrote runtime environment file: firebase/functions/$env_file"
           echo "Resolved VNPay return URL: $resolved_return_url"
 

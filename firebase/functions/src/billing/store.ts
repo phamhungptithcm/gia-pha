@@ -1106,13 +1106,22 @@ function isSubscriptionValidForUpgradeOnly(
   subscription: BillingSubscriptionRecord,
   now: Date,
 ): boolean {
-  if (subscription.status !== 'active' && subscription.status !== 'grace_period') {
-    return false;
+  if (subscription.status === 'active') {
+    if (subscription.expiresAt == null) {
+      return true;
+    }
+    return subscription.expiresAt.getTime() > now.getTime();
   }
-  if (subscription.expiresAt == null) {
+  if (subscription.status === 'grace_period') {
+    if (subscription.graceEndsAt != null) {
+      return subscription.graceEndsAt.getTime() > now.getTime();
+    }
+    if (subscription.expiresAt != null) {
+      return subscription.expiresAt.getTime() > now.getTime();
+    }
     return true;
   }
-  return subscription.expiresAt.getTime() > now.getTime();
+  return false;
 }
 
 function canRenewCurrentPlan(
@@ -1365,7 +1374,17 @@ function normalizePaymentMode(value: unknown): PaymentMode {
 }
 
 function normalizePaymentMethod(value: unknown): PaymentMethod {
-  return readString(value, 'card').toLowerCase() === 'vnpay' ? 'vnpay' : 'card';
+  const normalized = readString(value, 'card').toLowerCase();
+  if (normalized === 'vnpay') {
+    return 'vnpay';
+  }
+  if (normalized === 'apple_iap') {
+    return 'apple_iap';
+  }
+  if (normalized === 'google_play') {
+    return 'google_play';
+  }
+  return 'card';
 }
 
 function normalizePaymentStatus(value: unknown): PaymentStatus {

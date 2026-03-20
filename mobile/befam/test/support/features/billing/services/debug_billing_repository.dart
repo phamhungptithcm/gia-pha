@@ -147,10 +147,13 @@ class DebugBillingRepository implements BillingRepository {
     _syncStateWithMemberCount(state, clanId);
 
     final method = paymentMethod.trim().toLowerCase();
-    if (method != 'card' && method != 'vnpay') {
+    if (method != 'card' &&
+        method != 'vnpay' &&
+        method != 'apple_iap' &&
+        method != 'google_play') {
       throw const BillingRepositoryException(
         BillingRepositoryErrorCode.invalidArgument,
-        'paymentMethod must be card or vnpay.',
+        'paymentMethod must be card, vnpay, apple_iap, or google_play.',
       );
     }
 
@@ -274,23 +277,22 @@ class DebugBillingRepository implements BillingRepository {
       );
     }
 
-    final checkoutUrl = Uri.https(
-      'checkout-debug.befam.local',
-      '/billing/vnpay',
-      {
-        'transactionId': transactionId,
-        'amountVnd': '${tier.priceVndYear}',
-        if (locale != null && locale.trim().isNotEmpty) 'locale': locale.trim(),
-        if (bankCode != null && bankCode.trim().isNotEmpty)
-          'bankCode': bankCode.trim().toUpperCase(),
-        if (orderNote != null && orderNote.trim().isNotEmpty)
-          'orderNote': orderNote.trim(),
-        if (normalizedContactPhone != null && normalizedContactPhone.isNotEmpty)
-          'contactPhone': normalizedContactPhone,
-        'mode': method,
-        'debug': '1',
-      },
-    ).toString();
+    final checkoutPath = method == 'apple_iap' || method == 'google_play'
+        ? '/billing/store'
+        : '/billing/vnpay';
+    final checkoutUrl = Uri.https('checkout-debug.befam.local', checkoutPath, {
+      'transactionId': transactionId,
+      'amountVnd': '${tier.priceVndYear}',
+      if (locale != null && locale.trim().isNotEmpty) 'locale': locale.trim(),
+      if (bankCode != null && bankCode.trim().isNotEmpty)
+        'bankCode': bankCode.trim().toUpperCase(),
+      if (orderNote != null && orderNote.trim().isNotEmpty)
+        'orderNote': orderNote.trim(),
+      if (normalizedContactPhone != null && normalizedContactPhone.isNotEmpty)
+        'contactPhone': normalizedContactPhone,
+      'mode': method,
+      'debug': '1',
+    }).toString();
 
     return BillingCheckoutResult(
       clanId: clanId,
@@ -300,7 +302,9 @@ class DebugBillingRepository implements BillingRepository {
       vatIncluded: true,
       transactionId: transactionId,
       invoiceId: invoiceId,
-      checkoutUrl: checkoutUrl,
+      checkoutUrl: method == 'apple_iap' || method == 'google_play'
+          ? ''
+          : checkoutUrl,
       requiresManualConfirmation: method == 'card' && tier.planCode != 'FREE',
       subscription: state.subscription,
       entitlement: state.entitlement,
@@ -349,6 +353,39 @@ class DebugBillingRepository implements BillingRepository {
       transactionId: transactionId.trim(),
       actorUid: session.uid,
     );
+  }
+
+  @override
+  Future<BillingEntitlement> verifyInAppPurchase({
+    required AuthSession session,
+    required String platform,
+    required String productId,
+    required Map<String, dynamic> payload,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 140));
+    final planCode = _planCodeFromIapProduct(productId);
+    if (planCode == null) {
+      throw const BillingRepositoryException(
+        BillingRepositoryErrorCode.invalidArgument,
+        'Unsupported in-app productId.',
+      );
+    }
+    final paymentMethod = platform.trim().toLowerCase() == 'ios'
+        ? 'apple_iap'
+        : 'google_play';
+    final checkout = await createCheckout(
+      session: session,
+      paymentMethod: paymentMethod,
+      requestedPlanCode: planCode,
+    );
+    final clanId = _clanIdOf(session);
+    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    _applySuccessfulPayment(
+      state,
+      transactionId: checkout.transactionId,
+      actorUid: session.uid,
+    );
+    return state.entitlement;
   }
 
   _DebugBillingState _ensureState({
@@ -465,6 +502,23 @@ class DebugBillingRepository implements BillingRepository {
       );
     }
     return transaction;
+  }
+
+  String? _planCodeFromIapProduct(String productId) {
+    final normalized = productId.trim().toLowerCase();
+    switch (normalized) {
+      case 'base_yearly':
+      case 'base_annual':
+        return 'BASE';
+      case 'plus_yearly':
+      case 'plus_annual':
+        return 'PLUS';
+      case 'pro_yearly':
+      case 'pro_annual':
+        return 'PRO';
+      default:
+        return null;
+    }
   }
 
   void _expireStalePendingTransactions(_DebugBillingState state) {

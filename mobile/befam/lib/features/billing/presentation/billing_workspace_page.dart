@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -12,6 +13,7 @@ import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
 import '../services/billing_repository.dart';
+import '../services/store_iap_gateway.dart';
 import '../services/vnpay_mobile_sdk_gateway.dart';
 import 'billing_controller.dart';
 
@@ -26,6 +28,7 @@ class BillingWorkspacePage extends StatefulWidget {
     this.externalUrlLauncher,
     this.vnpayPaymentMethodUrl,
     this.vnpayGateway,
+    this.storeIapGateway,
   });
 
   final AuthSession session;
@@ -34,6 +37,7 @@ class BillingWorkspacePage extends StatefulWidget {
   final ExternalUriLauncher? externalUrlLauncher;
   final String? vnpayPaymentMethodUrl;
   final VnpayMobileSdkGateway? vnpayGateway;
+  final StoreIapGateway? storeIapGateway;
 
   @override
   State<BillingWorkspacePage> createState() => _BillingWorkspacePageState();
@@ -42,6 +46,7 @@ class BillingWorkspacePage extends StatefulWidget {
 class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   late final BillingController _controller;
   late final VnpayMobileSdkGateway _vnpayGateway;
+  late final StoreIapGateway _storeIapGateway;
   String? _paymentModeDraft;
   String? _selectedPlanCodeDraft;
   bool _autoRenewDraft = false;
@@ -67,6 +72,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         MethodChannelVnpayMobileSdkGateway(
           externalFallbackLauncher: _launchExternalUri,
         );
+    _storeIapGateway = widget.storeIapGateway ?? createDefaultStoreIapGateway();
     unawaited(_controller.initialize());
   }
 
@@ -85,15 +91,26 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   }
 
   bool _shouldUseQrCheckout(BillingWorkspaceSnapshot workspace) {
+    if (_shouldUseStoreCheckout) {
+      return false;
+    }
     return workspace.checkoutFlow.qrCheckoutEnabled;
   }
 
-  Future<void> _openQrCheckoutFlow({
+  bool get _shouldUseStoreCheckout {
+    if (_controller.isRepositorySandbox || kIsWeb) {
+      return false;
+    }
+    return defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.android;
+  }
+
+  bool _validatePaidPlanSelection({
     required BillingWorkspaceSnapshot workspace,
     required BillingPlanPricing minimumTier,
     required BillingPlanPricing selectedTier,
     required bool canRenewCurrentPlan,
-  }) async {
+  }) {
     final l10n = context.l10n;
     final currentRank = _planRank(workspace.entitlement.planCode);
     final minimumRank = _planRank(minimumTier.planCode);
@@ -112,7 +129,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
           ),
         ),
       );
-      return;
+      return false;
     }
     if (isDowngrade) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -125,7 +142,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
           ),
         ),
       );
-      return;
+      return false;
     }
     if (isRenew && !canRenewCurrentPlan) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,9 +155,49 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
           ),
         ),
       );
-      return;
+      return false;
     }
-    if (!isUpgrade && !isRenew) {
+    return isUpgrade || isRenew;
+  }
+
+  String _activeStoreLabel(AppLocalizations l10n) {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return 'App Store';
+    }
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'Google Play';
+    }
+    return l10n.pick(vi: 'cửa hàng ứng dụng', en: 'app store');
+  }
+
+  String? _iapProductIdForPlan(
+    BillingWorkspaceSnapshot workspace,
+    String planCode,
+  ) {
+    final platformKey =
+        defaultTargetPlatform == TargetPlatform.iOS
+            ? 'ios'
+            : defaultTargetPlatform == TargetPlatform.android
+            ? 'android'
+            : null;
+    return workspace.checkoutFlow.storeProductIdForPlan(
+      planCode,
+      platform: platformKey,
+    );
+  }
+
+  Future<void> _openQrCheckoutFlow({
+    required BillingWorkspaceSnapshot workspace,
+    required BillingPlanPricing minimumTier,
+    required BillingPlanPricing selectedTier,
+    required bool canRenewCurrentPlan,
+  }) async {
+    if (!_validatePaidPlanSelection(
+      workspace: workspace,
+      minimumTier: minimumTier,
+      selectedTier: selectedTier,
+      canRenewCurrentPlan: canRenewCurrentPlan,
+    )) {
       return;
     }
 
@@ -179,53 +236,12 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       );
       return;
     }
-    final l10n = context.l10n;
-    final currentRank = _planRank(workspace.entitlement.planCode);
-    final minimumRank = _planRank(minimumTier.planCode);
-    final selectedRank = _planRank(selectedTier.planCode);
-    final isDowngrade = selectedRank < currentRank;
-    final isRenew = selectedRank == currentRank;
-    final isUpgrade = selectedRank > currentRank;
-    if (selectedRank < minimumRank) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.pick(
-              vi: 'Không thể hạ gói vì số thành viên hiện tại vượt giới hạn của gói đã chọn.',
-              en: 'Cannot downgrade because current member count exceeds the selected plan limit.',
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-    if (isDowngrade) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.pick(
-              vi: 'Hạ gói chỉ mở sau khi kỳ hiện tại kết thúc.',
-              en: 'Downgrade is available only after the current term ends.',
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-    if (isRenew && !canRenewCurrentPlan) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.pick(
-              vi: 'Gia hạn chỉ mở khi gói hiện tại gần hết hạn.',
-              en: 'Renewal is available only near expiry.',
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-    if (!isUpgrade && !isRenew) {
+    if (!_validatePaidPlanSelection(
+      workspace: workspace,
+      minimumTier: minimumTier,
+      selectedTier: selectedTier,
+      canRenewCurrentPlan: canRenewCurrentPlan,
+    )) {
       return;
     }
 
@@ -263,6 +279,101 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       return;
     }
     await _controller.refresh();
+  }
+
+  Future<void> _openStoreCheckoutFlow({
+    required BillingWorkspaceSnapshot workspace,
+    required BillingPlanPricing minimumTier,
+    required BillingPlanPricing selectedTier,
+    required bool canRenewCurrentPlan,
+  }) async {
+    final l10n = context.l10n;
+    if (!_validatePaidPlanSelection(
+      workspace: workspace,
+      minimumTier: minimumTier,
+      selectedTier: selectedTier,
+      canRenewCurrentPlan: canRenewCurrentPlan,
+    )) {
+      return;
+    }
+    final productId = _iapProductIdForPlan(workspace, selectedTier.planCode);
+    if (productId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Gói này chưa được cấu hình mua trong ứng dụng.',
+              en: 'This plan is not configured for in-app purchase yet.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final purchase = await _storeIapGateway.purchaseSubscription(
+      productId: productId,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (purchase.canceled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Bạn đã hủy giao dịch trên ${_activeStoreLabel(l10n)}.',
+              en: 'You canceled the purchase on ${_activeStoreLabel(l10n)}.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    if (!purchase.succeeded) {
+      final errorMessage = (purchase.errorMessage ?? '').trim();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            errorMessage.isEmpty
+                ? l10n.pick(
+                    vi: 'Không thể hoàn tất giao dịch. Vui lòng thử lại.',
+                    en: 'Could not complete this purchase. Please try again.',
+                  )
+                : errorMessage,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final entitlement = await _controller.verifyInAppPurchase(
+      platform: purchase.platform,
+      productId: purchase.productId,
+      payload: purchase.payload,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (entitlement == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_friendlyErrorMessage(_controller.errorMessage, l10n)),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          l10n.pick(
+            vi: 'Đã kích hoạt gói thành công qua ${_activeStoreLabel(l10n)}.',
+            en: 'Subscription activated successfully via ${_activeStoreLabel(l10n)}.',
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _savePreferences() async {
@@ -601,6 +712,9 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     final currentPlanRank = _planRank(currentPlanCode);
     final isRenewSelection = selectedPlanRank == currentPlanRank;
     final isUpgradeSelection = selectedPlanRank > currentPlanRank;
+    final useStoreCheckout = _shouldUseStoreCheckout;
+    final hasStoreProductConfig =
+        _iapProductIdForPlan(workspace, selectedTier.planCode) != null;
     final useQrCheckout = _shouldUseQrCheckout(workspace);
     final isBelowMinimumForMemberCount = selectedPlanRank < minimumPlanRank;
     final canCheckoutSelectedPlan =
@@ -608,6 +722,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         canManage &&
         !_controller.isCreatingCheckout &&
         hasSelectablePlans &&
+        (!useStoreCheckout || hasStoreProductConfig) &&
         !isBelowMinimumForMemberCount &&
         (isUpgradeSelection || (isRenewSelection && canRenewCurrentPlan));
     final pendingTransactions = workspace.transactions
@@ -615,7 +730,17 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         .toList(growable: false);
     final latestCheckout = _controller.lastCheckout;
     final hasRenewalSettingsChanges = _hasRenewalSettingsChanges(workspace);
-    final checkoutActionLabel = isRenewSelection
+    final checkoutActionLabel = useStoreCheckout
+        ? isRenewSelection
+              ? l10n.pick(
+                  vi: 'Gia hạn trên ${_activeStoreLabel(l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
+                  en: 'Renew in ${_activeStoreLabel(l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
+                )
+              : l10n.pick(
+                  vi: 'Nâng cấp trên ${_activeStoreLabel(l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
+                  en: 'Upgrade in ${_activeStoreLabel(l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
+                )
+        : isRenewSelection
         ? l10n.pick(
             vi: 'Gia hạn ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
             en: 'Renew ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
@@ -624,7 +749,9 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             vi: 'Nâng cấp ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
             en: 'Upgrade to ${_localizedPlanName(selectedTier.planCode, l10n)} • ${_formatVnd(selectedTier.priceVndYear)}',
           );
-    final checkoutActionIcon = useQrCheckout
+    final checkoutActionIcon = useStoreCheckout
+        ? Icons.shopping_bag_outlined
+        : useQrCheckout
         ? Icons.qr_code_2_outlined
         : Icons.account_balance_wallet_outlined;
 
@@ -773,14 +900,31 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       en: 'Free plan selected',
                     ),
                     description: l10n.pick(
-                      vi: useQrCheckout
+                      vi: useStoreCheckout
+                          ? 'Gói miễn phí không cần mua trong ứng dụng.'
+                          : useQrCheckout
                           ? 'Gói miễn phí không yêu cầu thanh toán QR.'
                           : 'Gói miễn phí không tạo checkout VNPay.',
-                      en: useQrCheckout
+                      en: useStoreCheckout
+                          ? 'Free plan does not require in-app purchase.'
+                          : useQrCheckout
                           ? 'Free plan does not require QR payment.'
                           : 'Free plan does not create a VNPay checkout.',
                     ),
                     tone: colorScheme.tertiaryContainer,
+                  )
+                else if (useStoreCheckout && !hasStoreProductConfig)
+                  _InfoCard(
+                    icon: Icons.warning_amber_rounded,
+                    title: l10n.pick(
+                      vi: 'Thiếu cấu hình gói trên cửa hàng',
+                      en: 'Missing store product config',
+                    ),
+                    description: l10n.pick(
+                      vi: 'Gói ${_localizedPlanName(selectedTier.planCode, l10n)} chưa được map với productId IAP trên máy chủ.',
+                      en: '${_localizedPlanName(selectedTier.planCode, l10n)} is not mapped to a store productId on the server.',
+                    ),
+                    tone: colorScheme.errorContainer,
                   )
                 else if (isBelowMinimumForMemberCount)
                   _InfoCard(
@@ -812,6 +956,15 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       enabled: canCheckoutSelectedPlan,
                       onPressed: canCheckoutSelectedPlan
                           ? () async {
+                              if (useStoreCheckout) {
+                                await _openStoreCheckoutFlow(
+                                  workspace: workspace,
+                                  minimumTier: minimumTier,
+                                  selectedTier: selectedTier,
+                                  canRenewCurrentPlan: canRenewCurrentPlan,
+                                );
+                                return;
+                              }
                               if (useQrCheckout) {
                                 await _openQrCheckoutFlow(
                                   workspace: workspace,
@@ -974,8 +1127,12 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                     en: 'Auto-renew switch',
                   ),
                   hint: l10n.pick(
-                    vi: 'Nếu bật, BeFam sẽ nhắc hạn và chuẩn bị phiên gia hạn. Bạn vẫn xác nhận thanh toán trên VNPay.',
-                    en: 'When enabled, BeFam prepares renewal reminders and checkout. You still confirm payment on VNPay.',
+                    vi: useStoreCheckout
+                        ? 'Nếu bật, BeFam sẽ nhắc hạn trước và bạn hoàn tất giao dịch trong cửa hàng ứng dụng.'
+                        : 'Nếu bật, BeFam sẽ nhắc hạn và chuẩn bị phiên gia hạn. Bạn vẫn xác nhận thanh toán trên VNPay.',
+                    en: useStoreCheckout
+                        ? 'When enabled, BeFam prepares reminders and you complete payment in the app store.'
+                        : 'When enabled, BeFam prepares renewal reminders and checkout. You still confirm payment on VNPay.',
                   ),
                   toggled: _autoRenewDraft,
                   child: Row(
@@ -999,8 +1156,12 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                               const SizedBox(height: 4),
                               Text(
                                 l10n.pick(
-                                  vi: 'Nếu bật, BeFam sẽ nhắc hạn và chuẩn bị phiên gia hạn. Bạn vẫn xác nhận thanh toán trên VNPay.',
-                                  en: 'When enabled, BeFam prepares renewal reminders and checkout. You still confirm payment on VNPay.',
+                                  vi: useStoreCheckout
+                                      ? 'Nếu bật, BeFam sẽ nhắc hạn trước và bạn hoàn tất giao dịch trong cửa hàng ứng dụng.'
+                                      : 'Nếu bật, BeFam sẽ nhắc hạn và chuẩn bị phiên gia hạn. Bạn vẫn xác nhận thanh toán trên VNPay.',
+                                  en: useStoreCheckout
+                                      ? 'When enabled, BeFam prepares reminders and you complete payment in the app store.'
+                                      : 'When enabled, BeFam prepares renewal reminders and checkout. You still confirm payment on VNPay.',
                                 ),
                                 style: theme.textTheme.bodySmall,
                               ),

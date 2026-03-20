@@ -21,9 +21,11 @@ import {
   loadBillingWorkspace,
   resolveBillingEntitlement,
   simulateVnpaySettlement,
+  verifyInAppPurchase,
   updateBillingPreferences,
 } from './billing/callables';
 import { cardPaymentCallback, vnpayPaymentCallback } from './billing/webhooks';
+import { appleIapWebhook, googleIapWebhook } from './billing/iap-webhooks';
 import { APP_REGION } from './config/runtime';
 import { onEventCreated, sendEventReminder } from './events/event-triggers';
 import { recordFundTransaction } from './funds/callables';
@@ -55,6 +57,7 @@ import {
   reviewScholarshipSubmission,
 } from './scholarship/callables';
 import {
+  billingContactNoticeJob,
   billingPendingTimeoutJob,
   billingSubscriptionDelinquencyJob,
   billingSubscriptionReminderJob,
@@ -72,6 +75,7 @@ setGlobalOptions({
 });
 
 export {
+  billingContactNoticeJob,
   billingPendingTimeoutJob,
   billingSubscriptionDelinquencyJob,
   billingSubscriptionReminderJob,
@@ -81,6 +85,7 @@ export {
   createUnlinkedPhoneIdentity,
   completeCardCheckout,
   cancelJoinRequest,
+  appleIapWebhook,
   createParentChildRelationship,
   createSpouseRelationship,
   createInvite,
@@ -103,6 +108,7 @@ export {
   onMemberDeathDateChanged,
   onSubmissionReviewed,
   onTransactionCreated,
+  googleIapWebhook,
   registerDeviceToken,
   recordFundTransaction,
   resolvePhoneIdentityAfterOtp,
@@ -118,5 +124,6 @@ export {
   simulateVnpaySettlement,
   switchActiveClanContext,
   updateBillingPreferences,
+  verifyInAppPurchase,
   vnpayPaymentCallback,
 };

@@ -61,6 +61,13 @@ abstract interface class BillingRepository {
     required AuthSession session,
     required String transactionId,
   });
+
+  Future<BillingEntitlement> verifyInAppPurchase({
+    required AuthSession session,
+    required String platform,
+    required String productId,
+    required Map<String, dynamic> payload,
+  });
 }
 
 BillingRepository createDefaultBillingRepository({AuthSession? session}) {

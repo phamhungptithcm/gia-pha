@@ -562,6 +562,21 @@ class _QrEnabledBillingRepository implements BillingRepository {
       transactionId: transactionId,
     );
   }
+
+  @override
+  Future<BillingEntitlement> verifyInAppPurchase({
+    required AuthSession session,
+    required String platform,
+    required String productId,
+    required Map<String, dynamic> payload,
+  }) {
+    return _delegate.verifyInAppPurchase(
+      session: session,
+      platform: platform,
+      productId: productId,
+      payload: payload,
+    );
+  }
 }
 
 class _TestVnpayGateway implements VnpayMobileSdkGateway {

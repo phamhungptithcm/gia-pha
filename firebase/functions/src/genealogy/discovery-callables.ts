@@ -1,8 +1,13 @@
 import { getAuth } from 'firebase-admin/auth';
-import { FieldValue } from 'firebase-admin/firestore';
+import {
+  FieldValue,
+  type DocumentData,
+  type QueryDocumentSnapshot,
+  type QuerySnapshot,
+} from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { APP_REGION } from '../config/runtime';
+import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from '../config/runtime';
 import { requireAuth } from '../shared/errors';
 import { db } from '../shared/firestore';
 import { logError, logInfo } from '../shared/logger';
@@ -117,9 +122,13 @@ const reviewerRoles = [
   'SUPPORTER_OF_LEADER',
 ];
 const SUPPORTED_PHONE_DIAL_CODES = ['886', '84', '82', '81', '65', '61', '49', '44', '33', '1'];
+const APP_CHECK_CALLABLE_OPTIONS = {
+  region: APP_REGION,
+  enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
+} as const;
 
 export const searchGenealogyDiscovery = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
 
@@ -128,15 +137,42 @@ export const searchGenealogyDiscovery = onCall(
     const query = normalizeSearch(optionalString(request.data, 'query'));
     const limit = resolveLimit(request.data);
 
-    const snapshot = await discoveryCollection
-      .where('isPublic', '==', true)
-      .limit(200)
-      .get();
+    const baseQuery = discoveryCollection.where('isPublic', '==', true);
+    const scanLimit = Math.max(200, limit * 12);
+    const pageSize = Math.min(100, Math.max(limit * 2, 40));
+    const candidates: Array<{ id: string } & DiscoveryRecord> = [];
+    let scanned = 0;
+    let cursor: QueryDocumentSnapshot<DocumentData> | null = null;
+    while (candidates.length < limit && scanned < scanLimit) {
+      const remaining = scanLimit - scanned;
+      const chunkSize = Math.max(1, Math.min(pageSize, remaining));
+      let pageSnapshot: QuerySnapshot<DocumentData>;
+      if (cursor == null) {
+        pageSnapshot = await baseQuery.limit(chunkSize).get();
+      } else {
+        pageSnapshot = await baseQuery.startAfter(cursor).limit(chunkSize).get();
+      }
+      if (pageSnapshot.empty) {
+        break;
+      }
+      for (const doc of pageSnapshot.docs) {
+        scanned += 1;
+        const entry = { id: doc.id, ...(doc.data() as DiscoveryRecord) };
+        if (matchesDiscoveryQuery(entry, { leaderQuery, locationQuery, query })) {
+          candidates.push(entry);
+          if (candidates.length >= limit) {
+            break;
+          }
+        }
+      }
+      cursor = pageSnapshot.docs[pageSnapshot.docs.length - 1] ?? null;
+      if (pageSnapshot.docs.length < chunkSize) {
+        break;
+      }
+    }
     const pendingJoinRequestsByClanId = await loadPendingJoinRequestsByApplicant(auth.uid);
 
-    const results = snapshot.docs
-      .map((doc) => ({ id: doc.id, ...(doc.data() as DiscoveryRecord) }))
-      .filter((entry) => matchesDiscoveryQuery(entry, { leaderQuery, locationQuery, query }))
+    const results = candidates
       .map((entry) => sanitizeDiscoveryResult(entry, {
         pendingRequestSubmittedAtEpochMs:
           pendingJoinRequestsByClanId.get(stringOrNull(entry.clanId) ?? entry.id) ?? null,
@@ -148,6 +184,8 @@ export const searchGenealogyDiscovery = onCall(
       leaderQuery,
       locationQuery,
       count: results.length,
+      scanned,
+      scanLimit,
       uid: auth.uid,
     });
 
@@ -156,7 +194,7 @@ export const searchGenealogyDiscovery = onCall(
 );
 
 export const submitJoinRequest = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
 
@@ -270,7 +308,7 @@ export const submitJoinRequest = onCall(
 );
 
 export const listMyJoinRequests = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const statusFilterRaw = optionalString(request.data, 'status')?.trim().toLowerCase() ?? '';
@@ -312,7 +350,7 @@ export const listMyJoinRequests = onCall(
 );
 
 export const cancelJoinRequest = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     const requestId = requireNonEmptyString(request.data, 'requestId');
@@ -372,7 +410,7 @@ export const cancelJoinRequest = onCall(
 );
 
 export const reviewJoinRequest = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     ensureClaimedSession(auth.token);
@@ -501,7 +539,7 @@ export const reviewJoinRequest = onCall(
 );
 
 export const listJoinRequestsForReview = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     ensureClaimedSession(auth.token);
@@ -551,7 +589,7 @@ export const listJoinRequestsForReview = onCall(
 );
 
 export const detectDuplicateGenealogy = onCall(
-  { region: APP_REGION },
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
     ensureClaimedSession(auth.token);
