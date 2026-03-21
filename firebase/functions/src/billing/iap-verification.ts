@@ -4,19 +4,10 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { google } from 'googleapis';
 
 import {
-  BILLING_IAP_ANDROID_PRODUCT_IDS_BASE,
-  BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS,
-  BILLING_IAP_ANDROID_PRODUCT_IDS_PRO,
   BILLING_IAP_APPLE_VERIFY_BACKOFF_MS,
   BILLING_IAP_APPLE_VERIFY_MAX_RETRIES,
   BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS,
   BILLING_IAP_ALLOW_TEST_MOCK,
-  BILLING_IAP_IOS_PRODUCT_IDS_BASE,
-  BILLING_IAP_IOS_PRODUCT_IDS_PLUS,
-  BILLING_IAP_IOS_PRODUCT_IDS_PRO,
-  BILLING_IAP_PRODUCT_IDS_BASE,
-  BILLING_IAP_PRODUCT_IDS_PLUS,
-  BILLING_IAP_PRODUCT_IDS_PRO,
   getAppleSharedSecret,
   getGooglePlayPackageName,
 } from '../config/runtime';
@@ -540,6 +531,22 @@ let firestoreCatalogSignature = '';
 let firestoreCatalogLoadedAtMs = 0;
 let firestoreCatalogRefreshInFlight: Promise<void> | null = null;
 
+export function setIapProductCatalogForTesting(
+  docs: Array<{ id: string; data: Record<string, unknown> }> | null,
+): void {
+  if (docs == null) {
+    firestoreCatalogOverrides = null;
+    firestoreCatalogSignature = '';
+  } else {
+    const parsed = parseFirestoreIapCatalog(docs);
+    firestoreCatalogOverrides = parsed.catalog;
+    firestoreCatalogSignature = parsed.signature;
+  }
+  firestoreCatalogLoadedAtMs = Date.now();
+  cachedCatalog = null;
+  cachedCatalogSignature = null;
+}
+
 export async function refreshIapProductCatalogFromFirestore({
   force = false,
 }: {
@@ -572,9 +579,12 @@ export async function refreshIapProductCatalogFromFirestore({
       cachedCatalog = null;
       cachedCatalogSignature = null;
     } catch (error) {
-      logWarn('IAP product catalog refresh from Firestore failed; using env mapping', {
-        error: `${error}`,
-      });
+      logWarn(
+        'IAP product catalog refresh from Firestore failed; using previously loaded catalog',
+        {
+          error: `${error}`,
+        },
+      );
       firestoreCatalogLoadedAtMs = Date.now();
     } finally {
       firestoreCatalogRefreshInFlight = null;
@@ -584,18 +594,7 @@ export async function refreshIapProductCatalogFromFirestore({
 }
 
 function loadIapProductCatalog(): IapProductCatalog {
-  const sourceSignature = [
-    firestoreCatalogSignature,
-    BILLING_IAP_IOS_PRODUCT_IDS_BASE.join(','),
-    BILLING_IAP_IOS_PRODUCT_IDS_PLUS.join(','),
-    BILLING_IAP_IOS_PRODUCT_IDS_PRO.join(','),
-    BILLING_IAP_ANDROID_PRODUCT_IDS_BASE.join(','),
-    BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS.join(','),
-    BILLING_IAP_ANDROID_PRODUCT_IDS_PRO.join(','),
-    BILLING_IAP_PRODUCT_IDS_BASE.join(','),
-    BILLING_IAP_PRODUCT_IDS_PLUS.join(','),
-    BILLING_IAP_PRODUCT_IDS_PRO.join(','),
-  ].join('|');
+  const sourceSignature = firestoreCatalogSignature;
   if (cachedCatalog != null && cachedCatalogSignature === sourceSignature) {
     return cachedCatalog;
   }
@@ -617,22 +616,6 @@ function loadIapProductCatalog(): IapProductCatalog {
   if (firestoreCatalogOverrides != null) {
     registerCatalog(firestoreCatalogOverrides);
   }
-
-  registerPlanProductIds('ios', 'BASE', BILLING_IAP_IOS_PRODUCT_IDS_BASE);
-  registerPlanProductIds('ios', 'PLUS', BILLING_IAP_IOS_PRODUCT_IDS_PLUS);
-  registerPlanProductIds('ios', 'PRO', BILLING_IAP_IOS_PRODUCT_IDS_PRO);
-
-  registerPlanProductIds('android', 'BASE', BILLING_IAP_ANDROID_PRODUCT_IDS_BASE);
-  registerPlanProductIds('android', 'PLUS', BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS);
-  registerPlanProductIds('android', 'PRO', BILLING_IAP_ANDROID_PRODUCT_IDS_PRO);
-
-  // Backward compatibility for old shared product-id env variables.
-  registerPlanProductIds('ios', 'BASE', BILLING_IAP_PRODUCT_IDS_BASE);
-  registerPlanProductIds('ios', 'PLUS', BILLING_IAP_PRODUCT_IDS_PLUS);
-  registerPlanProductIds('ios', 'PRO', BILLING_IAP_PRODUCT_IDS_PRO);
-  registerPlanProductIds('android', 'BASE', BILLING_IAP_PRODUCT_IDS_BASE);
-  registerPlanProductIds('android', 'PLUS', BILLING_IAP_PRODUCT_IDS_PLUS);
-  registerPlanProductIds('android', 'PRO', BILLING_IAP_PRODUCT_IDS_PRO);
 
   cachedCatalog = {
     productIdToPlanCodeByPlatform,
@@ -671,33 +654,6 @@ function loadIapProductCatalog(): IapProductCatalog {
         }
         productIdToPlanCodeByPlatform[platform][productId] = planCode;
       }
-    }
-  }
-
-  function registerPlanProductIds(
-    platform: IapPlatform,
-    planCode: BillingPlanCode,
-    productIds: Array<string>,
-  ): void {
-    const normalizedIds = productIds
-      .map((entry) => normalizeProductId(entry))
-      .filter((entry) => entry.length > 0);
-    if (normalizedIds.length === 0) {
-      return;
-    }
-    if (primaryProductIdByPlanByPlatform[platform][planCode] == null) {
-      primaryProductIdByPlanByPlatform[platform][planCode] = normalizedIds[0];
-    }
-    for (const productId of normalizedIds) {
-      const existingPlanCode =
-        productIdToPlanCodeByPlatform[platform][productId];
-      if (existingPlanCode != null && existingPlanCode !== planCode) {
-        throw new HttpsError(
-          'failed-precondition',
-          `IAP ${platform} productId "${productId}" is mapped to multiple plans (${existingPlanCode}, ${planCode}).`,
-        );
-      }
-      productIdToPlanCodeByPlatform[platform][productId] = planCode;
     }
   }
 }

@@ -29,50 +29,18 @@ export type BillingTierPricing = {
   adFree: boolean;
 };
 
-const DEFAULT_BILLING_PRICING_TIERS: ReadonlyArray<BillingTierPricing> = [
-  {
-    planCode: 'FREE',
-    minMembers: 0,
-    maxMembers: 10,
-    priceVndYear: 0,
-    vatIncluded: true,
-    showAds: true,
-    adFree: false,
-  },
-  {
-    planCode: 'BASE',
-    minMembers: 11,
-    maxMembers: 200,
-    priceVndYear: 49_000,
-    vatIncluded: true,
-    showAds: true,
-    adFree: false,
-  },
-  {
-    planCode: 'PLUS',
-    minMembers: 201,
-    maxMembers: 700,
-    priceVndYear: 89_000,
-    vatIncluded: true,
-    showAds: false,
-    adFree: true,
-  },
-  {
-    planCode: 'PRO',
-    minMembers: 701,
-    maxMembers: null,
-    priceVndYear: 119_000,
-    vatIncluded: true,
-    showAds: false,
-    adFree: true,
-  },
+const REQUIRED_PLAN_ORDER: ReadonlyArray<BillingPlanCode> = [
+  'FREE',
+  'BASE',
+  'PLUS',
+  'PRO',
 ];
 
 const subscriptionPackagesCollection = db.collection('subscriptionPackages');
 const BILLING_PRICING_CACHE_MS = resolvePricingCacheMs();
 
 export let BILLING_PRICING_TIERS: ReadonlyArray<BillingTierPricing> = [
-  ...DEFAULT_BILLING_PRICING_TIERS,
+  // Strict mode: pricing must be loaded from Firestore subscriptionPackages.
 ];
 
 let pricingLastLoadedAtMs = 0;
@@ -98,15 +66,82 @@ export function normalizeMemberCount(value: unknown): number {
   return 0;
 }
 
+export function setBillingPricingTiersForTesting(
+  tiers: Array<BillingTierPricing> | null,
+): void {
+  if (tiers == null) {
+    BILLING_PRICING_TIERS = [];
+    pricingLastLoadedAtMs = 0;
+    return;
+  }
+  const byPlan = new Map<BillingPlanCode, BillingTierPricing>();
+  for (const tier of tiers) {
+    byPlan.set(tier.planCode, tier);
+  }
+  const normalized = REQUIRED_PLAN_ORDER.map((planCode) => {
+    const tier = byPlan.get(planCode);
+    if (tier == null) {
+      throw new Error(`Missing testing pricing tier for plan ${planCode}.`);
+    }
+    return {
+      planCode,
+      minMembers: normalizeMemberCount(tier.minMembers),
+      maxMembers: normalizeNullableMemberCount(
+        tier.maxMembers,
+        `test:${planCode}.maxMembers`,
+      ),
+      priceVndYear: readRequiredNonNegativeInt(
+        tier.priceVndYear,
+        `test:${planCode}.priceVndYear`,
+      ),
+      vatIncluded: tier.vatIncluded,
+      showAds: tier.showAds,
+      adFree: tier.adFree,
+    };
+  });
+  if (!isTierStructureValid(normalized)) {
+    throw new Error('Testing pricing tiers are invalid.');
+  }
+  BILLING_PRICING_TIERS = normalized;
+  pricingLastLoadedAtMs = Date.now();
+}
+
+function getPricingTiersOrThrow(): ReadonlyArray<BillingTierPricing> {
+  if (BILLING_PRICING_TIERS.length === 0) {
+    throw new Error(
+      'Billing pricing catalog is not loaded. Ensure subscriptionPackages contains active FREE/BASE/PLUS/PRO plans and call refreshBillingPricingTiers() before resolving pricing.',
+    );
+  }
+  return BILLING_PRICING_TIERS;
+}
+
 export function resolvePlanByMemberCount(memberCountInput: unknown): BillingTierPricing {
+  const tiers = getPricingTiersOrThrow();
   const memberCount = normalizeMemberCount(memberCountInput);
-  const matched = BILLING_PRICING_TIERS.find((tier) => {
+  const matched = tiers.find((tier) => {
     const inLowerBound = memberCount >= tier.minMembers;
     const inUpperBound = tier.maxMembers == null || memberCount <= tier.maxMembers;
     return inLowerBound && inUpperBound;
   });
+  if (matched == null) {
+    throw new Error(
+      `No pricing tier matches memberCount=${memberCount}. Check subscriptionPackages tier boundaries.`,
+    );
+  }
+  return matched;
+}
 
-  return matched ?? BILLING_PRICING_TIERS[BILLING_PRICING_TIERS.length - 1];
+export function resolveTierByPlanCodeFromPricing(
+  planCode: BillingPlanCode,
+): BillingTierPricing {
+  const tiers = getPricingTiersOrThrow();
+  const matched = tiers.find((tier) => tier.planCode === planCode);
+  if (matched == null) {
+    throw new Error(
+      `No pricing tier found for planCode=${planCode}. Check subscriptionPackages configuration.`,
+    );
+  }
+  return matched;
 }
 
 export async function refreshBillingPricingTiers({
@@ -134,17 +169,14 @@ export async function refreshBillingPricingTiers({
           data: doc.data() ?? {},
         })),
       );
-      if (parsed.length === 0) {
-        return BILLING_PRICING_TIERS;
-      }
       BILLING_PRICING_TIERS = parsed;
       pricingLastLoadedAtMs = Date.now();
       return BILLING_PRICING_TIERS;
     } catch (error) {
-      logWarn('billing pricing refresh failed, using in-memory tiers', {
+      logWarn('billing pricing refresh failed', {
         error: `${error}`,
       });
-      return BILLING_PRICING_TIERS;
+      throw error;
     } finally {
       pricingRefreshInFlight = null;
     }
@@ -184,7 +216,7 @@ export function resolveEffectivePlanCode({
 }
 
 export function isPaidPlan(planCode: BillingPlanCode): boolean {
-  return planCode !== 'FREE';
+  return resolveTierByPlanCodeFromPricing(planCode).priceVndYear > 0;
 }
 
 export function hasActiveAccess(status: SubscriptionStatus): boolean {
@@ -208,7 +240,7 @@ export function shouldShowAds(
   if (!hasActiveAccess(status)) {
     return true;
   }
-  return planCode === 'FREE' || planCode === 'BASE';
+  return resolveTierByPlanCodeFromPricing(planCode).showAds;
 }
 
 export function computeRenewalWindow({
@@ -239,57 +271,65 @@ function normalizePricingDocs(
     if (!isActive) {
       continue;
     }
-    const fallback = defaultTierForPlanCode(planCode);
-    const minMembers = normalizeMemberCount(
-      readNumber(doc.data.minMembers, fallback.minMembers),
+    if (byPlan.has(planCode)) {
+      throw new Error(
+        `subscriptionPackages has duplicate active pricing docs for plan ${planCode}.`,
+      );
+    }
+    const minMembers = readRequiredNonNegativeInt(
+      doc.data.minMembers,
+      `${doc.id}.minMembers`,
     );
     const maxMembers = normalizeNullableMemberCount(
       doc.data.maxMembers,
-      fallback.maxMembers,
+      `${doc.id}.maxMembers`,
     );
-    const priceVndYear = normalizeMemberCount(
-      readNumber(doc.data.priceVndYear, fallback.priceVndYear),
+    const priceVndYear = readRequiredNonNegativeInt(
+      doc.data.priceVndYear,
+      `${doc.id}.priceVndYear`,
     );
-    const configuredShowAds = readBoolean(doc.data.showAds, fallback.showAds);
-    const configuredAdFree = readBoolean(doc.data.adFree, fallback.adFree);
-    const adFree = configuredAdFree || !configuredShowAds;
-    const showAds = !adFree;
+    const configuredShowAds = readOptionalBoolean(doc.data.showAds);
+    const configuredAdFree = readOptionalBoolean(doc.data.adFree);
+    if (configuredShowAds == null && configuredAdFree == null) {
+      throw new Error(
+        `subscriptionPackages doc ${doc.id} must define showAds or adFree.`,
+      );
+    }
+    if (
+      configuredShowAds != null &&
+      configuredAdFree != null &&
+      configuredShowAds === configuredAdFree
+    ) {
+      throw new Error(
+        `subscriptionPackages doc ${doc.id} has conflicting showAds/adFree.`,
+      );
+    }
+    const showAds = configuredShowAds ?? !configuredAdFree;
+    const adFree = configuredAdFree ?? !configuredShowAds;
     byPlan.set(planCode, {
       planCode,
       minMembers,
       maxMembers,
       priceVndYear,
-      vatIncluded: readBoolean(doc.data.vatIncluded, fallback.vatIncluded),
+      vatIncluded: readRequiredBoolean(doc.data.vatIncluded, `${doc.id}.vatIncluded`),
       showAds,
       adFree,
     });
   }
 
-  const merged = (['FREE', 'BASE', 'PLUS', 'PRO'] as const).map((planCode) => {
-    return byPlan.get(planCode) ?? defaultTierForPlanCode(planCode);
-  });
+  const missingPlans = REQUIRED_PLAN_ORDER.filter((planCode) => !byPlan.has(planCode));
+  if (missingPlans.length > 0) {
+    throw new Error(
+      `subscriptionPackages is missing active plans: ${missingPlans.join(', ')}.`,
+    );
+  }
+  const merged = REQUIRED_PLAN_ORDER.map((planCode) => byPlan.get(planCode)!);
   if (!isTierStructureValid(merged)) {
-    logWarn('subscriptionPackages pricing tiers are invalid; fallback to defaults', {
-      tiers: merged,
-    });
-    return [...DEFAULT_BILLING_PRICING_TIERS];
+    throw new Error(
+      'subscriptionPackages pricing tiers are invalid. Check min/max boundaries and order.',
+    );
   }
   return merged;
-}
-
-function defaultTierForPlanCode(planCode: BillingPlanCode): BillingTierPricing {
-  const matched = DEFAULT_BILLING_PRICING_TIERS.find((tier) => tier.planCode === planCode);
-  return (
-    matched ?? {
-      planCode,
-      minMembers: 0,
-      maxMembers: null,
-      priceVndYear: 0,
-      vatIncluded: true,
-      showAds: true,
-      adFree: false,
-    }
-  );
 }
 
 function isTierStructureValid(tiers: Array<BillingTierPricing>): boolean {
@@ -341,17 +381,49 @@ function readBoolean(value: unknown, fallback: boolean): boolean {
   return fallback;
 }
 
-function readNumber(value: unknown, fallback: number): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.trunc(value);
+function readOptionalBoolean(value: unknown): boolean | null {
+  if (typeof value === 'boolean') {
+    return value;
   }
   if (typeof value === 'string') {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return Math.trunc(parsed);
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+      return true;
+    }
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+      return false;
     }
   }
-  return fallback;
+  return null;
+}
+
+function readRequiredBoolean(value: unknown, fieldPath: string): boolean {
+  const parsed = readOptionalBoolean(value);
+  if (parsed == null) {
+    throw new Error(`subscriptionPackages field ${fieldPath} must be boolean.`);
+  }
+  return parsed;
+}
+
+function readRequiredNonNegativeInt(value: unknown, fieldPath: string): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const normalized = Math.trunc(value);
+    if (normalized < 0) {
+      throw new Error(`subscriptionPackages field ${fieldPath} must be >= 0.`);
+    }
+    return normalized;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) {
+      const normalized = Math.trunc(parsed);
+      if (normalized < 0) {
+        throw new Error(`subscriptionPackages field ${fieldPath} must be >= 0.`);
+      }
+      return normalized;
+    }
+  }
+  throw new Error(`subscriptionPackages field ${fieldPath} must be a number.`);
 }
 
 function readString(value: unknown): string {
@@ -360,13 +432,17 @@ function readString(value: unknown): string {
 
 function normalizeNullableMemberCount(
   value: unknown,
-  fallback: number | null,
+  fieldPath: string,
 ): number | null {
   if (value == null) {
-    return fallback;
+    return null;
   }
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.max(0, Math.trunc(value));
+    const normalized = Math.trunc(value);
+    if (normalized < 0) {
+      throw new Error(`subscriptionPackages field ${fieldPath} must be >= 0 or null.`);
+    }
+    return normalized;
   }
   if (typeof value === 'string') {
     const trimmed = value.trim().toLowerCase();
@@ -375,10 +451,14 @@ function normalizeNullableMemberCount(
     }
     const parsed = Number(trimmed);
     if (Number.isFinite(parsed)) {
-      return Math.max(0, Math.trunc(parsed));
+      const normalized = Math.trunc(parsed);
+      if (normalized < 0) {
+        throw new Error(`subscriptionPackages field ${fieldPath} must be >= 0 or null.`);
+      }
+      return normalized;
     }
   }
-  return fallback;
+  throw new Error(`subscriptionPackages field ${fieldPath} must be a number or null.`);
 }
 
 function resolvePricingCacheMs(): number {

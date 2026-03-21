@@ -1,0 +1,122 @@
+name: Mobile E2E
+
+on:
+  pull_request:
+    branches:
+      - staging
+      - main
+    paths:
+      - mobile/befam/**
+      - firebase/functions/scripts/seed-debug-login-profiles.mjs
+      - scripts/run_mobile_e2e.sh
+      - .github/workflows/mobile-e2e.yml
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "E2E mode"
+        required: true
+        default: "debug"
+        type: choice
+        options:
+          - debug
+          - live
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  E2E_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode || 'debug' }}
+
+jobs:
+  e2e-android:
+    name: e2e-android
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Run Android E2E
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          BEFAM_E2E_ANDROID_DEVICE: emulator-5554
+          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            chmod +x scripts/run_mobile_e2e.sh
+            ./scripts/run_mobile_e2e.sh "${E2E_MODE}" android
+
+      - name: Upload Android E2E artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-e2e-android-${{ github.run_id }}
+          path: |
+            mobile/befam/artifacts/**
+            mobile/befam/integration_test/screenshots/**
+          if-no-files-found: ignore
+
+  e2e-ios:
+    name: e2e-ios
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Boot iOS simulator
+        run: |
+          set -euo pipefail
+          SIM_NAME="$(xcrun simctl list devices available | grep -m1 "iPhone 16" | sed -E 's/^[[:space:]]*([^()]*)[[:space:]]*\\(([-A-F0-9]+)\\).*/\\2/')"
+          if [[ -z "${SIM_NAME}" ]]; then
+            echo "Unable to resolve an iPhone simulator UDID."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          xcrun simctl boot "${SIM_NAME}" || true
+          open -a Simulator || true
+          echo "BEFAM_E2E_IOS_DEVICE=${SIM_NAME}" >> "$GITHUB_ENV"
+
+      - name: Run iOS E2E
+        env:
+          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+        run: |
+          chmod +x scripts/run_mobile_e2e.sh
+          ./scripts/run_mobile_e2e.sh "${E2E_MODE}" ios
+
+      - name: Upload iOS E2E artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-e2e-ios-${{ github.run_id }}
+          path: |
+            mobile/befam/artifacts/**
+            mobile/befam/integration_test/screenshots/**
+          if-no-files-found: ignore

@@ -707,7 +707,7 @@ class DebugBillingRepository implements BillingRepository {
         planCode: 'BASE',
         minMembers: 11,
         maxMembers: 200,
-        priceVndYear: 49000,
+        priceVndYear: 99000,
         showAds: true,
       );
     }
@@ -716,7 +716,7 @@ class DebugBillingRepository implements BillingRepository {
         planCode: 'PLUS',
         minMembers: 201,
         maxMembers: 700,
-        priceVndYear: 89000,
+        priceVndYear: 199000,
         showAds: false,
       );
     }
@@ -724,7 +724,7 @@ class DebugBillingRepository implements BillingRepository {
       planCode: 'PRO',
       minMembers: 701,
       maxMembers: null,
-      priceVndYear: 119000,
+      priceVndYear: 299000,
       showAds: false,
     );
   }
@@ -736,7 +736,7 @@ class DebugBillingRepository implements BillingRepository {
         planCode: 'BASE',
         minMembers: 11,
         maxMembers: 200,
-        priceVndYear: 49000,
+        priceVndYear: 99000,
         showAds: true,
       );
     }
@@ -745,7 +745,7 @@ class DebugBillingRepository implements BillingRepository {
         planCode: 'PLUS',
         minMembers: 201,
         maxMembers: 700,
-        priceVndYear: 89000,
+        priceVndYear: 199000,
         showAds: false,
       );
     }
@@ -754,7 +754,7 @@ class DebugBillingRepository implements BillingRepository {
         planCode: 'PRO',
         minMembers: 701,
         maxMembers: null,
-        priceVndYear: 119000,
+        priceVndYear: 299000,
         showAds: false,
       );
     }
@@ -876,21 +876,21 @@ class _DebugBillingState {
         planCode: 'BASE',
         minMembers: 11,
         maxMembers: 200,
-        priceVndYear: 49000,
+        priceVndYear: 99000,
         showAds: true,
       ),
       const _PricingTier(
         planCode: 'PLUS',
         minMembers: 201,
         maxMembers: 700,
-        priceVndYear: 89000,
+        priceVndYear: 199000,
         showAds: false,
       ),
       const _PricingTier(
         planCode: 'PRO',
         minMembers: 701,
         maxMembers: null,
-        priceVndYear: 119000,
+        priceVndYear: 299000,
         showAds: false,
       ),
     ].map((tier) => tier.toPricing()).toList(growable: false);
