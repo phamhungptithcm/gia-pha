@@ -9,8 +9,8 @@ class AuthPageObject {
   final WidgetTester tester;
 
   Future<void> verifyPrivacyGateBlocksLoginUntilAccepted() async {
-    final phoneButton = find.widgetWithText(FilledButton, 'Dùng số điện thoại');
-    final childButton = find.widgetWithText(OutlinedButton, 'Dùng mã trẻ em');
+    final phoneButton = find.byKey(const Key('auth-method-phone-button'));
+    final childButton = find.byKey(const Key('auth-method-child-button'));
     await waitForFinder(
       tester,
       phoneButton,
@@ -22,8 +22,18 @@ class AuthPageObject {
       reason: 'Không thấy nút đăng nhập mã trẻ em.',
     );
 
-    expect(tester.widget<FilledButton>(phoneButton).enabled, isFalse);
-    expect(tester.widget<OutlinedButton>(childButton).enabled, isFalse);
+    final phoneWidget = tester.widget(phoneButton.first);
+    final childWidget = tester.widget(childButton.first);
+    expect(
+      phoneWidget is FilledButton && phoneWidget.onPressed == null,
+      isTrue,
+      reason: 'Nút số điện thoại phải bị khóa khi chưa đồng ý chính sách.',
+    );
+    expect(
+      childWidget is OutlinedButton && childWidget.onPressed == null,
+      isTrue,
+      reason: 'Nút mã trẻ em phải bị khóa khi chưa đồng ý chính sách.',
+    );
   }
 
   Future<void> loginByPhone(String phoneInput) async {

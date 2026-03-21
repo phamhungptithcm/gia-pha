@@ -490,6 +490,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 _MethodActionButton(
+                  buttonKey: const Key('auth-method-phone-button'),
                   title: l10n.authMethodPhoneButton,
                   icon: Icons.phone_iphone,
                   filled: true,
@@ -499,6 +500,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 _MethodActionButton(
+                  buttonKey: const Key('auth-method-child-button'),
                   title: l10n.authMethodChildButton,
                   icon: Icons.child_care,
                   filled: false,
@@ -524,12 +526,14 @@ class _LoginMethodSelectionCard extends StatelessWidget {
 
 class _MethodActionButton extends StatelessWidget {
   const _MethodActionButton({
+    required this.buttonKey,
     required this.title,
     required this.icon,
     required this.filled,
     required this.onPressed,
   });
 
+  final Key buttonKey;
   final String title;
   final IconData icon;
   final bool filled;
@@ -557,6 +561,7 @@ class _MethodActionButton extends StatelessWidget {
       return SizedBox(
         width: double.infinity,
         child: FilledButton(
+          key: buttonKey,
           onPressed: onPressed,
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -568,6 +573,7 @@ class _MethodActionButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(
+        key: buttonKey,
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -727,6 +733,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
+                        key: const Key('auth-phone-input'),
                         controller: _controller,
                         keyboardType: TextInputType.phone,
                         textInputAction: TextInputAction.done,
@@ -757,6 +764,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
+              key: const Key('auth-send-otp-button'),
               onPressed: widget.isBusy
                   ? null
                   : () {
@@ -822,6 +830,7 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextField(
+            key: const Key('auth-child-code-input'),
             controller: _controller,
             enabled: !widget.isBusy,
             textInputAction: TextInputAction.done,
@@ -840,6 +849,7 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
+              key: const Key('auth-child-continue-button'),
               onPressed: widget.isBusy
                   ? null
                   : () => widget.onSubmit(_controller.text),

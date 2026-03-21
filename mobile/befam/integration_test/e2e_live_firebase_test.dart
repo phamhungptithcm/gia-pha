@@ -43,17 +43,37 @@ void main() {
       await safePumpAndSettle(tester);
 
       await acceptPrivacyPolicy(tester);
-      await tapText(tester, 'Dùng số điện thoại');
-      await tester.enterText(find.byType(TextField).first, liveTestPhone);
+      final phoneMethodFinder = await waitForAnyFinder(tester, [
+        find.byKey(const Key('auth-method-phone-button')),
+        find.widgetWithText(FilledButton, 'Dùng số điện thoại'),
+        find.widgetWithText(FilledButton, 'Use phone number'),
+      ]);
+      await tester.tap(phoneMethodFinder.last);
       await safePumpAndSettle(tester);
-      await tester.tap(find.widgetWithText(FilledButton, 'Gửi OTP'));
+
+      final phoneInputFinder = await waitForAnyFinder(tester, [
+        find.byKey(const Key('auth-phone-input')),
+        find.byType(TextField),
+      ]);
+      await tester.enterText(phoneInputFinder.first, liveTestPhone);
+      await safePumpAndSettle(tester);
+
+      final sendOtpFinder = await waitForAnyFinder(tester, [
+        find.byKey(const Key('auth-send-otp-button')),
+        find.widgetWithText(FilledButton, 'Gửi OTP'),
+        find.widgetWithText(FilledButton, 'Send OTP'),
+      ]);
+      await tester.tap(sendOtpFinder.first);
 
       await waitForFinder(
         tester,
         find.byKey(const Key('otp-code-input')),
         reason: 'Live flow không tới màn OTP.',
       );
-      await tester.enterText(find.byKey(const Key('otp-code-input')), liveTestOtp);
+      await tester.enterText(
+        find.byKey(const Key('otp-code-input')),
+        liveTestOtp,
+      );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 700));
       await safePumpAndSettle(tester);
@@ -86,10 +106,10 @@ void main() {
         reason: 'Cross-clan read query phải bị từ chối bởi rules.',
       );
       if (securityError is FirebaseException) {
-        expect(
-          <String>{'permission-denied', 'failed-precondition'},
-          contains(securityError.code),
-        );
+        expect(<String>{
+          'permission-denied',
+          'failed-precondition',
+        }, contains(securityError.code));
       }
 
       await captureScreenshotSafe(binding, 'e2e-live-firebase-shell');
