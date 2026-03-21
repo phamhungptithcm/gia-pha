@@ -1,4 +1,4 @@
-name: Mobile E2E
+name: CI - Mobile E2E (PR/Manual)
 
 on:
   pull_request:

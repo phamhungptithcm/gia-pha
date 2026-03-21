@@ -1,0 +1,203 @@
+name: CD - Deploy Staging
+
+on:
+  push:
+    branches:
+      - staging
+    paths:
+      - "firebase.json"
+      - "firebase/**"
+      - ".firebaserc"
+      - "mobile/befam/**"
+      - ".github/workflows/deploy-staging.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-staging-firebase:
+    name: Deploy Firebase (Staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud (OIDC)
+        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT_EMAIL != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up gcloud (OIDC mode)
+        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT_EMAIL != '' }}
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Write Firebase credentials (fallback key mode)
+        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER == '' || secrets.GCP_SERVICE_ACCOUNT_EMAIL == '' }}
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
+          credentials_path="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$credentials_path"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$credentials_path" >> "$GITHUB_ENV"
+          echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+
+      - name: Export Firebase project env (OIDC mode)
+        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT_EMAIL != '' }}
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
+          test -n "$project"
+          echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: firebase/functions/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: firebase/functions
+        run: npm ci
+
+      - name: Build Functions
+        working-directory: firebase/functions
+        run: npm run build
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Sync runtime config document
+        working-directory: firebase/functions
+        run: node scripts/upsert-runtime-config.mjs
+
+      - name: Deploy Firestore, Storage, and Functions
+        run: >
+          firebase deploy
+          --project "${FIREBASE_PROJECT_ID}"
+          --non-interactive
+          --only firestore:rules,firestore:indexes,storage,functions
+
+  deploy-staging-web:
+    name: Deploy Web Hosting (Staging)
+    needs: deploy-staging-firebase
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+    defaults:
+      run:
+        working-directory: mobile/befam
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud (OIDC)
+        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT_EMAIL != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up gcloud (OIDC mode)
+        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT_EMAIL != '' }}
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Write Firebase credentials (fallback key mode)
+        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER == '' || secrets.GCP_SERVICE_ACCOUNT_EMAIL == '' }}
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
+          test -n "${FIREBASE_SERVICE_ACCOUNT:-}"
+          credentials_path="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$credentials_path"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$credentials_path" >> "$GITHUB_ENV"
+          echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+
+      - name: Export Firebase project env (OIDC mode)
+        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT_EMAIL != '' }}
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
+          test -n "$project"
+          echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Generate localization files
+        run: flutter gen-l10n
+
+      - name: Build Flutter web
+        env:
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+          BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
+          BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
+          BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
+        run: |
+          befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
+          befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          flutter build web \
+            --release \
+            --no-wasm-dry-run \
+            --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
+            --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
+            --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
+            --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
+            --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
+            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Deploy Firebase Hosting
+        env:
+          FIREBASE_HOSTING_TARGET: ${{ vars.FIREBASE_HOSTING_TARGET }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID}"
+          target="${FIREBASE_HOSTING_TARGET:-}"
+          if [ -n "$target" ]; then
+            firebase deploy --project "$project" --non-interactive --only "hosting:${target}"
+          else
+            firebase deploy --project "$project" --non-interactive --only hosting
+          fi

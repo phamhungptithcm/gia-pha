@@ -1,4 +1,4 @@
-name: Weekly Release Promotion
+name: Ops - Promote Staging to Main
 
 on:
   schedule:
@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   promote-staging:
+    name: Create or refresh staging -> main release PR
     runs-on: ubuntu-latest
     steps:
       - name: Create or refresh release pull request
@@ -42,7 +43,7 @@ jobs:
             echo "Automated weekly promotion from \`staging\` to \`main\`."
             echo
             echo "- Generated on ${release_date}"
-            echo "- Approval and Branch CI checks are still required before production merge"
+            echo "- Approval and CI - Branch Quality Gates checks are still required before production merge"
             echo "- Auto-merge is armed so the PR merges as soon as approval and checks are both satisfied"
             echo
             echo "## Included commits"

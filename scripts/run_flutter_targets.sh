@@ -73,8 +73,9 @@ Examples:
 Notes:
   - The script auto-injects `--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true`
     unless you override it explicitly in extra Flutter args.
-  - Any exported `BEFAM_FIREBASE_*` env value will also be forwarded as `--dart-define`
-    so you can point to a different Firebase project without changing source files.
+  - Any exported supported `BEFAM_*` env value (Firebase/app-check/billing/store links)
+    will also be forwarded as `--dart-define` so you can switch runtime setup
+    without changing source files.
   - For AAB build targets, you can override version metadata with:
       BEFAM_BUILD_NAME=1.2.3
       BEFAM_BUILD_NUMBER=123
@@ -482,6 +483,8 @@ build_befam_dart_define_args() {
     BEFAM_ENABLE_APP_CHECK
     BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
     BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+    BEFAM_IOS_APP_STORE_URL
+    BEFAM_ANDROID_PLAY_STORE_URL
   )
 
   local key=""

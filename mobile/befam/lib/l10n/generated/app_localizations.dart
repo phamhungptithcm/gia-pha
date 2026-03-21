@@ -3605,43 +3605,43 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingBadge.
   ///
   /// In vi, this message translates to:
-  /// **'Nền tảng gia phả hiện đại'**
+  /// **'Nền tảng gia phả số cho dòng tộc hiện đại'**
   String get webLandingBadge;
 
   /// No description provided for @webLandingTitle.
   ///
   /// In vi, this message translates to:
-  /// **'BeFam giúp gia đình kết nối dữ liệu gia phả, sự kiện và quỹ trong một không gian thống nhất.'**
+  /// **'Giữ cội nguồn sống trong đời sống hiện đại.'**
   String get webLandingTitle;
 
   /// No description provided for @webLandingSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'Từ cây gia phả nhiều thế hệ đến lịch ngày giỗ, BeFam giúp ban điều hành và từng thành viên theo dõi thông tin rõ ràng, nhất quán và dễ dùng.'**
+  /// **'BeFam kết nối gia phả, sự kiện, quỹ họ và quản trị thành viên trong một không gian dữ liệu thống nhất.'**
   String get webLandingSubtitle;
 
   /// No description provided for @webLandingPrimaryCta.
   ///
   /// In vi, this message translates to:
-  /// **'Bắt đầu với BeFam'**
+  /// **'Mở ứng dụng'**
   String get webLandingPrimaryCta;
 
   /// No description provided for @webLandingSecondaryCta.
   ///
   /// In vi, this message translates to:
-  /// **'Tìm hiểu về BeFam'**
+  /// **'Xem câu chuyện BeFam'**
   String get webLandingSecondaryCta;
 
   /// No description provided for @webLandingHighlightTitle.
   ///
   /// In vi, this message translates to:
-  /// **'Quản trị họ tộc minh bạch'**
+  /// **'Vận hành dòng tộc rõ ràng và an toàn'**
   String get webLandingHighlightTitle;
 
   /// No description provided for @webLandingHighlightDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Theo dõi thành viên, kế hoạch sự kiện, gói dịch vụ và quyền truy cập trên cùng một nền tảng.'**
+  /// **'Theo dõi thành viên, sự kiện, tài chính và quyền truy cập theo vai trò trên cùng một hệ thống.'**
   String get webLandingHighlightDescription;
 
   /// No description provided for @webLandingFeatureTreeTitle.
@@ -3653,7 +3653,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingFeatureTreeDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Xem cây họ theo chi, đời và quan hệ để dễ quản lý thông tin tổ tiên - hậu duệ.'**
+  /// **'Quản lý quan hệ huyết thống theo chi, đời và vai vế để mọi thế hệ dễ tra cứu và cập nhật.'**
   String get webLandingFeatureTreeDescription;
 
   /// No description provided for @webLandingFeatureEventsTitle.
@@ -3665,7 +3665,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingFeatureEventsDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Lưu lịch họp họ, ngày giỗ, nhắc lịch quan trọng và trạng thái tham gia của thành viên.'**
+  /// **'Theo dõi lịch giỗ, lễ họp và các mốc quan trọng với nhắc lịch chủ động cho thành viên.'**
   String get webLandingFeatureEventsDescription;
 
   /// No description provided for @webLandingFeatureBillingTitle.
@@ -3677,7 +3677,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingFeatureBillingDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Theo dõi gói đang dùng, gia hạn và lịch sử thanh toán ngay trong BeFam.'**
+  /// **'Quản lý gói dịch vụ, gia hạn và trạng thái thanh toán minh bạch trên một luồng thống nhất.'**
   String get webLandingFeatureBillingDescription;
 
   /// No description provided for @webAboutTitle.
@@ -3689,7 +3689,7 @@ abstract class AppLocalizations {
   /// No description provided for @webAboutSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'BeFam được xây dựng để gìn giữ ký ức gia đình, hỗ trợ quản trị họ tộc minh bạch và gắn kết nhiều thế hệ trên cùng nền tảng số.'**
+  /// **'BeFam ra đời từ trăn trở giữ kết nối họ tộc khi con cháu học tập, làm việc và sinh sống ở nhiều nơi trên thế giới.'**
   String get webAboutSubtitle;
 
   /// No description provided for @webAboutMissionTitle.
@@ -3701,7 +3701,7 @@ abstract class AppLocalizations {
   /// No description provided for @webAboutMissionDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Giúp mỗi họ tộc số hóa dữ liệu gia đình một cách dễ hiểu, dễ dùng và bền vững.'**
+  /// **'Giúp mỗi dòng họ số hóa dữ liệu gia đình dễ hiểu, dễ dùng và bền vững theo thời gian.'**
   String get webAboutMissionDescription;
 
   /// No description provided for @webAboutVisionTitle.
@@ -3713,7 +3713,7 @@ abstract class AppLocalizations {
   /// No description provided for @webAboutVisionDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Trở thành nền tảng gia phả số đáng tin cậy cho các cộng đồng gia đình Việt Nam.'**
+  /// **'Trở thành nền tảng vận hành họ tộc đáng tin cậy cho cộng đồng gia đình Việt trên toàn cầu.'**
   String get webAboutVisionDescription;
 
   /// No description provided for @webAboutTrustTitle.
@@ -3725,7 +3725,7 @@ abstract class AppLocalizations {
   /// No description provided for @webAboutTrustDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Ưu tiên tính chính xác dữ liệu, minh bạch quyền truy cập và trải nghiệm đồng nhất trên mọi thiết bị.'**
+  /// **'Ưu tiên bảo mật dữ liệu, minh bạch quyền truy cập và trải nghiệm nhất quán trên mọi thiết bị.'**
   String get webAboutTrustDescription;
 
   /// No description provided for @webInfoTitle.
@@ -3737,7 +3737,7 @@ abstract class AppLocalizations {
   /// No description provided for @webInfoSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'Tổng quan nhanh về những gì BeFam đang cung cấp cho quản trị gia phả và hoạt động gia đình.'**
+  /// **'Tổng quan những gì BeFam đang cung cấp để quản trị gia phả, kết nối thành viên và vận hành họ tộc hiệu quả.'**
   String get webInfoSubtitle;
 
   /// No description provided for @webInfoGenealogyTitle.
@@ -3749,7 +3749,7 @@ abstract class AppLocalizations {
   /// No description provided for @webInfoGenealogyDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Theo dõi hồ sơ thành viên, quan hệ huyết thống, nhánh chi và thông tin thế hệ trên một cấu trúc thống nhất.'**
+  /// **'Theo dõi hồ sơ thành viên, quan hệ huyết thống, nhánh chi và thông tin thế hệ trong cùng một cấu trúc dữ liệu.'**
   String get webInfoGenealogyDescription;
 
   /// No description provided for @webInfoNotificationsTitle.
@@ -3761,7 +3761,7 @@ abstract class AppLocalizations {
   /// No description provided for @webInfoNotificationsDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng trong phạm vi gia tộc.'**
+  /// **'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng để không bỏ sót mốc cần theo dõi.'**
   String get webInfoNotificationsDescription;
 
   /// No description provided for @webInfoBillingTitle.
@@ -3773,19 +3773,19 @@ abstract class AppLocalizations {
   /// No description provided for @webInfoBillingDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Quản lý quyền lợi theo gói, trạng thái hiệu lực và luồng thanh toán cho tổ chức gia phả.'**
+  /// **'Quản lý quyền lợi theo gói, trạng thái hiệu lực và thanh toán theo quy tắc rõ ràng, dễ kiểm soát.'**
   String get webInfoBillingDescription;
 
   /// No description provided for @webInfoHighlightsTitle.
   ///
   /// In vi, this message translates to:
-  /// **'Điểm nổi bật hiện tại'**
+  /// **'Điểm nổi bật của nền tảng'**
   String get webInfoHighlightsTitle;
 
   /// No description provided for @webInfoHighlightsItemOne.
   ///
   /// In vi, this message translates to:
-  /// **'Hỗ trợ tiếng Việt/English đồng bộ theo cấu hình người dùng.'**
+  /// **'Hỗ trợ tiếng Việt và tiếng Anh theo cấu hình người dùng.'**
   String get webInfoHighlightsItemOne;
 
   /// No description provided for @webInfoHighlightsItemTwo.
@@ -3797,7 +3797,7 @@ abstract class AppLocalizations {
   /// No description provided for @webInfoHighlightsItemThree.
   ///
   /// In vi, this message translates to:
-  /// **'Kiến trúc Flutter + Firebase giúp mở rộng tính năng nhanh và nhất quán.'**
+  /// **'Kiến trúc Flutter + Firebase giúp mở rộng nhanh, ổn định và nhất quán.'**
   String get webInfoHighlightsItemThree;
 }
 

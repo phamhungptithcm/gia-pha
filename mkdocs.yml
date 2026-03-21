@@ -74,6 +74,7 @@ nav:
           - Thông báo: vi/04-backend/notifications.md
       - DevOps:
           - CI/CD: vi/05-devops/ci-cd.md
+          - Tăng cường Production CI/CD: vi/05-devops/ci-cd-production-hardening.md
           - Cấu hình Production: vi/05-devops/production-configuration.md
           - Test Plan trước release: vi/05-devops/release-test-plan.md
           - Test Execution Sheet: vi/05-devops/release-test-execution-guide.md
@@ -113,6 +114,7 @@ nav:
           - Notifications: en/04-backend/notifications.md
       - DevOps:
           - CI/CD: en/05-devops/ci-cd.md
+          - Production Hardening: en/05-devops/ci-cd-production-hardening.md
           - Production Configuration: en/05-devops/production-configuration.md
           - Pre-Release QA Checklist: en/05-devops/pre-release-qa-checklist.md
       - Security:

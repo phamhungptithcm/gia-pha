@@ -1,4 +1,4 @@
-name: Deploy Docs
+name: CD - Deploy Docs (GitHub Pages)
 
 on:
   push:
@@ -9,9 +9,6 @@ on:
       - "mkdocs.yml"
       - "requirements-docs.txt"
       - ".github/workflows/deploy-docs.yml"
-  release:
-    types:
-      - published
   workflow_dispatch:
 
 permissions:

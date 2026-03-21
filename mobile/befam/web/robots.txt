@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://be-fam-3ab23.web.app/sitemap.xml

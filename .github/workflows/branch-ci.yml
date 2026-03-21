@@ -1,4 +1,4 @@
-name: Branch CI
+name: CI - Branch Quality Gates
 
 on:
   pull_request:
@@ -6,8 +6,7 @@ on:
       - staging
       - main
   push:
-    branches:
-      - staging
+    branches-ignore:
       - main
   workflow_dispatch:
 
@@ -290,3 +289,90 @@ jobs:
             --build-arg VCS_REF="${GITHUB_SHA}" \
             --tag befam-mobile-builder:test \
             .
+
+  security-dependency-review:
+    name: security-dependency-review
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  security-trivy-fs:
+    name: security-trivy-fs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          format: sarif
+          output: trivy-fs.sarif
+
+      - name: Upload Trivy security report
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+
+  security-gitleaks:
+    name: security-gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  security-trivy-images:
+    name: security-trivy-images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build Firebase tooling image for scan
+        run: docker build --file docker/firebase-tools.Dockerfile --tag befam-firebase-tools:scan .
+
+      - name: Build mobile builder image for scan
+        run: docker build --file Dockerfile --tag befam-mobile-builder:scan .
+
+      - name: Scan Firebase tooling image
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          scan-type: image
+          image-ref: befam-firebase-tools:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Scan mobile builder image
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          scan-type: image
+          image-ref: befam-mobile-builder:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"

@@ -20,37 +20,36 @@ Both `staging` and `main` require:
 
 - pull request merge only (no direct push)
 - at least one reviewer approval
-- required status checks from Branch CI:
+- required status checks from `CI - Branch Quality Gates`:
   - `ci-docs`
   - `ci-functions`
   - `ci-mobile`
 
 ## 3. Workflow inventory
 
-### `branch-ci.yml`
+### `branch-ci.yml` (`CI - Branch Quality Gates`)
 
-Runs on PR/push for `staging` and `main`:
+Runs on PR/push for `dev`, `staging`, and `main`:
 
 - strict docs build
 - functions install + build
 - Flutter analyze + test + Android release build
 - Docker image build checks for mobile and Firebase tooling
+- dependency review + Trivy (filesystem + image) + gitleaks
 
-### `docs-ci.yml`
+### `mobile-e2e.yml` (`CI - Mobile E2E (PR/Manual)`)
 
-Runs on docs changes (PR and non-main pushes) and enforces
-`mkdocs build --strict`.
+Runs Android + iOS end-to-end checks for mobile-focused pull requests and manual dispatch.
 
-### `deploy-docs.yml`
+### `deploy-docs.yml` (`CD - Deploy Docs (GitHub Pages)`)
 
 Publishes MkDocs site to GitHub Pages from `main`.
 
-### `deploy-firebase.yml`
+### `deploy-staging.yml` (`CD - Deploy Staging`)
 
-Deploys Firestore rules/indexes, Storage rules, and Functions from `main`
-using credentials from the GitHub `production` environment.
+Deploys Firebase resources and hosting to the staging environment.
 
-### `release-main.yml`
+### `release-main.yml` (`CD - Release Main`)
 
 On `main` pushes:
 
@@ -59,12 +58,26 @@ On `main` pushes:
 - generates friendly release notes
 - builds Android release AAB
 - builds signed iOS IPA artifact
-- publishes GitHub release with artifacts
+- builds immutable web release bundle
+- publishes GitHub release with artifacts, checksums, and manifest
 - builds/pushes GHCR images:
   - `befam-mobile-builder`
   - `befam-firebase-tools`
 
-### `weekly-release-promotion.yml`
+### `deploy-firebase.yml` (`CD - Deploy Firebase (Production)`)
+
+Deploys Firestore rules/indexes, Storage rules, and Functions from `main`
+using credentials from the GitHub `production` environment.
+
+### `deploy-web-hosting.yml` (`CD - Deploy Web Hosting (Production)`)
+
+Deploys production hosting from immutable release assets.
+
+### `rollback-production.yml` (`CD - Rollback Production`)
+
+Manual rollback to a selected release tag.
+
+### `weekly-release-promotion.yml` (`Ops - Promote Staging to Main`)
 
 Every Monday at 14:00 UTC (and manual dispatch):
 
@@ -72,7 +85,7 @@ Every Monday at 14:00 UTC (and manual dispatch):
 - creates/refreshes production promotion PR
 - enables auto-merge once approval + CI are satisfied
 
-### `release-issue-closure.yml`
+### `release-issue-closure.yml` (`Ops - Close Released Issues`)
 
 When a PR is merged into `main`:
 
