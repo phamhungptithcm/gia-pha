@@ -591,6 +591,7 @@ class _FounderContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final textTheme = Theme.of(context).textTheme;
     return Card(
       child: Padding(
@@ -603,7 +604,7 @@ class _FounderContactCard extends StatelessWidget {
                 const Icon(Icons.person_rounded, size: 30),
                 const SizedBox(width: 14),
                 Text(
-                  'Thông tin liên hệ',
+                  l10n.pick(vi: 'Thông tin liên hệ', en: 'Contact information'),
                   style: textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -701,7 +702,10 @@ class _WebFooter extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 20),
       child: Text(
-        'Copyright © $year BeFam. All rights reserved.',
+        context.l10n.pick(
+          vi: 'Copyright © $year BeFam. Đã đăng ký bản quyền.',
+          en: 'Copyright © $year BeFam. All rights reserved.',
+        ),
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodyMedium,
       ),

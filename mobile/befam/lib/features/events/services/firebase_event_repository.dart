@@ -84,7 +84,7 @@ class FirebaseEventRepository implements EventRepository {
   Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchPagedDocuments(
     Query<Map<String, dynamic>> baseQuery, {
     int pageSize = 250,
-    int maxDocuments = 5000,
+    int maxDocuments = 2000,
   }) async {
     final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
     QueryDocumentSnapshot<Map<String, dynamic>>? cursor;

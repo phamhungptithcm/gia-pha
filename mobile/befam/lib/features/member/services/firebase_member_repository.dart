@@ -78,7 +78,7 @@ class FirebaseMemberRepository implements MemberRepository {
   _fetchPagedDocuments(
     Query<Map<String, dynamic>> baseQuery, {
     int pageSize = 200,
-    int maxDocuments = 2500,
+    int maxDocuments = 1500,
   }) async {
     final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
     QueryDocumentSnapshot<Map<String, dynamic>>? cursor;

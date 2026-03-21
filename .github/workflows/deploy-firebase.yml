@@ -82,11 +82,14 @@ jobs:
           BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE: ${{ vars.BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE }}
           BILLING_DELINQUENCY_JOB_SCHEDULE: ${{ vars.BILLING_DELINQUENCY_JOB_SCHEDULE }}
           BILLING_PENDING_TIMEOUT_JOB_SCHEDULE: ${{ vars.BILLING_PENDING_TIMEOUT_JOB_SCHEDULE }}
+          BILLING_CONTACT_NOTICE_JOB_SCHEDULE: ${{ vars.BILLING_CONTACT_NOTICE_JOB_SCHEDULE }}
           BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BILLING_PENDING_TIMEOUT_MINUTES }}
           BILLING_PENDING_TIMEOUT_LIMIT: ${{ vars.BILLING_PENDING_TIMEOUT_LIMIT }}
           BILLING_DELINQUENCY_GRACE_DAYS: ${{ vars.BILLING_DELINQUENCY_GRACE_DAYS }}
           BILLING_DELINQUENCY_LIMIT: ${{ vars.BILLING_DELINQUENCY_LIMIT }}
           BILLING_DELINQUENCY_REMINDER_DAYS: ${{ vars.BILLING_DELINQUENCY_REMINDER_DAYS }}
+          BILLING_CONTACT_NOTICE_BATCH_LIMIT: ${{ vars.BILLING_CONTACT_NOTICE_BATCH_LIMIT }}
+          BILLING_CONTACT_NOTICE_REQUIRE_ENDPOINTS: ${{ vars.BILLING_CONTACT_NOTICE_REQUIRE_ENDPOINTS }}
           BILLING_ALLOW_MANUAL_SETTLEMENT: ${{ vars.BILLING_ALLOW_MANUAL_SETTLEMENT }}
           BILLING_ENABLE_LEGACY_CARD_FLOW: ${{ vars.BILLING_ENABLE_LEGACY_CARD_FLOW }}
           BILLING_CARD_CHECKOUT_URL_BASE: ${{ vars.BILLING_CARD_CHECKOUT_URL_BASE }}
@@ -102,6 +105,7 @@ jobs:
           BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS: ${{ vars.BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS }}
           BILLING_CONTACT_SMS_WEBHOOK_URL: ${{ vars.BILLING_CONTACT_SMS_WEBHOOK_URL }}
           BILLING_CONTACT_EMAIL_WEBHOOK_URL: ${{ vars.BILLING_CONTACT_EMAIL_WEBHOOK_URL }}
+          CALLABLE_ENFORCE_APP_CHECK: ${{ vars.CALLABLE_ENFORCE_APP_CHECK }}
           OTP_PROVIDER: ${{ vars.OTP_PROVIDER }}
           OTP_ALLOWED_DIAL_CODES: ${{ vars.OTP_ALLOWED_DIAL_CODES }}
           OTP_TWILIO_VERIFY_SERVICE_SID: ${{ vars.OTP_TWILIO_VERIFY_SERVICE_SID }}
@@ -162,8 +166,11 @@ jobs:
           resolved_reminder_schedule="${BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE:-0 7 * * *}"
           resolved_delinquency_schedule="${BILLING_DELINQUENCY_JOB_SCHEDULE:-0 8 * * *}"
           resolved_pending_schedule="${BILLING_PENDING_TIMEOUT_JOB_SCHEDULE:-*/5 * * * *}"
+          resolved_contact_notice_schedule="${BILLING_CONTACT_NOTICE_JOB_SCHEDULE:-*/10 * * * *}"
           resolved_pending_minutes="${BILLING_PENDING_TIMEOUT_MINUTES:-20}"
           resolved_pending_limit="${BILLING_PENDING_TIMEOUT_LIMIT:-800}"
+          resolved_contact_notice_batch_limit="${BILLING_CONTACT_NOTICE_BATCH_LIMIT:-200}"
+          resolved_contact_notice_require_endpoints="${BILLING_CONTACT_NOTICE_REQUIRE_ENDPOINTS:-false}"
           resolved_contact_notice_timeout_ms="${BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS:-6000}"
           resolved_contact_notice_max_retries="${BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES:-2}"
           resolved_contact_notice_backoff_ms="${BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS:-300}"
@@ -180,6 +187,7 @@ jobs:
           resolved_delinquency_reminder_days="${BILLING_DELINQUENCY_REMINDER_DAYS:-7,3,1}"
           resolved_allow_manual_settlement="${BILLING_ALLOW_MANUAL_SETTLEMENT:-false}"
           resolved_enable_legacy_card_flow="${BILLING_ENABLE_LEGACY_CARD_FLOW:-false}"
+          resolved_callable_enforce_app_check="${CALLABLE_ENFORCE_APP_CHECK:-true}"
           resolved_notification_push_enabled="${NOTIFICATION_PUSH_ENABLED:-true}"
           resolved_notification_email_enabled="${NOTIFICATION_EMAIL_ENABLED:-false}"
           resolved_notification_email_collection="${NOTIFICATION_EMAIL_COLLECTION:-mail}"
@@ -222,6 +230,14 @@ jobs:
             true|false|1|0|yes|no) ;;
             *) echo "Unsupported NOTIFICATION_ALLOW_NON_OTP_SMS: $resolved_notification_allow_non_otp_sms"; exit 1 ;;
           esac
+          case "$resolved_contact_notice_require_endpoints" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported BILLING_CONTACT_NOTICE_REQUIRE_ENDPOINTS: $resolved_contact_notice_require_endpoints"; exit 1 ;;
+          esac
+          case "$resolved_callable_enforce_app_check" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported CALLABLE_ENFORCE_APP_CHECK: $resolved_callable_enforce_app_check"; exit 1 ;;
+          esac
           case "$resolved_otp_provider" in
             firebase|twilio) ;;
             *) echo "Unsupported OTP_PROVIDER: $resolved_otp_provider"; exit 1 ;;
@@ -233,6 +249,12 @@ jobs:
           fi
           case "$resolved_iap_allow_test_mock" in
             true|1|yes) echo "BILLING_IAP_ALLOW_TEST_MOCK must be false in production."; exit 1 ;;
+          esac
+          case "$resolved_enable_legacy_card_flow" in
+            true|1|yes) echo "BILLING_ENABLE_LEGACY_CARD_FLOW must be false in production."; exit 1 ;;
+          esac
+          case "$resolved_callable_enforce_app_check" in
+            false|0|no) echo "CALLABLE_ENFORCE_APP_CHECK must be true in production."; exit 1 ;;
           esac
           test -n "$resolved_notification_email_collection"
           resolved_iap_allow_test_mock=false
@@ -250,8 +272,11 @@ jobs:
           BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE="${resolved_reminder_schedule}"
           BILLING_DELINQUENCY_JOB_SCHEDULE="${resolved_delinquency_schedule}"
           BILLING_PENDING_TIMEOUT_JOB_SCHEDULE="${resolved_pending_schedule}"
+          BILLING_CONTACT_NOTICE_JOB_SCHEDULE="${resolved_contact_notice_schedule}"
           BILLING_PENDING_TIMEOUT_MINUTES=${resolved_pending_minutes}
           BILLING_PENDING_TIMEOUT_LIMIT=${resolved_pending_limit}
+          BILLING_CONTACT_NOTICE_BATCH_LIMIT=${resolved_contact_notice_batch_limit}
+          BILLING_CONTACT_NOTICE_REQUIRE_ENDPOINTS=${resolved_contact_notice_require_endpoints}
           BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS=${resolved_contact_notice_timeout_ms}
           BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES=${resolved_contact_notice_max_retries}
           BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS=${resolved_contact_notice_backoff_ms}
@@ -263,6 +288,7 @@ jobs:
           BILLING_DELINQUENCY_REMINDER_DAYS=${resolved_delinquency_reminder_days}
           BILLING_ALLOW_MANUAL_SETTLEMENT=${resolved_allow_manual_settlement}
           BILLING_ENABLE_LEGACY_CARD_FLOW=${resolved_enable_legacy_card_flow}
+          CALLABLE_ENFORCE_APP_CHECK=${resolved_callable_enforce_app_check}
           OTP_PROVIDER=${resolved_otp_provider}
           OTP_ALLOWED_DIAL_CODES=${resolved_otp_allowed_dial_codes}
           OTP_TWILIO_ACCOUNT_SID=${OTP_TWILIO_ACCOUNT_SID}
@@ -308,8 +334,11 @@ jobs:
           echo "EVENT_REMINDER_LOOKAHEAD_MINUTES=$resolved_event_reminder_lookahead_minutes" >> "$GITHUB_ENV"
           echo "EVENT_REMINDER_SCAN_LIMIT=$resolved_event_reminder_scan_limit" >> "$GITHUB_ENV"
           echo "EVENT_REMINDER_GRACE_MINUTES=$resolved_event_reminder_grace_minutes" >> "$GITHUB_ENV"
+          echo "BILLING_CONTACT_NOTICE_JOB_SCHEDULE=$resolved_contact_notice_schedule" >> "$GITHUB_ENV"
           echo "BILLING_PENDING_TIMEOUT_MINUTES=$resolved_pending_minutes" >> "$GITHUB_ENV"
           echo "BILLING_PENDING_TIMEOUT_LIMIT=$resolved_pending_limit" >> "$GITHUB_ENV"
+          echo "BILLING_CONTACT_NOTICE_BATCH_LIMIT=$resolved_contact_notice_batch_limit" >> "$GITHUB_ENV"
+          echo "BILLING_CONTACT_NOTICE_REQUIRE_ENDPOINTS=$resolved_contact_notice_require_endpoints" >> "$GITHUB_ENV"
           echo "BILLING_CONTACT_NOTICE_WEBHOOK_TIMEOUT_MS=$resolved_contact_notice_timeout_ms" >> "$GITHUB_ENV"
           echo "BILLING_CONTACT_NOTICE_WEBHOOK_MAX_RETRIES=$resolved_contact_notice_max_retries" >> "$GITHUB_ENV"
           echo "BILLING_CONTACT_NOTICE_WEBHOOK_BACKOFF_MS=$resolved_contact_notice_backoff_ms" >> "$GITHUB_ENV"
@@ -324,6 +353,7 @@ jobs:
           echo "OTP_TWILIO_TIMEOUT_MS=$resolved_otp_twilio_timeout_ms" >> "$GITHUB_ENV"
           echo "OTP_TWILIO_MAX_RETRIES=$resolved_otp_twilio_max_retries" >> "$GITHUB_ENV"
           echo "OTP_TWILIO_BACKOFF_MS=$resolved_otp_twilio_backoff_ms" >> "$GITHUB_ENV"
+          echo "CALLABLE_ENFORCE_APP_CHECK=$resolved_callable_enforce_app_check" >> "$GITHUB_ENV"
           echo "BILLING_CARD_CHECKOUT_URL_BASE=$BILLING_CARD_CHECKOUT_URL_BASE" >> "$GITHUB_ENV"
           echo "NOTIFICATION_PUSH_ENABLED=$resolved_notification_push_enabled" >> "$GITHUB_ENV"
           echo "NOTIFICATION_EMAIL_ENABLED=$resolved_notification_email_enabled" >> "$GITHUB_ENV"

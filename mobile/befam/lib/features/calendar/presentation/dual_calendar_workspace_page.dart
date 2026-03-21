@@ -3073,7 +3073,14 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   }
 
   String _memberLabel(String memberId) {
-    return _memberById(memberId)?.fullName ?? memberId;
+    final member = _memberById(memberId);
+    if (member != null && member.fullName.trim().isNotEmpty) {
+      return member.fullName;
+    }
+    return context.l10n.pick(
+      vi: 'Thành viên chưa xác định',
+      en: 'Unknown member',
+    );
   }
 
   String _memberKinshipBadge(MemberProfile member, AppLocalizations l10n) {

@@ -83,7 +83,8 @@ class FirebaseAuthGateway implements AuthGateway {
     final resolved = await _resolveChildAccess(childIdentifier);
     return _requestOtp(
       loginMethod: AuthEntryMethod.child,
-      phoneE164: resolved.parentPhoneE164,
+      phoneE164: '',
+      maskedDestinationHint: resolved.maskedDestination,
       childIdentifier: resolved.childIdentifier,
       memberId: resolved.memberId,
       displayName: resolved.displayName,
@@ -383,20 +384,25 @@ class FirebaseAuthGateway implements AuthGateway {
   Future<AuthOtpRequestResult> _requestOtp({
     required AuthEntryMethod loginMethod,
     required String phoneE164,
+    String? maskedDestinationHint,
     String? childIdentifier,
     String? memberId,
     String? displayName,
   }) async {
     final requestTag =
         'otp_${DateTime.now().millisecondsSinceEpoch}_${loginMethod.name}';
+    final maskedPhoneForLog = phoneE164.trim().isEmpty
+        ? 'n/a'
+        : PhoneNumberFormatter.mask(phoneE164);
     AppLogger.info(
-      '[$requestTag] Preparing OTP request (method=${loginMethod.name}, phone=$phoneE164).',
+      '[$requestTag] Preparing OTP request (method=${loginMethod.name}, phone=$maskedPhoneForLog).',
     );
 
     return _requestOtpViaServer(
       requestTag: requestTag,
       loginMethod: loginMethod,
       phoneE164: phoneE164,
+      maskedDestinationHint: maskedDestinationHint,
       childIdentifier: childIdentifier,
       memberId: memberId,
       displayName: displayName,
@@ -407,6 +413,7 @@ class FirebaseAuthGateway implements AuthGateway {
     required String requestTag,
     required AuthEntryMethod loginMethod,
     required String phoneE164,
+    String? maskedDestinationHint,
     String? childIdentifier,
     String? memberId,
     String? displayName,
@@ -445,7 +452,11 @@ class FirebaseAuthGateway implements AuthGateway {
       final maskedDestination =
           (data['maskedDestination'] as String?)?.trim().isNotEmpty == true
           ? (data['maskedDestination'] as String).trim()
-          : PhoneNumberFormatter.mask(phoneE164);
+          : ((maskedDestinationHint ?? '').trim().isNotEmpty
+                ? maskedDestinationHint!.trim()
+                : (phoneE164.trim().isEmpty
+                      ? '***'
+                      : PhoneNumberFormatter.mask(phoneE164)));
       final resolvedPhone =
           (data['phoneE164'] as String?)?.trim().isNotEmpty == true
           ? (data['phoneE164'] as String).trim()
@@ -590,7 +601,9 @@ class FirebaseAuthGateway implements AuthGateway {
       return ResolvedChildAccess(
         childIdentifier:
             payload['childIdentifier'] as String? ?? childIdentifier,
-        parentPhoneE164: payload['parentPhoneE164'] as String,
+        maskedDestination: (payload['maskedDestination'] as String?)?.trim().isNotEmpty == true
+            ? (payload['maskedDestination'] as String).trim()
+            : '***',
         memberId: payload['memberId'] as String?,
         displayName: payload['displayName'] as String?,
         clanId: payload['clanId'] as String?,

@@ -69,13 +69,27 @@ service firebase.storage {
       return path is string && path.matches('^scholarship/evidence/.*$');
     }
 
+    function isValidWritePayload(maxBytes) {
+      return request.resource == null ||
+        (
+          request.resource.size < maxBytes &&
+          request.resource.contentType is string &&
+          request.resource.contentType.size() > 0
+        );
+    }
+
     match /clans/{clanId}/members/{memberId}/avatar/{fileName} {
       allow read: if hasClanAccess(clanId);
       allow write: if
         hasClanAccess(clanId) &&
         (isClanAdmin() || memberId == memberIdClaim()) &&
-        request.resource.size < 10 * 1024 * 1024 &&
-        request.resource.contentType.matches('image/.*');
+        (
+          request.resource == null ||
+          (
+            request.resource.size < 10 * 1024 * 1024 &&
+            request.resource.contentType.matches('image/.*')
+          )
+        );
     }
 
     match /clans/{clanId}/{allPaths=**} {
@@ -85,7 +99,8 @@ service firebase.storage {
       allow write: if
         isClanAdmin() &&
         hasClanAccess(clanId) &&
-        !isScholarshipEvidencePath(allPaths);
+        !isScholarshipEvidencePath(allPaths) &&
+        isValidWritePayload(25 * 1024 * 1024);
     }
 
     match /clans/{clanId}/scholarship/evidence/{fileName} {
@@ -103,7 +118,7 @@ service firebase.storage {
       allow write: if
         hasClanAccess(clanId) &&
         memberId == memberIdClaim() &&
-        request.resource.size < 20 * 1024 * 1024;
+        isValidWritePayload(20 * 1024 * 1024);
     }
 
     match /submissions/{clanId}/{memberId}/{fileName} {
@@ -116,7 +131,7 @@ service firebase.storage {
       allow write: if
         hasClanAccess(clanId) &&
         memberId == memberIdClaim() &&
-        request.resource.size < 20 * 1024 * 1024;
+        isValidWritePayload(20 * 1024 * 1024);
     }
 
     match /{allPaths=**} {

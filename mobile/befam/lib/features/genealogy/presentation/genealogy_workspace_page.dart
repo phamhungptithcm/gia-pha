@@ -609,19 +609,19 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         ?..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text(
-              createdClanId.isEmpty
-                  ? l10n.pick(
-                      vi: 'Đã tạo gia phả riêng. Bạn có thể chuyển qua clan mới ở bộ chuyển clan.',
-                      en: 'Private genealogy created. You can switch to it from the clan switcher.',
-                    )
-                  : l10n.pick(
-                      vi: 'Đã tạo gia phả riêng ($createdClanId). Bạn vẫn thuộc gia phả hiện tại.',
-                      en: 'Private genealogy created ($createdClanId). You still remain in the current clan.',
-                    ),
+              content: Text(
+                createdClanId.isEmpty
+                    ? l10n.pick(
+                        vi: 'Đã tạo gia phả riêng. Bạn có thể chuyển qua clan mới ở bộ chuyển clan.',
+                        en: 'Private genealogy created. You can switch to it from the clan switcher.',
+                      )
+                    : l10n.pick(
+                        vi: 'Đã tạo gia phả riêng. Bạn vẫn thuộc gia phả hiện tại.',
+                        en: 'Private genealogy created. You still remain in the current clan.',
+                      ),
+              ),
             ),
-          ),
-        );
+          );
     } on FirebaseFunctionsException catch (error) {
       if (!mounted) {
         return;

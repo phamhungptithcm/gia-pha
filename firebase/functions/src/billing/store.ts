@@ -112,6 +112,11 @@ const transactionsCollection = db.collection('paymentTransactions');
 const invoicesCollection = db.collection('subscriptionInvoices');
 const webhookEventsCollection = db.collection('paymentWebhookEvents');
 const billingAuditLogsCollection = db.collection('billingAuditLogs');
+const WEBHOOK_PAYLOAD_BLOCKLIST_KEY_PATTERN = /(token|secret|signature|password|authorization|hash)/i;
+const WEBHOOK_PAYLOAD_MAX_KEYS = 60;
+const WEBHOOK_PAYLOAD_MAX_DEPTH = 2;
+const WEBHOOK_PAYLOAD_MAX_ARRAY_ITEMS = 20;
+const WEBHOOK_PAYLOAD_MAX_STRING_LENGTH = 512;
 
 function scopedBillingDocId({
   clanId,
@@ -769,6 +774,7 @@ export async function recordPaymentWebhookEvent({
 }): Promise<{ id: string; alreadyProcessed: boolean }> {
   const key = `${provider}:${externalEventId}`;
   const ref = webhookEventsCollection.doc(key);
+  const sanitizedPayload = sanitizeWebhookPayload(rawPayload);
   try {
     await ref.create({
       id: key,
@@ -777,7 +783,8 @@ export async function recordPaymentWebhookEvent({
       transactionId,
       payloadHash,
       validSignature,
-      rawPayload,
+      rawPayload: sanitizedPayload,
+      payloadSanitized: true,
       processedAt: FieldValue.serverTimestamp(),
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -1527,6 +1534,58 @@ function readNumber(value: unknown, fallback: number): number {
 
 function readBool(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function sanitizeWebhookPayload(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const entries = Object.entries(payload).slice(0, WEBHOOK_PAYLOAD_MAX_KEYS);
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of entries) {
+    if (WEBHOOK_PAYLOAD_BLOCKLIST_KEY_PATTERN.test(key)) {
+      continue;
+    }
+    sanitized[key] = sanitizeWebhookPayloadValue(value, 0);
+  }
+  return sanitized;
+}
+
+function sanitizeWebhookPayloadValue(value: unknown, depth: number): unknown {
+  if (value == null || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (value instanceof Timestamp) {
+    return value.toDate().toISOString();
+  }
+  if (typeof value === 'string') {
+    return value.length <= WEBHOOK_PAYLOAD_MAX_STRING_LENGTH
+      ? value
+      : `${value.slice(0, WEBHOOK_PAYLOAD_MAX_STRING_LENGTH)}...`;
+  }
+  if (depth >= WEBHOOK_PAYLOAD_MAX_DEPTH) {
+    return '[redacted-depth]';
+  }
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, WEBHOOK_PAYLOAD_MAX_ARRAY_ITEMS)
+      .map((item) => sanitizeWebhookPayloadValue(item, depth + 1));
+  }
+  if (typeof value === 'object') {
+    const nestedEntries = Object.entries(value as Record<string, unknown>)
+      .slice(0, WEBHOOK_PAYLOAD_MAX_KEYS);
+    const nested: Record<string, unknown> = {};
+    for (const [nestedKey, nestedValue] of nestedEntries) {
+      if (WEBHOOK_PAYLOAD_BLOCKLIST_KEY_PATTERN.test(nestedKey)) {
+        continue;
+      }
+      nested[nestedKey] = sanitizeWebhookPayloadValue(nestedValue, depth + 1);
+    }
+    return nested;
+  }
+  return `${value}`;
 }
 
 function toTimestamp(value: NullableDate): Timestamp | null {

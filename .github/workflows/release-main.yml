@@ -157,6 +157,7 @@ jobs:
           BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
@@ -165,7 +166,7 @@ jobs:
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
-          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
@@ -183,6 +184,7 @@ jobs:
             BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
             BEFAM_FIREBASE_WEB_AUTH_DOMAIN
             BEFAM_FIREBASE_WEB_MEASUREMENT_ID
+            BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
@@ -323,13 +325,14 @@ jobs:
           BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
-          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
@@ -347,6 +350,7 @@ jobs:
             BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
             BEFAM_FIREBASE_WEB_AUTH_DOMAIN
             BEFAM_FIREBASE_WEB_MEASUREMENT_ID
+            BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do

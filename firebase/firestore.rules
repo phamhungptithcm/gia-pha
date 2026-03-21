@@ -172,6 +172,24 @@ service cloud.firestore {
     function validUserProfileWrite(userId) {
       return signedIn() &&
         userId == request.auth.uid &&
+        request.resource.data.keys().hasOnly([
+          'uid',
+          'memberId',
+          'clanId',
+          'clanIds',
+          'branchId',
+          'primaryRole',
+          'accessMode',
+          'linkedAuthUid',
+          'normalizedPhone',
+          'email',
+          'languageCode',
+          'locale',
+          'subscription',
+          'entitlements',
+          'updatedAt',
+          'createdAt'
+        ]) &&
         request.resource.data.keys().hasAll([
           'uid',
           'memberId',
@@ -197,12 +215,76 @@ service cloud.firestore {
         request.resource.data.clanIds == clanIds() &&
         request.resource.data.branchId == branchIdClaim() &&
         request.resource.data.primaryRole == primaryRole() &&
-        request.resource.data.accessMode == memberAccessModeClaim();
+        request.resource.data.accessMode == memberAccessModeClaim() &&
+        (
+          !request.resource.data.keys().hasAny(['normalizedPhone']) ||
+          (
+            request.resource.data.normalizedPhone == null ||
+            request.resource.data.normalizedPhone is string
+          )
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(['email']) ||
+          (
+            request.resource.data.email == null ||
+            request.resource.data.email is string
+          )
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(['languageCode']) ||
+          (
+            request.resource.data.languageCode == null ||
+            request.resource.data.languageCode is string
+          )
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(['locale']) ||
+          (
+            request.resource.data.locale == null ||
+            request.resource.data.locale is string
+          )
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(['subscription']) ||
+          (
+            request.resource.data.subscription == null ||
+            request.resource.data.subscription is map
+          )
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(['entitlements']) ||
+          (
+            request.resource.data.entitlements == null ||
+            request.resource.data.entitlements is map
+          )
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(['normalizedPhone', 'subscription', 'entitlements']) ||
+          resource == null ||
+          (
+            request.resource.data.normalizedPhone == resource.data.normalizedPhone &&
+            request.resource.data.subscription == resource.data.subscription &&
+            request.resource.data.entitlements == resource.data.entitlements
+          )
+        );
     }
 
     function validDeviceTokenWrite(userId) {
       return signedIn() &&
         userId == request.auth.uid &&
+        request.resource.data.keys().hasOnly([
+          'token',
+          'uid',
+          'platform',
+          'memberId',
+          'clanId',
+          'branchId',
+          'primaryRole',
+          'accessMode',
+          'updatedAt',
+          'createdAt',
+          'lastSeenAt'
+        ]) &&
         request.resource.data.keys().hasAll([
           'token',
           'uid',
@@ -361,10 +443,15 @@ service cloud.firestore {
 
     match /branches/{branchId} {
       allow read: if hasClanAccess(resource.data.clanId);
-      allow create, update: if
+      allow create: if
         isClanAdmin() &&
         hasClanAccess(request.resource.data.clanId) &&
         request.resource.data.id == branchId;
+      allow update: if
+        isClanAdmin() &&
+        hasClanAccess(resource.data.clanId) &&
+        request.resource.data.id == branchId &&
+        request.resource.data.clanId == resource.data.clanId;
       allow delete: if false;
     }
 
@@ -376,9 +463,12 @@ service cloud.firestore {
           isClanSettingsAdmin() &&
           request.resource.data.clanId == resource.data.clanId
         ) ||
-        isBranchScopedMemberManager(
-          resource.data.branchId,
-          request.resource.data.branchId
+        (
+          isBranchScopedMemberManager(
+            resource.data.branchId,
+            request.resource.data.branchId
+          ) &&
+          request.resource.data.clanId == resource.data.clanId
         ) ||
         (
           isSelfMember(resource.data) &&
@@ -386,7 +476,8 @@ service cloud.firestore {
           request.resource.data.clanId == resource.data.clanId &&
           request.resource.data.branchId == resource.data.branchId &&
           request.resource.data.primaryRole == resource.data.primaryRole &&
-          request.resource.data.authUid == resource.data.authUid
+          request.resource.data.authUid == resource.data.authUid &&
+          request.resource.data.updatedBy == request.auth.uid
         )
       );
       allow delete: if false;
@@ -408,12 +499,26 @@ service cloud.firestore {
 
     match /events/{eventId} {
       allow read: if hasClanAccess(resource.data.clanId);
-      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+      allow create: if
+        isClanAdmin() &&
+        hasClanAccess(request.resource.data.clanId);
+      allow update: if
+        isClanAdmin() &&
+        hasClanAccess(resource.data.clanId) &&
+        request.resource.data.clanId == resource.data.clanId;
+      allow delete: if false;
     }
 
     match /funds/{fundId} {
       allow read: if hasClanAccess(resource.data.clanId) && isFinanceViewer();
-      allow write: if isFinanceManager() && hasClanAccess(request.resource.data.clanId);
+      allow create: if
+        isFinanceManager() &&
+        hasClanAccess(request.resource.data.clanId);
+      allow update: if
+        isFinanceManager() &&
+        hasClanAccess(resource.data.clanId) &&
+        request.resource.data.clanId == resource.data.clanId;
+      allow delete: if false;
     }
 
     match /transactions/{transactionId} {
@@ -423,12 +528,26 @@ service cloud.firestore {
 
     match /scholarshipPrograms/{programId} {
       allow read: if hasClanAccess(resource.data.clanId);
-      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+      allow create: if
+        isClanAdmin() &&
+        hasClanAccess(request.resource.data.clanId);
+      allow update: if
+        isClanAdmin() &&
+        hasClanAccess(resource.data.clanId) &&
+        request.resource.data.clanId == resource.data.clanId;
+      allow delete: if false;
     }
 
     match /awardLevels/{awardLevelId} {
       allow read: if hasClanAccess(resource.data.clanId);
-      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+      allow create: if
+        isClanAdmin() &&
+        hasClanAccess(request.resource.data.clanId);
+      allow update: if
+        isClanAdmin() &&
+        hasClanAccess(resource.data.clanId) &&
+        request.resource.data.clanId == resource.data.clanId;
+      allow delete: if false;
     }
 
     match /achievementSubmissions/{submissionId} {
@@ -505,7 +624,14 @@ service cloud.firestore {
 
     match /invites/{inviteId} {
       allow read: if isClanAdmin() && hasClanAccess(resource.data.clanId);
-      allow write: if isClanAdmin() && hasClanAccess(request.resource.data.clanId);
+      allow create: if
+        isClanAdmin() &&
+        hasClanAccess(request.resource.data.clanId);
+      allow update: if
+        isClanAdmin() &&
+        hasClanAccess(resource.data.clanId) &&
+        request.resource.data.clanId == resource.data.clanId;
+      allow delete: if false;
     }
 
     match /memberSearchIndex/{docId} {
