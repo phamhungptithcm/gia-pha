@@ -1,26 +1,25 @@
-name: Deploy Firebase
+name: CD - Deploy Firebase (Production)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "firebase.json"
-      - "firebase/**"
-      - ".firebaserc"
-      - ".github/workflows/deploy-firebase.yml"
+  workflow_run:
+    workflows:
+      - CD - Release Main
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
-  group: deploy-firebase-${{ github.ref }}
+  group: deploy-firebase-${{ github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: false
 
 jobs:
   deploy-production:
-    name: deploy-production
+    name: Deploy Firebase (Production)
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -29,6 +28,46 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Validate production OIDC configuration
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+        run: |
+          set -euo pipefail
+          test -n "$GCP_WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$GCP_SERVICE_ACCOUNT_EMAIL"
+          test -n "$FIREBASE_PROJECT_ID"
+          test -n "$FIREBASE_FUNCTIONS_REGION"
+          echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Export Firebase project env
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_PROJECT_ID"
+          test -n "$FIREBASE_FUNCTIONS_REGION"
+          echo "GOOGLE_CLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+          echo "FIREBASE_FUNCTIONS_REGION=$FIREBASE_FUNCTIONS_REGION" >> "$GITHUB_ENV"
+          echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -47,24 +86,6 @@ jobs:
 
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@14.19.1
-
-      - name: Write Firebase credentials
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
-          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
-        run: |
-          test -n "$FIREBASE_SERVICE_ACCOUNT"
-          test -n "$FIREBASE_PROJECT_ID"
-          test -n "$FIREBASE_FUNCTIONS_REGION"
-          CREDENTIALS_PATH="$RUNNER_TEMP/firebase-service-account.json"
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIALS_PATH"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$CREDENTIALS_PATH" >> "$GITHUB_ENV"
-          echo "GOOGLE_CLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
-          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
-          echo "FIREBASE_FUNCTIONS_REGION=$FIREBASE_FUNCTIONS_REGION" >> "$GITHUB_ENV"
-          echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"
 
       - name: Write Functions runtime env file
         working-directory: firebase/functions
@@ -352,3 +373,31 @@ jobs:
           --project "${{ vars.FIREBASE_PROJECT_ID }}"
           --non-interactive
           --only firestore:rules,firestore:indexes,storage,functions
+
+  notify-deploy-firebase-failure:
+    name: Notify Firebase deploy failure
+    if: ${{ always() && needs.deploy-production.result == 'failure' && secrets.SLACK_WEBHOOK_URL != '' }}
+    needs:
+      - deploy-production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          payload="$(cat <<JSON
+          {
+            "text": ":x: BeFam Firebase deploy failed",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*CD - Deploy Firebase (Production) failed*\\nRepository: ${GITHUB_REPOSITORY}\\nRun: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                }
+              }
+            ]
+          }
+          JSON
+          )"
+          curl -sS -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"

@@ -4,10 +4,12 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../core/services/firebase_services.dart';
 import '../../core/widgets/member_phone_action.dart';
 import '../../core/widgets/address_action_tools.dart';
+import '../../features/ads/services/ad_controller.dart';
 import '../../features/billing/presentation/billing_workspace_page.dart';
 import '../../features/billing/services/billing_repository.dart';
 import '../../features/clan/presentation/clan_detail_page.dart';
@@ -107,11 +109,12 @@ class _AppShellPageState extends State<AppShellPage> {
   late final EventRepository _eventRepository;
   late final FundRepository _fundRepository;
   late final BillingRepository _billingRepository;
+  late final AdController _adController;
   late final PushNotificationService _pushNotificationService;
   late final ClanContextService _clanContextService;
   final AuthSessionStore _sessionStore = SharedPrefsAuthSessionStore();
   String? _lastOpenedNotificationMessageId;
-  bool _showAdBanner = true;
+  bool _showAdBanner = false;
   bool _isResolvingBillingEntitlement = false;
   bool _dismissAdBannerForSession = false;
   Timer? _adBannerAutoHideTimer;
@@ -198,6 +201,7 @@ class _AppShellPageState extends State<AppShellPage> {
     _billingRepository =
         widget.billingRepository ??
         createDefaultBillingRepository(session: _session);
+    _adController = AdController(onStateChanged: _handleAdStateChanged);
     _pushNotificationService =
         widget.pushNotificationService ??
         createDefaultPushNotificationService(session: _session);
@@ -238,8 +242,16 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void dispose() {
     _adBannerAutoHideTimer?.cancel();
+    _adController.dispose();
     unawaited(_pushNotificationService.stop());
     super.dispose();
+  }
+
+  void _handleAdStateChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   void _handleNotificationDeepLink(NotificationDeepLink deepLink) {
@@ -394,9 +406,17 @@ class _AppShellPageState extends State<AppShellPage> {
       return;
     }
     if (!_hasBillingContext(_session)) {
+      final shouldShow = _adController.shouldShowAds(
+        tier: 'FREE',
+        backendShowAds: true,
+      );
+      _adController.updateAdPolicy(
+        subscriptionTier: 'FREE',
+        backendShowAds: true,
+      );
       if (mounted) {
         setState(() {
-          _showAdBanner = true;
+          _showAdBanner = shouldShow;
         });
         _syncAdBannerAutoHideTimer();
       }
@@ -408,21 +428,28 @@ class _AppShellPageState extends State<AppShellPage> {
       final entitlement = await _billingRepository.resolveEntitlement(
         session: _session,
       );
+      final normalizedTier = entitlement.planCode.trim().toUpperCase();
+      final resolvedTier = normalizedTier.isEmpty ? 'FREE' : normalizedTier;
+      final shouldShow = _adController.shouldShowAds(
+        tier: resolvedTier,
+        backendShowAds: entitlement.showAds,
+      );
+      _adController.updateAdPolicy(
+        subscriptionTier: resolvedTier,
+        backendShowAds: entitlement.showAds,
+      );
       if (!mounted) {
         return;
       }
       setState(() {
-        _showAdBanner = entitlement.showAds;
+        _showAdBanner = shouldShow;
+        if (!shouldShow) {
+          _dismissAdBannerForSession = false;
+        }
       });
       _syncAdBannerAutoHideTimer();
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _showAdBanner = true;
-      });
-      _syncAdBannerAutoHideTimer();
+      // Keep current state when billing entitlement cannot be refreshed.
     } finally {
       _isResolvingBillingEntitlement = false;
     }
@@ -854,6 +881,7 @@ class _AppShellPageState extends State<AppShellPage> {
       children: [
         if (_isAdBannerVisible)
           _SponsoredAdBanner(
+            adController: _adController,
             onClose: () {
               setState(() {
                 _dismissAdBannerForSession = true;
@@ -890,6 +918,7 @@ class _AppShellPageState extends State<AppShellPage> {
         children: [
           if (_isAdBannerVisible)
             _SponsoredAdBanner(
+              adController: _adController,
               onClose: () {
                 setState(() {
                   _dismissAdBannerForSession = true;
@@ -1023,10 +1052,14 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   void _handleDestinationSelected(int index) {
+    if (index == _selectedIndex) {
+      return;
+    }
     setState(() {
       _selectedIndex = index;
       _visitedDestinationIndexes.add(index);
     });
+    _adController.onSafeUserAction();
     _syncAdBannerAutoHideTimer();
   }
 
@@ -1270,14 +1303,17 @@ class _AppShellPageState extends State<AppShellPage> {
 }
 
 class _SponsoredAdBanner extends StatelessWidget {
-  const _SponsoredAdBanner({required this.onClose});
+  const _SponsoredAdBanner({required this.adController, required this.onClose});
 
+  final AdController adController;
   final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
+    final banner = adController.bannerAd;
+    final showBannerAd = adController.isBannerReady && banner != null;
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 420;
@@ -1285,50 +1321,78 @@ class _SponsoredAdBanner extends StatelessWidget {
           color: colorScheme.tertiaryContainer.withValues(alpha: 0.88),
           child: SafeArea(
             top: false,
-            minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.campaign_outlined,
-                  color: colorScheme.onTertiaryContainer,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    l10n.pick(
-                      vi: 'Gói Miễn phí/Cơ bản đang hiển thị quảng cáo nhẹ.',
-                      en: 'Free/Base plans show light ads.',
-                    ),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onTertiaryContainer,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: compact ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (!compact)
-                  TextButton(
-                    onPressed: onClose,
-                    child: Text(
-                      l10n.pick(vi: 'Ẩn hôm nay', en: 'Hide today'),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: colorScheme.onTertiaryContainer,
-                        fontWeight: FontWeight.w700,
+            minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: showBannerAd
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
+                            onPressed: onClose,
+                            icon: const Icon(Icons.close),
+                            color: colorScheme.onTertiaryContainer,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
                       ),
-                    ),
+                      Center(
+                        child: SizedBox(
+                          width: banner.size.width.toDouble(),
+                          height: banner.size.height.toDouble(),
+                          child: AdWidget(ad: banner),
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.campaign_outlined,
+                        color: colorScheme.onTertiaryContainer,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          l10n.pick(
+                            vi: 'Gói Miễn phí/Cơ bản đang hiển thị quảng cáo nhẹ.',
+                            en: 'Free/Base plans show light ads.',
+                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: colorScheme.onTertiaryContainer,
+                                fontWeight: FontWeight.w600,
+                              ),
+                          maxLines: compact ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!compact)
+                        TextButton(
+                          onPressed: onClose,
+                          child: Text(
+                            l10n.pick(vi: 'Ẩn hôm nay', en: 'Hide today'),
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: colorScheme.onTertiaryContainer,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                      IconButton(
+                        tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
+                        onPressed: onClose,
+                        icon: const Icon(Icons.close),
+                        color: colorScheme.onTertiaryContainer,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
                   ),
-                IconButton(
-                  tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
-                  onPressed: onClose,
-                  icon: const Icon(Icons.close),
-                  color: colorScheme.onTertiaryContainer,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
-            ),
           ),
         );
       },

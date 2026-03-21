@@ -1,6 +1,6 @@
 # CI/CD
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 21/03/2026_
 
 BeFam dùng mô hình phát hành có kiểm soát:
 
@@ -9,32 +9,44 @@ BeFam dùng mô hình phát hành có kiểm soát:
 
 ## Tóm tắt workflow
 
-### `branch-ci.yml`
-Chạy khi có PR/push vào `staging` hoặc `main`.
+### `branch-ci.yml` (`CI - Branch Quality Gates`)
+Chạy khi:
+- có pull request vào `staging` hoặc `main`
+- có push vào mọi nhánh trừ `main` (bao gồm sub-branch dev/task và `staging`)
 
 Kiểm tra gồm:
 - build docs và kiểm tra tài liệu rules
 - cài/build/test Functions
 - `flutter analyze`, `flutter test`
 - kiểm tra build Android release
+- dependency review + Trivy + gitleaks + scan image
 
-### `docs-ci.yml`
-Chạy cho thay đổi docs/rules để đảm bảo tài liệu luôn build strict thành công.
+### `mobile-e2e.yml` (`CI - Mobile E2E (PR/Manual)`)
+Chạy E2E Android + iOS cho PR mobile và khi chạy tay.
 
-### `deploy-docs.yml`
+### `deploy-docs.yml` (`CD - Deploy Docs (GitHub Pages)`)
 Build và publish site tài liệu lên GitHub Pages.
 
-### `deploy-firebase.yml`
+### `deploy-staging.yml` (`CD - Deploy Staging`)
+Deploy Firebase + web hosting cho môi trường staging.
+
+### `release-main.yml` (`CD - Release Main`)
+Tạo version release, ký binary mobile, build artifact bất biến, checksum và manifest.
+
+### `deploy-firebase.yml` (`CD - Deploy Firebase (Production)`)
 Build/deploy Firestore rules, indexes, Storage rules, Functions.
 Đồng thời tạo `.env.<projectId>` và sync runtime overrides không chứa secret.
 
-### `release-main.yml`
-Tạo phiên bản release, build artifact và publish release assets.
+### `deploy-web-hosting.yml` (`CD - Deploy Web Hosting (Production)`)
+Deploy hosting production từ gói web bất biến đã gắn vào release.
 
-### `weekly-release-promotion.yml`
+### `rollback-production.yml` (`CD - Rollback Production`)
+Rollback production về tag release đã chọn.
+
+### `weekly-release-promotion.yml` (`Ops - Promote Staging to Main`)
 Tạo/cập nhật PR promote `staging -> main` theo lịch tuần.
 
-### `release-issue-closure.yml`
+### `release-issue-closure.yml` (`Ops - Close Released Issues`)
 Tự đóng issue liên quan sau khi PR phát hành vào `main`.
 
 ## Khóa cấu hình production bắt buộc
@@ -44,11 +56,13 @@ Biến bắt buộc:
 - `FIREBASE_FUNCTIONS_REGION`
 - `APP_TIMEZONE`
 
-Secret bắt buộc:
-- `FIREBASE_SERVICE_ACCOUNT`
+Secret bắt buộc cho production:
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT_EMAIL`
 - `BILLING_WEBHOOK_SECRET`
 - `VNPAY_TMNCODE`
 - `VNPAY_HASH_SECRET`
 
-Secret tùy chọn:
+Fallback cho staging (tùy chọn trong giai đoạn chuyển đổi):
+- `FIREBASE_SERVICE_ACCOUNT`
 - `CARD_WEBHOOK_SECRET`

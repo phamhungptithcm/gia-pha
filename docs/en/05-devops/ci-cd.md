@@ -1,6 +1,6 @@
 # CI/CD
 
-_Last reviewed: March 17, 2026_
+_Last reviewed: March 21, 2026_
 
 BeFam uses a protected promotion model:
 
@@ -9,32 +9,44 @@ BeFam uses a protected promotion model:
 
 ## Workflow Summary
 
-### `branch-ci.yml`
-Runs on PR/push for `staging` and `main`.
+### `branch-ci.yml` (`CI - Branch Quality Gates`)
+Runs on:
+- pull requests targeting `staging` or `main`
+- pushes to all branches except `main` (including feature/dev branches and `staging`)
 
 Checks:
 - docs build and rules-doc validation
 - Functions install/build/test
 - Flutter analyze/test
 - Android release build verification
+- dependency review + Trivy + gitleaks + image vulnerability scanning
 
-### `docs-ci.yml`
-Runs for docs/rules changes and ensures docs remain strict-build clean.
+### `mobile-e2e.yml` (`CI - Mobile E2E (PR/Manual)`)
+Runs Android + iOS E2E for mobile-focused pull requests and manual dispatch.
 
-### `deploy-docs.yml`
+### `deploy-docs.yml` (`CD - Deploy Docs (GitHub Pages)`)
 Builds and publishes MkDocs to GitHub Pages.
 
-### `deploy-firebase.yml`
+### `deploy-staging.yml` (`CD - Deploy Staging`)
+Deploys Firebase resources and web hosting to the staging environment.
+
+### `release-main.yml` (`CD - Release Main`)
+Builds release artifacts, signs mobile binaries, publishes immutable release assets, checksums, and release manifest.
+
+### `deploy-firebase.yml` (`CD - Deploy Firebase (Production)`)
 Builds/deploys Firestore rules, indexes, storage rules, and Functions.
 Also writes runtime `.env.<projectId>` and syncs non-secret runtime overrides.
 
-### `release-main.yml`
-Builds release artifacts and publishes semver-tagged release outputs.
+### `deploy-web-hosting.yml` (`CD - Deploy Web Hosting (Production)`)
+Deploys production hosting from the immutable web bundle attached to the release.
 
-### `weekly-release-promotion.yml`
+### `rollback-production.yml` (`CD - Rollback Production`)
+Restores production Firebase/Hosting to a selected release tag.
+
+### `weekly-release-promotion.yml` (`Ops - Promote Staging to Main`)
 Auto-prepares `staging -> main` release PR weekly.
 
-### `release-issue-closure.yml`
+### `release-issue-closure.yml` (`Ops - Close Released Issues`)
 Closes linked delivered issues after release PR merge to `main`.
 
 ## Production Environment Keys
@@ -44,11 +56,13 @@ Required vars:
 - `FIREBASE_FUNCTIONS_REGION`
 - `APP_TIMEZONE`
 
-Required secrets:
-- `FIREBASE_SERVICE_ACCOUNT`
+Required production secrets:
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT_EMAIL`
 - `BILLING_WEBHOOK_SECRET`
 - `VNPAY_TMNCODE`
 - `VNPAY_HASH_SECRET`
 
-Optional secret:
+Staging migration fallback (optional, staging only):
+- `FIREBASE_SERVICE_ACCOUNT`
 - `CARD_WEBHOOK_SECRET`
