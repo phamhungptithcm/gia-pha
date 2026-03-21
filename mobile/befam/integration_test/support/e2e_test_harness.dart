@@ -136,6 +136,25 @@ Future<void> waitForFinder(
   );
 }
 
+Future<Finder> waitForAnyFinder(
+  WidgetTester tester,
+  List<Finder> finders, {
+  int maxFrames = 420,
+  Duration frameDuration = const Duration(milliseconds: 16),
+  String? reason,
+}) async {
+  for (var frame = 0; frame < maxFrames; frame += 1) {
+    for (final finder in finders) {
+      if (finder.evaluate().isNotEmpty) {
+        return finder;
+      }
+    }
+    await tester.pump(frameDuration);
+  }
+
+  fail(reason ?? 'Không tìm thấy bất kỳ widget nào phù hợp.');
+}
+
 Future<E2EAppContext> pumpE2EApp(
   WidgetTester tester, {
   Locale locale = const Locale('vi'),
@@ -204,18 +223,29 @@ Future<void> loginWithPhone(
   String otpCode = '123456',
 }) async {
   await acceptPrivacyPolicy(tester);
-  await tapText(tester, 'Dùng số điện thoại');
-
-  await tester.enterText(find.byType(TextField).first, phoneInput);
+  final phoneMethodFinder = await waitForAnyFinder(tester, [
+    find.byKey(const Key('auth-method-phone-button')),
+    find.widgetWithText(FilledButton, 'Dùng số điện thoại'),
+    find.widgetWithText(FilledButton, 'Use phone number'),
+  ], reason: 'Không tìm thấy nút chọn đăng nhập bằng số điện thoại.');
+  await tester.ensureVisible(phoneMethodFinder.last);
+  await tester.tap(phoneMethodFinder.last);
   await safePumpAndSettle(tester);
 
-  final sendOtpButton = find.widgetWithText(FilledButton, 'Gửi OTP');
-  await waitForFinder(
-    tester,
-    sendOtpButton,
-    reason: 'Không tìm thấy nút gửi OTP.',
-  );
-  await tester.tap(sendOtpButton);
+  final phoneInputFinder = await waitForAnyFinder(tester, [
+    find.byKey(const Key('auth-phone-input')),
+    find.byType(TextField),
+  ], reason: 'Không tìm thấy ô nhập số điện thoại.');
+  await tester.enterText(phoneInputFinder.first, phoneInput);
+  await safePumpAndSettle(tester);
+
+  final sendOtpButton = await waitForAnyFinder(tester, [
+    find.byKey(const Key('auth-send-otp-button')),
+    find.widgetWithText(FilledButton, 'Gửi OTP'),
+    find.widgetWithText(FilledButton, 'Send OTP'),
+  ], reason: 'Không tìm thấy nút gửi OTP.');
+  await tester.ensureVisible(sendOtpButton.first);
+  await tester.tap(sendOtpButton.first);
 
   await waitFor(
     tester,
@@ -246,18 +276,29 @@ Future<void> loginWithChildCode(
   String otpCode = '123456',
 }) async {
   await acceptPrivacyPolicy(tester);
-  await tapText(tester, 'Dùng mã trẻ em');
-
-  await tester.enterText(find.byType(TextField).first, childCode);
+  final childMethodFinder = await waitForAnyFinder(tester, [
+    find.byKey(const Key('auth-method-child-button')),
+    find.widgetWithText(OutlinedButton, 'Dùng mã trẻ em'),
+    find.widgetWithText(OutlinedButton, 'Use child code'),
+  ], reason: 'Không tìm thấy nút chọn đăng nhập bằng mã trẻ em.');
+  await tester.ensureVisible(childMethodFinder.last);
+  await tester.tap(childMethodFinder.last);
   await safePumpAndSettle(tester);
 
-  final continueButton = find.widgetWithText(FilledButton, 'Tiếp tục');
-  await waitForFinder(
-    tester,
-    continueButton,
-    reason: 'Không tìm thấy nút Tiếp tục ở luồng mã trẻ em.',
-  );
-  await tester.tap(continueButton);
+  final childInputFinder = await waitForAnyFinder(tester, [
+    find.byKey(const Key('auth-child-code-input')),
+    find.byType(TextField),
+  ], reason: 'Không tìm thấy ô nhập mã trẻ em.');
+  await tester.enterText(childInputFinder.first, childCode);
+  await safePumpAndSettle(tester);
+
+  final continueButton = await waitForAnyFinder(tester, [
+    find.byKey(const Key('auth-child-continue-button')),
+    find.widgetWithText(FilledButton, 'Tiếp tục'),
+    find.widgetWithText(FilledButton, 'Continue'),
+  ], reason: 'Không tìm thấy nút Tiếp tục ở luồng mã trẻ em.');
+  await tester.ensureVisible(continueButton.first);
+  await tester.tap(continueButton.first);
 
   await waitForFinder(
     tester,
@@ -321,15 +362,17 @@ Future<void> tapBottomNavigationLabel(WidgetTester tester, String label) async {
 Finder? _navigationIconFallbackFinder(String label) {
   final normalized = label.trim().toLowerCase();
   return switch (normalized) {
-    'trang chủ' || 'home' =>
-      _navigationScopedIconFinder(Icons.space_dashboard_outlined),
+    'trang chủ' ||
+    'home' => _navigationScopedIconFinder(Icons.space_dashboard_outlined),
     'gia phả' || 'tree' || 'genealogy' =>
-      _navigationScopedIconFinder(Icons.account_tree_outlined).evaluate().isNotEmpty
+      _navigationScopedIconFinder(
+            Icons.account_tree_outlined,
+          ).evaluate().isNotEmpty
           ? _navigationScopedIconFinder(Icons.account_tree_outlined)
           : _navigationScopedIconFinder(Icons.travel_explore_outlined),
     'sự kiện' || 'events' => _navigationScopedIconFinder(Icons.event_outlined),
-    'gói' || 'billing' =>
-      _navigationScopedIconFinder(Icons.workspace_premium_outlined),
+    'gói' ||
+    'billing' => _navigationScopedIconFinder(Icons.workspace_premium_outlined),
     'hồ sơ' || 'profile' => _navigationScopedIconFinder(Icons.person_outline),
     _ => null,
   };
@@ -370,10 +413,7 @@ Finder _navigationScopedIconFinder(IconData icon) {
       of: find.byType(BottomNavigationBar),
       matching: find.byIcon(icon),
     ),
-    find.descendant(
-      of: find.byType(BottomAppBar),
-      matching: find.byIcon(icon),
-    ),
+    find.descendant(of: find.byType(BottomAppBar), matching: find.byIcon(icon)),
     find.byIcon(icon),
   ];
 
@@ -401,9 +441,7 @@ Future<void> captureScreenshotSafe(
   String name,
 ) async {
   try {
-    await binding
-        .takeScreenshot(name)
-        .timeout(const Duration(seconds: 8));
+    await binding.takeScreenshot(name).timeout(const Duration(seconds: 8));
   } catch (_) {}
 }
 
