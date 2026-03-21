@@ -95,44 +95,7 @@ jobs:
         run: |
           set -euo pipefail
           SIM_UDID="$(
-            python3 - <<'PY'
-            import json
-            import subprocess
-            import sys
-
-            raw = subprocess.check_output(
-                ["xcrun", "simctl", "list", "devices", "available", "-j"],
-                text=True,
-            )
-            payload = json.loads(raw)
-            devices = []
-            for runtime, entries in payload.get("devices", {}).items():
-                if "iOS" not in runtime:
-                    continue
-                for device in entries:
-                    if device.get("isAvailable", True):
-                        devices.append(device)
-
-            preferred_prefixes = (
-                "iPhone 16 Pro",
-                "iPhone 16",
-                "iPhone 15 Pro",
-                "iPhone 15",
-                "iPhone SE",
-            )
-            for prefix in preferred_prefixes:
-                for device in devices:
-                    name = device.get("name", "")
-                    if name.startswith(prefix):
-                        print(device["udid"])
-                        sys.exit(0)
-
-            if devices:
-                print(devices[0]["udid"])
-                sys.exit(0)
-
-            sys.exit(1)
-            PY
+            xcrun simctl list devices available -j | python3 -c 'import json,sys;payload=json.load(sys.stdin);devices=[d for runtime,entries in payload.get("devices",{}).items() if "iOS" in runtime for d in entries if d.get("isAvailable",True)];prefs=("iPhone 16 Pro","iPhone 16","iPhone 15 Pro","iPhone 15","iPhone SE");chosen=next((d for pref in prefs for d in devices if d.get("name","").startswith(pref)),None) or (devices[0] if devices else None);sys.exit(1) if chosen is None else print(chosen["udid"])'
           )"
           if [[ -z "${SIM_UDID}" ]]; then
             echo "Unable to resolve an iPhone simulator UDID from simctl JSON output."
