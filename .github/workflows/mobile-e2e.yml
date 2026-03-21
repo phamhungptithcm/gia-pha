@@ -94,15 +94,55 @@ jobs:
       - name: Boot iOS simulator
         run: |
           set -euo pipefail
-          SIM_NAME="$(xcrun simctl list devices available | grep -m1 "iPhone 16" | sed -E 's/^[[:space:]]*([^()]*)[[:space:]]*\\(([-A-F0-9]+)\\).*/\\2/')"
-          if [[ -z "${SIM_NAME}" ]]; then
-            echo "Unable to resolve an iPhone simulator UDID."
+          SIM_UDID="$(
+            python3 - <<'PY'
+import json
+import subprocess
+import sys
+
+raw = subprocess.check_output(
+    ["xcrun", "simctl", "list", "devices", "available", "-j"],
+    text=True,
+)
+payload = json.loads(raw)
+devices = []
+for runtime, entries in payload.get("devices", {}).items():
+    if "iOS" not in runtime:
+        continue
+    for device in entries:
+        if device.get("isAvailable", True):
+            devices.append(device)
+
+preferred_prefixes = (
+    "iPhone 16 Pro",
+    "iPhone 16",
+    "iPhone 15 Pro",
+    "iPhone 15",
+    "iPhone SE",
+)
+for prefix in preferred_prefixes:
+    for device in devices:
+        name = device.get("name", "")
+        if name.startswith(prefix):
+            print(device["udid"])
+            sys.exit(0)
+
+if devices:
+    print(devices[0]["udid"])
+    sys.exit(0)
+
+sys.exit(1)
+PY
+          )"
+          if [[ -z "${SIM_UDID}" ]]; then
+            echo "Unable to resolve an iPhone simulator UDID from simctl JSON output."
             xcrun simctl list devices available
             exit 1
           fi
-          xcrun simctl boot "${SIM_NAME}" || true
+          xcrun simctl boot "${SIM_UDID}" || true
+          xcrun simctl bootstatus "${SIM_UDID}" -b
           open -a Simulator || true
-          echo "BEFAM_E2E_IOS_DEVICE=${SIM_NAME}" >> "$GITHUB_ENV"
+          echo "BEFAM_E2E_IOS_DEVICE=${SIM_UDID}" >> "$GITHUB_ENV"
 
       - name: Run iOS E2E
         env:

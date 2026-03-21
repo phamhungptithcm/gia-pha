@@ -115,8 +115,8 @@ jobs:
       - name: Run Flutter tests
         run: flutter test --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
 
-      - name: Run Flutter E2E smoke tests
-        run: flutter test integration_test/e2e_release_catalog_contract_test.dart integration_test/e2e_auth_and_role_matrix_test.dart integration_test/e2e_feature_journeys_test.dart --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true --dart-define=BEFAM_ENABLE_APP_CHECK=false
+      - name: Run Flutter E2E release catalog contract
+        run: flutter test integration_test/e2e_release_catalog_contract_test.dart -d flutter-tester --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true --dart-define=BEFAM_ENABLE_APP_CHECK=false
 
       - name: Run Flutter web smoke tests
         run: xvfb-run -a flutter test --platform chrome --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true test/app/web/web_marketing_pages_test.dart
