@@ -12,11 +12,11 @@ import {
   type BillingSubscriptionRecord,
 } from './subscription-lifecycle';
 import {
-  BILLING_PRICING_TIERS,
   computeRenewalWindow,
   rankPlanCode,
   resolveEffectivePlanCode,
   resolvePlanByMemberCount,
+  resolveTierByPlanCodeFromPricing,
   type BillingPlanCode,
   type BillingTierPricing,
   type PaymentMethod,
@@ -1123,8 +1123,7 @@ export function buildEntitlementFromSubscription(
 }
 
 export function resolveTierByPlanCode(planCode: BillingPlanCode): BillingTierPricing {
-  const matched = BILLING_PRICING_TIERS.find((tier) => tier.planCode === planCode);
-  return matched ?? BILLING_PRICING_TIERS[0];
+  return resolveTierByPlanCodeFromPricing(planCode);
 }
 
 function normalizeStatusForPlan({

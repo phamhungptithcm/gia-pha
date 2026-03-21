@@ -429,7 +429,7 @@ class AppLocalizationsVi extends AppLocalizations {
       'Mặc định cho người dùng tại Việt Nam';
 
   @override
-  String get profileLanguageEnglish => 'English';
+  String get profileLanguageEnglish => 'Tiếng Anh';
 
   @override
   String get profileLanguageEnglishSubtitle =>
@@ -572,7 +572,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get shellFieldFirebaseProject => 'Dự án Firebase';
 
   @override
-  String get shellFieldStorageBucket => 'Storage bucket';
+  String get shellFieldStorageBucket => 'Kho lưu trữ';
 
   @override
   String get shellFieldCrashHandling => 'Xử lý lỗi';

@@ -857,7 +857,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileLanguageEnglish.
   ///
   /// In vi, this message translates to:
-  /// **'English'**
+  /// **'Tiếng Anh'**
   String get profileLanguageEnglish;
 
   /// No description provided for @profileLanguageEnglishSubtitle.
@@ -1121,7 +1121,7 @@ abstract class AppLocalizations {
   /// No description provided for @shellFieldStorageBucket.
   ///
   /// In vi, this message translates to:
-  /// **'Storage bucket'**
+  /// **'Kho lưu trữ'**
   String get shellFieldStorageBucket;
 
   /// No description provided for @shellFieldCrashHandling.

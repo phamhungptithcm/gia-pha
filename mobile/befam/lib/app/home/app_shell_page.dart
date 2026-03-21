@@ -30,6 +30,7 @@ import '../../features/member/services/member_repository.dart';
 import '../../features/notifications/presentation/notification_target_page.dart';
 import '../../features/notifications/services/push_notification_service.dart';
 import '../../features/profile/presentation/profile_workspace_page.dart';
+import '../../features/profile/services/profile_notification_preferences_repository.dart';
 import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
 import '../../features/scholarship/services/scholarship_repository.dart';
 import '../../l10n/generated/app_localizations.dart';
@@ -63,10 +64,14 @@ class AppShellPage extends StatefulWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    this.eventRepository,
     this.fundRepository,
     this.genealogyRepository,
+    this.genealogyDiscoveryRepository,
     this.billingRepository,
     this.pushNotificationService,
+    this.clanContextService,
+    this.profileNotificationPreferencesRepository,
     this.localeController,
     this.onLogoutRequested,
   });
@@ -75,10 +80,15 @@ class AppShellPage extends StatefulWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final EventRepository? eventRepository;
   final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
+  final GenealogyDiscoveryRepository? genealogyDiscoveryRepository;
   final BillingRepository? billingRepository;
   final PushNotificationService? pushNotificationService;
+  final ClanContextService? clanContextService;
+  final ProfileNotificationPreferencesRepository?
+  profileNotificationPreferencesRepository;
   final AppLocaleController? localeController;
   final Future<void> Function()? onLogoutRequested;
 
@@ -93,6 +103,8 @@ class _AppShellPageState extends State<AppShellPage> {
   final Set<int> _visitedDestinationIndexes = <int>{0};
   late AuthSession _activeSession;
   late final GenealogyReadRepository _genealogyRepository;
+  late final GenealogyDiscoveryRepository _genealogyDiscoveryRepository;
+  late final EventRepository _eventRepository;
   late final FundRepository _fundRepository;
   late final BillingRepository _billingRepository;
   late final PushNotificationService _pushNotificationService;
@@ -175,6 +187,12 @@ class _AppShellPageState extends State<AppShellPage> {
     _genealogyRepository =
         widget.genealogyRepository ??
         createDefaultGenealogyReadRepository(session: _session);
+    _genealogyDiscoveryRepository =
+        widget.genealogyDiscoveryRepository ??
+        createDefaultGenealogyDiscoveryRepository(session: _session);
+    _eventRepository =
+        widget.eventRepository ??
+        createDefaultEventRepository(session: _session);
     _fundRepository =
         widget.fundRepository ?? createDefaultFundRepository(session: _session);
     _billingRepository =
@@ -183,7 +201,9 @@ class _AppShellPageState extends State<AppShellPage> {
     _pushNotificationService =
         widget.pushNotificationService ??
         createDefaultPushNotificationService(session: _session);
-    _clanContextService = createDefaultClanContextService(session: _session);
+    _clanContextService =
+        widget.clanContextService ??
+        createDefaultClanContextService(session: _session);
     unawaited(
       _pushNotificationService.start(
         session: _session,
@@ -713,7 +733,9 @@ class _AppShellPageState extends State<AppShellPage> {
         session: _session,
         clanRepository: widget.clanRepository,
         memberRepository: widget.memberRepository,
+        eventRepository: _eventRepository,
         fundRepository: _fundRepository,
+        discoveryRepository: _genealogyDiscoveryRepository,
         activeClanName: _activeClanDisplayName(),
         availableClanContexts: _clanContexts,
         onSwitchClanContext: _switchClanContext,
@@ -754,13 +776,12 @@ class _AppShellPageState extends State<AppShellPage> {
                 key: ValueKey<String>('tree-${_session.clanId ?? 'none'}'),
                 session: _session,
                 repository: _genealogyRepository,
+                clanRepository: widget.clanRepository,
               )
             : GenealogyDiscoveryPage(
                 key: const ValueKey<String>('tree-discovery'),
                 session: _session,
-                repository: createDefaultGenealogyDiscoveryRepository(
-                  session: _session,
-                ),
+                repository: _genealogyDiscoveryRepository,
                 onAddGenealogyRequested: _openClanWorkspaceFromTreeAddAction,
               )
       else
@@ -793,6 +814,8 @@ class _AppShellPageState extends State<AppShellPage> {
           key: ValueKey<String>('profile-${_session.clanId ?? 'none'}'),
           session: _session,
           memberRepository: widget.memberRepository,
+          notificationPreferencesRepository:
+              widget.profileNotificationPreferencesRepository,
           billingRepository: _billingRepository,
           onBillingStateChanged: () {
             unawaited(_refreshBillingEntitlement());
@@ -1132,7 +1155,7 @@ class _AppShellPageState extends State<AppShellPage> {
         builder: (context) {
           return EventWorkspacePage(
             session: _session,
-            repository: createDefaultEventRepository(session: _session),
+            repository: _eventRepository,
             availableClanContexts: _clanContexts,
             onSwitchClanContext: _switchClanContext,
           );
@@ -1150,7 +1173,7 @@ class _AppShellPageState extends State<AppShellPage> {
         builder: (context) {
           return EventWorkspacePage(
             session: _session,
-            repository: createDefaultEventRepository(session: _session),
+            repository: _eventRepository,
             availableClanContexts: _clanContexts,
             onSwitchClanContext: _switchClanContext,
             initialEventId: event.id,
@@ -1161,9 +1184,7 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   Future<void> _openJoinRequestsCenter() async {
-    final repository = createDefaultGenealogyDiscoveryRepository(
-      session: _session,
-    );
+    final repository = _genealogyDiscoveryRepository;
     final role = (_session.primaryRole ?? '').trim().toUpperCase();
     final canReview = <String>{
       'SUPER_ADMIN',
@@ -1218,9 +1239,7 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   Future<void> _openSubmittedJoinRequests() async {
-    final repository = createDefaultGenealogyDiscoveryRepository(
-      session: _session,
-    );
+    final repository = _genealogyDiscoveryRepository;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
@@ -1367,7 +1386,9 @@ class _HomeDashboard extends StatelessWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    required this.eventRepository,
     required this.fundRepository,
+    required this.discoveryRepository,
     required this.activeClanName,
     required this.availableClanContexts,
     required this.onSwitchClanContext,
@@ -1383,7 +1404,9 @@ class _HomeDashboard extends StatelessWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final EventRepository eventRepository;
   final FundRepository fundRepository;
+  final GenealogyDiscoveryRepository discoveryRepository;
   final String? activeClanName;
   final List<ClanContextOption> availableClanContexts;
   final Future<AuthSession?> Function(String clanId) onSwitchClanContext;
@@ -1470,6 +1493,7 @@ class _HomeDashboard extends StatelessWidget {
               children: [
                 _UpcomingEventSection(
                   session: session,
+                  eventRepository: eventRepository,
                   activeClanName: _activeClanName,
                   onOpenEventDetailRequested:
                       onOpenUpcomingEventDetailRequested,
@@ -1478,10 +1502,7 @@ class _HomeDashboard extends StatelessWidget {
                 _TodoSection(
                   status: status,
                   session: session,
-                  discoveryRepository:
-                      createDefaultGenealogyDiscoveryRepository(
-                        session: session,
-                      ),
+                  discoveryRepository: discoveryRepository,
                   onOpenTreeRequested: onOpenTreeRequested,
                   onOpenProfileRequested: onOpenProfileRequested,
                   onOpenEventsRequested: onOpenEventsRequested,
@@ -1842,11 +1863,13 @@ String _formatDashboardDateTime(DateTime utcValue) {
 class _UpcomingEventSection extends StatefulWidget {
   const _UpcomingEventSection({
     required this.session,
+    required this.eventRepository,
     required this.activeClanName,
     required this.onOpenEventDetailRequested,
   });
 
   final AuthSession session;
+  final EventRepository eventRepository;
   final String? activeClanName;
   final ValueChanged<EventRecord> onOpenEventDetailRequested;
 
@@ -1858,7 +1881,6 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
     with WidgetsBindingObserver {
   static const Duration _upcomingRefreshInterval = Duration(seconds: 45);
 
-  late EventRepository _eventRepository;
   late Future<_UpcomingEventData?> _upcomingFuture;
   Timer? _upcomingRefreshTimer;
 
@@ -1866,7 +1888,6 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _eventRepository = createDefaultEventRepository(session: widget.session);
     _upcomingFuture = _loadUpcomingEvent();
     _upcomingRefreshTimer = Timer.periodic(_upcomingRefreshInterval, (_) {
       if (!mounted) {
@@ -1883,7 +1904,6 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session ||
         oldWidget.activeClanName != widget.activeClanName) {
-      _eventRepository = createDefaultEventRepository(session: widget.session);
       setState(() {
         _upcomingFuture = _loadUpcomingEvent();
       });
@@ -1909,7 +1929,7 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
 
   Future<_UpcomingEventData?> _loadUpcomingEvent() async {
     try {
-      final snapshot = await _eventRepository.loadWorkspace(
+      final snapshot = await widget.eventRepository.loadWorkspace(
         session: widget.session,
       );
       final nowLocal = DateTime.now();

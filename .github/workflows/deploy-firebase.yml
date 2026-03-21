@@ -114,15 +114,6 @@ jobs:
           OTP_TWILIO_BACKOFF_MS: ${{ vars.OTP_TWILIO_BACKOFF_MS }}
           BILLING_IAP_ALLOW_TEST_MOCK: ${{ vars.BILLING_IAP_ALLOW_TEST_MOCK }}
           GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
-          BILLING_IAP_PRODUCT_IDS_BASE: ${{ vars.BILLING_IAP_PRODUCT_IDS_BASE }}
-          BILLING_IAP_PRODUCT_IDS_PLUS: ${{ vars.BILLING_IAP_PRODUCT_IDS_PLUS }}
-          BILLING_IAP_PRODUCT_IDS_PRO: ${{ vars.BILLING_IAP_PRODUCT_IDS_PRO }}
-          BILLING_IAP_IOS_PRODUCT_IDS_BASE: ${{ vars.BILLING_IAP_IOS_PRODUCT_IDS_BASE }}
-          BILLING_IAP_IOS_PRODUCT_IDS_PLUS: ${{ vars.BILLING_IAP_IOS_PRODUCT_IDS_PLUS }}
-          BILLING_IAP_IOS_PRODUCT_IDS_PRO: ${{ vars.BILLING_IAP_IOS_PRODUCT_IDS_PRO }}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_BASE: ${{ vars.BILLING_IAP_ANDROID_PRODUCT_IDS_BASE }}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS: ${{ vars.BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS }}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_PRO: ${{ vars.BILLING_IAP_ANDROID_PRODUCT_IDS_PRO }}
           BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS: ${{ vars.BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS }}
           BILLING_IAP_APPLE_VERIFY_MAX_RETRIES: ${{ vars.BILLING_IAP_APPLE_VERIFY_MAX_RETRIES }}
           BILLING_IAP_APPLE_VERIFY_BACKOFF_MS: ${{ vars.BILLING_IAP_APPLE_VERIFY_BACKOFF_MS }}
@@ -143,15 +134,6 @@ jobs:
           test -n "$BILLING_WEBHOOK_SECRET"
           test -n "$APPLE_SHARED_SECRET"
           test -n "$GOOGLE_PLAY_PACKAGE_NAME"
-          test -n "$BILLING_IAP_PRODUCT_IDS_BASE"
-          test -n "$BILLING_IAP_PRODUCT_IDS_PLUS"
-          test -n "$BILLING_IAP_PRODUCT_IDS_PRO"
-          test -n "${BILLING_IAP_IOS_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
-          test -n "${BILLING_IAP_IOS_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
-          test -n "${BILLING_IAP_IOS_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
-          test -n "${BILLING_IAP_ANDROID_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
-          test -n "${BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
-          test -n "${BILLING_IAP_ANDROID_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
           resolved_card_secret="${CARD_WEBHOOK_SECRET:-$BILLING_WEBHOOK_SECRET}"
           resolved_apple_iap_webhook_token="${APPLE_IAP_WEBHOOK_BEARER_TOKEN:-$BILLING_WEBHOOK_SECRET}"
           resolved_google_iap_webhook_token="${GOOGLE_IAP_WEBHOOK_BEARER_TOKEN:-$BILLING_WEBHOOK_SECRET}"
@@ -196,12 +178,6 @@ jobs:
           resolved_notification_allow_non_otp_sms="${NOTIFICATION_ALLOW_NON_OTP_SMS:-false}"
           resolved_notification_event_max_audience="${NOTIFICATION_EVENT_MAX_AUDIENCE:-5000}"
           resolved_iap_allow_test_mock="${BILLING_IAP_ALLOW_TEST_MOCK:-false}"
-          resolved_iap_ios_base="${BILLING_IAP_IOS_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
-          resolved_iap_ios_plus="${BILLING_IAP_IOS_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
-          resolved_iap_ios_pro="${BILLING_IAP_IOS_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
-          resolved_iap_android_base="${BILLING_IAP_ANDROID_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
-          resolved_iap_android_plus="${BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
-          resolved_iap_android_pro="${BILLING_IAP_ANDROID_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
           resolved_apple_verify_timeout_ms="${BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS:-5000}"
           resolved_apple_verify_max_retries="${BILLING_IAP_APPLE_VERIFY_MAX_RETRIES:-2}"
           resolved_apple_verify_backoff_ms="${BILLING_IAP_APPLE_VERIFY_BACKOFF_MS:-350}"
@@ -309,15 +285,6 @@ jobs:
           CARD_WEBHOOK_SECRET=${resolved_card_secret}
           APPLE_SHARED_SECRET=${APPLE_SHARED_SECRET}
           GOOGLE_PLAY_PACKAGE_NAME=${GOOGLE_PLAY_PACKAGE_NAME}
-          BILLING_IAP_PRODUCT_IDS_BASE=${BILLING_IAP_PRODUCT_IDS_BASE}
-          BILLING_IAP_PRODUCT_IDS_PLUS=${BILLING_IAP_PRODUCT_IDS_PLUS}
-          BILLING_IAP_PRODUCT_IDS_PRO=${BILLING_IAP_PRODUCT_IDS_PRO}
-          BILLING_IAP_IOS_PRODUCT_IDS_BASE=${resolved_iap_ios_base}
-          BILLING_IAP_IOS_PRODUCT_IDS_PLUS=${resolved_iap_ios_plus}
-          BILLING_IAP_IOS_PRODUCT_IDS_PRO=${resolved_iap_ios_pro}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_BASE=${resolved_iap_android_base}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS=${resolved_iap_android_plus}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_PRO=${resolved_iap_android_pro}
           BILLING_IAP_ALLOW_TEST_MOCK=${resolved_iap_allow_test_mock}
           BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS=${resolved_apple_verify_timeout_ms}
           BILLING_IAP_APPLE_VERIFY_MAX_RETRIES=${resolved_apple_verify_max_retries}
@@ -363,15 +330,6 @@ jobs:
           echo "NOTIFICATION_ALLOW_NON_OTP_SMS=$resolved_notification_allow_non_otp_sms" >> "$GITHUB_ENV"
           echo "NOTIFICATION_EVENT_MAX_AUDIENCE=$resolved_notification_event_max_audience" >> "$GITHUB_ENV"
           echo "GOOGLE_PLAY_PACKAGE_NAME=$GOOGLE_PLAY_PACKAGE_NAME" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_PRODUCT_IDS_BASE=$BILLING_IAP_PRODUCT_IDS_BASE" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_PRODUCT_IDS_PLUS=$BILLING_IAP_PRODUCT_IDS_PLUS" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_PRODUCT_IDS_PRO=$BILLING_IAP_PRODUCT_IDS_PRO" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_IOS_PRODUCT_IDS_BASE=$resolved_iap_ios_base" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_IOS_PRODUCT_IDS_PLUS=$resolved_iap_ios_plus" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_IOS_PRODUCT_IDS_PRO=$resolved_iap_ios_pro" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_ANDROID_PRODUCT_IDS_BASE=$resolved_iap_android_base" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS=$resolved_iap_android_plus" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_ANDROID_PRODUCT_IDS_PRO=$resolved_iap_android_pro" >> "$GITHUB_ENV"
           echo "BILLING_IAP_ALLOW_TEST_MOCK=$resolved_iap_allow_test_mock" >> "$GITHUB_ENV"
           echo "BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS=$resolved_apple_verify_timeout_ms" >> "$GITHUB_ENV"
           echo "BILLING_IAP_APPLE_VERIFY_MAX_RETRIES=$resolved_apple_verify_max_retries" >> "$GITHUB_ENV"

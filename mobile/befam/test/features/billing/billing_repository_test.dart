@@ -92,7 +92,7 @@ void main() {
         requestedPlanCode: 'BASE',
       );
       expect(checkout.planCode, 'BASE');
-      expect(checkout.amountVnd, 49000);
+      expect(checkout.amountVnd, 99000);
     },
   );
 
@@ -214,7 +214,7 @@ void main() {
       );
 
       expect(downgradeCheckout.planCode, 'BASE');
-      expect(downgradeCheckout.amountVnd, 49000);
+      expect(downgradeCheckout.amountVnd, 99000);
       expect(downgradeCheckout.subscription.planCode, 'PRO');
     },
   );

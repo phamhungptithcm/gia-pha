@@ -41,10 +41,12 @@ class GenealogyWorkspacePage extends StatefulWidget {
     super.key,
     required this.session,
     required this.repository,
+    this.clanRepository,
   });
 
   final AuthSession session;
   final GenealogyReadRepository repository;
+  final ClanRepository? clanRepository;
 
   @override
   State<GenealogyWorkspacePage> createState() => _GenealogyWorkspacePageState();
@@ -107,7 +109,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     super.initState();
     _scopeType = GenealogyScopeType.clan;
     _transformController = TransformationController();
-    _clanRepository = createDefaultClanRepository(session: widget.session);
+    _clanRepository =
+        widget.clanRepository ??
+        createDefaultClanRepository(session: widget.session);
     unawaited(_load());
   }
 
@@ -609,19 +613,19 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         ?..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-              content: Text(
-                createdClanId.isEmpty
-                    ? l10n.pick(
-                        vi: 'Đã tạo gia phả riêng. Bạn có thể chuyển qua clan mới ở bộ chuyển clan.',
-                        en: 'Private genealogy created. You can switch to it from the clan switcher.',
-                      )
-                    : l10n.pick(
-                        vi: 'Đã tạo gia phả riêng. Bạn vẫn thuộc gia phả hiện tại.',
-                        en: 'Private genealogy created. You still remain in the current clan.',
-                      ),
-              ),
+            content: Text(
+              createdClanId.isEmpty
+                  ? l10n.pick(
+                      vi: 'Đã tạo gia phả riêng. Bạn có thể chuyển qua clan mới ở bộ chuyển clan.',
+                      en: 'Private genealogy created. You can switch to it from the clan switcher.',
+                    )
+                  : l10n.pick(
+                      vi: 'Đã tạo gia phả riêng. Bạn vẫn thuộc gia phả hiện tại.',
+                      en: 'Private genealogy created. You still remain in the current clan.',
+                    ),
             ),
-          );
+          ),
+        );
     } on FirebaseFunctionsException catch (error) {
       if (!mounted) {
         return;
@@ -1009,9 +1013,11 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   }) {
     final stopwatch = Stopwatch()..start();
     final graph = segment.graph;
+    final maxVisibleMembers = _resolveMaxVisibleMembersForDevice();
     final visibleMemberIds = _buildVisibleMemberIds(
       graph: graph,
       rootId: rootId,
+      maxVisibleMembers: maxVisibleMembers,
     );
     final levels = _buildRelativeLevels(
       graph: graph,
@@ -1144,6 +1150,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         'layout_average_ms': layoutProfile.averageMs,
         'layout_peak_ms': layoutProfile.peakMs,
         'layout_samples': layoutProfile.sampleCount,
+        'visible_cap': maxVisibleMembers,
+        'truncated': graph.membersById.length > maxVisibleMembers ? 1 : 0,
       },
     );
 
@@ -1156,6 +1164,29 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       visibleMemberIds: visibleMemberIds,
       layoutProfile: layoutProfile,
     );
+  }
+
+  int _resolveMaxVisibleMembersForDevice() {
+    final mediaQuery = MediaQuery.maybeOf(context);
+    if (mediaQuery == null) {
+      return _maxVisibleMembers;
+    }
+    final shortestSide = mediaQuery.size.shortestSide;
+    final longestSide = mediaQuery.size.longestSide;
+    final devicePixelRatio = mediaQuery.devicePixelRatio;
+    final compactPhone = shortestSide <= 390 || longestSide <= 780;
+    final veryCompactPhone = shortestSide <= 360 || longestSide <= 700;
+    final lowDensityDisplay = devicePixelRatio <= 2.0;
+    final veryLowDensityDisplay = devicePixelRatio <= 1.8;
+    final lowDensityCompact = lowDensityDisplay && shortestSide <= 500;
+
+    if (veryCompactPhone || (compactPhone && veryLowDensityDisplay)) {
+      return 220;
+    }
+    if (compactPhone || lowDensityCompact) {
+      return 240;
+    }
+    return _maxVisibleMembers;
   }
 
   List<_TreeConnectorGroupGeometry> _buildConnectorGroups({
@@ -1433,8 +1464,14 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       orderedByLevel[level] = row;
     }
 
+    final totalNodes = orderedByLevel.values.fold<int>(
+      0,
+      (sum, row) => sum + row.length,
+    );
+    final sweepIterations = totalNodes >= 220 ? 2 : 4;
+
     // Multi-pass barycenter sweeps (top-down + bottom-up) to reduce crossings.
-    for (var iteration = 0; iteration < 4; iteration++) {
+    for (var iteration = 0; iteration < sweepIterations; iteration++) {
       for (var index = 1; index < sortedLevels.length; index++) {
         _sortRowWithBarycenter(
           level: sortedLevels[index],
@@ -1793,18 +1830,19 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   Set<String> _buildVisibleMemberIds({
     required GenealogyGraph graph,
     required String rootId,
+    required int maxVisibleMembers,
   }) {
     final allMemberIds = graph.membersById.keys.toSet();
-    if (allMemberIds.length <= _maxVisibleMembers) {
+    if (allMemberIds.length <= maxVisibleMembers) {
       return allMemberIds;
     }
     if (!allMemberIds.contains(rootId)) {
-      return allMemberIds.take(_maxVisibleMembers).toSet();
+      return allMemberIds.take(maxVisibleMembers).toSet();
     }
 
     final visible = <String>{rootId};
     final queue = Queue<String>()..add(rootId);
-    while (queue.isNotEmpty && visible.length < _maxVisibleMembers) {
+    while (queue.isNotEmpty && visible.length < maxVisibleMembers) {
       final currentId = queue.removeFirst();
       final related =
           <String>{
@@ -1818,13 +1856,13 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           continue;
         }
         queue.addLast(relatedId);
-        if (visible.length >= _maxVisibleMembers) {
+        if (visible.length >= maxVisibleMembers) {
           break;
         }
       }
     }
 
-    if (visible.length >= _maxVisibleMembers) {
+    if (visible.length >= maxVisibleMembers) {
       return visible;
     }
 
@@ -1832,7 +1870,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       ..sort(_compareMembersForLayoutWithFallback(graph));
     for (final memberId in remaining) {
       visible.add(memberId);
-      if (visible.length >= _maxVisibleMembers) {
+      if (visible.length >= maxVisibleMembers) {
         break;
       }
     }
@@ -2535,6 +2573,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       final pdfBytes = await _buildTreePdf(
         paperSize: action.paperSize,
         preferLandscape: true,
+        layout: action.layout,
       );
       if (!mounted) {
         return;
@@ -2556,8 +2595,12 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           SnackBar(
             content: Text(
               l10n.pick(
-                vi: 'Đã tạo PDF. Bạn có thể lưu vào Files hoặc chia sẻ.',
-                en: 'PDF is ready. You can save it to Files or share it now.',
+                vi: action.layout == _TreeExportLayout.poster
+                    ? 'Đã tạo PDF dạng poster nhiều trang. Bạn có thể lưu vào Files hoặc chia sẻ.'
+                    : 'Đã tạo PDF. Bạn có thể lưu vào Files hoặc chia sẻ.',
+                en: action.layout == _TreeExportLayout.poster
+                    ? 'Poster PDF is ready. You can save it to Files or share it now.'
+                    : 'PDF is ready. You can save it to Files or share it now.',
               ),
             ),
           ),
@@ -2584,7 +2627,10 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   Future<Uint8List> _buildTreePdf({
     required _TreeExportPaperSize paperSize,
     required bool preferLandscape,
+    required _TreeExportLayout layout,
+    bool allowPosterFallback = true,
   }) async {
+    final exportStopwatch = Stopwatch()..start();
     final boundaryContext = _treeCanvasPrintBoundaryKey.currentContext;
     final boundary =
         boundaryContext?.findRenderObject() as RenderRepaintBoundary?;
@@ -2592,46 +2638,386 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       throw StateError('Tree canvas print boundary is not ready.');
     }
 
-    final exportPixelRatio = _resolveTreeExportPixelRatio(boundary.size);
-    final ui.Image image = await boundary.toImage(pixelRatio: exportPixelRatio);
-    try {
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        throw StateError('Could not encode tree image.');
-      }
-
-      final treeImage = pw.MemoryImage(byteData.buffer.asUint8List());
-      final pdf = pw.Document();
-      final baseFormat = _pageFormatForPaperSize(paperSize);
-      final useLandscape = preferLandscape && image.width >= image.height;
-      final pageFormat = useLandscape ? baseFormat.landscape : baseFormat;
-      pdf.addPage(
-        pw.Page(
-          pageFormat: pageFormat,
-          margin: const pw.EdgeInsets.all(8),
-          build: (context) {
-            return pw.Center(
-              child: pw.Image(treeImage, fit: pw.BoxFit.contain),
-            );
-          },
-        ),
-      );
-      return pdf.save();
-    } finally {
-      image.dispose();
+    if (boundary.debugNeedsPaint) {
+      await Future<void>.delayed(const Duration(milliseconds: 16));
     }
+
+    if (layout == _TreeExportLayout.poster) {
+      final posterBytes = await _buildTreePosterPdf(
+        boundary: boundary,
+        paperSize: paperSize,
+        preferLandscape: preferLandscape,
+      );
+      exportStopwatch.stop();
+      AppLogger.info(
+        'genealogy tree poster export ready '
+        '(size=${boundary.size.width.toStringAsFixed(0)}x${boundary.size.height.toStringAsFixed(0)}, '
+        'elapsedMs=${exportStopwatch.elapsedMilliseconds}, '
+        'pdfBytes=${posterBytes.length})',
+      );
+      return posterBytes;
+    }
+
+    final exportPixelRatio = _resolveTreeExportPixelRatio(boundary.size);
+    final estimatedTileCount = _estimateTreeExportTileCount(
+      boundarySize: boundary.size,
+      pixelRatio: exportPixelRatio,
+    );
+    if (allowPosterFallback && estimatedTileCount > 24) {
+      AppLogger.warning(
+        'tree export fit->poster fallback due to heavy scene '
+        '(estimatedTiles=$estimatedTileCount, '
+        'size=${boundary.size.width.toStringAsFixed(0)}x${boundary.size.height.toStringAsFixed(0)})',
+      );
+      final posterBytes = await _buildTreePosterPdf(
+        boundary: boundary,
+        paperSize: paperSize,
+        preferLandscape: preferLandscape,
+      );
+      exportStopwatch.stop();
+      AppLogger.info(
+        'genealogy tree auto poster export ready '
+        '(elapsedMs=${exportStopwatch.elapsedMilliseconds}, '
+        'pdfBytes=${posterBytes.length})',
+      );
+      return posterBytes;
+    }
+    final tiles = await _captureTreePdfTiles(
+      boundary: boundary,
+      pixelRatio: exportPixelRatio,
+    );
+    if (tiles.isEmpty) {
+      throw StateError('Tree export did not capture any image tile.');
+    }
+
+    final pdf = pw.Document();
+    final baseFormat = _pageFormatForPaperSize(paperSize);
+    final useLandscape =
+        preferLandscape && boundary.size.width >= boundary.size.height;
+    final pageFormat = useLandscape ? baseFormat.landscape : baseFormat;
+    const pageMargin = 10.0;
+    final availableWidth = math.max(1.0, pageFormat.width - (pageMargin * 2));
+    final availableHeight = math.max(1.0, pageFormat.height - (pageMargin * 2));
+    final fitScale = math.min(
+      availableWidth / boundary.size.width,
+      availableHeight / boundary.size.height,
+    );
+    final contentWidth = boundary.size.width * fitScale;
+    final contentHeight = boundary.size.height * fitScale;
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: pageFormat,
+        margin: const pw.EdgeInsets.all(pageMargin),
+        build: (context) {
+          return pw.Center(
+            child: pw.Container(
+              width: contentWidth,
+              height: contentHeight,
+              child: pw.Stack(
+                children: [
+                  for (final tile in tiles)
+                    pw.Positioned(
+                      left: tile.logicalBounds.left * fitScale,
+                      top: tile.logicalBounds.top * fitScale,
+                      child: pw.SizedBox(
+                        width: tile.logicalBounds.width * fitScale,
+                        height: tile.logicalBounds.height * fitScale,
+                        child: pw.Image(
+                          pw.MemoryImage(tile.pngBytes),
+                          fit: pw.BoxFit.fill,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    final pdfBytes = await pdf.save();
+    exportStopwatch.stop();
+    AppLogger.info(
+      'genealogy tree export ready '
+      '(size=${boundary.size.width.toStringAsFixed(0)}x${boundary.size.height.toStringAsFixed(0)}, '
+      'pixelRatio=${exportPixelRatio.toStringAsFixed(2)}, '
+      'tiles=${tiles.length}, '
+      'elapsedMs=${exportStopwatch.elapsedMilliseconds}, '
+      'pdfBytes=${pdfBytes.length})',
+    );
+    return pdfBytes;
+  }
+
+  Future<Uint8List> _buildTreePosterPdf({
+    required RenderRepaintBoundary boundary,
+    required _TreeExportPaperSize paperSize,
+    required bool preferLandscape,
+  }) async {
+    // ignore: invalid_use_of_protected_member
+    final layer = boundary.layer as OffsetLayer?;
+    if (layer == null) {
+      return _buildTreePdf(
+        paperSize: paperSize,
+        preferLandscape: preferLandscape,
+        layout: _TreeExportLayout.fit,
+        allowPosterFallback: false,
+      );
+    }
+
+    final baseFormat = _pageFormatForPaperSize(paperSize);
+    final useLandscape =
+        preferLandscape && boundary.size.width >= boundary.size.height;
+    final pageFormat = useLandscape ? baseFormat.landscape : baseFormat;
+    const pageMargin = 12.0;
+    final printableWidth = math.max(1.0, pageFormat.width - (pageMargin * 2));
+    final printableHeight = math.max(1.0, pageFormat.height - (pageMargin * 2));
+    final posterLayout = _resolveTreePosterLayout(
+      canvasSize: boundary.size,
+      printableSize: Size(printableWidth, printableHeight),
+      maxPages: 30,
+    );
+    final exportPixelRatio = _resolveTreePosterPixelRatio(
+      basePixelRatio: _resolveTreeExportPixelRatio(boundary.size),
+      posterScale: posterLayout.posterScale,
+    );
+    final pdf = pw.Document();
+    final totalPages = posterLayout.columns * posterLayout.rows;
+    var pageNumber = 0;
+
+    for (var row = 0; row < posterLayout.rows; row++) {
+      for (var column = 0; column < posterLayout.columns; column++) {
+        final logicalRect = Rect.fromLTWH(
+          column * posterLayout.logicalPageWidth,
+          row * posterLayout.logicalPageHeight,
+          math.min(
+            posterLayout.logicalPageWidth,
+            boundary.size.width - (column * posterLayout.logicalPageWidth),
+          ),
+          math.min(
+            posterLayout.logicalPageHeight,
+            boundary.size.height - (row * posterLayout.logicalPageHeight),
+          ),
+        );
+        final ui.Image tileImage = await layer.toImage(
+          logicalRect,
+          pixelRatio: exportPixelRatio,
+        );
+        Uint8List imageBytes;
+        try {
+          final byteData = await tileImage.toByteData(
+            format: ui.ImageByteFormat.png,
+          );
+          if (byteData == null) {
+            throw StateError('Could not encode tree poster page image.');
+          }
+          imageBytes = byteData.buffer.asUint8List();
+        } finally {
+          tileImage.dispose();
+        }
+
+        pageNumber += 1;
+        final pageImage = pw.MemoryImage(imageBytes);
+        final targetWidth = logicalRect.width * posterLayout.posterScale;
+        final targetHeight = logicalRect.height * posterLayout.posterScale;
+        pdf.addPage(
+          pw.Page(
+            pageFormat: pageFormat,
+            margin: const pw.EdgeInsets.all(pageMargin),
+            build: (context) {
+              return pw.Stack(
+                children: [
+                  pw.Positioned(
+                    left: 0,
+                    top: 0,
+                    child: pw.SizedBox(
+                      width: targetWidth,
+                      height: targetHeight,
+                      child: pw.Image(pageImage, fit: pw.BoxFit.fill),
+                    ),
+                  ),
+                  pw.Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: pw.Text(
+                      'Page $pageNumber / $totalPages',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      }
+      if (row % 2 == 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    AppLogger.info(
+      'genealogy poster layout '
+      '(rows=${posterLayout.rows}, cols=${posterLayout.columns}, '
+      'scale=${posterLayout.posterScale.toStringAsFixed(3)}, '
+      'logicalPage=${posterLayout.logicalPageWidth.toStringAsFixed(1)}x'
+      '${posterLayout.logicalPageHeight.toStringAsFixed(1)}, '
+      'pixelRatio=${exportPixelRatio.toStringAsFixed(2)})',
+    );
+    return pdf.save();
+  }
+
+  Future<List<_TreePdfTile>> _captureTreePdfTiles({
+    required RenderRepaintBoundary boundary,
+    required double pixelRatio,
+  }) async {
+    // ignore: invalid_use_of_protected_member
+    final layer = boundary.layer as OffsetLayer?;
+    if (layer == null) {
+      final ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
+      try {
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData == null) {
+          throw StateError('Could not encode tree image.');
+        }
+        return [
+          _TreePdfTile(
+            logicalBounds: Rect.fromLTWH(
+              0,
+              0,
+              boundary.size.width,
+              boundary.size.height,
+            ),
+            pngBytes: byteData.buffer.asUint8List(),
+          ),
+        ];
+      } finally {
+        image.dispose();
+      }
+    }
+
+    final tileEdge = _resolveTreeExportTileLogicalEdge(pixelRatio);
+    final tiles = <_TreePdfTile>[];
+    var rowIndex = 0;
+    for (var top = 0.0; top < boundary.size.height; top += tileEdge) {
+      for (var left = 0.0; left < boundary.size.width; left += tileEdge) {
+        final tileRect = Rect.fromLTWH(
+          left,
+          top,
+          math.min(tileEdge, boundary.size.width - left),
+          math.min(tileEdge, boundary.size.height - top),
+        );
+        final ui.Image tileImage = await layer.toImage(
+          tileRect,
+          pixelRatio: pixelRatio,
+        );
+        try {
+          final byteData = await tileImage.toByteData(
+            format: ui.ImageByteFormat.png,
+          );
+          if (byteData == null) {
+            throw StateError('Could not encode tree tile image.');
+          }
+          tiles.add(
+            _TreePdfTile(
+              logicalBounds: tileRect,
+              pngBytes: byteData.buffer.asUint8List(),
+            ),
+          );
+        } finally {
+          tileImage.dispose();
+        }
+      }
+      rowIndex += 1;
+      if (rowIndex % 2 == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    return tiles;
   }
 
   double _resolveTreeExportPixelRatio(Size boundarySize) {
-    const minPixelRatio = 1.2;
-    const maxPixelRatio = 2.2;
-    const maxPixels = 18000000.0; // Keep export stable for large trees.
+    const minPixelRatio = 0.95;
+    const maxPixelRatio = 1.6;
+    const maxPixels = 10000000.0; // Keep export stable for large trees.
     final estimatedPixels = boundarySize.width * boundarySize.height;
     if (estimatedPixels <= 0) {
       return minPixelRatio;
     }
     final adaptiveRatio = math.sqrt(maxPixels / estimatedPixels);
     return adaptiveRatio.clamp(minPixelRatio, maxPixelRatio).toDouble();
+  }
+
+  double _resolveTreeExportTileLogicalEdge(double pixelRatio) {
+    const maxTilePixels = 3500000.0;
+    final safeRatio = math.max(0.2, pixelRatio);
+    final edge = math.sqrt(maxTilePixels / (safeRatio * safeRatio));
+    return edge.clamp(560.0, 1400.0).toDouble();
+  }
+
+  int _estimateTreeExportTileCount({
+    required Size boundarySize,
+    required double pixelRatio,
+  }) {
+    final tileEdge = _resolveTreeExportTileLogicalEdge(pixelRatio);
+    final rows = math.max(1, (boundarySize.height / tileEdge).ceil());
+    final cols = math.max(1, (boundarySize.width / tileEdge).ceil());
+    return rows * cols;
+  }
+
+  _TreePosterLayout _resolveTreePosterLayout({
+    required Size canvasSize,
+    required Size printableSize,
+    required int maxPages,
+  }) {
+    final safeMaxPages = math.max(6, maxPages);
+    var posterScale = 1.0;
+    var cols = 1;
+    var rows = 1;
+    for (var i = 0; i < 8; i++) {
+      final logicalPageWidth = printableSize.width / posterScale;
+      final logicalPageHeight = printableSize.height / posterScale;
+      cols = math.max(1, (canvasSize.width / logicalPageWidth).ceil());
+      rows = math.max(1, (canvasSize.height / logicalPageHeight).ceil());
+      final pageCount = cols * rows;
+      if (pageCount <= safeMaxPages) {
+        break;
+      }
+      final nextScale = (posterScale * math.sqrt(safeMaxPages / pageCount))
+          .clamp(0.46, 1.0)
+          .toDouble();
+      if ((nextScale - posterScale).abs() < 0.01) {
+        posterScale = nextScale;
+        break;
+      }
+      posterScale = nextScale;
+    }
+
+    final logicalPageWidth = printableSize.width / posterScale;
+    final logicalPageHeight = printableSize.height / posterScale;
+    final boundedCols = math.max(
+      1,
+      (canvasSize.width / logicalPageWidth).ceil(),
+    );
+    final boundedRows = math.max(
+      1,
+      (canvasSize.height / logicalPageHeight).ceil(),
+    );
+    return _TreePosterLayout(
+      posterScale: posterScale,
+      logicalPageWidth: logicalPageWidth,
+      logicalPageHeight: logicalPageHeight,
+      columns: boundedCols,
+      rows: boundedRows,
+    );
+  }
+
+  double _resolveTreePosterPixelRatio({
+    required double basePixelRatio,
+    required double posterScale,
+  }) {
+    final ratio = (basePixelRatio * 0.92 * posterScale).clamp(0.82, 1.28);
+    return ratio.toDouble();
   }
 
   PdfPageFormat _pageFormatForPaperSize(_TreeExportPaperSize size) {
@@ -3623,11 +4009,18 @@ class _TreeZoomControls extends StatelessWidget {
 
 enum _TreeExportMode { print, download }
 
+enum _TreeExportLayout { fit, poster }
+
 class _TreeExportAction {
-  const _TreeExportAction({required this.mode, required this.paperSize});
+  const _TreeExportAction({
+    required this.mode,
+    required this.paperSize,
+    required this.layout,
+  });
 
   final _TreeExportMode mode;
   final _TreeExportPaperSize paperSize;
+  final _TreeExportLayout layout;
 }
 
 class _TreeExportSheet extends StatelessWidget {
@@ -3640,18 +4033,32 @@ class _TreeExportSheet extends StatelessWidget {
       const _TreeExportAction(
         mode: _TreeExportMode.print,
         paperSize: _TreeExportPaperSize.a3,
+        layout: _TreeExportLayout.poster,
       ),
       const _TreeExportAction(
         mode: _TreeExportMode.download,
         paperSize: _TreeExportPaperSize.a3,
+        layout: _TreeExportLayout.poster,
       ),
       const _TreeExportAction(
         mode: _TreeExportMode.print,
         paperSize: _TreeExportPaperSize.a2,
+        layout: _TreeExportLayout.fit,
       ),
       const _TreeExportAction(
         mode: _TreeExportMode.download,
         paperSize: _TreeExportPaperSize.a2,
+        layout: _TreeExportLayout.fit,
+      ),
+      const _TreeExportAction(
+        mode: _TreeExportMode.print,
+        paperSize: _TreeExportPaperSize.a3,
+        layout: _TreeExportLayout.fit,
+      ),
+      const _TreeExportAction(
+        mode: _TreeExportMode.download,
+        paperSize: _TreeExportPaperSize.a3,
+        layout: _TreeExportLayout.fit,
       ),
     ];
 
@@ -3670,8 +4077,8 @@ class _TreeExportSheet extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             l10n.pick(
-              vi: 'Chọn khổ giấy A3/A2 và cách xuất.',
-              en: 'Choose A3/A2 paper size and output mode.',
+              vi: 'Khuyên dùng poster nhiều trang cho cây lớn để chữ rõ và tránh quá tải bộ nhớ.',
+              en: 'For large trees, multi-page poster mode is recommended for better readability and lower memory load.',
             ),
           ),
           const SizedBox(height: 14),
@@ -3690,22 +4097,14 @@ class _TreeExportSheet extends StatelessWidget {
                   ),
                   title: Text(
                     l10n.pick(
-                      vi: action.mode == _TreeExportMode.print
-                          ? 'In PDF (${action.paperSize.name.toUpperCase()})'
-                          : 'Tải xuống PDF (${action.paperSize.name.toUpperCase()})',
-                      en: action.mode == _TreeExportMode.print
-                          ? 'Print PDF (${action.paperSize.name.toUpperCase()})'
-                          : 'Download PDF (${action.paperSize.name.toUpperCase()})',
+                      vi: _treeExportActionTitleVi(action),
+                      en: _treeExportActionTitleEn(action),
                     ),
                   ),
                   subtitle: Text(
                     l10n.pick(
-                      vi: action.mode == _TreeExportMode.print
-                          ? 'Mở hộp thoại in với khổ giấy đã chọn.'
-                          : 'Mở chia sẻ để lưu tệp vào máy.',
-                      en: action.mode == _TreeExportMode.print
-                          ? 'Open print dialog with selected paper size.'
-                          : 'Open share sheet to save the file locally.',
+                      vi: _treeExportActionSubtitleVi(action),
+                      en: _treeExportActionSubtitleEn(action),
                     ),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -3720,6 +4119,52 @@ class _TreeExportSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+String _treeExportActionTitleVi(_TreeExportAction action) {
+  final paper = action.paperSize.name.toUpperCase();
+  if (action.layout == _TreeExportLayout.poster) {
+    return action.mode == _TreeExportMode.print
+        ? 'In poster nhiều trang ($paper)'
+        : 'Tải poster PDF nhiều trang ($paper)';
+  }
+  return action.mode == _TreeExportMode.print
+      ? 'In PDF 1 trang ($paper)'
+      : 'Tải PDF 1 trang ($paper)';
+}
+
+String _treeExportActionTitleEn(_TreeExportAction action) {
+  final paper = action.paperSize.name.toUpperCase();
+  if (action.layout == _TreeExportLayout.poster) {
+    return action.mode == _TreeExportMode.print
+        ? 'Print multi-page poster ($paper)'
+        : 'Download multi-page poster PDF ($paper)';
+  }
+  return action.mode == _TreeExportMode.print
+      ? 'Print single-page PDF ($paper)'
+      : 'Download single-page PDF ($paper)';
+}
+
+String _treeExportActionSubtitleVi(_TreeExportAction action) {
+  if (action.layout == _TreeExportLayout.poster) {
+    return action.mode == _TreeExportMode.print
+        ? 'Giữ chữ rõ hơn cho cây lớn, mở hộp thoại in theo nhiều trang.'
+        : 'Tạo PDF nhiều trang để lưu/chia sẻ dễ in khổ lớn.';
+  }
+  return action.mode == _TreeExportMode.print
+      ? 'Mở hộp thoại in và dồn toàn bộ cây vào một trang.'
+      : 'Lưu một tệp PDF 1 trang để chia sẻ nhanh.';
+}
+
+String _treeExportActionSubtitleEn(_TreeExportAction action) {
+  if (action.layout == _TreeExportLayout.poster) {
+    return action.mode == _TreeExportMode.print
+        ? 'Keeps text readable on large trees and opens print dialog in multi-page poster mode.'
+        : 'Generates a multi-page PDF that is easier to print in large formats.';
+  }
+  return action.mode == _TreeExportMode.print
+      ? 'Opens print dialog and fits the entire tree into a single page.'
+      : 'Creates a single-page PDF for quick sharing.';
 }
 
 class _MemberNodeCard extends StatelessWidget {
@@ -3956,6 +4401,11 @@ class _TreeConnectorPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final segmentCount = connectorGroups.fold<int>(
+      0,
+      (sum, group) => sum + group.segmentCount,
+    );
+    final drawHalo = segmentCount <= 220;
     final haloPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 5.2
@@ -3976,7 +4426,9 @@ class _TreeConnectorPainter extends CustomPainter {
       ..color = const Color(0xFF2563EB);
 
     void drawSegment(Offset from, Offset to, Paint paint) {
-      canvas.drawLine(from, to, haloPaint);
+      if (drawHalo) {
+        canvas.drawLine(from, to, haloPaint);
+      }
       canvas.drawLine(from, to, paint);
     }
 
@@ -4447,6 +4899,29 @@ class _TreeChildLineSegment {
   final String childId;
   final Offset from;
   final Offset to;
+}
+
+class _TreePdfTile {
+  const _TreePdfTile({required this.logicalBounds, required this.pngBytes});
+
+  final Rect logicalBounds;
+  final Uint8List pngBytes;
+}
+
+class _TreePosterLayout {
+  const _TreePosterLayout({
+    required this.posterScale,
+    required this.logicalPageWidth,
+    required this.logicalPageHeight,
+    required this.columns,
+    required this.rows,
+  });
+
+  final double posterScale;
+  final double logicalPageWidth;
+  final double logicalPageHeight;
+  final int columns;
+  final int rows;
 }
 
 class _HorizontalLaneAllocator {

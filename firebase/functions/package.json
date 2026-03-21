@@ -12,6 +12,8 @@
     "purge:billing-owner-column": "node scripts/purge-billing-owner-column.mjs",
     "purge:debug-auth-columns": "node scripts/purge-debug-auth-columns.mjs",
     "seed:demo": "node scripts/seed-demo-data.mjs",
+    "seed:debug-profiles": "node scripts/seed-debug-login-profiles.mjs",
+    "validate:debug-profiles": "node scripts/seed-debug-login-profiles.mjs --validate-only",
     "test": "npm run build && node --test lib/contract-tests/*.contract.test.js",
     "test:rules:emulator": "node --test lib/rules-tests/*.rules.test.js",
     "test:rules": "npm run build && firebase emulators:exec --project demo-befam-rules --only firestore,storage \"npm run test:rules:emulator\""

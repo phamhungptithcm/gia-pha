@@ -81,7 +81,11 @@ Validate the bootstrap foundation:
 ```bash
 flutter analyze
 flutter test
+./../../scripts/run_mobile_e2e.sh smoke
 ```
+
+E2E release-case mapping lives in `integration_test/README.md` and links to
+the release execution/dashboard templates in `/docs/vi/05-devops/`.
 
 Refresh the production brand asset pack:
 

@@ -79,7 +79,15 @@ class DebugAuthGateway implements AuthGateway {
       accessMode: AuthMemberAccessMode.claimed,
       linkedAuthUid: true,
     ),
-    '+84906660022': MemberAccessContext.unlinked(displayName: 'Khách mới'),
+    '+84906660022': MemberAccessContext(
+      memberId: null,
+      displayName: 'Khách mới',
+      clanId: null,
+      branchId: null,
+      primaryRole: 'GUEST',
+      accessMode: AuthMemberAccessMode.unlinked,
+      linkedAuthUid: false,
+    ),
     '+84905550033': MemberAccessContext(
       memberId: null,
       displayName: 'Trưởng chi chưa gắn gia phả',
@@ -355,7 +363,15 @@ class DebugAuthGateway implements AuthGateway {
         return entry.value;
       }
     }
-    return MemberAccessContext.unlinked(displayName: fallbackDisplayName);
+    return MemberAccessContext(
+      memberId: null,
+      displayName: fallbackDisplayName,
+      clanId: null,
+      branchId: null,
+      primaryRole: 'GUEST',
+      accessMode: AuthMemberAccessMode.unlinked,
+      linkedAuthUid: false,
+    );
   }
 
   Future<MemberAccessContext?> _loadRemoteProfile(String phoneE164) async {
