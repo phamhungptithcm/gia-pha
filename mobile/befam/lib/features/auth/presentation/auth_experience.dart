@@ -610,6 +610,7 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
           child: Row(
             children: [
               Checkbox(
+                key: const Key('auth-privacy-checkbox'),
                 value: hasAcceptedPrivacyPolicy,
                 onChanged: isBusy ? null : (value) => onChanged(value ?? false),
               ),
