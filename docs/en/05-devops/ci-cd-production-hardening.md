@@ -51,11 +51,12 @@ For both `staging` and `main` rulesets:
 `CD - Release Main` workflow:
 
 1. Quality gates run first.
-2. Release version/tag prepared.
-3. Android, iOS, and Web release artifacts are built.
-4. Manifest and checksum files are generated.
-5. Build provenance attestations are generated.
-6. GitHub Release is published with all assets.
+2. Production preflight validates required secrets and Firestore billing config.
+3. Release version/tag prepared.
+4. Android, iOS, and Web release artifacts are built.
+5. Manifest and checksum files are generated.
+6. Build provenance attestations are generated.
+7. GitHub Release is published with all assets.
 
 ### 3) Production Deployment
 

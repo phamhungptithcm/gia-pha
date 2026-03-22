@@ -183,13 +183,104 @@ jobs:
             mobile/befam/integration_test/screenshots/**
           if-no-files-found: ignore
 
-  prepare-release:
-    name: Prepare release
+  preflight-production-readiness:
+    name: Preflight - Production Readiness
     needs:
       - quality-gate-docs
       - quality-gate-functions
       - quality-gate-security
       - quality-gate-mobile-e2e-android
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Validate production deploy secrets and vars
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
+          BILLING_WEBHOOK_SECRET: ${{ secrets.BILLING_WEBHOOK_SECRET }}
+          APPLE_SHARED_SECRET: ${{ secrets.APPLE_SHARED_SECRET }}
+        run: |
+          set -euo pipefail
+          required_vars=(
+            GCP_WORKLOAD_IDENTITY_PROVIDER
+            GCP_SERVICE_ACCOUNT_EMAIL
+            FIREBASE_PROJECT_ID
+            FIREBASE_FUNCTIONS_REGION
+            GOOGLE_PLAY_PACKAGE_NAME
+            BILLING_WEBHOOK_SECRET
+            APPLE_SHARED_SECRET
+          )
+          for key in "${required_vars[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required production key: ${key}"
+              exit 1
+            fi
+          done
+
+      - name: Validate mobile signing secrets for release build
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+          IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          required_secrets=(
+            ANDROID_RELEASE_KEYSTORE_BASE64
+            ANDROID_RELEASE_KEYSTORE_PASSWORD
+            ANDROID_RELEASE_KEY_ALIAS
+            ANDROID_RELEASE_KEY_PASSWORD
+            IOS_P12_BASE64
+            IOS_P12_PASSWORD
+            IOS_PROVISIONING_PROFILE_BASE64
+            IOS_TEAM_ID
+          )
+          for key in "${required_secrets[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required release signing secret: ${key}"
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: firebase/functions/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: firebase/functions
+        run: npm ci
+
+      - name: Verify production subscription package catalog
+        working-directory: firebase/functions
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: npm run config:subscription-packages:check
+
+  prepare-release:
+    name: Prepare release
+    needs:
+      - preflight-production-readiness
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.version.outputs.tag }}
@@ -255,6 +346,8 @@ jobs:
     name: Build Android release
     needs: prepare-release
     runs-on: ubuntu-latest
+    environment:
+      name: production
     defaults:
       run:
         working-directory: mobile/befam
@@ -388,6 +481,8 @@ jobs:
     name: Build iOS release IPA
     needs: prepare-release
     runs-on: macos-latest
+    environment:
+      name: production
     env:
       COCOAPODS_DISABLE_STATS: "true"
     defaults:
@@ -598,6 +693,8 @@ jobs:
     name: Build Web release bundle
     needs: prepare-release
     runs-on: ubuntu-latest
+    environment:
+      name: production
     defaults:
       run:
         working-directory: mobile/befam
