@@ -1,0 +1,156 @@
+name: CI - Mobile E2E (PR/Manual)
+
+on:
+  pull_request:
+    branches:
+      - staging
+      - main
+    paths:
+      - mobile/befam/**
+      - firebase/functions/scripts/seed-debug-login-profiles.mjs
+      - scripts/run_mobile_e2e.sh
+      - .github/workflows/mobile-e2e.yml
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "E2E mode"
+        required: true
+        default: "debug"
+        type: choice
+        options:
+          - debug
+          - live
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  E2E_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode || 'debug' }}
+
+jobs:
+  e2e-android:
+    name: e2e-android
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Run Android E2E
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 900
+          disable-linux-hw-accel: true
+          emulator-options: -no-window -gpu off -no-snapshot -noaudio -no-boot-anim -no-metrics
+          disable-animations: true
+          script: |
+            set -eu
+            chmod +x scripts/run_mobile_e2e.sh
+            set +e
+            timeout 45m ./scripts/run_mobile_e2e.sh "${E2E_MODE}" android
+            exit_code=$?
+            set -e
+            if [ "$exit_code" -eq 124 ]; then
+              echo "::error::Android E2E timed out after 45 minutes."
+            fi
+            exit "$exit_code"
+
+      - name: Upload Android E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-e2e-android-${{ github.run_id }}
+          path: |
+            mobile/befam/artifacts/**
+            mobile/befam/integration_test/screenshots/**
+          if-no-files-found: ignore
+
+  e2e-ios:
+    name: e2e-ios
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Boot iOS simulator
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          SIM_UDID="$(
+            xcrun simctl list devices available -j | python3 -c 'import json,sys;payload=json.load(sys.stdin);devices=[d for runtime,entries in payload.get("devices",{}).items() if "iOS" in runtime for d in entries if d.get("isAvailable",True)];prefs=("iPhone 16 Pro","iPhone 16","iPhone 15 Pro","iPhone 15","iPhone SE");chosen=next((d for pref in prefs for d in devices if d.get("name","").startswith(pref)),None) or (devices[0] if devices else None);sys.exit(1) if chosen is None else print(chosen["udid"])'
+          )"
+          if [[ -z "${SIM_UDID}" ]]; then
+            echo "Unable to resolve an iPhone simulator UDID from simctl JSON output."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          xcrun simctl boot "${SIM_UDID}" || true
+          if ! xcrun simctl bootstatus "${SIM_UDID}" -b; then
+            echo "bootstatus with timeout failed. Falling back to manual polling..."
+            state=""
+            for _ in $(seq 1 60); do
+              state="$(
+                xcrun simctl list devices -j | python3 -c 'import json,sys;target=sys.argv[1].strip();payload=json.load(sys.stdin);state=next(((d.get("state") or "").strip() for entries in payload.get("devices", {}).values() for d in entries if (d.get("udid") or "").strip()==target),"");print(state)' "${SIM_UDID}"
+              )"
+              if [[ "${state}" == "Booted" ]]; then
+                break
+              fi
+              sleep 5
+            done
+            if [[ "${state}" != "Booted" ]]; then
+              echo "Simulator boot timeout. Dumping current device state..."
+              xcrun simctl list devices available
+              exit 1
+            fi
+          fi
+          open -a Simulator || true
+          echo "BEFAM_E2E_IOS_DEVICE=${SIM_UDID}" >> "$GITHUB_ENV"
+
+      - name: Run iOS E2E
+        timeout-minutes: 48
+        env:
+          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/run_mobile_e2e.sh
+          python3 -c 'import os,subprocess,sys;cmd=["./scripts/run_mobile_e2e.sh",os.environ.get("E2E_MODE","debug"),"ios"];result=subprocess.run(cmd,timeout=45*60,check=False);sys.exit(result.returncode)'
+
+      - name: Upload iOS E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-e2e-ios-${{ github.run_id }}
+          path: |
+            mobile/befam/artifacts/**
+            mobile/befam/integration_test/screenshots/**
+          if-no-files-found: ignore

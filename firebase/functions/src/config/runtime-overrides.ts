@@ -3,7 +3,6 @@ import { logWarn } from '../shared/logger';
 import {
   APP_RUNTIME_CONFIG_COLLECTION,
   APP_RUNTIME_CONFIG_DOC_ID,
-  BILLING_CARD_CHECKOUT_URL_BASE,
   BILLING_DELINQUENCY_GRACE_DAYS,
   BILLING_DELINQUENCY_LIMIT,
   BILLING_DELINQUENCY_REMINDER_DAYS,
@@ -12,7 +11,6 @@ import {
 } from './runtime';
 
 export type BillingRuntimeConfig = {
-  cardCheckoutUrlBase: string;
   pendingTimeoutMinutes: number;
   pendingTimeoutLimit: number;
   delinquencyGraceDays: number;
@@ -51,9 +49,6 @@ export async function loadBillingRuntimeConfig(): Promise<BillingRuntimeConfig> 
       if (data != null) {
         const billingSection = asRecord(data.billing) ?? data;
         overrides = {
-          cardCheckoutUrlBase:
-            normalizeUrl(readString(billingSection, 'cardCheckoutUrlBase')) ??
-            normalizeUrl(readString(billingSection, 'billingCardCheckoutUrlBase')),
           pendingTimeoutMinutes:
             normalizePositiveInt(readNumber(billingSection, 'pendingTimeoutMinutes')) ??
             normalizePositiveInt(readNumber(billingSection, 'billingPendingTimeoutMinutes')),
@@ -80,7 +75,6 @@ export async function loadBillingRuntimeConfig(): Promise<BillingRuntimeConfig> 
   }
 
   const value: BillingRuntimeConfig = {
-    cardCheckoutUrlBase: overrides.cardCheckoutUrlBase ?? defaults.cardCheckoutUrlBase,
     pendingTimeoutMinutes: clamp(
       overrides.pendingTimeoutMinutes ?? defaults.pendingTimeoutMinutes,
       5,
@@ -114,7 +108,6 @@ export async function loadBillingRuntimeConfig(): Promise<BillingRuntimeConfig> 
 
 function buildBillingDefaults(): BillingRuntimeConfig {
   return {
-    cardCheckoutUrlBase: normalizeUrl(BILLING_CARD_CHECKOUT_URL_BASE) ?? '',
     pendingTimeoutMinutes: clamp(BILLING_PENDING_TIMEOUT_MINUTES, 5, 240),
     pendingTimeoutLimit: clamp(BILLING_PENDING_TIMEOUT_LIMIT, 50, 5000),
     delinquencyGraceDays: clamp(BILLING_DELINQUENCY_GRACE_DAYS, 1, 30),
@@ -174,21 +167,6 @@ function readNumberList(data: Record<string, unknown>, key: string): Array<numbe
       .filter((entry) => Number.isFinite(entry));
   }
   return null;
-}
-
-function normalizeUrl(value: string | null): string | undefined {
-  if (value == null) {
-    return undefined;
-  }
-  try {
-    const url = new URL(value);
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-      return undefined;
-    }
-    return url.toString();
-  } catch {
-    return undefined;
-  }
 }
 
 function normalizePositiveInt(value: number | null): number | undefined {

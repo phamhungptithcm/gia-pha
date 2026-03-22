@@ -7,6 +7,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { APP_REGION, APP_TIMEZONE } from '../config/runtime';
 import { db } from '../shared/firestore';
 import { logInfo, logWarn } from '../shared/logger';
+import { notifyMembers, resolveAudienceMemberIdsByEventScope } from '../notifications/push-delivery';
 
 const eventsCollection = db.collection('events');
 const DEFAULT_REMINDER_OFFSETS_MINUTES = [10080, 1440, 120];
@@ -149,6 +150,53 @@ export const onMemberDeathDateChanged = onDocumentWritten(
       writeCount,
       preset: AUTO_RITUAL_PRESET,
     });
+
+    // Auto-update member status to 'deceased' when a death date is set.
+    try {
+      await db.collection('members').doc(memberId).set(
+        {
+          status: 'deceased',
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: actorId,
+        },
+        { merge: true },
+      );
+    } catch (statusError) {
+      logWarn('Failed to auto-set member status to deceased', {
+        memberId,
+        clanId,
+        error: `${statusError}`,
+      });
+    }
+
+    // Notify clan members that memorial ritual events have been auto-created.
+    try {
+      const clanMemberIds = await resolveAudienceMemberIdsByEventScope({
+        clanId,
+        branchId: null,
+        visibility: 'clan',
+      });
+      await notifyMembers({
+        clanId,
+        memberIds: clanMemberIds,
+        type: 'memorial_ritual_created',
+        title: `Tạo tự động lịch tưởng niệm - ${fullName}`,
+        body: `Đã tạo ${writeCount} sự kiện tưởng niệm từ ngày mất ${formatDateOnly(deathDate)}.`,
+        target: 'event',
+        targetId: eventIdFor(memberId, milestones[0].key),
+        extraData: {
+          memberId,
+          clanId,
+          eventCount: String(writeCount),
+        },
+      });
+    } catch (notifyError) {
+      logWarn('Failed to send memorial ritual notification', {
+        memberId,
+        clanId,
+        error: `${notifyError}`,
+      });
+    }
   },
 );
 

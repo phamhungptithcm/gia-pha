@@ -603,8 +603,29 @@ export const detectDuplicateGenealogy = onCall(
     const leaderName = normalizeSearch(requireNonEmptyString(request.data, 'leaderName'));
     const provinceCity = normalizeSearch(requireNonEmptyString(request.data, 'provinceCity'));
 
-    const snapshot = await discoveryCollection.where('isPublic', '==', true).limit(200).get();
-    const candidates = snapshot.docs
+    // First do a targeted query on normalised name to catch direct matches
+    // that might be beyond the general scan window.
+    const nameTargetedSnapshot = await discoveryCollection
+      .where('isPublic', '==', true)
+      .where('genealogyNameNormalized', '==', genealogyName)
+      .limit(30)
+      .get();
+
+    const seenIds = new Set<string>();
+    const allDocs: Array<typeof nameTargetedSnapshot.docs[0]> = [];
+    for (const doc of nameTargetedSnapshot.docs) {
+      seenIds.add(doc.id);
+      allDocs.push(doc);
+    }
+
+    const snapshot = await discoveryCollection.where('isPublic', '==', true).limit(500).get();
+    for (const doc of snapshot.docs) {
+      if (!seenIds.has(doc.id)) {
+        allDocs.push(doc);
+      }
+    }
+
+    const candidates = allDocs
       .map((doc) => ({ id: doc.id, ...(doc.data() as DiscoveryRecord) }))
       .map((entry) => ({
         entry,

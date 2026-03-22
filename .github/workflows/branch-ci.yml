@@ -1,11 +1,7 @@
-name: Branch CI
+name: CI - Branch Quality Gates
 
 on:
   pull_request:
-    branches:
-      - staging
-      - main
-  push:
     branches:
       - staging
       - main
@@ -16,7 +12,7 @@ permissions:
 
 concurrency:
   group: branch-ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   ci-docs:
@@ -114,6 +110,9 @@ jobs:
 
       - name: Run Flutter tests
         run: flutter test --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
+
+      - name: Run Flutter E2E release catalog contract
+        run: flutter test integration_test/e2e_release_catalog_contract_test.dart -d flutter-tester --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true --dart-define=BEFAM_ENABLE_APP_CHECK=false
 
       - name: Run Flutter web smoke tests
         run: xvfb-run -a flutter test --platform chrome --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true test/app/web/web_marketing_pages_test.dart
@@ -287,3 +286,132 @@ jobs:
             --build-arg VCS_REF="${GITHUB_SHA}" \
             --tag befam-mobile-builder:test \
             .
+
+  security-dependency-review:
+    name: security-dependency-review
+    if: ${{ github.event_name == 'pull_request' && vars.ENABLE_DEPENDENCY_REVIEW != 'false' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Detect dependency graph support
+        id: depgraph
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          response="$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}" || true)"
+          status="$(printf '%s' "${response}" | jq -r '.security_and_analysis.dependency_graph.status // "unknown"' 2>/dev/null || echo "unknown")"
+          echo "dependency_graph_status=${status}" >> "$GITHUB_OUTPUT"
+          if [[ "${status}" == "enabled" ]]; then
+            echo "run_check=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_check=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dependency Review
+        if: ${{ steps.depgraph.outputs.run_check == 'true' }}
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+      - name: Dependency review unavailable
+        if: ${{ steps.depgraph.outputs.run_check != 'true' }}
+        run: |
+          echo "::warning::Dependency graph is not enabled for this repository."
+          echo "::warning::Enable it at Settings > Code security and analysis to enforce dependency review."
+
+  security-trivy-fs:
+    name: security-trivy-fs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Run Trivy filesystem scan (SARIF report)
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+          format: sarif
+          output: trivy-fs.sarif
+          trivyignores: .trivyignore
+          skip-files: firebase/functions/firestore-debug.log
+
+      - name: Upload Trivy security report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+
+      - name: Enforce Trivy filesystem gate
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+          trivyignores: .trivyignore
+          skip-files: firebase/functions/firestore-debug.log
+
+  security-gitleaks:
+    name: security-gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  security-trivy-images:
+    name: security-trivy-images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build Firebase tooling image for scan
+        run: docker build --file docker/firebase-tools.Dockerfile --tag befam-firebase-tools:scan .
+
+      - name: Build mobile builder image for scan
+        run: docker build --file Dockerfile --tag befam-mobile-builder:scan .
+
+      - name: Scan Firebase tooling image
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: image
+          image-ref: befam-firebase-tools:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore.images
+
+      - name: Scan mobile builder image
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: image
+          image-ref: befam-mobile-builder:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore.images

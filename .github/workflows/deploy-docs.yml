@@ -1,4 +1,4 @@
-name: Deploy Docs
+name: CD - Deploy Docs (GitHub Pages)
 
 on:
   push:
@@ -9,10 +9,6 @@ on:
       - "mkdocs.yml"
       - "requirements-docs.txt"
       - ".github/workflows/deploy-docs.yml"
-  release:
-    types:
-      - published
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,6 +21,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -53,6 +50,7 @@ jobs:
 
   deploy:
     needs: build
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

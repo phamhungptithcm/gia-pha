@@ -1,46 +1,101 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 
-  <!-- iOS meta tags & icons -->
+  <title>BeFam | Nền tảng gia phả số và vận hành họ tộc</title>
+  <meta name="description" content="BeFam là nền tảng gia phả số giúp dòng họ quản lý cây gia phả, sự kiện giỗ lễ, quỹ họ và quy trình thành viên trong một không gian minh bạch, dễ dùng.">
+  <meta name="keywords" content="gia phả số, họ tộc, quản lý dòng họ, lịch giỗ, quỹ họ, khuyến học, family genealogy, clan management, BeFam">
+  <meta name="author" content="BeFam">
+
+  <link rel="canonical" href="https://be-fam-3ab23.web.app/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BeFam">
+  <meta property="og:locale" content="vi_VN">
+  <meta property="og:title" content="BeFam | Giữ cội nguồn sống trong đời sống hiện đại">
+  <meta property="og:description" content="Kết nối gia phả, sự kiện, quỹ họ và vận hành dòng tộc trong một nền tảng thống nhất.">
+  <meta property="og:url" content="https://be-fam-3ab23.web.app/">
+  <meta property="og:image" content="https://be-fam-3ab23.web.app/icons/Icon-512.png">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BeFam | Digital lineage platform for modern families">
+  <meta name="twitter:description" content="Unify genealogy, memorial events, clan funds, and governance workflows in one secure platform.">
+  <meta name="twitter:image" content="https://be-fam-3ab23.web.app/icons/Icon-512.png">
+
+  <meta name="theme-color" content="#1F4E5F">
+
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="befam">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BeFam">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>befam</title>
   <link rel="manifest" href="manifest.json">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "BeFam",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Android, iOS, Web",
+    "url": "https://be-fam-3ab23.web.app/",
+    "description": "BeFam là nền tảng gia phả số giúp kết nối nhiều thế hệ, quản trị sự kiện và vận hành họ tộc minh bạch.",
+    "inLanguage": ["vi", "en"],
+    "publisher": {
+      "@type": "Organization",
+      "name": "BeFam"
+    }
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "BeFam có phải chỉ là ứng dụng vẽ cây gia phả không?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Không. BeFam kết hợp cây gia phả, vận hành họ tộc (sự kiện, quỹ, khuyến học) và cơ chế gia nhập an toàn theo vai trò."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Dòng họ có thành viên ở nhiều tỉnh thành hoặc quốc gia có dùng được BeFam không?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Có. BeFam được thiết kế để giúp các thế hệ ở xa vẫn kết nối qua lịch sự kiện, ngày giỗ, dữ liệu thành viên và luồng quản trị thống nhất."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Khi nào gói dịch vụ được kích hoạt sau thanh toán?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Gói chỉ được kích hoạt sau khi hệ thống nhận callback hoặc webhook thanh toán thành công. Trạng thái chờ hoặc thất bại sẽ không cấp quyền mới."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "BeFam có hỗ trợ tiếng Việt và tiếng Anh không?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Có. BeFam hỗ trợ song ngữ Việt - Anh để thuận tiện cho cả thành viên trong nước và ở nước ngoài."
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

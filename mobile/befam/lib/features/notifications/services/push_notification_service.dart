@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
@@ -9,7 +10,7 @@ import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
 
-enum NotificationTargetType { event, scholarship, billing, unknown }
+enum NotificationTargetType { event, scholarship, billing, authRefresh, unknown }
 
 enum NotificationMessageOrigin { foreground, openedApp, launchedFromTerminated }
 
@@ -45,6 +46,7 @@ class NotificationDeepLink {
       'event' => NotificationTargetType.event,
       'scholarship' => NotificationTargetType.scholarship,
       'billing' => NotificationTargetType.billing,
+      'auth_refresh' => NotificationTargetType.authRefresh,
       _ => NotificationTargetType.unknown,
     };
     return NotificationDeepLink(
@@ -72,6 +74,19 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   AppLogger.info(
     'FCM background message received: ${message.messageId ?? 'unknown'}',
   );
+  if (message.data['type'] == 'auth_claims_updated') {
+    try {
+      await FirebaseAuth.instance.currentUser?.getIdToken(true);
+      AppLogger.info(
+        'Forced token refresh due to auth_claims_updated signal (background).',
+      );
+    } catch (refreshError) {
+      AppLogger.warning(
+        'Token refresh failed after auth_claims_updated (background).',
+        refreshError,
+      );
+    }
+  }
 }
 
 void configurePushBackgroundHandler() {
@@ -181,7 +196,9 @@ class FirebasePushNotificationService implements PushNotificationService {
         unawaited(_registerToken(session, trimmed));
       });
 
-      _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
+      _foregroundSubscription = FirebaseMessaging.onMessage.listen((
+        message,
+      ) async {
         final deepLink = NotificationDeepLink.fromRemoteMessage(
           message,
           origin: NotificationMessageOrigin.foreground,
@@ -190,6 +207,20 @@ class FirebasePushNotificationService implements PushNotificationService {
         AppLogger.info(
           'FCM foreground message received: ${deepLink.messageId ?? 'unknown'}',
         );
+        if (deepLink.targetType == NotificationTargetType.authRefresh ||
+            message.data['type'] == 'auth_claims_updated') {
+          try {
+            await FirebaseAuth.instance.currentUser?.getIdToken(true);
+            AppLogger.info(
+              'Forced token refresh due to auth_claims_updated signal.',
+            );
+          } catch (refreshError) {
+            AppLogger.warning(
+              'Token refresh failed after auth_claims_updated.',
+              refreshError,
+            );
+          }
+        }
       });
 
       _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((

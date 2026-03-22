@@ -1,26 +1,26 @@
-name: Deploy Firebase
+name: CD - Deploy Firebase (Production)
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - CD - Release Main
     branches:
       - main
-    paths:
-      - "firebase.json"
-      - "firebase/**"
-      - ".firebaserc"
-      - ".github/workflows/deploy-firebase.yml"
-  workflow_dispatch:
+    types:
+      - completed
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
-  group: deploy-firebase-${{ github.ref }}
+  group: deploy-firebase-${{ github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: false
 
 jobs:
   deploy-production:
-    name: deploy-production
+    name: Deploy Firebase (Production)
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -29,6 +29,51 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Validate production OIDC configuration
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+        run: |
+          set -euo pipefail
+          test -n "$GCP_WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$GCP_SERVICE_ACCOUNT_EMAIL"
+          test -n "$FIREBASE_PROJECT_ID"
+          test -n "$FIREBASE_FUNCTIONS_REGION"
+          test -n "$FIRESTORE_DATABASE_ID"
+          echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Export Firebase project env
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_PROJECT_ID"
+          test -n "$FIREBASE_FUNCTIONS_REGION"
+          test -n "$FIRESTORE_DATABASE_ID"
+          echo "GOOGLE_CLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
+          echo "FIREBASE_FUNCTIONS_REGION=$FIREBASE_FUNCTIONS_REGION" >> "$GITHUB_ENV"
+          echo "FIRESTORE_DATABASE_ID=$FIRESTORE_DATABASE_ID" >> "$GITHUB_ENV"
+          echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -48,29 +93,12 @@ jobs:
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@14.19.1
 
-      - name: Write Firebase credentials
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
-          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
-        run: |
-          test -n "$FIREBASE_SERVICE_ACCOUNT"
-          test -n "$FIREBASE_PROJECT_ID"
-          test -n "$FIREBASE_FUNCTIONS_REGION"
-          CREDENTIALS_PATH="$RUNNER_TEMP/firebase-service-account.json"
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIALS_PATH"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$CREDENTIALS_PATH" >> "$GITHUB_ENV"
-          echo "GOOGLE_CLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
-          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
-          echo "FIREBASE_FUNCTIONS_REGION=$FIREBASE_FUNCTIONS_REGION" >> "$GITHUB_ENV"
-          echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"
-
       - name: Write Functions runtime env file
         working-directory: firebase/functions
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
           APP_RUNTIME_CONFIG_COLLECTION: ${{ vars.APP_RUNTIME_CONFIG_COLLECTION }}
           APP_RUNTIME_CONFIG_DOC_ID: ${{ vars.APP_RUNTIME_CONFIG_DOC_ID }}
@@ -114,15 +142,6 @@ jobs:
           OTP_TWILIO_BACKOFF_MS: ${{ vars.OTP_TWILIO_BACKOFF_MS }}
           BILLING_IAP_ALLOW_TEST_MOCK: ${{ vars.BILLING_IAP_ALLOW_TEST_MOCK }}
           GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
-          BILLING_IAP_PRODUCT_IDS_BASE: ${{ vars.BILLING_IAP_PRODUCT_IDS_BASE }}
-          BILLING_IAP_PRODUCT_IDS_PLUS: ${{ vars.BILLING_IAP_PRODUCT_IDS_PLUS }}
-          BILLING_IAP_PRODUCT_IDS_PRO: ${{ vars.BILLING_IAP_PRODUCT_IDS_PRO }}
-          BILLING_IAP_IOS_PRODUCT_IDS_BASE: ${{ vars.BILLING_IAP_IOS_PRODUCT_IDS_BASE }}
-          BILLING_IAP_IOS_PRODUCT_IDS_PLUS: ${{ vars.BILLING_IAP_IOS_PRODUCT_IDS_PLUS }}
-          BILLING_IAP_IOS_PRODUCT_IDS_PRO: ${{ vars.BILLING_IAP_IOS_PRODUCT_IDS_PRO }}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_BASE: ${{ vars.BILLING_IAP_ANDROID_PRODUCT_IDS_BASE }}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS: ${{ vars.BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS }}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_PRO: ${{ vars.BILLING_IAP_ANDROID_PRODUCT_IDS_PRO }}
           BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS: ${{ vars.BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS }}
           BILLING_IAP_APPLE_VERIFY_MAX_RETRIES: ${{ vars.BILLING_IAP_APPLE_VERIFY_MAX_RETRIES }}
           BILLING_IAP_APPLE_VERIFY_BACKOFF_MS: ${{ vars.BILLING_IAP_APPLE_VERIFY_BACKOFF_MS }}
@@ -143,18 +162,10 @@ jobs:
           test -n "$BILLING_WEBHOOK_SECRET"
           test -n "$APPLE_SHARED_SECRET"
           test -n "$GOOGLE_PLAY_PACKAGE_NAME"
-          test -n "$BILLING_IAP_PRODUCT_IDS_BASE"
-          test -n "$BILLING_IAP_PRODUCT_IDS_PLUS"
-          test -n "$BILLING_IAP_PRODUCT_IDS_PRO"
-          test -n "${BILLING_IAP_IOS_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
-          test -n "${BILLING_IAP_IOS_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
-          test -n "${BILLING_IAP_IOS_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
-          test -n "${BILLING_IAP_ANDROID_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
-          test -n "${BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
-          test -n "${BILLING_IAP_ANDROID_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
           resolved_card_secret="${CARD_WEBHOOK_SECRET:-$BILLING_WEBHOOK_SECRET}"
           resolved_apple_iap_webhook_token="${APPLE_IAP_WEBHOOK_BEARER_TOKEN:-$BILLING_WEBHOOK_SECRET}"
           resolved_google_iap_webhook_token="${GOOGLE_IAP_WEBHOOK_BEARER_TOKEN:-$BILLING_WEBHOOK_SECRET}"
+          resolved_firestore_database_id="${FIRESTORE_DATABASE_ID:-"(default)"}"
           resolved_app_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           resolved_runtime_collection="${APP_RUNTIME_CONFIG_COLLECTION:-runtimeConfig}"
           resolved_runtime_doc="${APP_RUNTIME_CONFIG_DOC_ID:-global}"
@@ -196,12 +207,6 @@ jobs:
           resolved_notification_allow_non_otp_sms="${NOTIFICATION_ALLOW_NON_OTP_SMS:-false}"
           resolved_notification_event_max_audience="${NOTIFICATION_EVENT_MAX_AUDIENCE:-5000}"
           resolved_iap_allow_test_mock="${BILLING_IAP_ALLOW_TEST_MOCK:-false}"
-          resolved_iap_ios_base="${BILLING_IAP_IOS_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
-          resolved_iap_ios_plus="${BILLING_IAP_IOS_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
-          resolved_iap_ios_pro="${BILLING_IAP_IOS_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
-          resolved_iap_android_base="${BILLING_IAP_ANDROID_PRODUCT_IDS_BASE:-$BILLING_IAP_PRODUCT_IDS_BASE}"
-          resolved_iap_android_plus="${BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS:-$BILLING_IAP_PRODUCT_IDS_PLUS}"
-          resolved_iap_android_pro="${BILLING_IAP_ANDROID_PRODUCT_IDS_PRO:-$BILLING_IAP_PRODUCT_IDS_PRO}"
           resolved_apple_verify_timeout_ms="${BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS:-5000}"
           resolved_apple_verify_max_retries="${BILLING_IAP_APPLE_VERIFY_MAX_RETRIES:-2}"
           resolved_apple_verify_backoff_ms="${BILLING_IAP_APPLE_VERIFY_BACKOFF_MS:-350}"
@@ -261,6 +266,7 @@ jobs:
           env_file=".env.${FIREBASE_PROJECT_ID}"
           cat > "$env_file" <<EOF
           APP_REGION=${FIREBASE_FUNCTIONS_REGION}
+          FIRESTORE_DATABASE_ID=${resolved_firestore_database_id}
           APP_TIMEZONE=${resolved_app_timezone}
           APP_RUNTIME_CONFIG_COLLECTION=${resolved_runtime_collection}
           APP_RUNTIME_CONFIG_DOC_ID=${resolved_runtime_doc}
@@ -309,15 +315,6 @@ jobs:
           CARD_WEBHOOK_SECRET=${resolved_card_secret}
           APPLE_SHARED_SECRET=${APPLE_SHARED_SECRET}
           GOOGLE_PLAY_PACKAGE_NAME=${GOOGLE_PLAY_PACKAGE_NAME}
-          BILLING_IAP_PRODUCT_IDS_BASE=${BILLING_IAP_PRODUCT_IDS_BASE}
-          BILLING_IAP_PRODUCT_IDS_PLUS=${BILLING_IAP_PRODUCT_IDS_PLUS}
-          BILLING_IAP_PRODUCT_IDS_PRO=${BILLING_IAP_PRODUCT_IDS_PRO}
-          BILLING_IAP_IOS_PRODUCT_IDS_BASE=${resolved_iap_ios_base}
-          BILLING_IAP_IOS_PRODUCT_IDS_PLUS=${resolved_iap_ios_plus}
-          BILLING_IAP_IOS_PRODUCT_IDS_PRO=${resolved_iap_ios_pro}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_BASE=${resolved_iap_android_base}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS=${resolved_iap_android_plus}
-          BILLING_IAP_ANDROID_PRODUCT_IDS_PRO=${resolved_iap_android_pro}
           BILLING_IAP_ALLOW_TEST_MOCK=${resolved_iap_allow_test_mock}
           BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS=${resolved_apple_verify_timeout_ms}
           BILLING_IAP_APPLE_VERIFY_MAX_RETRIES=${resolved_apple_verify_max_retries}
@@ -363,15 +360,6 @@ jobs:
           echo "NOTIFICATION_ALLOW_NON_OTP_SMS=$resolved_notification_allow_non_otp_sms" >> "$GITHUB_ENV"
           echo "NOTIFICATION_EVENT_MAX_AUDIENCE=$resolved_notification_event_max_audience" >> "$GITHUB_ENV"
           echo "GOOGLE_PLAY_PACKAGE_NAME=$GOOGLE_PLAY_PACKAGE_NAME" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_PRODUCT_IDS_BASE=$BILLING_IAP_PRODUCT_IDS_BASE" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_PRODUCT_IDS_PLUS=$BILLING_IAP_PRODUCT_IDS_PLUS" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_PRODUCT_IDS_PRO=$BILLING_IAP_PRODUCT_IDS_PRO" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_IOS_PRODUCT_IDS_BASE=$resolved_iap_ios_base" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_IOS_PRODUCT_IDS_PLUS=$resolved_iap_ios_plus" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_IOS_PRODUCT_IDS_PRO=$resolved_iap_ios_pro" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_ANDROID_PRODUCT_IDS_BASE=$resolved_iap_android_base" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS=$resolved_iap_android_plus" >> "$GITHUB_ENV"
-          echo "BILLING_IAP_ANDROID_PRODUCT_IDS_PRO=$resolved_iap_android_pro" >> "$GITHUB_ENV"
           echo "BILLING_IAP_ALLOW_TEST_MOCK=$resolved_iap_allow_test_mock" >> "$GITHUB_ENV"
           echo "BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS=$resolved_apple_verify_timeout_ms" >> "$GITHUB_ENV"
           echo "BILLING_IAP_APPLE_VERIFY_MAX_RETRIES=$resolved_apple_verify_max_retries" >> "$GITHUB_ENV"
@@ -388,9 +376,45 @@ jobs:
         working-directory: firebase/functions
         run: node scripts/upsert-runtime-config.mjs
 
+      - name: Sync subscription package catalog
+        working-directory: firebase/functions
+        run: node scripts/sync-subscription-packages.mjs --apply
+
       - name: Deploy Firestore, Storage, and Functions
         run: >
           firebase deploy
           --project "${{ vars.FIREBASE_PROJECT_ID }}"
           --non-interactive
           --only firestore:rules,firestore:indexes,storage,functions
+
+  notify-deploy-firebase-failure:
+    name: Notify Firebase deploy failure
+    if: ${{ always() && needs.deploy-production.result == 'failure' }}
+    needs:
+      - deploy-production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "SLACK_WEBHOOK_URL is not configured. Skipping notification."
+            exit 0
+          fi
+          payload="$(cat <<JSON
+          {
+            "text": ":x: BeFam Firebase deploy failed",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*CD - Deploy Firebase (Production) failed*\\nRepository: ${GITHUB_REPOSITORY}\\nRun: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                }
+              }
+            ]
+          }
+          JSON
+          )"
+          curl -sS -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"

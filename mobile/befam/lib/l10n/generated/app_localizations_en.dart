@@ -1948,118 +1948,118 @@ class AppLocalizationsEn extends AppLocalizations {
   String get webNavMenuTooltip => 'Open navigation menu';
 
   @override
-  String get webLandingBadge => 'Modern family record platform';
+  String get webLandingBadge =>
+      'Digital lineage platform for modern family clans';
 
   @override
-  String get webLandingTitle =>
-      'BeFam connects genealogy, events, and family billing in one unified workspace.';
+  String get webLandingTitle => 'Keep family heritage alive in modern life.';
 
   @override
   String get webLandingSubtitle =>
-      'From multi-generation tree management to memorial schedules, BeFam helps family leaders and members keep shared data clear, consistent, and actionable.';
+      'BeFam unifies genealogy, events, clan funds, and member governance in one shared data workspace.';
 
   @override
-  String get webLandingPrimaryCta => 'Start with BeFam';
+  String get webLandingPrimaryCta => 'Open the app';
 
   @override
-  String get webLandingSecondaryCta => 'Learn about BeFam';
+  String get webLandingSecondaryCta => 'See the BeFam story';
 
   @override
-  String get webLandingHighlightTitle => 'Transparent family governance';
+  String get webLandingHighlightTitle => 'Clear and secure clan operations';
 
   @override
   String get webLandingHighlightDescription =>
-      'Track members, events, subscription plans, and access control from one trusted platform.';
+      'Track members, events, finances, and role-based access with one trusted system.';
 
   @override
   String get webLandingFeatureTreeTitle => 'Multi-generation genealogy';
 
   @override
   String get webLandingFeatureTreeDescription =>
-      'View family structures by branch, generation, and relationships for easier lineage management.';
+      'Manage branch, generation, and bloodline relationships so every generation can trace context quickly.';
 
   @override
   String get webLandingFeatureEventsTitle => 'Centralized event timeline';
 
   @override
   String get webLandingFeatureEventsDescription =>
-      'Manage ceremonies, memorial dates, and key reminders with one shared family schedule.';
+      'Track memorial dates, clan ceremonies, and reminders so important milestones are never missed.';
 
   @override
   String get webLandingFeatureBillingTitle => 'Subscription management';
 
   @override
   String get webLandingFeatureBillingDescription =>
-      'Monitor active plans, renewals, and payment history directly inside BeFam.';
+      'Manage plans, renewals, and payment status with transparent flow and clear ownership.';
 
   @override
   String get webAboutTitle => 'About Us';
 
   @override
   String get webAboutSubtitle =>
-      'BeFam is built to preserve family memory, support transparent clan operations, and connect generations through one digital platform.';
+      'BeFam was created to keep clans connected when generations live, study, and work across cities and countries.';
 
   @override
   String get webAboutMissionTitle => 'Mission';
 
   @override
   String get webAboutMissionDescription =>
-      'Help every family community digitize lineage data in a way that is understandable, usable, and sustainable.';
+      'Help family clans digitize lineage data in a way that is understandable, practical, and sustainable.';
 
   @override
   String get webAboutVisionTitle => 'Vision';
 
   @override
   String get webAboutVisionDescription =>
-      'Become the trusted digital genealogy platform for Vietnamese family communities.';
+      'Become the trusted digital operating platform for Vietnamese family communities worldwide.';
 
   @override
   String get webAboutTrustTitle => 'Commitment';
 
   @override
   String get webAboutTrustDescription =>
-      'Prioritize data accuracy, transparent permissions, and a consistent experience across devices.';
+      'Prioritize data security, transparent permissions, and a consistent cross-device experience.';
 
   @override
   String get webInfoTitle => 'BeFam Information';
 
   @override
   String get webInfoSubtitle =>
-      'A quick overview of what BeFam currently delivers for family governance and operations.';
+      'A practical overview of how BeFam supports genealogy, member connection, and clan operations.';
 
   @override
   String get webInfoGenealogyTitle => 'Genealogy workspace';
 
   @override
   String get webInfoGenealogyDescription =>
-      'Track member profiles, bloodline relationships, branch structures, and generation data in one system.';
+      'Track member profiles, bloodline relationships, branch structures, and generation context in one data model.';
 
   @override
   String get webInfoNotificationsTitle => 'Notifications and reminders';
 
   @override
   String get webInfoNotificationsDescription =>
-      'Receive updates for events, scholarship workflows, and important clan activities.';
+      'Receive updates for events, scholarship workflows, and important clan moments that require action.';
 
   @override
   String get webInfoBillingTitle => 'Plans and payments';
 
   @override
   String get webInfoBillingDescription =>
-      'Manage plan entitlements, subscription validity, and checkout flow for family organizations.';
+      'Manage plan entitlements, validity, and payment flow with clear operational control.';
 
   @override
-  String get webInfoHighlightsTitle => 'Current highlights';
+  String get webInfoHighlightsTitle => 'Platform highlights';
 
   @override
   String get webInfoHighlightsItemOne =>
-      'Vietnamese/English localization driven by user settings.';
+      'Vietnamese and English localization aligned to user preference.';
 
   @override
   String get webInfoHighlightsItemTwo =>
-      'Responsive design for mobile, tablet, and desktop.';
+      'Responsive design across mobile, tablet, and desktop.';
 
   @override
   String get webInfoHighlightsItemThree =>
-      'Flutter + Firebase architecture for fast and consistent feature delivery.';
+      'Flutter + Firebase architecture for fast, stable, and consistent delivery.';
 }

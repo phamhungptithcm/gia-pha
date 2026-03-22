@@ -3946,6 +3946,17 @@ async function applySessionClaims(
       : [context.clanId];
   const activeClanId = context.clanId ?? clanIds[0] ?? '';
 
+  // Embed the primary clan's current status so security rules can skip
+  // the isClanActive DB read on every operation for the primary clan.
+  let clanStatus = '';
+  if (activeClanId.length > 0) {
+    const clanSnap = await db.collection('clans').doc(activeClanId).get();
+    const status = clanSnap.exists
+      ? ((clanSnap.data() as ClanRecord | undefined)?.status ?? 'active')
+      : '';
+    clanStatus = typeof status === 'string' ? status.trim() : '';
+  }
+
   await auth.setCustomUserClaims(uid, {
     ...existingClaims,
     clanIds: clanIds,
@@ -3955,6 +3966,7 @@ async function applySessionClaims(
     branchId: context.branchId ?? '',
     primaryRole: context.primaryRole ?? 'GUEST',
     memberAccessMode: context.accessMode,
+    clanStatus,
   });
 }
 

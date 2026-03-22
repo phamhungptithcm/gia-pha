@@ -8,8 +8,15 @@ import '../../../app/home/app_shell_page.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/app_locale_controller.dart';
 import '../../../l10n/l10n.dart';
+import '../../billing/services/billing_repository.dart';
 import '../../clan/services/clan_repository.dart';
+import '../../discovery/services/genealogy_discovery_repository.dart';
+import '../../events/services/event_repository.dart';
+import '../../funds/services/fund_repository.dart';
+import '../../genealogy/services/genealogy_read_repository.dart';
 import '../../member/services/member_repository.dart';
+import '../../notifications/services/push_notification_service.dart';
+import '../../profile/services/profile_notification_preferences_repository.dart';
 import '../models/auth_entry_method.dart';
 import '../models/member_identity_verification.dart';
 import '../models/pending_otp_challenge.dart';
@@ -17,6 +24,7 @@ import '../models/phone_identity_resolution.dart';
 import '../services/auth_analytics_service.dart';
 import '../services/auth_gateway.dart';
 import '../services/auth_gateway_factory.dart';
+import '../services/clan_context_service.dart';
 import '../services/auth_session_store.dart';
 import '../services/phone_number_formatter.dart';
 import '../widgets/phone_country_selector_field.dart';
@@ -29,8 +37,16 @@ class AuthExperience extends StatefulWidget {
     this.authGateway,
     this.authAnalyticsService,
     this.sessionStore,
+    this.clanContextService,
     this.clanRepository,
     this.memberRepository,
+    this.eventRepository,
+    this.fundRepository,
+    this.genealogyRepository,
+    this.genealogyDiscoveryRepository,
+    this.billingRepository,
+    this.pushNotificationService,
+    this.profileNotificationPreferencesRepository,
     this.localeController,
   });
 
@@ -38,8 +54,17 @@ class AuthExperience extends StatefulWidget {
   final AuthGateway? authGateway;
   final AuthAnalyticsService? authAnalyticsService;
   final AuthSessionStore? sessionStore;
+  final ClanContextService? clanContextService;
   final ClanRepository? clanRepository;
   final MemberRepository? memberRepository;
+  final EventRepository? eventRepository;
+  final FundRepository? fundRepository;
+  final GenealogyReadRepository? genealogyRepository;
+  final GenealogyDiscoveryRepository? genealogyDiscoveryRepository;
+  final BillingRepository? billingRepository;
+  final PushNotificationService? pushNotificationService;
+  final ProfileNotificationPreferencesRepository?
+  profileNotificationPreferencesRepository;
   final AppLocaleController? localeController;
 
   @override
@@ -81,12 +106,21 @@ class _AuthExperienceState extends State<AuthExperience> {
           return AppShellPage(
             status: widget.status,
             session: session,
+            clanContextService: widget.clanContextService,
             clanRepository:
                 widget.clanRepository ??
                 createDefaultClanRepository(session: session),
             memberRepository:
                 widget.memberRepository ??
                 createDefaultMemberRepository(session: session),
+            eventRepository: widget.eventRepository,
+            fundRepository: widget.fundRepository,
+            genealogyRepository: widget.genealogyRepository,
+            genealogyDiscoveryRepository: widget.genealogyDiscoveryRepository,
+            billingRepository: widget.billingRepository,
+            pushNotificationService: widget.pushNotificationService,
+            profileNotificationPreferencesRepository:
+                widget.profileNotificationPreferencesRepository,
             localeController: widget.localeController,
             onLogoutRequested: _controller.logout,
           );
@@ -456,6 +490,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 _MethodActionButton(
+                  buttonKey: const Key('auth-method-phone-button'),
                   title: l10n.authMethodPhoneButton,
                   icon: Icons.phone_iphone,
                   filled: true,
@@ -465,6 +500,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 _MethodActionButton(
+                  buttonKey: const Key('auth-method-child-button'),
                   title: l10n.authMethodChildButton,
                   icon: Icons.child_care,
                   filled: false,
@@ -490,12 +526,14 @@ class _LoginMethodSelectionCard extends StatelessWidget {
 
 class _MethodActionButton extends StatelessWidget {
   const _MethodActionButton({
+    required this.buttonKey,
     required this.title,
     required this.icon,
     required this.filled,
     required this.onPressed,
   });
 
+  final Key buttonKey;
   final String title;
   final IconData icon;
   final bool filled;
@@ -523,6 +561,7 @@ class _MethodActionButton extends StatelessWidget {
       return SizedBox(
         width: double.infinity,
         child: FilledButton(
+          key: buttonKey,
           onPressed: onPressed,
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -534,6 +573,7 @@ class _MethodActionButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(
+        key: buttonKey,
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -570,6 +610,7 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
           child: Row(
             children: [
               Checkbox(
+                key: const Key('auth-privacy-checkbox'),
                 value: hasAcceptedPrivacyPolicy,
                 onChanged: isBusy ? null : (value) => onChanged(value ?? false),
               ),
@@ -581,9 +622,14 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
                   ),
                 ),
               ),
-              TextButton(
-                onPressed: onViewPrivacyPolicy,
-                child: Text(l10n.pick(vi: 'Xem chính sách', en: 'View policy')),
+              Flexible(
+                child: TextButton(
+                  onPressed: onViewPrivacyPolicy,
+                  child: Text(
+                    l10n.pick(vi: 'Xem chính sách', en: 'View policy'),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
               Tooltip(
                 message: l10n.pick(
@@ -693,6 +739,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
+                        key: const Key('auth-phone-input'),
                         controller: _controller,
                         keyboardType: TextInputType.phone,
                         textInputAction: TextInputAction.done,
@@ -723,6 +770,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
+              key: const Key('auth-send-otp-button'),
               onPressed: widget.isBusy
                   ? null
                   : () {
@@ -788,6 +836,7 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextField(
+            key: const Key('auth-child-code-input'),
             controller: _controller,
             enabled: !widget.isBusy,
             textInputAction: TextInputAction.done,
@@ -806,6 +855,7 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
+              key: const Key('auth-child-continue-button'),
               onPressed: widget.isBusy
                   ? null
                   : () => widget.onSubmit(_controller.text),

@@ -4,10 +4,12 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../core/services/firebase_services.dart';
 import '../../core/widgets/member_phone_action.dart';
 import '../../core/widgets/address_action_tools.dart';
+import '../../features/ads/services/ad_controller.dart';
 import '../../features/billing/presentation/billing_workspace_page.dart';
 import '../../features/billing/services/billing_repository.dart';
 import '../../features/clan/presentation/clan_detail_page.dart';
@@ -30,6 +32,7 @@ import '../../features/member/services/member_repository.dart';
 import '../../features/notifications/presentation/notification_target_page.dart';
 import '../../features/notifications/services/push_notification_service.dart';
 import '../../features/profile/presentation/profile_workspace_page.dart';
+import '../../features/profile/services/profile_notification_preferences_repository.dart';
 import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
 import '../../features/scholarship/services/scholarship_repository.dart';
 import '../../l10n/generated/app_localizations.dart';
@@ -63,10 +66,14 @@ class AppShellPage extends StatefulWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    this.eventRepository,
     this.fundRepository,
     this.genealogyRepository,
+    this.genealogyDiscoveryRepository,
     this.billingRepository,
     this.pushNotificationService,
+    this.clanContextService,
+    this.profileNotificationPreferencesRepository,
     this.localeController,
     this.onLogoutRequested,
   });
@@ -75,10 +82,15 @@ class AppShellPage extends StatefulWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final EventRepository? eventRepository;
   final FundRepository? fundRepository;
   final GenealogyReadRepository? genealogyRepository;
+  final GenealogyDiscoveryRepository? genealogyDiscoveryRepository;
   final BillingRepository? billingRepository;
   final PushNotificationService? pushNotificationService;
+  final ClanContextService? clanContextService;
+  final ProfileNotificationPreferencesRepository?
+  profileNotificationPreferencesRepository;
   final AppLocaleController? localeController;
   final Future<void> Function()? onLogoutRequested;
 
@@ -93,13 +105,16 @@ class _AppShellPageState extends State<AppShellPage> {
   final Set<int> _visitedDestinationIndexes = <int>{0};
   late AuthSession _activeSession;
   late final GenealogyReadRepository _genealogyRepository;
+  late final GenealogyDiscoveryRepository _genealogyDiscoveryRepository;
+  late final EventRepository _eventRepository;
   late final FundRepository _fundRepository;
   late final BillingRepository _billingRepository;
+  late final AdController _adController;
   late final PushNotificationService _pushNotificationService;
   late final ClanContextService _clanContextService;
   final AuthSessionStore _sessionStore = SharedPrefsAuthSessionStore();
   String? _lastOpenedNotificationMessageId;
-  bool _showAdBanner = true;
+  bool _showAdBanner = false;
   bool _isResolvingBillingEntitlement = false;
   bool _dismissAdBannerForSession = false;
   Timer? _adBannerAutoHideTimer;
@@ -175,15 +190,24 @@ class _AppShellPageState extends State<AppShellPage> {
     _genealogyRepository =
         widget.genealogyRepository ??
         createDefaultGenealogyReadRepository(session: _session);
+    _genealogyDiscoveryRepository =
+        widget.genealogyDiscoveryRepository ??
+        createDefaultGenealogyDiscoveryRepository(session: _session);
+    _eventRepository =
+        widget.eventRepository ??
+        createDefaultEventRepository(session: _session);
     _fundRepository =
         widget.fundRepository ?? createDefaultFundRepository(session: _session);
     _billingRepository =
         widget.billingRepository ??
         createDefaultBillingRepository(session: _session);
+    _adController = AdController(onStateChanged: _handleAdStateChanged);
     _pushNotificationService =
         widget.pushNotificationService ??
         createDefaultPushNotificationService(session: _session);
-    _clanContextService = createDefaultClanContextService(session: _session);
+    _clanContextService =
+        widget.clanContextService ??
+        createDefaultClanContextService(session: _session);
     unawaited(
       _pushNotificationService.start(
         session: _session,
@@ -218,8 +242,16 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void dispose() {
     _adBannerAutoHideTimer?.cancel();
+    _adController.dispose();
     unawaited(_pushNotificationService.stop());
     super.dispose();
+  }
+
+  void _handleAdStateChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   void _handleNotificationDeepLink(NotificationDeepLink deepLink) {
@@ -327,6 +359,7 @@ class _AppShellPageState extends State<AppShellPage> {
         NotificationTargetType.scholarship =>
           l10n.notificationOpenedScholarship,
         NotificationTargetType.billing => l10n.notificationOpenedGeneral,
+        NotificationTargetType.authRefresh => l10n.notificationOpenedGeneral,
         NotificationTargetType.unknown => l10n.notificationOpenedGeneral,
       };
     }
@@ -336,6 +369,7 @@ class _AppShellPageState extends State<AppShellPage> {
       NotificationTargetType.scholarship =>
         l10n.notificationForegroundScholarship,
       NotificationTargetType.billing => l10n.notificationForegroundGeneral,
+      NotificationTargetType.authRefresh => l10n.notificationForegroundGeneral,
       NotificationTargetType.unknown => l10n.notificationForegroundGeneral,
     };
   }
@@ -346,6 +380,7 @@ class _AppShellPageState extends State<AppShellPage> {
     return switch (targetType) {
       NotificationTargetType.event || NotificationTargetType.scholarship => 2,
       NotificationTargetType.billing => 3,
+      NotificationTargetType.authRefresh => null,
       NotificationTargetType.unknown => null,
     };
   }
@@ -374,9 +409,17 @@ class _AppShellPageState extends State<AppShellPage> {
       return;
     }
     if (!_hasBillingContext(_session)) {
+      final shouldShow = _adController.shouldShowAds(
+        tier: 'FREE',
+        backendShowAds: true,
+      );
+      _adController.updateAdPolicy(
+        subscriptionTier: 'FREE',
+        backendShowAds: true,
+      );
       if (mounted) {
         setState(() {
-          _showAdBanner = true;
+          _showAdBanner = shouldShow;
         });
         _syncAdBannerAutoHideTimer();
       }
@@ -388,21 +431,28 @@ class _AppShellPageState extends State<AppShellPage> {
       final entitlement = await _billingRepository.resolveEntitlement(
         session: _session,
       );
+      final normalizedTier = entitlement.planCode.trim().toUpperCase();
+      final resolvedTier = normalizedTier.isEmpty ? 'FREE' : normalizedTier;
+      final shouldShow = _adController.shouldShowAds(
+        tier: resolvedTier,
+        backendShowAds: entitlement.showAds,
+      );
+      _adController.updateAdPolicy(
+        subscriptionTier: resolvedTier,
+        backendShowAds: entitlement.showAds,
+      );
       if (!mounted) {
         return;
       }
       setState(() {
-        _showAdBanner = entitlement.showAds;
+        _showAdBanner = shouldShow;
+        if (!shouldShow) {
+          _dismissAdBannerForSession = false;
+        }
       });
       _syncAdBannerAutoHideTimer();
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _showAdBanner = true;
-      });
-      _syncAdBannerAutoHideTimer();
+      // Keep current state when billing entitlement cannot be refreshed.
     } finally {
       _isResolvingBillingEntitlement = false;
     }
@@ -713,7 +763,9 @@ class _AppShellPageState extends State<AppShellPage> {
         session: _session,
         clanRepository: widget.clanRepository,
         memberRepository: widget.memberRepository,
+        eventRepository: _eventRepository,
         fundRepository: _fundRepository,
+        discoveryRepository: _genealogyDiscoveryRepository,
         activeClanName: _activeClanDisplayName(),
         availableClanContexts: _clanContexts,
         onSwitchClanContext: _switchClanContext,
@@ -754,13 +806,12 @@ class _AppShellPageState extends State<AppShellPage> {
                 key: ValueKey<String>('tree-${_session.clanId ?? 'none'}'),
                 session: _session,
                 repository: _genealogyRepository,
+                clanRepository: widget.clanRepository,
               )
             : GenealogyDiscoveryPage(
                 key: const ValueKey<String>('tree-discovery'),
                 session: _session,
-                repository: createDefaultGenealogyDiscoveryRepository(
-                  session: _session,
-                ),
+                repository: _genealogyDiscoveryRepository,
                 onAddGenealogyRequested: _openClanWorkspaceFromTreeAddAction,
               )
       else
@@ -793,6 +844,8 @@ class _AppShellPageState extends State<AppShellPage> {
           key: ValueKey<String>('profile-${_session.clanId ?? 'none'}'),
           session: _session,
           memberRepository: widget.memberRepository,
+          notificationPreferencesRepository:
+              widget.profileNotificationPreferencesRepository,
           billingRepository: _billingRepository,
           onBillingStateChanged: () {
             unawaited(_refreshBillingEntitlement());
@@ -831,6 +884,7 @@ class _AppShellPageState extends State<AppShellPage> {
       children: [
         if (_isAdBannerVisible)
           _SponsoredAdBanner(
+            adController: _adController,
             onClose: () {
               setState(() {
                 _dismissAdBannerForSession = true;
@@ -867,6 +921,7 @@ class _AppShellPageState extends State<AppShellPage> {
         children: [
           if (_isAdBannerVisible)
             _SponsoredAdBanner(
+              adController: _adController,
               onClose: () {
                 setState(() {
                   _dismissAdBannerForSession = true;
@@ -1000,10 +1055,14 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   void _handleDestinationSelected(int index) {
+    if (index == _selectedIndex) {
+      return;
+    }
     setState(() {
       _selectedIndex = index;
       _visitedDestinationIndexes.add(index);
     });
+    _adController.onSafeUserAction();
     _syncAdBannerAutoHideTimer();
   }
 
@@ -1132,7 +1191,7 @@ class _AppShellPageState extends State<AppShellPage> {
         builder: (context) {
           return EventWorkspacePage(
             session: _session,
-            repository: createDefaultEventRepository(session: _session),
+            repository: _eventRepository,
             availableClanContexts: _clanContexts,
             onSwitchClanContext: _switchClanContext,
           );
@@ -1150,7 +1209,7 @@ class _AppShellPageState extends State<AppShellPage> {
         builder: (context) {
           return EventWorkspacePage(
             session: _session,
-            repository: createDefaultEventRepository(session: _session),
+            repository: _eventRepository,
             availableClanContexts: _clanContexts,
             onSwitchClanContext: _switchClanContext,
             initialEventId: event.id,
@@ -1161,9 +1220,7 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   Future<void> _openJoinRequestsCenter() async {
-    final repository = createDefaultGenealogyDiscoveryRepository(
-      session: _session,
-    );
+    final repository = _genealogyDiscoveryRepository;
     final role = (_session.primaryRole ?? '').trim().toUpperCase();
     final canReview = <String>{
       'SUPER_ADMIN',
@@ -1218,9 +1275,7 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   Future<void> _openSubmittedJoinRequests() async {
-    final repository = createDefaultGenealogyDiscoveryRepository(
-      session: _session,
-    );
+    final repository = _genealogyDiscoveryRepository;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
@@ -1251,14 +1306,17 @@ class _AppShellPageState extends State<AppShellPage> {
 }
 
 class _SponsoredAdBanner extends StatelessWidget {
-  const _SponsoredAdBanner({required this.onClose});
+  const _SponsoredAdBanner({required this.adController, required this.onClose});
 
+  final AdController adController;
   final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
+    final banner = adController.bannerAd;
+    final showBannerAd = adController.isBannerReady && banner != null;
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 420;
@@ -1266,50 +1324,78 @@ class _SponsoredAdBanner extends StatelessWidget {
           color: colorScheme.tertiaryContainer.withValues(alpha: 0.88),
           child: SafeArea(
             top: false,
-            minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.campaign_outlined,
-                  color: colorScheme.onTertiaryContainer,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    l10n.pick(
-                      vi: 'Gói Miễn phí/Cơ bản đang hiển thị quảng cáo nhẹ.',
-                      en: 'Free/Base plans show light ads.',
-                    ),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onTertiaryContainer,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: compact ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (!compact)
-                  TextButton(
-                    onPressed: onClose,
-                    child: Text(
-                      l10n.pick(vi: 'Ẩn hôm nay', en: 'Hide today'),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: colorScheme.onTertiaryContainer,
-                        fontWeight: FontWeight.w700,
+            minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: showBannerAd
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
+                            onPressed: onClose,
+                            icon: const Icon(Icons.close),
+                            color: colorScheme.onTertiaryContainer,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
                       ),
-                    ),
+                      Center(
+                        child: SizedBox(
+                          width: banner.size.width.toDouble(),
+                          height: banner.size.height.toDouble(),
+                          child: AdWidget(ad: banner),
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.campaign_outlined,
+                        color: colorScheme.onTertiaryContainer,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          l10n.pick(
+                            vi: 'Gói Miễn phí/Cơ bản đang hiển thị quảng cáo nhẹ.',
+                            en: 'Free/Base plans show light ads.',
+                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: colorScheme.onTertiaryContainer,
+                                fontWeight: FontWeight.w600,
+                              ),
+                          maxLines: compact ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!compact)
+                        TextButton(
+                          onPressed: onClose,
+                          child: Text(
+                            l10n.pick(vi: 'Ẩn hôm nay', en: 'Hide today'),
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: colorScheme.onTertiaryContainer,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                      IconButton(
+                        tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
+                        onPressed: onClose,
+                        icon: const Icon(Icons.close),
+                        color: colorScheme.onTertiaryContainer,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
                   ),
-                IconButton(
-                  tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
-                  onPressed: onClose,
-                  icon: const Icon(Icons.close),
-                  color: colorScheme.onTertiaryContainer,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
-            ),
           ),
         );
       },
@@ -1367,7 +1453,9 @@ class _HomeDashboard extends StatelessWidget {
     required this.session,
     required this.clanRepository,
     required this.memberRepository,
+    required this.eventRepository,
     required this.fundRepository,
+    required this.discoveryRepository,
     required this.activeClanName,
     required this.availableClanContexts,
     required this.onSwitchClanContext,
@@ -1383,7 +1471,9 @@ class _HomeDashboard extends StatelessWidget {
   final AuthSession session;
   final ClanRepository clanRepository;
   final MemberRepository memberRepository;
+  final EventRepository eventRepository;
   final FundRepository fundRepository;
+  final GenealogyDiscoveryRepository discoveryRepository;
   final String? activeClanName;
   final List<ClanContextOption> availableClanContexts;
   final Future<AuthSession?> Function(String clanId) onSwitchClanContext;
@@ -1470,6 +1560,7 @@ class _HomeDashboard extends StatelessWidget {
               children: [
                 _UpcomingEventSection(
                   session: session,
+                  eventRepository: eventRepository,
                   activeClanName: _activeClanName,
                   onOpenEventDetailRequested:
                       onOpenUpcomingEventDetailRequested,
@@ -1478,10 +1569,7 @@ class _HomeDashboard extends StatelessWidget {
                 _TodoSection(
                   status: status,
                   session: session,
-                  discoveryRepository:
-                      createDefaultGenealogyDiscoveryRepository(
-                        session: session,
-                      ),
+                  discoveryRepository: discoveryRepository,
                   onOpenTreeRequested: onOpenTreeRequested,
                   onOpenProfileRequested: onOpenProfileRequested,
                   onOpenEventsRequested: onOpenEventsRequested,
@@ -1842,11 +1930,13 @@ String _formatDashboardDateTime(DateTime utcValue) {
 class _UpcomingEventSection extends StatefulWidget {
   const _UpcomingEventSection({
     required this.session,
+    required this.eventRepository,
     required this.activeClanName,
     required this.onOpenEventDetailRequested,
   });
 
   final AuthSession session;
+  final EventRepository eventRepository;
   final String? activeClanName;
   final ValueChanged<EventRecord> onOpenEventDetailRequested;
 
@@ -1858,7 +1948,6 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
     with WidgetsBindingObserver {
   static const Duration _upcomingRefreshInterval = Duration(seconds: 45);
 
-  late EventRepository _eventRepository;
   late Future<_UpcomingEventData?> _upcomingFuture;
   Timer? _upcomingRefreshTimer;
 
@@ -1866,7 +1955,6 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _eventRepository = createDefaultEventRepository(session: widget.session);
     _upcomingFuture = _loadUpcomingEvent();
     _upcomingRefreshTimer = Timer.periodic(_upcomingRefreshInterval, (_) {
       if (!mounted) {
@@ -1883,7 +1971,6 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session ||
         oldWidget.activeClanName != widget.activeClanName) {
-      _eventRepository = createDefaultEventRepository(session: widget.session);
       setState(() {
         _upcomingFuture = _loadUpcomingEvent();
       });
@@ -1909,7 +1996,7 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
 
   Future<_UpcomingEventData?> _loadUpcomingEvent() async {
     try {
-      final snapshot = await _eventRepository.loadWorkspace(
+      final snapshot = await widget.eventRepository.loadWorkspace(
         session: widget.session,
       );
       final nowLocal = DateTime.now();

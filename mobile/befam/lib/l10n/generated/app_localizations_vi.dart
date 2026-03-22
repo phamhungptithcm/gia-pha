@@ -429,7 +429,7 @@ class AppLocalizationsVi extends AppLocalizations {
       'Mặc định cho người dùng tại Việt Nam';
 
   @override
-  String get profileLanguageEnglish => 'English';
+  String get profileLanguageEnglish => 'Tiếng Anh';
 
   @override
   String get profileLanguageEnglishSubtitle =>
@@ -572,7 +572,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get shellFieldFirebaseProject => 'Dự án Firebase';
 
   @override
-  String get shellFieldStorageBucket => 'Storage bucket';
+  String get shellFieldStorageBucket => 'Kho lưu trữ';
 
   @override
   String get shellFieldCrashHandling => 'Xử lý lỗi';
@@ -1939,112 +1939,111 @@ class AppLocalizationsVi extends AppLocalizations {
   String get webNavMenuTooltip => 'Mở menu điều hướng';
 
   @override
-  String get webLandingBadge => 'Nền tảng gia phả hiện đại';
+  String get webLandingBadge => 'Nền tảng gia phả số cho dòng tộc hiện đại';
 
   @override
-  String get webLandingTitle =>
-      'BeFam giúp gia đình kết nối dữ liệu gia phả, sự kiện và quỹ trong một không gian thống nhất.';
+  String get webLandingTitle => 'Giữ cội nguồn sống trong đời sống hiện đại.';
 
   @override
   String get webLandingSubtitle =>
-      'Từ cây gia phả nhiều thế hệ đến lịch ngày giỗ, BeFam giúp ban điều hành và từng thành viên theo dõi thông tin rõ ràng, nhất quán và dễ dùng.';
+      'BeFam kết nối gia phả, sự kiện, quỹ họ và quản trị thành viên trong một không gian dữ liệu thống nhất.';
 
   @override
-  String get webLandingPrimaryCta => 'Bắt đầu với BeFam';
+  String get webLandingPrimaryCta => 'Mở ứng dụng';
 
   @override
-  String get webLandingSecondaryCta => 'Tìm hiểu về BeFam';
+  String get webLandingSecondaryCta => 'Xem câu chuyện BeFam';
 
   @override
-  String get webLandingHighlightTitle => 'Quản trị họ tộc minh bạch';
+  String get webLandingHighlightTitle => 'Vận hành dòng tộc rõ ràng và an toàn';
 
   @override
   String get webLandingHighlightDescription =>
-      'Theo dõi thành viên, kế hoạch sự kiện, gói dịch vụ và quyền truy cập trên cùng một nền tảng.';
+      'Theo dõi thành viên, sự kiện, tài chính và quyền truy cập theo vai trò trên cùng một hệ thống.';
 
   @override
   String get webLandingFeatureTreeTitle => 'Gia phả đa thế hệ';
 
   @override
   String get webLandingFeatureTreeDescription =>
-      'Xem cây họ theo chi, đời và quan hệ để dễ quản lý thông tin tổ tiên - hậu duệ.';
+      'Quản lý quan hệ huyết thống theo chi, đời và vai vế để mọi thế hệ dễ tra cứu và cập nhật.';
 
   @override
   String get webLandingFeatureEventsTitle => 'Lịch sự kiện tập trung';
 
   @override
   String get webLandingFeatureEventsDescription =>
-      'Lưu lịch họp họ, ngày giỗ, nhắc lịch quan trọng và trạng thái tham gia của thành viên.';
+      'Theo dõi lịch giỗ, lễ họp và các mốc quan trọng với nhắc lịch chủ động cho thành viên.';
 
   @override
   String get webLandingFeatureBillingTitle => 'Quản lý gói dịch vụ';
 
   @override
   String get webLandingFeatureBillingDescription =>
-      'Theo dõi gói đang dùng, gia hạn và lịch sử thanh toán ngay trong BeFam.';
+      'Quản lý gói dịch vụ, gia hạn và trạng thái thanh toán minh bạch trên một luồng thống nhất.';
 
   @override
   String get webAboutTitle => 'Về chúng tôi';
 
   @override
   String get webAboutSubtitle =>
-      'BeFam được xây dựng để gìn giữ ký ức gia đình, hỗ trợ quản trị họ tộc minh bạch và gắn kết nhiều thế hệ trên cùng nền tảng số.';
+      'BeFam ra đời từ trăn trở giữ kết nối họ tộc khi con cháu học tập, làm việc và sinh sống ở nhiều nơi trên thế giới.';
 
   @override
   String get webAboutMissionTitle => 'Sứ mệnh';
 
   @override
   String get webAboutMissionDescription =>
-      'Giúp mỗi họ tộc số hóa dữ liệu gia đình một cách dễ hiểu, dễ dùng và bền vững.';
+      'Giúp mỗi dòng họ số hóa dữ liệu gia đình dễ hiểu, dễ dùng và bền vững theo thời gian.';
 
   @override
   String get webAboutVisionTitle => 'Tầm nhìn';
 
   @override
   String get webAboutVisionDescription =>
-      'Trở thành nền tảng gia phả số đáng tin cậy cho các cộng đồng gia đình Việt Nam.';
+      'Trở thành nền tảng vận hành họ tộc đáng tin cậy cho cộng đồng gia đình Việt trên toàn cầu.';
 
   @override
   String get webAboutTrustTitle => 'Cam kết';
 
   @override
   String get webAboutTrustDescription =>
-      'Ưu tiên tính chính xác dữ liệu, minh bạch quyền truy cập và trải nghiệm đồng nhất trên mọi thiết bị.';
+      'Ưu tiên bảo mật dữ liệu, minh bạch quyền truy cập và trải nghiệm nhất quán trên mọi thiết bị.';
 
   @override
   String get webInfoTitle => 'Thông tin BeFam';
 
   @override
   String get webInfoSubtitle =>
-      'Tổng quan nhanh về những gì BeFam đang cung cấp cho quản trị gia phả và hoạt động gia đình.';
+      'Tổng quan những gì BeFam đang cung cấp để quản trị gia phả, kết nối thành viên và vận hành họ tộc hiệu quả.';
 
   @override
   String get webInfoGenealogyTitle => 'Không gian gia phả';
 
   @override
   String get webInfoGenealogyDescription =>
-      'Theo dõi hồ sơ thành viên, quan hệ huyết thống, nhánh chi và thông tin thế hệ trên một cấu trúc thống nhất.';
+      'Theo dõi hồ sơ thành viên, quan hệ huyết thống, nhánh chi và thông tin thế hệ trong cùng một cấu trúc dữ liệu.';
 
   @override
   String get webInfoNotificationsTitle => 'Thông báo và nhắc lịch';
 
   @override
   String get webInfoNotificationsDescription =>
-      'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng trong phạm vi gia tộc.';
+      'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng để không bỏ sót mốc cần theo dõi.';
 
   @override
   String get webInfoBillingTitle => 'Gói và thanh toán';
 
   @override
   String get webInfoBillingDescription =>
-      'Quản lý quyền lợi theo gói, trạng thái hiệu lực và luồng thanh toán cho tổ chức gia phả.';
+      'Quản lý quyền lợi theo gói, trạng thái hiệu lực và thanh toán theo quy tắc rõ ràng, dễ kiểm soát.';
 
   @override
-  String get webInfoHighlightsTitle => 'Điểm nổi bật hiện tại';
+  String get webInfoHighlightsTitle => 'Điểm nổi bật của nền tảng';
 
   @override
   String get webInfoHighlightsItemOne =>
-      'Hỗ trợ tiếng Việt/English đồng bộ theo cấu hình người dùng.';
+      'Hỗ trợ tiếng Việt và tiếng Anh theo cấu hình người dùng.';
 
   @override
   String get webInfoHighlightsItemTwo =>
@@ -2052,5 +2051,5 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webInfoHighlightsItemThree =>
-      'Kiến trúc Flutter + Firebase giúp mở rộng tính năng nhanh và nhất quán.';
+      'Kiến trúc Flutter + Firebase giúp mở rộng nhanh, ổn định và nhất quán.';
 }

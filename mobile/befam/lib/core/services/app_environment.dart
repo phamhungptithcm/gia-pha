@@ -120,4 +120,14 @@ class AppEnvironment {
     'BEFAM_BILLING_PENDING_TIMEOUT_MINUTES',
     defaultValue: 20,
   );
+
+  static const String iosAppStoreUrl = String.fromEnvironment(
+    'BEFAM_IOS_APP_STORE_URL',
+    defaultValue: '',
+  );
+
+  static const String androidPlayStoreUrl = String.fromEnvironment(
+    'BEFAM_ANDROID_PLAY_STORE_URL',
+    defaultValue: '',
+  );
 }

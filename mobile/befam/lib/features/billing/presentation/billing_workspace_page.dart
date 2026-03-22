@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/services/app_environment.dart';
@@ -167,58 +166,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     );
   }
 
-  Future<void> _openCardCheckoutFlow({
-    required BillingWorkspaceSnapshot workspace,
-    required BillingPlanPricing minimumTier,
-    required BillingPlanPricing selectedTier,
-    required bool canRenewCurrentPlan,
-  }) async {
-    if (!_validatePaidPlanSelection(
-      workspace: workspace,
-      minimumTier: minimumTier,
-      selectedTier: selectedTier,
-      canRenewCurrentPlan: canRenewCurrentPlan,
-    )) {
-      return;
-    }
-    final checkout = await _controller.createCheckout(
-      paymentMethod: 'card',
-      requestedPlanCode: selectedTier.planCode,
-    );
-    if (!mounted || checkout == null) {
-      return;
-    }
-    final checkoutUrl = checkout.checkoutUrl.trim();
-    final uri = Uri.tryParse(checkoutUrl);
-    if (checkoutUrl.isEmpty || uri == null || !uri.hasScheme) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.pick(
-              vi: 'Liên kết thanh toán chưa sẵn sàng. Vui lòng thử lại sau.',
-              en: 'Checkout link is not ready yet. Please try again later.',
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-    await _launchExternalUri(uri);
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          context.l10n.pick(
-            vi: 'Đã mở cổng thanh toán.',
-            en: 'Payment gateway opened.',
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _openStoreCheckoutFlow({
     required BillingWorkspaceSnapshot workspace,
     required BillingPlanPricing minimumTier,
@@ -330,34 +277,10 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     });
   }
 
-  Future<void> _copyCheckoutUrl(String checkoutUrl) async {
-    await Clipboard.setData(ClipboardData(text: checkoutUrl));
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          context.l10n.pick(
-            vi: 'Đã sao chép liên kết thanh toán.',
-            en: 'Checkout link copied.',
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _openPendingTransactionDetail({
     required BillingPaymentTransaction transaction,
-    required BillingCheckoutResult? latestCheckout,
   }) async {
     final l10n = context.l10n;
-    final checkout =
-        latestCheckout != null &&
-            latestCheckout.transactionId.trim() == transaction.id.trim()
-        ? latestCheckout
-        : null;
-    final checkoutUrl = checkout?.checkoutUrl.trim() ?? '';
 
     await showModalBottomSheet<void>(
       context: context,
@@ -368,7 +291,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final createdAtLabel = _dateLabel(transaction.createdAtIso, l10n);
-        final hasCheckoutUrl = checkoutUrl.isNotEmpty;
         return Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           child: SingleChildScrollView(
@@ -424,74 +346,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
-                if (hasCheckoutUrl) ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: AppAsyncAction(
-                      onPressed: () => _copyCheckoutUrl(checkoutUrl),
-                      builder: (context, onPressed, isLoading) {
-                        return FilledButton.tonalIcon(
-                          key: const Key(
-                            'billing-pending-detail-copy-link-button',
-                          ),
-                          onPressed: onPressed,
-                          icon: isLoading
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.copy_outlined),
-                          label: Text(
-                            l10n.pick(
-                              vi: 'Sao chép liên kết thanh toán',
-                              en: 'Copy checkout link',
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: AppAsyncAction(
-                      onPressed: () async {
-                        final uri = Uri.tryParse(checkoutUrl);
-                        if (uri == null) {
-                          return;
-                        }
-                        await _launchExternalUri(uri);
-                      },
-                      builder: (context, onPressed, isLoading) {
-                        return OutlinedButton.icon(
-                          key: const Key(
-                            'billing-pending-detail-open-link-button',
-                          ),
-                          onPressed: onPressed,
-                          icon: isLoading
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.open_in_new),
-                          label: Text(
-                            l10n.pick(
-                              vi: 'Mở liên kết thanh toán',
-                              en: 'Open checkout link',
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -651,18 +505,13 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     final isRenewSelection = selectedPlanRank == currentPlanRank;
     final isUpgradeSelection = selectedPlanRank > currentPlanRank;
     final useStoreCheckout = _shouldUseStoreCheckout;
-    final allowLegacyCardCheckout =
-        workspace.checkoutFlow.allowLegacyCardCheckout;
     final hasStoreProductConfig =
         _iapProductIdForPlan(workspace, selectedTier.planCode) != null;
-    final supportsSelectedCheckoutPath = useStoreCheckout
-        ? hasStoreProductConfig
-        : allowLegacyCardCheckout;
+    final supportsSelectedCheckoutPath = hasStoreProductConfig;
     final isBelowMinimumForMemberCount = selectedPlanRank < minimumPlanRank;
     final canCheckoutSelectedPlan =
         selectedTier.priceVndYear > 0 &&
         canManage &&
-        !_controller.isCreatingCheckout &&
         hasSelectablePlans &&
         supportsSelectedCheckoutPath &&
         !isBelowMinimumForMemberCount &&
@@ -670,7 +519,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     final pendingTransactions = workspace.transactions
         .where((tx) => _isPendingPaymentStatus(tx.paymentStatus))
         .toList(growable: false);
-    final latestCheckout = _controller.lastCheckout;
     final hasRenewalSettingsChanges = _hasRenewalSettingsChanges(workspace);
     final checkoutActionLabel = useStoreCheckout
         ? isRenewSelection
@@ -712,13 +560,9 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             ),
             const SizedBox(height: 12),
           ],
-          if (_controller.isSavingPreferences ||
-              _controller.isCreatingCheckout ||
-              _controller.isProcessingPayment)
+          if (_controller.isSavingPreferences || _controller.isProcessingPayment)
             const LinearProgressIndicator(minHeight: 2),
-          if (_controller.isSavingPreferences ||
-              _controller.isCreatingCheckout ||
-              _controller.isProcessingPayment)
+          if (_controller.isSavingPreferences || _controller.isProcessingPayment)
             const SizedBox(height: 12),
           _SubscriptionHeroCard(
             planCode: entitlement.planCode,
@@ -849,7 +693,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                     ),
                     tone: colorScheme.tertiaryContainer,
                   )
-                else if (useStoreCheckout && !hasStoreProductConfig)
+                else if (!hasStoreProductConfig)
                   _InfoCard(
                     icon: Icons.warning_amber_rounded,
                     title: l10n.pick(
@@ -861,19 +705,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       en: '${_localizedPlanName(selectedTier.planCode, l10n)} is not mapped to a store productId on the server.',
                     ),
                     tone: colorScheme.errorContainer,
-                  )
-                else if (!useStoreCheckout && !allowLegacyCardCheckout)
-                  _InfoCard(
-                    icon: Icons.info_outline,
-                    title: l10n.pick(
-                      vi: 'Thanh toán chuyển sang IAP',
-                      en: 'Checkout moved to IAP',
-                    ),
-                    description: l10n.pick(
-                      vi: 'Thanh toán thẻ truyền thống đã tắt trong môi trường này. Vui lòng dùng ứng dụng iOS/Android để gia hạn hoặc nâng cấp.',
-                      en: 'Legacy card checkout is disabled in this environment. Please use iOS/Android app stores to renew or upgrade.',
-                    ),
-                    tone: colorScheme.tertiaryContainer,
                   )
                 else if (isBelowMinimumForMemberCount)
                   _InfoCard(
@@ -905,16 +736,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       enabled: canCheckoutSelectedPlan,
                       onPressed: canCheckoutSelectedPlan
                           ? () async {
-                              if (useStoreCheckout) {
-                                await _openStoreCheckoutFlow(
-                                  workspace: workspace,
-                                  minimumTier: minimumTier,
-                                  selectedTier: selectedTier,
-                                  canRenewCurrentPlan: canRenewCurrentPlan,
-                                );
-                                return;
-                              }
-                              await _openCardCheckoutFlow(
+                              await _openStoreCheckoutFlow(
                                 workspace: workspace,
                                 minimumTier: minimumTier,
                                 selectedTier: selectedTier,
@@ -979,7 +801,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                         onTap: () {
                           _openPendingTransactionDetail(
                             transaction: entry.value,
-                            latestCheckout: latestCheckout,
                           );
                         },
                         child: Padding(

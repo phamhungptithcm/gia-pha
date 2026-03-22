@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Firebase Emulators (all)",
+      "runtimeExecutable": "firebase",
+      "runtimeArgs": ["emulators:start", "--project", "demo-befam"],
+      "port": 4000
+    },
+    {
+      "name": "Functions TypeScript watch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "firebase/functions", "run", "build", "--", "--watch"],
+      "port": 5001
+    },
+    {
+      "name": "Flutter web (debug)",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["--project-root", "mobile/befam", "run", "-d", "chrome", "--dart-define=FLUTTER_ENV=development"],
+      "port": 0
+    },
+    {
+      "name": "Docs (MkDocs)",
+      "runtimeExecutable": "mkdocs",
+      "runtimeArgs": ["serve", "--config-file", "mkdocs.yml"],
+      "port": 8000
+    }
+  ]
+}
