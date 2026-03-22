@@ -10,7 +10,6 @@ on:
       - ".firebaserc"
       - "mobile/befam/**"
       - ".github/workflows/deploy-staging.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
