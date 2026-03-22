@@ -1,0 +1,6 @@
+# Trivy baseline file
+# Keep this list minimal and only for accepted false positives / temporary exceptions.
+# Format: vulnerability ID or secret rule ID, one per line.
+# Example:
+# CVE-2023-12345
+# github-pat
