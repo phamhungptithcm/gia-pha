@@ -26,7 +26,7 @@ permissions:
 
 concurrency:
   group: mobile-e2e-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   E2E_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode || 'debug' }}
@@ -54,6 +54,7 @@ jobs:
 
       - name: Run Android E2E
         uses: reactivecircus/android-emulator-runner@v2
+        timeout-minutes: 48
         env:
           BEFAM_E2E_ANDROID_DEVICE: emulator-5554
           BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
@@ -67,10 +68,19 @@ jobs:
           emulator-options: -no-window -gpu off -no-snapshot -noaudio -no-boot-anim -no-metrics
           disable-animations: true
           script: |
+            set -euo pipefail
             chmod +x scripts/run_mobile_e2e.sh
-            ./scripts/run_mobile_e2e.sh "${E2E_MODE}" android
+            set +e
+            timeout 45m ./scripts/run_mobile_e2e.sh "${E2E_MODE}" android
+            exit_code=$?
+            set -e
+            if [ "$exit_code" -eq 124 ]; then
+              echo "::error::Android E2E timed out after 45 minutes."
+            fi
+            exit "$exit_code"
 
       - name: Upload Android E2E artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mobile-e2e-android-${{ github.run_id }}
@@ -94,6 +104,7 @@ jobs:
           cache: true
 
       - name: Boot iOS simulator
+        timeout-minutes: 10
         run: |
           set -euo pipefail
           SIM_UDID="$(
@@ -105,19 +116,65 @@ jobs:
             exit 1
           fi
           xcrun simctl boot "${SIM_UDID}" || true
-          xcrun simctl bootstatus "${SIM_UDID}" -b
+          if ! xcrun simctl bootstatus "${SIM_UDID}" -b -t 300; then
+            echo "bootstatus with timeout failed. Falling back to manual polling..."
+            state=""
+            for _ in $(seq 1 60); do
+              state="$(
+                xcrun simctl list devices -j | python3 - "${SIM_UDID}" <<'PY'
+import json
+import sys
+
+target = sys.argv[1].strip()
+payload = json.load(sys.stdin)
+for entries in payload.get("devices", {}).values():
+    for device in entries:
+        if (device.get("udid") or "").strip() == target:
+            print((device.get("state") or "").strip())
+            raise SystemExit(0)
+print("")
+PY
+              )"
+              if [[ "${state}" == "Booted" ]]; then
+                break
+              fi
+              sleep 5
+            done
+            if [[ "${state}" != "Booted" ]]; then
+              echo "Simulator boot timeout. Dumping current device state..."
+              xcrun simctl list devices available
+              exit 1
+            fi
+          fi
           open -a Simulator || true
           echo "BEFAM_E2E_IOS_DEVICE=${SIM_UDID}" >> "$GITHUB_ENV"
 
       - name: Run iOS E2E
+        timeout-minutes: 48
         env:
           BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
           BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
         run: |
+          set -euo pipefail
           chmod +x scripts/run_mobile_e2e.sh
-          ./scripts/run_mobile_e2e.sh "${E2E_MODE}" ios
+          python3 - <<'PY'
+          import os
+          import subprocess
+          import sys
+
+          cmd = ["./scripts/run_mobile_e2e.sh", os.environ.get("E2E_MODE", "debug"), "ios"]
+          timeout_seconds = 45 * 60
+          try:
+              subprocess.run(cmd, check=True, timeout=timeout_seconds)
+          except subprocess.TimeoutExpired:
+              print("::error::iOS E2E timed out after 45 minutes.")
+              sys.exit(124)
+          except subprocess.CalledProcessError as exc:
+              sys.exit(exc.returncode)
+          PY
 
       - name: Upload iOS E2E artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mobile-e2e-ios-${{ github.run_id }}
