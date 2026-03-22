@@ -1,10 +1,7 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 
 import { APP_REGION } from '../config/runtime';
-import {
-  deriveTransactionDeltaMinor,
-  recalculateFundBalanceFromTransaction,
-} from './fund-balance-recalculation';
+import { recalculateFundBalanceFromTransaction } from './fund-balance-recalculation';
 import { logWarn } from '../shared/logger';
 
 export const onTransactionCreated = onDocumentCreated(
@@ -21,20 +18,10 @@ export const onTransactionCreated = onDocumentCreated(
       return;
     }
 
-    const data = snapshot.data();
-    const derivedDeltaMinor = deriveTransactionDeltaMinor(data);
     await recalculateFundBalanceFromTransaction({
       transactionId: event.params.transactionId,
-      transaction: data,
+      transaction: snapshot.data(),
       source: 'function:onTransactionCreated',
     });
-
-    if (derivedDeltaMinor == null) {
-      logWarn('transaction trigger received unsupported transaction payload', {
-        transactionId: event.params.transactionId,
-        transactionType: data.transactionType ?? null,
-        amountMinor: data.amountMinor ?? null,
-      });
-    }
   },
 );

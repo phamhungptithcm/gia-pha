@@ -462,10 +462,12 @@ class FirebaseRelationshipRepository implements RelationshipRepository {
   }
 }
 
+// Only fall back to the direct Firestore path when Cloud Functions are genuinely
+// unreachable.  'not-found' and 'unimplemented' indicate a deployment problem
+// that the Firestore path cannot fix and would silently bypass server-side
+// validation (cycle detection, permission checks, atomic array updates).
 bool _shouldFallbackToFirestore(String code) {
-  return code == 'not-found' ||
-      code == 'unimplemented' ||
-      code == 'unavailable';
+  return code == 'unavailable';
 }
 
 Set<String> _stringSetFromDynamic(dynamic value) {
