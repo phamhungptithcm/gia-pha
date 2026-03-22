@@ -204,6 +204,7 @@ jobs:
           GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
           BILLING_WEBHOOK_SECRET: ${{ secrets.BILLING_WEBHOOK_SECRET }}
           APPLE_SHARED_SECRET: ${{ secrets.APPLE_SHARED_SECRET }}
@@ -214,6 +215,7 @@ jobs:
             GCP_SERVICE_ACCOUNT_EMAIL
             FIREBASE_PROJECT_ID
             FIREBASE_FUNCTIONS_REGION
+            FIRESTORE_DATABASE_ID
             GOOGLE_PLAY_PACKAGE_NAME
             BILLING_WEBHOOK_SECRET
             APPLE_SHARED_SECRET
@@ -275,6 +277,7 @@ jobs:
         working-directory: firebase/functions
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
         run: npm run config:subscription-packages:check
 
   prepare-release:
@@ -628,7 +631,11 @@ jobs:
             fi
           done
 
-          bundle_id="${BEFAM_FIREBASE_IOS_BUNDLE_ID:-com.familyclanapp.befam}"
+          bundle_id="${BEFAM_FIREBASE_IOS_BUNDLE_ID:-}"
+          if [ -z "$bundle_id" ]; then
+            echo "::error::Missing required production var: BEFAM_FIREBASE_IOS_BUNDLE_ID"
+            exit 1
+          fi
           export_options_plist="ios/ExportOptions.plist"
           cat > "${export_options_plist}" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>

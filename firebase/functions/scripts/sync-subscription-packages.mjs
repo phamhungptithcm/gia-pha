@@ -23,6 +23,7 @@ const projectId =
   process.env.GOOGLE_CLOUD_PROJECT ||
   process.env.GCLOUD_PROJECT ||
   '';
+const firestoreDatabaseId = readEnvString('FIRESTORE_DATABASE_ID') || '(default)';
 
 if (!projectId) {
   throw new Error(
@@ -30,14 +31,14 @@ if (!projectId) {
   );
 }
 
-if (getApps().length === 0) {
+const app =
+  getApps()[0] ??
   initializeApp({
     credential: applicationDefault(),
     projectId,
   });
-}
 
-const db = getFirestore();
+const db = getFirestore(app, firestoreDatabaseId);
 const collection = db.collection('subscriptionPackages');
 
 try {
@@ -49,14 +50,14 @@ try {
     const normalizedCatalog = normalizeAndValidate(catalog, 'catalog');
     await upsertCatalog(normalizedCatalog, collection);
     console.log(
-      `Synced ${normalizedCatalog.length} subscriptionPackages docs from ${catalogPath}.`,
+      `Synced ${normalizedCatalog.length} subscriptionPackages docs from ${catalogPath} (database: ${firestoreDatabaseId}).`,
     );
   }
 
   const activeDocs = await readActiveDocs(collection);
   const normalizedActiveDocs = normalizeAndValidate(activeDocs, 'firestore');
   console.log(
-    `subscriptionPackages check passed (${normalizedActiveDocs.length} active plans).`,
+    `subscriptionPackages check passed (${normalizedActiveDocs.length} active plans, database: ${firestoreDatabaseId}).`,
   );
 } catch (error) {
   const message = normalizeErrorMessage(error);
@@ -67,6 +68,14 @@ try {
 function readArg(prefix) {
   const match = process.argv.find((arg) => arg.startsWith(prefix));
   return match ? match.slice(prefix.length) : '';
+}
+
+function readEnvString(name) {
+  const value = process.env[name];
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim();
 }
 
 async function loadCatalog(catalogPath) {
@@ -257,8 +266,8 @@ function normalizeErrorMessage(error) {
   if (raw.includes('5 NOT_FOUND')) {
     return [
       raw,
-      'Firestore default database is missing or inaccessible for this project.',
-      'Create databaseId "(default)" in Firestore (Native mode), then rerun preflight/deploy.',
+      `Firestore database "${firestoreDatabaseId}" is missing or inaccessible for this project.`,
+      'Create that database in Firestore (Native mode), then rerun preflight/deploy.',
     ].join(' ');
   }
   if (raw.includes('PERMISSION_DENIED') || raw.includes('7 PERMISSION_DENIED')) {

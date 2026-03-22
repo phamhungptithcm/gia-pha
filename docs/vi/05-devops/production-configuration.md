@@ -1,6 +1,6 @@
 # Cấu hình Production
 
-_Cập nhật gần nhất: 20/03/2026_
+_Cập nhật gần nhất: 22/03/2026_
 
 Tài liệu này mô tả cách tách cấu hình local và production để tránh lệch môi
 trường khi phát hành.
@@ -10,6 +10,14 @@ trường khi phát hành.
 1. GitHub Environment `production` (vars + secrets)
 2. Firestore runtime overrides `runtimeConfig/global` (không chứa secret)
 3. Flutter `--dart-define` cho cấu hình compile-time
+
+## Phạm vi deploy staging
+
+Pipeline `staging` chỉ dùng môi trường sandbox và chỉ deploy:
+- Tài nguyên Firebase của staging (`firestore:rules`, `firestore:indexes`, `storage`, `functions`)
+- Web hosting
+
+`staging` **không** deploy artifact Android/iOS.
 
 ## Phiên bản OS đang hỗ trợ
 
@@ -35,6 +43,7 @@ Nếu muốn hạ mức hỗ trợ xuống thấp hơn:
 Biến bắt buộc (runtime Functions):
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_FUNCTIONS_REGION`
+- `FIRESTORE_DATABASE_ID` (`(default)` cho staging, `befam` cho production theo cấu hình hiện tại)
 - `APP_TIMEZONE`
 - `APP_RUNTIME_CONFIG_COLLECTION`
 - `APP_RUNTIME_CONFIG_DOC_ID`
@@ -125,11 +134,14 @@ Biến build Mobile/Web (GitHub vars, tùy chọn):
 ## Checklist trước khi release production
 
 - xác nhận đủ biến và secret bắt buộc
-- xác nhận Firestore đã có database mặc định `(default)` ở Native mode
+- xác nhận Firestore production đúng `FIRESTORE_DATABASE_ID` (giá trị production hiện tại: `befam`)
+- xác nhận staging luôn dùng database `(default)` và project sandbox `be-fam-3ab23`
 - xác nhận product ID IAP khớp với gói đã publish trên App Store / Google Play
 - xác nhận `BILLING_IAP_ALLOW_TEST_MOCK=false` ở production
 - xác nhận `BILLING_ENABLE_LEGACY_CARD_FLOW=false` ở production
 - xác nhận `CALLABLE_ENFORCE_APP_CHECK=true` ở production
+- xác nhận đã bật branch protection cho `staging` và `main` với required checks
+- nếu secret từng bị lộ (đặc biệt `APPLE_SHARED_SECRET`) phải rotate ngay trước khi release
 - giữ `BILLING_ALLOW_MANUAL_SETTLEMENT=false` nếu không có nhu cầu vận hành đặc biệt
 - xác nhận `subscriptionPackages` có đủ plan active `FREE/BASE/PLUS/PRO` (preflight sẽ chặn release nếu thiếu)
 

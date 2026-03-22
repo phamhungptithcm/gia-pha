@@ -63,7 +63,7 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
         run: |
           set -euo pipefail
-          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
+          project="${FIREBASE_PROJECT_ID:-}"
           test -n "$project"
           echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
           echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"

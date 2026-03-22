@@ -6,6 +6,7 @@ const projectId =
   process.env.GOOGLE_CLOUD_PROJECT ||
   process.env.GCLOUD_PROJECT ||
   '';
+const firestoreDatabaseId = readString('FIRESTORE_DATABASE_ID') || '(default)';
 
 if (!projectId) {
   throw new Error(
@@ -13,12 +14,12 @@ if (!projectId) {
   );
 }
 
-initializeApp({
+const app = initializeApp({
   credential: applicationDefault(),
   projectId,
 });
 
-const firestore = getFirestore();
+const firestore = getFirestore(app, firestoreDatabaseId);
 const configCollection = readString('APP_RUNTIME_CONFIG_COLLECTION') || 'runtimeConfig';
 const configDocId = readString('APP_RUNTIME_CONFIG_DOC_ID') || 'global';
 const configPath = `${configCollection}/${configDocId}`;
@@ -51,7 +52,9 @@ await firestore.collection(configCollection).doc(configDocId).set(
   { merge: true },
 );
 
-console.log(`Synced runtime config document: ${configPath}`);
+console.log(
+  `Synced runtime config document: ${configPath} (database: ${firestoreDatabaseId}).`,
+);
 
 function readString(name) {
   const value = process.env[name];
