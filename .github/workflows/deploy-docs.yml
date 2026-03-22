@@ -9,7 +9,6 @@ on:
       - "mkdocs.yml"
       - "requirements-docs.txt"
       - ".github/workflows/deploy-docs.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
