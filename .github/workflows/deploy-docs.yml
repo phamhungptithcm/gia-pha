@@ -21,20 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate-docs-branch:
-    name: Validate docs deployment branch
-    runs-on: ubuntu-latest
-    steps:
-      - name: Ensure docs deploy runs from main only
-        run: |
-          set -euo pipefail
-          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            echo "::error::CD - Deploy Docs (GitHub Pages) can only run from refs/heads/main."
-            exit 1
-          fi
-
   build:
-    needs: validate-docs-branch
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
