@@ -185,11 +185,14 @@ Future<E2EAppContext> pumpE2EApp(
   Locale locale = const Locale('vi'),
 }) async {
   SharedPreferences.setMockInitialValues({});
-  tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(430, 932);
+  // Use the device's real pixel ratio so keyboard insets (reported in physical
+  // pixels by the OS) are correctly converted to logical pixels. Setting
+  // devicePixelRatio=1 on a 3x device would make a 900-physical-px keyboard
+  // read as 900 logical px, collapsing the Scaffold body to zero height.
+  final dpr = tester.view.devicePixelRatio;
+  tester.view.physicalSize = Size(430 * dpr, 932 * dpr);
   tester.binding.platformDispatcher.textScaleFactorTestValue = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
-  addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.binding.platformDispatcher.clearTextScaleFactorTestValue);
 
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -228,7 +231,17 @@ Future<E2EAppContext> pumpE2EApp(
 }
 
 Future<void> acceptPrivacyPolicy(WidgetTester tester) async {
+  // Wait for the login screen to be ready before checking the checkbox. On a
+  // real device the app may still be restoring state when this is first called.
   final keyedCheckboxFinder = find.byKey(const Key('auth-privacy-checkbox'));
+  await waitFor(
+    tester,
+    reason: 'Không tìm thấy ô đồng ý chính sách quyền riêng tư.',
+    condition: () =>
+        keyedCheckboxFinder.evaluate().isNotEmpty ||
+        find.byType(Checkbox).evaluate().isNotEmpty,
+  );
+
   final checkboxFinder = keyedCheckboxFinder.evaluate().isNotEmpty
       ? keyedCheckboxFinder
       : find.byType(Checkbox);
