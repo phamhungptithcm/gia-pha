@@ -155,6 +155,31 @@ Future<Finder> waitForAnyFinder(
   fail(reason ?? 'Không tìm thấy bất kỳ widget nào phù hợp.');
 }
 
+Future<Finder?> waitForFinderOrOtpOrShell(
+  WidgetTester tester,
+  List<Finder> finders, {
+  int maxFrames = 420,
+  Duration frameDuration = const Duration(milliseconds: 16),
+  String? reason,
+}) async {
+  for (var frame = 0; frame < maxFrames; frame += 1) {
+    if (_isOtpOrShellVisible(tester)) {
+      return null;
+    }
+    for (final finder in finders) {
+      if (finder.evaluate().isNotEmpty) {
+        return finder;
+      }
+    }
+    await tester.pump(frameDuration);
+  }
+
+  fail(
+    reason ??
+        'Không tìm thấy widget thao tác và cũng chưa thấy màn OTP/AppShell.',
+  );
+}
+
 Future<E2EAppContext> pumpE2EApp(
   WidgetTester tester, {
   Locale locale = const Locale('vi'),
@@ -203,7 +228,10 @@ Future<E2EAppContext> pumpE2EApp(
 }
 
 Future<void> acceptPrivacyPolicy(WidgetTester tester) async {
-  final checkboxFinder = find.byType(Checkbox);
+  final keyedCheckboxFinder = find.byKey(const Key('auth-privacy-checkbox'));
+  final checkboxFinder = keyedCheckboxFinder.evaluate().isNotEmpty
+      ? keyedCheckboxFinder
+      : find.byType(Checkbox);
   if (checkboxFinder.evaluate().isEmpty) {
     return;
   }
@@ -213,8 +241,19 @@ Future<void> acceptPrivacyPolicy(WidgetTester tester) async {
     return;
   }
 
+  await tester.ensureVisible(checkboxFinder.first);
   await tester.tap(checkboxFinder.first);
   await safePumpAndSettle(tester);
+  await waitFor(
+    tester,
+    reason: 'Không thể bật đồng ý chính sách quyền riêng tư.',
+    condition: () {
+      if (checkboxFinder.evaluate().isEmpty) {
+        return false;
+      }
+      return tester.widget<Checkbox>(checkboxFinder.first).value == true;
+    },
+  );
 }
 
 Future<void> loginWithPhone(
@@ -223,29 +262,51 @@ Future<void> loginWithPhone(
   String otpCode = '123456',
 }) async {
   await acceptPrivacyPolicy(tester);
-  final phoneMethodFinder = await waitForAnyFinder(tester, [
-    find.byKey(const Key('auth-method-phone-button')),
-    find.widgetWithText(FilledButton, 'Dùng số điện thoại'),
-    find.widgetWithText(FilledButton, 'Use phone number'),
-  ], reason: 'Không tìm thấy nút chọn đăng nhập bằng số điện thoại.');
-  await tester.ensureVisible(phoneMethodFinder.last);
-  await tester.tap(phoneMethodFinder.last);
+  final phoneMethodFinder = find.byKey(const Key('auth-method-phone-button'));
+  await waitForFinder(
+    tester,
+    phoneMethodFinder,
+    reason: 'Không tìm thấy nút chọn đăng nhập bằng số điện thoại.',
+  );
+  await waitFor(
+    tester,
+    reason: 'Nút đăng nhập bằng số điện thoại vẫn đang bị khóa.',
+    condition: () => _isFinderEnabledButton(tester, phoneMethodFinder),
+  );
+  await tester.ensureVisible(phoneMethodFinder.first);
+  await tester.tap(phoneMethodFinder.first);
   await safePumpAndSettle(tester);
 
-  final phoneInputFinder = await waitForAnyFinder(tester, [
-    find.byKey(const Key('auth-phone-input')),
-    find.byType(TextField),
-  ], reason: 'Không tìm thấy ô nhập số điện thoại.');
+  final phoneInputFinder = find.byKey(const Key('auth-phone-input'));
+  await waitForFinder(
+    tester,
+    phoneInputFinder,
+    reason: 'Không tìm thấy ô nhập số điện thoại.',
+  );
   await tester.enterText(phoneInputFinder.first, phoneInput);
   await safePumpAndSettle(tester);
 
-  final sendOtpButton = await waitForAnyFinder(tester, [
-    find.byKey(const Key('auth-send-otp-button')),
-    find.widgetWithText(FilledButton, 'Gửi OTP'),
-    find.widgetWithText(FilledButton, 'Send OTP'),
-  ], reason: 'Không tìm thấy nút gửi OTP.');
-  await tester.ensureVisible(sendOtpButton.first);
-  await tester.tap(sendOtpButton.first);
+  final sendOtpButton = await waitForFinderOrOtpOrShell(
+    tester,
+    [find.byKey(const Key('auth-send-otp-button'))],
+    reason:
+        'Không tìm thấy nút gửi OTP và cũng chưa chuyển sang màn OTP/AppShell.',
+  );
+  if (sendOtpButton != null) {
+    await waitFor(
+      tester,
+      reason: 'Nút gửi OTP bị khóa quá lâu trước khi tiếp tục.',
+      condition: () =>
+          _isOtpOrShellVisible(tester) ||
+          _isFinderEnabledButton(tester, sendOtpButton),
+    );
+    if (!_isOtpOrShellVisible(tester) &&
+        _isFinderEnabledButton(tester, sendOtpButton)) {
+      await tester.ensureVisible(sendOtpButton.first);
+      await tester.tap(sendOtpButton.first);
+      await safePumpAndSettle(tester);
+    }
+  }
 
   await waitFor(
     tester,
@@ -276,29 +337,51 @@ Future<void> loginWithChildCode(
   String otpCode = '123456',
 }) async {
   await acceptPrivacyPolicy(tester);
-  final childMethodFinder = await waitForAnyFinder(tester, [
-    find.byKey(const Key('auth-method-child-button')),
-    find.widgetWithText(OutlinedButton, 'Dùng mã trẻ em'),
-    find.widgetWithText(OutlinedButton, 'Use child code'),
-  ], reason: 'Không tìm thấy nút chọn đăng nhập bằng mã trẻ em.');
-  await tester.ensureVisible(childMethodFinder.last);
-  await tester.tap(childMethodFinder.last);
+  final childMethodFinder = find.byKey(const Key('auth-method-child-button'));
+  await waitForFinder(
+    tester,
+    childMethodFinder,
+    reason: 'Không tìm thấy nút chọn đăng nhập bằng mã trẻ em.',
+  );
+  await waitFor(
+    tester,
+    reason: 'Nút đăng nhập bằng mã trẻ em vẫn đang bị khóa.',
+    condition: () => _isFinderEnabledButton(tester, childMethodFinder),
+  );
+  await tester.ensureVisible(childMethodFinder.first);
+  await tester.tap(childMethodFinder.first);
   await safePumpAndSettle(tester);
 
-  final childInputFinder = await waitForAnyFinder(tester, [
-    find.byKey(const Key('auth-child-code-input')),
-    find.byType(TextField),
-  ], reason: 'Không tìm thấy ô nhập mã trẻ em.');
+  final childInputFinder = find.byKey(const Key('auth-child-code-input'));
+  await waitForFinder(
+    tester,
+    childInputFinder,
+    reason: 'Không tìm thấy ô nhập mã trẻ em.',
+  );
   await tester.enterText(childInputFinder.first, childCode);
   await safePumpAndSettle(tester);
 
-  final continueButton = await waitForAnyFinder(tester, [
-    find.byKey(const Key('auth-child-continue-button')),
-    find.widgetWithText(FilledButton, 'Tiếp tục'),
-    find.widgetWithText(FilledButton, 'Continue'),
-  ], reason: 'Không tìm thấy nút Tiếp tục ở luồng mã trẻ em.');
-  await tester.ensureVisible(continueButton.first);
-  await tester.tap(continueButton.first);
+  final continueButton = await waitForFinderOrOtpOrShell(
+    tester,
+    [find.byKey(const Key('auth-child-continue-button'))],
+    reason:
+        'Không tìm thấy nút Tiếp tục và cũng chưa chuyển sang màn OTP/AppShell.',
+  );
+  if (continueButton != null) {
+    await waitFor(
+      tester,
+      reason: 'Nút Tiếp tục bị khóa quá lâu trước khi tiếp tục.',
+      condition: () =>
+          _isOtpOrShellVisible(tester) ||
+          _isFinderEnabledButton(tester, continueButton),
+    );
+    if (!_isOtpOrShellVisible(tester) &&
+        _isFinderEnabledButton(tester, continueButton)) {
+      await tester.ensureVisible(continueButton.first);
+      await tester.tap(continueButton.first);
+      await safePumpAndSettle(tester);
+    }
+  }
 
   await waitForFinder(
     tester,
@@ -316,6 +399,29 @@ Future<void> loginWithChildCode(
     reason: 'Luồng mã trẻ em verify OTP xong nhưng không vào AppShell.',
     condition: () => find.byType(AppShellPage).evaluate().isNotEmpty,
   );
+}
+
+bool _isOtpOrShellVisible(WidgetTester tester) {
+  return find.byKey(const Key('otp-code-input')).evaluate().isNotEmpty ||
+      find.byType(AppShellPage).evaluate().isNotEmpty;
+}
+
+bool _isFinderEnabledButton(WidgetTester tester, Finder finder) {
+  if (finder.evaluate().isEmpty) {
+    return false;
+  }
+  final widget = tester.widget(finder.first);
+  return _isButtonEnabled(widget);
+}
+
+bool _isButtonEnabled(Widget widget) {
+  return switch (widget) {
+    FilledButton(:final onPressed) => onPressed != null,
+    OutlinedButton(:final onPressed) => onPressed != null,
+    ElevatedButton(:final onPressed) => onPressed != null,
+    TextButton(:final onPressed) => onPressed != null,
+    _ => true,
+  };
 }
 
 Future<void> openShortcut(WidgetTester tester, String shortcutId) async {
