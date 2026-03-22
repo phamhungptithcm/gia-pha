@@ -22,22 +22,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  validate-production-branch:
-    name: Validate production hosting branch
-    runs-on: ubuntu-latest
-    steps:
-      - name: Ensure manual production hosting deploy runs from main only
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            echo "::error::CD - Deploy Web Hosting (Production) can only run from refs/heads/main."
-            exit 1
-          fi
-
   build-web:
     name: Prepare Immutable Web Bundle
-    needs: validate-production-branch
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -92,7 +79,7 @@ jobs:
 
   deploy-hosting:
     name: Deploy Web Hosting (Production)
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     needs: build-web
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -165,7 +152,6 @@ jobs:
     name: Notify hosting deploy failure
     if: ${{ always() && contains(join(needs.*.result, ','), 'failure') && secrets.SLACK_WEBHOOK_URL != '' }}
     needs:
-      - validate-production-branch
       - build-web
       - deploy-hosting
     runs-on: ubuntu-latest
