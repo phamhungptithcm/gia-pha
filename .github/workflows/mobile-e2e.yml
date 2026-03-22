@@ -120,19 +120,7 @@ jobs:
             state=""
             for _ in $(seq 1 60); do
               state="$(
-                xcrun simctl list devices -j | python3 - "${SIM_UDID}" <<'PY'
-import json
-import sys
-
-target = sys.argv[1].strip()
-payload = json.load(sys.stdin)
-for entries in payload.get("devices", {}).values():
-    for device in entries:
-        if (device.get("udid") or "").strip() == target:
-            print((device.get("state") or "").strip())
-            raise SystemExit(0)
-print("")
-PY
+                xcrun simctl list devices -j | python3 -c 'import json,sys;target=sys.argv[1].strip();payload=json.load(sys.stdin);state=next(((d.get("state") or "").strip() for entries in payload.get("devices", {}).values() for d in entries if (d.get("udid") or "").strip()==target),"");print(state)' "${SIM_UDID}"
               )"
               if [[ "${state}" == "Booted" ]]; then
                 break
@@ -156,21 +144,7 @@ PY
         run: |
           set -euo pipefail
           chmod +x scripts/run_mobile_e2e.sh
-          python3 - <<'PY'
-          import os
-          import subprocess
-          import sys
-
-          cmd = ["./scripts/run_mobile_e2e.sh", os.environ.get("E2E_MODE", "debug"), "ios"]
-          timeout_seconds = 45 * 60
-          try:
-              subprocess.run(cmd, check=True, timeout=timeout_seconds)
-          except subprocess.TimeoutExpired:
-              print("::error::iOS E2E timed out after 45 minutes.")
-              sys.exit(124)
-          except subprocess.CalledProcessError as exc:
-              sys.exit(exc.returncode)
-          PY
+          python3 -c 'import os,subprocess,sys;cmd=["./scripts/run_mobile_e2e.sh",os.environ.get("E2E_MODE","debug"),"ios"];result=subprocess.run(cmd,timeout=45*60,check=False);sys.exit(result.returncode)'
 
       - name: Upload iOS E2E artifacts
         if: always()
