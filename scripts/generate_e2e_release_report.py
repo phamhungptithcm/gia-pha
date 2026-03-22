@@ -326,7 +326,7 @@ def write_markdown_report(
         f"- Device: `{device}`",
         f"- App version: `{app_version}`",
         f"- Build SHA: `{build_sha}`",
-        f"- Generated at (UTC): `{dt.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}`",
+        f"- Generated at (UTC): `{dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}`",
         "",
         "## Inputs",
     ]
