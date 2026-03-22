@@ -10,7 +10,7 @@ FROM node:20-bookworm-slim
 
 ARG RELEASE_VERSION=dev
 ARG VCS_REF=local
-ARG FIREBASE_TOOLS_VERSION=14.19.1
+ARG FIREBASE_TOOLS_VERSION=15.11.0
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
