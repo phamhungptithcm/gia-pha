@@ -25,6 +25,9 @@
     "googleapis": "^140.0.1",
     "jose": "^5.10.0"
   },
+  "overrides": {
+    "fast-xml-parser": "^5.5.6"
+  },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.0",
     "@types/node": "^20.19.37",
