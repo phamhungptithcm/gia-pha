@@ -289,7 +289,7 @@ jobs:
 
   security-dependency-review:
     name: security-dependency-review
-    if: ${{ github.event_name == 'pull_request' && (vars.ENABLE_DEPENDENCY_REVIEW == '' || vars.ENABLE_DEPENDENCY_REVIEW == 'true') }}
+    if: ${{ github.event_name == 'pull_request' && vars.ENABLE_DEPENDENCY_REVIEW != 'false' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -298,10 +298,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Detect dependency graph support
+        id: depgraph
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          response="$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}" || true)"
+          status="$(printf '%s' "${response}" | jq -r '.security_and_analysis.dependency_graph.status // "unknown"' 2>/dev/null || echo "unknown")"
+          echo "dependency_graph_status=${status}" >> "$GITHUB_OUTPUT"
+          if [[ "${status}" == "enabled" ]]; then
+            echo "run_check=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_check=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Dependency Review
+        if: ${{ steps.depgraph.outputs.run_check == 'true' }}
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
+
+      - name: Dependency review unavailable
+        if: ${{ steps.depgraph.outputs.run_check != 'true' }}
+        run: |
+          echo "::warning::Dependency graph is not enabled for this repository."
+          echo "::warning::Enable it at Settings > Code security and analysis to enforce dependency review."
 
   security-trivy-fs:
     name: security-trivy-fs
