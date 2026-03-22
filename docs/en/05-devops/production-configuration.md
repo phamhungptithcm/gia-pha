@@ -84,8 +84,9 @@ Required vars (Functions runtime):
 
 IAP product IDs are loaded from Firestore collection `subscriptionPackages` (`storeProductIds.ios` and `storeProductIds.android`), not from environment variables.
 
-Required secrets:
-- `FIREBASE_SERVICE_ACCOUNT`
+Required deploy secrets (OIDC + billing):
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT_EMAIL`
 - `BILLING_WEBHOOK_SECRET`
 - `APPLE_SHARED_SECRET`
 
@@ -99,6 +100,16 @@ Optional secrets:
 - `BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN`
 - `APPLE_IAP_WEBHOOK_BEARER_TOKEN`
 - `GOOGLE_IAP_WEBHOOK_BEARER_TOKEN`
+
+Required release signing secrets:
+- `ANDROID_RELEASE_KEYSTORE_BASE64`
+- `ANDROID_RELEASE_KEYSTORE_PASSWORD`
+- `ANDROID_RELEASE_KEY_ALIAS`
+- `ANDROID_RELEASE_KEY_PASSWORD`
+- `IOS_P12_BASE64`
+- `IOS_P12_PASSWORD`
+- `IOS_PROVISIONING_PROFILE_BASE64`
+- `IOS_TEAM_ID`
 
 Mobile/Web build vars (GitHub vars, optional):
 - `BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS`
@@ -115,13 +126,31 @@ Mobile/Web build vars (GitHub vars, optional):
 
 Before production deploy:
 - verify required vars/secrets exist
+- verify Firestore has a default database `(default)` in Native mode
 - verify Apple + Google Play product IDs match published store subscriptions
 - verify `BILLING_IAP_ALLOW_TEST_MOCK=false` in production
 - verify `BILLING_ENABLE_LEGACY_CARD_FLOW=false` in production
 - verify `CALLABLE_ENFORCE_APP_CHECK=true` in production
 - keep manual settlement disabled unless explicitly needed
+- verify `subscriptionPackages` has active `FREE/BASE/PLUS/PRO` (preflight blocks release if missing)
 
 After deploy:
 - verify runtime env file step succeeded
 - verify runtime override sync succeeded
+- verify subscription package catalog sync succeeded
 - run auth + billing smoke tests on real devices
+
+## Code-owned Firestore baseline
+
+Production and staging deployments now sync `subscriptionPackages` from:
+
+- `firebase/functions/config/subscription-packages.catalog.json`
+
+Sync/check command:
+
+```bash
+cd firebase/functions
+npm ci
+FIREBASE_PROJECT_ID=<project-id> npm run config:subscription-packages:check
+FIREBASE_PROJECT_ID=<project-id> npm run config:subscription-packages:sync
+```

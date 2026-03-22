@@ -107,6 +107,10 @@ jobs:
         working-directory: firebase/functions
         run: node scripts/upsert-runtime-config.mjs
 
+      - name: Sync subscription package catalog
+        working-directory: firebase/functions
+        run: node scripts/sync-subscription-packages.mjs --apply
+
       - name: Deploy Firestore, Storage, and Functions
         run: >
           firebase deploy

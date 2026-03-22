@@ -84,8 +84,9 @@ Biến bắt buộc (runtime Functions):
 
 Product ID IAP được đọc từ Firestore collection `subscriptionPackages` (`storeProductIds.ios` và `storeProductIds.android`), không còn map qua biến môi trường.
 
-Secret bắt buộc:
-- `FIREBASE_SERVICE_ACCOUNT`
+Secret deploy bắt buộc (OIDC + billing):
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT_EMAIL`
 - `BILLING_WEBHOOK_SECRET`
 - `APPLE_SHARED_SECRET`
 
@@ -99,6 +100,16 @@ Secret tùy chọn:
 - `BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN`
 - `APPLE_IAP_WEBHOOK_BEARER_TOKEN`
 - `GOOGLE_IAP_WEBHOOK_BEARER_TOKEN`
+
+Secret ký build release bắt buộc:
+- `ANDROID_RELEASE_KEYSTORE_BASE64`
+- `ANDROID_RELEASE_KEYSTORE_PASSWORD`
+- `ANDROID_RELEASE_KEY_ALIAS`
+- `ANDROID_RELEASE_KEY_PASSWORD`
+- `IOS_P12_BASE64`
+- `IOS_P12_PASSWORD`
+- `IOS_PROVISIONING_PROFILE_BASE64`
+- `IOS_TEAM_ID`
 
 Biến build Mobile/Web (GitHub vars, tùy chọn):
 - `BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS`
@@ -114,15 +125,33 @@ Biến build Mobile/Web (GitHub vars, tùy chọn):
 ## Checklist trước khi release production
 
 - xác nhận đủ biến và secret bắt buộc
+- xác nhận Firestore đã có database mặc định `(default)` ở Native mode
 - xác nhận product ID IAP khớp với gói đã publish trên App Store / Google Play
 - xác nhận `BILLING_IAP_ALLOW_TEST_MOCK=false` ở production
 - xác nhận `BILLING_ENABLE_LEGACY_CARD_FLOW=false` ở production
 - xác nhận `CALLABLE_ENFORCE_APP_CHECK=true` ở production
 - giữ `BILLING_ALLOW_MANUAL_SETTLEMENT=false` nếu không có nhu cầu vận hành đặc biệt
+- xác nhận `subscriptionPackages` có đủ plan active `FREE/BASE/PLUS/PRO` (preflight sẽ chặn release nếu thiếu)
 
 ## Checklist sau khi deploy
 
 - kiểm tra log CI: tạo `.env.<projectId>` thành công
 - kiểm tra log sync runtime config thành công
+- kiểm tra log sync `subscriptionPackages` thành công
 - smoke test luồng auth và billing trên máy thật
 - xác nhận chỉ kích hoạt quyền gói khi thanh toán thành công
+
+## Baseline Firestore quản lý bằng code
+
+Deploy production/staging sẽ đồng bộ `subscriptionPackages` từ:
+
+- `firebase/functions/config/subscription-packages.catalog.json`
+
+Lệnh kiểm tra/đồng bộ:
+
+```bash
+cd firebase/functions
+npm ci
+FIREBASE_PROJECT_ID=<project-id> npm run config:subscription-packages:check
+FIREBASE_PROJECT_ID=<project-id> npm run config:subscription-packages:sync
+```

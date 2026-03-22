@@ -51,11 +51,12 @@ Tài liệu này mô tả mô hình CI/CD an toàn cho production của BeFam.
 Workflow `CD - Release Main` chạy theo thứ tự:
 
 1. Chạy quality gates.
-2. Tạo version/tag.
-3. Build artifact Android, iOS, Web.
-4. Sinh manifest và checksum.
-5. Sinh provenance attestation.
-6. Publish GitHub Release.
+2. Chạy preflight production để kiểm tra secret bắt buộc và cấu hình Firestore billing.
+3. Tạo version/tag.
+4. Build artifact Android, iOS, Web.
+5. Sinh manifest và checksum.
+6. Sinh provenance attestation.
+7. Publish GitHub Release.
 
 ### 3) Deploy Production
 
