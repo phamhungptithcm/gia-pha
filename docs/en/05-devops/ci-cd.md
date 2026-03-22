@@ -29,16 +29,20 @@ Builds and publishes MkDocs to GitHub Pages.
 
 ### `deploy-staging.yml` (`CD - Deploy Staging`)
 Deploys Firebase resources and web hosting to the staging environment.
+Branch guard: staging only.
 
 ### `release-main.yml` (`CD - Release Main`)
 Builds release artifacts, signs mobile binaries, publishes immutable release assets, checksums, and release manifest.
+Branch guard: main only.
 
 ### `deploy-firebase.yml` (`CD - Deploy Firebase (Production)`)
 Builds/deploys Firestore rules, indexes, storage rules, and Functions.
 Also writes runtime `.env.<projectId>` and syncs non-secret runtime overrides.
+Branch guard: main only.
 
 ### `deploy-web-hosting.yml` (`CD - Deploy Web Hosting (Production)`)
 Deploys production hosting from the immutable web bundle attached to the release.
+Branch guard: main only.
 
 ### `rollback-production.yml` (`CD - Rollback Production`)
 Restores production Firebase/Hosting to a selected release tag.

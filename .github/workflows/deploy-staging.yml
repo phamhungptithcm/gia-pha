@@ -21,8 +21,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate-staging-branch:
+    name: Validate staging deployment branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure staging deploy runs from staging branch only
+        run: |
+          set -euo pipefail
+          if [ "${{ github.ref }}" != "refs/heads/staging" ]; then
+            echo "::error::CD - Deploy Staging can only run from refs/heads/staging."
+            exit 1
+          fi
+
   deploy-staging-firebase:
     name: Deploy Firebase (Staging)
+    needs: validate-staging-branch
+    if: ${{ github.ref == 'refs/heads/staging' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -97,7 +111,10 @@ jobs:
 
   deploy-staging-web:
     name: Deploy Web Hosting (Staging)
-    needs: deploy-staging-firebase
+    needs:
+      - validate-staging-branch
+      - deploy-staging-firebase
+    if: ${{ github.ref == 'refs/heads/staging' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
