@@ -359,6 +359,7 @@ class _AppShellPageState extends State<AppShellPage> {
         NotificationTargetType.scholarship =>
           l10n.notificationOpenedScholarship,
         NotificationTargetType.billing => l10n.notificationOpenedGeneral,
+        NotificationTargetType.authRefresh => l10n.notificationOpenedGeneral,
         NotificationTargetType.unknown => l10n.notificationOpenedGeneral,
       };
     }
@@ -368,6 +369,7 @@ class _AppShellPageState extends State<AppShellPage> {
       NotificationTargetType.scholarship =>
         l10n.notificationForegroundScholarship,
       NotificationTargetType.billing => l10n.notificationForegroundGeneral,
+      NotificationTargetType.authRefresh => l10n.notificationForegroundGeneral,
       NotificationTargetType.unknown => l10n.notificationForegroundGeneral,
     };
   }
@@ -378,6 +380,7 @@ class _AppShellPageState extends State<AppShellPage> {
     return switch (targetType) {
       NotificationTargetType.event || NotificationTargetType.scholarship => 2,
       NotificationTargetType.billing => 3,
+      NotificationTargetType.authRefresh => null,
       NotificationTargetType.unknown => null,
     };
   }
