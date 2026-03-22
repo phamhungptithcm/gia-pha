@@ -67,9 +67,13 @@ import { appHealthCheck } from './system/health';
 
 initializeApp();
 
+// Global defaults: 3 max instances keeps cold-start cost low for an
+// early-stage app while still handling moderate bursts. Critical auth
+// and IAP callables override this with higher limits per-function if needed.
 setGlobalOptions({
   region: APP_REGION,
-  maxInstances: 10,
+  maxInstances: 3,
+  concurrency: 80,
 });
 
 export {

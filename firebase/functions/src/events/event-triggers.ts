@@ -150,6 +150,7 @@ export const sendEventReminder = onSchedule(
     schedule: EVENT_REMINDER_JOB_SCHEDULE,
     region: APP_REGION,
     timeZone: APP_TIMEZONE,
+    maxInstances: 1,
   },
   async () => {
     const result = await sendEventReminderRun({
