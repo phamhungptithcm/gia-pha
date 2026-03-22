@@ -54,7 +54,6 @@ jobs:
 
       - name: Run Android E2E
         uses: reactivecircus/android-emulator-runner@v2
-        timeout-minutes: 48
         env:
           BEFAM_E2E_ANDROID_DEVICE: emulator-5554
           BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
