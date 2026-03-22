@@ -55,7 +55,6 @@ jobs:
       - name: Run Android E2E
         uses: reactivecircus/android-emulator-runner@v2
         env:
-          BEFAM_E2E_ANDROID_DEVICE: emulator-5554
           BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
           BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
         with:
@@ -65,7 +64,7 @@ jobs:
           emulator-boot-timeout: 900
           disable-linux-hw-accel: true
           emulator-options: -no-window -gpu off -no-snapshot -noaudio -no-boot-anim -no-metrics
-          disable-animations: false
+          disable-animations: true
           script: |
             set -euo pipefail
             chmod +x scripts/run_mobile_e2e.sh
