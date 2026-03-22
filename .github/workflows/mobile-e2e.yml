@@ -62,8 +62,9 @@ jobs:
           api-level: 35
           arch: x86_64
           profile: pixel_7
+          emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          disable-animations: true
+          disable-animations: false
           script: |
             chmod +x scripts/run_mobile_e2e.sh
             ./scripts/run_mobile_e2e.sh "${E2E_MODE}" android
