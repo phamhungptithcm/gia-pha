@@ -897,7 +897,7 @@ jobs:
 
   notify-release-failure:
     name: Notify release failure
-    if: ${{ always() && contains(join(needs.*.result, ','), 'failure') && secrets.SLACK_WEBHOOK_URL != '' }}
+    if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
     needs:
       - quality-gate-docs
       - quality-gate-functions
@@ -917,6 +917,10 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "SLACK_WEBHOOK_URL is not configured. Skipping notification."
+            exit 0
+          fi
           payload="$(cat <<JSON
           {
             "text": ":x: BeFam release pipeline failed",
