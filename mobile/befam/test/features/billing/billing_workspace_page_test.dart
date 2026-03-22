@@ -237,44 +237,6 @@ void main() {
   });
 
   testWidgets(
-    'manager can select upgrade-only plans and checkout selected plan',
-    (tester) async {
-      seedPlusTier();
-      final repository = DebugBillingRepository.shared();
-      final session = buildSession(
-        uid: 'debug:billing-upgrade-only',
-        primaryRole: 'CLAN_ADMIN',
-      );
-
-      await pumpBillingPage(tester, session: session, repository: repository);
-
-      final selector = find.byKey(const Key('billing-plan-selector'));
-      expect(selector, findsOneWidget);
-
-      final checkoutButton = find.byKey(
-        const Key('billing-open-checkout-button'),
-      );
-      await tester.scrollUntilVisible(
-        checkoutButton,
-        280,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.ensureVisible(checkoutButton);
-      await tester.pumpAndSettle();
-      await tester.tap(checkoutButton);
-      await tester.pump(const Duration(milliseconds: 600));
-      await tester.pumpAndSettle();
-
-      final snapshot = await tester.runAsync(
-        () => repository.loadWorkspace(session: session),
-      );
-      expect(snapshot, isNotNull);
-      expect(snapshot!.subscription.planCode, 'PLUS');
-      expect(snapshot.subscription.status, 'expired');
-    },
-  );
-
-  testWidgets(
     'shows downgrade warning when selected tier is below current member minimum',
     (tester) async {
       seedPlusTier(); // member count >= 201, minimum tier PLUS

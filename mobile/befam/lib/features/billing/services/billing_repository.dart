@@ -41,18 +41,6 @@ abstract interface class BillingRepository {
     List<int>? reminderDaysBefore,
   });
 
-  Future<BillingCheckoutResult> createCheckout({
-    required AuthSession session,
-    required String paymentMethod,
-    String? requestedPlanCode,
-    String? returnUrl,
-  });
-
-  Future<void> completeCardCheckout({
-    required AuthSession session,
-    required String transactionId,
-  });
-
   Future<BillingEntitlement> verifyInAppPurchase({
     required AuthSession session,
     required String platform,

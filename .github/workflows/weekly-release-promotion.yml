@@ -44,7 +44,7 @@ jobs:
             echo
             echo "- Generated on ${release_date}"
             echo "- Approval and CI - Branch Quality Gates checks are still required before production merge"
-            echo "- Auto-merge is armed so the PR merges as soon as approval and checks are both satisfied"
+            echo "- This PR requires manual human approval before merging to production"
             echo
             echo "## Included commits"
             echo
@@ -69,4 +69,6 @@ jobs:
             pr_number="${pr_url##*/}"
           fi
 
-          gh pr merge "${pr_number}" --repo "${repo}" --auto --merge
+          echo "Release PR #${pr_number} is ready for human review and approval."
+          echo "PR requires manual approval — auto-merge has been disabled."
+          gh pr view "${pr_number}" --repo "${repo}" --json url --jq '.url'
