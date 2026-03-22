@@ -29,16 +29,20 @@ Build và publish site tài liệu lên GitHub Pages.
 
 ### `deploy-staging.yml` (`CD - Deploy Staging`)
 Deploy Firebase + web hosting cho môi trường staging.
+Chặn nhánh: chỉ `staging`.
 
 ### `release-main.yml` (`CD - Release Main`)
 Tạo version release, ký binary mobile, build artifact bất biến, checksum và manifest.
+Chặn nhánh: chỉ `main`.
 
 ### `deploy-firebase.yml` (`CD - Deploy Firebase (Production)`)
 Build/deploy Firestore rules, indexes, Storage rules, Functions.
 Đồng thời tạo `.env.<projectId>` và sync runtime overrides không chứa secret.
+Chặn nhánh: chỉ `main`.
 
 ### `deploy-web-hosting.yml` (`CD - Deploy Web Hosting (Production)`)
 Deploy hosting production từ gói web bất biến đã gắn vào release.
+Chặn nhánh: chỉ `main`.
 
 ### `rollback-production.yml` (`CD - Rollback Production`)
 Rollback production về tag release đã chọn.

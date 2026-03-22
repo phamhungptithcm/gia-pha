@@ -17,8 +17,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-release-branch:
+    name: Validate release branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure manual release runs from main only
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::CD - Release Main can only run from refs/heads/main."
+            exit 1
+          fi
+
   quality-gate-docs:
     name: Quality Gate - Docs
+    needs: validate-release-branch
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -43,6 +56,7 @@ jobs:
 
   quality-gate-functions:
     name: Quality Gate - Functions
+    needs: validate-release-branch
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -70,6 +84,7 @@ jobs:
 
   quality-gate-security:
     name: Quality Gate - Security
+    needs: validate-release-branch
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -97,6 +112,7 @@ jobs:
 
   quality-gate-mobile-fast:
     name: Quality Gate - Mobile Fast
+    needs: validate-release-branch
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -183,6 +199,7 @@ jobs:
   prepare-release:
     name: Prepare release
     needs:
+      - validate-release-branch
       - quality-gate-docs
       - quality-gate-functions
       - quality-gate-security
