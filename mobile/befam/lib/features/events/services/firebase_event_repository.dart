@@ -52,9 +52,9 @@ class FirebaseEventRepository implements EventRepository {
     }
 
     final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-      _events.where('clanId', isEqualTo: clanId).orderBy('startsAt').get(),
-      _members.where('clanId', isEqualTo: clanId).get(),
-      _branches.where('clanId', isEqualTo: clanId).get(),
+      _events.where('clanId', isEqualTo: clanId).orderBy('startsAt').limit(1000).get(),
+      _members.where('clanId', isEqualTo: clanId).limit(1000).get(),
+      _branches.where('clanId', isEqualTo: clanId).limit(1000).get(),
     ]);
 
     final events = results[0].docs

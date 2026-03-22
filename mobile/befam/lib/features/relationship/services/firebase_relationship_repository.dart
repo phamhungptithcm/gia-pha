@@ -48,10 +48,12 @@ class FirebaseRelationshipRepository implements RelationshipRepository {
       _relationships
           .where('clanId', isEqualTo: clanId)
           .where('personA', isEqualTo: memberId)
+          .limit(200)
           .get(),
       _relationships
           .where('clanId', isEqualTo: clanId)
           .where('personB', isEqualTo: memberId)
+          .limit(200)
           .get(),
     ]);
 
@@ -193,6 +195,7 @@ class FirebaseRelationshipRepository implements RelationshipRepository {
         .where('clanId', isEqualTo: clanId)
         .where('type', isEqualTo: RelationshipType.parentChild.wireName)
         .where('status', isEqualTo: 'active')
+        .limit(2000)
         .get();
     final activeParentChild = activeParentChildSnapshot.docs
         .map((doc) => RelationshipRecord.fromJson(doc.data()))
@@ -342,6 +345,7 @@ class FirebaseRelationshipRepository implements RelationshipRepository {
     final activeRelationshipsSnapshot = await _relationships
         .where('clanId', isEqualTo: clanId)
         .where('status', isEqualTo: 'active')
+        .limit(2000)
         .get();
     final activeRelationships = activeRelationshipsSnapshot.docs
         .map((doc) => RelationshipRecord.fromJson(doc.data()))

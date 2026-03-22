@@ -60,9 +60,9 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
     }
 
     final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-      _members.where('clanId', isEqualTo: clanId).get(),
-      _branches.where('clanId', isEqualTo: clanId).get(),
-      _relationships.where('clanId', isEqualTo: clanId).get(),
+      _members.where('clanId', isEqualTo: clanId).limit(1000).get(),
+      _branches.where('clanId', isEqualTo: clanId).limit(500).get(),
+      _relationships.where('clanId', isEqualTo: clanId).limit(2000).get(),
     ]);
 
     final members = results[0].docs
@@ -133,10 +133,12 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
     final memberSnapshot = await _members
         .where('clanId', isEqualTo: clanId)
         .where('branchId', isEqualTo: resolvedBranchId)
+        .limit(1000)
         .get();
     final branchDoc = await _branches.doc(resolvedBranchId).get();
     final relationshipSnapshot = await _relationships
         .where('clanId', isEqualTo: clanId)
+        .limit(2000)
         .get();
 
     final members = memberSnapshot.docs

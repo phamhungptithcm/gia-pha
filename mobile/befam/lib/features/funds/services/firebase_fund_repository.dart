@@ -51,7 +51,7 @@ class FirebaseFundRepository implements FundRepository {
     }
 
     final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-      _funds.where('clanId', isEqualTo: clanId).get(),
+      _funds.where('clanId', isEqualTo: clanId).limit(500).get(),
       _loadTransactionSnapshot(clanId: clanId),
     ]);
 
@@ -79,16 +79,17 @@ class FirebaseFundRepository implements FundRepository {
 
   Future<QuerySnapshot<Map<String, dynamic>>> _loadTransactionSnapshot({
     required String clanId,
+    int limit = 400,
   }) async {
     final baseQuery = _transactions.where('clanId', isEqualTo: clanId);
     try {
       return await baseQuery
           .orderBy('occurredAt', descending: true)
-          .limit(400)
+          .limit(limit)
           .get();
     } on FirebaseException catch (error) {
       if (_isMissingCompositeIndex(error)) {
-        return baseQuery.limit(1200).get();
+        return await baseQuery.limit(limit).get();
       }
       rethrow;
     }

@@ -101,10 +101,10 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
     }
 
     final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-      _programs.where('clanId', isEqualTo: clanId).get(),
-      _awardLevels.where('clanId', isEqualTo: clanId).get(),
-      submissionsQuery.get(),
-      _members.where('clanId', isEqualTo: clanId).get(),
+      _programs.where('clanId', isEqualTo: clanId).limit(500).get(),
+      _awardLevels.where('clanId', isEqualTo: clanId).limit(500).get(),
+      submissionsQuery.limit(500).get(),
+      _members.where('clanId', isEqualTo: clanId).limit(500).get(),
       _approvalLogs
           .where('clanId', isEqualTo: clanId)
           .orderBy('createdAt', descending: true)
@@ -527,7 +527,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       );
     }
 
-    final snapshot = await _funds.where('clanId', isEqualTo: clanId).get();
+    final snapshot = await _funds.where('clanId', isEqualTo: clanId).limit(500).get();
     return snapshot.docs
         .map((doc) {
           final payload = doc.data();

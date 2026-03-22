@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -2260,11 +2261,12 @@ class _ManualQrPaymentPage extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      normalizedUrl,
+                    child: CachedNetworkImage(
+                      imageUrl: normalizedUrl,
                       key: const Key('billing-qr-payment-image'),
                       fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
+                      placeholder: (ctx, url) => const CircularProgressIndicator(),
+                      errorWidget: (ctx, url, err) {
                         return _InfoCard(
                           icon: Icons.error_outline,
                           title: l10n.pick(

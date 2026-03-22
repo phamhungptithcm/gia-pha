@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/app_locale_controller.dart';
@@ -384,7 +385,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
             child: InteractiveViewer(
               minScale: 1,
               maxScale: 4,
-              child: Image.network(profile.avatarUrl!, fit: BoxFit.cover),
+              child: CachedNetworkImage(imageUrl: profile.avatarUrl!, fit: BoxFit.cover, placeholder: (ctx, url) => const CircleAvatar(child: Icon(Icons.person_outline)), errorWidget: (ctx, url, err) => const Icon(Icons.broken_image_outlined)),
             ),
           ),
         );

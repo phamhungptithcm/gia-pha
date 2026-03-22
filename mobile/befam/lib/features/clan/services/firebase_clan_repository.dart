@@ -60,8 +60,8 @@ class FirebaseClanRepository implements ClanRepository {
 
     final results = await Future.wait([
       _clans.doc(clanId).get(),
-      _branches.where('clanId', isEqualTo: clanId).get(),
-      _members.where('clanId', isEqualTo: clanId).get(),
+      _branches.where('clanId', isEqualTo: clanId).limit(500).get(),
+      _members.where('clanId', isEqualTo: clanId).limit(1000).get(),
     ]);
 
     final clanSnapshot = results[0] as DocumentSnapshot<Map<String, dynamic>>;
@@ -105,13 +105,14 @@ class FirebaseClanRepository implements ClanRepository {
 
     final now = FieldValue.serverTimestamp();
     final actor = session.memberId ?? session.uid;
-    final existingBranches = await _branches
-        .where('clanId', isEqualTo: clanId)
-        .get();
-    final existingMembers = await _members
-        .where('clanId', isEqualTo: clanId)
-        .get();
-    final existingClan = await _clans.doc(clanId).get();
+    final results = await Future.wait([
+      _branches.where('clanId', isEqualTo: clanId).count().get(),
+      _members.where('clanId', isEqualTo: clanId).count().get(),
+      _clans.doc(clanId).get(),
+    ]);
+    final branchCountSnap = results[0] as AggregateQuerySnapshot;
+    final memberCountSnap = results[1] as AggregateQuerySnapshot;
+    final existingClan = results[2] as DocumentSnapshot<Map<String, dynamic>>;
 
     final payload = {
       'id': clanId,
@@ -123,9 +124,9 @@ class FirebaseClanRepository implements ClanRepository {
       'logoUrl': draft.logoUrl,
       'status': draft.status,
       'memberCount':
-          existingClan.data()?['memberCount'] ?? existingMembers.docs.length,
+          existingClan.data()?['memberCount'] ?? memberCountSnap.count ?? 0,
       'branchCount':
-          existingClan.data()?['branchCount'] ?? existingBranches.docs.length,
+          existingClan.data()?['branchCount'] ?? branchCountSnap.count ?? 0,
       'updatedAt': now,
       'updatedBy': actor,
       if (!existingClan.exists) 'createdAt': now,
@@ -182,8 +183,9 @@ class FirebaseClanRepository implements ClanRepository {
     await branchRef.set(payload, SetOptions(merge: true));
 
     final clanRef = _clans.doc(clanId);
-    final currentBranchCount =
-        (await _branches.where('clanId', isEqualTo: clanId).get()).docs.length;
+    final branchCountAgg =
+        await _branches.where('clanId', isEqualTo: clanId).count().get();
+    final currentBranchCount = branchCountAgg.count ?? 0;
     await clanRef.set({
       'id': clanId,
       'branchCount': currentBranchCount,

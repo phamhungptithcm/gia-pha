@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:collection/collection.dart';
 
 import '../../../core/services/app_environment.dart';
+import '../../../core/services/clan_data_cache.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
@@ -21,17 +22,20 @@ class FirebaseMemberRepository implements MemberRepository {
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
     FirebaseFunctions? functions,
+    ClanDataCache? dataCache,
   }) : _firestore = firestore ?? FirebaseServices.firestore,
        _storage = storage ?? FirebaseServices.storage,
        _functions =
            functions ??
            FirebaseFunctions.instanceFor(
              region: AppEnvironment.firebaseFunctionsRegion,
-           );
+           ),
+       _dataCache = dataCache ?? ClanDataCache.shared();
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
   final FirebaseFunctions _functions;
+  final ClanDataCache _dataCache;
 
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
@@ -56,22 +60,44 @@ class FirebaseMemberRepository implements MemberRepository {
       return const MemberWorkspaceSnapshot(members: [], branches: []);
     }
 
+    final cachedMembers = _dataCache.readMembers(clanId);
+    final cachedBranches = _dataCache.readBranches(clanId);
+
+    if (cachedMembers != null && cachedBranches != null) {
+      return MemberWorkspaceSnapshot(
+        members: cachedMembers,
+        branches: cachedBranches,
+      );
+    }
+
     final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-      _members.where('clanId', isEqualTo: clanId).get(),
-      _branches.where('clanId', isEqualTo: clanId).get(),
+      if (cachedMembers == null)
+        _members.where('clanId', isEqualTo: clanId).limit(1000).get(),
+      if (cachedBranches == null)
+        _branches.where('clanId', isEqualTo: clanId).limit(500).get(),
     ]);
 
-    final memberSnapshot = results[0];
-    final branchSnapshot = results[1];
+    int resultIndex = 0;
 
-    final members = memberSnapshot.docs
-        .map((doc) => MemberProfile.fromJson(doc.data()))
-        .sortedBy((member) => member.fullName.toLowerCase())
-        .toList(growable: false);
-    final branches = branchSnapshot.docs
-        .map((doc) => BranchProfile.fromJson(doc.data()))
-        .sortedBy((branch) => branch.name.toLowerCase())
-        .toList(growable: false);
+    final members = cachedMembers ?? (() {
+      final snap = results[resultIndex++];
+      final list = snap.docs
+          .map((doc) => MemberProfile.fromJson(doc.data()))
+          .sortedBy((member) => member.fullName.toLowerCase())
+          .toList(growable: false);
+      _dataCache.writeMembers(clanId, list);
+      return list;
+    })();
+
+    final branches = cachedBranches ?? (() {
+      final snap = results[resultIndex++];
+      final list = snap.docs
+          .map((doc) => BranchProfile.fromJson(doc.data()))
+          .sortedBy((branch) => branch.name.toLowerCase())
+          .toList(growable: false);
+      _dataCache.writeBranches(clanId, list);
+      return list;
+    })();
 
     return MemberWorkspaceSnapshot(members: members, branches: branches);
   }
@@ -93,6 +119,9 @@ class FirebaseMemberRepository implements MemberRepository {
         MemberRepositoryErrorCode.permissionDenied,
       );
     }
+
+    // Invalidate shared cache so next loadWorkspace fetches fresh data.
+    _dataCache.invalidate(clanId, members: true, branches: false);
 
     final normalizedPhone = _normalizePhoneOrNull(draft.phoneInput);
     if (memberId == null) {

@@ -8,18 +8,27 @@ class GenealogySegmentCache {
 
   factory GenealogySegmentCache.shared() => _shared;
 
-  final Map<String, GenealogyReadSegment> _entries = {};
+  static const Duration _ttl = Duration(minutes: 5);
+
+  final Map<String, _CacheEntry> _entries = {};
 
   GenealogyReadSegment? read(GenealogyScope scope) {
     final entry = _entries[scope.cacheKey];
     if (entry == null) {
       return null;
     }
-    return entry.copyWith(fromCache: true);
+    if (DateTime.now().difference(entry.cachedAt) > _ttl) {
+      _entries.remove(scope.cacheKey);
+      return null;
+    }
+    return entry.segment.copyWith(fromCache: true);
   }
 
   void write(GenealogyReadSegment segment) {
-    _entries[segment.scope.cacheKey] = segment.copyWith(fromCache: false);
+    _entries[segment.scope.cacheKey] = _CacheEntry(
+      segment: segment.copyWith(fromCache: false),
+      cachedAt: DateTime.now(),
+    );
   }
 
   void clear([GenealogyScope? scope]) {
@@ -29,4 +38,11 @@ class GenealogySegmentCache {
     }
     _entries.remove(scope.cacheKey);
   }
+}
+
+class _CacheEntry {
+  const _CacheEntry({required this.segment, required this.cachedAt});
+
+  final GenealogyReadSegment segment;
+  final DateTime cachedAt;
 }

@@ -50,6 +50,14 @@ class MemberController extends ChangeNotifier {
   String? _searchError;
   int _searchRevision = 0;
 
+  // Memoised derived lists — invalidated by _invalidateCaches() after each
+  // _members mutation so callers never pay the filter cost more than once
+  // per data change.
+  List<MemberProfile>? _cachedAccessibleMembers;
+  List<int>? _cachedGenerationOptions;
+  List<MemberProfile>? _cachedAccessibleMembers;
+  Set<String>? _cachedNormalizedRoleSet;
+
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   bool get isUploadingAvatar => _isUploadingAvatar;
@@ -72,9 +80,14 @@ class MemberController extends ChangeNotifier {
   ];
 
   List<MemberProfile> get _accessibleMembers {
-    return _members
+    return _cachedAccessibleMembers ??= _members
         .where((member) => permissions.canViewMember(member, _session))
         .toList(growable: false);
+  }
+
+  void _invalidateCaches() {
+    _cachedAccessibleMembers = null;
+    _cachedGenerationOptions = null;
   }
 
   List<BranchProfile> get visibleBranches {
@@ -96,10 +109,9 @@ class MemberController extends ChangeNotifier {
   }
 
   List<int> get generationOptions {
-    final values =
+    return _cachedGenerationOptions ??=
         _accessibleMembers.map((member) => member.generation).toSet().toList()
           ..sort();
-    return values;
   }
 
   List<MemberProfile> get filteredMembers {
@@ -132,6 +144,7 @@ class MemberController extends ChangeNotifier {
       final snapshot = await _repository.loadWorkspace(session: _session);
       _members = snapshot.members;
       _branches = snapshot.branches;
+      _invalidateCaches();
       await _runSearch(trackAnalytics: false);
     } catch (error) {
       _errorMessage = error.toString();

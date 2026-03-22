@@ -6,13 +6,24 @@ import '../../features/auth/models/auth_session.dart';
 class FirebaseSessionAccessSync {
   FirebaseSessionAccessSync._();
 
+  static final Set<String> _syncedUids = {};
+
+  static void invalidate(String uid) {
+    _syncedUids.remove(uid);
+  }
+
   static Future<void> ensureUserSessionDocument({
     required FirebaseFirestore firestore,
     required AuthSession session,
     FirebaseAuth? auth,
+    bool forceRefresh = false,
   }) async {
     final uid = session.uid.trim();
     if (uid.isEmpty) {
+      return;
+    }
+
+    if (_syncedUids.contains(uid) && !forceRefresh) {
       return;
     }
 
@@ -60,6 +71,7 @@ class FirebaseSessionAccessSync {
       'updatedAt': now,
       'createdAt': now,
     }, SetOptions(merge: true));
+    _syncedUids.add(uid);
   }
 
   static Future<Map<String, dynamic>?> _resolveClaims(

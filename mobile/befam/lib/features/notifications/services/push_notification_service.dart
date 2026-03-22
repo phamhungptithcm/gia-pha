@@ -138,6 +138,11 @@ class FirebasePushNotificationService implements PushNotificationService {
   StreamSubscription<RemoteMessage>? _openedSubscription;
   _TokenRegistrationContext? _activeRegistrationContext;
   bool _tokenCallableMissing = false;
+  // Permission request + setAutoInitEnabled are expensive on iOS because they
+  // prompt the user or hit the system settings. We only need to do this once
+  // per app lifecycle; subsequent start() calls (e.g. after a clan-context
+  // switch) skip straight to token registration.
+  bool _messagingInitialized = false;
 
   @override
   Future<void> start({
@@ -154,18 +159,21 @@ class FirebasePushNotificationService implements PushNotificationService {
 
     try {
       final messaging = FirebaseServices.messaging;
-      await messaging.setAutoInitEnabled(true);
-      await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: true,
-      );
-      await messaging.setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      if (!_messagingInitialized) {
+        await messaging.setAutoInitEnabled(true);
+        await messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+          provisional: true,
+        );
+        await messaging.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        _messagingInitialized = true;
+      }
 
       final token = await messaging.getToken();
       if (token != null && token.trim().isNotEmpty) {
@@ -227,6 +235,8 @@ class FirebasePushNotificationService implements PushNotificationService {
     _foregroundSubscription = null;
     _openedSubscription = null;
     _activeRegistrationContext = null;
+    // Keep _messagingInitialized = true so permission requests are not
+    // re-triggered on the next start() call within the same app process.
   }
 
   Future<void> _registerToken(AuthSession session, String token) async {

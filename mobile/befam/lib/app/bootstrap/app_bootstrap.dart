@@ -213,16 +213,26 @@ class AppBootstrap {
       return;
     }
 
-    await FirebaseAppCheck.instance.activate(
-      providerAndroid: kReleaseMode
-          ? const AndroidPlayIntegrityProvider()
-          : const AndroidDebugProvider(),
-      providerApple: kReleaseMode
-          ? const AppleAppAttestWithDeviceCheckFallbackProvider()
-          : const AppleDebugProvider(),
-    );
-    AppLogger.info(
-      'Firebase App Check activated (${kReleaseMode ? 'production' : 'non-production'} provider).',
-    );
+    try {
+      await FirebaseAppCheck.instance.activate(
+        providerAndroid: kReleaseMode
+            ? const AndroidPlayIntegrityProvider()
+            : const AndroidDebugProvider(),
+        providerApple: kReleaseMode
+            ? const AppleAppAttestWithDeviceCheckFallbackProvider()
+            : const AppleDebugProvider(),
+      ).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          AppLogger.warning('Firebase App Check activation timed out. Continuing without App Check.');
+        },
+      );
+      AppLogger.info(
+        'Firebase App Check activated (${kReleaseMode ? 'production' : 'non-production'} provider).',
+      );
+    } catch (error, stackTrace) {
+      AppLogger.warning('Firebase App Check activation failed.', error, stackTrace);
+      // Do NOT rethrow — App Check failure should not crash the app.
+    }
   }
 }

@@ -86,12 +86,15 @@ class _AppShellPageState extends State<AppShellPage> {
   late final BillingRepository _billingRepository;
   late final PushNotificationService _pushNotificationService;
   late final ClanContextService _clanContextService;
-  final AuthSessionStore _sessionStore = SharedPrefsAuthSessionStore();
+  late final AuthSessionStore _sessionStore;
   String? _lastOpenedNotificationMessageId;
   bool _showAdBanner = true;
   bool _isResolvingBillingEntitlement = false;
   bool _dismissAdBannerForSession = false;
   Timer? _adBannerAutoHideTimer;
+  // ValueNotifier so the timer-fired auto-hide rebuilds only the banner
+  // widget rather than the entire shell.
+  late final ValueNotifier<bool> _adBannerVisibleNotifier;
   bool _isLoadingClanContexts = false;
   bool _isSwitchingClanContext = false;
   List<ClanContextOption> _clanContexts = const [];
@@ -158,6 +161,8 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void initState() {
     super.initState();
+    _sessionStore = SharedPrefsAuthSessionStore();
+    _adBannerVisibleNotifier = ValueNotifier<bool>(true);
     _activeSession = widget.session;
     _genealogyRepository =
         widget.genealogyRepository ??
@@ -203,6 +208,7 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void dispose() {
     _adBannerAutoHideTimer?.cancel();
+    _adBannerVisibleNotifier.dispose();
     unawaited(_pushNotificationService.stop());
     super.dispose();
   }
@@ -322,8 +328,13 @@ class _AppShellPageState extends State<AppShellPage> {
   bool get _isAdBannerVisible =>
       _showAdBanner && !_dismissAdBannerForSession && _selectedIndex != 3;
 
+  void _updateAdBannerNotifier() {
+    _adBannerVisibleNotifier.value = _isAdBannerVisible;
+  }
+
   void _syncAdBannerAutoHideTimer() {
     _adBannerAutoHideTimer?.cancel();
+    _updateAdBannerNotifier();
     if (!_isAdBannerVisible) {
       _adBannerAutoHideTimer = null;
       return;
@@ -332,9 +343,9 @@ class _AppShellPageState extends State<AppShellPage> {
       if (!mounted || !_isAdBannerVisible) {
         return;
       }
-      setState(() {
-        _dismissAdBannerForSession = true;
-      });
+      // Update only the notifier — avoids a full shell setState rebuild.
+      _dismissAdBannerForSession = true;
+      _updateAdBannerNotifier();
     });
   }
 
@@ -347,6 +358,7 @@ class _AppShellPageState extends State<AppShellPage> {
         setState(() {
           _showAdBanner = true;
         });
+        _updateAdBannerNotifier();
         _syncAdBannerAutoHideTimer();
       }
       return;
@@ -363,6 +375,7 @@ class _AppShellPageState extends State<AppShellPage> {
       setState(() {
         _showAdBanner = entitlement.showAds;
       });
+      _updateAdBannerNotifier();
       _syncAdBannerAutoHideTimer();
     } catch (_) {
       if (!mounted) {
@@ -526,96 +539,108 @@ class _AppShellPageState extends State<AppShellPage> {
         : widget.status.errorMessage?.trim().isNotEmpty == true
         ? widget.status.errorMessage!
         : l10n.shellReadinessPending;
+    // RepaintBoundary isolates each tab's render layer so that painting one
+    // tab does not invalidate the others inside the IndexedStack.
     final pages = [
-      _HomeDashboard(
-        key: ValueKey<String>('home-${_session.clanId ?? 'none'}'),
-        status: widget.status,
-        session: _session,
-        clanRepository: widget.clanRepository,
-        memberRepository: widget.memberRepository,
-        fundRepository: _fundRepository,
-        availableClanContexts: _clanContexts,
-        onSwitchClanContext: _switchClanContext,
-        onOpenTreeRequested: () {
-          setState(() {
-            _selectedIndex = 1;
-            _visitedDestinationIndexes.add(1);
-          });
-          _syncAdBannerAutoHideTimer();
-        },
-        onOpenEventsRequested: () {
-          setState(() {
-            _selectedIndex = 2;
-            _visitedDestinationIndexes.add(2);
-          });
-          _syncAdBannerAutoHideTimer();
-        },
-        onOpenMemorialChecklistRequested: () {
-          unawaited(_openMemorialRitualWorkspace());
-        },
-        onOpenJoinRequestsRequested: () {
-          unawaited(_openJoinRequestsCenter());
-        },
-        onOpenProfileRequested: () {
-          setState(() {
-            _selectedIndex = 4;
-            _visitedDestinationIndexes.add(4);
-          });
-          _syncAdBannerAutoHideTimer();
-        },
+      RepaintBoundary(
+        child: _HomeDashboard(
+          key: ValueKey<String>('home-${_session.clanId ?? 'none'}'),
+          status: widget.status,
+          session: _session,
+          clanRepository: widget.clanRepository,
+          memberRepository: widget.memberRepository,
+          fundRepository: _fundRepository,
+          availableClanContexts: _clanContexts,
+          onSwitchClanContext: _switchClanContext,
+          onOpenTreeRequested: () {
+            setState(() {
+              _selectedIndex = 1;
+              _visitedDestinationIndexes.add(1);
+            });
+            _syncAdBannerAutoHideTimer();
+          },
+          onOpenEventsRequested: () {
+            setState(() {
+              _selectedIndex = 2;
+              _visitedDestinationIndexes.add(2);
+            });
+            _syncAdBannerAutoHideTimer();
+          },
+          onOpenMemorialChecklistRequested: () {
+            unawaited(_openMemorialRitualWorkspace());
+          },
+          onOpenJoinRequestsRequested: () {
+            unawaited(_openJoinRequestsCenter());
+          },
+          onOpenProfileRequested: () {
+            setState(() {
+              _selectedIndex = 4;
+              _visitedDestinationIndexes.add(4);
+            });
+            _syncAdBannerAutoHideTimer();
+          },
+        ),
       ),
       if (_visitedDestinationIndexes.contains(1))
-        _hasClanContext
-            ? GenealogyWorkspacePage(
-                key: ValueKey<String>('tree-${_session.clanId ?? 'none'}'),
-                session: _session,
-                repository: _genealogyRepository,
-              )
-            : GenealogyDiscoveryPage(
-                key: const ValueKey<String>('tree-discovery'),
-                session: _session,
-                repository: createDefaultGenealogyDiscoveryRepository(
+        RepaintBoundary(
+          child: _hasClanContext
+              ? GenealogyWorkspacePage(
+                  key: ValueKey<String>('tree-${_session.clanId ?? 'none'}'),
                   session: _session,
+                  repository: _genealogyRepository,
+                )
+              : GenealogyDiscoveryPage(
+                  key: const ValueKey<String>('tree-discovery'),
+                  session: _session,
+                  repository: createDefaultGenealogyDiscoveryRepository(
+                    session: _session,
+                  ),
+                  onAddGenealogyRequested: _openClanWorkspaceFromTreeAddAction,
                 ),
-                onAddGenealogyRequested: _openClanWorkspaceFromTreeAddAction,
-              )
+        )
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(2))
-        KeyedSubtree(
-          key: ValueKey<String>('events-${_session.clanId ?? 'none'}'),
-          child: DualCalendarWorkspacePage(
-            session: _session,
-            memberRepository: widget.memberRepository,
+        RepaintBoundary(
+          child: KeyedSubtree(
+            key: ValueKey<String>('events-${_session.clanId ?? 'none'}'),
+            child: DualCalendarWorkspacePage(
+              session: _session,
+              memberRepository: widget.memberRepository,
+            ),
           ),
         )
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(3))
-        BillingWorkspacePage(
-          key: ValueKey<String>(
-            'billing-${_session.clanId ?? 'none'}-${_session.uid}',
+        RepaintBoundary(
+          child: BillingWorkspacePage(
+            key: ValueKey<String>(
+              'billing-${_session.clanId ?? 'none'}-${_session.uid}',
+            ),
+            session: _session,
+            repository: _billingRepository,
+            embeddedInShell: true,
           ),
-          session: _session,
-          repository: _billingRepository,
-          embeddedInShell: true,
         )
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(4))
-        ProfileWorkspacePage(
-          key: ValueKey<String>('profile-${_session.clanId ?? 'none'}'),
-          session: _session,
-          memberRepository: widget.memberRepository,
-          billingRepository: _billingRepository,
-          onBillingStateChanged: () {
-            unawaited(_refreshBillingEntitlement());
-          },
-          localeController: widget.localeController,
-          onLogoutRequested: widget.onLogoutRequested,
-          onSessionUpdated: (session) {
-            unawaited(_updateSessionFromProfile(session));
-          },
+        RepaintBoundary(
+          child: ProfileWorkspacePage(
+            key: ValueKey<String>('profile-${_session.clanId ?? 'none'}'),
+            session: _session,
+            memberRepository: widget.memberRepository,
+            billingRepository: _billingRepository,
+            onBillingStateChanged: () {
+              unawaited(_refreshBillingEntitlement());
+            },
+            localeController: widget.localeController,
+            onLogoutRequested: widget.onLogoutRequested,
+            onSessionUpdated: (session) {
+              unawaited(_updateSessionFromProfile(session));
+            },
+          ),
         )
       else
         const SizedBox.shrink(),
@@ -643,15 +668,19 @@ class _AppShellPageState extends State<AppShellPage> {
 
     final contentWithBanner = Column(
       children: [
-        if (_isAdBannerVisible)
-          _SponsoredAdBanner(
-            onClose: () {
-              setState(() {
-                _dismissAdBannerForSession = true;
-              });
-              _syncAdBannerAutoHideTimer();
-            },
-          ),
+        ValueListenableBuilder<bool>(
+          valueListenable: _adBannerVisibleNotifier,
+          builder: (ctx, isVisible, _) => isVisible
+              ? _SponsoredAdBanner(
+                  onClose: () {
+                    _dismissAdBannerForSession = true;
+                    _adBannerAutoHideTimer?.cancel();
+                    _adBannerAutoHideTimer = null;
+                    _updateAdBannerNotifier();
+                  },
+                )
+              : const SizedBox.shrink(),
+        ),
         Expanded(child: SafeArea(top: false, child: contentStack)),
       ],
     );
@@ -679,15 +708,19 @@ class _AppShellPageState extends State<AppShellPage> {
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_isAdBannerVisible)
-            _SponsoredAdBanner(
-              onClose: () {
-                setState(() {
-                  _dismissAdBannerForSession = true;
-                });
-                _syncAdBannerAutoHideTimer();
-              },
-            ),
+          ValueListenableBuilder<bool>(
+            valueListenable: _adBannerVisibleNotifier,
+            builder: (ctx, isVisible, _) => isVisible
+                ? _SponsoredAdBanner(
+                    onClose: () {
+                      _dismissAdBannerForSession = true;
+                      _adBannerAutoHideTimer?.cancel();
+                      _adBannerAutoHideTimer = null;
+                      _updateAdBannerNotifier();
+                    },
+                  )
+                : const SizedBox.shrink(),
+          ),
           MediaQuery.withClampedTextScaling(
             minScaleFactor: 1,
             maxScaleFactor: 1,
