@@ -26,7 +26,7 @@ permissions:
 
 concurrency:
   group: mobile-e2e-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   E2E_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode || 'debug' }}
