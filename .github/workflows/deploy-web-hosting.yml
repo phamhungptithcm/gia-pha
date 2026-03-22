@@ -150,7 +150,7 @@ jobs:
 
   notify-deploy-hosting-failure:
     name: Notify hosting deploy failure
-    if: ${{ always() && contains(join(needs.*.result, ','), 'failure') && secrets.SLACK_WEBHOOK_URL != '' }}
+    if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
     needs:
       - build-web
       - deploy-hosting
@@ -160,6 +160,10 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "SLACK_WEBHOOK_URL is not configured. Skipping notification."
+            exit 0
+          fi
           payload="$(cat <<JSON
           {
             "text": ":x: BeFam web hosting deploy failed",
