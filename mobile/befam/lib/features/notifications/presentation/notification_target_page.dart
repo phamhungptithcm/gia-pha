@@ -45,6 +45,12 @@ class NotificationTargetPage extends StatelessWidget {
         Icons.workspace_premium_outlined,
         const Key('notification-target-billing'),
       ),
+      NotificationTargetType.authRefresh => (
+        l10n.notificationTargetUnknownTitle,
+        l10n.notificationTargetUnknownDescription,
+        Icons.notifications_none_outlined,
+        const Key('notification-target-unknown'),
+      ),
       NotificationTargetType.unknown => (
         l10n.notificationTargetUnknownTitle,
         l10n.notificationTargetUnknownDescription,
