@@ -1,17 +1,12 @@
-import { createHmac } from "node:crypto";
-
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
 import {
   APP_REGION,
   CALLABLE_ENFORCE_APP_CHECK,
   BILLING_ALLOW_MANUAL_SETTLEMENT,
-  BILLING_ENABLE_LEGACY_CARD_FLOW,
-  getBillingWebhookSecret,
 } from "../config/runtime";
 import {
   loadBillingRuntimeConfig,
-  type BillingRuntimeConfig,
 } from "../config/runtime-overrides";
 import {
   applyPaymentResult,
@@ -441,162 +436,6 @@ export const updateBillingPreferences = onCall(
   },
 );
 
-export const createSubscriptionCheckout = onCall(
-  APP_CHECK_CALLABLE_OPTIONS,
-  async (request) => {
-    const auth = requireAuth(request);
-    await refreshBillingPricingTiers();
-    await refreshIapProductCatalogFromFirestore();
-    const scope = await resolveBillingScopeContext({
-      uid: auth.uid,
-      token: auth.token,
-      data: request.data,
-      requireManageRole: true,
-      requireOwnerMutationAccess: true,
-    });
-
-    const paymentMethod = normalizePaymentMethod(request.data);
-    const runtimeConfig = await loadBillingRuntimeConfig();
-    await cancelStalePendingTransactionsRun({
-      source: "system:billing_pending_timeout",
-      clanId: scope.clanId,
-      ownerUid: scope.ownerUid,
-      timeoutMinutes: runtimeConfig.pendingTimeoutMinutes,
-      limit: runtimeConfig.pendingTimeoutLimit,
-    });
-    const now = new Date();
-    const ownerPolicy = await resolveOwnerBillingPolicy({
-      ownerUid: scope.ownerUid,
-      now,
-    });
-    const minimumPlanCode = ownerPolicy.minimumTier.planCode;
-    const requestedPlanCode = normalizeRequestedPlanCode(request.data);
-    if (requestedPlanCode != null) {
-      if (rankPlanCode(requestedPlanCode) < rankPlanCode(minimumPlanCode)) {
-        throw new HttpsError(
-          "invalid-argument",
-          `requestedPlanCode must be at least ${minimumPlanCode} for ${ownerPolicy.totalMemberCount} total members across owner clans.`,
-        );
-      }
-    }
-    const ensured = await ensureSubscriptionForClan({
-      clanId: scope.clanId,
-      ownerUid: scope.ownerUid,
-      actorUid: auth.uid,
-    });
-    const selectedPlanCode = requestedPlanCode ?? ensured.subscription.planCode;
-    const selectedRank = rankPlanCode(selectedPlanCode);
-    const currentRank = rankPlanCode(ensured.subscription.planCode);
-    if (
-      selectedRank < currentRank &&
-      isSubscriptionActiveAndValid(ensured.subscription, now)
-    ) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Downgrade is available only after the current paid term ends.",
-      );
-    }
-    const canRenewCurrent = canRenewCurrentPlan(
-      ensured.subscription,
-      now,
-    );
-    if (
-      selectedRank === currentRank &&
-      !canRenewCurrent
-    ) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Current subscription is not eligible for this payment option yet.",
-      );
-    }
-
-    let checkout;
-    try {
-      checkout = await createPendingCheckout({
-        clanId: scope.clanId,
-        ownerUid: scope.ownerUid,
-        actorUid: auth.uid,
-        paymentMethod,
-        requestedPlanCode: requestedPlanCode ?? undefined,
-        policyMemberCount: ownerPolicy.totalMemberCount,
-      });
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        (error.message.toLowerCase().includes("renewal window") ||
-          error.message.toLowerCase().includes("downgrade"))
-      ) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Current subscription is not eligible for this payment option yet.",
-        );
-      }
-      throw error;
-    }
-
-    let checkoutUrl = "";
-    let requiresManualConfirmation = false;
-    if (checkout.tier.planCode === "FREE") {
-      checkoutUrl = "";
-      requiresManualConfirmation = false;
-    } else if (
-      paymentMethod === "apple_iap" ||
-      paymentMethod === "google_play"
-    ) {
-      checkoutUrl = "";
-      requiresManualConfirmation = false;
-    } else {
-      if (!BILLING_ENABLE_LEGACY_CARD_FLOW) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Legacy card checkout is disabled in this environment.",
-        );
-      }
-      checkoutUrl = buildCardCheckoutHintUrl({
-        transactionId: checkout.transaction.id,
-        runtimeConfig,
-      });
-      if (checkoutUrl.length === 0) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Card checkout is not configured yet.",
-        );
-      }
-      requiresManualConfirmation = true;
-    }
-
-    logInfo("createSubscriptionCheckout created", {
-      uid: auth.uid,
-      clanId: scope.clanId,
-      paymentMethod,
-      transactionId: checkout.transaction.id,
-      planCode: checkout.tier.planCode,
-      amountVnd: checkout.transaction.amountVnd,
-    });
-
-    return {
-      clanId: scope.clanId,
-      scope: serializeBillingScope(scope),
-      paymentMethod,
-      planCode: checkout.tier.planCode,
-      amountVnd: checkout.transaction.amountVnd,
-      vatIncluded: checkout.transaction.vatIncluded,
-      transactionId: checkout.transaction.id,
-      invoiceId: checkout.invoice.id,
-      checkoutUrl,
-      requiresManualConfirmation,
-      subscription: serializeSubscription(checkout.subscription),
-      entitlement: buildEntitlementFromSubscription(checkout.subscription),
-      ownerPolicy: {
-        totalMemberCount: ownerPolicy.totalMemberCount,
-        minimumPlanCode,
-        highestActivePlanCode: ownerPolicy.highestActivePlanCode,
-        hasSufficientActivePlan: ownerPolicy.hasSufficientActivePlan,
-      },
-    };
-  },
-);
-
 export const verifyInAppPurchase = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
@@ -868,73 +707,6 @@ export const verifyInAppPurchase = onCall(
   },
 );
 
-export const completeCardCheckout = onCall(
-  APP_CHECK_CALLABLE_OPTIONS,
-  async (request) => {
-    if (!BILLING_ENABLE_LEGACY_CARD_FLOW) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Legacy card checkout is disabled in this environment.",
-      );
-    }
-    const auth = requireAuth(request);
-    const scope = await resolveBillingScopeContext({
-      uid: auth.uid,
-      token: auth.token,
-      data: request.data,
-      requireManageRole: true,
-    });
-    ensureManualSettlementAllowed(auth.token);
-
-    const transactionId = readString(request.data, "transactionId");
-    if (transactionId == null || transactionId.length === 0) {
-      throw new HttpsError("invalid-argument", "transactionId is required.");
-    }
-
-    const txSnapshot = await transactionsCollection.doc(transactionId).get();
-    if (!txSnapshot.exists) {
-      throw new HttpsError("not-found", "transaction not found.");
-    }
-    const txClanId = normalizeString(txSnapshot.data()?.clanId);
-    if (txClanId !== scope.clanId) {
-      throw new HttpsError("permission-denied", "transaction clan mismatch.");
-    }
-    const txOwnerUid = normalizeString(txSnapshot.data()?.subscriptionOwnerUid);
-    if (txOwnerUid.length > 0 && txOwnerUid !== scope.ownerUid) {
-      throw new HttpsError("permission-denied", "transaction owner mismatch.");
-    }
-
-    const payment = await applyPaymentResult({
-      transactionId,
-      provider: "card",
-      gatewayReference: `CARD-CONF-${transactionId.slice(0, 10)}`,
-      paymentStatus: "succeeded",
-      payloadHash: createPayloadHash({ transactionId, actorUid: auth.uid }),
-      actorUid: auth.uid,
-    });
-
-    await notifyBillingResult({
-      clanId: scope.clanId,
-      approved: true,
-      amountVnd: Number(payment.transaction.amountVnd),
-      transactionId,
-      provider: "card",
-    });
-
-    return {
-      status: "succeeded",
-      transactionId,
-      subscription: payment.subscription
-        ? serializeSubscription(payment.subscription)
-        : null,
-      entitlement: payment.subscription
-        ? buildEntitlementFromSubscription(payment.subscription)
-        : null,
-      invoice: payment.invoice,
-    };
-  },
-);
-
 async function notifyBillingResult({
   clanId,
   approved,
@@ -1047,15 +819,6 @@ function canRenewCurrentPlan(
 
 function normalizePaymentMethod(data: unknown): PaymentMethod {
   const method = readString(data, "paymentMethod")?.toLowerCase();
-  if (method === "card") {
-    if (!BILLING_ENABLE_LEGACY_CARD_FLOW) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Legacy card checkout is disabled in this environment.",
-      );
-    }
-    return "card";
-  }
   if (method === "apple_iap") {
     return "apple_iap";
   }
@@ -1064,9 +827,7 @@ function normalizePaymentMethod(data: unknown): PaymentMethod {
   }
   throw new HttpsError(
     "invalid-argument",
-    BILLING_ENABLE_LEGACY_CARD_FLOW
-      ? 'paymentMethod must be "card", "apple_iap", or "google_play".'
-      : 'paymentMethod must be "apple_iap" or "google_play".',
+    'paymentMethod must be "apple_iap" or "google_play".',
   );
 }
 
@@ -1285,48 +1046,6 @@ function normalizeFirestoreJson(
   return output;
 }
 
-function createPayloadHash(payload: Record<string, unknown>): string {
-  return createHmac("sha256", getBillingWebhookSecret())
-    .update(JSON.stringify(payload))
-    .digest("hex");
-}
-
-function buildCardCheckoutHintUrl({
-  transactionId,
-  runtimeConfig,
-}: {
-  transactionId: string;
-  runtimeConfig: BillingRuntimeConfig;
-}): string {
-  const base = normalizeHttpUrl(runtimeConfig.cardCheckoutUrlBase);
-  if (base == null) {
-    return "";
-  }
-  try {
-    const url = new URL(base);
-    url.searchParams.set("transactionId", transactionId);
-    return url.toString();
-  } catch {
-    return "";
-  }
-}
-
-function normalizeHttpUrl(value: string): string | null {
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return null;
-  }
-  try {
-    const url = new URL(trimmed);
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
-      return null;
-    }
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
 function formatVnd(amount: number): string {
   return `${Math.max(0, Math.trunc(amount)).toLocaleString("vi-VN")} VND`;
 }
@@ -1370,6 +1089,5 @@ function buildCheckoutFlowConfig(): Record<string, unknown> {
   return {
     storeProductIdsByPlan,
     storeProductIdsByPlanByPlatform,
-    allowLegacyCardCheckout: BILLING_ENABLE_LEGACY_CARD_FLOW,
   };
 }

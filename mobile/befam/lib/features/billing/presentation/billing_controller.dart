@@ -19,20 +19,16 @@ class BillingController extends ChangeNotifier {
   bool _isLoading = true;
   bool _isSavingPreferences = false;
   bool _isProcessingPayment = false;
-  bool _isCreatingCheckout = false;
   String? _errorMessage;
   BillingWorkspaceSnapshot? _workspace;
   BillingViewerSummary? _viewerSummary;
-  BillingCheckoutResult? _lastCheckout;
 
   bool get isLoading => _isLoading;
   bool get isSavingPreferences => _isSavingPreferences;
   bool get isProcessingPayment => _isProcessingPayment;
-  bool get isCreatingCheckout => _isCreatingCheckout;
   String? get errorMessage => _errorMessage;
   BillingWorkspaceSnapshot? get workspace => _workspace;
   BillingViewerSummary? get viewerSummary => _viewerSummary;
-  BillingCheckoutResult? get lastCheckout => _lastCheckout;
   bool get isRepositorySandbox => _repository.isSandbox;
 
   bool get hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
@@ -158,57 +154,6 @@ class BillingController extends ChangeNotifier {
       _errorMessage = error.toString();
     } finally {
       _isSavingPreferences = false;
-      notifyListeners();
-    }
-  }
-
-  Future<BillingCheckoutResult?> createCheckout({
-    required String paymentMethod,
-    String? requestedPlanCode,
-    String? returnUrl,
-  }) async {
-    _isCreatingCheckout = true;
-    _errorMessage = null;
-    notifyListeners();
-    try {
-      _lastCheckout = await _repository.createCheckout(
-        session: _session,
-        paymentMethod: paymentMethod,
-        requestedPlanCode: requestedPlanCode,
-        returnUrl: returnUrl,
-      );
-      _workspace = await _repository.loadWorkspace(session: _session);
-      _viewerSummary = null;
-      return _lastCheckout;
-    } on BillingRepositoryException catch (error) {
-      _errorMessage = error.toString();
-      return null;
-    } catch (error) {
-      _errorMessage = error.toString();
-      return null;
-    } finally {
-      _isCreatingCheckout = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> confirmCardPayment(String transactionId) async {
-    _isProcessingPayment = true;
-    _errorMessage = null;
-    notifyListeners();
-    try {
-      await _repository.completeCardCheckout(
-        session: _session,
-        transactionId: transactionId,
-      );
-      _workspace = await _repository.loadWorkspace(session: _session);
-      _viewerSummary = null;
-    } on BillingRepositoryException catch (error) {
-      _errorMessage = error.toString();
-    } catch (error) {
-      _errorMessage = error.toString();
-    } finally {
-      _isProcessingPayment = false;
       notifyListeners();
     }
   }

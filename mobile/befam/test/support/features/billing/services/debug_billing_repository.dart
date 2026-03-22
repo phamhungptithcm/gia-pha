@@ -127,55 +127,67 @@ class DebugBillingRepository implements BillingRepository {
   }
 
   @override
-  Future<BillingCheckoutResult> createCheckout({
+  Future<BillingEntitlement> verifyInAppPurchase({
     required AuthSession session,
-    required String paymentMethod,
-    String? requestedPlanCode,
-    String? returnUrl,
+    required String platform,
+    required String productId,
+    required Map<String, dynamic> payload,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 140));
+    final planCode = _planCodeFromIapProduct(productId);
+    if (planCode == null) {
+      throw const BillingRepositoryException(
+        BillingRepositoryErrorCode.invalidArgument,
+        'Unsupported in-app productId.',
+      );
+    }
+    final paymentMethod = platform.trim().toLowerCase() == 'ios'
+        ? 'apple_iap'
+        : 'google_play';
+    final transactionId = await _createIapCheckoutAndReturnTransactionId(
+      session: session,
+      paymentMethod: paymentMethod,
+      requestedPlanCode: planCode,
+    );
+    final clanId = _clanIdOf(session);
+    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    _applySuccessfulPayment(
+      state,
+      transactionId: transactionId,
+      actorUid: session.uid,
+    );
+    return state.entitlement;
+  }
+
+  Future<String> _createIapCheckoutAndReturnTransactionId({
+    required AuthSession session,
+    required String paymentMethod,
+    required String requestedPlanCode,
+  }) async {
     final clanId = _clanIdOf(session);
     final state = _ensureState(clanId: clanId, ownerUid: session.uid);
     _expireStalePendingTransactions(state);
     _syncStateWithMemberCount(state, clanId);
 
     final method = paymentMethod.trim().toLowerCase();
-    if (method != 'card' && method != 'apple_iap' && method != 'google_play') {
+    if (method != 'apple_iap' && method != 'google_play') {
       throw const BillingRepositoryException(
         BillingRepositoryErrorCode.invalidArgument,
-        'paymentMethod must be card, apple_iap, or google_play.',
+        'paymentMethod must be apple_iap or google_play.',
       );
     }
 
     final minimumTier = _resolveTier(state.memberCount);
-    final currentTier = _resolveTierByPlanCode(state.subscription.planCode);
-    final defaultTier =
-        _rankPlanCode(currentTier.planCode) >=
-            _rankPlanCode(minimumTier.planCode)
-        ? currentTier
-        : minimumTier;
-    var tier = defaultTier;
-    final requestedPlan = requestedPlanCode?.trim().toUpperCase();
-    if (requestedPlan != null && requestedPlan.isNotEmpty) {
-      final requestedTier = _resolveTierByPlanCode(requestedPlan);
-      if (_rankPlanCode(requestedTier.planCode) <
-          _rankPlanCode(minimumTier.planCode)) {
-        throw const BillingRepositoryException(
-          BillingRepositoryErrorCode.invalidArgument,
-          'requestedPlanCode is below minimum tier for current member count.',
-        );
-      }
-      tier = requestedTier;
-    }
-    final canRenewCurrentPlan = _canRenewCurrentPlan(state.subscription);
-    final selectedPlanRank = _rankPlanCode(tier.planCode);
-    if (selectedPlanRank == _rankPlanCode(state.subscription.planCode) &&
-        !canRenewCurrentPlan) {
+    final requestedPlan = requestedPlanCode.trim().toUpperCase();
+    final requestedTier = _resolveTierByPlanCode(requestedPlan);
+    if (_rankPlanCode(requestedTier.planCode) <
+        _rankPlanCode(minimumTier.planCode)) {
       throw const BillingRepositoryException(
         BillingRepositoryErrorCode.invalidArgument,
-        'Current plan is not in renewal window yet.',
+        'requestedPlanCode is below minimum tier for current member count.',
       );
     }
+    final tier = requestedTier;
 
     final now = DateTime.now().toUtc();
     final transactionId = 'txn_debug_${_transactionSequence++}';
@@ -187,7 +199,7 @@ class DebugBillingRepository implements BillingRepository {
       subscriptionId: state.subscription.id,
       invoiceId: invoiceId,
       paymentMethod: method,
-      paymentStatus: tier.planCode == 'FREE' ? 'succeeded' : 'pending',
+      paymentStatus: 'pending',
       planCode: tier.planCode,
       memberCount: state.memberCount,
       amountVnd: tier.priceVndYear,
@@ -196,7 +208,7 @@ class DebugBillingRepository implements BillingRepository {
       gatewayReference:
           '${method.toUpperCase()}-${DateTime.now().millisecondsSinceEpoch}',
       createdAtIso: now.toIso8601String(),
-      paidAtIso: tier.planCode == 'FREE' ? now.toIso8601String() : null,
+      paidAtIso: null,
       failedAtIso: null,
     );
     state.transactions.insert(0, transaction);
@@ -210,28 +222,21 @@ class DebugBillingRepository implements BillingRepository {
       amountVnd: tier.priceVndYear,
       vatIncluded: true,
       currency: 'VND',
-      status: tier.planCode == 'FREE' ? 'paid' : 'issued',
+      status: 'issued',
       periodStartIso: state.subscription.startsAtIso,
       periodEndIso: state.subscription.expiresAtIso,
       issuedAtIso: now.toIso8601String(),
-      paidAtIso: tier.planCode == 'FREE' ? now.toIso8601String() : null,
+      paidAtIso: null,
     );
     state.invoices.insert(0, invoice);
 
-    final keepCurrentPlanUntilPaid = tier.planCode != 'FREE';
     state.subscription = BillingSubscription(
       id: state.subscription.id,
       clanId: clanId,
-      planCode: keepCurrentPlanUntilPaid
-          ? state.subscription.planCode
-          : tier.planCode,
-      status: keepCurrentPlanUntilPaid
-          ? state.subscription.status
-          : (tier.planCode == 'FREE' ? 'active' : 'pending_payment'),
+      planCode: state.subscription.planCode,
+      status: state.subscription.status,
       memberCount: state.memberCount,
-      amountVndYear: keepCurrentPlanUntilPaid
-          ? state.subscription.amountVndYear
-          : tier.priceVndYear,
+      amountVndYear: state.subscription.amountVndYear,
       vatIncluded: true,
       paymentMode: state.settings.paymentMode,
       autoRenew: state.settings.autoRenew,
@@ -259,94 +264,7 @@ class DebugBillingRepository implements BillingRepository {
       actorUid: session.uid,
     );
 
-    if (tier.planCode == 'FREE') {
-      _applySuccessfulPayment(
-        state,
-        transactionId: transactionId,
-        actorUid: session.uid,
-      );
-    }
-
-    final checkoutPath = method == 'apple_iap' || method == 'google_play'
-        ? '/billing/store'
-        : '/billing/card';
-    final checkoutUrl = Uri.https('checkout-debug.befam.local', checkoutPath, {
-      'transactionId': transactionId,
-      'amountVnd': '${tier.priceVndYear}',
-      'mode': method,
-      'debug': '1',
-    }).toString();
-
-    return BillingCheckoutResult(
-      clanId: clanId,
-      paymentMethod: method,
-      planCode: tier.planCode,
-      amountVnd: tier.priceVndYear,
-      vatIncluded: true,
-      transactionId: transactionId,
-      invoiceId: invoiceId,
-      checkoutUrl: method == 'apple_iap' || method == 'google_play'
-          ? ''
-          : checkoutUrl,
-      requiresManualConfirmation: method == 'card' && tier.planCode != 'FREE',
-      subscription: state.subscription,
-      entitlement: state.entitlement,
-    );
-  }
-
-  @override
-  Future<void> completeCardCheckout({
-    required AuthSession session,
-    required String transactionId,
-  }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 130));
-    final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
-    final transaction = _findTransaction(state, transactionId);
-    if (transaction.paymentMethod != 'card') {
-      throw const BillingRepositoryException(
-        BillingRepositoryErrorCode.invalidArgument,
-        'Transaction is not a card checkout.',
-      );
-    }
-    _applySuccessfulPayment(
-      state,
-      transactionId: transactionId.trim(),
-      actorUid: session.uid,
-    );
-  }
-
-  @override
-  Future<BillingEntitlement> verifyInAppPurchase({
-    required AuthSession session,
-    required String platform,
-    required String productId,
-    required Map<String, dynamic> payload,
-  }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 140));
-    final planCode = _planCodeFromIapProduct(productId);
-    if (planCode == null) {
-      throw const BillingRepositoryException(
-        BillingRepositoryErrorCode.invalidArgument,
-        'Unsupported in-app productId.',
-      );
-    }
-    final paymentMethod = platform.trim().toLowerCase() == 'ios'
-        ? 'apple_iap'
-        : 'google_play';
-    final checkout = await createCheckout(
-      session: session,
-      paymentMethod: paymentMethod,
-      requestedPlanCode: planCode,
-    );
-    final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
-    _applySuccessfulPayment(
-      state,
-      transactionId: checkout.transactionId,
-      actorUid: session.uid,
-    );
-    return state.entitlement;
+    return transactionId;
   }
 
   _DebugBillingState _ensureState({
@@ -927,7 +845,6 @@ class _DebugBillingState {
             'android': 'befam.pro.yearly',
           },
         },
-        allowLegacyCardCheckout: true,
       ),
       pricingTiers: pricing,
       memberCount: memberCount,
