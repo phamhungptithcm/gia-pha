@@ -5,7 +5,7 @@ import {
 
 import { APP_REGION } from '../config/runtime';
 import { reconcileRelationshipMembers } from './relationship-reconciliation';
-import { logWarn } from '../shared/logger';
+import { logInfo, logWarn } from '../shared/logger';
 
 export const onRelationshipCreated = onDocumentCreated(
   {
@@ -22,6 +22,17 @@ export const onRelationshipCreated = onDocumentCreated(
     }
 
     const relationship = snapshot.data();
+
+    // The callable that creates relationships already updates member arrays
+    // atomically in the same transaction.  Skip redundant reconciliation to
+    // avoid a duplicate write on every relationship created via the callable.
+    if (relationship.arraysReconciled === true) {
+      logInfo('relationship create reconciliation skipped (arraysReconciled=true)', {
+        relationshipId: event.params.relationshipId,
+      });
+      return;
+    }
+
     await reconcileRelationshipMembers({
       relationshipId: event.params.relationshipId,
       action: 'create',

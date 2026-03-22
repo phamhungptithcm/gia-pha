@@ -228,12 +228,16 @@ class FirebaseFundRepository implements FundRepository {
         await batch.commit();
       }
 
-      final refreshed = await docRef.get();
-      final normalizedPayload = _normalizeFirestoreMap(
-        refreshed.data() ?? {},
-        fallbackId: docRef.id,
+      // Build response without an extra read: substitute FieldValue sentinels
+      // with local timestamps (within milliseconds of the server timestamp).
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      final responsePayload = Map<String, dynamic>.from(payload)
+        ..['updatedAt'] = nowIso
+        ..['id'] = docRef.id;
+      if (!existing.exists) responsePayload['createdAt'] = nowIso;
+      return FundProfile.fromJson(
+        _normalizeFirestoreMap(responsePayload, fallbackId: docRef.id),
       );
-      return FundProfile.fromJson(normalizedPayload);
     } on FirebaseException catch (error) {
       throw _mapFirebaseError(error);
     }
