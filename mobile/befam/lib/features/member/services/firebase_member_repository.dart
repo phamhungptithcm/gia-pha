@@ -214,7 +214,6 @@ class FirebaseMemberRepository implements MemberRepository {
           ? null
           : existingData['siblingOrder'] ?? draft.siblingOrder,
       'generation': generation,
-      'lineagePath': [clanId, branchId],
       'primaryRole': existingData['primaryRole'] ?? draft.primaryRole,
       'status': existingData['status'] ?? draft.status,
       'isMinor': draft.isMinor,
@@ -226,6 +225,7 @@ class FirebaseMemberRepository implements MemberRepository {
       if (!existing.exists) 'createdBy': actor,
     };
 
+    final isNew = !existing.exists;
     await memberRef.set(payload, SetOptions(merge: true));
     await _syncParentLinks(
       clanId: clanId,
@@ -245,8 +245,15 @@ class FirebaseMemberRepository implements MemberRepository {
         previousBranchId != branchId) {
       await _syncBranchCount(clanId, previousBranchId, actor);
     }
-    final updated = await memberRef.get();
-    return MemberProfile.fromJson(updated.data()!);
+
+    // Build the response without an extra read: substitute FieldValue sentinels
+    // with local timestamps (within milliseconds of the server timestamp).
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final responsePayload = Map<String, dynamic>.from(payload)
+      ..['updatedAt'] = nowIso
+      ..['id'] = memberRef.id;
+    if (isNew) responsePayload['createdAt'] = nowIso;
+    return MemberProfile.fromJson(responsePayload);
   }
 
   Future<MemberProfile> _createMemberViaCallable({
@@ -468,14 +475,19 @@ class FirebaseMemberRepository implements MemberRepository {
         SettableMetadata(contentType: contentType),
       );
       final url = await snapshot.ref.getDownloadURL();
+      final actor = session.memberId ?? session.uid;
       await memberRef.set({
         'avatarUrl': url,
         'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': session.memberId ?? session.uid,
+        'updatedBy': actor,
       }, SetOptions(merge: true));
 
-      final updated = await memberRef.get();
-      return MemberProfile.fromJson(updated.data()!);
+      // Build response from the already-fetched doc — avoids an extra read.
+      final responseData = Map<String, dynamic>.from(existing.data()!);
+      responseData['avatarUrl'] = url;
+      responseData['updatedAt'] = DateTime.now().toUtc().toIso8601String();
+      responseData['updatedBy'] = actor;
+      return MemberProfile.fromJson(responseData);
     } catch (error) {
       throw MemberRepositoryException(
         MemberRepositoryErrorCode.avatarUploadFailed,
@@ -555,20 +567,6 @@ class FirebaseMemberRepository implements MemberRepository {
       }
     }
 
-    final clanMembers = await _members.where('clanId', isEqualTo: clanId).get();
-    final conflictByCanonical = clanMembers.docs.firstWhereOrNull((doc) {
-      if (doc.id == memberId) {
-        return false;
-      }
-      final data = doc.data();
-      final existingPhone = (data['phoneE164'] as String?)?.trim();
-      return PhoneNumberFormatter.areEquivalent(existingPhone, phoneE164);
-    });
-    if (conflictByCanonical != null) {
-      throw const MemberRepositoryException(
-        MemberRepositoryErrorCode.duplicatePhone,
-      );
-    }
   }
 
   Future<void> _syncBranchCount(
@@ -576,13 +574,13 @@ class FirebaseMemberRepository implements MemberRepository {
     String branchId,
     String actor,
   ) async {
-    final snapshot = await _members
+    // COUNT aggregate: O(1) index read regardless of member count.
+    final aggregate = await _members
+        .where('clanId', isEqualTo: clanId)
         .where('branchId', isEqualTo: branchId)
+        .count()
         .get();
-    final count = snapshot.docs.where((doc) {
-      final data = doc.data();
-      return (data['clanId'] as String?)?.trim() == clanId;
-    }).length;
+    final count = aggregate.count ?? 0;
     await _branches.doc(branchId).set({
       'id': branchId,
       'clanId': clanId,
