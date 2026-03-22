@@ -63,9 +63,9 @@ jobs:
           arch: x86_64
           profile: pixel_5
           emulator-boot-timeout: 900
-          disable-linux-hw-accel: true
-          emulator-options: -no-window -gpu off -no-snapshot -noaudio -no-boot-anim -no-metrics
-          disable-animations: true
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics
+          disable-animations: false
           script: |
             set -euo pipefail
             chmod +x scripts/run_mobile_e2e.sh
