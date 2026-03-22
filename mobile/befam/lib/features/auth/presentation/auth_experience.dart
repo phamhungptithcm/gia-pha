@@ -622,9 +622,14 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
                   ),
                 ),
               ),
-              TextButton(
-                onPressed: onViewPrivacyPolicy,
-                child: Text(l10n.pick(vi: 'Xem chính sách', en: 'View policy')),
+              Flexible(
+                child: TextButton(
+                  onPressed: onViewPrivacyPolicy,
+                  child: Text(
+                    l10n.pick(vi: 'Xem chính sách', en: 'View policy'),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
               Tooltip(
                 message: l10n.pick(
