@@ -38,6 +38,7 @@ jobs:
           GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
         run: |
           set -euo pipefail
@@ -45,6 +46,7 @@ jobs:
           test -n "$GCP_SERVICE_ACCOUNT_EMAIL"
           test -n "$FIREBASE_PROJECT_ID"
           test -n "$FIREBASE_FUNCTIONS_REGION"
+          test -n "$FIRESTORE_DATABASE_ID"
           echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"
 
       - name: Authenticate to Google Cloud (OIDC)
@@ -60,14 +62,17 @@ jobs:
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
         run: |
           set -euo pipefail
           test -n "$FIREBASE_PROJECT_ID"
           test -n "$FIREBASE_FUNCTIONS_REGION"
+          test -n "$FIRESTORE_DATABASE_ID"
           echo "GOOGLE_CLOUD_PROJECT=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
           echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> "$GITHUB_ENV"
           echo "FIREBASE_FUNCTIONS_REGION=$FIREBASE_FUNCTIONS_REGION" >> "$GITHUB_ENV"
+          echo "FIRESTORE_DATABASE_ID=$FIRESTORE_DATABASE_ID" >> "$GITHUB_ENV"
           echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
@@ -93,6 +98,7 @@ jobs:
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
           APP_RUNTIME_CONFIG_COLLECTION: ${{ vars.APP_RUNTIME_CONFIG_COLLECTION }}
           APP_RUNTIME_CONFIG_DOC_ID: ${{ vars.APP_RUNTIME_CONFIG_DOC_ID }}
@@ -159,6 +165,7 @@ jobs:
           resolved_card_secret="${CARD_WEBHOOK_SECRET:-$BILLING_WEBHOOK_SECRET}"
           resolved_apple_iap_webhook_token="${APPLE_IAP_WEBHOOK_BEARER_TOKEN:-$BILLING_WEBHOOK_SECRET}"
           resolved_google_iap_webhook_token="${GOOGLE_IAP_WEBHOOK_BEARER_TOKEN:-$BILLING_WEBHOOK_SECRET}"
+          resolved_firestore_database_id="${FIRESTORE_DATABASE_ID:-"(default)"}"
           resolved_app_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           resolved_runtime_collection="${APP_RUNTIME_CONFIG_COLLECTION:-runtimeConfig}"
           resolved_runtime_doc="${APP_RUNTIME_CONFIG_DOC_ID:-global}"
@@ -259,6 +266,7 @@ jobs:
           env_file=".env.${FIREBASE_PROJECT_ID}"
           cat > "$env_file" <<EOF
           APP_REGION=${FIREBASE_FUNCTIONS_REGION}
+          FIRESTORE_DATABASE_ID=${resolved_firestore_database_id}
           APP_TIMEZONE=${resolved_app_timezone}
           APP_RUNTIME_CONFIG_COLLECTION=${resolved_runtime_collection}
           APP_RUNTIME_CONFIG_DOC_ID=${resolved_runtime_doc}

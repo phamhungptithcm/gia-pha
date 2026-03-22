@@ -8,7 +8,11 @@ on:
       - "firebase.json"
       - "firebase/**"
       - ".firebaserc"
-      - "mobile/befam/**"
+      - "mobile/befam/lib/**"
+      - "mobile/befam/web/**"
+      - "mobile/befam/assets/**"
+      - "mobile/befam/pubspec.yaml"
+      - "mobile/befam/pubspec.lock"
       - ".github/workflows/deploy-staging.yml"
 
 permissions:
@@ -30,6 +34,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Validate staging sandbox target
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-}"
+          test -n "$project"
+          if [ "$project" != "be-fam-3ab23" ]; then
+            echo "::error::Staging deploy must target sandbox project be-fam-3ab23. Current: ${project}"
+            exit 1
+          fi
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          if [ "$database" != "(default)" ]; then
+            echo "::error::Staging deploy must target Firestore database (default). Current: ${database}"
+            exit 1
+          fi
 
       - name: Resolve staging auth mode
         id: auth-mode
@@ -66,24 +88,33 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
         run: |
+          set -euo pipefail
           test -n "$FIREBASE_SERVICE_ACCOUNT"
-          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
+          test -n "${FIREBASE_PROJECT_ID:-}"
+          project="${FIREBASE_PROJECT_ID}"
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
           credentials_path="$RUNNER_TEMP/firebase-service-account.json"
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$credentials_path"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$credentials_path" >> "$GITHUB_ENV"
           echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
           echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+          echo "FIRESTORE_DATABASE_ID=$database" >> "$GITHUB_ENV"
 
       - name: Export Firebase project env (OIDC mode)
         if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
         run: |
-          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-}"
           test -n "$project"
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
           echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
           echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+          echo "FIRESTORE_DATABASE_ID=$database" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -119,7 +150,7 @@ jobs:
           --only firestore:rules,firestore:indexes,storage,functions
 
   deploy-staging-web:
-    name: Deploy Web Hosting (Staging)
+    name: Deploy Web Hosting (Staging Web Only)
     needs: deploy-staging-firebase
     if: ${{ github.ref == 'refs/heads/staging' }}
     runs-on: ubuntu-latest
@@ -132,6 +163,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Validate staging sandbox target
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-}"
+          test -n "$project"
+          if [ "$project" != "be-fam-3ab23" ]; then
+            echo "::error::Staging deploy must target sandbox project be-fam-3ab23. Current: ${project}"
+            exit 1
+          fi
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          if [ "$database" != "(default)" ]; then
+            echo "::error::Staging deploy must target Firestore database (default). Current: ${database}"
+            exit 1
+          fi
 
       - name: Resolve staging auth mode
         id: auth-mode
@@ -168,26 +217,33 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
         run: |
           set -euo pipefail
-          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
+          test -n "${FIREBASE_PROJECT_ID:-}"
+          project="${FIREBASE_PROJECT_ID}"
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
           test -n "${FIREBASE_SERVICE_ACCOUNT:-}"
           credentials_path="$RUNNER_TEMP/firebase-service-account.json"
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$credentials_path"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$credentials_path" >> "$GITHUB_ENV"
           echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
           echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+          echo "FIRESTORE_DATABASE_ID=$database" >> "$GITHUB_ENV"
 
       - name: Export Firebase project env (OIDC mode)
         if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
         run: |
           set -euo pipefail
-          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
+          project="${FIREBASE_PROJECT_ID:-}"
           test -n "$project"
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
           echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
           echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+          echo "FIRESTORE_DATABASE_ID=$database" >> "$GITHUB_ENV"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2

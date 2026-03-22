@@ -1,6 +1,6 @@
 # Production Configuration Setup
 
-_Last reviewed: March 20, 2026_
+_Last reviewed: March 22, 2026_
 
 This runbook explains how BeFam separates local and production runtime
 configuration safely.
@@ -10,6 +10,14 @@ configuration safely.
 1. GitHub Environment `production` (vars + secrets)
 2. Firestore runtime overrides (`runtimeConfig/global`, non-secret only)
 3. Flutter build-time defines (`--dart-define`)
+
+## Staging Deployment Scope
+
+`staging` deploy pipeline is sandbox-only and deploys only:
+- Firebase resources in staging project (`firestore:rules`, `firestore:indexes`, `storage`, `functions`)
+- Web hosting bundle
+
+`staging` does **not** deploy Android/iOS artifacts.
 
 ## Supported OS Versions
 
@@ -35,6 +43,7 @@ If you need to support lower OS versions:
 Required vars (Functions runtime):
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_FUNCTIONS_REGION`
+- `FIRESTORE_DATABASE_ID` (`(default)` for staging, `befam` for production in current setup)
 - `APP_TIMEZONE`
 - `APP_RUNTIME_CONFIG_COLLECTION`
 - `APP_RUNTIME_CONFIG_DOC_ID`
@@ -126,11 +135,14 @@ Mobile/Web build vars (GitHub vars, optional):
 
 Before production deploy:
 - verify required vars/secrets exist
-- verify Firestore has a default database `(default)` in Native mode
+- verify production Firestore database matches `FIRESTORE_DATABASE_ID` (current production value: `befam`)
+- verify staging Firestore database stays `(default)` and staging project id stays `be-fam-3ab23`
 - verify Apple + Google Play product IDs match published store subscriptions
 - verify `BILLING_IAP_ALLOW_TEST_MOCK=false` in production
 - verify `BILLING_ENABLE_LEGACY_CARD_FLOW=false` in production
 - verify `CALLABLE_ENFORCE_APP_CHECK=true` in production
+- verify branch protection is enabled on `staging` and `main` with required checks
+- rotate any leaked secret immediately (especially `APPLE_SHARED_SECRET`) before release
 - keep manual settlement disabled unless explicitly needed
 - verify `subscriptionPackages` has active `FREE/BASE/PLUS/PRO` (preflight blocks release if missing)
 
