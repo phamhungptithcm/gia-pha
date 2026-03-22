@@ -114,7 +114,7 @@ jobs:
             exit 1
           fi
           xcrun simctl boot "${SIM_UDID}" || true
-          if ! xcrun simctl bootstatus "${SIM_UDID}" -b -t 300; then
+          if ! xcrun simctl bootstatus "${SIM_UDID}" -b; then
             echo "bootstatus with timeout failed. Falling back to manual polling..."
             state=""
             for _ in $(seq 1 60); do

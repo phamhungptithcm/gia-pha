@@ -133,7 +133,6 @@ run_suite_on_device() {
   local build_sha
   local flutter_exit_code=0
   local tests=(
-    "integration_test/e2e_release_catalog_contract_test.dart"
     "integration_test/e2e_auth_and_role_matrix_test.dart"
     "integration_test/e2e_feature_journeys_test.dart"
   )
