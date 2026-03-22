@@ -59,12 +59,13 @@ jobs:
           BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
           BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
         with:
-          api-level: 35
+          api-level: 34
           arch: x86_64
-          profile: pixel_7
+          profile: pixel_5
           emulator-boot-timeout: 900
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          disable-animations: false
+          disable-linux-hw-accel: true
+          emulator-options: -no-window -gpu off -no-snapshot -noaudio -no-boot-anim -no-metrics
+          disable-animations: true
           script: |
             chmod +x scripts/run_mobile_e2e.sh
             ./scripts/run_mobile_e2e.sh "${E2E_MODE}" android
