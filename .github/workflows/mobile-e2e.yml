@@ -45,17 +45,38 @@ concurrency:
   group: mobile-e2e-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  E2E_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode || 'debug' }}
-  E2E_PLATFORM: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.platform || 'android' }}
-  E2E_SUITE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.suite || 'smoke' }}
-
 jobs:
+  resolve-config:
+    name: resolve-e2e-config
+    runs-on: ubuntu-latest
+    outputs:
+      e2e_mode: ${{ steps.resolve.outputs.e2e_mode }}
+      e2e_platform: ${{ steps.resolve.outputs.e2e_platform }}
+      e2e_suite: ${{ steps.resolve.outputs.e2e_suite }}
+    steps:
+      - name: Resolve workflow config
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "e2e_mode=${{ github.event.inputs.mode }}" >> "$GITHUB_OUTPUT"
+            echo "e2e_platform=${{ github.event.inputs.platform }}" >> "$GITHUB_OUTPUT"
+            echo "e2e_suite=${{ github.event.inputs.suite }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "e2e_mode=debug" >> "$GITHUB_OUTPUT"
+            echo "e2e_platform=android" >> "$GITHUB_OUTPUT"
+            echo "e2e_suite=smoke" >> "$GITHUB_OUTPUT"
+          fi
+
   e2e-android:
     name: e2e-android
-    if: ${{ env.E2E_PLATFORM == 'android' || env.E2E_PLATFORM == 'both' }}
+    needs: resolve-config
+    if: ${{ needs.resolve-config.outputs.e2e_platform == 'android' || needs.resolve-config.outputs.e2e_platform == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      E2E_MODE: ${{ needs.resolve-config.outputs.e2e_mode }}
+      E2E_PLATFORM: ${{ needs.resolve-config.outputs.e2e_platform }}
+      E2E_SUITE: ${{ needs.resolve-config.outputs.e2e_suite }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -119,9 +140,14 @@ jobs:
 
   e2e-ios:
     name: e2e-ios
-    if: ${{ env.E2E_PLATFORM == 'ios' || env.E2E_PLATFORM == 'both' }}
+    needs: resolve-config
+    if: ${{ needs.resolve-config.outputs.e2e_platform == 'ios' || needs.resolve-config.outputs.e2e_platform == 'both' }}
     runs-on: macos-latest
     timeout-minutes: 60
+    env:
+      E2E_MODE: ${{ needs.resolve-config.outputs.e2e_mode }}
+      E2E_PLATFORM: ${{ needs.resolve-config.outputs.e2e_platform }}
+      E2E_SUITE: ${{ needs.resolve-config.outputs.e2e_suite }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
