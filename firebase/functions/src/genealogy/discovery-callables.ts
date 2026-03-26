@@ -2,6 +2,7 @@ import { getAuth } from 'firebase-admin/auth';
 import {
   FieldValue,
   type DocumentData,
+  type Query,
   type QueryDocumentSnapshot,
   type QuerySnapshot,
 } from 'firebase-admin/firestore';
@@ -137,39 +138,59 @@ export const searchGenealogyDiscovery = onCall(
     const query = normalizeSearch(optionalString(request.data, 'query'));
     const limit = resolveLimit(request.data);
 
-    const baseQuery = discoveryCollection.where('isPublic', '==', true);
     const scanLimit = Math.min(600, Math.max(120, limit * 6));
-    const pageSize = Math.min(80, Math.max(limit, 30));
-    const candidates: Array<{ id: string } & DiscoveryRecord> = [];
-    let scanned = 0;
-    let cursor: QueryDocumentSnapshot<DocumentData> | null = null;
-    while (candidates.length < limit && scanned < scanLimit) {
-      const remaining = scanLimit - scanned;
-      const chunkSize = Math.max(1, Math.min(pageSize, remaining));
-      let pageSnapshot: QuerySnapshot<DocumentData>;
-      if (cursor == null) {
-        pageSnapshot = await baseQuery.limit(chunkSize).get();
-      } else {
-        pageSnapshot = await baseQuery.startAfter(cursor).limit(chunkSize).get();
+    const candidateQueryLimit = Math.min(scanLimit, Math.max(80, limit * 4));
+    const candidateDocsById = new Map<string, QueryDocumentSnapshot<DocumentData>>();
+    const candidateQueries: Array<Query<DocumentData>> = [];
+
+    const pushPrefixQuery = (fieldPath: string, value: string): void => {
+      if (value.length === 0) {
+        return;
       }
-      if (pageSnapshot.empty) {
-        break;
-      }
-      for (const doc of pageSnapshot.docs) {
-        scanned += 1;
-        const entry = { id: doc.id, ...(doc.data() as DiscoveryRecord) };
-        if (matchesDiscoveryQuery(entry, { leaderQuery, locationQuery, query })) {
-          candidates.push(entry);
-          if (candidates.length >= limit) {
-            break;
-          }
-        }
-      }
-      cursor = pageSnapshot.docs[pageSnapshot.docs.length - 1] ?? null;
-      if (pageSnapshot.docs.length < chunkSize) {
-        break;
+      candidateQueries.push(
+        discoveryCollection
+          .where('isPublic', '==', true)
+          .orderBy(fieldPath)
+          .startAt(value)
+          .endAt(`${value}\uf8ff`)
+          .limit(candidateQueryLimit),
+      );
+    };
+
+    pushPrefixQuery('leaderNameNormalized', leaderQuery);
+    pushPrefixQuery('provinceCityNormalized', locationQuery);
+    pushPrefixQuery('genealogyNameNormalized', query);
+    if (query.length > 0) {
+      pushPrefixQuery('leaderNameNormalized', query);
+      pushPrefixQuery('provinceCityNormalized', query);
+    }
+    if (candidateQueries.length === 0) {
+      candidateQueries.push(
+        discoveryCollection.where('isPublic', '==', true).limit(candidateQueryLimit),
+      );
+    }
+
+    for (const searchQuery of candidateQueries) {
+      for (const doc of await executeDiscoveryCandidateQuery(searchQuery)) {
+        candidateDocsById.set(doc.id, doc);
       }
     }
+
+    if (candidateDocsById.size < limit) {
+      const fallbackSnapshot = await discoveryCollection
+        .where('isPublic', '==', true)
+        .limit(Math.min(scanLimit, Math.max(60, limit * 2)))
+        .get();
+      for (const doc of fallbackSnapshot.docs) {
+        candidateDocsById.set(doc.id, doc);
+      }
+    }
+
+    const scanned = candidateDocsById.size;
+    const candidates = [...candidateDocsById.values()]
+      .map((doc) => ({ id: doc.id, ...(doc.data() as DiscoveryRecord) }))
+      .filter((entry) => matchesDiscoveryQuery(entry, { leaderQuery, locationQuery, query }))
+      .slice(0, limit);
     const pendingJoinRequestsByClanId = await loadPendingJoinRequestsByApplicant(auth.uid);
 
     const results = candidates
@@ -231,13 +252,11 @@ export const submitJoinRequest = onCall(
     const normalizedContact = normalizeContact(contactInfo);
     const duplicatePendingByApplicantSnapshot = await joinRequestsCollection
       .where('applicantUid', '==', applicantUid)
-      .limit(300)
+      .where('clanId', '==', clanId)
+      .where('status', '==', 'pending')
+      .limit(1)
       .get();
-    const duplicatePendingByApplicant = duplicatePendingByApplicantSnapshot.docs.some((doc) => {
-      const item = doc.data() as JoinRequestRecord;
-      return (stringOrNull(item.clanId) ?? '') === clanId &&
-        (stringOrNull(item.status)?.toLowerCase() ?? 'pending') === 'pending';
-    });
+    const duplicatePendingByApplicant = !duplicatePendingByApplicantSnapshot.empty;
     const duplicatePendingByContact = await joinRequestsCollection
       .where('clanId', '==', clanId)
       .where('contactInfoNormalized', '==', normalizedContact)
@@ -316,10 +335,25 @@ export const listMyJoinRequests = onCall(
       ? statusFilterRaw
       : '';
 
-    const snapshot = await joinRequestsCollection
-      .where('applicantUid', '==', auth.uid)
-      .limit(300)
-      .get();
+    let snapshot: QuerySnapshot<DocumentData>;
+    try {
+      let query = joinRequestsCollection
+        .where('applicantUid', '==', auth.uid)
+        .orderBy('createdAt', 'desc')
+        .limit(300);
+      if (statusFilter.length > 0) {
+        query = query.where('status', '==', statusFilter);
+      }
+      snapshot = await query.get();
+    } catch (error) {
+      if (!isMissingCompositeIndexError(error)) {
+        throw error;
+      }
+      snapshot = await joinRequestsCollection
+        .where('applicantUid', '==', auth.uid)
+        .limit(300)
+        .get();
+    }
     const clanIds = Array.from(new Set(snapshot.docs
       .map((doc) => stringOrNull((doc.data() as JoinRequestRecord).clanId) ?? '')
       .filter((clanId) => clanId.length > 0)));
@@ -342,7 +376,6 @@ export const listMyJoinRequests = onCall(
         };
       })
       .filter((entry) => entry.clanId.length > 0)
-      .filter((entry) => statusFilter.length == 0 || entry.status === statusFilter)
       .sort((left, right) => (right.submittedAtEpochMs ?? 0) - (left.submittedAtEpochMs ?? 0));
 
     return { requests };
@@ -603,29 +636,37 @@ export const detectDuplicateGenealogy = onCall(
     const leaderName = normalizeSearch(requireNonEmptyString(request.data, 'leaderName'));
     const provinceCity = normalizeSearch(requireNonEmptyString(request.data, 'provinceCity'));
 
-    // First do a targeted query on normalised name to catch direct matches
-    // that might be beyond the general scan window.
-    const nameTargetedSnapshot = await discoveryCollection
-      .where('isPublic', '==', true)
-      .where('genealogyNameNormalized', '==', genealogyName)
-      .limit(30)
-      .get();
-
-    const seenIds = new Set<string>();
-    const allDocs: Array<typeof nameTargetedSnapshot.docs[0]> = [];
-    for (const doc of nameTargetedSnapshot.docs) {
-      seenIds.add(doc.id);
-      allDocs.push(doc);
+    const candidateDocsById = new Map<string, QueryDocumentSnapshot<DocumentData>>();
+    const candidateQueries = [
+      discoveryCollection
+        .where('isPublic', '==', true)
+        .where('genealogyNameNormalized', '==', genealogyName)
+        .limit(80),
+      discoveryCollection
+        .where('isPublic', '==', true)
+        .where('leaderNameNormalized', '==', leaderName)
+        .limit(80),
+      discoveryCollection
+        .where('isPublic', '==', true)
+        .where('provinceCityNormalized', '==', provinceCity)
+        .limit(80),
+    ];
+    for (const candidateQuery of candidateQueries) {
+      for (const doc of await executeDiscoveryCandidateQuery(candidateQuery)) {
+        candidateDocsById.set(doc.id, doc);
+      }
     }
-
-    const snapshot = await discoveryCollection.where('isPublic', '==', true).limit(500).get();
-    for (const doc of snapshot.docs) {
-      if (!seenIds.has(doc.id)) {
-        allDocs.push(doc);
+    if (candidateDocsById.size < 40) {
+      const fallbackSnapshot = await discoveryCollection
+        .where('isPublic', '==', true)
+        .limit(120)
+        .get();
+      for (const doc of fallbackSnapshot.docs) {
+        candidateDocsById.set(doc.id, doc);
       }
     }
 
-    const candidates = allDocs
+    const candidates = [...candidateDocsById.values()]
       .map((doc) => ({ id: doc.id, ...(doc.data() as DiscoveryRecord) }))
       .map((entry) => ({
         entry,
@@ -1335,6 +1376,29 @@ function overlapTokenScore(left: string, right: string, maxScore: number): numbe
   const denominator = Math.max(leftTokens.size, rightTokens.size);
   const ratio = overlap / denominator;
   return Math.round(ratio * maxScore);
+}
+
+async function executeDiscoveryCandidateQuery(
+  query: Query<DocumentData>,
+): Promise<Array<QueryDocumentSnapshot<DocumentData>>> {
+  try {
+    const snapshot = await query.get();
+    return snapshot.docs;
+  } catch (error) {
+    if (isMissingCompositeIndexError(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+function isMissingCompositeIndexError(error: unknown): boolean {
+  if (error == null || typeof error !== 'object') {
+    return false;
+  }
+  const code = String((error as { code?: unknown }).code ?? '').toLowerCase();
+  const message = String((error as { message?: unknown }).message ?? '').toLowerCase();
+  return code.includes('failed-precondition') && message.includes('index');
 }
 
 function normalizeSearch(value: string | null): string {

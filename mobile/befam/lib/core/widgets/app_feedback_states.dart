@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_loading_skeletons.dart';
+
 class AppLoadingState extends StatelessWidget {
   const AppLoadingState({
     super.key,
@@ -15,6 +17,7 @@ class AppLoadingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Center(
       child: Padding(
@@ -26,19 +29,40 @@ class AppLoadingState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.8,
-                  color: colorScheme.primary,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    AppSkeletonBox(width: 210, height: 16),
+                    SizedBox(height: 10),
+                    AppSkeletonBox(width: 260, height: 14),
+                    SizedBox(height: 8),
+                    AppSkeletonBox(width: 180, height: 14),
+                  ],
                 ),
               ),
-              const SizedBox(height: 14),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
+              const SizedBox(height: 16),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      message,
+                      textAlign: TextAlign.center,
+                      style: textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   FieldValue,
   type Transaction,
@@ -13,6 +15,7 @@ import {
   resolvePlanByMemberCount,
 } from '../billing/pricing';
 import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from '../config/runtime';
+import { notifyMembers } from '../notifications/push-delivery';
 import { requireAuth } from '../shared/errors';
 import { db } from '../shared/firestore';
 import { logWarn } from '../shared/logger';
@@ -25,6 +28,10 @@ import {
 const membersCollection = db.collection('members');
 const branchesCollection = db.collection('branches');
 const clansCollection = db.collection('clans');
+const nearbyRelativeAlertsCollection = db.collection('nearbyRelativeAlerts');
+const NEARBY_ALERT_THROTTLE_MS = 15 * 60 * 1000;
+const MAX_NEARBY_ALERT_RELATIVE_IDS = 5;
+const MAX_NEARBY_ALERT_NAMES = 3;
 
 const CLAN_MEMBER_MANAGER_ROLES = new Set([
   'SUPER_ADMIN',
@@ -59,6 +66,13 @@ type CreateClanMemberInput = {
   primaryRole: string;
   status: string;
   isMinor: boolean;
+};
+
+type NotifyNearbyRelativesInput = {
+  clanId: string;
+  memberId: string;
+  relativeMemberIds: Array<string>;
+  closestDistanceKm: number | null;
 };
 
 type MemberCreateTransactionResult = {
@@ -150,6 +164,172 @@ export const createClanMember = onCall(APP_CHECK_CALLABLE_OPTIONS, async (reques
     maxMembersAllowed: created.maxMembersAllowed,
   };
 });
+
+export const notifyNearbyRelativesDetected = onCall(
+  APP_CHECK_CALLABLE_OPTIONS,
+  async (request) => {
+    const auth = requireAuth(request);
+    ensureClaimedSession(auth.token);
+
+    const input = parseNotifyNearbyRelativesInput(auth.token, request.data);
+    if (input.relativeMemberIds.length === 0) {
+      return {
+        queued: false,
+        reason: 'no_relative_member_ids',
+      };
+    }
+
+    const viewerSnapshot = await membersCollection.doc(input.memberId).get();
+    const viewerData = asRecord(viewerSnapshot.data());
+    if (!viewerSnapshot.exists || viewerData == null) {
+      throw new HttpsError('not-found', 'Active member was not found.');
+    }
+    if (normalizeString(viewerData.clanId) != input.clanId) {
+      throw new HttpsError(
+        'permission-denied',
+        'Member does not belong to the active clan context.',
+      );
+    }
+    const memberAuthUid = normalizeString(viewerData.authUid);
+    if (memberAuthUid.length > 0 && memberAuthUid != auth.uid) {
+      throw new HttpsError(
+        'permission-denied',
+        'Member does not belong to this signed-in user.',
+      );
+    }
+
+    const relativeSnapshots = await Promise.all(
+      input.relativeMemberIds.map((memberId) => membersCollection.doc(memberId).get()),
+    );
+    const relativeCandidates = relativeSnapshots
+      .map((snapshot) => {
+        const data = asRecord(snapshot.data());
+        if (!snapshot.exists || data == null) {
+          return null;
+        }
+        if (normalizeString(data.clanId) != input.clanId) {
+          return null;
+        }
+        if (!isActiveMemberStatus(data.status)) {
+          return null;
+        }
+        const fullName = normalizeString(data.fullName);
+        const nickName = normalizeString(data.nickName);
+        const displayName = fullName || nickName || snapshot.id;
+        if (displayName.length == 0) {
+          return null;
+        }
+        return {
+          memberId: snapshot.id,
+          displayName,
+        };
+      })
+      .filter(
+        (
+          entry,
+        ): entry is {
+          memberId: string;
+          displayName: string;
+        } => entry != null,
+      );
+
+    if (relativeCandidates.length == 0) {
+      return {
+        queued: false,
+        reason: 'no_valid_relatives',
+      };
+    }
+
+    const relativeIds = relativeCandidates.map((candidate) => candidate.memberId);
+    const dedupeHash = createHash('sha256')
+      .update(`${input.clanId}|${input.memberId}|${relativeIds.join(',')}`)
+      .digest('hex')
+      .slice(0, 32);
+    const dedupeRef = nearbyRelativeAlertsCollection.doc(`${input.memberId}_${dedupeHash}`);
+    const nowMs = Date.now();
+    const shouldQueue = await db.runTransaction(async (transaction) => {
+      const stateSnapshot = await transaction.get(dedupeRef);
+      const state = asRecord(stateSnapshot.data());
+      const lastAlertAtMs = readPositiveInt(state?.lastAlertAtMs, 0);
+      if (lastAlertAtMs > 0 && nowMs - lastAlertAtMs < NEARBY_ALERT_THROTTLE_MS) {
+        return false;
+      }
+      transaction.set(
+        dedupeRef,
+        {
+          id: dedupeRef.id,
+          clanId: input.clanId,
+          memberId: input.memberId,
+          relativeMemberIds: relativeIds,
+          lastAlertAtMs: nowMs,
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: auth.uid,
+          createdAt: FieldValue.serverTimestamp(),
+          createdBy: auth.uid,
+        },
+        { merge: true },
+      );
+      return true;
+    });
+    if (!shouldQueue) {
+      return {
+        queued: false,
+        reason: 'throttled',
+      };
+    }
+
+    const leadNames = relativeCandidates
+      .map((candidate) => candidate.displayName)
+      .slice(0, MAX_NEARBY_ALERT_NAMES);
+    const extraCount = Math.max(0, relativeCandidates.length - leadNames.length);
+    const namesVi = extraCount > 0
+      ? `${leadNames.join(', ')} và ${extraCount} người thân khác`
+      : leadNames.join(', ');
+    const namesEn = extraCount > 0
+      ? `${leadNames.join(', ')} and ${extraCount} other relatives`
+      : leadNames.join(', ');
+    const distanceVi = formatNearbyDistanceKm(input.closestDistanceKm, 'vi');
+    const distanceEn = formatNearbyDistanceKm(input.closestDistanceKm, 'en');
+    const bodyVi = distanceVi == null
+      ? `${namesVi} đang ở gần bạn.`
+      : `${namesVi} đang ở cách bạn khoảng ${distanceVi}.`;
+    const bodyEn = distanceEn == null
+      ? `${namesEn} are nearby.`
+      : `${namesEn} are about ${distanceEn} away from you.`;
+
+    await notifyMembers({
+      clanId: input.clanId,
+      memberIds: [input.memberId],
+      type: 'system_nearby_relatives',
+      title: 'Relatives nearby',
+      body: bodyEn,
+      pushChannel: true,
+      emailChannel: false,
+      localized: {
+        vi: {
+          title: 'Người thân ở gần bạn',
+          body: bodyVi,
+        },
+        en: {
+          title: 'Relatives nearby',
+          body: bodyEn,
+        },
+      },
+      target: 'generic',
+      targetId: `nearby_relatives_${input.memberId}_${nowMs}`,
+      extraData: {
+        feature: 'nearby_relatives',
+        relativeCount: `${relativeIds.length}`,
+        relativeMemberIds: relativeIds.join(','),
+      },
+    });
+
+    return {
+      queued: true,
+      relativeCount: relativeIds.length,
+    };
+  },
+);
 
 async function createMemberInTransaction({
   transaction,
@@ -460,6 +640,43 @@ function parseCreateClanMemberInput(token: AuthToken, data: unknown): CreateClan
     primaryRole: normalizeString(payload.primaryRole) || 'MEMBER',
     status: normalizeString(payload.status) || 'active',
     isMinor: Boolean(payload.isMinor),
+  };
+}
+
+function parseNotifyNearbyRelativesInput(
+  token: AuthToken,
+  data: unknown,
+): NotifyNearbyRelativesInput {
+  const payload = asRecord(data);
+  if (payload == null) {
+    throw new HttpsError('invalid-argument', 'Payload is required.');
+  }
+  const clanId = resolveClanId(token, normalizeString(payload.clanId));
+  const memberId = normalizeString(payload.memberId);
+  if (memberId.length == 0) {
+    throw new HttpsError('invalid-argument', 'memberId is required.');
+  }
+
+  const activeMemberId = normalizeString(token.memberId);
+  if (activeMemberId.length == 0 || activeMemberId != memberId) {
+    throw new HttpsError(
+      'permission-denied',
+      'This session cannot send nearby alerts for another member.',
+    );
+  }
+
+  const relativeMemberIds = [...new Set(
+    normalizeStringList(payload.relativeMemberIds)
+      .filter((candidateId) => candidateId != memberId),
+  )].slice(0, MAX_NEARBY_ALERT_RELATIVE_IDS);
+
+  const closestDistanceKm = readNullablePositiveNumber(payload.closestDistanceKm);
+
+  return {
+    clanId,
+    memberId,
+    relativeMemberIds,
+    closestDistanceKm,
   };
 }
 
@@ -1018,4 +1235,30 @@ function readPositiveInt(value: unknown, fallback: number): number {
 function readNullablePositiveInt(value: unknown): number | null {
   const normalized = readPositiveInt(value, 0);
   return normalized > 0 ? normalized : null;
+}
+
+function readNullablePositiveNumber(value: unknown): number | null {
+  if (typeof value == 'number' && Number.isFinite(value)) {
+    return value > 0 ? value : null;
+  }
+  if (typeof value == 'string') {
+    const parsed = Number.parseFloat(value.trim());
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function formatNearbyDistanceKm(
+  distanceKm: number | null,
+  languageCode: 'vi' | 'en',
+): string | null {
+  if (distanceKm == null || !Number.isFinite(distanceKm) || distanceKm <= 0) {
+    return null;
+  }
+  const normalizedDistance = Math.max(0.1, Math.min(distanceKm, 999));
+  const decimals = normalizedDistance < 10 ? 1 : 0;
+  const formatted = normalizedDistance.toFixed(decimals);
+  return languageCode == 'vi' ? `${formatted} km` : `${formatted} km`;
 }

@@ -8,6 +8,7 @@ type TransactionRecord = {
   fundId?: string | null;
   transactionType?: string | null;
   amountMinor?: number | null;
+  balanceApplied?: boolean | null;
 };
 
 type FundRecord = {
@@ -39,6 +40,10 @@ type RecalculationResult = {
 export async function recalculateFundBalanceFromTransaction(
   input: RecalculationInput,
 ): Promise<RecalculationResult> {
+  if (input.transaction.balanceApplied === true) {
+    return { recalculated: false, reason: 'already_applied' };
+  }
+
   const clanId = normalizeId(input.transaction.clanId);
   const fundId = normalizeId(input.transaction.fundId);
   if (clanId == null || fundId == null) {
@@ -64,41 +69,79 @@ export async function recalculateFundBalanceFromTransaction(
   }
 
   const fundRef = db.collection('funds').doc(fundId);
-  const fundSnapshot = await fundRef.get();
-  if (!fundSnapshot.exists) {
-    logWarn('fund balance update skipped because fund is missing', {
-      source: input.source,
-      transactionId: input.transactionId,
-      fundId,
-      clanId,
-    });
-    return { recalculated: false, reason: 'fund_not_found', clanId, fundId };
-  }
+  const transactionRef = db.collection('transactions').doc(input.transactionId);
+  const result = await db.runTransaction(async (transaction) => {
+    const [fundSnapshot, transactionSnapshot] = await Promise.all([
+      transaction.get(fundRef),
+      transaction.get(transactionRef),
+    ]);
+    if (!fundSnapshot.exists) {
+      return { recalculated: false, reason: 'fund_not_found' as const };
+    }
+    if (!transactionSnapshot.exists) {
+      return { recalculated: false, reason: 'transaction_not_found' as const };
+    }
 
-  const fund = (fundSnapshot.data() ?? {}) as FundRecord;
-  const fundClanId = normalizeId(fund.clanId);
-  if (fundClanId != null && fundClanId !== clanId) {
-    logWarn('fund balance update skipped due to clan mismatch', {
-      source: input.source,
-      transactionId: input.transactionId,
-      transactionClanId: clanId,
-      fundClanId,
-      fundId,
-    });
-    return { recalculated: false, reason: 'clan_mismatch', clanId, fundId };
-  }
+    const currentTransaction = (transactionSnapshot.data() ?? {}) as TransactionRecord;
+    if (currentTransaction.balanceApplied === true) {
+      return { recalculated: false, reason: 'already_applied' as const };
+    }
 
-  await fundRef.set(
-    {
-      balanceMinor: FieldValue.increment(delta),
-      transactionCount: FieldValue.increment(1),
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: input.source,
-      lastRecalculatedAt: FieldValue.serverTimestamp(),
-      lastRecalculatedBy: input.source,
-    },
-    { merge: true },
-  );
+    const fund = (fundSnapshot.data() ?? {}) as FundRecord;
+    const fundClanId = normalizeId(fund.clanId);
+    if (fundClanId != null && fundClanId !== clanId) {
+      return { recalculated: false, reason: 'clan_mismatch' as const };
+    }
+
+    transaction.set(
+      fundRef,
+      {
+        balanceMinor: FieldValue.increment(delta),
+        transactionCount: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: input.source,
+        lastRecalculatedAt: FieldValue.serverTimestamp(),
+        lastRecalculatedBy: input.source,
+      },
+      { merge: true },
+    );
+    transaction.set(
+      transactionRef,
+      {
+        balanceApplied: true,
+        balanceAppliedAt: FieldValue.serverTimestamp(),
+        balanceAppliedBy: input.source,
+      },
+      { merge: true },
+    );
+
+    return { recalculated: true as const };
+  });
+  if (!result.recalculated) {
+    if (result.reason === 'fund_not_found') {
+      logWarn('fund balance update skipped because fund is missing', {
+        source: input.source,
+        transactionId: input.transactionId,
+        fundId,
+        clanId,
+      });
+    } else if (result.reason === 'clan_mismatch') {
+      logWarn('fund balance update skipped due to clan mismatch', {
+        source: input.source,
+        transactionId: input.transactionId,
+        transactionClanId: clanId,
+        fundId,
+      });
+    } else if (result.reason === 'transaction_not_found') {
+      logWarn('fund balance update skipped because transaction is missing', {
+        source: input.source,
+        transactionId: input.transactionId,
+        fundId,
+        clanId,
+      });
+    }
+    return { recalculated: false, reason: result.reason, clanId, fundId };
+  }
 
   logInfo('fund balance incremented', {
     source: input.source,

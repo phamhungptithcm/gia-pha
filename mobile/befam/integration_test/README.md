@@ -33,7 +33,8 @@ Case registry source:
 ## Run locally
 
 ```bash
-./scripts/run_mobile_e2e.sh debug ios
+./scripts/run_mobile_e2e.sh debug android smoke
+./scripts/run_mobile_e2e.sh debug ios full
 ```
 
 Optional live Firebase run (manual trigger):
@@ -41,17 +42,19 @@ Optional live Firebase run (manual trigger):
 ```bash
 BEFAM_E2E_TEST_PHONE="+84901234567" \
 BEFAM_E2E_TEST_OTP="123456" \
-./scripts/run_mobile_e2e.sh live ios
+./scripts/run_mobile_e2e.sh live ios full
 ```
 
 Generated artifacts (per platform/mode):
 
-- `mobile/befam/artifacts/e2e-<mode>-<platform>-machine.jsonl`
-- `mobile/befam/artifacts/release-execution-<mode>-<platform>.csv`
-- `mobile/befam/artifacts/release-dashboard-<mode>-<platform>.csv`
-- `mobile/befam/artifacts/e2e-report-<mode>-<platform>.md`
+- `mobile/befam/artifacts/e2e-<mode>-<platform>-<suite>-machine.jsonl`
+- `mobile/befam/artifacts/release-execution-<mode>-<platform>-<suite>.csv`
+- `mobile/befam/artifacts/release-dashboard-<mode>-<platform>-<suite>.csv`
+- `mobile/befam/artifacts/e2e-report-<mode>-<platform>-<suite>.md`
 
 ## CI
 
-- Branch CI job `ci-mobile` runs smoke E2E cases.
-- Workflow `.github/workflows/mobile-e2e.yml` also runs smoke E2E on PR/manual.
+- Branch CI job `ci-mobile` runs smoke E2E contract checks.
+- Workflow `.github/workflows/mobile-e2e.yml` behavior:
+  - Pull request: runs `debug + android + smoke` by default for fast feedback.
+  - Manual trigger: allows choosing `mode`, `platform`, `suite`.

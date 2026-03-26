@@ -51,15 +51,14 @@ class FirebaseEventRepository implements EventRepository {
       );
     }
 
-    final results = await Future.wait<
-      List<QueryDocumentSnapshot<Map<String, dynamic>>>
-    >([
-      _fetchPagedDocuments(
-        _events.where('clanId', isEqualTo: clanId).orderBy('startsAt'),
-      ),
-      _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
-      _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
-    ]);
+    final results =
+        await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
+          _fetchPagedDocuments(
+            _events.where('clanId', isEqualTo: clanId).orderBy('startsAt'),
+          ),
+          _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
+          _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
+        ]);
 
     final events = results[0]
         .map((doc) => EventRecord.fromJson(doc.data()))
@@ -81,7 +80,41 @@ class FirebaseEventRepository implements EventRepository {
     );
   }
 
-  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchPagedDocuments(
+  @override
+  Future<List<EventRecord>> loadUpcomingEvents({
+    required AuthSession session,
+    int limit = 80,
+  }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
+    final clanId = (session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
+      return const <EventRecord>[];
+    }
+    final safeLimit = limit.clamp(1, 200);
+    final now = DateTime.now().toUtc();
+    final anchor = Timestamp.fromDate(now.subtract(const Duration(days: 1)));
+
+    final snapshot = await _events
+        .where('clanId', isEqualTo: clanId)
+        .where('startsAt', isGreaterThanOrEqualTo: anchor)
+        .orderBy('startsAt')
+        .limit(safeLimit)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => EventRecord.fromJson(doc.data()))
+        .where((event) => !event.startsAt.isBefore(now))
+        .sortedBy((event) => event.startsAt)
+        .take(safeLimit)
+        .toList(growable: false);
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _fetchPagedDocuments(
     Query<Map<String, dynamic>> baseQuery, {
     int pageSize = 250,
     int maxDocuments = 2000,

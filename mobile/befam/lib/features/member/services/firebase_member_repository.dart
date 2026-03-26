@@ -541,6 +541,41 @@ class FirebaseMemberRepository implements MemberRepository {
     }, SetOptions(merge: true));
   }
 
+  @override
+  Future<void> notifyNearbyRelativesDetected({
+    required AuthSession session,
+    required String clanId,
+    required String memberId,
+    required List<String> relativeMemberIds,
+    double? closestDistanceKm,
+  }) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
+    final normalizedClanId = clanId.trim();
+    final normalizedMemberId = memberId.trim();
+    final normalizedRelativeIds = relativeMemberIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty && id != normalizedMemberId)
+        .toSet()
+        .toList(growable: false);
+    if (normalizedClanId.isEmpty ||
+        normalizedMemberId.isEmpty ||
+        normalizedRelativeIds.isEmpty) {
+      return;
+    }
+
+    final callable = _functions.httpsCallable('notifyNearbyRelativesDetected');
+    await callable.call(<String, dynamic>{
+      'clanId': normalizedClanId,
+      'memberId': normalizedMemberId,
+      'relativeMemberIds': normalizedRelativeIds,
+      'closestDistanceKm': closestDistanceKm,
+    });
+  }
+
   Future<void> _ensureUniquePhone({
     required String clanId,
     required String? phoneE164,
@@ -566,7 +601,6 @@ class FirebaseMemberRepository implements MemberRepository {
         );
       }
     }
-
   }
 
   Future<void> _syncBranchCount(

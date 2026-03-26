@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_loading_skeletons.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/notification_inbox_item.dart';
@@ -205,12 +206,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     if (_isLoading) {
-      return AppLoadingState(
-        message: l10n.pick(
-          vi: 'Đang tải hộp thư thông báo...',
-          en: 'Loading notifications...',
-        ),
-      );
+      return const _NotificationInboxLoadingSkeleton();
     }
 
     if (!_hasMemberContext) {
@@ -294,6 +290,30 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _NotificationInboxLoadingSkeleton extends StatelessWidget {
+  const _NotificationInboxLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      children: const [
+        AppSkeletonBox(
+          height: 156,
+          borderRadius: BorderRadius.all(Radius.circular(24)),
+        ),
+        SizedBox(height: 20),
+        AppSkeletonBox(height: 132),
+        SizedBox(height: 12),
+        AppSkeletonBox(height: 132),
+        SizedBox(height: 12),
+        AppSkeletonBox(height: 132),
+      ],
     );
   }
 }

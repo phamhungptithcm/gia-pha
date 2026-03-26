@@ -31,7 +31,10 @@ import {
   createParentChildRelationship,
   createSpouseRelationship,
 } from './genealogy/callables';
-import { createClanMember } from './members/callables';
+import {
+  createClanMember,
+  notifyNearbyRelativesDetected,
+} from './members/callables';
 import { onMemberDeathDateChanged } from './members/memorial-ritual-triggers';
 import {
   cancelJoinRequest,
@@ -90,6 +93,7 @@ export {
   createSpouseRelationship,
   createInvite,
   createClanMember,
+  notifyNearbyRelativesDetected,
   requestOtpChallenge,
   disburseScholarshipSubmissionFromFund,
   detectDuplicateGenealogy,

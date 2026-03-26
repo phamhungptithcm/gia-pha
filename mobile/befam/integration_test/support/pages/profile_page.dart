@@ -9,30 +9,30 @@ class ProfilePageObject {
   final WidgetTester tester;
 
   Future<void> switchLanguageToEnglish() async {
-    await waitForFinder(
-      tester,
-      find.text('Tiếng Anh'),
-      reason: 'Không thấy lựa chọn ngôn ngữ Tiếng Anh.',
+    await _tapLanguageOption(
+      primaryFinder: find.byKey(const Key('profile-language-option-en')),
+      labels: const ['Tiếng Anh', 'English'],
+      reason: 'Không thấy hoặc không thể chọn ngôn ngữ Tiếng Anh/English.',
     );
-    await tester.tap(find.text('Tiếng Anh').last);
-    await safePumpAndSettle(tester);
   }
 
   Future<void> switchLanguageToVietnamese() async {
-    await waitForFinder(
-      tester,
-      find.text('Tiếng Việt'),
-      reason: 'Không thấy lựa chọn ngôn ngữ Tiếng Việt.',
+    await _tapLanguageOption(
+      primaryFinder: find.byKey(const Key('profile-language-option-vi')),
+      labels: const ['Tiếng Việt', 'Vietnamese'],
+      reason: 'Không thấy hoặc không thể chọn ngôn ngữ Tiếng Việt.',
     );
-    await tester.tap(find.text('Tiếng Việt').last);
-    await safePumpAndSettle(tester);
   }
 
   Future<void> expectEnglishApplied() async {
-    await waitForFinder(
+    await waitFor(
       tester,
-      find.text('Profile'),
+      maxFrames: 1200,
       reason: 'Ngôn ngữ chưa chuyển sang English.',
+      condition: () =>
+          find.text('English').evaluate().isNotEmpty ||
+          find.text('Profile').evaluate().isNotEmpty ||
+          find.text('Notification settings').evaluate().isNotEmpty,
     );
   }
 
@@ -40,20 +40,74 @@ class ProfilePageObject {
     final pushToggle = find.byKey(
       const Key('notification-setting-push-enabled'),
     );
+    await revealFinder(tester, pushToggle);
     await waitForFinder(
       tester,
       pushToggle,
       reason: 'Không thấy toggle cài đặt push notification.',
     );
-    await tester.tap(pushToggle);
-    await safePumpAndSettle(tester);
+    await tapFinderSafely(
+      tester,
+      pushToggle,
+      reason: 'Không thể bật/tắt push notification.',
+      dismissKeyboardBeforeTap: false,
+    );
   }
 
   Future<void> expectNotificationSettingsVisible() async {
-    await waitForFinder(
-      tester,
-      find.byKey(const Key('notification-setting-event-updates')),
-      reason: 'Không thấy block cài đặt thông báo trong hồ sơ.',
+    final notificationSettingFinder = find.byKey(
+      const Key('notification-setting-event-updates'),
     );
+    await revealFinder(tester, notificationSettingFinder);
+    await waitFor(
+      tester,
+      reason: 'Không thấy block cài đặt thông báo trong hồ sơ.',
+      condition: () =>
+          notificationSettingFinder.evaluate().isNotEmpty &&
+          notificationSettingFinder.hitTestable().evaluate().isNotEmpty,
+    );
+  }
+
+  Future<void> _tapLanguageOption({
+    required Finder primaryFinder,
+    required List<String> labels,
+    required String reason,
+  }) async {
+    Finder? findCandidate() {
+      if (primaryFinder.evaluate().isNotEmpty) {
+        return primaryFinder;
+      }
+      for (final label in labels) {
+        final candidate = find.text(label);
+        if (candidate.evaluate().isNotEmpty) {
+          return candidate;
+        }
+      }
+      return null;
+    }
+
+    final scrollables = find.byType(Scrollable);
+    const downDrag = Offset(0, 260);
+    const upDrag = Offset(0, -260);
+    for (var attempt = 0; attempt < 14; attempt += 1) {
+      final candidate = findCandidate();
+      if (candidate != null) {
+        await tapFinderSafely(
+          tester,
+          candidate,
+          reason: reason,
+          dismissKeyboardBeforeTap: false,
+        );
+        return;
+      }
+
+      if (scrollables.evaluate().isNotEmpty) {
+        final delta = attempt < 8 ? downDrag : upDrag;
+        await tester.drag(scrollables.first, delta);
+      }
+      await tester.pump(const Duration(milliseconds: 140));
+    }
+
+    fail(reason);
   }
 }

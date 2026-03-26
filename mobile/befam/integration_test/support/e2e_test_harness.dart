@@ -6,6 +6,7 @@ import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/auth/services/auth_analytics_service.dart';
 import 'package:befam/features/auth/services/auth_session_store.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -136,6 +137,82 @@ Future<void> waitForFinder(
   );
 }
 
+Future<void> dismissKeyboardIfVisible(WidgetTester tester) async {
+  final focus = FocusManager.instance.primaryFocus;
+  if (focus != null && focus.hasFocus) {
+    focus.unfocus();
+  }
+  try {
+    tester.testTextInput.hide();
+  } catch (_) {
+    // Ignore when a platform text input channel has not been registered.
+  }
+  try {
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+  } catch (_) {
+    // Ignore when text input channel is unavailable in this test frame.
+  }
+  await tester.pump(const Duration(milliseconds: 180));
+}
+
+Future<void> revealFinder(
+  WidgetTester tester,
+  Finder finder, {
+  int maxScrollAttempts = 16,
+}) async {
+  for (var attempt = 0; attempt < maxScrollAttempts; attempt += 1) {
+    if (finder.evaluate().isNotEmpty) {
+      try {
+        await tester.ensureVisible(finder.first);
+      } catch (_) {
+        // Keep trying with scroll gestures when direct ensureVisible is not enough.
+      }
+      await tester.pump(const Duration(milliseconds: 120));
+      if (finder.hitTestable().evaluate().isNotEmpty) {
+        return;
+      }
+    }
+
+    final scrollables = find.byType(Scrollable);
+    if (scrollables.evaluate().isEmpty) {
+      await tester.pump(const Duration(milliseconds: 120));
+      continue;
+    }
+    await tester.drag(scrollables.first, const Offset(0, -220));
+    await tester.pump(const Duration(milliseconds: 120));
+  }
+}
+
+Future<void> tapFinderSafely(
+  WidgetTester tester,
+  Finder finder, {
+  String? reason,
+  bool dismissKeyboardBeforeTap = true,
+  bool preferLast = false,
+}) async {
+  await waitForFinder(
+    tester,
+    finder,
+    reason: reason ?? 'Không tìm thấy widget cần thao tác tap.',
+  );
+  if (dismissKeyboardBeforeTap) {
+    await dismissKeyboardIfVisible(tester);
+  }
+  await revealFinder(tester, finder);
+  await waitFor(
+    tester,
+    maxFrames: 360,
+    reason:
+        reason ?? 'Widget đã xuất hiện nhưng chưa ở trạng thái có thể chạm.',
+    condition: () =>
+        finder.evaluate().isNotEmpty &&
+        finder.hitTestable().evaluate().isNotEmpty,
+  );
+  final hitTestable = finder.hitTestable();
+  await tester.tap(preferLast ? hitTestable.last : hitTestable.first);
+  await safePumpAndSettle(tester);
+}
+
 Future<Finder> waitForAnyFinder(
   WidgetTester tester,
   List<Finder> finders, {
@@ -185,6 +262,10 @@ Future<E2EAppContext> pumpE2EApp(
   Locale locale = const Locale('vi'),
 }) async {
   SharedPreferences.setMockInitialValues({});
+  // Ensure each scenario starts from a fresh tree/state; without this, a prior
+  // authenticated shell can persist across repeated pumpWidget calls.
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump(const Duration(milliseconds: 40));
   // Use the device's real pixel ratio so keyboard insets (reported in physical
   // pixels by the OS) are correctly converted to logical pixels. Setting
   // devicePixelRatio=1 on a 3x device would make a 900-physical-px keyboard
@@ -203,6 +284,7 @@ Future<E2EAppContext> pumpE2EApp(
 
   await tester.pumpWidget(
     BeFamApp(
+      key: UniqueKey(),
       status: e2eReadyStatus,
       authGateway: DebugAuthGateway(),
       authAnalyticsService: const NoopAuthAnalyticsService(),
@@ -231,32 +313,39 @@ Future<E2EAppContext> pumpE2EApp(
 }
 
 Future<void> acceptPrivacyPolicy(WidgetTester tester) async {
-  // Wait for the login screen to be ready before checking the checkbox. On a
-  // real device the app may still be restoring state when this is first called.
-  final keyedCheckboxFinder = find.byKey(const Key('auth-privacy-checkbox'));
-  await waitFor(
+  await waitForFinder(
     tester,
-    reason: 'Không tìm thấy ô đồng ý chính sách quyền riêng tư.',
-    condition: () =>
-        keyedCheckboxFinder.evaluate().isNotEmpty ||
-        find.byType(Checkbox).evaluate().isNotEmpty,
+    find.byKey(const Key('auth-method-phone-button')),
+    reason: 'Không tải được màn hình chọn phương thức đăng nhập.',
   );
+
+  final keyedCheckboxFinder = find.byKey(const Key('auth-privacy-checkbox'));
+  await revealFinder(tester, keyedCheckboxFinder);
+  final fallbackCheckboxFinder = find.byType(Checkbox);
+  if (keyedCheckboxFinder.evaluate().isEmpty) {
+    await revealFinder(tester, fallbackCheckboxFinder);
+  }
 
   final checkboxFinder = keyedCheckboxFinder.evaluate().isNotEmpty
       ? keyedCheckboxFinder
-      : find.byType(Checkbox);
-  if (checkboxFinder.evaluate().isEmpty) {
-    return;
-  }
+      : fallbackCheckboxFinder;
+  await waitForFinder(
+    tester,
+    checkboxFinder,
+    reason: 'Không tìm thấy ô đồng ý chính sách quyền riêng tư.',
+  );
 
   final checkbox = tester.widget<Checkbox>(checkboxFinder.first);
   if (checkbox.value == true) {
     return;
   }
 
-  await tester.ensureVisible(checkboxFinder.first);
-  await tester.tap(checkboxFinder.first);
-  await safePumpAndSettle(tester);
+  await tapFinderSafely(
+    tester,
+    checkboxFinder,
+    reason: 'Không thể thao tác ô đồng ý chính sách quyền riêng tư.',
+    dismissKeyboardBeforeTap: false,
+  );
   await waitFor(
     tester,
     reason: 'Không thể bật đồng ý chính sách quyền riêng tư.',
@@ -286,9 +375,11 @@ Future<void> loginWithPhone(
     reason: 'Nút đăng nhập bằng số điện thoại vẫn đang bị khóa.',
     condition: () => _isFinderEnabledButton(tester, phoneMethodFinder),
   );
-  await tester.ensureVisible(phoneMethodFinder.first);
-  await tester.tap(phoneMethodFinder.first);
-  await safePumpAndSettle(tester);
+  await tapFinderSafely(
+    tester,
+    phoneMethodFinder,
+    reason: 'Không thể bấm nút đăng nhập bằng số điện thoại.',
+  );
 
   final phoneInputFinder = find.byKey(const Key('auth-phone-input'));
   await waitForFinder(
@@ -298,6 +389,7 @@ Future<void> loginWithPhone(
   );
   await tester.enterText(phoneInputFinder.first, phoneInput);
   await safePumpAndSettle(tester);
+  await dismissKeyboardIfVisible(tester);
 
   final sendOtpButton = await waitForFinderOrOtpOrShell(
     tester,
@@ -315,9 +407,11 @@ Future<void> loginWithPhone(
     );
     if (!_isOtpOrShellVisible(tester) &&
         _isFinderEnabledButton(tester, sendOtpButton)) {
-      await tester.ensureVisible(sendOtpButton.first);
-      await tester.tap(sendOtpButton.first);
-      await safePumpAndSettle(tester);
+      await tapFinderSafely(
+        tester,
+        sendOtpButton,
+        reason: 'Không thể bấm nút gửi OTP.',
+      );
     }
   }
 
@@ -361,9 +455,11 @@ Future<void> loginWithChildCode(
     reason: 'Nút đăng nhập bằng mã trẻ em vẫn đang bị khóa.',
     condition: () => _isFinderEnabledButton(tester, childMethodFinder),
   );
-  await tester.ensureVisible(childMethodFinder.first);
-  await tester.tap(childMethodFinder.first);
-  await safePumpAndSettle(tester);
+  await tapFinderSafely(
+    tester,
+    childMethodFinder,
+    reason: 'Không thể bấm nút đăng nhập bằng mã trẻ em.',
+  );
 
   final childInputFinder = find.byKey(const Key('auth-child-code-input'));
   await waitForFinder(
@@ -373,6 +469,7 @@ Future<void> loginWithChildCode(
   );
   await tester.enterText(childInputFinder.first, childCode);
   await safePumpAndSettle(tester);
+  await dismissKeyboardIfVisible(tester);
 
   final continueButton = await waitForFinderOrOtpOrShell(
     tester,
@@ -390,9 +487,11 @@ Future<void> loginWithChildCode(
     );
     if (!_isOtpOrShellVisible(tester) &&
         _isFinderEnabledButton(tester, continueButton)) {
-      await tester.ensureVisible(continueButton.first);
-      await tester.tap(continueButton.first);
-      await safePumpAndSettle(tester);
+      await tapFinderSafely(
+        tester,
+        continueButton,
+        reason: 'Không thể bấm nút Tiếp tục.',
+      );
     }
   }
 
@@ -439,43 +538,46 @@ bool _isButtonEnabled(Widget widget) {
 
 Future<void> openShortcut(WidgetTester tester, String shortcutId) async {
   final finder = find.byKey(Key(shortcutId));
-  await waitForFinder(
+  await tapFinderSafely(
     tester,
     finder,
     reason: 'Không tìm thấy shortcut "$shortcutId".',
+    dismissKeyboardBeforeTap: false,
   );
-  await tester.ensureVisible(finder);
-  await tester.tap(finder);
-  await safePumpAndSettle(tester);
 }
 
 Future<void> tapBottomNavigationLabel(WidgetTester tester, String label) async {
   final finder = find.text(label);
   if (finder.evaluate().isNotEmpty) {
-    await tester.tap(finder.last);
-    await safePumpAndSettle(tester);
+    await tapFinderSafely(
+      tester,
+      finder,
+      reason: 'Không thể bấm tab đáy "$label".',
+      dismissKeyboardBeforeTap: false,
+      preferLast: true,
+    );
     return;
   }
 
   final fallbackIconFinder = _navigationIconFallbackFinder(label);
   if (fallbackIconFinder != null) {
-    await waitForFinder(
+    await tapFinderSafely(
       tester,
       fallbackIconFinder,
-      reason: 'Không tìm thấy icon tab "$label".',
+      reason: 'Không thể bấm icon tab "$label".',
+      dismissKeyboardBeforeTap: false,
+      preferLast: true,
     );
-    await tester.tap(fallbackIconFinder.last);
-    await safePumpAndSettle(tester);
     return;
   }
 
-  await waitForFinder(
+  await tapFinderSafely(
     tester,
     finder,
     reason: 'Không tìm thấy tab đáy "$label".',
+    dismissKeyboardBeforeTap: false,
+    preferLast: true,
   );
-  await tester.tap(finder.last);
-  await safePumpAndSettle(tester);
 }
 
 Finder? _navigationIconFallbackFinder(String label) {
@@ -507,10 +609,13 @@ Future<void> tapBottomNavigationByIcons(
     if (finder.evaluate().isEmpty) {
       continue;
     }
-    final target = finder.last;
-    await tester.ensureVisible(target);
-    await tester.tap(target, warnIfMissed: false);
-    await safePumpAndSettle(tester);
+    await tapFinderSafely(
+      tester,
+      finder,
+      reason: 'Không thể bấm tab đáy theo icon $icon.',
+      dismissKeyboardBeforeTap: false,
+      preferLast: true,
+    );
     return;
   }
 
@@ -550,9 +655,12 @@ Future<void> tapText(
   bool useLast = true,
 }) async {
   final finder = find.text(text);
-  await waitForFinder(tester, finder, reason: 'Không tìm thấy text "$text".');
-  await tester.tap(useLast ? finder.last : finder.first);
-  await safePumpAndSettle(tester);
+  await tapFinderSafely(
+    tester,
+    finder,
+    reason: 'Không tìm thấy hoặc không thể bấm text "$text".',
+    preferLast: useLast,
+  );
 }
 
 Future<void> captureScreenshotSafe(

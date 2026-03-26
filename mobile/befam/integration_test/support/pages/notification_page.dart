@@ -15,7 +15,9 @@ class NotificationPageObject {
   final WidgetTester tester;
 
   Future<void> openInbox(AuthSession session) async {
-    final navigator = tester.state<NavigatorState>(find.byType(Navigator).first);
+    final navigator = tester.state<NavigatorState>(
+      find.byType(Navigator).first,
+    );
     navigator.push(
       MaterialPageRoute<void>(
         builder: (context) {
@@ -27,9 +29,12 @@ class NotificationPageObject {
                 NotificationInboxTarget.event => NotificationTargetType.event,
                 NotificationInboxTarget.scholarship =>
                   NotificationTargetType.scholarship,
-                NotificationInboxTarget.billing => NotificationTargetType.billing,
-                NotificationInboxTarget.generic => NotificationTargetType.unknown,
-                NotificationInboxTarget.unknown => NotificationTargetType.unknown,
+                NotificationInboxTarget.billing =>
+                  NotificationTargetType.billing,
+                NotificationInboxTarget.generic =>
+                  NotificationTargetType.unknown,
+                NotificationInboxTarget.unknown =>
+                  NotificationTargetType.unknown,
               };
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -59,12 +64,20 @@ class NotificationPageObject {
         find.byKey(const Key('notification-row-notif_demo_event_001')),
         reason: 'Không thấy item đầu tiên trong notification inbox.',
       );
-      await tester.tap(find.byKey(const Key('notification-row-notif_demo_event_001')));
-      await safePumpAndSettle(tester);
+      await tapFinderSafely(
+        tester,
+        find.byKey(const Key('notification-row-notif_demo_event_001')),
+        reason: 'Không thể mở notification item đầu tiên.',
+        dismissKeyboardBeforeTap: false,
+      );
       return;
     }
-    await tester.tap(firstOpenButton.first);
-    await safePumpAndSettle(tester);
+    await tapFinderSafely(
+      tester,
+      firstOpenButton,
+      reason: 'Không thể bấm nút mở notification đầu tiên.',
+      dismissKeyboardBeforeTap: false,
+    );
   }
 
   Future<void> expectEventDeepLinkTargetVisible() async {

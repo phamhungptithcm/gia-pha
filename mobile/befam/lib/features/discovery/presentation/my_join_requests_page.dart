@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/my_join_request_item.dart';
@@ -237,7 +238,12 @@ class _MyJoinRequestsPageState extends State<MyJoinRequestsPage> {
       ),
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? AppLoadingState(
+                message: l10n.pick(
+                  vi: 'Đang tải yêu cầu đã gửi...',
+                  en: 'Loading your requests...',
+                ),
+              )
             : RefreshIndicator(
                 onRefresh: _load,
                 child: ListView(

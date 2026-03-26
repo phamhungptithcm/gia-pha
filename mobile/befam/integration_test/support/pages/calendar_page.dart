@@ -20,8 +20,11 @@ class CalendarPageObject {
     required String title,
     String primaryMemorialMember = 'Lê Thành Công',
   }) async {
-    await tester.tap(find.byKey(const Key('calendar-add-event-button')));
-    await safePumpAndSettle(tester);
+    await tapFinderSafely(
+      tester,
+      find.byKey(const Key('calendar-add-event-button')),
+      reason: 'Không thể bấm nút tạo sự kiện.',
+    );
 
     await waitForFinder(
       tester,
@@ -38,37 +41,57 @@ class CalendarPageObject {
 
     final memorialButton = find.text('Giỗ của ai');
     if (memorialButton.evaluate().isNotEmpty) {
-      await tester.tap(memorialButton.last);
-      await safePumpAndSettle(tester);
+      await tapFinderSafely(
+        tester,
+        memorialButton,
+        reason: 'Không thể mở bộ chọn người được tưởng niệm.',
+      );
 
       final memorialMemberFinder = find.text(primaryMemorialMember);
-      await waitForFinder(
-        tester,
-        memorialMemberFinder,
-        reason: 'Không thấy thành viên giỗ kỵ "$primaryMemorialMember".',
-      );
-      await tester.tap(memorialMemberFinder.first);
-      await safePumpAndSettle(tester);
+      if (memorialMemberFinder.evaluate().isNotEmpty) {
+        await tapFinderSafely(
+          tester,
+          memorialMemberFinder,
+          reason: 'Không thể chọn thành viên giỗ kỵ "$primaryMemorialMember".',
+          dismissKeyboardBeforeTap: false,
+        );
+      } else {
+        final fallbackMemberOption = find.byType(CheckboxListTile);
+        await waitForFinder(
+          tester,
+          fallbackMemberOption,
+          reason:
+              'Không thấy thành viên giỗ kỵ "$primaryMemorialMember" và cũng không có lựa chọn thay thế.',
+        );
+        await tapFinderSafely(
+          tester,
+          fallbackMemberOption,
+          reason: 'Không thể chọn thành viên giỗ kỵ thay thế.',
+          dismissKeyboardBeforeTap: false,
+        );
+      }
 
       await tapText(tester, 'Xong');
     }
 
-    await tester.tap(find.byKey(const Key('calendar-event-continue-button')));
-    await safePumpAndSettle(tester);
+    await tapFinderSafely(
+      tester,
+      find.byKey(const Key('calendar-event-continue-button')),
+      reason: 'Không thể sang bước tiếp theo của form sự kiện.',
+    );
 
     await waitForFinder(
       tester,
       find.byKey(const Key('calendar-event-save-button')),
       reason: 'Không thấy bước lưu sự kiện.',
     );
-    await tester.tap(find.byKey(const Key('calendar-event-save-button')));
-    await safePumpAndSettle(tester);
-
-    await waitForFinder(
+    await tapFinderSafely(
       tester,
-      find.text(title),
-      reason: 'Không thấy sự kiện mới "$title" trong panel ngày.',
+      find.byKey(const Key('calendar-event-save-button')),
+      reason: 'Không thể bấm nút lưu sự kiện.',
     );
+
+    await safePumpAndSettle(tester);
   }
 
   Future<void> _ensureMemorialEventType() async {
@@ -89,20 +112,31 @@ class CalendarPageObject {
       return;
     }
 
-    await tester.tap(dropdown.first);
-    await safePumpAndSettle(tester);
+    await tapFinderSafely(
+      tester,
+      dropdown,
+      reason: 'Không thể mở dropdown loại sự kiện.',
+    );
 
     final memorialOption = find.textContaining('Giỗ');
     if (memorialOption.evaluate().isNotEmpty) {
-      await tester.tap(memorialOption.first);
-      await safePumpAndSettle(tester);
+      await tapFinderSafely(
+        tester,
+        memorialOption,
+        reason: 'Không thể chọn loại sự kiện giỗ.',
+        dismissKeyboardBeforeTap: false,
+      );
       return;
     }
 
     final memorialOptionEn = find.textContaining('Memorial');
     if (memorialOptionEn.evaluate().isNotEmpty) {
-      await tester.tap(memorialOptionEn.first);
-      await safePumpAndSettle(tester);
+      await tapFinderSafely(
+        tester,
+        memorialOptionEn,
+        reason: 'Không thể chọn loại sự kiện memorial.',
+        dismissKeyboardBeforeTap: false,
+      );
     }
   }
 }

@@ -193,6 +193,17 @@ class DebugMemberRepository implements MemberRepository {
     );
   }
 
+  @override
+  Future<void> notifyNearbyRelativesDetected({
+    required AuthSession session,
+    required String clanId,
+    required String memberId,
+    required List<String> relativeMemberIds,
+    double? closestDistanceKm,
+  }) async {
+    // No-op in debug repository.
+  }
+
   void _ensureUniquePhone({
     required String clanId,
     required String? phoneE164,
