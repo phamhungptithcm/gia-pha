@@ -601,7 +601,8 @@ class FirebaseAuthGateway implements AuthGateway {
       return ResolvedChildAccess(
         childIdentifier:
             payload['childIdentifier'] as String? ?? childIdentifier,
-        maskedDestination: (payload['maskedDestination'] as String?)?.trim().isNotEmpty == true
+        maskedDestination:
+            (payload['maskedDestination'] as String?)?.trim().isNotEmpty == true
             ? (payload['maskedDestination'] as String).trim()
             : '***',
         memberId: payload['memberId'] as String?,
@@ -840,16 +841,7 @@ class FirebaseAuthGateway implements AuthGateway {
     if (byId.isNotEmpty) {
       return byId.values.toList(growable: false);
     }
-
-    final fallbackSnapshot = await _members.get();
-    for (final doc in fallbackSnapshot.docs) {
-      final memberPhone = (doc.data()['phoneE164'] as String?)?.trim();
-      if (PhoneNumberFormatter.areEquivalent(memberPhone, phoneInput)) {
-        byId[doc.id] = doc;
-      }
-    }
-
-    return byId.values.toList(growable: false);
+    return const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
   }
 
   Future<void> _writeUserSessionDocument(

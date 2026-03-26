@@ -80,26 +80,11 @@ class FirebaseFundRepository implements FundRepository {
   Future<QuerySnapshot<Map<String, dynamic>>> _loadTransactionSnapshot({
     required String clanId,
   }) async {
-    final baseQuery = _transactions.where('clanId', isEqualTo: clanId);
-    try {
-      return await baseQuery
-          .orderBy('occurredAt', descending: true)
-          .limit(400)
-          .get();
-    } on FirebaseException catch (error) {
-      if (_isMissingCompositeIndex(error)) {
-        return baseQuery.limit(1200).get();
-      }
-      rethrow;
-    }
-  }
-
-  bool _isMissingCompositeIndex(FirebaseException error) {
-    if (error.code != 'failed-precondition') {
-      return false;
-    }
-    final message = (error.message ?? '').toLowerCase();
-    return message.contains('requires an index');
+    return _transactions
+        .where('clanId', isEqualTo: clanId)
+        .orderBy('occurredAt', descending: true)
+        .limit(400)
+        .get();
   }
 
   @override

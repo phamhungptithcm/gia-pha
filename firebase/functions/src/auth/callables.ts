@@ -2164,8 +2164,48 @@ async function findPotentialDuplicateGenealogies(input: {
     return [];
   }
 
-  const snapshot = await genealogyDiscoveryCollection.limit(250).get();
-  return snapshot.docs
+  const candidatesById = new Map<string, DocumentSnapshot>();
+  const lookupQueries = [
+    genealogyDiscoveryCollection
+      .where('isPublic', '==', true)
+      .where('genealogyNameNormalized', '==', name)
+      .limit(80)
+      .get(),
+    genealogyDiscoveryCollection
+      .where('isPublic', '==', true)
+      .where('leaderNameNormalized', '==', leader)
+      .limit(80)
+      .get(),
+    ...(location.length > 0
+      ? [
+          genealogyDiscoveryCollection
+            .where('isPublic', '==', true)
+            .where('provinceCityNormalized', '==', location)
+            .limit(80)
+            .get(),
+        ]
+      : []),
+  ];
+  const snapshots = await Promise.all(lookupQueries);
+  for (const snapshot of snapshots) {
+    for (const doc of snapshot.docs) {
+      candidatesById.set(doc.id, doc);
+    }
+  }
+  if (candidatesById.size < 40) {
+    const fallbackSnapshot = await genealogyDiscoveryCollection
+      .where('isPublic', '==', true)
+      .limit(120)
+      .get();
+    for (const doc of fallbackSnapshot.docs) {
+      if (candidatesById.size >= 180) {
+        break;
+      }
+      candidatesById.set(doc.id, doc);
+    }
+  }
+
+  return [...candidatesById.values()]
     .map((doc) => ({ id: doc.id, ...(doc.data() as DiscoveryIndexRecord) }))
     .map((entry) => ({
       clanId: optionalTrimmedRecordString(entry.clanId) ?? entry.id,

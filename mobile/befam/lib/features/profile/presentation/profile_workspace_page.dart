@@ -685,11 +685,17 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                                 segments: [
                                   ButtonSegment<String>(
                                     value: 'vi',
-                                    label: Text(l10n.profileLanguageVietnamese),
+                                    label: Text(
+                                      l10n.profileLanguageVietnamese,
+                                      key: const Key('profile-language-option-vi'),
+                                    ),
                                   ),
                                   ButtonSegment<String>(
                                     value: 'en',
-                                    label: Text(l10n.profileLanguageEnglish),
+                                    label: Text(
+                                      l10n.profileLanguageEnglish,
+                                      key: const Key('profile-language-option-en'),
+                                    ),
                                   ),
                                 ],
                                 selected: {selectedLanguageCode},
@@ -827,11 +833,17 @@ class _SettingsScreenShell extends StatelessWidget {
                         segments: [
                           ButtonSegment<String>(
                             value: 'vi',
-                            label: Text(l10n.profileLanguageVietnamese),
+                            label: Text(
+                              l10n.profileLanguageVietnamese,
+                              key: const Key('profile-language-option-vi'),
+                            ),
                           ),
                           ButtonSegment<String>(
                             value: 'en',
-                            label: Text(l10n.profileLanguageEnglish),
+                            label: Text(
+                              l10n.profileLanguageEnglish,
+                              key: const Key('profile-language-option-en'),
+                            ),
                           ),
                         ],
                         selected: {selectedLanguageCode},

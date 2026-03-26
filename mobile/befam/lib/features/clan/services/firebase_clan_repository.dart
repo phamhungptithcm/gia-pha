@@ -117,11 +117,13 @@ class FirebaseClanRepository implements ClanRepository {
 
     final now = FieldValue.serverTimestamp();
     final actor = session.memberId ?? session.uid;
-    final existingBranches = await _branches
+    final existingBranchesCount = await _branches
         .where('clanId', isEqualTo: clanId)
+        .count()
         .get();
-    final existingMembers = await _members
+    final existingMembersCount = await _members
         .where('clanId', isEqualTo: clanId)
+        .count()
         .get();
     final existingClan = await _clans.doc(clanId).get();
 
@@ -135,9 +137,9 @@ class FirebaseClanRepository implements ClanRepository {
       'logoUrl': draft.logoUrl,
       'status': draft.status,
       'memberCount':
-          existingClan.data()?['memberCount'] ?? existingMembers.docs.length,
+          existingClan.data()?['memberCount'] ?? existingMembersCount.count,
       'branchCount':
-          existingClan.data()?['branchCount'] ?? existingBranches.docs.length,
+          existingClan.data()?['branchCount'] ?? existingBranchesCount.count,
       'updatedAt': now,
       'updatedBy': actor,
       if (!existingClan.exists) 'createdAt': now,
@@ -175,9 +177,12 @@ class FirebaseClanRepository implements ClanRepository {
     final now = FieldValue.serverTimestamp();
     final existingMemberCount =
         existing.data()?['memberCount'] as int? ??
-        (await _members.where('branchId', isEqualTo: branchRef.id).get()).docs
-            .where((doc) => (doc.data()['clanId'] as String?)?.trim() == clanId)
-            .length;
+        (await _members
+                .where('clanId', isEqualTo: clanId)
+                .where('branchId', isEqualTo: branchRef.id)
+                .count()
+                .get())
+            .count;
 
     final payload = {
       'id': branchRef.id,
@@ -199,7 +204,8 @@ class FirebaseClanRepository implements ClanRepository {
 
     final clanRef = _clans.doc(clanId);
     final currentBranchCount =
-        (await _branches.where('clanId', isEqualTo: clanId).get()).docs.length;
+        (await _branches.where('clanId', isEqualTo: clanId).count().get())
+            .count;
     await clanRef.set({
       'id': clanId,
       'branchCount': currentBranchCount,

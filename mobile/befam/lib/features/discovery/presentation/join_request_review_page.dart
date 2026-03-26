@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/join_request_review_item.dart';
@@ -140,7 +141,12 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
       ),
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? AppLoadingState(
+                message: l10n.pick(
+                  vi: 'Đang tải yêu cầu cần duyệt...',
+                  en: 'Loading review queue...',
+                ),
+              )
             : RefreshIndicator(
                 onRefresh: _load,
                 child: ListView(

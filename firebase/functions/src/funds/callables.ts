@@ -114,6 +114,9 @@ export const recordFundTransaction = onCall(
         occurredAt: Timestamp.fromDate(occurredAt),
         note,
         receiptUrl,
+        balanceApplied: true,
+        balanceAppliedAt: FieldValue.serverTimestamp(),
+        balanceAppliedBy: actorId,
         createdAt: FieldValue.serverTimestamp(),
         createdBy: actorId,
       });

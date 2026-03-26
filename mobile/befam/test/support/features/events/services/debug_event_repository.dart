@@ -72,6 +72,21 @@ class DebugEventRepository implements EventRepository {
   }
 
   @override
+  Future<List<EventRecord>> loadUpcomingEvents({
+    required AuthSession session,
+    int limit = 80,
+  }) async {
+    final workspace = await loadWorkspace(session: session);
+    final now = DateTime.now().toUtc();
+    final safeLimit = limit.clamp(1, 200);
+    return workspace.events
+        .where((event) => !event.startsAt.isBefore(now))
+        .sortedBy((event) => event.startsAt)
+        .take(safeLimit)
+        .toList(growable: false);
+  }
+
+  @override
   Future<EventRecord> saveEvent({
     required AuthSession session,
     String? eventId,

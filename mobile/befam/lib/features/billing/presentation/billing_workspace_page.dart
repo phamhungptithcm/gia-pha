@@ -498,7 +498,9 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     final useStoreCheckout = _shouldUseStoreCheckout;
     final hasStoreProductConfig =
         _iapProductIdForPlan(workspace, selectedTier.planCode) != null;
-    final supportsSelectedCheckoutPath = hasStoreProductConfig;
+    final supportsSelectedCheckoutPath = useStoreCheckout
+        ? hasStoreProductConfig
+        : true;
     final isBelowMinimumForMemberCount = selectedPlanRank < minimumPlanRank;
     final canCheckoutSelectedPlan =
         selectedTier.priceVndYear > 0 &&
@@ -729,6 +731,22 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       enabled: canCheckoutSelectedPlan,
                       onPressed: canCheckoutSelectedPlan
                           ? () async {
+                              if (!useStoreCheckout) {
+                                if (!mounted) {
+                                  return;
+                                }
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      l10n.pick(
+                                        vi: 'Môi trường thử nghiệm: chưa mở mua trong ứng dụng. Vui lòng dùng luồng thanh toán web/VNPay.',
+                                        en: 'Sandbox mode: in-app purchase is disabled. Please use the web/VNPay checkout flow.',
+                                      ),
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
                               await _openStoreCheckoutFlow(
                                 workspace: workspace,
                                 minimumTier: minimumTier,

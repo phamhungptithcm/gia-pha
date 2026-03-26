@@ -428,38 +428,21 @@ function resolveDashboardClanId({
 async function loadTransactionsForDashboard(
   clanId: string,
 ): Promise<FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>> {
-  const query = transactionsCollection.where('clanId', '==', clanId);
-  try {
-    return await query.orderBy('occurredAt', 'desc').limit(400).get();
-  } catch (error) {
-    if (!isMissingCompositeIndexError(error)) {
-      throw error;
-    }
-    return query.limit(1200).get();
-  }
+  return transactionsCollection
+    .where('clanId', '==', clanId)
+    .orderBy('occurredAt', 'desc')
+    .limit(400)
+    .get();
 }
 
 async function loadScholarshipRequestsForDashboard(
   clanId: string,
 ): Promise<FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>> {
-  const query = submissionsCollection.where('clanId', '==', clanId);
-  try {
-    return await query.orderBy('updatedAt', 'desc').limit(240).get();
-  } catch (error) {
-    if (!isMissingCompositeIndexError(error)) {
-      throw error;
-    }
-    return query.limit(800).get();
-  }
-}
-
-function isMissingCompositeIndexError(error: unknown): boolean {
-  if (error == null || typeof error !== 'object') {
-    return false;
-  }
-  const message = String((error as { message?: unknown }).message ?? '').toLowerCase();
-  const code = String((error as { code?: unknown }).code ?? '').toLowerCase();
-  return code.includes('failed-precondition') && message.includes('index');
+  return submissionsCollection
+    .where('clanId', '==', clanId)
+    .orderBy('updatedAt', 'desc')
+    .limit(240)
+    .get();
 }
 
 function compareDateDesc(

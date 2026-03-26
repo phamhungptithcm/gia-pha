@@ -1,5 +1,6 @@
 import '../../../core/services/analytics_event_names.dart';
 import '../../../core/services/firebase_services.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 abstract interface class MemberSearchAnalyticsService {
   Future<void> trackSearchSubmitted({
@@ -162,5 +163,8 @@ class NoopMemberSearchAnalyticsService implements MemberSearchAnalyticsService {
 }
 
 MemberSearchAnalyticsService createDefaultMemberSearchAnalyticsService() {
+  if (Firebase.apps.isEmpty) {
+    return const NoopMemberSearchAnalyticsService();
+  }
   return const FirebaseMemberSearchAnalyticsService();
 }

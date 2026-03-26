@@ -3,6 +3,7 @@ set -euo pipefail
 
 MODE="${1:-debug}"          # debug | live
 PLATFORM="${2:-both}"       # android | ios | both
+SUITE="${3:-full}"          # smoke | full
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_DIR="${ROOT_DIR}/mobile/befam"
@@ -22,11 +23,12 @@ log() {
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/run_mobile_e2e.sh [debug|live] [android|ios|both]
+  ./scripts/run_mobile_e2e.sh [debug|live] [android|ios|both] [smoke|full]
 
 Examples:
   ./scripts/run_mobile_e2e.sh
-  ./scripts/run_mobile_e2e.sh debug android
+  ./scripts/run_mobile_e2e.sh debug android smoke
+  ./scripts/run_mobile_e2e.sh debug ios full
   ./scripts/run_mobile_e2e.sh live ios
 
 Environment:
@@ -49,6 +51,12 @@ fi
 if [[ "${PLATFORM}" != "android" && "${PLATFORM}" != "ios" && "${PLATFORM}" != "both" ]]; then
   usage
   echo "Unsupported platform: ${PLATFORM}" >&2
+  exit 1
+fi
+
+if [[ "${SUITE}" != "smoke" && "${SUITE}" != "full" ]]; then
+  usage
+  echo "Unsupported suite: ${SUITE}" >&2
   exit 1
 fi
 
@@ -123,19 +131,16 @@ run_suite_on_device() {
   local target_platform="$1"
   local device_id="$2"
 
-  local machine_output_file="${ARTIFACTS_DIR}/e2e-${MODE}-${target_platform}-machine.jsonl"
-  local summary_output_file="${ARTIFACTS_DIR}/e2e-${MODE}-${target_platform}-summary.txt"
-  local release_execution_file="${ARTIFACTS_DIR}/release-execution-${MODE}-${target_platform}.csv"
-  local release_dashboard_file="${ARTIFACTS_DIR}/release-dashboard-${MODE}-${target_platform}.csv"
-  local release_report_file="${ARTIFACTS_DIR}/e2e-report-${MODE}-${target_platform}.md"
-  local run_id="RC-$(date +"%Y%m%d")-${MODE}-${target_platform}"
+  local machine_output_file="${ARTIFACTS_DIR}/e2e-${MODE}-${target_platform}-${SUITE}-machine.jsonl"
+  local summary_output_file="${ARTIFACTS_DIR}/e2e-${MODE}-${target_platform}-${SUITE}-summary.txt"
+  local release_execution_file="${ARTIFACTS_DIR}/release-execution-${MODE}-${target_platform}-${SUITE}.csv"
+  local release_dashboard_file="${ARTIFACTS_DIR}/release-dashboard-${MODE}-${target_platform}-${SUITE}.csv"
+  local release_report_file="${ARTIFACTS_DIR}/e2e-report-${MODE}-${target_platform}-${SUITE}.md"
+  local run_id="RC-$(date +"%Y%m%d")-${MODE}-${target_platform}-${SUITE}"
   local app_version
   local build_sha
   local flutter_exit_code=0
-  local tests=(
-    "integration_test/e2e_auth_and_role_matrix_test.dart"
-    "integration_test/e2e_feature_journeys_test.dart"
-  )
+  local tests=()
   local defines=(
     "--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true"
     "--dart-define=BEFAM_ENABLE_APP_CHECK=false"
@@ -149,6 +154,13 @@ run_suite_on_device() {
       "--dart-define=BEFAM_E2E_RUN_LIVE=true"
       "--dart-define=BEFAM_E2E_TEST_PHONE=${BEFAM_E2E_TEST_PHONE}"
       "--dart-define=BEFAM_E2E_TEST_OTP=${BEFAM_E2E_TEST_OTP}"
+    )
+  elif [[ "${SUITE}" == "smoke" ]]; then
+    tests=("integration_test/e2e_smoke_ci_test.dart")
+  else
+    tests=(
+      "integration_test/e2e_auth_and_role_matrix_test.dart"
+      "integration_test/e2e_feature_journeys_test.dart"
     )
   fi
 
@@ -213,6 +225,7 @@ PY
   {
     echo "mode=${MODE}"
     echo "platform=${target_platform}"
+    echo "suite=${SUITE}"
     echo "device_id=${device_id}"
     echo "machine_output=${machine_output_file}"
     echo "timestamp_utc=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -252,7 +265,7 @@ PY
 }
 
 main() {
-  log "Preparing Flutter dependencies"
+  log "Preparing Flutter dependencies (${MODE}/${PLATFORM}/${SUITE})"
   (
     cd "${APP_DIR}"
     flutter pub get

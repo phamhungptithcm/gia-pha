@@ -9,6 +9,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../core/services/firebase_services.dart';
 import '../../core/widgets/member_phone_action.dart';
 import '../../core/widgets/address_action_tools.dart';
+import '../../core/widgets/app_loading_skeletons.dart';
 import '../../features/ads/services/ad_controller.dart';
 import '../../features/billing/presentation/billing_workspace_page.dart';
 import '../../features/billing/services/billing_repository.dart';
@@ -1946,23 +1947,24 @@ class _UpcomingEventSection extends StatefulWidget {
 
 class _UpcomingEventSectionState extends State<_UpcomingEventSection>
     with WidgetsBindingObserver {
-  static const Duration _upcomingRefreshInterval = Duration(seconds: 45);
+  static const Duration _upcomingRefreshInterval = Duration(minutes: 3);
 
   late Future<_UpcomingEventData?> _upcomingFuture;
+  _UpcomingEventData? _cachedUpcomingData;
+  bool _isRefreshingUpcoming = false;
+  bool _isUpcomingRequestInFlight = false;
   Timer? _upcomingRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _upcomingFuture = _loadUpcomingEvent();
+    _upcomingFuture = _runUpcomingLoad(showInlineIndicator: false);
     _upcomingRefreshTimer = Timer.periodic(_upcomingRefreshInterval, (_) {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _upcomingFuture = _loadUpcomingEvent();
-      });
+      _startUpcomingReload();
     });
   }
 
@@ -1971,9 +1973,7 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session ||
         oldWidget.activeClanName != widget.activeClanName) {
-      setState(() {
-        _upcomingFuture = _loadUpcomingEvent();
-      });
+      _startUpcomingReload();
     }
   }
 
@@ -1982,8 +1982,17 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
     if (state != AppLifecycleState.resumed || !mounted) {
       return;
     }
+    _startUpcomingReload();
+  }
+
+  void _startUpcomingReload({bool showInlineIndicator = false}) {
+    if (!mounted || _isUpcomingRequestInFlight) {
+      return;
+    }
     setState(() {
-      _upcomingFuture = _loadUpcomingEvent();
+      _upcomingFuture = _runUpcomingLoad(
+        showInlineIndicator: showInlineIndicator,
+      );
     });
   }
 
@@ -1994,64 +2003,80 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
     super.dispose();
   }
 
-  Future<_UpcomingEventData?> _loadUpcomingEvent() async {
-    try {
-      final snapshot = await widget.eventRepository.loadWorkspace(
-        session: widget.session,
-      );
-      final nowLocal = DateTime.now();
-      final upcoming = snapshot.events
-          .map(
-            (event) => (
-              event: event,
-              nextStartsAt: _nextUpcomingStartAt(event, nowLocal),
-            ),
-          )
-          .where((entry) => entry.nextStartsAt != null)
-          .map(
-            (entry) => (event: entry.event, nextStartsAt: entry.nextStartsAt!),
-          )
-          .toList(growable: false);
-      if (upcoming.isEmpty) {
-        return null;
+  Future<_UpcomingEventData?> _runUpcomingLoad({
+    required bool showInlineIndicator,
+  }) {
+    _isUpcomingRequestInFlight = true;
+    if (showInlineIndicator) {
+      _isRefreshingUpcoming = true;
+    }
+    return _loadUpcomingEventAndCache().whenComplete(() {
+      _isUpcomingRequestInFlight = false;
+      if (!mounted || !_isRefreshingUpcoming) {
+        return;
       }
+      setState(() {
+        _isRefreshingUpcoming = false;
+      });
+    });
+  }
 
-      final normalizedMemberId = (widget.session.memberId ?? '').trim();
-      final userScopedUpcoming = normalizedMemberId.isEmpty
-          ? const <({EventRecord event, DateTime nextStartsAt})>[]
-          : upcoming
-                .where(
-                  (event) =>
-                      (event.event.targetMemberId ?? '').trim() ==
-                      normalizedMemberId,
-                )
-                .toList(growable: false);
-      final prioritized = userScopedUpcoming.isNotEmpty
-          ? userScopedUpcoming
-          : upcoming;
-      prioritized.sort(
-        (left, right) => left.nextStartsAt.compareTo(right.nextStartsAt),
-      );
-      final next = prioritized.first;
-      final event = next.event;
-      final branchName = event.branchId == null
-          ? null
-          : snapshot.branches
-                .where((branch) => branch.id == event.branchId)
-                .map((branch) => branch.name)
-                .toList(growable: false)
-                .firstOrNull;
-      final hostHousehold = event.locationName.trim().isNotEmpty
-          ? event.locationName.trim()
-          : branchName;
-      return _UpcomingEventData(
-        event: event,
-        hostHousehold: hostHousehold,
-        clanName: _resolvedClanName(),
-        startsAt: next.nextStartsAt,
-      );
-    } catch (_) {
+  Future<_UpcomingEventData?> _loadUpcomingEvent() async {
+    final events = await widget.eventRepository.loadUpcomingEvents(
+      session: widget.session,
+      limit: 80,
+    );
+    final nowLocal = DateTime.now();
+    final upcoming = events
+        .map(
+          (event) => (
+            event: event,
+            nextStartsAt: _nextUpcomingStartAt(event, nowLocal),
+          ),
+        )
+        .where((entry) => entry.nextStartsAt != null)
+        .map((entry) => (event: entry.event, nextStartsAt: entry.nextStartsAt!))
+        .toList(growable: false);
+    if (upcoming.isEmpty) {
       return null;
+    }
+
+    final normalizedMemberId = (widget.session.memberId ?? '').trim();
+    final userScopedUpcoming = normalizedMemberId.isEmpty
+        ? const <({EventRecord event, DateTime nextStartsAt})>[]
+        : upcoming
+              .where(
+                (event) =>
+                    (event.event.targetMemberId ?? '').trim() ==
+                    normalizedMemberId,
+              )
+              .toList(growable: false);
+    final prioritized = userScopedUpcoming.isNotEmpty
+        ? userScopedUpcoming
+        : upcoming;
+    prioritized.sort(
+      (left, right) => left.nextStartsAt.compareTo(right.nextStartsAt),
+    );
+    final next = prioritized.first;
+    final event = next.event;
+    final hostHousehold = event.locationName.trim().isNotEmpty
+        ? event.locationName.trim()
+        : null;
+    return _UpcomingEventData(
+      event: event,
+      hostHousehold: hostHousehold,
+      clanName: _resolvedClanName(),
+      startsAt: next.nextStartsAt,
+    );
+  }
+
+  Future<_UpcomingEventData?> _loadUpcomingEventAndCache() async {
+    try {
+      final data = await _loadUpcomingEvent();
+      _cachedUpcomingData = data;
+      return data;
+    } catch (_) {
+      return _cachedUpcomingData;
     }
   }
 
@@ -2137,177 +2162,260 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = context.l10n;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: FutureBuilder<_UpcomingEventData?>(
           future: _upcomingFuture,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Row(
-                children: [
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    l10n.pick(
-                      vi: 'Đang tải sự kiện sắp tới...',
-                      en: 'Loading upcoming event...',
-                    ),
-                  ),
-                ],
+            final isWaiting =
+                snapshot.connectionState == ConnectionState.waiting;
+            final data = isWaiting ? _cachedUpcomingData : snapshot.data;
+
+            Widget child;
+            if (isWaiting && data == null) {
+              child = const _UpcomingEventLoadingSkeleton(
+                key: ValueKey<String>('upcoming-loading'),
+              );
+            } else if (data == null) {
+              child = _UpcomingEventEmptyState(
+                key: const ValueKey<String>('upcoming-empty'),
+                isRefreshing: _isRefreshingUpcoming,
+                onRefresh: () =>
+                    _startUpcomingReload(showInlineIndicator: true),
+              );
+            } else {
+              child = _UpcomingEventResolvedState(
+                key: ValueKey<String>(
+                  'upcoming-${data.event.id}-${data.startsAt.millisecondsSinceEpoch}',
+                ),
+                data: data,
+                isRefreshing: _isRefreshingUpcoming,
+                onOpenEventDetailRequested: widget.onOpenEventDetailRequested,
+                onRefresh: () =>
+                    _startUpcomingReload(showInlineIndicator: true),
               );
             }
 
-            final data = snapshot.data;
-            if (data == null) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.pick(vi: 'Sự kiện gần tới', en: 'Upcoming event'),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.pick(
-                      vi: 'Hiện chưa có sự kiện nào trong thời gian tới.',
-                      en: 'There are no upcoming events at the moment.',
-                    ),
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ],
-              );
-            }
-
-            final event = data.event;
-            final hostLabel = data.hostHousehold?.trim().isNotEmpty == true
-                ? data.hostHousehold!.trim()
-                : l10n.pick(vi: 'Cả họ', en: 'Clan-wide');
-            final clanLabel = data.clanName?.trim() ?? '';
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.event_outlined,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        l10n.pick(vi: 'Sự kiện gần tới', en: 'Upcoming event'),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    TextButton(
-                      onPressed: () {
-                        widget.onOpenEventDetailRequested(event);
-                      },
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        minimumSize: const Size(0, 32),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        l10n.pick(vi: 'Xem chi tiết', en: 'View details'),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: l10n.pick(
-                        vi: 'Làm mới sự kiện',
-                        en: 'Refresh event',
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _upcomingFuture = _loadUpcomingEvent();
-                        });
-                      },
-                      constraints: const BoxConstraints.tightFor(
-                        width: 36,
-                        height: 36,
-                      ),
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.refresh),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  event.title,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _formatDashboardDateTime(data.startsAt),
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  l10n.pick(
-                    vi: 'Nhà/chi: $hostLabel',
-                    en: 'Household/branch: $hostLabel',
-                  ),
-                  style: theme.textTheme.bodyMedium,
-                ),
-                if (clanLabel.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    l10n.pick(vi: 'Họ tộc: $clanLabel', en: 'Clan: $clanLabel'),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-                if (event.locationAddress.trim().isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          l10n.pick(
-                            vi: 'Địa chỉ: ${event.locationAddress.trim()}',
-                            en: 'Address: ${event.locationAddress.trim()}',
-                          ),
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ),
-                      AddressDirectionIconButton(
-                        address: event.locationAddress.trim(),
-                        iconSize: 18,
-                      ),
-                    ],
-                  ),
-                ],
-              ],
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              child: child,
             );
           },
         ),
       ),
+    );
+  }
+}
+
+class _UpcomingEventLoadingSkeleton extends StatelessWidget {
+  const _UpcomingEventLoadingSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        AppSkeletonBox(width: 180, height: 18),
+        SizedBox(height: 14),
+        AppSkeletonBox(width: double.infinity, height: 28),
+        SizedBox(height: 10),
+        AppSkeletonBox(width: 180, height: 20),
+        SizedBox(height: 8),
+        AppSkeletonBox(width: 220, height: 16),
+        SizedBox(height: 6),
+        AppSkeletonBox(width: double.infinity, height: 16),
+      ],
+    );
+  }
+}
+
+class _UpcomingEventEmptyState extends StatelessWidget {
+  const _UpcomingEventEmptyState({
+    super.key,
+    required this.isRefreshing,
+    required this.onRefresh,
+  });
+
+  final bool isRefreshing;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.pick(vi: 'Sự kiện gần tới', en: 'Upcoming event'),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            if (isRefreshing)
+              const Padding(
+                padding: EdgeInsets.only(right: 6),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            IconButton(
+              tooltip: l10n.pick(vi: 'Làm mới sự kiện', en: 'Refresh event'),
+              onPressed: onRefresh,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          l10n.pick(
+            vi: 'Hiện chưa có sự kiện nào trong thời gian tới.',
+            en: 'There are no upcoming events at the moment.',
+          ),
+          style: theme.textTheme.bodyMedium,
+        ),
+      ],
+    );
+  }
+}
+
+class _UpcomingEventResolvedState extends StatelessWidget {
+  const _UpcomingEventResolvedState({
+    super.key,
+    required this.data,
+    required this.isRefreshing,
+    required this.onOpenEventDetailRequested,
+    required this.onRefresh,
+  });
+
+  final _UpcomingEventData data;
+  final bool isRefreshing;
+  final ValueChanged<EventRecord> onOpenEventDetailRequested;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = context.l10n;
+    final event = data.event;
+    final hostLabel = data.hostHousehold?.trim().isNotEmpty == true
+        ? data.hostHousehold!.trim()
+        : l10n.pick(vi: 'Cả họ', en: 'Clan-wide');
+    final clanLabel = data.clanName?.trim() ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(Icons.event_outlined, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                l10n.pick(vi: 'Sự kiện gần tới', en: 'Upcoming event'),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 4),
+            TextButton(
+              onPressed: () {
+                onOpenEventDetailRequested(event);
+              },
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(l10n.pick(vi: 'Xem chi tiết', en: 'View details')),
+            ),
+            if (isRefreshing)
+              const Padding(
+                padding: EdgeInsets.only(right: 6),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            IconButton(
+              tooltip: l10n.pick(vi: 'Làm mới sự kiện', en: 'Refresh event'),
+              onPressed: onRefresh,
+              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          event.title,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _formatDashboardDateTime(data.startsAt),
+          style: theme.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          l10n.pick(
+            vi: 'Nhà/chi: $hostLabel',
+            en: 'Household/branch: $hostLabel',
+          ),
+          style: theme.textTheme.bodyMedium,
+        ),
+        if (clanLabel.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            l10n.pick(vi: 'Họ tộc: $clanLabel', en: 'Clan: $clanLabel'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+        if (event.locationAddress.trim().isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.pick(
+                    vi: 'Địa chỉ: ${event.locationAddress.trim()}',
+                    en: 'Address: ${event.locationAddress.trim()}',
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+              AddressDirectionIconButton(
+                address: event.locationAddress.trim(),
+                iconSize: 18,
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
@@ -2581,8 +2689,16 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
   static const int _nearbyQueryPageSize = 120;
   static const int _maxNearbyScanDocuments = 1200;
   static const Duration _liveLocationMaxAge = Duration(hours: 12);
+  static const Duration _preferredLastKnownLocationAge = Duration(minutes: 5);
+  static const Duration _nearbyPushThrottle = Duration(minutes: 15);
+  static const double _nearbyPushDistanceKm = 10;
+  static const int _nearbyPushMaxMemberIds = 5;
 
   late Future<_NearbyRelativeLoadResult> _future;
+  _NearbyRelativeLoadResult? _cachedResult;
+  bool _isRefreshing = false;
+  String _lastNearbyAlertSignature = '';
+  DateTime? _lastNearbyAlertAt;
 
   CollectionReference<Map<String, dynamic>> get _membersCollection =>
       FirebaseServices.firestore.collection('members');
@@ -2590,7 +2706,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
   @override
   void initState() {
     super.initState();
-    _future = _loadNearbyRelatives();
+    _future = _loadNearbyRelativesAndCache();
   }
 
   @override
@@ -2598,7 +2714,42 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session ||
         oldWidget.memberRepository != widget.memberRepository) {
-      _future = _loadNearbyRelatives();
+      _future = _loadNearbyRelativesAndCache();
+    }
+  }
+
+  Future<_NearbyRelativeLoadResult> _loadNearbyRelativesAndCache() async {
+    final result = await _loadNearbyRelatives();
+    _cachedResult = result;
+    return result;
+  }
+
+  Future<Position?> _resolveCurrentPosition() async {
+    try {
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null) {
+        final age = DateTime.now().difference(lastKnown.timestamp);
+        if (age <= _preferredLastKnownLocationAge) {
+          return lastKnown;
+        }
+      }
+    } catch (_) {
+      // Fall through to active location fetch.
+    }
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+    } catch (_) {
+      try {
+        return await Geolocator.getLastKnownPosition();
+      } catch (_) {
+        return null;
+      }
     }
   }
 
@@ -2655,14 +2806,8 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
       );
     }
 
-    late final Position currentPosition;
-    try {
-      currentPosition = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-        ),
-      );
-    } catch (_) {
+    final currentPosition = await _resolveCurrentPosition();
+    if (currentPosition == null) {
       return _NearbyRelativeLoadResult(
         items: const [],
         message: l10n.pick(
@@ -2742,6 +2887,15 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
       (left, right) => left.distanceKm.compareTo(right.distanceKm),
     );
 
+    if (activeMemberId.isNotEmpty && nearbyItems.isNotEmpty) {
+      _notifyNearbyRelativesIfNeeded(
+        session: widget.session,
+        clanId: activeClanId,
+        activeMemberId: activeMemberId,
+        nearbyItems: nearbyItems,
+      );
+    }
+
     if (nearbyItems.isEmpty) {
       return _NearbyRelativeLoadResult(
         items: const [],
@@ -2759,6 +2913,58 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
         vi: 'Đã tìm thấy ${nearbyItems.length} người thân có thể ở gần bạn.',
         en: 'Found ${nearbyItems.length} relatives that may be near you.',
       ),
+    );
+  }
+
+  void _notifyNearbyRelativesIfNeeded({
+    required AuthSession session,
+    required String clanId,
+    required String activeMemberId,
+    required List<_NearbyRelative> nearbyItems,
+  }) {
+    final candidates = nearbyItems
+        .where((item) => item.distanceKm <= _nearbyPushDistanceKm)
+        .take(_nearbyPushMaxMemberIds)
+        .toList(growable: false);
+    if (candidates.isEmpty) {
+      return;
+    }
+
+    final relativeIds =
+        candidates
+            .map((item) => item.member.id.trim())
+            .where((id) => id.isNotEmpty && id != activeMemberId)
+            .toSet()
+            .toList(growable: false)
+          ..sort();
+    if (relativeIds.isEmpty) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final signature =
+        '${clanId.trim()}|${activeMemberId.trim()}|${relativeIds.join(',')}';
+    final lastAlertAt = _lastNearbyAlertAt;
+    if (signature == _lastNearbyAlertSignature &&
+        lastAlertAt != null &&
+        now.difference(lastAlertAt) < _nearbyPushThrottle) {
+      return;
+    }
+
+    _lastNearbyAlertSignature = signature;
+    _lastNearbyAlertAt = now;
+    unawaited(
+      widget.memberRepository
+          .notifyNearbyRelativesDetected(
+            session: session,
+            clanId: clanId,
+            memberId: activeMemberId,
+            relativeMemberIds: relativeIds,
+            closestDistanceKm: candidates.first.distanceKm,
+          )
+          .catchError((_) {
+            // Nearby discovery remains functional even if push dispatch fails.
+          }),
     );
   }
 
@@ -3009,8 +3215,19 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
   }
 
   void _reload() {
+    if (_isRefreshing) {
+      return;
+    }
     setState(() {
-      _future = _loadNearbyRelatives();
+      _isRefreshing = true;
+      _future = _loadNearbyRelativesAndCache().whenComplete(() {
+        if (!mounted || !_isRefreshing) {
+          return;
+        }
+        setState(() {
+          _isRefreshing = false;
+        });
+      });
     });
   }
 
@@ -3034,30 +3251,18 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
         child: FutureBuilder<_NearbyRelativeLoadResult>(
           future: _future,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Row(
-                children: [
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      l10n.pick(
-                        vi: 'Đang tìm người thân ở gần bạn...',
-                        en: 'Finding nearby relatives...',
-                      ),
-                    ),
-                  ),
-                ],
+            final isWaiting =
+                snapshot.connectionState == ConnectionState.waiting;
+            final result = snapshot.data ?? _cachedResult;
+            if (isWaiting && result == null) {
+              return const _NearbyRelativesLoadingSkeleton(
+                key: ValueKey<String>('nearby-loading'),
               );
             }
 
-            final result = snapshot.data;
             if (result == null) {
               return _NearbyRelativesEmpty(
+                key: const ValueKey<String>('nearby-null'),
                 message: l10n.pick(
                   vi: 'Không tải được danh sách người thân ở gần. Vui lòng thử lại.',
                   en: 'Unable to load nearby relatives. Please try again.',
@@ -3071,6 +3276,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
 
             if (!result.hasItems) {
               return _NearbyRelativesEmpty(
+                key: const ValueKey<String>('nearby-empty'),
                 message: result.message,
                 canRetry: result.canRetry,
                 onRetry: _reload,
@@ -3081,7 +3287,10 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
             }
 
             final previewItems = result.items.take(3).toList(growable: false);
-            return Column(
+            final content = Column(
+              key: ValueKey<String>(
+                'nearby-${result.items.length}-${result.items.first.member.id}',
+              ),
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
@@ -3102,6 +3311,15 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                         ),
                       ),
                     ),
+                    if (_isRefreshing)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 6),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
                     IconButton(
                       tooltip: l10n.pick(
                         vi: 'Rà lại người thân gần đây',
@@ -3180,6 +3398,12 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                     ),
                   ),
               ],
+            );
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              child: content,
             );
           },
         ),
@@ -3435,8 +3659,29 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
   }
 }
 
+class _NearbyRelativesLoadingSkeleton extends StatelessWidget {
+  const _NearbyRelativesLoadingSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        AppSkeletonBox(width: 190, height: 20),
+        SizedBox(height: 10),
+        AppSkeletonBox(width: double.infinity, height: 16),
+        SizedBox(height: 14),
+        AppSkeletonBox(width: double.infinity, height: 64),
+        SizedBox(height: 10),
+        AppSkeletonBox(width: double.infinity, height: 64),
+      ],
+    );
+  }
+}
+
 class _NearbyRelativesEmpty extends StatelessWidget {
   const _NearbyRelativesEmpty({
+    super.key,
     required this.message,
     required this.canRetry,
     required this.onRetry,
@@ -3550,8 +3795,4 @@ IconData _iconFor(String iconKey) {
     'profile' => Icons.person_outline,
     _ => Icons.widgets_outlined,
   };
-}
-
-extension _IterableFirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }

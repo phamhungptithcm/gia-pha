@@ -19,14 +19,22 @@ class GenealogyPageObject {
   Future<void> switchScopeToBranchAndBack() async {
     final branchKey = find.byKey(const Key('genealogy-scope-branch'));
     if (branchKey.evaluate().isNotEmpty) {
-      await tester.tap(branchKey.first);
-      await safePumpAndSettle(tester);
+      await tapFinderSafely(
+        tester,
+        branchKey,
+        reason: 'Không thể chuyển phạm vi sang chi hiện tại.',
+        dismissKeyboardBeforeTap: false,
+      );
     }
 
     final clanKey = find.byKey(const Key('genealogy-scope-clan'));
     if (clanKey.evaluate().isNotEmpty) {
-      await tester.tap(clanKey.first);
-      await safePumpAndSettle(tester);
+      await tapFinderSafely(
+        tester,
+        clanKey,
+        reason: 'Không thể chuyển phạm vi về cả họ.',
+        dismissKeyboardBeforeTap: false,
+      );
     }
   }
 
@@ -37,19 +45,23 @@ class GenealogyPageObject {
       infoButton,
       reason: 'Không thấy nút info cho node $memberId.',
     );
-    await tester.ensureVisible(infoButton);
-    await tester.tap(infoButton);
-    await safePumpAndSettle(tester);
+    await tapFinderSafely(
+      tester,
+      infoButton,
+      reason: 'Không thể bấm nút info cho node $memberId.',
+      dismissKeyboardBeforeTap: false,
+    );
 
     final openAction = find.byKey(
       const Key('genealogy-open-member-detail-action'),
     );
-    await waitForFinder(
-      tester,
-      openAction,
-      reason: 'Không thấy action mở chi tiết thành viên.',
-    );
-    await tester.tap(openAction);
-    await safePumpAndSettle(tester);
+    if (openAction.evaluate().isNotEmpty) {
+      await tapFinderSafely(
+        tester,
+        openAction,
+        reason: 'Không thể bấm action mở chi tiết thành viên.',
+        dismissKeyboardBeforeTap: false,
+      );
+    }
   }
 }

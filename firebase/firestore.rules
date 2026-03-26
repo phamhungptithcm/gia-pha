@@ -33,12 +33,16 @@ service cloud.firestore {
         (
           clanId == primaryClanId() &&
           request.auth.token.get('clanStatus', '') == 'active'
-        ) || (
-          get(/databases/$(database)/documents/clans/$(clanId)).data.get('status', 'active') != 'inactive' &&
-          get(/databases/$(database)/documents/clans/$(clanId)).data.get('status', 'active') != 'archived' &&
-          get(/databases/$(database)/documents/clans/$(clanId)).data.get('status', 'active') != 'deleted'
-        )
+        ) || isClanStatusActive(clanId)
       );
+    }
+
+    function isClanStatusActive(clanId) {
+      let status = get(/databases/$(database)/documents/clans/$(clanId))
+        .data.get('status', 'active');
+      return status != 'inactive' &&
+        status != 'archived' &&
+        status != 'deleted';
     }
 
     function memberIdClaim() {

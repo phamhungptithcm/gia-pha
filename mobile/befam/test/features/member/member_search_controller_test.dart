@@ -389,6 +389,15 @@ class _FakeMemberRepository implements MemberRepository {
     double? longitude,
     double? accuracyMeters,
   }) async {}
+
+  @override
+  Future<void> notifyNearbyRelativesDetected({
+    required AuthSession session,
+    required String clanId,
+    required String memberId,
+    required List<String> relativeMemberIds,
+    double? closestDistanceKm,
+  }) async {}
 }
 
 class _FlakySearchProvider implements MemberSearchProvider {

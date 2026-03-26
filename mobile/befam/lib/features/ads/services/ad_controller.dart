@@ -193,17 +193,18 @@ class AdController {
       ),
     );
     try {
-      banner.load();
+      banner.load().catchError((Object error, StackTrace stackTrace) {
+        _handleBannerLoadError(
+          error,
+          stackTrace,
+          message: 'Banner ad load failed asynchronously.',
+        );
+      });
     } catch (error, stackTrace) {
-      _isLoadingBanner = false;
-      _bannerAd = null;
-      _isBannerReady = false;
-      _bannerLoadFailed = true;
-      _notifyStateChanged();
-      AppLogger.warning(
-        'Banner ad load threw an exception.',
+      _handleBannerLoadError(
         error,
         stackTrace,
+        message: 'Banner ad load threw an exception.',
       );
     }
   }
@@ -246,18 +247,45 @@ class AdController {
             AppLogger.warning('Interstitial ad failed to load.', error);
           },
         ),
-      );
+      ).catchError((Object error, StackTrace stackTrace) {
+        _handleInterstitialLoadError(
+          error,
+          stackTrace,
+          message: 'Interstitial ad load failed asynchronously.',
+        );
+      });
     } catch (error, stackTrace) {
-      _isLoadingInterstitial = false;
-      _interstitialAd = null;
-      _isInterstitialReady = false;
-      _notifyStateChanged();
-      AppLogger.warning(
-        'Interstitial ad load threw an exception.',
+      _handleInterstitialLoadError(
         error,
         stackTrace,
+        message: 'Interstitial ad load threw an exception.',
       );
     }
+  }
+
+  void _handleBannerLoadError(
+    Object error,
+    StackTrace stackTrace, {
+    required String message,
+  }) {
+    _isLoadingBanner = false;
+    _bannerAd = null;
+    _isBannerReady = false;
+    _bannerLoadFailed = true;
+    _notifyStateChanged();
+    AppLogger.warning(message, error, stackTrace);
+  }
+
+  void _handleInterstitialLoadError(
+    Object error,
+    StackTrace stackTrace, {
+    required String message,
+  }) {
+    _isLoadingInterstitial = false;
+    _interstitialAd = null;
+    _isInterstitialReady = false;
+    _notifyStateChanged();
+    AppLogger.warning(message, error, stackTrace);
   }
 
   String? _bannerAdUnitIdForPlatform() {
