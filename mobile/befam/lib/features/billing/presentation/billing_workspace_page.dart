@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/services/app_environment.dart';
 import '../../../core/widgets/app_async_action.dart';
@@ -68,14 +67,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   void dispose() {
     _controller.dispose();
     super.dispose();
-  }
-
-  Future<bool> _launchExternalUri(Uri uri) async {
-    final customLauncher = widget.externalUrlLauncher;
-    if (customLauncher != null) {
-      return customLauncher(uri);
-    }
-    return launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   bool get _shouldUseStoreCheckout {
@@ -560,9 +551,11 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             ),
             const SizedBox(height: 12),
           ],
-          if (_controller.isSavingPreferences || _controller.isProcessingPayment)
+          if (_controller.isSavingPreferences ||
+              _controller.isProcessingPayment)
             const LinearProgressIndicator(minHeight: 2),
-          if (_controller.isSavingPreferences || _controller.isProcessingPayment)
+          if (_controller.isSavingPreferences ||
+              _controller.isProcessingPayment)
             const SizedBox(height: 12),
           _SubscriptionHeroCard(
             planCode: entitlement.planCode,
