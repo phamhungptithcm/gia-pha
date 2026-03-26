@@ -698,29 +698,6 @@ class DebugBillingRepository implements BillingRepository {
     }
   }
 
-  bool _canRenewCurrentPlan(BillingSubscription subscription) {
-    final planCode = subscription.planCode.trim().toUpperCase();
-    if (planCode == 'FREE') {
-      return false;
-    }
-    final status = subscription.status.trim().toLowerCase();
-    if (status == 'expired' || status == 'grace_period') {
-      return true;
-    }
-    if (status != 'active') {
-      return false;
-    }
-    final expiresAtIso = subscription.expiresAtIso;
-    if (expiresAtIso == null || expiresAtIso.trim().isEmpty) {
-      return false;
-    }
-    final expiresAt = DateTime.tryParse(expiresAtIso)?.toUtc();
-    if (expiresAt == null) {
-      return false;
-    }
-    return expiresAt.difference(DateTime.now().toUtc()).inDays <= 30;
-  }
-
   BillingEntitlement _buildEntitlement({
     required String planCode,
     required String status,
