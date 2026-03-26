@@ -1,6 +1,7 @@
 import 'package:befam/app/app.dart';
 import 'package:befam/app/bootstrap/firebase_setup_status.dart';
 import 'package:befam/app/home/app_shell_page.dart';
+import 'package:befam/core/services/app_locale_controller.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/auth/services/auth_analytics_service.dart';
@@ -281,6 +282,8 @@ Future<E2EAppContext> pumpE2EApp(
   addTearDown(crashGuard.dispose);
 
   final fakePush = FakePushNotificationService();
+  final localeController = AppLocaleController(defaultLocale: locale);
+  addTearDown(localeController.dispose);
 
   await tester.pumpWidget(
     BeFamApp(
@@ -300,7 +303,7 @@ Future<E2EAppContext> pumpE2EApp(
       pushNotificationService: fakePush,
       profileNotificationPreferencesRepository:
           DebugProfileNotificationPreferencesRepository.shared(),
-      locale: locale,
+      localeController: localeController,
     ),
   );
   await safePumpAndSettle(tester);
