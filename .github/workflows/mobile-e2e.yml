@@ -23,7 +23,7 @@ on:
       platform:
         description: "Target platform"
         required: true
-        default: "both"
+        default: "android"
         type: choice
         options:
           - android
@@ -32,7 +32,7 @@ on:
       suite:
         description: "Test suite size"
         required: true
-        default: "full"
+        default: "smoke"
         type: choice
         options:
           - smoke
@@ -100,6 +100,16 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Cache Android Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-e2e-gradle-${{ hashFiles('mobile/befam/android/**/*.gradle*', 'mobile/befam/android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-gradle-
+
       - name: Run Android E2E
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -119,14 +129,7 @@ jobs:
             adb wait-for-device
             adb devices
             chmod +x scripts/run_mobile_e2e.sh
-            set +e
-            timeout 30m ./scripts/run_mobile_e2e.sh "${E2E_MODE}" android "${E2E_SUITE}"
-            exit_code=$?
-            set -e
-            if [ "$exit_code" -eq 124 ]; then
-              echo "::error::Android E2E timed out after 30 minutes."
-            fi
-            exit "$exit_code"
+            bash -lc 'set +e; timeout 30m ./scripts/run_mobile_e2e.sh "$E2E_MODE" android "$E2E_SUITE"; exit_code=$?; if [ "$exit_code" -eq 124 ]; then echo "::error::Android E2E timed out after 30 minutes."; fi; exit "$exit_code"'
 
       - name: Upload Android E2E artifacts
         if: always()
