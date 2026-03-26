@@ -202,10 +202,6 @@ jobs:
           BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
           BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY: ${{ vars.BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
-          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
-          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
-          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
@@ -242,40 +238,27 @@ jobs:
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}"
             "${optional_firebase_defines[@]}"
           )
-          if [ -n "${ANDROID_RELEASE_KEYSTORE_BASE64:-}" ] && \
-             [ -n "${ANDROID_RELEASE_KEYSTORE_PASSWORD:-}" ] && \
-             [ -n "${ANDROID_RELEASE_KEY_ALIAS:-}" ] && \
-             [ -n "${ANDROID_RELEASE_KEY_PASSWORD:-}" ]; then
-            keystore_path="$RUNNER_TEMP/android-release.keystore"
-            echo "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
-            export ANDROID_KEYSTORE_PATH="$keystore_path"
-            export ANDROID_KEYSTORE_PASSWORD="$ANDROID_RELEASE_KEYSTORE_PASSWORD"
-            export ANDROID_KEY_ALIAS="$ANDROID_RELEASE_KEY_ALIAS"
-            export ANDROID_KEY_PASSWORD="$ANDROID_RELEASE_KEY_PASSWORD"
-            flutter build appbundle --release "${build_common_args[@]}"
-          else
-            echo "Release signing secrets are unavailable in this CI context. Generating temporary CI signing key for release AAB."
-            temp_keystore_path="$RUNNER_TEMP/android-ci-release.keystore"
-            temp_keystore_password="android"
-            temp_key_alias="ci-upload"
-            temp_key_password="android"
-            keytool -genkeypair \
-              -v \
-              -storetype PKCS12 \
-              -keystore "$temp_keystore_path" \
-              -storepass "$temp_keystore_password" \
-              -alias "$temp_key_alias" \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 3650 \
-              -keypass "$temp_key_password" \
-              -dname "CN=BeFam CI, OU=CI, O=BeFam, L=HCMC, S=HCMC, C=VN"
-            export ANDROID_KEYSTORE_PATH="$temp_keystore_path"
-            export ANDROID_KEYSTORE_PASSWORD="$temp_keystore_password"
-            export ANDROID_KEY_ALIAS="$temp_key_alias"
-            export ANDROID_KEY_PASSWORD="$temp_key_password"
-            flutter build appbundle --release "${build_common_args[@]}"
-          fi
+          # CI only needs compile validation; use ephemeral signing to avoid exposing release secrets in PR context.
+          temp_keystore_path="$RUNNER_TEMP/android-ci-release.keystore"
+          temp_keystore_password="android"
+          temp_key_alias="ci-upload"
+          temp_key_password="android"
+          keytool -genkeypair \
+            -v \
+            -storetype PKCS12 \
+            -keystore "$temp_keystore_path" \
+            -storepass "$temp_keystore_password" \
+            -alias "$temp_key_alias" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 3650 \
+            -keypass "$temp_key_password" \
+            -dname "CN=BeFam CI, OU=CI, O=BeFam, L=HCMC, S=HCMC, C=VN"
+          export ANDROID_KEYSTORE_PATH="$temp_keystore_path"
+          export ANDROID_KEYSTORE_PASSWORD="$temp_keystore_password"
+          export ANDROID_KEY_ALIAS="$temp_key_alias"
+          export ANDROID_KEY_PASSWORD="$temp_key_password"
+          flutter build appbundle --release "${build_common_args[@]}"
 
       - name: Build mobile release image
         working-directory: ${{ github.workspace }}

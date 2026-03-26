@@ -48,6 +48,10 @@ jobs:
           test -n "$GCP_WORKLOAD_IDENTITY_PROVIDER"
           test -n "$GCP_SERVICE_ACCOUNT_EMAIL"
           test -n "$FIREBASE_PROJECT_ID"
+          if [ "$FIREBASE_PROJECT_ID" = "be-fam-3ab23" ]; then
+            echo "::error::Production rollback must not target staging Firebase project be-fam-3ab23."
+            exit 1
+          fi
 
       - name: Authenticate to Google Cloud (OIDC)
         uses: google-github-actions/auth@v2
