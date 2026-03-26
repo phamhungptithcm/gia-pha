@@ -1,4 +1,4 @@
-name: CI - Mobile E2E (PR/Manual)
+name: CI - Mobile E2E (PR)
 
 on:
   pull_request:
@@ -10,44 +10,17 @@ on:
       - firebase/functions/scripts/seed-debug-login-profiles.mjs
       - scripts/run_mobile_e2e.sh
       - .github/workflows/mobile-e2e.yml
-  workflow_dispatch:
-    inputs:
-      mode:
-        description: "E2E mode"
-        required: true
-        default: "debug"
-        type: choice
-        options:
-          - debug
-          - live
-      platform:
-        description: "Target platform"
-        required: true
-        default: "android"
-        type: choice
-        options:
-          - android
-          - ios
-          - both
-      suite:
-        description: "Test suite size"
-        required: true
-        default: "smoke"
-        type: choice
-        options:
-          - smoke
-          - full
 
 permissions:
   contents: read
 
 concurrency:
-  group: mobile-e2e-${{ github.event.pull_request.number || github.ref }}
+  group: mobile-e2e-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   resolve-config:
-    name: resolve-e2e-config
+    name: E2E - Resolve Test Configuration
     runs-on: ubuntu-latest
     outputs:
       e2e_mode: ${{ steps.resolve.outputs.e2e_mode }}
@@ -57,18 +30,12 @@ jobs:
       - name: Resolve workflow config
         id: resolve
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "e2e_mode=${{ github.event.inputs.mode }}" >> "$GITHUB_OUTPUT"
-            echo "e2e_platform=${{ github.event.inputs.platform }}" >> "$GITHUB_OUTPUT"
-            echo "e2e_suite=${{ github.event.inputs.suite }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "e2e_mode=debug" >> "$GITHUB_OUTPUT"
-            echo "e2e_platform=android" >> "$GITHUB_OUTPUT"
-            echo "e2e_suite=smoke" >> "$GITHUB_OUTPUT"
-          fi
+          echo "e2e_mode=debug" >> "$GITHUB_OUTPUT"
+          echo "e2e_platform=android" >> "$GITHUB_OUTPUT"
+          echo "e2e_suite=smoke" >> "$GITHUB_OUTPUT"
 
   e2e-android:
-    name: e2e-android
+    name: E2E - Android Test Run
     needs: resolve-config
     if: ${{ needs.resolve-config.outputs.e2e_platform == 'android' || needs.resolve-config.outputs.e2e_platform == 'both' }}
     runs-on: ubuntu-latest
@@ -77,6 +44,7 @@ jobs:
       E2E_MODE: ${{ needs.resolve-config.outputs.e2e_mode }}
       E2E_PLATFORM: ${{ needs.resolve-config.outputs.e2e_platform }}
       E2E_SUITE: ${{ needs.resolve-config.outputs.e2e_suite }}
+      BEFAM_E2E_SKIP_GEN_L10N: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -129,7 +97,7 @@ jobs:
             adb wait-for-device
             adb devices
             chmod +x scripts/run_mobile_e2e.sh
-            bash -lc 'set +e; timeout 30m ./scripts/run_mobile_e2e.sh "$E2E_MODE" android "$E2E_SUITE"; exit_code=$?; if [ "$exit_code" -eq 124 ]; then echo "::error::Android E2E timed out after 30 minutes."; fi; exit "$exit_code"'
+            bash -lc 'set +e; if [ "$E2E_SUITE" = "smoke" ]; then max_minutes=20; else max_minutes=30; fi; timeout "${max_minutes}m" ./scripts/run_mobile_e2e.sh "$E2E_MODE" android "$E2E_SUITE"; exit_code=$?; if [ "$exit_code" -eq 124 ]; then echo "::error::Android E2E timed out after ${max_minutes} minutes (suite=$E2E_SUITE)."; fi; exit "$exit_code"'
 
       - name: Upload Android E2E artifacts
         if: always()
@@ -142,7 +110,7 @@ jobs:
           if-no-files-found: ignore
 
   e2e-ios:
-    name: e2e-ios
+    name: E2E - iOS Test Run
     needs: resolve-config
     if: ${{ needs.resolve-config.outputs.e2e_platform == 'ios' || needs.resolve-config.outputs.e2e_platform == 'both' }}
     runs-on: macos-latest
@@ -151,6 +119,7 @@ jobs:
       E2E_MODE: ${{ needs.resolve-config.outputs.e2e_mode }}
       E2E_PLATFORM: ${{ needs.resolve-config.outputs.e2e_platform }}
       E2E_SUITE: ${{ needs.resolve-config.outputs.e2e_suite }}
+      BEFAM_E2E_SKIP_GEN_L10N: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -160,6 +129,17 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Cache iOS dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/Library/Caches/org.cocoapods.CocoaPods
+            mobile/befam/ios/Pods
+          key: ${{ runner.os }}-e2e-ios-deps-${{ hashFiles('mobile/befam/pubspec.lock', 'mobile/befam/ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-ios-deps-
 
       - name: Boot iOS simulator
         timeout-minutes: 10
@@ -203,7 +183,25 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x scripts/run_mobile_e2e.sh
-          python3 -c 'import os,subprocess,sys;cmd=["./scripts/run_mobile_e2e.sh",os.environ.get("E2E_MODE","debug"),"ios",os.environ.get("E2E_SUITE","full")];result=subprocess.run(cmd,timeout=45*60,check=False);sys.exit(result.returncode)'
+          python3 - <<'PY'
+          import os
+          import subprocess
+          import sys
+
+          mode = os.environ.get("E2E_MODE", "debug")
+          suite = os.environ.get("E2E_SUITE", "full")
+          timeout_seconds = 30 * 60 if suite == "smoke" else 45 * 60
+          cmd = ["./scripts/run_mobile_e2e.sh", mode, "ios", suite]
+
+          try:
+              result = subprocess.run(cmd, timeout=timeout_seconds, check=False)
+          except subprocess.TimeoutExpired:
+              timeout_minutes = timeout_seconds // 60
+              print(f"::error::iOS E2E timed out after {timeout_minutes} minutes (suite={suite}).")
+              sys.exit(124)
+
+          sys.exit(result.returncode)
+          PY
 
       - name: Upload iOS E2E artifacts
         if: always()

@@ -269,7 +269,9 @@ main() {
   (
     cd "${APP_DIR}"
     flutter pub get
-    flutter gen-l10n
+    if [[ "${BEFAM_E2E_SKIP_GEN_L10N:-false}" != "true" ]]; then
+      flutter gen-l10n
+    fi
   )
 
   maybe_seed_debug_profiles

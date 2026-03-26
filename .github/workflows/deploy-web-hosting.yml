@@ -18,9 +18,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate-upstream:
+    name: Gate - Verify Upstream Deploy Status
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.gate.outputs.should_deploy }}
+    steps:
+      - name: Evaluate upstream conclusion
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream Firebase deploy conclusion is '${{ github.event.workflow_run.conclusion }}'. Skipping hosting deploy."
+            exit 0
+          fi
+
+          deploy_job_conclusion="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${{ github.event.workflow_run.id }}/jobs" \
+              --jq '.jobs[] | select(.name=="Deploy Firebase (Production)") | .conclusion' \
+              | head -n1
+          )"
+
+          if [ "${deploy_job_conclusion:-}" = "success" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "Upstream Firebase production deploy job succeeded. Proceeding with hosting deploy."
+          else
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream Firebase deploy job conclusion is '${deploy_job_conclusion:-unknown}'. Skipping hosting deploy."
+          fi
+
   build-web:
     name: Prepare Immutable Web Bundle
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    needs:
+      - gate-upstream
+    if: ${{ needs.gate-upstream.outputs.should_deploy == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -70,8 +105,10 @@ jobs:
 
   deploy-hosting:
     name: Deploy Web Hosting (Production)
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
-    needs: build-web
+    if: ${{ needs.gate-upstream.outputs.should_deploy == 'true' }}
+    needs:
+      - gate-upstream
+      - build-web
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -144,7 +181,7 @@ jobs:
           fi
 
   notify-deploy-hosting-failure:
-    name: Notify hosting deploy failure
+    name: Notify Hosting Deploy Failure
     if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
     needs:
       - build-web
