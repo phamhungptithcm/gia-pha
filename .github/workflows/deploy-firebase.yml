@@ -18,9 +18,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate-upstream:
+    name: Gate - Verify Upstream Release Status
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.gate.outputs.should_deploy }}
+    steps:
+      - name: Evaluate upstream conclusion
+        id: gate
+        run: |
+          if [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "Upstream release succeeded. Proceeding with production Firebase deploy."
+          else
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream release conclusion is '${{ github.event.workflow_run.conclusion }}'. Skipping production Firebase deploy."
+          fi
+
   deploy-production:
     name: Deploy Firebase (Production)
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    needs:
+      - gate-upstream
+    if: ${{ needs.gate-upstream.outputs.should_deploy == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -389,9 +408,10 @@ jobs:
           --only firestore:rules,firestore:indexes,storage,functions
 
   notify-deploy-firebase-failure:
-    name: Notify Firebase deploy failure
+    name: Notify Firebase Deploy Failure
     if: ${{ always() && needs.deploy-production.result == 'failure' }}
     needs:
+      - gate-upstream
       - deploy-production
     runs-on: ubuntu-latest
     steps:

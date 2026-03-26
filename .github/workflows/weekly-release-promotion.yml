@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   promote-staging:
-    name: Create or refresh staging -> main release PR
+    name: Create or Refresh Staging to Main Release PR
     runs-on: ubuntu-latest
     steps:
       - name: Create or refresh release pull request

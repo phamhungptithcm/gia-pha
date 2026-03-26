@@ -285,7 +285,7 @@ jobs:
         run: npm run config:subscription-packages:check
 
   prepare-release:
-    name: Prepare release
+    name: Prepare Release
     needs:
       - preflight-production-readiness
     runs-on: ubuntu-latest
@@ -350,7 +350,7 @@ jobs:
           path: dist/release-notes.md
 
   build-android-release:
-    name: Build Android release
+    name: Build Android Release
     needs: prepare-release
     runs-on: ubuntu-latest
     environment:
@@ -485,7 +485,7 @@ jobs:
           path: mobile/befam/build/app/outputs/bundle/release/app-release.aab
 
   build-ios-release:
-    name: Build iOS release IPA
+    name: Build iOS Release IPA
     needs: prepare-release
     runs-on: macos-latest
     environment:
@@ -701,7 +701,7 @@ jobs:
           path: dist/ios/*.ipa
 
   build-web-release:
-    name: Build Web release bundle
+    name: Build Web Release Bundle
     needs: prepare-release
     runs-on: ubuntu-latest
     environment:
@@ -805,7 +805,7 @@ jobs:
           path: dist/web/*.tar.gz
 
   publish-mobile-image:
-    name: Publish mobile image
+    name: Publish Mobile Image
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
@@ -847,7 +847,7 @@ jobs:
             VCS_REF=${{ github.sha }}
 
   publish-firebase-image:
-    name: Publish Firebase image
+    name: Publish Firebase Image
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
@@ -888,7 +888,7 @@ jobs:
             VCS_REF=${{ github.sha }}
 
   publish-github-release:
-    name: Publish GitHub release
+    name: Publish GitHub Release
     needs:
       - prepare-release
       - build-android-release
@@ -1003,7 +1003,7 @@ jobs:
           gh release upload "${RELEASE_TAG}" "dist/release-manifest.json#release-manifest-${RELEASE_VERSION}.json" --clobber
 
   notify-release-failure:
-    name: Notify release failure
+    name: Notify Release Failure
     if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
     needs:
       - quality-gate-docs

@@ -5,18 +5,17 @@ on:
     branches:
       - staging
       - main
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: branch-ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  group: branch-ci-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   ci-docs:
-    name: ci-docs
+    name: CI - Docs Validation and Build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -40,7 +39,7 @@ jobs:
         run: mkdocs build --strict
 
   ci-functions:
-    name: ci-functions
+    name: CI - Functions Build and Test
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -77,7 +76,7 @@ jobs:
             .
 
   ci-mobile:
-    name: ci-mobile
+    name: CI - Mobile Build and Test
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -271,7 +270,7 @@ jobs:
             .
 
   security-dependency-review:
-    name: security-dependency-review
+    name: Security - Dependency Review
     if: ${{ github.event_name == 'pull_request' && vars.ENABLE_DEPENDENCY_REVIEW != 'false' }}
     runs-on: ubuntu-latest
     permissions:
@@ -312,7 +311,7 @@ jobs:
           echo "::warning::Enable it at Settings > Code security and analysis to enforce dependency review."
 
   security-trivy-fs:
-    name: security-trivy-fs
+    name: Security - Trivy Filesystem Scan
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -353,7 +352,7 @@ jobs:
           skip-files: firebase/functions/firestore-debug.log
 
   security-gitleaks:
-    name: security-gitleaks
+    name: Security - Gitleaks Secret Scan
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -367,7 +366,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   security-trivy-images:
-    name: security-trivy-images
+    name: Security - Trivy Container Image Scan
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

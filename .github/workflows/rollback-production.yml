@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   rollback-production:
-    name: Rollback production to selected release tag
+    name: Rollback Production to Selected Release Tag
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment:
