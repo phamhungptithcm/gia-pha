@@ -175,6 +175,7 @@ run_suite_on_device() {
     flutter test "${tests[@]}" \
       -d "${device_id}" \
       "${defines[@]}" \
+      --no-pub \
       --machine \
       | tee "${machine_output_file}"
   )
