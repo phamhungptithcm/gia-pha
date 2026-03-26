@@ -7,16 +7,23 @@ DEFAULT_ENVIRONMENT="production"
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/setup_github_production_config.sh [--repo owner/name] [--env production]
+  ./scripts/setup_github_production_config.sh [--repo owner/name] [--env production|staging]
 
 Required environment variables:
   FIREBASE_PROJECT_ID
   FIREBASE_FUNCTIONS_REGION
+  FIRESTORE_DATABASE_ID
   APP_TIMEZONE
   GOOGLE_PLAY_PACKAGE_NAME
-  FIREBASE_SERVICE_ACCOUNT
   BILLING_WEBHOOK_SECRET
   APPLE_SHARED_SECRET
+
+Required deploy auth (choose one mode):
+  OIDC mode:
+    GCP_WORKLOAD_IDENTITY_PROVIDER
+    GCP_SERVICE_ACCOUNT_EMAIL
+  Key mode:
+    FIREBASE_SERVICE_ACCOUNT
 
 Optional environment variables:
   APP_RUNTIME_CONFIG_COLLECTION
@@ -88,6 +95,8 @@ Optional environment variables:
   BEFAM_FIREBASE_FUNCTIONS_REGION
   BEFAM_DEFAULT_TIMEZONE
   BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK
+  BEFAM_IOS_APP_STORE_URL
+  BEFAM_ANDROID_PLAY_STORE_URL
 
 Optional environment secrets:
   CARD_WEBHOOK_SECRET
@@ -196,15 +205,28 @@ missing=0
 for key in \
   FIREBASE_PROJECT_ID \
   FIREBASE_FUNCTIONS_REGION \
+  FIRESTORE_DATABASE_ID \
   APP_TIMEZONE \
   GOOGLE_PLAY_PACKAGE_NAME \
-  FIREBASE_SERVICE_ACCOUNT \
   BILLING_WEBHOOK_SECRET \
   APPLE_SHARED_SECRET; do
   if ! require_non_empty_env "$key"; then
     missing=1
   fi
 done
+
+has_oidc_auth=0
+if [[ -n "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" && -n "${GCP_SERVICE_ACCOUNT_EMAIL:-}" ]]; then
+  has_oidc_auth=1
+fi
+has_key_auth=0
+if [[ -n "${FIREBASE_SERVICE_ACCOUNT:-}" ]]; then
+  has_key_auth=1
+fi
+if [[ "$has_oidc_auth" -eq 0 && "$has_key_auth" -eq 0 ]]; then
+  echo "Missing deploy auth configuration: provide OIDC vars or FIREBASE_SERVICE_ACCOUNT." >&2
+  missing=1
+fi
 if [[ "$missing" -ne 0 ]]; then
   echo "Abort: please export required env vars then rerun." >&2
   exit 1
@@ -230,6 +252,7 @@ echo "  env : $ENV_NAME"
 # Functions runtime vars
 set_var_if_present FIREBASE_PROJECT_ID
 set_var_if_present FIREBASE_FUNCTIONS_REGION
+set_var_if_present FIRESTORE_DATABASE_ID
 set_var_if_present APP_TIMEZONE
 set_var_if_present APP_RUNTIME_CONFIG_COLLECTION
 set_var_if_present APP_RUNTIME_CONFIG_DOC_ID
@@ -303,6 +326,8 @@ set_var_if_present BEFAM_FIREBASE_WEB_MEASUREMENT_ID
 set_var_if_present BEFAM_FIREBASE_FUNCTIONS_REGION
 set_var_if_present BEFAM_DEFAULT_TIMEZONE
 set_var_if_present BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK
+set_var_if_present BEFAM_IOS_APP_STORE_URL
+set_var_if_present BEFAM_ANDROID_PLAY_STORE_URL
 
 set_secret_if_present FIREBASE_SERVICE_ACCOUNT
 set_secret_if_present BILLING_WEBHOOK_SECRET

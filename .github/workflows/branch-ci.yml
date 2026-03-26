@@ -139,6 +139,8 @@ jobs:
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
@@ -162,6 +164,8 @@ jobs:
             BEFAM_FIREBASE_WEB_AUTH_DOMAIN
             BEFAM_FIREBASE_WEB_MEASUREMENT_ID
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+            BEFAM_IOS_APP_STORE_URL
+            BEFAM_ANDROID_PLAY_STORE_URL
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
@@ -201,6 +205,8 @@ jobs:
           BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
           BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY: ${{ vars.BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
@@ -221,6 +227,8 @@ jobs:
             BEFAM_FIREBASE_WEB_AUTH_DOMAIN
             BEFAM_FIREBASE_WEB_MEASUREMENT_ID
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+            BEFAM_IOS_APP_STORE_URL
+            BEFAM_ANDROID_PLAY_STORE_URL
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do

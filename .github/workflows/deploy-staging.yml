@@ -262,12 +262,23 @@ jobs:
           BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
           BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
           BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          ios_store_url="${BEFAM_IOS_APP_STORE_URL:-}"
+          android_store_url="${BEFAM_ANDROID_PLAY_STORE_URL:-}"
+          optional_store_defines=()
+          if [ -n "$ios_store_url" ]; then
+            optional_store_defines+=(--dart-define="BEFAM_IOS_APP_STORE_URL=${ios_store_url}")
+          fi
+          if [ -n "$android_store_url" ]; then
+            optional_store_defines+=(--dart-define="BEFAM_ANDROID_PLAY_STORE_URL=${android_store_url}")
+          fi
           flutter build web \
             --release \
             --no-wasm-dry-run \
@@ -276,7 +287,8 @@ jobs:
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
             --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
-            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}"
+            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
+            "${optional_store_defines[@]}"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

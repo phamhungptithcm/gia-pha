@@ -431,6 +431,8 @@ jobs:
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
           ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
@@ -458,6 +460,8 @@ jobs:
             BEFAM_FIREBASE_WEB_AUTH_DOMAIN
             BEFAM_FIREBASE_WEB_MEASUREMENT_ID
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+            BEFAM_IOS_APP_STORE_URL
+            BEFAM_ANDROID_PLAY_STORE_URL
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
@@ -601,6 +605,8 @@ jobs:
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
@@ -626,6 +632,8 @@ jobs:
             BEFAM_FIREBASE_WEB_AUTH_DOMAIN
             BEFAM_FIREBASE_WEB_MEASUREMENT_ID
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+            BEFAM_IOS_APP_STORE_URL
+            BEFAM_ANDROID_PLAY_STORE_URL
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
@@ -748,6 +756,8 @@ jobs:
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
@@ -771,6 +781,8 @@ jobs:
             BEFAM_FIREBASE_WEB_AUTH_DOMAIN
             BEFAM_FIREBASE_WEB_MEASUREMENT_ID
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+            BEFAM_IOS_APP_STORE_URL
+            BEFAM_ANDROID_PLAY_STORE_URL
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
