@@ -190,7 +190,8 @@ jobs:
 
           mode = os.environ.get("E2E_MODE", "debug")
           suite = os.environ.get("E2E_SUITE", "full")
-          timeout_seconds = 30 * 60 if suite == "smoke" else 45 * 60
+          # Keep iOS smoke with the same timeout budget as full runs to avoid premature CI cutoff.
+          timeout_seconds = 45 * 60
           cmd = ["./scripts/run_mobile_e2e.sh", mode, "ios", suite]
 
           try:
