@@ -226,6 +226,10 @@ jobs:
               exit 1
             fi
           done
+          if [ "${FIREBASE_PROJECT_ID}" = "be-fam-3ab23" ]; then
+            echo "::error::Release pipeline is targeting staging Firebase project be-fam-3ab23."
+            exit 1
+          fi
 
       - name: Validate mobile signing secrets for release build
         env:

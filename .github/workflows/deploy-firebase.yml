@@ -47,6 +47,10 @@ jobs:
           test -n "$FIREBASE_PROJECT_ID"
           test -n "$FIREBASE_FUNCTIONS_REGION"
           test -n "$FIRESTORE_DATABASE_ID"
+          if [ "$FIREBASE_PROJECT_ID" = "be-fam-3ab23" ]; then
+            echo "::error::Production deploy must not target staging Firebase project be-fam-3ab23."
+            exit 1
+          fi
           echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"
 
       - name: Authenticate to Google Cloud (OIDC)
@@ -368,9 +372,6 @@ jobs:
           echo "GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL=$GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL" >> "$GITHUB_ENV"
           echo "BILLING_PRICING_CACHE_MS=$resolved_pricing_cache_ms" >> "$GITHUB_ENV"
           echo "Wrote runtime environment file: firebase/functions/$env_file"
-
-      - name: Verify Firebase access
-        run: firebase use "${{ vars.FIREBASE_PROJECT_ID }}" --project "${{ vars.FIREBASE_PROJECT_ID }}"
 
       - name: Sync runtime config document
         working-directory: firebase/functions
