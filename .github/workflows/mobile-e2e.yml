@@ -31,7 +31,7 @@ jobs:
         id: resolve
         run: |
           echo "e2e_mode=debug" >> "$GITHUB_OUTPUT"
-          echo "e2e_platform=android" >> "$GITHUB_OUTPUT"
+          echo "e2e_platform=both" >> "$GITHUB_OUTPUT"
           echo "e2e_suite=smoke" >> "$GITHUB_OUTPUT"
 
   e2e-android:
