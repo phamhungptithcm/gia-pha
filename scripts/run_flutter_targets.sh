@@ -504,6 +504,17 @@ build_befam_dart_define_args() {
   done
 }
 
+render_web_metadata() {
+  local web_base_url="${BEFAM_WEB_BASE_URL:-}"
+  if [[ -z "$web_base_url" && -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]]; then
+    web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"
+  fi
+  if [[ -z "$web_base_url" && -n "${FIREBASE_PROJECT_ID:-}" ]]; then
+    web_base_url="https://${FIREBASE_PROJECT_ID}.web.app"
+  fi
+  "${SCRIPT_DIR}/render_web_metadata.sh" "$web_base_url"
+}
+
 TARGET="${1:-interactive}"
 if [[ "$#" -gt 0 ]]; then
   shift
@@ -617,6 +628,7 @@ case "$TARGET" in
   web-chrome)
     cd "$APP_DIR"
     flutter pub get
+    render_web_metadata
     flutter run -d chrome "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 
@@ -629,12 +641,14 @@ case "$TARGET" in
     fi
     cd "$APP_DIR"
     flutter pub get
+    render_web_metadata
     flutter run -d web-server --web-hostname 0.0.0.0 --web-port "$PORT" "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 
   web-build-release)
     cd "$APP_DIR"
     flutter pub get
+    render_web_metadata
     flutter build web --release "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
     ;;
 

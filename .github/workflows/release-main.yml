@@ -331,6 +331,8 @@ jobs:
           GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          PRODUCTION_FIREBASE_PROJECT_ID: ${{ vars.PRODUCTION_FIREBASE_PROJECT_ID }}
+          STAGING_FIREBASE_PROJECT_ID: ${{ vars.STAGING_FIREBASE_PROJECT_ID }}
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
@@ -342,6 +344,7 @@ jobs:
             GCP_WORKLOAD_IDENTITY_PROVIDER
             GCP_SERVICE_ACCOUNT_EMAIL
             FIREBASE_PROJECT_ID
+            PRODUCTION_FIREBASE_PROJECT_ID
             FIREBASE_FUNCTIONS_REGION
             FIRESTORE_DATABASE_ID
             GOOGLE_PLAY_PACKAGE_NAME
@@ -354,8 +357,13 @@ jobs:
               exit 1
             fi
           done
-          if [ "${FIREBASE_PROJECT_ID}" = "be-fam-3ab23" ]; then
-            echo "::error::Release pipeline is targeting staging Firebase project be-fam-3ab23."
+          expected_project="${PRODUCTION_FIREBASE_PROJECT_ID}"
+          if [ "$FIREBASE_PROJECT_ID" != "$expected_project" ]; then
+            echo "::error::Release pipeline must target configured project ${expected_project}. Current: ${FIREBASE_PROJECT_ID}."
+            exit 1
+          fi
+          if [ -n "${STAGING_FIREBASE_PROJECT_ID:-}" ] && [ "$FIREBASE_PROJECT_ID" = "$STAGING_FIREBASE_PROJECT_ID" ]; then
+            echo "::error::Release pipeline is targeting staging Firebase project ${STAGING_FIREBASE_PROJECT_ID}."
             exit 1
           fi
 
@@ -899,6 +907,7 @@ jobs:
           BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_WEB_BASE_URL: ${{ vars.BEFAM_WEB_BASE_URL }}
           BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
@@ -914,6 +923,11 @@ jobs:
             echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
             exit 1
           fi
+          web_base_url="${BEFAM_WEB_BASE_URL:-}"
+          if [ -z "$web_base_url" ] && [ -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]; then
+            web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"
+          fi
+          ../../scripts/render_web_metadata.sh "$web_base_url"
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID

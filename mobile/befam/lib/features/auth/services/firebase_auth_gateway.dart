@@ -23,8 +23,6 @@ import 'auth_trusted_device_store.dart';
 import 'phone_number_formatter.dart';
 
 class FirebaseAuthGateway implements AuthGateway {
-  static const String _productionFirebaseProjectId = 'befam-b43bd';
-
   FirebaseAuthGateway({
     FirebaseAuth? auth,
     FirebaseFunctions? functions,
@@ -452,14 +450,6 @@ class FirebaseAuthGateway implements AuthGateway {
   }
 
   AuthOtpProvider _resolvePhoneOtpProvider() {
-    final configuredProjectId = AppEnvironment.firebaseProjectId
-        .trim()
-        .toLowerCase();
-
-    if (configuredProjectId == _productionFirebaseProjectId) {
-      return AuthOtpProvider.twilio;
-    }
-
     return AppEnvironment.useFirebaseOtp
         ? AuthOtpProvider.firebase
         : AuthOtpProvider.twilio;

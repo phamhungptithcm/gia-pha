@@ -76,6 +76,8 @@ jobs:
           GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          PRODUCTION_FIREBASE_PROJECT_ID: ${{ vars.PRODUCTION_FIREBASE_PROJECT_ID }}
+          STAGING_FIREBASE_PROJECT_ID: ${{ vars.STAGING_FIREBASE_PROJECT_ID }}
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
@@ -84,10 +86,16 @@ jobs:
           test -n "$GCP_WORKLOAD_IDENTITY_PROVIDER"
           test -n "$GCP_SERVICE_ACCOUNT_EMAIL"
           test -n "$FIREBASE_PROJECT_ID"
+          test -n "${PRODUCTION_FIREBASE_PROJECT_ID:-}"
           test -n "$FIREBASE_FUNCTIONS_REGION"
           test -n "$FIRESTORE_DATABASE_ID"
-          if [ "$FIREBASE_PROJECT_ID" = "be-fam-3ab23" ]; then
-            echo "::error::Production deploy must not target staging Firebase project be-fam-3ab23."
+          expected_project="${PRODUCTION_FIREBASE_PROJECT_ID}"
+          if [ "$FIREBASE_PROJECT_ID" != "$expected_project" ]; then
+            echo "::error::Production deploy must target configured project ${expected_project}. Current: ${FIREBASE_PROJECT_ID}."
+            exit 1
+          fi
+          if [ -n "${STAGING_FIREBASE_PROJECT_ID:-}" ] && [ "$FIREBASE_PROJECT_ID" = "$STAGING_FIREBASE_PROJECT_ID" ]; then
+            echo "::error::Production deploy must not target staging Firebase project ${STAGING_FIREBASE_PROJECT_ID}."
             exit 1
           fi
           echo "APP_TIMEZONE=${APP_TIMEZONE:-Asia/Ho_Chi_Minh}" >> "$GITHUB_ENV"

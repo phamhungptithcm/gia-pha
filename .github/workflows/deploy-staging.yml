@@ -113,13 +113,16 @@ jobs:
       - name: Validate staging sandbox target
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          STAGING_FIREBASE_PROJECT_ID: ${{ vars.STAGING_FIREBASE_PROJECT_ID }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
         run: |
           set -euo pipefail
           project="${FIREBASE_PROJECT_ID:-}"
           test -n "$project"
-          if [ "$project" != "be-fam-3ab23" ]; then
-            echo "::error::Staging deploy must target sandbox project be-fam-3ab23. Current: ${project}"
+          expected_project="${STAGING_FIREBASE_PROJECT_ID:-}"
+          test -n "$expected_project"
+          if [ "$project" != "$expected_project" ]; then
+            echo "::error::Staging deploy must target configured sandbox project ${expected_project}. Current: ${project}"
             exit 1
           fi
           database="${FIRESTORE_DATABASE_ID:-"(default)"}"
@@ -271,13 +274,16 @@ jobs:
       - name: Validate staging sandbox target
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          STAGING_FIREBASE_PROJECT_ID: ${{ vars.STAGING_FIREBASE_PROJECT_ID }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
         run: |
           set -euo pipefail
           project="${FIREBASE_PROJECT_ID:-}"
           test -n "$project"
-          if [ "$project" != "be-fam-3ab23" ]; then
-            echo "::error::Staging deploy must target sandbox project be-fam-3ab23. Current: ${project}"
+          expected_project="${STAGING_FIREBASE_PROJECT_ID:-}"
+          test -n "$expected_project"
+          if [ "$project" != "$expected_project" ]; then
+            echo "::error::Staging deploy must target configured sandbox project ${expected_project}. Current: ${project}"
             exit 1
           fi
           database="${FIRESTORE_DATABASE_ID:-"(default)"}"
@@ -369,6 +375,8 @@ jobs:
           BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
           BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
+          BEFAM_WEB_BASE_URL: ${{ vars.BEFAM_WEB_BASE_URL }}
+          BEFAM_FIREBASE_PROJECT_ID: ${{ vars.BEFAM_FIREBASE_PROJECT_ID }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
@@ -382,6 +390,11 @@ jobs:
             echo "::error::Staging web builds must use BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
             exit 1
           fi
+          web_base_url="${BEFAM_WEB_BASE_URL:-}"
+          if [ -z "$web_base_url" ] && [ -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]; then
+            web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"
+          fi
+          ../../scripts/render_web_metadata.sh "$web_base_url"
           ios_store_url="${BEFAM_IOS_APP_STORE_URL:-}"
           android_store_url="${BEFAM_ANDROID_PLAY_STORE_URL:-}"
           optional_store_defines=()
