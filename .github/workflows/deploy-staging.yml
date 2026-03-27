@@ -366,14 +366,20 @@ jobs:
         run: npm install --global firebase-tools@14.19.1
 
       - name: Deploy Firebase Hosting
+        working-directory: ${{ github.workspace }}
         env:
           FIREBASE_HOSTING_TARGET: ${{ vars.FIREBASE_HOSTING_TARGET }}
         run: |
           set -euo pipefail
           project="${FIREBASE_PROJECT_ID}"
           target="${FIREBASE_HOSTING_TARGET:-}"
+          firebase_config="${GITHUB_WORKSPACE}/firebase.json"
+          if [ ! -f "$firebase_config" ]; then
+            echo "::error::Firebase config not found at ${firebase_config}."
+            exit 1
+          fi
           if [ -n "$target" ]; then
-            firebase deploy --project "$project" --non-interactive --only "hosting:${target}"
+            firebase deploy --project "$project" --config "$firebase_config" --non-interactive --only "hosting:${target}"
           else
-            firebase deploy --project "$project" --non-interactive --only hosting
+            firebase deploy --project "$project" --config "$firebase_config" --non-interactive --only hosting
           fi
