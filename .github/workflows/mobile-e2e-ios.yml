@@ -41,7 +41,16 @@ jobs:
           if [ -z "${before_sha}" ] || [ "${before_sha}" = "0000000000000000000000000000000000000000" ]; then
             changed_files="$(git show --pretty='' --name-only "${head_sha}")"
           else
-            changed_files="$(git diff --name-only "${before_sha}" "${head_sha}")"
+            if ! git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "${before_sha}" || true
+            fi
+            if git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+              changed_files="$(git diff --name-only "${before_sha}" "${head_sha}")"
+            else
+              echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+              echo "iOS E2E required: unable to resolve base commit ${before_sha} in shallow checkout."
+              exit 0
+            fi
           fi
           if printf '%s\n' "${changed_files}" | grep -Eq '^(mobile/befam/|scripts/run_mobile_e2e\.sh|\.github/workflows/mobile-e2e(\-ios)?\.yml)'; then
             echo "run_e2e=true" >> "$GITHUB_OUTPUT"
