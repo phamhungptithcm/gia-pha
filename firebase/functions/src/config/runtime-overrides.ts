@@ -123,15 +123,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function readString(data: Record<string, unknown>, key: string): string | null {
-  const value = data[key];
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
 function readNumber(data: Record<string, unknown>, key: string): number | null {
   const value = data[key];
   if (typeof value === 'number' && Number.isFinite(value)) {

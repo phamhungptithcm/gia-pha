@@ -66,6 +66,9 @@ jobs:
       - name: Build Functions
         run: npm run build
 
+      - name: Enforce Functions dead-code gate
+        run: npx tsc --noEmit --noUnusedLocals --noUnusedParameters
+
       - name: Run Functions contract tests
         run: npm test
 
@@ -130,8 +133,38 @@ jobs:
       - name: Analyze Flutter app
         run: flutter analyze
 
+      - name: Enforce Dart dead-code gate
+        run: dart analyze --fatal-infos --fatal-warnings
+
       - name: Run Flutter tests
-        run: flutter test --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
+        run: flutter test --coverage --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
+
+      - name: Enforce Flutter coverage gate
+        env:
+          MOBILE_MIN_COVERAGE_PERCENT: ${{ vars.MOBILE_MIN_COVERAGE_PERCENT }}
+        run: |
+          set -euo pipefail
+          min="${MOBILE_MIN_COVERAGE_PERCENT:-40}"
+          coverage_file="coverage/lcov.info"
+          if [ ! -f "$coverage_file" ]; then
+            echo "::error::Missing coverage report at ${coverage_file}"
+            exit 1
+          fi
+          actual="$(awk -F: '
+            /^LF:/ { lf += $2 }
+            /^LH:/ { lh += $2 }
+            END {
+              if (lf <= 0) {
+                print "0.00";
+                exit;
+              }
+              printf "%.2f", (100 * lh / lf);
+            }' "$coverage_file")"
+          echo "Flutter coverage: ${actual}% (minimum ${min}%)"
+          awk -v actual="$actual" -v min="$min" 'BEGIN { exit (actual + 0 >= min + 0 ? 0 : 1) }' || {
+            echo "::error::Flutter coverage gate failed: ${actual}% < ${min}%"
+            exit 1
+          }
 
       - name: Run Flutter release catalog integration contract
         run: flutter test integration_test/e2e_release_catalog_contract_test.dart -d flutter-tester --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true --dart-define=BEFAM_ENABLE_APP_CHECK=false
@@ -475,6 +508,7 @@ jobs:
             --build-name "${{ needs.prepare-release.outputs.version }}" \
             --build-number "${{ needs.prepare-release.outputs.build_number }}" \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
+            --dart-define=BEFAM_OTP_PROVIDER=twilio \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
@@ -679,6 +713,7 @@ jobs:
             --build-number "${{ needs.prepare-release.outputs.build_number }}" \
             --export-options-plist="${export_options_plist}" \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
+            --dart-define=BEFAM_OTP_PROVIDER=twilio \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
@@ -795,6 +830,7 @@ jobs:
             --release \
             --no-wasm-dry-run \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
+            --dart-define=BEFAM_OTP_PROVIDER=twilio \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \

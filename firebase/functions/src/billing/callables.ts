@@ -3,7 +3,6 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import {
   APP_REGION,
   CALLABLE_ENFORCE_APP_CHECK,
-  BILLING_ALLOW_MANUAL_SETTLEMENT,
 } from "../config/runtime";
 import {
   loadBillingRuntimeConfig,
@@ -23,7 +22,6 @@ import {
 import {
   BILLING_PRICING_TIERS,
   refreshBillingPricingTiers,
-  rankPlanCode,
   type BillingPlanCode,
   type PaymentMethod,
   type PaymentMode,
@@ -40,7 +38,6 @@ import { requireAuth } from "../shared/errors";
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "../shared/firestore";
 import { notifyMembers } from "../notifications/push-delivery";
-import { logInfo } from "../shared/logger";
 import {
   ensureAnyRole,
   ensureClaimedSession,
@@ -241,20 +238,6 @@ async function resolveClanBillingScopeMetadata(
     ownerDisplayName: ownerDisplayName.length > 0 ? ownerDisplayName : null,
     clanStatus: normalizeClanStatus(data.status),
   };
-}
-
-function ensureManualSettlementAllowed(token: AuthToken): void {
-  if (!BILLING_ALLOW_MANUAL_SETTLEMENT) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Manual settlement is disabled in this environment.",
-    );
-  }
-  ensureAnyRole(
-    token,
-    ["SUPER_ADMIN"],
-    "Manual settlement is restricted to super admins.",
-  );
 }
 
 export const resolveBillingEntitlement = onCall(
@@ -789,48 +772,6 @@ async function upsertUserIapEntitlementSnapshot({
   );
 }
 
-function canRenewCurrentPlan(
-  subscription: {
-    planCode?: unknown;
-    status?: unknown;
-    expiresAt?: unknown;
-  },
-  now: Date,
-): boolean {
-  const planCode = normalizeString(subscription.planCode).toUpperCase();
-  if (planCode === "FREE") {
-    return false;
-  }
-  const status = normalizeString(subscription.status).toLowerCase();
-  if (status === "expired" || status === "grace_period") {
-    return true;
-  }
-  if (status !== "active") {
-    return false;
-  }
-  const expiresAt = subscription.expiresAt;
-  if (!(expiresAt instanceof Date)) {
-    return false;
-  }
-  const daysToExpire =
-    (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-  return daysToExpire <= 30;
-}
-
-function normalizePaymentMethod(data: unknown): PaymentMethod {
-  const method = readString(data, "paymentMethod")?.toLowerCase();
-  if (method === "apple_iap") {
-    return "apple_iap";
-  }
-  if (method === "google_play") {
-    return "google_play";
-  }
-  throw new HttpsError(
-    "invalid-argument",
-    'paymentMethod must be "apple_iap" or "google_play".',
-  );
-}
-
 function normalizePaymentModeFromInput(data: unknown): PaymentMode {
   const mode = readString(data, "paymentMode")?.toLowerCase();
   if (mode === "manual") {
@@ -993,24 +934,6 @@ async function resolveWorkspaceMemberCount({
     now,
   });
   return policy.totalMemberCount;
-}
-
-function isSubscriptionActiveAndValid(
-  subscription: {
-    status?: unknown;
-    expiresAt?: unknown;
-  },
-  now: Date,
-): boolean {
-  const status = normalizeString(subscription.status).toLowerCase();
-  if (status !== "active" && status !== "grace_period") {
-    return false;
-  }
-  const expiresAt = subscription.expiresAt;
-  if (!(expiresAt instanceof Date)) {
-    return status === "grace_period";
-  }
-  return expiresAt.getTime() > now.getTime();
 }
 
 function serializeSubscription(
