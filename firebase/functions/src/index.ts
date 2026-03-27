@@ -18,14 +18,11 @@ import {
   verifyOtpChallenge,
 } from './auth/callables';
 import {
-  completeCardCheckout,
-  createSubscriptionCheckout,
   loadBillingWorkspace,
   resolveBillingEntitlement,
   verifyInAppPurchase,
   updateBillingPreferences,
 } from './billing/callables';
-import { cardPaymentCallback } from './billing/webhooks';
 import { appleIapWebhook, googleIapWebhook } from './billing/iap-webhooks';
 import { APP_REGION } from './config/runtime';
 import { onEventCreated, sendEventReminder } from './events/event-triggers';
@@ -34,7 +31,10 @@ import {
   createParentChildRelationship,
   createSpouseRelationship,
 } from './genealogy/callables';
-import { createClanMember } from './members/callables';
+import {
+  createClanMember,
+  notifyNearbyRelativesDetected,
+} from './members/callables';
 import { onMemberDeathDateChanged } from './members/memorial-ritual-triggers';
 import {
   cancelJoinRequest,
@@ -70,9 +70,13 @@ import { appHealthCheck } from './system/health';
 
 initializeApp();
 
+// Global defaults: 3 max instances keeps cold-start cost low for an
+// early-stage app while still handling moderate bursts. Critical auth
+// and IAP callables override this with higher limits per-function if needed.
 setGlobalOptions({
   region: APP_REGION,
-  maxInstances: 10,
+  maxInstances: 3,
+  concurrency: 80,
 });
 
 export {
@@ -81,17 +85,15 @@ export {
   billingSubscriptionDelinquencyJob,
   billingSubscriptionReminderJob,
   bootstrapClanWorkspace,
-  cardPaymentCallback,
   claimMemberRecord,
   createUnlinkedPhoneIdentity,
-  completeCardCheckout,
   cancelJoinRequest,
   appleIapWebhook,
   createParentChildRelationship,
   createSpouseRelationship,
   createInvite,
   createClanMember,
-  createSubscriptionCheckout,
+  notifyNearbyRelativesDetected,
   requestOtpChallenge,
   disburseScholarshipSubmissionFromFund,
   detectDuplicateGenealogy,

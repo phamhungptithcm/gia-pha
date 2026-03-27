@@ -1,0 +1,209 @@
+﻿run_id,suite,test_case_id,priority,precondition,steps,expected_result,status,actual_result,defect_id,defect_link,evidence_link,tester,test_date,environment,device,app_version,build_sha,notes
+RC-20260326-debug-ios,"Auth, Session, Identity",AUTH-001,P0,user có member đã claim,"1) Mở app -> login phone OTP.
+2) Nhập OTP đúng.
+3) Quan sát landing shell.","Login thành công, vào đúng member + clan context.",FAIL,PASS via Release Suite · Auth + Role Matrix [AUTH-001][P0] phone OTP flow + privacy gate + role matrix | FAIL via Release Suite · Auth + Role Matrix [AUTH-001][P0] validate all 6 debug scenarios map to expected session context (Test failed. See exception logs above. The test description was: [AUTH-001][P0] validate all 6 debug scenarios map to expected session context),,,/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/artifacts/e2e-debug-ios-machine.jsonl,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,auto-filled from integration_test machine output
+RC-20260326-debug-ios,"Auth, Session, Identity",AUTH-002,P0,user có OTP nhưng nhập sai,"1) Nhập OTP sai 3 lần.
+2) Theo dõi thông báo lỗi.","Báo lỗi rõ ràng, không tạo session rác.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Auth, Session, Identity",AUTH-003,P0,child identifier hợp lệ,"1) Chọn child login.
+2) Nhập mã trẻ em + OTP phụ huynh.
+3) Hoàn tất flow.","Resolve đúng parent phone + member context, không lệch clan.",PASS,PASS via Release Suite · Auth + Role Matrix [AUTH-003][P0] child-code OTP flow goes to shell,,,/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/artifacts/e2e-debug-ios-machine.jsonl,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,auto-filled from integration_test machine output
+RC-20260326-debug-ios,"Auth, Session, Identity",AUTH-004,P0,số điện thoại tồn tại profile chưa claim,"1) Login phone.
+2) Thực hiện claim flow.
+3) Reload app.","members/{id}.authUid được gán đúng, session restore ổn định.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Auth, Session, Identity",AUTH-005,P0,user đa clan,"1) Login thành công.
+2) Mở menu ba chấm -> Switch clan.
+3) Chọn clan khác.","Claims/session đổi đúng clan, data toàn app đổi theo clan mới.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Auth, Session, Identity",AUTH-006,P1,trusted device bật,"1) Login trên thiết bị A.
+2) Logout/login lại trên A.
+3) Thử trên thiết bị B.","Device trust hoạt động đúng, không bypass OTP trái phép.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Auth, Session, Identity",AUTH-007,P0,số phone format khác nhau,"1) Thử login với biến thể +84, 0, có khoảng trắng.
+2) So khớp profile.","Normalize nhất quán về E.164, mapping đúng một profile.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Auth, Session, Identity",AUTH-008,P1,token hết hạn,"1) Để phiên cũ hết hạn/thu hồi.
+2) Mở lại app.","App yêu cầu xác thực lại, không treo UI.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Auth, Session, Identity",AUTH-009,P0,user chưa có clan/member,"1) Login user mới.
+2) Vào Home/Tree/Profile.","Không crash, hiển thị empty-state có CTA rõ ràng để tạo/join clan.",PASS,PASS via Release Suite · Auth + Role Matrix [AUTH-009][CTX-003][P0] unlinked user is stable and routed to discovery,,,/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/artifacts/e2e-debug-ios-machine.jsonl,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,auto-filled from integration_test machine output
+RC-20260326-debug-ios,"Auth, Session, Identity",AUTH-010,P1,app kill/reopen,"1) Login thành công.
+2) Đóng hẳn app rồi mở lại.",Session restore đúng; không nhảy sai màn hình.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Clan Context & App Navigation,CTX-001,P0,user có >=2 clan,"1) Ở mọi tab chính, quan sát header context clan.
+2) Switch clan từ menu.","Header luôn hiển thị tên clan (không phải ID), cập nhật realtime sau switch.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Clan Context & App Navigation,CTX-002,P0,user có >=2 clan,"1) Ở tab Events/Funds/Scholarship, switch clan.
+2) Pull to refresh từng tab.","Dữ liệu chỉ thuộc clan đang active, không lẫn clan khác.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Clan Context & App Navigation,CTX-003,P0,unlinked user,"1) Mở tab Gia phả/discovery.
+2) Nhấn nút +.","Mở form tạo gia phả/join flow phù hợp, không điều hướng gây confuse.",PASS,PASS via Release Suite · Auth + Role Matrix [AUTH-009][CTX-003][P0] unlinked user is stable and routed to discovery,,,/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/artifacts/e2e-debug-ios-machine.jsonl,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,auto-filled from integration_test machine output
+RC-20260326-debug-ios,Clan Context & App Navigation,CTX-004,P1,app đang ở tab con,"1) Switch clan khi đang ở deep page (event detail/fund detail).
+2) Back về root.","Context giữ nhất quán, không còn dữ liệu stale của clan cũ.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Clan Context & App Navigation,CTX-005,P0,user có quyền hạn khác nhau theo clan,"1) Clan A (admin), clan B (member).
+2) Switch qua lại và thử action write.",Permission thay đổi đúng theo clan hiện tại.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Clan Context & App Navigation,CTX-006,P1,logout từ menu,"1) Mở menu ba chấm.
+2) Chọn logout.
+3) Mở lại app.",Logout sạch session + token context local.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Clan Context & App Navigation,CTX-007,P1,localization EN/VI,"1) Đổi language trong profile.
+2) Kiểm tra labels header/menu/action.","Chuỗi UI đổi đúng theo ngôn ngữ, không hardcode còn sót.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Clan Context & App Navigation,CTX-008,P0,app startup,"1) Cold start app.
+2) Quan sát tab đáy.","Tab label đúng UX thống nhất (Nhà, Gia phả, Sự kiện, Gói, Hồ sơ).",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",MEM-001,P0,admin role,"1) Mở Member workspace.
+2) Tạo thành viên bằng stepper 3 bước.
+3) Lưu.","Stepper cân đối, lưu thành công, record xuất hiện trong list.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",MEM-002,P0,admin role,"1) Tạo member có phone.
+2) Kiểm tra format phone và icon phone trên card list.","Phone hiển thị đúng chuẩn, icon thẳng hàng, không lệch layout.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",MEM-003,P0,dataset >50 members,"1) Scroll list thành viên đến cuối.
+2) Theo dõi tải thêm dữ liệu.","Lazy loading hoạt động, không load toàn bộ một lần, không giật lag mạnh.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",MEM-004,P1,admin role,"1) Sửa hồ sơ member.
+2) Đổi avatar.
+3) Reload app.","Dữ liệu persist đúng, avatar cập nhật đúng Storage path/rules.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",MEM-005,P0,branch admin,"1) Thử sửa member cùng branch.
+2) Thử sửa member khác branch.",Chỉ được sửa trong phạm vi branch được cấp.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",REL-001,P0,có 3 member test,"1) Tạo quan hệ cha mẹ-con cái hợp lệ.
+2) Lưu.","Quan hệ tạo thành công, graph cập nhật đúng chiều.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",REL-002,P0,có quan hệ sẵn,"1) Tạo quan hệ gây vòng lặp/cạnh không hợp lệ.
+2) Lưu.","Validation chặn với lỗi rõ ràng, không ghi dữ liệu sai.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",REL-003,P1,spouse relation,"1) Tạo quan hệ vợ/chồng trùng cặp.
+2) Lưu.",Chặn trùng quan hệ theo ràng buộc nghiệp vụ.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",TREE-001,P0,có cây gia phả đủ sâu,"1) Mở màn hình cây.
+2) Dùng bộ lọc hiển thị.
+3) Expand/collapse cha mẹ/con cái.","UI không vỡ dòng, nút icon cân đối, thao tác mượt.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",TREE-002,P0,có data nhiều nhánh,"1) Dùng nút + trên tree.
+2) Chọn từng action: thêm gia phả/nhánh/thành viên.",Menu + hiển thị đúng option theo quyền và context.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",TREE-003,P1,ở tree workspace,"1) Nhấn icon refresh trong title khu vực tree.
+2) Quan sát dữ liệu.","Refresh đúng scope, không reset filter ngoài ý muốn.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Member, Relationship, Genealogy",TREE-004,P1,mobile nhỏ màn hình,"1) Test portrait/landscape (nếu hỗ trợ).
+2) Quan sát card/button text.",Không break line khó đọc; tap target đủ lớn.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Events & Dual Calendar,EVT-001,P0,admin role,"1) Tạo event dương lịch.
+2) Lưu và mở lại detail.",Event lưu đúng timezone/startsAt/endsAt.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Events & Dual Calendar,EVT-002,P0,admin role,"1) Tạo event âm lịch lặp hằng năm.
+2) Kiểm tra occurrence kế tiếp.",Resolver âm lịch đúng ngày; không lệch múi giờ.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Events & Dual Calendar,EVT-003,P1,admin role,"1) Sửa event đã có.
+2) Đổi audience/visibility.
+3) Lưu.",Quyền chỉnh sửa đúng role; data cập nhật chính xác.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Events & Dual Calendar,EVT-004,P1,member role,"1) Vào event workspace.
+2) Thử tạo/sửa/xóa event.",Member thường bị chặn write; chỉ đọc dữ liệu được phép.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Events & Dual Calendar,EVT-005,P0,home card upcoming event,"1) Mở Home card ""Sự kiện gần tới"".
+2) Kiểm tra tiêu đề và dòng metadata.",Không break line xấu; nội dung địa điểm/clan name đúng context.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Events & Dual Calendar,EVT-006,P1,event có địa chỉ map,"1) Nhấn icon điều hướng địa chỉ.
+2) Kiểm tra deep-link map app.",Mở app bản đồ thành công hoặc fallback hợp lệ.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Events & Dual Calendar,EVT-007,P0,switch clan,"1) Chuyển clan.
+2) Vào event list/home card.",Chỉ hiện event của clan active.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Events & Dual Calendar,EVT-008,P1,notification trigger path,"1) Tạo event mới.
+2) Kiểm tra notifications collection + push.",Trigger gửi notification đúng audience.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Notifications (Inbox/Push/Deep-link),NOTIF-001,P0,đã bật quyền notification,"1) Login app trên thiết bị thật.
+2) Kiểm tra token đăng ký thành công.",Có users/{uid}/deviceTokens/{token} với context đúng.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Notifications (Inbox/Push/Deep-link),NOTIF-002,P0,có bản tin notification,"1) Mở inbox.
+2) Scroll cuối danh sách.","Pagination hoạt động, load thêm ổn định.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Notifications (Inbox/Push/Deep-link),NOTIF-003,P0,notification chưa đọc,"1) Nhấn vào item trong inbox.
+2) Quay lại list.","isRead cập nhật đúng, badge/trạng thái đổi ngay.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Notifications (Inbox/Push/Deep-link),NOTIF-004,P0,push event,"1) Trigger push event từ backend.
+2) Tap notification system tray.",App deep-link đến target event page chính xác.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Notifications (Inbox/Push/Deep-link),NOTIF-005,P0,push scholarship,"1) Trigger push scholarship.
+2) Tap notification.",App deep-link đến scholarship target page chính xác.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Notifications (Inbox/Push/Deep-link),NOTIF-006,P1,foreground push,"1) Giữ app foreground.
+2) Trigger push.",Hiện in-app feedback/snackbar đúng nội dung.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Notifications (Inbox/Push/Deep-link),NOTIF-007,P1,invalid token scenario,"1) Gỡ app/tạo token cũ invalid.
+2) Trigger push.",Token invalid bị cleanup khỏi Firestore.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Notifications (Inbox/Push/Deep-link),NOTIF-008,P1,member thường,1) Thử cập nhật notification của member khác (tools/emulator).,"Rules chặn, chỉ self mark-read được phép.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Funds,FUND-001,P0,treasurer/admin,"1) Tạo quỹ mới.
+2) Kiểm tra list và detail.","Quỹ tạo thành công, hiển thị đúng loại/quy mô áp dụng.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Funds,FUND-002,P0,có quỹ tồn tại,"1) Tạo giao dịch thu/chi hợp lệ.
+2) Kiểm tra số dư sau mỗi giao dịch.",Số dư tính đúng và nhất quán với ledger.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Funds,FUND-003,P0,role member,"1) Đăng nhập member thường.
+2) Thử tạo/sửa quỹ hoặc giao dịch.",Bị chặn write theo quyền.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Funds,FUND-004,P1,fund card UI,"1) Mở danh sách quỹ nhiều item.
+2) Kiểm tra spacing/card hierarchy.",Không lồng container rối; thông tin quan trọng dễ đọc trên mobile.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Funds,FUND-005,P1,có thủ quỹ được gán,"1) Mở fund detail/workspace.
+2) Kiểm tra thông tin người thủ quỹ.",Chỉ hiển thị thủ quỹ thuộc quỹ hiện tại + clan hiện tại.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Funds,FUND-006,P1,dataset lớn,"1) Scroll danh sách quỹ dài.
+2) Quan sát tải thêm.","Lazy loading hoạt động, không tải tất cả một lần.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Funds,FUND-007,P1,switch clan,"1) Đổi clan active.
+2) Vào fund workspace.",Dữ liệu quỹ và dashboard đổi theo clan active.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Funds,FUND-008,P0,server-only transaction writes,"1) Thử client write trực tiếp transactions.
+2) Quan sát kết quả.",Bị deny bởi rules.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Funds,FUND-009,P1,dashboard tổng hợp,"1) Kiểm tra cards số quỹ/giao dịch/quyền truy cập.
+2) So với dữ liệu thực.","Các số liệu đúng, không mismatch context.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Scholarship,SCH-001,P0,admin role,"1) Tạo chương trình khuyến học.
+2) Điền tiêu đề, năm, trạng thái.
+3) Lưu.","Program tạo thành công, xuất hiện trong danh sách.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Scholarship,SCH-002,P0,có program,"1) Tạo mức thưởng trong program.
+2) Lưu và reload.",Award level lưu đúng thứ tự hiển thị và loại thưởng.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Scholarship,SCH-003,P0,member role,"1) Tạo hồ sơ đề cử.
+2) Upload minh chứng.
+3) Gửi hồ sơ.","Submission tạo thành công, file upload đúng path/rules.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Scholarship,SCH-004,P0,reviewer role,"1) Mở submission pending.
+2) Approve hoặc reject.
+3) Lưu quyết định.","Trạng thái cập nhật đúng, audit/log ghi nhận đầy đủ.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Scholarship,SCH-005,P1,user không phải reviewer,"1) Mở hàng đợi xét duyệt.
+2) Thử action duyệt.","UI hiển thị đúng ""không có quyền"", không cho thao tác.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Scholarship,SCH-006,P1,danh sách dài,"1) Scroll list programs/submissions.
+2) Theo dõi tải thêm.","Lazy loading hoạt động, UX mượt.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Scholarship,SCH-007,P1,nhiều action tạo mới,"1) Nhấn FAB +.
+2) Chọn từng action (chương trình/mức thưởng/hồ sơ).","Menu hành động thống nhất, không trùng CTA gây rối.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Scholarship,SCH-008,P0,notification trigger,"1) Duyệt submission.
+2) Kiểm tra push + inbox người nộp.","Notification gửi đúng người, deep-link mở đúng chi tiết.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Scholarship,SCH-009,P1,switch clan,"1) Chuyển clan active.
+2) Vào scholarship workspace.",Program/award/submission chỉ thuộc clan active.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Scholarship,SCH-010,P1,localization,"1) Chuyển EN/VI.
+2) Kiểm tra label/trạng thái trong scholarship.",Không còn text hardcode sai ngôn ngữ.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-001,P0,owner/admin clan,"1) Mở trang Gói.
+2) Kiểm tra plan hiện tại + member count.",Entitlement phản ánh đúng plan thực tế đang hiệu lực.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-002,P0,clan có 0-10 member,"1) Resolve entitlement.
+2) Kiểm tra plan tối thiểu.",Mặc định FREE.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-003,P0,clan có 11-200 member,"1) Resolve entitlement.
+2) Kiểm tra minimum tier.",Clan phải ở mức tối thiểu BASE.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-004,P0,đang ở plan cao,"1) Chọn hạ gói dưới mức tối thiểu theo member count.
+2) Continue checkout.","Hệ thống chặn downgrade không hợp lệ, báo lỗi rõ ràng.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-005,P1,đang còn hạn gói hiện tại,"1) Chọn gia hạn cùng gói khi chưa gần hạn.
+2) Continue.",Chặn renew sớm theo rule hiện tại.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-006,P0,upgrade hợp lệ,"1) Chọn gói cao hơn ở step 1.
+2) Sang step 2 xác nhận.
+3) Qua step 3 VNPay.","Stepper cân đối, CTA không xuống dòng, flow rõ ràng.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-007,P0,VNPay success path,"1) Thanh toán thành công.
+2) Quay lại app.
+3) Refresh billing.","Transaction/invoice/subscription cập nhật, plan kích hoạt đúng.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-008,P0,VNPay pending path,"1) Tạo giao dịch pending.
+2) Kiểm tra UI trạng thái.",Không kích hoạt plan mới cho đến khi confirmed.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-009,P0,VNPay failed/cancel,"1) Hủy/failed tại cổng thanh toán.
+2) Quay lại app.","Giữ plan cũ, hiển thị trạng thái thất bại rõ ràng.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-010,P1,non-billing role,"1) Đăng nhập member thường.
+2) Mở billing data nhạy cảm.",Bị chặn đọc document billing nhạy cảm theo rules.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-011,P1,checkout form,"1) Nhập số điện thoại liên hệ.
+2) Kiểm tra normalize lưu payload.",Phone được normalize nhất quán.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Billing & VNPay,BILL-012,P1,pending transactions,"1) Mở detail giao dịch chờ.
+2) Copy checkout URL (nếu có).","Detail đầy đủ, copy URL hoạt động.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Profile, Localization, Nearby Relatives",PRO-001,P0,member linked,"1) Mở profile.
+2) Sửa thông tin được phép.
+3) Lưu.","Chỉ field cho phép được update, lưu thành công.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Profile, Localization, Nearby Relatives",PRO-002,P0,unlinked user,"1) Login user chưa có member/clan.
+2) Mở profile screen.","Empty-state thân thiện, có CTA cập nhật thông tin/gia nhập/tạo clan.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Profile, Localization, Nearby Relatives",PRO-003,P1,language switch,"1) Đổi ngôn ngữ VI/EN.
+2) Kiểm tra toàn app.","Chuỗi UI đổi đồng bộ, không còn text sai ngữ cảnh.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Profile, Localization, Nearby Relatives",PRO-004,P1,location permission OFF,"1) Vào ""Người thân ở gần bạn"".
+2) Quan sát guidance box.
+3) Bấm link cấp quyền.",Có link mở đúng OS settings (App Settings/Location Settings).,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Profile, Localization, Nearby Relatives",PRO-005,P0,location permission ON trên >=2 user,"1) Bật share vị trí cho nhiều member gần nhau.
+2) Mở nearby list + radar rescan.","Danh sách gần đây dựa trên vị trí thật, cập nhật sau rescan.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Profile, Localization, Nearby Relatives",PRO-006,P1,location sharing OFF,"1) Tắt chia sẻ vị trí.
+2) Reload nearby module.",User không bị lộ vị trí; UI hiển thị trạng thái phù hợp.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Profile, Localization, Nearby Relatives",PRO-007,P1,profile avatar,"1) Đổi avatar bằng ảnh >10MB và ảnh hợp lệ.
+2) So sánh kết quả.",File quá giới hạn bị chặn; file hợp lệ upload thành công.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Profile, Localization, Nearby Relatives",PRO-008,P1,header clan context,"1) Đi qua tất cả tabs.
+2) Xác minh header luôn hiện tên clan.",Không còn hiển thị clan ID/hardcode.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,"Profile, Localization, Nearby Relatives",PRO-009,P1,accessibility basic,"1) Tăng font hệ thống.
+2) Duyệt màn profile/home/cards chính.","Text vẫn đọc được, CTA chính không vỡ layout nghiêm trọng.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-001,P0,,Dùng client account A đọc members clan B.,Deny (cross-clan isolation).,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-002,P0,,"Member tự update profile với field ngoài whitelist (primaryRole, clanId).",Deny bởi safeProfileUpdate().,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-003,P0,,"Member update field hợp lệ (nickName, bio, location*).",Allow.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-004,P0,,Branch admin sửa member ngoài branch claim.,Deny.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-005,P0,,Client ghi trực tiếp transactions.,Deny (server-only write).,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-006,P0,,Client tạo notification doc trực tiếp.,Deny (server-only write).,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-007,P0,,Member đánh dấu read notification của member khác.,Deny.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-008,P0,,Member mark-read notification của chính mình (isRead only).,Allow.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-009,P0,,Non-billing role đọc subscriptions/paymentTransactions.,Deny.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-010,P0,,Billing admin đọc billing docs đúng clan.,Allow.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-011,P1,,Upload avatar sai content-type hoặc >10MB.,Deny tại Storage rules.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Security/Rules (Firestore + Storage),RULE-012,P1,,Upload scholarship evidence >20MB hoặc sai path owner.,Deny; owner đúng path + size hợp lệ thì allow.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Non-functional & Reliability,NFR-001,P0,,"Cold start app trên iOS/Android 3 lần, đo thời gian đến home.",Không crash; thời gian ổn định trong ngưỡng team chấp nhận.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Non-functional & Reliability,NFR-002,P1,,Scroll list member/fund/scholarship dài liên tục 2-3 phút.,"Không leak nghiêm trọng, không jank kéo dài.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Non-functional & Reliability,NFR-003,P0,,Chuyển mạng online -> offline -> online trong khi load dữ liệu.,"Hiện lỗi thân thiện, có thể retry, app không treo.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Non-functional & Reliability,NFR-004,P1,,Nhận push khi app foreground/background/terminated.,"Hành vi nhất quán, không duplicate mở trang đích.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Non-functional & Reliability,NFR-005,P1,,Kill app giữa lúc đang checkout/bottom sheet form.,"Mở lại app không hỏng session, không mất ổn định state.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Non-functional & Reliability,NFR-006,P1,,"Bật chế độ pin thấp và mạng yếu, test flow chính.","CTA vẫn phản hồi, timeout/error message rõ ràng.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Non-functional & Reliability,NFR-007,P1,,Đổi ngôn ngữ liên tục ở runtime rồi điều hướng qua các tab.,"Không crash, không string null/hardcode lẫn ngôn ngữ.",NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,
+RC-20260326-debug-ios,Non-functional & Reliability,NFR-008,P1,,Test với timezone khác Asia/Ho_Chi_Minh trên thiết bị.,Event time hiển thị nhất quán theo logic app/timezone setting.,NOT_RUN,,,,,hunpeo97,2026-03-26,debug,ios:165ECA74-B67B-45DA-B8A8-B8FC8DEB998B,1.0.0+1,2dc4f42,

@@ -1,0 +1,126 @@
+name: CI - Mobile E2E Android
+
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-e2e-android-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-android:
+    name: E2E - Android Test Run
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      E2E_MODE: debug
+      E2E_PLATFORM: android
+      E2E_SUITE: smoke
+      BEFAM_E2E_SKIP_GEN_L10N: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Decide whether Android E2E is required
+        id: scope
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+            echo "Manual dispatch -> run Android E2E."
+            exit 0
+          fi
+          before_sha="${{ github.event.before }}"
+          head_sha="${{ github.sha }}"
+          if [ -z "${before_sha}" ] || [ "${before_sha}" = "0000000000000000000000000000000000000000" ]; then
+            changed_files="$(git show --pretty='' --name-only "${head_sha}")"
+          else
+            if ! git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "${before_sha}" || true
+            fi
+            if git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+              changed_files="$(git diff --name-only "${before_sha}" "${head_sha}")"
+            else
+              echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+              echo "Android E2E required: unable to resolve base commit ${before_sha} in shallow checkout."
+              exit 0
+            fi
+          fi
+          if printf '%s\n' "${changed_files}" | grep -Eq '^(mobile/befam/|scripts/run_mobile_e2e\.sh|\.github/workflows/mobile-e2e(\-ios)?\.yml)'; then
+            echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+            echo "Android E2E required by changed files."
+          else
+            echo "run_e2e=false" >> "$GITHUB_OUTPUT"
+            echo "Android E2E skipped: no mobile/e2e-related changes."
+          fi
+
+      - name: Enable KVM acceleration
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm",GROUP="kvm",MODE="0666",OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up Java
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache Android Gradle
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-e2e-gradle-${{ hashFiles('mobile/befam/android/**/*.gradle*', 'mobile/befam/android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-gradle-
+
+      - name: Run Android E2E
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2
+        env:
+          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 900
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -no-metrics
+          disable-animations: true
+          script: |
+            set -eu
+            adb start-server
+            adb wait-for-device
+            adb devices
+            chmod +x scripts/run_mobile_e2e.sh
+            bash -lc 'set +e; if [ "$E2E_SUITE" = "smoke" ]; then max_minutes=20; else max_minutes=30; fi; timeout "${max_minutes}m" ./scripts/run_mobile_e2e.sh "$E2E_MODE" android "$E2E_SUITE"; exit_code=$?; if [ "$exit_code" -eq 124 ]; then echo "::error::Android E2E timed out after ${max_minutes} minutes (suite=$E2E_SUITE)."; fi; exit "$exit_code"'
+
+      - name: Upload Android E2E artifacts
+        if: ${{ always() && steps.scope.outputs.run_e2e == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mobile-e2e-android-${{ github.run_id }}
+          path: |
+            mobile/befam/artifacts/**
+            mobile/befam/integration_test/screenshots/**
+          if-no-files-found: ignore

@@ -1,6 +1,6 @@
 # Cloud Functions
 
-_Last reviewed: March 16, 2026_
+_Last reviewed: March 26, 2026_
 
 Functions are implemented in `firebase/functions` using Firebase Functions v2
 and TypeScript.
@@ -47,7 +47,10 @@ and TypeScript.
   - resolves audience by clan/branch visibility
   - writes notification docs
   - sends FCM via `notifyMembers`
-- `sendEventReminder` (scheduled tick scaffold in place)
+- `sendEventReminder` (scheduled due-window runner):
+  - queries due reminders by indexed cursor field `nextReminderAt`
+  - backfills legacy records with missing cursor metadata
+  - advances reminder cursor fields on each processed event to reduce full recurring scans
 
 ### Scholarship and funds
 
@@ -102,6 +105,27 @@ and TypeScript.
 
 - no debug signer account is used in production callables
 - no project-specific signer account is hard-coded in source
+
+## Admin-only callable inventory
+
+The list below highlights callables that enforce elevated role checks in code
+(`ensureAnyRole`, `ensureClanAccess`, claimed-session guards).
+
+| Callable | Module | Minimum role(s) | Notes |
+| --- | --- | --- | --- |
+| `assignGovernanceRole` | `governance/callables.ts` | `SUPER_ADMIN` or `CLAN_ADMIN` | Clan-scoped role assignment with audit log + claims refresh signal |
+| `getTreasurerDashboard` | `governance/callables.ts` | `SUPER_ADMIN`, `CLAN_ADMIN`, `BRANCH_ADMIN`, `TREASURER` | Finance dashboard and donation history visibility |
+| `recordFundTransaction` | `funds/callables.ts` | `SUPER_ADMIN`, `CLAN_ADMIN`, `TREASURER` | Donation/expense write path with balance enforcement |
+| `reviewScholarshipSubmission` | `scholarship/callables.ts` | Active `SCHOLARSHIP_COUNCIL_HEAD` | 2-of-3 council vote workflow |
+| `disburseScholarshipSubmissionFromFund` | `scholarship/callables.ts` | `SUPER_ADMIN`, `CLAN_ADMIN`, `TREASURER` | Approved submission disbursement from clan fund |
+| `reviewJoinRequest` | `genealogy/discovery-callables.ts` | Governance reviewer set (`SUPER_ADMIN`, `CLAN_ADMIN`, `CLAN_LEADER`, `BRANCH_ADMIN`, `ADMIN_SUPPORT`, `VICE_LEADER`, `SUPPORTER_OF_LEADER`) | Reviews pending genealogy join requests |
+| `listJoinRequestsForReview` | `genealogy/discovery-callables.ts` | Same governance reviewer set as `reviewJoinRequest` | Reviewer queue API |
+| `detectDuplicateGenealogy` | `genealogy/discovery-callables.ts` | `SUPER_ADMIN`, `CLAN_ADMIN`, `ADMIN_SUPPORT` | Setup-time duplicate detection |
+| `createParentChildRelationship` | `genealogy/callables.ts` | `SUPER_ADMIN`, `CLAN_ADMIN`, or same-branch `BRANCH_ADMIN` | Sensitive relationship edit guard with cycle detection |
+| `createSpouseRelationship` | `genealogy/callables.ts` | `SUPER_ADMIN`, `CLAN_ADMIN`, or same-branch `BRANCH_ADMIN` | Sensitive relationship edit guard |
+| `loadBillingWorkspace` | `billing/callables.ts` | Billing admin role (`SUPER_ADMIN`, `CLAN_ADMIN`, `BRANCH_ADMIN`, `CLAN_OWNER`, `CLAN_LEADER`, `VICE_LEADER`, `SUPPORTER_OF_LEADER`) | Scope-aware billing workspace |
+| `updateBillingPreferences` | `billing/callables.ts` | Same billing admin role set | Billing settings mutation |
+| `verifyInAppPurchase` | `billing/callables.ts` | Same billing admin role set | Store purchase verification and entitlement update |
 
 ## Supporting modules
 

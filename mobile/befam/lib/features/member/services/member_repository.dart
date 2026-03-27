@@ -51,6 +51,14 @@ abstract interface class MemberRepository {
     double? longitude,
     double? accuracyMeters,
   });
+
+  Future<void> notifyNearbyRelativesDetected({
+    required AuthSession session,
+    required String clanId,
+    required String memberId,
+    required List<String> relativeMemberIds,
+    double? closestDistanceKm,
+  });
 }
 
 MemberRepository createDefaultMemberRepository({AuthSession? session}) {

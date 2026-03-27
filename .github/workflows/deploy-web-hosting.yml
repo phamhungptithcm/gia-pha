@@ -1,159 +1,195 @@
-name: Deploy Web Hosting
+name: CD - Deploy Web Hosting (Production)
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - CD - Deploy Firebase (Production)
     branches:
       - main
-    paths:
-      - 'mobile/befam/**'
-      - 'firebase.json'
-      - '.firebaserc'
-      - '.github/workflows/deploy-web-hosting.yml'
-  workflow_dispatch:
+    types:
+      - completed
 
 permissions:
   contents: read
+  id-token: write
+  actions: read
 
 concurrency:
-  group: deploy-web-hosting-${{ github.ref }}
+  group: deploy-web-hosting-${{ github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-web:
-    name: build-web
-    if: ${{ github.ref_name == 'main' }}
+  gate-upstream:
+    name: Gate - Verify Upstream Deploy Status
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: mobile/befam
+    outputs:
+      should_deploy: ${{ steps.gate.outputs.should_deploy }}
+    steps:
+      - name: Evaluate upstream conclusion
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream Firebase deploy conclusion is '${{ github.event.workflow_run.conclusion }}'. Skipping hosting deploy."
+            exit 0
+          fi
+
+          if [ "${{ github.event.workflow_run.head_branch }}" != "main" ]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream Firebase deploy head branch is '${{ github.event.workflow_run.head_branch }}', not main. Skipping hosting deploy."
+            exit 0
+          fi
+
+          deploy_sha="${{ github.event.workflow_run.head_sha }}"
+          latest_main_sha="$(
+            gh api "repos/${GITHUB_REPOSITORY}/branches/main" --jq '.commit.sha'
+          )"
+          if [ -z "${deploy_sha}" ] || [ "${deploy_sha}" != "${latest_main_sha}" ]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping stale hosting deploy: upstream SHA '${deploy_sha:-unknown}' is not latest main SHA '${latest_main_sha}'."
+            exit 0
+          fi
+
+          deploy_job_conclusion="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${{ github.event.workflow_run.id }}/jobs" \
+              --jq '
+                (.jobs // [])
+                | map(select(.name == "Deploy Firebase (Production)"))
+                | sort_by(.completed_at // .started_at // .created_at)
+                | last
+                | .conclusion // ""
+              '
+          )"
+
+          if [ "${deploy_job_conclusion:-}" = "success" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "Upstream Firebase production deploy job succeeded. Proceeding with hosting deploy."
+          else
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream Firebase deploy job conclusion is '${deploy_job_conclusion:-unknown}'. Skipping hosting deploy."
+          fi
+
+  build-web:
+    name: Prepare Immutable Web Bundle
+    needs:
+      - gate-upstream
+    if: ${{ needs.gate-upstream.outputs.should_deploy == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
-          channel: stable
-          cache: true
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Install Flutter dependencies
-        run: flutter pub get
-
-      - name: Generate localization files
-        run: flutter gen-l10n
-
-      - name: Build Flutter web
+      - name: Resolve release tag from commit SHA
+        id: release
         env:
-          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
-          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
-          BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
-          BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
-          BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
-          BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY: ${{ vars.BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY }}
-          BEFAM_FIREBASE_PROJECT_ID: ${{ vars.BEFAM_FIREBASE_PROJECT_ID }}
-          BEFAM_FIREBASE_STORAGE_BUCKET: ${{ vars.BEFAM_FIREBASE_STORAGE_BUCKET }}
-          BEFAM_FIREBASE_ANDROID_API_KEY: ${{ vars.BEFAM_FIREBASE_ANDROID_API_KEY }}
-          BEFAM_FIREBASE_ANDROID_APP_ID: ${{ vars.BEFAM_FIREBASE_ANDROID_APP_ID }}
-          BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID }}
-          BEFAM_FIREBASE_IOS_API_KEY: ${{ vars.BEFAM_FIREBASE_IOS_API_KEY }}
-          BEFAM_FIREBASE_IOS_APP_ID: ${{ vars.BEFAM_FIREBASE_IOS_APP_ID }}
-          BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID }}
-          BEFAM_FIREBASE_IOS_BUNDLE_ID: ${{ vars.BEFAM_FIREBASE_IOS_BUNDLE_ID }}
-          BEFAM_FIREBASE_WEB_API_KEY: ${{ vars.BEFAM_FIREBASE_WEB_API_KEY }}
-          BEFAM_FIREBASE_WEB_APP_ID: ${{ vars.BEFAM_FIREBASE_WEB_APP_ID }}
-          BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
-          BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
-          BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
-          BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
-          befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
-          invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
-          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
-          enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
-          firebase_define_keys=(
-            BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
-            BEFAM_FIREBASE_PROJECT_ID
-            BEFAM_FIREBASE_STORAGE_BUCKET
-            BEFAM_FIREBASE_ANDROID_API_KEY
-            BEFAM_FIREBASE_ANDROID_APP_ID
-            BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID
-            BEFAM_FIREBASE_IOS_API_KEY
-            BEFAM_FIREBASE_IOS_APP_ID
-            BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID
-            BEFAM_FIREBASE_IOS_BUNDLE_ID
-            BEFAM_FIREBASE_WEB_API_KEY
-            BEFAM_FIREBASE_WEB_APP_ID
-            BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
-            BEFAM_FIREBASE_WEB_AUTH_DOMAIN
-            BEFAM_FIREBASE_WEB_MEASUREMENT_ID
-            BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
-          )
-          optional_firebase_defines=()
-          for key in "${firebase_define_keys[@]}"; do
-            value="${!key:-}"
-            if [ -n "$value" ]; then
-              optional_firebase_defines+=(--dart-define="${key}=${value}")
-            fi
-          done
-          flutter build web \
-            --release \
-            --no-wasm-dry-run \
-            --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
-            --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
-            --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
-            --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
-            --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
-            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
-            "${optional_firebase_defines[@]}"
+          set -euo pipefail
+          release_sha="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}"
+          tag="$(
+            gh release list \
+              --limit 100 \
+              --json tagName,targetCommitish \
+              --jq ".[] | select(.targetCommitish==\"${release_sha}\") | .tagName" \
+              | head -n1
+          )"
+          if [ -z "$tag" ]; then
+            echo "::error::No GitHub release tag found for commit ${release_sha}."
+            exit 1
+          fi
+          echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Download immutable web release bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/web-release
+          gh release download "${{ steps.release.outputs.release_tag }}" \
+            --pattern "befam-*-web-release.tar.gz" \
+            --dir dist/web-release
+          bundle_path="$(find dist/web-release -maxdepth 1 -name 'befam-*-web-release.tar.gz' -print -quit)"
+          if [ -z "$bundle_path" ]; then
+            echo "::error::Web release bundle not found for tag ${{ steps.release.outputs.release_tag }}."
+            exit 1
+          fi
+          mkdir -p mobile/befam/build/web
+          tar -xzf "$bundle_path" -C mobile/befam/build/web
 
       - name: Upload web artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: befam-web-build
           path: mobile/befam/build/web
 
   deploy-hosting:
-    name: deploy-hosting
-    if: ${{ github.ref_name == 'main' }}
-    needs: build-web
+    name: Deploy Web Hosting (Production)
+    if: ${{ needs.gate-upstream.outputs.should_deploy == 'true' }}
+    needs:
+      - gate-upstream
+      - build-web
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
       name: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Validate production OIDC configuration
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$GCP_WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$GCP_SERVICE_ACCOUNT_EMAIL"
+          test -n "$FIREBASE_PROJECT_ID"
+          if [ "$FIREBASE_PROJECT_ID" = "be-fam-3ab23" ]; then
+            echo "::error::Production hosting deploy must not target staging Firebase project be-fam-3ab23."
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
 
       - name: Download web artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: befam-web-build
           path: mobile/befam/build/web
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
 
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@14.19.1
 
-      - name: Write Firebase credentials
+      - name: Export Firebase project env
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
         run: |
           set -euo pipefail
-          project="${FIREBASE_PROJECT_ID:-be-fam-3ab23}"
-          if [ -z "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
-            echo "::error::FIREBASE_SERVICE_ACCOUNT is required for main hosting deploy."
-            exit 1
-          fi
-          CREDENTIALS_PATH="$RUNNER_TEMP/firebase-service-account.json"
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIALS_PATH"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$CREDENTIALS_PATH" >> "$GITHUB_ENV"
+          project="${FIREBASE_PROJECT_ID}"
+          test -n "$project"
           echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
           echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
 
@@ -164,8 +200,46 @@ jobs:
           set -euo pipefail
           project="${FIREBASE_PROJECT_ID}"
           target="${FIREBASE_HOSTING_TARGET:-}"
-          if [ -n "$target" ]; then
-            firebase deploy --project "$project" --non-interactive --only "hosting:${target}"
-          else
-            firebase deploy --project "$project" --non-interactive --only hosting
+          firebase_config="${GITHUB_WORKSPACE}/firebase.json"
+          if [ ! -f "$firebase_config" ]; then
+            echo "::error::Firebase config not found at ${firebase_config}."
+            exit 1
           fi
+          if [ -n "$target" ]; then
+            firebase deploy --project "$project" --config "$firebase_config" --non-interactive --only "hosting:${target}"
+          else
+            firebase deploy --project "$project" --config "$firebase_config" --non-interactive --only hosting
+          fi
+
+  notify-deploy-hosting-failure:
+    name: Notify Hosting Deploy Failure
+    if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
+    needs:
+      - build-web
+      - deploy-hosting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "SLACK_WEBHOOK_URL is not configured. Skipping notification."
+            exit 0
+          fi
+          payload="$(cat <<JSON
+          {
+            "text": ":x: BeFam web hosting deploy failed",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*CD - Deploy Web Hosting (Production) failed*\\nRepository: ${GITHUB_REPOSITORY}\\nRun: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                }
+              }
+            ]
+          }
+          JSON
+          )"
+          curl -sS -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"

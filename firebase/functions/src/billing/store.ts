@@ -12,11 +12,11 @@ import {
   type BillingSubscriptionRecord,
 } from './subscription-lifecycle';
 import {
-  BILLING_PRICING_TIERS,
   computeRenewalWindow,
   rankPlanCode,
   resolveEffectivePlanCode,
   resolvePlanByMemberCount,
+  resolveTierByPlanCodeFromPricing,
   type BillingPlanCode,
   type BillingTierPricing,
   type PaymentMethod,
@@ -695,61 +695,81 @@ export async function cancelStalePendingTransactionsRun({
   const timeoutMs = safeTimeoutMinutes * 60 * 1000;
   const scopeClanId = (clanId ?? '').trim();
   const scopeOwnerUid = (ownerUid ?? '').trim();
+  const safeLimit = Math.max(1, Math.min(1000, Math.trunc(limit)));
+  const pageSize = Math.min(250, safeLimit);
 
-  const snapshot = await transactionsCollection
-    .where('paymentStatus', 'in', ['pending', 'created'])
-    .limit(Math.max(1, Math.min(1000, Math.trunc(limit))))
-    .get();
-
+  let scanned = 0;
   let canceled = 0;
   let skippedFresh = 0;
   let skippedScopeMismatch = 0;
   let failed = 0;
+  let cursor: QueryDocumentSnapshot | null = null;
 
-  for (const doc of snapshot.docs) {
-    const tx = mapTransaction(doc.id, doc.data() ?? {});
-    if (
-      (scopeClanId.length > 0 && tx.clanId !== scopeClanId) ||
-      (scopeOwnerUid.length > 0 && tx.subscriptionOwnerUid !== scopeOwnerUid)
-    ) {
-      skippedScopeMismatch += 1;
-      continue;
+  while (scanned < safeLimit) {
+    const remaining = safeLimit - scanned;
+    let query = transactionsCollection
+      .where('paymentStatus', 'in', ['pending', 'created'])
+      .orderBy('createdAt', 'asc')
+      .limit(Math.max(1, Math.min(pageSize, remaining)));
+    if (cursor != null) {
+      query = query.startAfter(cursor);
     }
-    if (!isPendingPaymentStatus(tx.paymentStatus)) {
-      continue;
+    const snapshot = await query.get();
+    if (snapshot.empty) {
+      break;
     }
-    const createdAt = tx.createdAt;
-    if (createdAt == null) {
-      skippedFresh += 1;
-      continue;
-    }
-    if (now.getTime() - createdAt.getTime() < timeoutMs) {
-      skippedFresh += 1;
-      continue;
+    scanned += snapshot.size;
+    cursor = snapshot.docs[snapshot.docs.length - 1] ?? null;
+
+    for (const doc of snapshot.docs) {
+      const tx = mapTransaction(doc.id, doc.data() ?? {});
+      if (
+        (scopeClanId.length > 0 && tx.clanId !== scopeClanId) ||
+        (scopeOwnerUid.length > 0 && tx.subscriptionOwnerUid !== scopeOwnerUid)
+      ) {
+        skippedScopeMismatch += 1;
+        continue;
+      }
+      if (!isPendingPaymentStatus(tx.paymentStatus)) {
+        continue;
+      }
+      const createdAt = tx.createdAt;
+      if (createdAt == null) {
+        skippedFresh += 1;
+        continue;
+      }
+      if (now.getTime() - createdAt.getTime() < timeoutMs) {
+        skippedFresh += 1;
+        continue;
+      }
+
+      try {
+        await applyPaymentResult({
+          transactionId: tx.id,
+          provider: 'system_timeout',
+          gatewayReference: `TIMEOUT-${safeTimeoutMinutes}M-${tx.id.slice(0, 8)}`,
+          paymentStatus: 'canceled',
+          payloadHash: `timeout:${tx.id}:${now.toISOString()}`,
+          actorUid: source,
+          now,
+        });
+        canceled += 1;
+      } catch (error) {
+        failed += 1;
+        logWarn('cancelStalePendingTransactionsRun failed for transaction', {
+          transactionId: tx.id,
+          error: `${error}`,
+        });
+      }
     }
 
-    try {
-      await applyPaymentResult({
-        transactionId: tx.id,
-        provider: 'system_timeout',
-        gatewayReference: `TIMEOUT-${safeTimeoutMinutes}M-${tx.id.slice(0, 8)}`,
-        paymentStatus: 'canceled',
-        payloadHash: `timeout:${tx.id}:${now.toISOString()}`,
-        actorUid: source,
-        now,
-      });
-      canceled += 1;
-    } catch (error) {
-      failed += 1;
-      logWarn('cancelStalePendingTransactionsRun failed for transaction', {
-        transactionId: tx.id,
-        error: `${error}`,
-      });
+    if (snapshot.docs.length < Math.max(1, Math.min(pageSize, remaining))) {
+      break;
     }
   }
 
   return {
-    scanned: snapshot.size,
+    scanned,
     canceled,
     skippedFresh,
     skippedScopeMismatch,
@@ -1123,8 +1143,7 @@ export function buildEntitlementFromSubscription(
 }
 
 export function resolveTierByPlanCode(planCode: BillingPlanCode): BillingTierPricing {
-  const matched = BILLING_PRICING_TIERS.find((tier) => tier.planCode === planCode);
-  return matched ?? BILLING_PRICING_TIERS[0];
+  return resolveTierByPlanCodeFromPricing(planCode);
 }
 
 function normalizeStatusForPlan({

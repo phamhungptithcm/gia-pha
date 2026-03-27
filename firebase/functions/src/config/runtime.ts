@@ -94,6 +94,7 @@ export const APP_REGION = readEnvString(
   readEnvString('FIREBASE_FUNCTIONS_REGION', DEFAULT_REGION),
 );
 export const APP_TIMEZONE = readEnvString('APP_TIMEZONE', DEFAULT_TIMEZONE);
+export const FIRESTORE_DATABASE_ID = readEnvString('FIRESTORE_DATABASE_ID', '(default)');
 export const APP_RUNTIME_CONFIG_COLLECTION = readEnvString(
   'APP_RUNTIME_CONFIG_COLLECTION',
   'runtimeConfig',
@@ -195,10 +196,6 @@ export const BILLING_ALLOW_MANUAL_SETTLEMENT = readEnvBoolean(
   'BILLING_ALLOW_MANUAL_SETTLEMENT',
   false,
 );
-export const BILLING_ENABLE_LEGACY_CARD_FLOW = readEnvBoolean(
-  'BILLING_ENABLE_LEGACY_CARD_FLOW',
-  readEnvString('FUNCTIONS_EMULATOR', 'false').toLowerCase() === 'true',
-);
 export const BILLING_IAP_ALLOW_TEST_MOCK = readEnvBoolean(
   'BILLING_IAP_ALLOW_TEST_MOCK',
   readEnvString('FUNCTIONS_EMULATOR', 'false').toLowerCase() === 'true',
@@ -221,10 +218,6 @@ export const BILLING_IAP_APPLE_VERIFY_BACKOFF_MS = readEnvInt(
 
 export function getBillingWebhookSecret(): string {
   return readEnvString('BILLING_WEBHOOK_SECRET');
-}
-
-export function getCardWebhookSecret(): string {
-  return readEnvString('CARD_WEBHOOK_SECRET', getBillingWebhookSecret());
 }
 
 export function getAppleSharedSecret(): string {
@@ -254,43 +247,6 @@ export function getGoogleIapRtdnServiceAccountEmail(): string {
   return readEnvString('GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL').toLowerCase();
 }
 
-export const BILLING_IAP_PRODUCT_IDS_BASE = readEnvStringList(
-  'BILLING_IAP_PRODUCT_IDS_BASE',
-);
-export const BILLING_IAP_PRODUCT_IDS_PLUS = readEnvStringList(
-  'BILLING_IAP_PRODUCT_IDS_PLUS',
-);
-export const BILLING_IAP_PRODUCT_IDS_PRO = readEnvStringList(
-  'BILLING_IAP_PRODUCT_IDS_PRO',
-);
-export const BILLING_IAP_IOS_PRODUCT_IDS_BASE = readEnvStringList(
-  'BILLING_IAP_IOS_PRODUCT_IDS_BASE',
-  BILLING_IAP_PRODUCT_IDS_BASE,
-);
-export const BILLING_IAP_IOS_PRODUCT_IDS_PLUS = readEnvStringList(
-  'BILLING_IAP_IOS_PRODUCT_IDS_PLUS',
-  BILLING_IAP_PRODUCT_IDS_PLUS,
-);
-export const BILLING_IAP_IOS_PRODUCT_IDS_PRO = readEnvStringList(
-  'BILLING_IAP_IOS_PRODUCT_IDS_PRO',
-  BILLING_IAP_PRODUCT_IDS_PRO,
-);
-export const BILLING_IAP_ANDROID_PRODUCT_IDS_BASE = readEnvStringList(
-  'BILLING_IAP_ANDROID_PRODUCT_IDS_BASE',
-  BILLING_IAP_PRODUCT_IDS_BASE,
-);
-export const BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS = readEnvStringList(
-  'BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS',
-  BILLING_IAP_PRODUCT_IDS_PLUS,
-);
-export const BILLING_IAP_ANDROID_PRODUCT_IDS_PRO = readEnvStringList(
-  'BILLING_IAP_ANDROID_PRODUCT_IDS_PRO',
-  BILLING_IAP_PRODUCT_IDS_PRO,
-);
-
-export const BILLING_CARD_CHECKOUT_URL_BASE = readEnvString(
-  'BILLING_CARD_CHECKOUT_URL_BASE',
-);
 export const NOTIFICATION_PUSH_ENABLED = readEnvBoolean(
   'NOTIFICATION_PUSH_ENABLED',
   true,

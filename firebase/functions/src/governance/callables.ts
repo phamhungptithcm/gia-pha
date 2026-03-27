@@ -1,10 +1,11 @@
+import { getAuth } from 'firebase-admin/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from '../config/runtime';
 import { requireAuth } from '../shared/errors';
 import { db } from '../shared/firestore';
-import { logInfo } from '../shared/logger';
+import { logInfo, logWarn } from '../shared/logger';
 import {
   GOVERNANCE_ROLES,
   ensureAnyRole,
@@ -175,6 +176,63 @@ export const assignGovernanceRole = onCall(
       nextRole: assignmentResult.nextRole,
       status: assignmentResult.status,
     });
+
+    // Trigger token-refresh notification for the affected member so their
+    // new role is reflected in Firebase JWT claims without requiring re-login.
+    if (assignmentResult.status === 'updated') {
+      try {
+        const affectedMemberSnapshot = await membersCollection.doc(assignmentResult.memberId).get();
+        const affectedAuthUid = stringOrNull((affectedMemberSnapshot.data() ?? {}).authUid);
+        if (affectedAuthUid != null && affectedAuthUid.length > 0) {
+          // Update custom claims for the affected user immediately so next
+          // token refresh picks up the new role.
+          const authAdmin = getAuth();
+          const existingClaims = await authAdmin
+            .getUser(affectedAuthUid)
+            .then((u) => u.customClaims ?? {})
+            .catch(() => ({}));
+          await authAdmin.setCustomUserClaims(affectedAuthUid, {
+            ...existingClaims,
+            primaryRole: assignmentResult.nextRole,
+          });
+
+          // Notify the device to force-refresh its ID token.
+          const deviceTokensSnap = await db
+            .collection('users')
+            .doc(affectedAuthUid)
+            .collection('deviceTokens')
+            .get();
+          const fcmTokens = deviceTokensSnap.docs
+            .map((doc) => String(doc.data().token ?? '').trim())
+            .filter((t) => t.length > 0);
+
+          if (fcmTokens.length > 0) {
+            const { getMessaging } = await import('firebase-admin/messaging');
+            const messaging = getMessaging();
+            await Promise.allSettled(
+              fcmTokens.map((fcmToken) =>
+                messaging.send({
+                  token: fcmToken,
+                  data: {
+                    type: 'auth_claims_updated',
+                    memberId: assignmentResult.memberId,
+                    newRole: assignmentResult.nextRole,
+                  },
+                  android: { priority: 'high' },
+                  apns: { headers: { 'apns-priority': '10' } },
+                }),
+              ),
+            );
+          }
+        }
+      } catch (refreshError) {
+        // Non-fatal: role was updated successfully, token refresh is best-effort.
+        logWarn('Failed to push auth_claims_updated for role change', {
+          memberId: assignmentResult.memberId,
+          error: `${refreshError}`,
+        });
+      }
+    }
 
     return assignmentResult;
   },
@@ -370,38 +428,21 @@ function resolveDashboardClanId({
 async function loadTransactionsForDashboard(
   clanId: string,
 ): Promise<FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>> {
-  const query = transactionsCollection.where('clanId', '==', clanId);
-  try {
-    return await query.orderBy('occurredAt', 'desc').limit(400).get();
-  } catch (error) {
-    if (!isMissingCompositeIndexError(error)) {
-      throw error;
-    }
-    return query.limit(1200).get();
-  }
+  return transactionsCollection
+    .where('clanId', '==', clanId)
+    .orderBy('occurredAt', 'desc')
+    .limit(400)
+    .get();
 }
 
 async function loadScholarshipRequestsForDashboard(
   clanId: string,
 ): Promise<FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>> {
-  const query = submissionsCollection.where('clanId', '==', clanId);
-  try {
-    return await query.orderBy('updatedAt', 'desc').limit(240).get();
-  } catch (error) {
-    if (!isMissingCompositeIndexError(error)) {
-      throw error;
-    }
-    return query.limit(800).get();
-  }
-}
-
-function isMissingCompositeIndexError(error: unknown): boolean {
-  if (error == null || typeof error !== 'object') {
-    return false;
-  }
-  const message = String((error as { message?: unknown }).message ?? '').toLowerCase();
-  const code = String((error as { code?: unknown }).code ?? '').toLowerCase();
-  return code.includes('failed-precondition') && message.includes('index');
+  return submissionsCollection
+    .where('clanId', '==', clanId)
+    .orderBy('updatedAt', 'desc')
+    .limit(240)
+    .get();
 }
 
 function compareDateDesc(

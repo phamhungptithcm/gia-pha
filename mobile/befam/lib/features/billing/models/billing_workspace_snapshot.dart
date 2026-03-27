@@ -31,12 +31,10 @@ class BillingCheckoutFlowConfig {
     this.storeProductIdsByPlan = const <String, String>{},
     this.storeProductIdsByPlanByPlatform =
         const <String, Map<String, String>>{},
-    this.allowLegacyCardCheckout = false,
   });
 
   final Map<String, String> storeProductIdsByPlan;
   final Map<String, Map<String, String>> storeProductIdsByPlanByPlatform;
-  final bool allowLegacyCardCheckout;
 
   String? storeProductIdForPlan(String planCode, {String? platform}) {
     final normalizedPlanCode = planCode.trim().toUpperCase();
@@ -277,30 +275,3 @@ class BillingAuditLog {
   final String? createdAtIso;
 }
 
-class BillingCheckoutResult {
-  const BillingCheckoutResult({
-    required this.clanId,
-    required this.paymentMethod,
-    required this.planCode,
-    required this.amountVnd,
-    required this.vatIncluded,
-    required this.transactionId,
-    required this.invoiceId,
-    required this.checkoutUrl,
-    required this.requiresManualConfirmation,
-    required this.subscription,
-    required this.entitlement,
-  });
-
-  final String clanId;
-  final String paymentMethod;
-  final String planCode;
-  final int amountVnd;
-  final bool vatIncluded;
-  final String transactionId;
-  final String invoiceId;
-  final String checkoutUrl;
-  final bool requiresManualConfirmation;
-  final BillingSubscription subscription;
-  final BillingEntitlement entitlement;
-}

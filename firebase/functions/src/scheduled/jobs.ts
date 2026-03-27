@@ -22,11 +22,14 @@ import {
   enforceSubscriptionDelinquencyRun,
 } from '../billing/subscription-delinquency';
 
+// Scheduled jobs are singletons — cap at 1 instance each to eliminate
+// duplicate runs and minimise Cloud Run idle billing.
 export const expireInvitesJob = onSchedule(
   {
     schedule: EXPIRE_INVITES_JOB_SCHEDULE,
     region: APP_REGION,
     timeZone: APP_TIMEZONE,
+    maxInstances: 1,
   },
   async () => {
     const result = await expireInvitesJobRun({
@@ -41,6 +44,7 @@ export const billingSubscriptionReminderJob = onSchedule(
     schedule: BILLING_SUBSCRIPTION_REMINDER_JOB_SCHEDULE,
     region: APP_REGION,
     timeZone: APP_TIMEZONE,
+    maxInstances: 1,
   },
   async () => {
     const result = await sendSubscriptionRemindersRun({
@@ -55,6 +59,7 @@ export const billingPendingTimeoutJob = onSchedule(
     schedule: BILLING_PENDING_TIMEOUT_JOB_SCHEDULE,
     region: APP_REGION,
     timeZone: APP_TIMEZONE,
+    maxInstances: 1,
   },
   async () => {
     let timeoutMinutes = BILLING_PENDING_TIMEOUT_MINUTES;
@@ -80,6 +85,7 @@ export const billingSubscriptionDelinquencyJob = onSchedule(
     schedule: BILLING_DELINQUENCY_JOB_SCHEDULE,
     region: APP_REGION,
     timeZone: APP_TIMEZONE,
+    maxInstances: 1,
   },
   async () => {
     const runtimeConfig = await loadBillingRuntimeConfig();
@@ -98,6 +104,7 @@ export const billingContactNoticeJob = onSchedule(
     schedule: BILLING_CONTACT_NOTICE_JOB_SCHEDULE,
     region: APP_REGION,
     timeZone: APP_TIMEZONE,
+    maxInstances: 1,
   },
   async () => {
     const result = await dispatchBillingContactNoticesRun({

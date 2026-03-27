@@ -3297,6 +3297,20 @@ class _EventWorkspaceMemberRepositoryAdapter implements MemberRepository {
       'Location update is not available in event create flow.',
     );
   }
+
+  @override
+  Future<void> notifyNearbyRelativesDetected({
+    required AuthSession session,
+    required String clanId,
+    required String memberId,
+    required List<String> relativeMemberIds,
+    double? closestDistanceKm,
+  }) {
+    throw const MemberRepositoryException(
+      MemberRepositoryErrorCode.permissionDenied,
+      'Nearby relative notification is not available in event create flow.',
+    );
+  }
 }
 
 String _ritualMilestoneLabel(

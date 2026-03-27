@@ -2,7 +2,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import { db } from '../shared/firestore';
 import { notifyMembers } from '../notifications/push-delivery';
-import { logInfo, logWarn } from '../shared/logger';
+import { logInfo } from '../shared/logger';
 import { loadBillingSettings, resolveBillingAudienceMemberIds } from './store';
 
 type ReminderRunInput = {

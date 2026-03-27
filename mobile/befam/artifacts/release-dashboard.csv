@@ -1,0 +1,14 @@
+﻿metric,formula_or_value,notes
+Total Cases,106,Total test case rows
+PASS,10,Passed test cases
+FAIL,0,Failed test cases
+BLOCKED,0,Blocked test cases
+NOT_RUN,96,Not executed yet
+N/A,0,Not applicable
+Pass Rate,9.43%,PASS / Total cases
+P0 Total,61,Total P0 cases
+P0 PASS,9,Passed P0 cases
+P0 FAIL,0,Failed P0 cases
+P0 BLOCKED,0,Blocked P0 cases
+P1 Total,45,Total P1 cases
+P1 PASS,1,Passed P1 cases

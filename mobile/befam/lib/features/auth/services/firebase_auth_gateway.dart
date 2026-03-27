@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -99,6 +100,7 @@ class FirebaseAuthGateway implements AuthGateway {
       childIdentifier: challenge.childIdentifier,
       memberId: challenge.memberId,
       displayName: challenge.displayName,
+      resendToken: challenge.resendToken,
     );
   }
 
@@ -108,6 +110,13 @@ class FirebaseAuthGateway implements AuthGateway {
     String smsCode, {
     String? languageCode,
   }) async {
+    if (challenge.provider == AuthOtpProvider.firebase) {
+      return _verifyOtpViaFirebase(
+        challenge: challenge,
+        smsCode: smsCode,
+        languageCode: languageCode,
+      );
+    }
     return _verifyOtpViaServer(
       challenge: challenge,
       smsCode: smsCode,
@@ -388,6 +397,7 @@ class FirebaseAuthGateway implements AuthGateway {
     String? childIdentifier,
     String? memberId,
     String? displayName,
+    int? resendToken,
   }) async {
     final requestTag =
         'otp_${DateTime.now().millisecondsSinceEpoch}_${loginMethod.name}';
@@ -398,6 +408,20 @@ class FirebaseAuthGateway implements AuthGateway {
       '[$requestTag] Preparing OTP request (method=${loginMethod.name}, phone=$maskedPhoneForLog).',
     );
 
+    final otpProvider = _resolveOtpProvider(loginMethod);
+    if (otpProvider == AuthOtpProvider.firebase) {
+      return _requestOtpViaFirebase(
+        requestTag: requestTag,
+        loginMethod: loginMethod,
+        phoneE164: phoneE164,
+        maskedDestinationHint: maskedDestinationHint,
+        childIdentifier: childIdentifier,
+        memberId: memberId,
+        displayName: displayName,
+        resendToken: resendToken,
+      );
+    }
+
     return _requestOtpViaServer(
       requestTag: requestTag,
       loginMethod: loginMethod,
@@ -407,6 +431,122 @@ class FirebaseAuthGateway implements AuthGateway {
       memberId: memberId,
       displayName: displayName,
     );
+  }
+
+  AuthOtpProvider _resolveOtpProvider(AuthEntryMethod loginMethod) {
+    if (loginMethod == AuthEntryMethod.child) {
+      if (AppEnvironment.useFirebaseOtp) {
+        AppLogger.info(
+          'Child login keeps server OTP flow while BEFAM_OTP_PROVIDER=firebase is enabled.',
+        );
+      }
+      return AuthOtpProvider.twilio;
+    }
+    return AppEnvironment.useFirebaseOtp
+        ? AuthOtpProvider.firebase
+        : AuthOtpProvider.twilio;
+  }
+
+  Future<AuthOtpRequestResult> _requestOtpViaFirebase({
+    required String requestTag,
+    required AuthEntryMethod loginMethod,
+    required String phoneE164,
+    String? maskedDestinationHint,
+    String? childIdentifier,
+    String? memberId,
+    String? displayName,
+    int? resendToken,
+  }) async {
+    final normalizedPhone =
+        PhoneNumberFormatter.tryParseE164(phoneE164) ?? phoneE164.trim();
+    if (normalizedPhone.isEmpty) {
+      throw const AuthIssueException(AuthIssue(AuthIssueKey.phoneRequired));
+    }
+    final completer = Completer<AuthOtpRequestResult>();
+    try {
+      await _auth.verifyPhoneNumber(
+        phoneNumber: normalizedPhone,
+        forceResendingToken: resendToken,
+        verificationCompleted: (PhoneAuthCredential credential) {
+          AppLogger.info(
+            '[$requestTag] Firebase OTP verificationCompleted callback received.',
+          );
+        },
+        verificationFailed: (FirebaseAuthException error) {
+          if (completer.isCompleted) {
+            return;
+          }
+          AppLogger.error(
+            '[$requestTag] Firebase OTP verifyPhoneNumber failed.',
+            error,
+            StackTrace.current,
+          );
+          completer.completeError(error);
+        },
+        codeSent: (String verificationId, int? nextResendToken) {
+          if (completer.isCompleted) {
+            return;
+          }
+          final maskedDestination =
+              (maskedDestinationHint ?? '').trim().isNotEmpty
+              ? maskedDestinationHint!.trim()
+              : PhoneNumberFormatter.mask(normalizedPhone);
+          AppLogger.info('[$requestTag] Firebase OTP code sent.');
+          completer.complete(
+            AuthOtpRequestResult.challenge(
+              PendingOtpChallenge(
+                loginMethod: loginMethod,
+                phoneE164: normalizedPhone,
+                maskedDestination: maskedDestination,
+                verificationId: verificationId,
+                provider: AuthOtpProvider.firebase,
+                childIdentifier: childIdentifier,
+                memberId: memberId,
+                displayName: displayName,
+                resendToken: nextResendToken,
+              ),
+            ),
+          );
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {
+          if (completer.isCompleted) {
+            return;
+          }
+          final maskedDestination =
+              (maskedDestinationHint ?? '').trim().isNotEmpty
+              ? maskedDestinationHint!.trim()
+              : PhoneNumberFormatter.mask(normalizedPhone);
+          AppLogger.info(
+            '[$requestTag] Firebase OTP auto-retrieval timed out; waiting for manual code.',
+          );
+          completer.complete(
+            AuthOtpRequestResult.challenge(
+              PendingOtpChallenge(
+                loginMethod: loginMethod,
+                phoneE164: normalizedPhone,
+                maskedDestination: maskedDestination,
+                verificationId: verificationId,
+                provider: AuthOtpProvider.firebase,
+                childIdentifier: childIdentifier,
+                memberId: memberId,
+                displayName: displayName,
+                resendToken: resendToken,
+              ),
+            ),
+          );
+        },
+      );
+      return await completer.future;
+    } on FirebaseAuthException {
+      rethrow;
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        '[$requestTag] Firebase OTP request failed unexpectedly.',
+        error,
+        stackTrace,
+      );
+      rethrow;
+    }
   }
 
   Future<AuthOtpRequestResult> _requestOtpViaServer({
@@ -481,6 +621,7 @@ class FirebaseAuthGateway implements AuthGateway {
           phoneE164: resolvedPhone,
           maskedDestination: maskedDestination,
           verificationId: verificationId,
+          provider: AuthOtpProvider.twilio,
           childIdentifier: resolvedChildIdentifier,
           memberId: resolvedMemberId,
           displayName: resolvedDisplayName,
@@ -568,6 +709,43 @@ class FirebaseAuthGateway implements AuthGateway {
     }
   }
 
+  Future<AuthOtpVerificationResult> _verifyOtpViaFirebase({
+    required PendingOtpChallenge challenge,
+    required String smsCode,
+    String? languageCode,
+  }) async {
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: challenge.verificationId,
+        smsCode: smsCode,
+      );
+      final userCredential = await _auth.signInWithCredential(credential);
+      final user = userCredential.user;
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'Phone credential sign-in did not return a user.',
+        );
+      }
+      return _handleVerifiedUser(
+        user,
+        loginMethod: challenge.loginMethod,
+        phoneE164: challenge.phoneE164,
+        childIdentifier: challenge.childIdentifier,
+        memberId: challenge.memberId,
+        displayName: challenge.displayName,
+        languageCode: languageCode,
+      );
+    } on FirebaseAuthException catch (error, stackTrace) {
+      AppLogger.error(
+        'verifyOtp via Firebase credential failed.',
+        error,
+        stackTrace,
+      );
+      rethrow;
+    }
+  }
+
   String _preferredLanguageCode() {
     final languageCode = ui.PlatformDispatcher.instance.locale.languageCode
         .trim()
@@ -601,7 +779,8 @@ class FirebaseAuthGateway implements AuthGateway {
       return ResolvedChildAccess(
         childIdentifier:
             payload['childIdentifier'] as String? ?? childIdentifier,
-        maskedDestination: (payload['maskedDestination'] as String?)?.trim().isNotEmpty == true
+        maskedDestination:
+            (payload['maskedDestination'] as String?)?.trim().isNotEmpty == true
             ? (payload['maskedDestination'] as String).trim()
             : '***',
         memberId: payload['memberId'] as String?,
@@ -840,16 +1019,7 @@ class FirebaseAuthGateway implements AuthGateway {
     if (byId.isNotEmpty) {
       return byId.values.toList(growable: false);
     }
-
-    final fallbackSnapshot = await _members.get();
-    for (final doc in fallbackSnapshot.docs) {
-      final memberPhone = (doc.data()['phoneE164'] as String?)?.trim();
-      if (PhoneNumberFormatter.areEquivalent(memberPhone, phoneInput)) {
-        byId[doc.id] = doc;
-      }
-    }
-
-    return byId.values.toList(growable: false);
+    return const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
   }
 
   Future<void> _writeUserSessionDocument(

@@ -1,7 +1,6 @@
 import {
   FieldValue,
   type Query,
-  type QueryDocumentSnapshot,
   type Transaction,
 } from 'firebase-admin/firestore';
 import {
@@ -73,12 +72,13 @@ export const createParentChildRelationship = onCall(
       );
     }
 
-    const clanRelationships = await relationshipsCollection
-      .where('clanId', '==', clanId)
-      .where('type', '==', 'parent_child')
-      .where('status', '==', 'active')
-      .get();
-    ensureNoParentChildCycle(parentId, childId, clanRelationships.docs);
+    // BFS cycle detection via member childrenIds arrays — avoids a full collection scan.
+    if (await wouldCreateParentChildCycle(parentId, childId)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'That parent-child link would create a cycle.',
+      );
+    }
 
     const actor = auth.token.memberId ?? auth.uid;
     const now = new Date();
@@ -95,6 +95,9 @@ export const createParentChildRelationship = onCall(
         direction: 'A_TO_B',
         status: 'active',
         source: 'manual',
+        // Signals the onRelationshipCreated trigger to skip redundant reconciliation
+        // because this callable already updates member arrays in the same transaction.
+        arraysReconciled: true,
         createdAt: FieldValue.serverTimestamp(),
         createdBy: actor,
         updatedAt: FieldValue.serverTimestamp(),
@@ -204,6 +207,9 @@ export const createSpouseRelationship = onCall(
         direction: 'UNDIRECTED',
         status: 'active',
         source: 'manual',
+        // Signals the onRelationshipCreated trigger to skip redundant reconciliation
+        // because this callable already updates member arrays in the same transaction.
+        arraysReconciled: true,
         createdAt: FieldValue.serverTimestamp(),
         createdBy: actor,
         updatedAt: FieldValue.serverTimestamp(),
@@ -347,49 +353,54 @@ function ensureSensitiveRelationshipPermission(
   );
 }
 
-function ensureNoParentChildCycle(
+/**
+ * BFS cycle check via member childrenIds arrays.
+ *
+ * Traverses descendants of `childId` in batches of up to 10 member reads.
+ * If `parentId` appears anywhere in the descendant set, adding the proposed
+ * parent→child edge would create a cycle.
+ *
+ * Cost: O(descendants) member reads instead of O(all clan relationships).
+ */
+async function wouldCreateParentChildCycle(
   parentId: string,
   childId: string,
-  relationships: QueryDocumentSnapshot[],
-): void {
-  const childMap = new Map<string, Set<string>>();
+  maxDepth = 50,
+): Promise<boolean> {
+  const visited = new Set<string>([childId]);
+  let frontier = [childId];
+  let depth = 0;
 
-  for (const snapshot of relationships) {
-    const relationship = snapshot.data() as RelationshipRecord;
-    const source = stringOrNull(relationship.personA);
-    const target = stringOrNull(relationship.personB);
-    if (source == null || target == null) {
-      continue;
-    }
+  while (frontier.length > 0 && depth < maxDepth) {
+    depth++;
+    const batch = frontier.splice(0);
+    const refs = batch.map((id) => membersCollection.doc(id));
+    const snapshots = await db.getAll(...refs);
 
-    const next = childMap.get(source) ?? new Set<string>();
-    next.add(target);
-    childMap.set(source, next);
-  }
-
-  const frontier = [childId];
-  const visited = new Set<string>(frontier);
-
-  while (frontier.length > 0) {
-    const current = frontier.pop();
-    if (!current) {
-      continue;
-    }
-
-    if (current === parentId) {
-      throw new HttpsError(
-        'failed-precondition',
-        'That parent-child link would create a cycle.',
-      );
-    }
-
-    for (const nextChild of childMap.get(current) ?? []) {
-      if (!visited.has(nextChild)) {
-        visited.add(nextChild);
-        frontier.push(nextChild);
+    frontier = [];
+    for (const snap of snapshots) {
+      const data = snap.data() as { childrenIds?: unknown } | undefined;
+      const children = normalizeStringArray(data?.childrenIds);
+      for (const next of children) {
+        if (next === parentId) {
+          return true;
+        }
+        if (!visited.has(next)) {
+          visited.add(next);
+          frontier.push(next);
+        }
       }
     }
   }
+
+  return false;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
 }
 
 async function loadParentChildrenIds(

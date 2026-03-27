@@ -37,6 +37,8 @@ type NotifyMembersInput = {
   target: NotificationTarget;
   targetId: string;
   extraData?: Record<string, string>;
+  pushChannel?: boolean;
+  emailChannel?: boolean;
 };
 
 type NotifyMembersResult = {
@@ -178,6 +180,8 @@ export async function notifyMembers(
   input: NotifyMembersInput,
 ): Promise<NotifyMembersResult> {
   const memberIds = uniqueMemberIds(input.memberIds);
+  const pushChannelEnabled = input.pushChannel ?? true;
+  const emailChannelEnabled = input.emailChannel ?? true;
   const emptyResult: NotifyMembersResult = {
     audienceCount: memberIds.length,
     tokenCount: 0,
@@ -243,13 +247,13 @@ export async function notifyMembers(
       quietHoursSuppressedCount += 1;
       continue;
     }
-    if (NOTIFICATION_PUSH_ENABLED && settings.pushEnabled) {
+    if (pushChannelEnabled && NOTIFICATION_PUSH_ENABLED && settings.pushEnabled) {
       const localeBucket =
         pushAudienceUidsByLanguage.get(settings.languageCode) ?? new Set<string>();
       localeBucket.add(authUid);
       pushAudienceUidsByLanguage.set(settings.languageCode, localeBucket);
     }
-    if (!NOTIFICATION_EMAIL_ENABLED || !settings.emailEnabled) {
+    if (!emailChannelEnabled || !NOTIFICATION_EMAIL_ENABLED || !settings.emailEnabled) {
       continue;
     }
     const resolvedEmail = normalizeNullableEmail(profile.email) ??

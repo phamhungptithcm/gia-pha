@@ -6,6 +6,9 @@ import '../../features/auth/models/auth_session.dart';
 class FirebaseSessionAccessSync {
   FirebaseSessionAccessSync._();
 
+  static const Duration _minimumSyncInterval = Duration(minutes: 10);
+  static final Map<String, _SessionSyncSnapshot> _lastSyncedSnapshotByUid = {};
+
   static Future<void> ensureUserSessionDocument({
     required FirebaseFirestore firestore,
     required AuthSession session,
@@ -40,6 +43,23 @@ class FirebaseSessionAccessSync {
       fallback: 'unlinked',
     );
     final now = FieldValue.serverTimestamp();
+    final fingerprint = _buildSyncFingerprint(
+      uid: uid,
+      memberId: memberId,
+      clanId: clanId,
+      clanIds: clanIds,
+      branchId: branchId,
+      primaryRole: primaryRole,
+      accessMode: accessMode,
+      linkedAuthUid: session.linkedAuthUid,
+    );
+    final currentTime = DateTime.now();
+    final previous = _lastSyncedSnapshotByUid[uid];
+    if (previous != null &&
+        previous.fingerprint == fingerprint &&
+        currentTime.difference(previous.syncedAt) < _minimumSyncInterval) {
+      return;
+    }
 
     try {
       await firestore.collection('users').doc(uid).set({
@@ -54,6 +74,10 @@ class FirebaseSessionAccessSync {
         'updatedAt': now,
         'createdAt': now,
       }, SetOptions(merge: true));
+      _lastSyncedSnapshotByUid[uid] = _SessionSyncSnapshot(
+        fingerprint: fingerprint,
+        syncedAt: currentTime,
+      );
     } catch (_) {
       // Session sync is best-effort; do not block feature flows when claims/rules are in transition.
       return;
@@ -118,4 +142,36 @@ class FirebaseSessionAccessSync {
     final trimmed = value?.trim() ?? '';
     return trimmed.isEmpty ? fallback : trimmed;
   }
+
+  static String _buildSyncFingerprint({
+    required String uid,
+    required String memberId,
+    required String clanId,
+    required List<String> clanIds,
+    required String branchId,
+    required String primaryRole,
+    required String accessMode,
+    required bool linkedAuthUid,
+  }) {
+    return [
+      uid,
+      memberId,
+      clanId,
+      clanIds.join(','),
+      branchId,
+      primaryRole,
+      accessMode,
+      linkedAuthUid ? '1' : '0',
+    ].join('|');
+  }
+}
+
+class _SessionSyncSnapshot {
+  const _SessionSyncSnapshot({
+    required this.fingerprint,
+    required this.syncedAt,
+  });
+
+  final String fingerprint;
+  final DateTime syncedAt;
 }

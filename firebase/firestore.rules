@@ -26,16 +26,23 @@ service cloud.firestore {
     }
 
     function isClanActive(clanId) {
-      return clanId is string &&
-        exists(/databases/$(database)/documents/clans/$(clanId)) &&
+      // Fast path: trust the JWT clanStatus claim for the primary clan.
+      // This eliminates the DB read entirely for the most common access pattern.
+      // Falls back to a single get() for non-primary clans or stale tokens.
+      return clanId is string && (
         (
-          !(get(/databases/$(database)/documents/clans/$(clanId)).data.status is string) ||
-          (
-            get(/databases/$(database)/documents/clans/$(clanId)).data.status != 'inactive' &&
-            get(/databases/$(database)/documents/clans/$(clanId)).data.status != 'archived' &&
-            get(/databases/$(database)/documents/clans/$(clanId)).data.status != 'deleted'
-          )
-        );
+          clanId == primaryClanId() &&
+          request.auth.token.get('clanStatus', '') == 'active'
+        ) || isClanStatusActive(clanId)
+      );
+    }
+
+    function isClanStatusActive(clanId) {
+      let status = get(/databases/$(database)/documents/clans/$(clanId))
+        .data.get('status', 'active');
+      return status != 'inactive' &&
+        status != 'archived' &&
+        status != 'deleted';
     }
 
     function memberIdClaim() {
@@ -375,34 +382,23 @@ service cloud.firestore {
         request.resource.data.updatedBy == request.auth.uid;
     }
 
-    function relationshipMemberDoc(memberId) {
-      return get(/databases/$(database)/documents/members/$(memberId)).data;
-    }
-
-    function relationshipMembersResolvable() {
-      return request.resource.data.personA is string &&
-        request.resource.data.personB is string &&
-        exists(
-          /databases/$(database)/documents/members/$(request.resource.data.personA)
-        ) &&
-        exists(
-          /databases/$(database)/documents/members/$(request.resource.data.personB)
-        );
-    }
-
     function branchScopedRelationshipWrite() {
+      // Single get() per member instead of exists() + get() — halves the read cost.
+      let memberA = request.resource.data.personA is string
+        ? get(/databases/$(database)/documents/members/$(request.resource.data.personA)).data
+        : null;
+      let memberB = request.resource.data.personB is string
+        ? get(/databases/$(database)/documents/members/$(request.resource.data.personB)).data
+        : null;
       return isBranchAdmin() &&
         request.resource.data.clanId is string &&
         hasClanAccess(request.resource.data.clanId) &&
-        relationshipMembersResolvable() &&
-        relationshipMemberDoc(request.resource.data.personA).clanId ==
-          request.resource.data.clanId &&
-        relationshipMemberDoc(request.resource.data.personB).clanId ==
-          request.resource.data.clanId &&
-        relationshipMemberDoc(request.resource.data.personA).branchId ==
-          branchIdClaim() &&
-        relationshipMemberDoc(request.resource.data.personB).branchId ==
-          branchIdClaim();
+        memberA != null &&
+        memberB != null &&
+        memberA.clanId == request.resource.data.clanId &&
+        memberB.clanId == request.resource.data.clanId &&
+        memberA.branchId == branchIdClaim() &&
+        memberB.branchId == branchIdClaim();
     }
 
     match /users/{userId} {

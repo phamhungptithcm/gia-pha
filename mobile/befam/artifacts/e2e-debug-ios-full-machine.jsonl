@@ -1,0 +1,1017 @@
+{"protocolVersion":"0.1.1","runnerVersion":null,"pid":17478,"type":"start","time":0}
+{"suite":{"id":0,"platform":"vm","path":"/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/integration_test/e2e_auth_and_role_matrix_test.dart"},"type":"suite","time":0}
+{"test":{"id":1,"name":"loading /Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/integration_test/e2e_auth_and_role_matrix_test.dart","suiteID":0,"groupIDs":[],"metadata":{"skip":false,"skipReason":null},"line":null,"column":null,"url":null},"type":"testStart","time":0}
+{"count":2,"time":3,"type":"allSuites"}
+Xcode build done.                                           68.8s
+
+[{"event":"test.startedProcess","params":{"vmServiceUri":"http://127.0.0.1:62108/6PpqZmHNt5k=/"}}]
+{"testID":1,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":93482}
+{"group":{"id":2,"suiteID":0,"parentID":null,"name":"","metadata":{"skip":false,"skipReason":null},"testCount":4,"line":null,"column":null,"url":null},"type":"group","time":93486}
+{"group":{"id":3,"suiteID":0,"parentID":2,"name":"Release Suite · Auth + Role Matrix","metadata":{"skip":false,"skipReason":null},"testCount":4,"line":16,"column":3,"url":"file:///Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/integration_test/e2e_auth_and_role_matrix_test.dart"},"type":"group","time":93487}
+{"test":{"id":4,"name":"Release Suite · Auth + Role Matrix [AUTH-001][P0] phone OTP flow + privacy gate + role matrix","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart"},"type":"testStart","time":93487}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":94139}
+{"testID":4,"messageType":"print","message":"│ 09:02:56.932 (+0:00:00.001649)","type":"print","time":94142}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":94142}
+{"testID":4,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":94143}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":94143}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":97686}
+{"testID":4,"messageType":"print","message":"│ 09:03:00.484 (+0:00:03.553426)","type":"print","time":97687}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":97687}
+{"testID":4,"messageType":"print","message":"│ [otp_1774533780484_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":97687}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":97687}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":97687}
+{"testID":4,"messageType":"print","message":"│ 09:03:00.485 (+0:00:03.554417)","type":"print","time":97688}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":97688}
+{"testID":4,"messageType":"print","message":"│ [otp_1774533780484_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":97688}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":97688}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98141}
+{"testID":4,"messageType":"print","message":"│ 09:03:00.945 (+0:00:04.014367)","type":"print","time":98141}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":98141}
+{"testID":4,"messageType":"print","message":"│ [otp_1774533780484_phone_send] OTP request returned from gateway.","type":"print","time":98141}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98141}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98141}
+{"testID":4,"messageType":"print","message":"│ 09:03:00.945 (+0:00:04.015088)","type":"print","time":98142}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":98142}
+{"testID":4,"messageType":"print","message":"│ [otp_1774533780484_phone_send] OTP challenge received (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567, source=phone_input).","type":"print","time":98142}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98142}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98144}
+{"testID":4,"messageType":"print","message":"│ 09:03:00.946 (+0:00:04.016250)","type":"print","time":98144}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":98144}
+{"testID":4,"messageType":"print","message":"│ [otp_1774533780484_phone_send] Completed successfully.","type":"print","time":98145}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98145}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98145}
+{"testID":4,"messageType":"print","message":"│ 09:03:00.947 (+0:00:04.016807)","type":"print","time":98145}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":98145}
+{"testID":4,"messageType":"print","message":"│ [otp_1774533780484_phone_send] Busy state exited after 462ms.","type":"print","time":98145}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98145}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98453}
+{"testID":4,"messageType":"print","message":"│ 09:03:01.257 (+0:00:04.326850)","type":"print","time":98453}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":98453}
+{"testID":4,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567).","type":"print","time":98453}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98453}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98453}
+{"testID":4,"messageType":"print","message":"│ 09:03:01.258 (+0:00:04.327287)","type":"print","time":98453}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":98453}
+{"testID":4,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":98453}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98453}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98914}
+{"testID":4,"messageType":"print","message":"│ 09:03:01.716 (+0:00:04.785360)","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"│ Auth session established for debug:+84901234567.","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"│ 09:03:01.716 (+0:00:04.785933)","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"│ 09:03:01.716 (+0:00:04.786154)","type":"print","time":98915}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":98916}
+{"testID":4,"messageType":"print","message":"│ [verify_otp] Busy state exited after 458ms.","type":"print","time":98916}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":98916}
+{"testID":4,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":100131}
+{"test":{"id":5,"name":"Release Suite · Auth + Role Matrix [AUTH-003][P0] child-code OTP flow goes to shell","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart"},"type":"testStart","time":100133}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":100231}
+{"testID":4,"messageType":"print","message":"│ 09:03:03.034 (+0:00:06.104211)","type":"print","time":100232}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":100232}
+{"testID":4,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":100232}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":100232}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103112}
+{"testID":5,"messageType":"print","message":"│ 09:03:05.869 (+0:00:08.938414)","type":"print","time":103116}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":103125}
+{"testID":5,"messageType":"print","message":"│ [otp_1774533785869_child_send] Starting OTP request flow (method=child, resend=false, source=child_identifier, step=childIdentifier, sandbox=true).","type":"print","time":103127}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103127}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103127}
+{"testID":5,"messageType":"print","message":"│ 09:03:05.873 (+0:00:08.942364)","type":"print","time":103127}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":103127}
+{"testID":5,"messageType":"print","message":"│ [otp_1774533785869_child_send] Busy state entered (step=childIdentifier, method=child).","type":"print","time":103128}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103128}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103524}
+{"testID":5,"messageType":"print","message":"│ 09:03:06.327 (+0:00:09.396683)","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"│ [otp_1774533785869_child_send] OTP request returned from gateway.","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"│ 09:03:06.328 (+0:00:09.397407)","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"│ [otp_1774533785869_child_send] OTP challenge received (method=child, phone=, verificationId=debug-child-BEFAM-CHILD-001, source=child_identifier).","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"│ 09:03:06.328 (+0:00:09.397978)","type":"print","time":103525}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":103526}
+{"testID":5,"messageType":"print","message":"│ [otp_1774533785869_child_send] Completed successfully.","type":"print","time":103526}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103526}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103526}
+{"testID":5,"messageType":"print","message":"│ 09:03:06.329 (+0:00:09.398581)","type":"print","time":103526}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":103526}
+{"testID":5,"messageType":"print","message":"│ [otp_1774533785869_child_send] Busy state exited after 456ms.","type":"print","time":103526}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103526}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103836}
+{"testID":5,"messageType":"print","message":"│ 09:03:06.640 (+0:00:09.709617)","type":"print","time":103836}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":103836}
+{"testID":5,"messageType":"print","message":"│ OTP verification started (method=child, phone=, verificationId=debug-child-BEFAM-CHILD-001).","type":"print","time":103840}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103840}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103840}
+{"testID":5,"messageType":"print","message":"│ 09:03:06.640 (+0:00:09.709908)","type":"print","time":103840}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":103840}
+{"testID":5,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=child).","type":"print","time":103840}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":103840}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":104289}
+{"testID":5,"messageType":"print","message":"│ 09:03:07.093 (+0:00:10.163166)","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"│ Auth session established for debug:.","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"│ 09:03:07.094 (+0:00:10.163514)","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"│ 09:03:07.094 (+0:00:10.163693)","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"│ [verify_otp] Busy state exited after 453ms.","type":"print","time":104290}
+{"testID":5,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":104290}
+{"testID":5,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":105236}
+{"test":{"id":6,"name":"Release Suite · Auth + Role Matrix [AUTH-009][CTX-003][P0] unlinked user is stable and routed to discovery","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart"},"type":"testStart","time":105237}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":105345}
+{"testID":4,"messageType":"print","message":"│ 09:03:08.149 (+0:00:11.219231)","type":"print","time":105346}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":105346}
+{"testID":4,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":105346}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":105346}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":107944}
+{"testID":6,"messageType":"print","message":"│ 09:03:10.743 (+0:00:13.812874)","type":"print","time":107944}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":107944}
+{"testID":6,"messageType":"print","message":"│ [otp_1774533790743_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":107944}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":107944}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":107944}
+{"testID":6,"messageType":"print","message":"│ 09:03:10.744 (+0:00:13.813645)","type":"print","time":107944}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":107944}
+{"testID":6,"messageType":"print","message":"│ [otp_1774533790743_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":107944}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":107944}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108393}
+{"testID":6,"messageType":"print","message":"│ 09:03:11.197 (+0:00:14.266307)","type":"print","time":108393}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":108393}
+{"testID":6,"messageType":"print","message":"│ [otp_1774533790743_phone_send] OTP request returned from gateway.","type":"print","time":108393}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108393}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108394}
+{"testID":6,"messageType":"print","message":"│ 09:03:11.197 (+0:00:14.267157)","type":"print","time":108394}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":108394}
+{"testID":6,"messageType":"print","message":"│ [otp_1774533790743_phone_send] OTP challenge received (method=phone, phone=+84906660022, verificationId=debug-phone-+84906660022, source=phone_input).","type":"print","time":108394}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108394}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108395}
+{"testID":6,"messageType":"print","message":"│ 09:03:11.199 (+0:00:14.268934)","type":"print","time":108395}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":108395}
+{"testID":6,"messageType":"print","message":"│ [otp_1774533790743_phone_send] Completed successfully.","type":"print","time":108395}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108395}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108395}
+{"testID":6,"messageType":"print","message":"│ 09:03:11.199 (+0:00:14.269153)","type":"print","time":108395}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":108395}
+{"testID":6,"messageType":"print","message":"│ [otp_1774533790743_phone_send] Busy state exited after 455ms.","type":"print","time":108395}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108395}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108652}
+{"testID":6,"messageType":"print","message":"│ 09:03:11.456 (+0:00:14.526138)","type":"print","time":108652}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":108652}
+{"testID":6,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84906660022, verificationId=debug-phone-+84906660022).","type":"print","time":108652}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108652}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108653}
+{"testID":6,"messageType":"print","message":"│ 09:03:11.457 (+0:00:14.526437)","type":"print","time":108653}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":108653}
+{"testID":6,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":108653}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":108653}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":109109}
+{"testID":6,"messageType":"print","message":"│ 09:03:11.913 (+0:00:14.982411)","type":"print","time":109109}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"│ Auth session established for debug:+84906660022.","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"│ 09:03:11.914 (+0:00:14.983358)","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"│ 09:03:11.914 (+0:00:14.983757)","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":109110}
+{"testID":6,"messageType":"print","message":"│ [verify_otp] Busy state exited after 457ms.","type":"print","time":109111}
+{"testID":6,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":109111}
+{"testID":6,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":110885}
+{"test":{"id":7,"name":"Release Suite · Auth + Role Matrix [AUTH-001][P0] validate all 6 debug scenarios map to expected session context","suiteID":0,"groupIDs":[2,3],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart"},"type":"testStart","time":110885}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":110995}
+{"testID":4,"messageType":"print","message":"│ 09:03:13.798 (+0:00:16.867332)","type":"print","time":110996}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":110998}
+{"testID":4,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":110998}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":110998}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":111882}
+{"testID":4,"messageType":"print","message":"│ LoadAdError(code: 1, domain: com.google.admob, message: Request Error: No ad to show., responseInfo: ResponseInfo(responseId: oDzFaZeDFMXRmtUPjuHe2AY, mediationAdapterClassName: null, adapterResponses: [AdapterResponseInfo(adapterClassName: GADMAdapterGoogleAdMobAds, latencyMillis: 1732, description: {","type":"print","time":111882}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source ID\" = 5450213213286189855;","type":"print","time":111882}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Instance ID\" = \"-1\";","type":"print","time":111882}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Instance Name\" = \"\";","type":"print","time":111882}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Name\" = \"\";","type":"print","time":111882}
+{"testID":4,"messageType":"print","message":"│     AdUnitMapping =     {","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"│         pubid = \"ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=oDzFafOqE9CtmtUPi92iKA\";","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"│     };","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"│     Error = \"Error Domain=com.google.admob Code=5 \\\"Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.\\\" UserInfo={NSLocalizedDescription=Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.}\";","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"│     Latency = \"1.732\";","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"│     Network = GADMAdapterGoogleAdMobAds;","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"│ }, adUnitMapping: {pubid: ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=oDzFafOqE9CtmtUPi92iKA}, adError: AdError(code: 5, domain: com.google.admob, message: Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.), adSourceName: , adSourceId: 5450213213286189855, adSourceInstanceName: , adSourceInstanceId: -1)], loadedAdapterResponseInfo: AdapterResponseInfo(adapterClassName: , latencyMillis: 0, description: , adUnitMapping: {}, adError: null, adSourceName: , adSourceId: , adSourceInstanceName: , adSourceInstanceId: )), responseExtras: {mediation_group_name: AdMob (default)})","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"│ #0   AppLogger.warning (package:befam/core/services/app_logger.dart:22:13)","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"│ #1   AdController._ensureInterstitialLoaded.<anonymous closure> (package:befam/features/ads/services/ad_controller.dart:247:23)","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"│ #2   AdInstanceManager._invokeOnAdFailedToLoad (package:google_mobile_ads/src/ad_instance_manager.dart:252:42)","type":"print","time":111883}
+{"testID":4,"messageType":"print","message":"│ #3   AdInstanceManager._onAdEventIOS (package:google_mobile_ads/src/ad_instance_manager.dart:95:9)","type":"print","time":111884}
+{"testID":4,"messageType":"print","message":"│ #4   AdInstanceManager._onAdEvent (package:google_mobile_ads/src/ad_instance_manager.dart:85:7)","type":"print","time":111884}
+{"testID":4,"messageType":"print","message":"│ #5   new AdInstanceManager.<anonymous closure> (package:google_mobile_ads/src/ad_instance_manager.dart:67:9)","type":"print","time":111884}
+{"testID":4,"messageType":"print","message":"│ #6   MethodChannel._handleAsMethodCall (package:flutter/src/services/platform_channel.dart:607:55)","type":"print","time":111884}
+{"testID":4,"messageType":"print","message":"│ #7   MethodChannel.setMethodCallHandler.<anonymous closure> (package:flutter/src/services/platform_channel.dart:597:55)","type":"print","time":111884}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":111885}
+{"testID":4,"messageType":"print","message":"│ 09:03:14.682 (+0:00:17.751509)","type":"print","time":111885}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":111885}
+{"testID":4,"messageType":"print","message":"│ Interstitial ad failed to load.","type":"print","time":111885}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":111885}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":113644}
+{"testID":7,"messageType":"print","message":"│ 09:03:16.446 (+0:00:19.516112)","type":"print","time":113644}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":113644}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533796446_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":113644}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":113644}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":113644}
+{"testID":7,"messageType":"print","message":"│ 09:03:16.447 (+0:00:19.516440)","type":"print","time":113644}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":113644}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533796446_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":113644}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":113644}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114099}
+{"testID":7,"messageType":"print","message":"│ 09:03:16.899 (+0:00:19.969271)","type":"print","time":114099}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":114100}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533796446_phone_send] OTP request returned from gateway.","type":"print","time":114100}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114100}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114100}
+{"testID":7,"messageType":"print","message":"│ 09:03:16.900 (+0:00:19.969815)","type":"print","time":114100}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":114100}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533796446_phone_send] OTP challenge received (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567, source=phone_input).","type":"print","time":114100}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114100}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114100}
+{"testID":7,"messageType":"print","message":"│ 09:03:16.900 (+0:00:19.970253)","type":"print","time":114101}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":114101}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533796446_phone_send] Completed successfully.","type":"print","time":114101}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114101}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114101}
+{"testID":7,"messageType":"print","message":"│ 09:03:16.901 (+0:00:19.970504)","type":"print","time":114101}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":114101}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533796446_phone_send] Busy state exited after 454ms.","type":"print","time":114101}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114101}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114370}
+{"testID":7,"messageType":"print","message":"│ 09:03:17.173 (+0:00:20.242918)","type":"print","time":114370}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":114370}
+{"testID":7,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567).","type":"print","time":114370}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114370}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114370}
+{"testID":7,"messageType":"print","message":"│ 09:03:17.174 (+0:00:20.243280)","type":"print","time":114371}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":114371}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":114371}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114371}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"│ 09:03:17.627 (+0:00:20.696926)","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"│ Auth session established for debug:+84901234567.","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"│ 09:03:17.628 (+0:00:20.697386)","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"│ 09:03:17.628 (+0:00:20.697569)","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state exited after 454ms.","type":"print","time":114826}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":114826}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":115860}
+{"testID":4,"messageType":"print","message":"│ 09:03:18.664 (+0:00:21.733689)","type":"print","time":115860}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":115860}
+{"testID":4,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":115860}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":115860}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":117664}
+{"testID":4,"messageType":"print","message":"│ LoadAdError(code: 1, domain: com.google.admob, message: Request Error: No ad to show., responseInfo: ResponseInfo(responseId: pjzFaZe4BJKTmtUPzpiMWA, mediationAdapterClassName: null, adapterResponses: [AdapterResponseInfo(adapterClassName: GADMAdapterGoogleAdMobAds, latencyMillis: 1137, description: {","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source ID\" = 5450213213286189855;","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Instance ID\" = \"-1\";","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Instance Name\" = \"\";","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Name\" = \"\";","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│     AdUnitMapping =     {","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│         pubid = \"ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=pjzFaeDkA479mtUPo7_DyAg\";","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│     };","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│     Error = \"Error Domain=com.google.admob Code=5 \\\"Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.\\\" UserInfo={NSLocalizedDescription=Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.}\";","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│     Latency = \"1.137\";","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│     Network = GADMAdapterGoogleAdMobAds;","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│ }, adUnitMapping: {pubid: ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=pjzFaeDkA479mtUPo7_DyAg}, adError: AdError(code: 5, domain: com.google.admob, message: Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.), adSourceName: , adSourceId: 5450213213286189855, adSourceInstanceName: , adSourceInstanceId: -1)], loadedAdapterResponseInfo: AdapterResponseInfo(adapterClassName: , latencyMillis: 0, description: , adUnitMapping: {}, adError: null, adSourceName: , adSourceId: , adSourceInstanceName: , adSourceInstanceId: )), responseExtras: {mediation_group_name: AdMob (default)})","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│ #0   AppLogger.warning (package:befam/core/services/app_logger.dart:22:13)","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│ #1   AdController._ensureInterstitialLoaded.<anonymous closure> (package:befam/features/ads/services/ad_controller.dart:247:23)","type":"print","time":117665}
+{"testID":4,"messageType":"print","message":"│ #2   AdInstanceManager._invokeOnAdFailedToLoad (package:google_mobile_ads/src/ad_instance_manager.dart:252:42)","type":"print","time":117666}
+{"testID":4,"messageType":"print","message":"│ #3   AdInstanceManager._onAdEventIOS (package:google_mobile_ads/src/ad_instance_manager.dart:95:9)","type":"print","time":117666}
+{"testID":4,"messageType":"print","message":"│ #4   AdInstanceManager._onAdEvent (package:google_mobile_ads/src/ad_instance_manager.dart:85:7)","type":"print","time":117666}
+{"testID":4,"messageType":"print","message":"│ #5   new AdInstanceManager.<anonymous closure> (package:google_mobile_ads/src/ad_instance_manager.dart:67:9)","type":"print","time":117666}
+{"testID":4,"messageType":"print","message":"│ #6   MethodChannel._handleAsMethodCall (package:flutter/src/services/platform_channel.dart:607:55)","type":"print","time":117666}
+{"testID":4,"messageType":"print","message":"│ #7   MethodChannel.setMethodCallHandler.<anonymous closure> (package:flutter/src/services/platform_channel.dart:597:55)","type":"print","time":117666}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":117666}
+{"testID":4,"messageType":"print","message":"│ 09:03:20.465 (+0:00:23.534361)","type":"print","time":117666}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":117666}
+{"testID":4,"messageType":"print","message":"│ Interstitial ad failed to load.","type":"print","time":117666}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":117666}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":118611}
+{"testID":7,"messageType":"print","message":"│ 09:03:21.410 (+0:00:24.479825)","type":"print","time":118611}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":118611}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533801410_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":118611}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":118611}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":118611}
+{"testID":7,"messageType":"print","message":"│ 09:03:21.410 (+0:00:24.480093)","type":"print","time":118611}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":118611}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533801410_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":118611}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":118611}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119060}
+{"testID":7,"messageType":"print","message":"│ 09:03:21.863 (+0:00:24.933145)","type":"print","time":119060}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":119060}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533801410_phone_send] OTP request returned from gateway.","type":"print","time":119061}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119061}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119061}
+{"testID":7,"messageType":"print","message":"│ 09:03:21.864 (+0:00:24.933464)","type":"print","time":119061}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":119061}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533801410_phone_send] OTP challenge received (method=phone, phone=+84908886655, verificationId=debug-phone-+84908886655, source=phone_input).","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"│ 09:03:21.864 (+0:00:24.933730)","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533801410_phone_send] Completed successfully.","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"│ 09:03:21.864 (+0:00:24.933873)","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533801410_phone_send] Busy state exited after 453ms.","type":"print","time":119062}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119063}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119386}
+{"testID":7,"messageType":"print","message":"│ 09:03:22.189 (+0:00:25.259198)","type":"print","time":119386}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":119386}
+{"testID":7,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84908886655, verificationId=debug-phone-+84908886655).","type":"print","time":119387}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119387}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119387}
+{"testID":7,"messageType":"print","message":"│ 09:03:22.190 (+0:00:25.259529)","type":"print","time":119387}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":119390}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":119390}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119390}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119842}
+{"testID":7,"messageType":"print","message":"│ 09:03:22.641 (+0:00:25.710992)","type":"print","time":119842}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":119842}
+{"testID":7,"messageType":"print","message":"│ Auth session established for debug:+84908886655.","type":"print","time":119842}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119842}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119842}
+{"testID":7,"messageType":"print","message":"│ 09:03:22.641 (+0:00:25.711238)","type":"print","time":119842}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":119842}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":119842}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119842}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119843}
+{"testID":7,"messageType":"print","message":"│ 09:03:22.642 (+0:00:25.711393)","type":"print","time":119843}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":119843}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state exited after 451ms.","type":"print","time":119843}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":119843}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":120843}
+{"testID":4,"messageType":"print","message":"│ 09:03:23.646 (+0:00:26.716081)","type":"print","time":120843}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":120843}
+{"testID":4,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":120844}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":120844}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│ LoadAdError(code: 1, domain: com.google.admob, message: Request Error: No ad to show., responseInfo: ResponseInfo(responseId: qzzFaaKYBJvLmtUP-6Le6QY, mediationAdapterClassName: null, adapterResponses: [AdapterResponseInfo(adapterClassName: GADMAdapterGoogleAdMobAds, latencyMillis: 1330, description: {","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source ID\" = 5450213213286189855;","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Instance ID\" = \"-1\";","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Instance Name\" = \"\";","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Name\" = \"\";","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│     AdUnitMapping =     {","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│         pubid = \"ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=qzzFab3BA7aFmtUP0tjL6A4\";","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│     };","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│     Error = \"Error Domain=com.google.admob Code=5 \\\"Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.\\\" UserInfo={NSLocalizedDescription=Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.}\";","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│     Latency = \"1.33\";","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│     Network = GADMAdapterGoogleAdMobAds;","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│ }, adUnitMapping: {pubid: ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=qzzFab3BA7aFmtUP0tjL6A4}, adError: AdError(code: 5, domain: com.google.admob, message: Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.), adSourceName: , adSourceId: 5450213213286189855, adSourceInstanceName: , adSourceInstanceId: -1)], loadedAdapterResponseInfo: AdapterResponseInfo(adapterClassName: , latencyMillis: 0, description: , adUnitMapping: {}, adError: null, adSourceName: , adSourceId: , adSourceInstanceName: , adSourceInstanceId: )), responseExtras: {mediation_group_name: AdMob (default)})","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│ #0   AppLogger.warning (package:befam/core/services/app_logger.dart:22:13)","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│ #1   AdController._ensureInterstitialLoaded.<anonymous closure> (package:befam/features/ads/services/ad_controller.dart:247:23)","type":"print","time":122270}
+{"testID":4,"messageType":"print","message":"│ #2   AdInstanceManager._invokeOnAdFailedToLoad (package:google_mobile_ads/src/ad_instance_manager.dart:252:42)","type":"print","time":122271}
+{"testID":4,"messageType":"print","message":"│ #3   AdInstanceManager._onAdEventIOS (package:google_mobile_ads/src/ad_instance_manager.dart:95:9)","type":"print","time":122271}
+{"testID":4,"messageType":"print","message":"│ #4   AdInstanceManager._onAdEvent (package:google_mobile_ads/src/ad_instance_manager.dart:85:7)","type":"print","time":122271}
+{"testID":4,"messageType":"print","message":"│ #5   new AdInstanceManager.<anonymous closure> (package:google_mobile_ads/src/ad_instance_manager.dart:67:9)","type":"print","time":122271}
+{"testID":4,"messageType":"print","message":"│ #6   MethodChannel._handleAsMethodCall (package:flutter/src/services/platform_channel.dart:607:55)","type":"print","time":122271}
+{"testID":4,"messageType":"print","message":"│ #7   MethodChannel.setMethodCallHandler.<anonymous closure> (package:flutter/src/services/platform_channel.dart:597:55)","type":"print","time":122271}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":122271}
+{"testID":4,"messageType":"print","message":"│ 09:03:25.067 (+0:00:28.136616)","type":"print","time":122271}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":122271}
+{"testID":4,"messageType":"print","message":"│ Interstitial ad failed to load.","type":"print","time":122271}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":122271}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123456}
+{"testID":7,"messageType":"print","message":"│ 09:03:26.261 (+0:00:29.330303)","type":"print","time":123457}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":123457}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533806261_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":123457}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123457}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123457}
+{"testID":7,"messageType":"print","message":"│ 09:03:26.261 (+0:00:29.330660)","type":"print","time":123457}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":123457}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533806261_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":123457}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123457}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123911}
+{"testID":7,"messageType":"print","message":"│ 09:03:26.713 (+0:00:29.782445)","type":"print","time":123911}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533806261_phone_send] OTP request returned from gateway.","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"│ 09:03:26.714 (+0:00:29.783509)","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533806261_phone_send] OTP challenge received (method=phone, phone=+84907770011, verificationId=debug-phone-+84907770011, source=phone_input).","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"│ 09:03:26.714 (+0:00:29.784165)","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533806261_phone_send] Completed successfully.","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"│ 09:03:26.715 (+0:00:29.784381)","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533806261_phone_send] Busy state exited after 453ms.","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":123912}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":124219}
+{"testID":7,"messageType":"print","message":"│ 09:03:27.023 (+0:00:30.092898)","type":"print","time":124219}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":124219}
+{"testID":7,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84907770011, verificationId=debug-phone-+84907770011).","type":"print","time":124219}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":124219}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":124219}
+{"testID":7,"messageType":"print","message":"│ 09:03:27.023 (+0:00:30.093204)","type":"print","time":124219}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":124220}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":124220}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":124220}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":124673}
+{"testID":7,"messageType":"print","message":"│ 09:03:27.476 (+0:00:30.546233)","type":"print","time":124673}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":124674}
+{"testID":7,"messageType":"print","message":"│ Auth session established for debug:+84907770011.","type":"print","time":124674}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":124675}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":124675}
+{"testID":7,"messageType":"print","message":"│ 09:03:27.477 (+0:00:30.546479)","type":"print","time":124675}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":124675}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":124675}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":124675}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":124675}
+{"testID":7,"messageType":"print","message":"│ 09:03:27.477 (+0:00:30.546632)","type":"print","time":124675}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":124675}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state exited after 453ms.","type":"print","time":124678}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":124678}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":125613}
+{"testID":4,"messageType":"print","message":"│ 09:03:28.413 (+0:00:31.482474)","type":"print","time":125613}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":125614}
+{"testID":4,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":125614}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":125614}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128239}
+{"testID":7,"messageType":"print","message":"│ 09:03:31.043 (+0:00:34.112538)","type":"print","time":128239}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":128239}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533811043_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":128239}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128239}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128239}
+{"testID":7,"messageType":"print","message":"│ 09:03:31.043 (+0:00:34.112860)","type":"print","time":128239}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":128239}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533811043_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":128239}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128239}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"│ 09:03:31.495 (+0:00:34.564893)","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533811043_phone_send] OTP request returned from gateway.","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"│ 09:03:31.496 (+0:00:34.565672)","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533811043_phone_send] OTP challenge received (method=phone, phone=+84906660022, verificationId=debug-phone-+84906660022, source=phone_input).","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128696}
+{"testID":7,"messageType":"print","message":"│ 09:03:31.497 (+0:00:34.566517)","type":"print","time":128697}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":128697}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533811043_phone_send] Completed successfully.","type":"print","time":128697}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128697}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128697}
+{"testID":7,"messageType":"print","message":"│ 09:03:31.497 (+0:00:34.566904)","type":"print","time":128697}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":128697}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533811043_phone_send] Busy state exited after 454ms.","type":"print","time":128697}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128698}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128969}
+{"testID":7,"messageType":"print","message":"│ 09:03:31.773 (+0:00:34.842904)","type":"print","time":128969}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":128969}
+{"testID":7,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84906660022, verificationId=debug-phone-+84906660022).","type":"print","time":128969}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128969}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128969}
+{"testID":7,"messageType":"print","message":"│ 09:03:31.773 (+0:00:34.843218)","type":"print","time":128969}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":128969}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":128969}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":128969}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│ LoadAdError(code: 1, domain: com.google.admob, message: Request Error: No ad to show., responseInfo: ResponseInfo(responseId: sTzFaarLGZihmtUP9oG_yAo, mediationAdapterClassName: null, adapterResponses: [AdapterResponseInfo(adapterClassName: GADMAdapterGoogleAdMobAds, latencyMillis: 1717, description: {","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source ID\" = 5450213213286189855;","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Instance ID\" = \"-1\";","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Instance Name\" = \"\";","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Name\" = \"\";","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│     AdUnitMapping =     {","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│         pubid = \"ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=sTzFaZGNGaz8mtUP_L-7EQ\";","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│     };","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│     Error = \"Error Domain=com.google.admob Code=5 \\\"Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.\\\" UserInfo={NSLocalizedDescription=Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.}\";","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│     Latency = \"1.717\";","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│     Network = GADMAdapterGoogleAdMobAds;","type":"print","time":129024}
+{"testID":4,"messageType":"print","message":"│ }, adUnitMapping: {pubid: ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=sTzFaZGNGaz8mtUP_L-7EQ}, adError: AdError(code: 5, domain: com.google.admob, message: Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.), adSourceName: , adSourceId: 5450213213286189855, adSourceInstanceName: , adSourceInstanceId: -1)], loadedAdapterResponseInfo: AdapterResponseInfo(adapterClassName: , latencyMillis: 0, description: , adUnitMapping: {}, adError: null, adSourceName: , adSourceId: , adSourceInstanceName: , adSourceInstanceId: )), responseExtras: {mediation_group_name: AdMob (default)})","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"│ #0   AppLogger.warning (package:befam/core/services/app_logger.dart:22:13)","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"│ #1   AdController._ensureInterstitialLoaded.<anonymous closure> (package:befam/features/ads/services/ad_controller.dart:247:23)","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"│ #2   AdInstanceManager._invokeOnAdFailedToLoad (package:google_mobile_ads/src/ad_instance_manager.dart:252:42)","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"│ #3   AdInstanceManager._onAdEventIOS (package:google_mobile_ads/src/ad_instance_manager.dart:95:9)","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"│ #4   AdInstanceManager._onAdEvent (package:google_mobile_ads/src/ad_instance_manager.dart:85:7)","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"│ #5   new AdInstanceManager.<anonymous closure> (package:google_mobile_ads/src/ad_instance_manager.dart:67:9)","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"│ #6   MethodChannel._handleAsMethodCall (package:flutter/src/services/platform_channel.dart:607:55)","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"│ #7   MethodChannel.setMethodCallHandler.<anonymous closure> (package:flutter/src/services/platform_channel.dart:597:55)","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"│ 09:03:31.824 (+0:00:34.894270)","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"│ Interstitial ad failed to load.","type":"print","time":129025}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":129025}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":129424}
+{"testID":7,"messageType":"print","message":"│ 09:03:32.227 (+0:00:35.297273)","type":"print","time":129424}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":129424}
+{"testID":7,"messageType":"print","message":"│ Auth session established for debug:+84906660022.","type":"print","time":129424}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":129424}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":129424}
+{"testID":7,"messageType":"print","message":"│ 09:03:32.228 (+0:00:35.297603)","type":"print","time":129425}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":129425}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":129425}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":129425}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":129425}
+{"testID":7,"messageType":"print","message":"│ 09:03:32.228 (+0:00:35.297862)","type":"print","time":129425}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":129425}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state exited after 454ms.","type":"print","time":129425}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":129425}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":130377}
+{"testID":4,"messageType":"print","message":"│ 09:03:33.180 (+0:00:36.249530)","type":"print","time":130378}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":130378}
+{"testID":4,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":130378}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":130378}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":132973}
+{"testID":7,"messageType":"print","message":"│ 09:03:35.776 (+0:00:38.845879)","type":"print","time":132973}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":132973}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533815776_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":132973}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":132973}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":132973}
+{"testID":7,"messageType":"print","message":"│ 09:03:35.776 (+0:00:38.846174)","type":"print","time":132973}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":132973}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533815776_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":132973}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":132973}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133427}
+{"testID":7,"messageType":"print","message":"│ 09:03:36.230 (+0:00:39.300015)","type":"print","time":133427}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":133427}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533815776_phone_send] OTP request returned from gateway.","type":"print","time":133427}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133427}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133427}
+{"testID":7,"messageType":"print","message":"│ 09:03:36.231 (+0:00:39.300592)","type":"print","time":133427}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533815776_phone_send] OTP challenge received (method=phone, phone=+84905550033, verificationId=debug-phone-+84905550033, source=phone_input).","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"│ 09:03:36.231 (+0:00:39.301149)","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533815776_phone_send] Completed successfully.","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"│ 09:03:36.232 (+0:00:39.301380)","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533815776_phone_send] Busy state exited after 455ms.","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133428}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133756}
+{"testID":7,"messageType":"print","message":"│ 09:03:36.556 (+0:00:39.625981)","type":"print","time":133756}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":133756}
+{"testID":7,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84905550033, verificationId=debug-phone-+84905550033).","type":"print","time":133756}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133756}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133756}
+{"testID":7,"messageType":"print","message":"│ 09:03:36.556 (+0:00:39.626246)","type":"print","time":133756}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":133756}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":133756}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":133756}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":134213}
+{"testID":7,"messageType":"print","message":"│ 09:03:37.013 (+0:00:40.083080)","type":"print","time":134213}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":134213}
+{"testID":7,"messageType":"print","message":"│ Auth session established for debug:+84905550033.","type":"print","time":134213}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":134213}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":134213}
+{"testID":7,"messageType":"print","message":"│ 09:03:37.014 (+0:00:40.083479)","type":"print","time":134213}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":134213}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":134213}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":134214}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":134214}
+{"testID":7,"messageType":"print","message":"│ 09:03:37.014 (+0:00:40.083871)","type":"print","time":134214}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":134214}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state exited after 457ms.","type":"print","time":134214}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":134214}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":135230}
+{"testID":4,"messageType":"print","message":"│ 09:03:38.029 (+0:00:41.098758)","type":"print","time":135230}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":135231}
+{"testID":4,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":135231}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":135231}
+{"testID":4,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":137240}
+{"testID":4,"messageType":"print","message":"│ LoadAdError(code: 1, domain: com.google.admob, message: Request Error: No ad to show., responseInfo: ResponseInfo(responseId: uTzFabHFK_S9mtUP1tDekQc, mediationAdapterClassName: null, adapterResponses: [AdapterResponseInfo(adapterClassName: GADMAdapterGoogleAdMobAds, latencyMillis: 1570, description: {","type":"print","time":137240}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source ID\" = 5450213213286189855;","type":"print","time":137240}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Instance ID\" = \"-1\";","type":"print","time":137240}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Instance Name\" = \"\";","type":"print","time":137240}
+{"testID":4,"messageType":"print","message":"│     \"Ad Source Name\" = \"\";","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│     AdUnitMapping =     {","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│         pubid = \"ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=uTzFabv5KtCtmtUPi92iKA\";","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│     };","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│     Error = \"Error Domain=com.google.admob Code=5 \\\"Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.\\\" UserInfo={NSLocalizedDescription=Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.}\";","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│     Latency = \"1.57\";","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│     Network = GADMAdapterGoogleAdMobAds;","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│ }, adUnitMapping: {pubid: ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=uTzFabv5KtCtmtUPi92iKA}, adError: AdError(code: 5, domain: com.google.admob, message: Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.), adSourceName: , adSourceId: 5450213213286189855, adSourceInstanceName: , adSourceInstanceId: -1)], loadedAdapterResponseInfo: AdapterResponseInfo(adapterClassName: , latencyMillis: 0, description: , adUnitMapping: {}, adError: null, adSourceName: , adSourceId: , adSourceInstanceName: , adSourceInstanceId: )), responseExtras: {mediation_group_name: AdMob (default)})","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│ #0   AppLogger.warning (package:befam/core/services/app_logger.dart:22:13)","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│ #1   AdController._ensureInterstitialLoaded.<anonymous closure> (package:befam/features/ads/services/ad_controller.dart:247:23)","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│ #2   AdInstanceManager._invokeOnAdFailedToLoad (package:google_mobile_ads/src/ad_instance_manager.dart:252:42)","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│ #3   AdInstanceManager._onAdEventIOS (package:google_mobile_ads/src/ad_instance_manager.dart:95:9)","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│ #4   AdInstanceManager._onAdEvent (package:google_mobile_ads/src/ad_instance_manager.dart:85:7)","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│ #5   new AdInstanceManager.<anonymous closure> (package:google_mobile_ads/src/ad_instance_manager.dart:67:9)","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│ #6   MethodChannel._handleAsMethodCall (package:flutter/src/services/platform_channel.dart:607:55)","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"│ #7   MethodChannel.setMethodCallHandler.<anonymous closure> (package:flutter/src/services/platform_channel.dart:597:55)","type":"print","time":137241}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":137242}
+{"testID":4,"messageType":"print","message":"│ 09:03:40.042 (+0:00:43.111494)","type":"print","time":137242}
+{"testID":4,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":137242}
+{"testID":4,"messageType":"print","message":"│ Interstitial ad failed to load.","type":"print","time":137242}
+{"testID":4,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":137242}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":137840}
+{"testID":7,"messageType":"print","message":"│ 09:03:40.644 (+0:00:43.713496)","type":"print","time":137840}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":137840}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533820644_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":137840}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":137840}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":137840}
+{"testID":7,"messageType":"print","message":"│ 09:03:40.644 (+0:00:43.713813)","type":"print","time":137840}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":137840}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533820644_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":137840}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":137840}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"│ 09:03:41.096 (+0:00:44.165586)","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533820644_phone_send] OTP request returned from gateway.","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"│ 09:03:41.096 (+0:00:44.165843)","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533820644_phone_send] OTP challenge received (method=phone, phone=+84909990001, verificationId=debug-phone-+84909990001, source=phone_input).","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"│ 09:03:41.096 (+0:00:44.166123)","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533820644_phone_send] Completed successfully.","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138292}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138293}
+{"testID":7,"messageType":"print","message":"│ 09:03:41.097 (+0:00:44.166411)","type":"print","time":138293}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":138293}
+{"testID":7,"messageType":"print","message":"│ [otp_1774533820644_phone_send] Busy state exited after 452ms.","type":"print","time":138293}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138293}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138556}
+{"testID":7,"messageType":"print","message":"│ 09:03:41.356 (+0:00:44.425748)","type":"print","time":138556}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":138556}
+{"testID":7,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84909990001, verificationId=debug-phone-+84909990001).","type":"print","time":138556}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138556}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138556}
+{"testID":7,"messageType":"print","message":"│ 09:03:41.356 (+0:00:44.426010)","type":"print","time":138556}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":138556}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":138556}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":138556}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":139008}
+{"testID":7,"messageType":"print","message":"│ 09:03:41.811 (+0:00:44.880436)","type":"print","time":139008}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":139008}
+{"testID":7,"messageType":"print","message":"│ Auth session established for debug:+84909990001.","type":"print","time":139008}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":139008}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":139009}
+{"testID":7,"messageType":"print","message":"│ 09:03:41.811 (+0:00:44.881053)","type":"print","time":139009}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":139009}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":139009}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":139009}
+{"testID":7,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":139009}
+{"testID":7,"messageType":"print","message":"│ 09:03:41.812 (+0:00:44.881437)","type":"print","time":139009}
+{"testID":7,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":139009}
+{"testID":7,"messageType":"print","message":"│ [verify_otp] Busy state exited after 455ms.","type":"print","time":139009}
+{"testID":7,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":139009}
+{"testID":7,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":139915}
+{"test":{"id":8,"name":"(tearDownAll)","suiteID":0,"groupIDs":[2],"metadata":{"skip":false,"skipReason":null},"line":50,"column":5,"url":"package:integration_test/integration_test.dart"},"type":"testStart","time":139919}
+{"testID":8,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":139937}
+{"suite":{"id":9,"platform":"vm","path":"/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/integration_test/e2e_feature_journeys_test.dart"},"type":"suite","time":141249}
+{"test":{"id":10,"name":"loading /Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/integration_test/e2e_feature_journeys_test.dart","suiteID":9,"groupIDs":[],"metadata":{"skip":false,"skipReason":null},"line":null,"column":null,"url":null},"type":"testStart","time":141249}
+Xcode build done.                                           52.3s
+
+[{"event":"test.startedProcess","params":{"vmServiceUri":"http://127.0.0.1:62187/59-CFUdWNY8=/"}}]
+{"testID":10,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":220199}
+{"group":{"id":11,"suiteID":9,"parentID":null,"name":"","metadata":{"skip":false,"skipReason":null},"testCount":4,"line":null,"column":null,"url":null},"type":"group","time":220199}
+{"group":{"id":12,"suiteID":9,"parentID":11,"name":"Release Suite · Genealogy + Members + Calendar + Profile","metadata":{"skip":false,"skipReason":null},"testCount":4,"line":22,"column":3,"url":"file:///Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/integration_test/e2e_feature_journeys_test.dart"},"type":"group","time":220199}
+{"test":{"id":13,"name":"Release Suite · Genealogy + Members + Calendar + Profile [TREE-001][RULE-001][P0] genealogy tree load, scope, node navigation","suiteID":9,"groupIDs":[11,12],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart"},"type":"testStart","time":220199}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":220873}
+{"testID":13,"messageType":"print","message":"│ 09:05:03.674 (+0:00:00.001380)","type":"print","time":220873}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":220873}
+{"testID":13,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":220873}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":220873}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":224565}
+{"testID":13,"messageType":"print","message":"│ 09:05:07.364 (+0:00:03.691349)","type":"print","time":224565}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":224565}
+{"testID":13,"messageType":"print","message":"│ [otp_1774533907364_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":224565}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":224565}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":224565}
+{"testID":13,"messageType":"print","message":"│ 09:05:07.365 (+0:00:03.691998)","type":"print","time":224565}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":224565}
+{"testID":13,"messageType":"print","message":"│ [otp_1774533907364_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":224565}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":224565}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225020}
+{"testID":13,"messageType":"print","message":"│ 09:05:07.823 (+0:00:04.150087)","type":"print","time":225020}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":225021}
+{"testID":13,"messageType":"print","message":"│ [otp_1774533907364_phone_send] OTP request returned from gateway.","type":"print","time":225024}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225025}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225025}
+{"testID":13,"messageType":"print","message":"│ 09:05:07.824 (+0:00:04.150840)","type":"print","time":225025}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":225025}
+{"testID":13,"messageType":"print","message":"│ [otp_1774533907364_phone_send] OTP challenge received (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567, source=phone_input).","type":"print","time":225025}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225025}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225025}
+{"testID":13,"messageType":"print","message":"│ 09:05:07.825 (+0:00:04.151834)","type":"print","time":225025}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":225026}
+{"testID":13,"messageType":"print","message":"│ [otp_1774533907364_phone_send] Completed successfully.","type":"print","time":225027}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225027}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225030}
+{"testID":13,"messageType":"print","message":"│ 09:05:07.825 (+0:00:04.152309)","type":"print","time":225030}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":225030}
+{"testID":13,"messageType":"print","message":"│ [otp_1774533907364_phone_send] Busy state exited after 460ms.","type":"print","time":225030}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225030}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225353}
+{"testID":13,"messageType":"print","message":"│ 09:05:08.157 (+0:00:04.484440)","type":"print","time":225354}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":225354}
+{"testID":13,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567).","type":"print","time":225354}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225354}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225355}
+{"testID":13,"messageType":"print","message":"│ 09:05:08.158 (+0:00:04.484783)","type":"print","time":225355}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":225355}
+{"testID":13,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":225355}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225355}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225816}
+{"testID":13,"messageType":"print","message":"│ 09:05:08.617 (+0:00:04.944196)","type":"print","time":225816}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":225826}
+{"testID":13,"messageType":"print","message":"│ Auth session established for debug:+84901234567.","type":"print","time":225826}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225826}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225826}
+{"testID":13,"messageType":"print","message":"│ 09:05:08.618 (+0:00:04.944716)","type":"print","time":225827}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":225827}
+{"testID":13,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":225827}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225827}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225827}
+{"testID":13,"messageType":"print","message":"│ 09:05:08.618 (+0:00:04.944965)","type":"print","time":225827}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":225827}
+{"testID":13,"messageType":"print","message":"│ [verify_otp] Busy state exited after 460ms.","type":"print","time":225827}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":225827}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":227183}
+{"testID":13,"messageType":"print","message":"│ 09:05:09.988 (+0:00:06.314521)","type":"print","time":227183}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":227183}
+{"testID":13,"messageType":"print","message":"│ perf.genealogy.tree_scene_build connector_groups=28 connector_segments=146 edges=87 elapsed_ms=12 layout_average_ms=12 layout_latest_ms=12 layout_peak_ms=12 layout_samples=1 nodes=68 row_gap_max=182 truncated=0 visible_cap=320","type":"print","time":227183}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":227183}
+{"testID":13,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":229200}
+{"test":{"id":14,"name":"Release Suite · Genealogy + Members + Calendar + Profile [MEM-001][P0] add member flow with sibling-order hint","suiteID":9,"groupIDs":[11,12],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart"},"type":"testStart","time":229201}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":229310}
+{"testID":13,"messageType":"print","message":"│ 09:05:12.114 (+0:00:08.441085)","type":"print","time":229310}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":229310}
+{"testID":13,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":229311}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":229311}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":231944}
+{"testID":14,"messageType":"print","message":"│ 09:05:14.746 (+0:00:11.072774)","type":"print","time":231944}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":231944}
+{"testID":14,"messageType":"print","message":"│ [otp_1774533914746_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":231944}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":231944}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":231944}
+{"testID":14,"messageType":"print","message":"│ 09:05:14.746 (+0:00:11.073094)","type":"print","time":231944}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":231944}
+{"testID":14,"messageType":"print","message":"│ [otp_1774533914746_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":231944}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":231944}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"│ 09:05:15.200 (+0:00:11.527228)","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"│ [otp_1774533914746_phone_send] OTP request returned from gateway.","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"│ 09:05:15.201 (+0:00:11.528196)","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"│ [otp_1774533914746_phone_send] OTP challenge received (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567, source=phone_input).","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"│ 09:05:15.202 (+0:00:11.529175)","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"│ [otp_1774533914746_phone_send] Completed successfully.","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"│ 09:05:15.203 (+0:00:11.529729)","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"│ [otp_1774533914746_phone_send] Busy state exited after 456ms.","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232399}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232685}
+{"testID":14,"messageType":"print","message":"│ 09:05:15.490 (+0:00:11.816539)","type":"print","time":232686}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":232686}
+{"testID":14,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567).","type":"print","time":232686}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232686}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232686}
+{"testID":14,"messageType":"print","message":"│ 09:05:15.490 (+0:00:11.816829)","type":"print","time":232686}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":232686}
+{"testID":14,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":232686}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":232686}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":233141}
+{"testID":14,"messageType":"print","message":"│ 09:05:15.943 (+0:00:12.269897)","type":"print","time":233141}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":233142}
+{"testID":14,"messageType":"print","message":"│ Auth session established for debug:+84901234567.","type":"print","time":233143}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":233143}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":233143}
+{"testID":14,"messageType":"print","message":"│ 09:05:15.944 (+0:00:12.270728)","type":"print","time":233143}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":233143}
+{"testID":14,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":233143}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":233143}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":233143}
+{"testID":14,"messageType":"print","message":"│ 09:05:15.944 (+0:00:12.271244)","type":"print","time":233144}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":233144}
+{"testID":14,"messageType":"print","message":"│ [verify_otp] Busy state exited after 454ms.","type":"print","time":233144}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":233144}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":234289}
+{"testID":13,"messageType":"print","message":"│ 09:05:17.093 (+0:00:13.419521)","type":"print","time":234289}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":234289}
+{"testID":13,"messageType":"print","message":"│ perf.member_search.query elapsed_ms=122 has_branch_filter=0 has_generation_filter=0 query_length=0 status=success","type":"print","time":234289}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":234289}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":240759}
+{"testID":14,"messageType":"print","message":"│ 09:05:23.562 (+0:00:19.888768)","type":"print","time":240759}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":240759}
+{"testID":14,"messageType":"print","message":"│ perf.member_search.query elapsed_ms=122 has_branch_filter=0 has_generation_filter=0 query_length=0 status=success","type":"print","time":240760}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":240760}
+{"testID":14,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":241378}
+{"testID":14,"messageType":"print","message":"│ 09:05:24.182 (+0:00:20.509095)","type":"print","time":241378}
+{"testID":14,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":241378}
+{"testID":14,"messageType":"print","message":"│ perf.member_search.query elapsed_ms=131 has_branch_filter=0 has_generation_filter=0 query_length=21 status=success","type":"print","time":241378}
+{"testID":14,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":241378}
+{"testID":14,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":242828}
+{"test":{"id":15,"name":"Release Suite · Genealogy + Members + Calendar + Profile [EVT-002][P0] create lunar memorial event with details","suiteID":9,"groupIDs":[11,12],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart"},"type":"testStart","time":242852}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":242991}
+{"testID":13,"messageType":"print","message":"│ 09:05:25.788 (+0:00:22.114518)","type":"print","time":242991}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":242992}
+{"testID":13,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":242994}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":243001}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":246836}
+{"testID":15,"messageType":"print","message":"│ 09:05:29.413 (+0:00:25.740137)","type":"print","time":246838}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":246838}
+{"testID":15,"messageType":"print","message":"│ [otp_1774533929413_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":246838}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":246838}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":246838}
+{"testID":15,"messageType":"print","message":"│ 09:05:29.414 (+0:00:25.740609)","type":"print","time":246838}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":246838}
+{"testID":15,"messageType":"print","message":"│ [otp_1774533929413_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":246838}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":246838}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247070}
+{"testID":15,"messageType":"print","message":"│ 09:05:29.866 (+0:00:26.193276)","type":"print","time":247070}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":247070}
+{"testID":15,"messageType":"print","message":"│ [otp_1774533929413_phone_send] OTP request returned from gateway.","type":"print","time":247070}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247070}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"│ 09:05:29.867 (+0:00:26.193760)","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"│ [otp_1774533929413_phone_send] OTP challenge received (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567, source=phone_input).","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"│ 09:05:29.867 (+0:00:26.194140)","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"│ [otp_1774533929413_phone_send] Completed successfully.","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"│ 09:05:29.867 (+0:00:26.194419)","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"│ [otp_1774533929413_phone_send] Busy state exited after 453ms.","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247071}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247469}
+{"testID":15,"messageType":"print","message":"│ 09:05:30.173 (+0:00:26.500322)","type":"print","time":247469}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":247469}
+{"testID":15,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567).","type":"print","time":247469}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247469}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247469}
+{"testID":15,"messageType":"print","message":"│ 09:05:30.174 (+0:00:26.500693)","type":"print","time":247469}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":247470}
+{"testID":15,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":247470}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247470}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247824}
+{"testID":15,"messageType":"print","message":"│ 09:05:30.627 (+0:00:26.954212)","type":"print","time":247824}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":247824}
+{"testID":15,"messageType":"print","message":"│ Auth session established for debug:+84901234567.","type":"print","time":247825}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247825}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247825}
+{"testID":15,"messageType":"print","message":"│ 09:05:30.628 (+0:00:26.954827)","type":"print","time":247825}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":247825}
+{"testID":15,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":247825}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247825}
+{"testID":15,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247825}
+{"testID":15,"messageType":"print","message":"│ 09:05:30.628 (+0:00:26.955197)","type":"print","time":247827}
+{"testID":15,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":247827}
+{"testID":15,"messageType":"print","message":"│ [verify_otp] Busy state exited after 454ms.","type":"print","time":247827}
+{"testID":15,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":247827}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":248916}
+{"testID":13,"messageType":"print","message":"│ [core/no-app] No Firebase App '[DEFAULT]' has been created - call Firebase.initializeApp()","type":"print","time":248919}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":248919}
+{"testID":13,"messageType":"print","message":"│ #0   MethodChannelFirebase.app (package:firebase_core_platform_interface/src/method_channel/method_channel_firebase.dart:190:5)","type":"print","time":248919}
+{"testID":13,"messageType":"print","message":"│ #1   Firebase.app (package:firebase_core/src/firebase.dart:92:41)","type":"print","time":248919}
+{"testID":13,"messageType":"print","message":"│ #2   FirebaseFirestore.instance (package:cloud_firestore/src/firestore.dart:29:21)","type":"print","time":248919}
+{"testID":13,"messageType":"print","message":"│ #3   FirebaseServices.firestore (package:befam/core/services/firebase_services.dart:15:63)","type":"print","time":248919}
+{"testID":13,"messageType":"print","message":"│ #4   FirebaseLunarHolidayRepository.loadHolidays (package:befam/features/calendar/services/lunar_holiday_repository.dart:30:56)","type":"print","time":248919}
+{"testID":13,"messageType":"print","message":"│ #5   DualCalendarController._loadFocusedMonth (package:befam/features/calendar/presentation/dual_calendar_controller.dart:309:42)","type":"print","time":248919}
+{"testID":13,"messageType":"print","message":"│ #6   <asynchronous suspension>","type":"print","time":248919}
+{"testID":13,"messageType":"print","message":"│ #7   DualCalendarController.refreshAll (package:befam/features/calendar/presentation/dual_calendar_controller.dart:116:7)","type":"print","time":248920}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":248920}
+{"testID":13,"messageType":"print","message":"│ 09:05:31.648 (+0:00:27.975257)","type":"print","time":248920}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":248920}
+{"testID":13,"messageType":"print","message":"│ Không thể tải ngày lễ âm lịch từ Firestore (lunar_holidays). Chuyển sang dữ liệu mặc định.","type":"print","time":248920}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":248920}
+{"testID":15,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":254813}
+{"test":{"id":16,"name":"Release Suite · Genealogy + Members + Calendar + Profile [CTX-007][NOTIF-003][P1] profile language persistence + notification inbox deep-link","suiteID":9,"groupIDs":[11,12],"metadata":{"skip":false,"skipReason":null},"line":174,"column":5,"url":"package:flutter_test/src/widget_tester.dart"},"type":"testStart","time":254816}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":254935}
+{"testID":13,"messageType":"print","message":"│ 09:05:37.733 (+0:00:34.060354)","type":"print","time":254935}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":254936}
+{"testID":13,"messageType":"print","message":"│ No persisted auth session found.","type":"print","time":254936}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":254936}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":257624}
+{"testID":16,"messageType":"print","message":"│ 09:05:40.427 (+0:00:36.753610)","type":"print","time":257624}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":257624}
+{"testID":16,"messageType":"print","message":"│ [otp_1774533940427_phone_send] Starting OTP request flow (method=phone, resend=false, source=phone_input, step=phoneNumber, sandbox=true).","type":"print","time":257624}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":257628}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":257628}
+{"testID":16,"messageType":"print","message":"│ 09:05:40.427 (+0:00:36.753958)","type":"print","time":257628}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":257628}
+{"testID":16,"messageType":"print","message":"│ [otp_1774533940427_phone_send] Busy state entered (step=phoneNumber, method=phone).","type":"print","time":257628}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":257628}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258080}
+{"testID":16,"messageType":"print","message":"│ 09:05:40.879 (+0:00:37.206352)","type":"print","time":258080}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":258080}
+{"testID":16,"messageType":"print","message":"│ [otp_1774533940427_phone_send] OTP request returned from gateway.","type":"print","time":258080}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258080}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258081}
+{"testID":16,"messageType":"print","message":"│ 09:05:40.880 (+0:00:37.207130)","type":"print","time":258081}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":258081}
+{"testID":16,"messageType":"print","message":"│ [otp_1774533940427_phone_send] OTP challenge received (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567, source=phone_input).","type":"print","time":258081}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258081}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258081}
+{"testID":16,"messageType":"print","message":"│ 09:05:40.881 (+0:00:37.207721)","type":"print","time":258081}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":258081}
+{"testID":16,"messageType":"print","message":"│ [otp_1774533940427_phone_send] Completed successfully.","type":"print","time":258081}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258082}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258082}
+{"testID":16,"messageType":"print","message":"│ 09:05:40.881 (+0:00:37.208080)","type":"print","time":258082}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":258082}
+{"testID":16,"messageType":"print","message":"│ [otp_1774533940427_phone_send] Busy state exited after 454ms.","type":"print","time":258082}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258082}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258354}
+{"testID":16,"messageType":"print","message":"│ 09:05:41.156 (+0:00:37.483227)","type":"print","time":258354}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":258354}
+{"testID":16,"messageType":"print","message":"│ OTP verification started (method=phone, phone=+84901234567, verificationId=debug-phone-+84901234567).","type":"print","time":258354}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258354}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258354}
+{"testID":16,"messageType":"print","message":"│ 09:05:41.157 (+0:00:37.483524)","type":"print","time":258354}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":258354}
+{"testID":16,"messageType":"print","message":"│ [verify_otp] Busy state entered (step=otp, method=phone).","type":"print","time":258354}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258354}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258805}
+{"testID":16,"messageType":"print","message":"│ 09:05:41.609 (+0:00:37.936390)","type":"print","time":258805}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":258805}
+{"testID":16,"messageType":"print","message":"│ Auth session established for debug:+84901234567.","type":"print","time":258805}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258806}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258806}
+{"testID":16,"messageType":"print","message":"│ 09:05:41.610 (+0:00:37.936741)","type":"print","time":258806}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":258806}
+{"testID":16,"messageType":"print","message":"│ [verify_otp] Completed successfully.","type":"print","time":258806}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258806}
+{"testID":16,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258806}
+{"testID":16,"messageType":"print","message":"│ 09:05:41.610 (+0:00:37.936966)","type":"print","time":258806}
+{"testID":16,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":258806}
+{"testID":16,"messageType":"print","message":"│ [verify_otp] Busy state exited after 453ms.","type":"print","time":258806}
+{"testID":16,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":258806}
+{"testID":13,"messageType":"print","message":"┌───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":261906}
+{"testID":13,"messageType":"print","message":"│ LoadAdError(code: 1, domain: com.google.admob, message: Request Error: No ad to show., responseInfo: ResponseInfo(responseId: Nj3FadLoBd34mtUP5LTJuAc, mediationAdapterClassName: null, adapterResponses: [AdapterResponseInfo(adapterClassName: GADMAdapterGoogleAdMobAds, latencyMillis: 2055, description: {","type":"print","time":261907}
+{"testID":13,"messageType":"print","message":"│     \"Ad Source ID\" = 5450213213286189855;","type":"print","time":261907}
+{"testID":13,"messageType":"print","message":"│     \"Ad Source Instance ID\" = \"-1\";","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│     \"Ad Source Instance Name\" = \"\";","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│     \"Ad Source Name\" = \"\";","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│     AdUnitMapping =     {","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│         pubid = \"ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=Nj3FacuMBeyjmtUPlKTf4A8\";","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│     };","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│     Error = \"Error Domain=com.google.admob Code=5 \\\"Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.\\\" UserInfo={NSLocalizedDescription=Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.}\";","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│     Latency = \"2.055\";","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│     Network = GADMAdapterGoogleAdMobAds;","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│ }, adUnitMapping: {pubid: ca-app-pub-3940256099942544/4411468910/cak=no_cache&cadc=c1&caqid=Nj3FacuMBeyjmtUPlKTf4A8}, adError: AdError(code: 5, domain: com.google.admob, message: Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.), adSourceName: , adSourceId: 5450213213286189855, adSourceInstanceName: , adSourceInstanceId: -1)], loadedAdapterResponseInfo: AdapterResponseInfo(adapterClassName: , latencyMillis: 0, description: , adUnitMapping: {}, adError: null, adSourceName: , adSourceId: , adSourceInstanceName: , adSourceInstanceId: )), responseExtras: {mediation_group_name: AdMob (default)})","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│ #0   AppLogger.warning (package:befam/core/services/app_logger.dart:22:13)","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│ #1   AdController._ensureInterstitialLoaded.<anonymous closure> (package:befam/features/ads/services/ad_controller.dart:247:23)","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│ #2   AdInstanceManager._invokeOnAdFailedToLoad (package:google_mobile_ads/src/ad_instance_manager.dart:252:42)","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│ #3   AdInstanceManager._onAdEventIOS (package:google_mobile_ads/src/ad_instance_manager.dart:95:9)","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│ #4   AdInstanceManager._onAdEvent (package:google_mobile_ads/src/ad_instance_manager.dart:85:7)","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│ #5   new AdInstanceManager.<anonymous closure> (package:google_mobile_ads/src/ad_instance_manager.dart:67:9)","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│ #6   MethodChannel._handleAsMethodCall (package:flutter/src/services/platform_channel.dart:607:55)","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│ #7   MethodChannel.setMethodCallHandler.<anonymous closure> (package:flutter/src/services/platform_channel.dart:597:55)","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":261908}
+{"testID":13,"messageType":"print","message":"│ 09:05:44.674 (+0:00:41.000930)","type":"print","time":261910}
+{"testID":13,"messageType":"print","message":"├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄","type":"print","time":261910}
+{"testID":13,"messageType":"print","message":"│ Interstitial ad failed to load.","type":"print","time":261910}
+{"testID":13,"messageType":"print","message":"└───────────────────────────────────────────────────────────────────────────────────────────────────","type":"print","time":261910}
+{"testID":16,"result":"success","skipped":false,"hidden":false,"type":"testDone","time":265247}
+{"test":{"id":17,"name":"(tearDownAll)","suiteID":9,"groupIDs":[11],"metadata":{"skip":false,"skipReason":null},"line":50,"column":5,"url":"package:integration_test/integration_test.dart"},"type":"testStart","time":265252}
+{"testID":17,"result":"success","skipped":false,"hidden":true,"type":"testDone","time":265260}
+{"success":true,"type":"done","time":266746}

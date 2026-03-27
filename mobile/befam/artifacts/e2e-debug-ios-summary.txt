@@ -1,0 +1,9 @@
+mode=debug
+platform=ios
+device_id=165ECA74-B67B-45DA-B8A8-B8FC8DEB998B
+machine_output=/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/artifacts/e2e-debug-ios-machine.jsonl
+timestamp_utc=2026-03-26T13:13:49Z
+flutter_exit_code=1
+release_execution=/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/artifacts/release-execution-debug-ios.csv
+release_dashboard=/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/artifacts/release-dashboard-debug-ios.csv
+release_report=/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/artifacts/e2e-report-debug-ios.md

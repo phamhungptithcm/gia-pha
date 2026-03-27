@@ -1,0 +1,395 @@
+name: CD - Deploy Staging
+
+on:
+  push:
+    branches:
+      - staging
+    paths:
+      - "firebase.json"
+      - "firebase/**"
+      - ".firebaserc"
+      - "mobile/befam/lib/**"
+      - "mobile/befam/web/**"
+      - "mobile/befam/assets/**"
+      - "mobile/befam/pubspec.yaml"
+      - "mobile/befam/pubspec.lock"
+      - ".github/workflows/deploy-staging.yml"
+
+permissions:
+  contents: read
+  id-token: write
+  checks: read
+
+concurrency:
+  group: deploy-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate-staging-ci-e2e:
+    name: Gate - Wait for Staging CI + E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Wait for required checks on staging commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          required_checks=(
+            "CI - Docs Validation and Build"
+            "CI - Functions Build and Test"
+            "CI - Mobile Build and Test"
+            "Security - Trivy Filesystem Scan"
+            "Security - Gitleaks Secret Scan"
+            "Security - Trivy Container Image Scan"
+            "E2E - Android Test Run"
+            "E2E - iOS Test Run"
+          )
+
+          deadline_seconds=$((SECONDS + 140 * 60))
+
+          while [ "$SECONDS" -lt "$deadline_seconds" ]; do
+            echo "Checking status for commit ${COMMIT_SHA}..."
+            check_runs_json="$(
+              gh api \
+                "repos/${GITHUB_REPOSITORY}/commits/${COMMIT_SHA}/check-runs?per_page=100" \
+            )"
+
+            all_passed=true
+            for check_name in "${required_checks[@]}"; do
+              line="$(
+                jq -r --arg name "$check_name" '
+                  (.check_runs // [])
+                  | map(select(.name == $name))
+                  | sort_by(.completed_at // .started_at // .created_at)
+                  | last
+                  | if . == null then "" else [(.name // ""), (.status // ""), (.conclusion // "")] | @tsv end
+                ' <<<"$check_runs_json"
+              )"
+              if [ -z "$line" ]; then
+                echo " - ${check_name}: missing (waiting)"
+                all_passed=false
+                continue
+              fi
+
+              status="$(printf '%s' "$line" | awk -F'\t' '{print $2}')"
+              conclusion="$(printf '%s' "$line" | awk -F'\t' '{print $3}')"
+              echo " - ${check_name}: status=${status}, conclusion=${conclusion:-n/a}"
+
+              if [ "$status" != "completed" ]; then
+                all_passed=false
+                continue
+              fi
+
+              if [ "$conclusion" != "success" ]; then
+                echo "::error::Required check '${check_name}' completed with conclusion '${conclusion}'."
+                exit 1
+              fi
+            done
+
+            if [ "$all_passed" = true ]; then
+              echo "All required staging CI/E2E checks are green."
+              exit 0
+            fi
+
+            sleep 20
+          done
+
+          echo "::error::Timed out waiting for required staging CI/E2E checks."
+          exit 1
+
+  deploy-staging-firebase:
+    name: Deploy Firebase (Staging)
+    needs: gate-staging-ci-e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Validate staging sandbox target
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-}"
+          test -n "$project"
+          if [ "$project" != "be-fam-3ab23" ]; then
+            echo "::error::Staging deploy must target sandbox project be-fam-3ab23. Current: ${project}"
+            exit 1
+          fi
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          if [ "$database" != "(default)" ]; then
+            echo "::error::Staging deploy must target Firestore database (default). Current: ${database}"
+            exit 1
+          fi
+
+      - name: Resolve staging auth mode
+        id: auth-mode
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" ] && [ -n "${GCP_SERVICE_ACCOUNT_EMAIL:-}" ]; then
+            echo "mode=oidc" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            echo "mode=key" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::error::Missing staging deploy credentials. Provide OIDC secrets or FIREBASE_SERVICE_ACCOUNT."
+          exit 1
+
+      - name: Authenticate to Google Cloud (OIDC)
+        if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up gcloud (OIDC mode)
+        if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      - name: Write Firebase credentials (fallback key mode)
+        if: ${{ steps.auth-mode.outputs.mode == 'key' }}
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+          test -n "${FIREBASE_PROJECT_ID:-}"
+          project="${FIREBASE_PROJECT_ID}"
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          credentials_path="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$credentials_path"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$credentials_path" >> "$GITHUB_ENV"
+          echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+          echo "FIRESTORE_DATABASE_ID=$database" >> "$GITHUB_ENV"
+
+      - name: Export Firebase project env (OIDC mode)
+        if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-}"
+          test -n "$project"
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+          echo "FIRESTORE_DATABASE_ID=$database" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: firebase/functions/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: firebase/functions
+        run: npm ci
+
+      - name: Build Functions
+        working-directory: firebase/functions
+        run: npm run build
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Sync runtime config document
+        working-directory: firebase/functions
+        run: node scripts/upsert-runtime-config.mjs
+
+      - name: Sync subscription package catalog
+        working-directory: firebase/functions
+        run: node scripts/sync-subscription-packages.mjs --apply
+
+      - name: Deploy Firestore, Storage, and Functions
+        run: >
+          firebase deploy
+          --project "${FIREBASE_PROJECT_ID}"
+          --non-interactive
+          --only firestore:rules,firestore:indexes,storage,functions
+
+  deploy-staging-web:
+    name: Deploy Web Hosting (Staging Web Only)
+    needs: deploy-staging-firebase
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+    defaults:
+      run:
+        working-directory: mobile/befam
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Validate staging sandbox target
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-}"
+          test -n "$project"
+          if [ "$project" != "be-fam-3ab23" ]; then
+            echo "::error::Staging deploy must target sandbox project be-fam-3ab23. Current: ${project}"
+            exit 1
+          fi
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          if [ "$database" != "(default)" ]; then
+            echo "::error::Staging deploy must target Firestore database (default). Current: ${database}"
+            exit 1
+          fi
+
+      - name: Resolve staging auth mode
+        id: auth-mode
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" ] && [ -n "${GCP_SERVICE_ACCOUNT_EMAIL:-}" ]; then
+            echo "mode=oidc" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            echo "mode=key" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::error::Missing staging deploy credentials. Provide OIDC secrets or FIREBASE_SERVICE_ACCOUNT."
+          exit 1
+
+      - name: Authenticate to Google Cloud (OIDC)
+        if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up gcloud (OIDC mode)
+        if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      - name: Write Firebase credentials (fallback key mode)
+        if: ${{ steps.auth-mode.outputs.mode == 'key' }}
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          test -n "${FIREBASE_PROJECT_ID:-}"
+          project="${FIREBASE_PROJECT_ID}"
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          test -n "${FIREBASE_SERVICE_ACCOUNT:-}"
+          credentials_path="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$credentials_path"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$credentials_path" >> "$GITHUB_ENV"
+          echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+          echo "FIRESTORE_DATABASE_ID=$database" >> "$GITHUB_ENV"
+
+      - name: Export Firebase project env (OIDC mode)
+        if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-}"
+          test -n "$project"
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+          echo "FIRESTORE_DATABASE_ID=$database" >> "$GITHUB_ENV"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Generate localization files
+        run: flutter gen-l10n
+
+      - name: Build Flutter web
+        env:
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+          BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
+          BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
+          BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
+        run: |
+          befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
+          befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          ios_store_url="${BEFAM_IOS_APP_STORE_URL:-}"
+          android_store_url="${BEFAM_ANDROID_PLAY_STORE_URL:-}"
+          optional_store_defines=()
+          if [ -n "$ios_store_url" ]; then
+            optional_store_defines+=(--dart-define="BEFAM_IOS_APP_STORE_URL=${ios_store_url}")
+          fi
+          if [ -n "$android_store_url" ]; then
+            optional_store_defines+=(--dart-define="BEFAM_ANDROID_PLAY_STORE_URL=${android_store_url}")
+          fi
+          flutter build web \
+            --release \
+            --no-wasm-dry-run \
+            --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
+            --dart-define=BEFAM_OTP_PROVIDER=firebase \
+            --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
+            --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
+            --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
+            --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
+            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
+            "${optional_store_defines[@]}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "20"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Deploy Firebase Hosting
+        working-directory: ${{ github.workspace }}
+        env:
+          FIREBASE_HOSTING_TARGET: ${{ vars.FIREBASE_HOSTING_TARGET }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID}"
+          target="${FIREBASE_HOSTING_TARGET:-}"
+          firebase_config="${GITHUB_WORKSPACE}/firebase.json"
+          if [ ! -f "$firebase_config" ]; then
+            echo "::error::Firebase config not found at ${firebase_config}."
+            exit 1
+          fi
+          if [ -n "$target" ]; then
+            firebase deploy --project "$project" --config "$firebase_config" --non-interactive --only "hosting:${target}"
+          else
+            firebase deploy --project "$project" --config "$firebase_config" --non-interactive --only hosting
+          fi

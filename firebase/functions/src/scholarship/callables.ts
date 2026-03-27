@@ -395,6 +395,9 @@ export const disburseScholarshipSubmissionFromFund = onCall(
         receiptUrl: null,
         sourceType: 'scholarship',
         sourceId: submissionId,
+        balanceApplied: true,
+        balanceAppliedAt: FieldValue.serverTimestamp(),
+        balanceAppliedBy: actorId,
         createdAt: FieldValue.serverTimestamp(),
         createdBy: actorId,
       });

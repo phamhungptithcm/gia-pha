@@ -29,6 +29,11 @@ abstract interface class EventRepository {
 
   Future<EventWorkspaceSnapshot> loadWorkspace({required AuthSession session});
 
+  Future<List<EventRecord>> loadUpcomingEvents({
+    required AuthSession session,
+    int limit = 80,
+  });
+
   Future<EventRecord> saveEvent({
     required AuthSession session,
     String? eventId,

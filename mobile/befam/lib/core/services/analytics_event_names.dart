@@ -11,6 +11,7 @@ abstract final class AnalyticsEventNames {
   static const memberSearchFiltersUpdated = 'member_search_filters_updated';
   static const memberSearchRetryRequested = 'member_search_retry';
   static const memberSearchResultOpened = 'member_search_open_result';
+  static const webMarketingCtaClick = 'web_marketing_cta_click';
 
   static const values = <String>[
     authMethodSelected,
@@ -24,6 +25,7 @@ abstract final class AnalyticsEventNames {
     memberSearchFiltersUpdated,
     memberSearchRetryRequested,
     memberSearchResultOpened,
+    webMarketingCtaClick,
   ];
 }
 

@@ -2086,13 +2086,6 @@ async function resolveVerifiedPhoneForAuth(
   );
 }
 
-function asTrimmedString(value: unknown, fallback = ''): string {
-  if (typeof value !== 'string') {
-    return fallback.trim();
-  }
-  return value.trim();
-}
-
 function asNullableTrimmedString(value: unknown): string | null {
   if (typeof value !== 'string') {
     return null;
@@ -2164,8 +2157,48 @@ async function findPotentialDuplicateGenealogies(input: {
     return [];
   }
 
-  const snapshot = await genealogyDiscoveryCollection.limit(250).get();
-  return snapshot.docs
+  const candidatesById = new Map<string, DocumentSnapshot>();
+  const lookupQueries = [
+    genealogyDiscoveryCollection
+      .where('isPublic', '==', true)
+      .where('genealogyNameNormalized', '==', name)
+      .limit(80)
+      .get(),
+    genealogyDiscoveryCollection
+      .where('isPublic', '==', true)
+      .where('leaderNameNormalized', '==', leader)
+      .limit(80)
+      .get(),
+    ...(location.length > 0
+      ? [
+          genealogyDiscoveryCollection
+            .where('isPublic', '==', true)
+            .where('provinceCityNormalized', '==', location)
+            .limit(80)
+            .get(),
+        ]
+      : []),
+  ];
+  const snapshots = await Promise.all(lookupQueries);
+  for (const snapshot of snapshots) {
+    for (const doc of snapshot.docs) {
+      candidatesById.set(doc.id, doc);
+    }
+  }
+  if (candidatesById.size < 40) {
+    const fallbackSnapshot = await genealogyDiscoveryCollection
+      .where('isPublic', '==', true)
+      .limit(120)
+      .get();
+    for (const doc of fallbackSnapshot.docs) {
+      if (candidatesById.size >= 180) {
+        break;
+      }
+      candidatesById.set(doc.id, doc);
+    }
+  }
+
+  return [...candidatesById.values()]
     .map((doc) => ({ id: doc.id, ...(doc.data() as DiscoveryIndexRecord) }))
     .map((entry) => ({
       clanId: optionalTrimmedRecordString(entry.clanId) ?? entry.id,
@@ -3946,6 +3979,17 @@ async function applySessionClaims(
       : [context.clanId];
   const activeClanId = context.clanId ?? clanIds[0] ?? '';
 
+  // Embed the primary clan's current status so security rules can skip
+  // the isClanActive DB read on every operation for the primary clan.
+  let clanStatus = '';
+  if (activeClanId.length > 0) {
+    const clanSnap = await db.collection('clans').doc(activeClanId).get();
+    const status = clanSnap.exists
+      ? ((clanSnap.data() as ClanRecord | undefined)?.status ?? 'active')
+      : '';
+    clanStatus = typeof status === 'string' ? status.trim() : '';
+  }
+
   await auth.setCustomUserClaims(uid, {
     ...existingClaims,
     clanIds: clanIds,
@@ -3955,6 +3999,7 @@ async function applySessionClaims(
     branchId: context.branchId ?? '',
     primaryRole: context.primaryRole ?? 'GUEST',
     memberAccessMode: context.accessMode,
+    clanStatus,
   });
 }
 

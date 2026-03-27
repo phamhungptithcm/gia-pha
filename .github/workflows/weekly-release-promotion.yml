@@ -1,4 +1,4 @@
-name: Weekly Release Promotion
+name: Ops - Promote Staging to Main
 
 on:
   schedule:
@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   promote-staging:
+    name: Create or Refresh Staging to Main Release PR
     runs-on: ubuntu-latest
     steps:
       - name: Create or refresh release pull request
@@ -42,8 +43,8 @@ jobs:
             echo "Automated weekly promotion from \`staging\` to \`main\`."
             echo
             echo "- Generated on ${release_date}"
-            echo "- Approval and Branch CI checks are still required before production merge"
-            echo "- Auto-merge is armed so the PR merges as soon as approval and checks are both satisfied"
+            echo "- Approval and CI - Branch Quality Gates checks are still required before production merge"
+            echo "- This PR requires manual human approval before merging to production"
             echo
             echo "## Included commits"
             echo
@@ -68,4 +69,6 @@ jobs:
             pr_number="${pr_url##*/}"
           fi
 
-          gh pr merge "${pr_number}" --repo "${repo}" --auto --merge
+          echo "Release PR #${pr_number} is ready for human review and approval."
+          echo "PR requires manual approval — auto-merge has been disabled."
+          gh pr view "${pr_number}" --repo "${repo}" --json url --jq '.url'

@@ -10,9 +10,17 @@ import '../core/services/app_locale_store.dart';
 import '../features/auth/presentation/auth_experience.dart';
 import '../features/auth/services/auth_analytics_service.dart';
 import '../features/auth/services/auth_gateway.dart';
+import '../features/auth/services/clan_context_service.dart';
 import '../features/auth/services/auth_session_store.dart';
+import '../features/billing/services/billing_repository.dart';
 import '../features/clan/services/clan_repository.dart';
+import '../features/discovery/services/genealogy_discovery_repository.dart';
+import '../features/events/services/event_repository.dart';
+import '../features/funds/services/fund_repository.dart';
+import '../features/genealogy/services/genealogy_read_repository.dart';
 import '../features/member/services/member_repository.dart';
+import '../features/notifications/services/push_notification_service.dart';
+import '../features/profile/services/profile_notification_preferences_repository.dart';
 import '../l10n/generated/app_localizations.dart';
 import 'bootstrap/firebase_setup_status.dart';
 import 'theme/app_theme.dart';
@@ -27,8 +35,16 @@ class BeFamApp extends StatefulWidget {
     this.authGateway,
     this.authAnalyticsService,
     this.sessionStore,
+    this.clanContextService,
     this.clanRepository,
     this.memberRepository,
+    this.eventRepository,
+    this.fundRepository,
+    this.genealogyRepository,
+    this.genealogyDiscoveryRepository,
+    this.billingRepository,
+    this.pushNotificationService,
+    this.profileNotificationPreferencesRepository,
     this.locale,
     this.localeStore,
     this.localeController,
@@ -38,8 +54,17 @@ class BeFamApp extends StatefulWidget {
   final AuthGateway? authGateway;
   final AuthAnalyticsService? authAnalyticsService;
   final AuthSessionStore? sessionStore;
+  final ClanContextService? clanContextService;
   final ClanRepository? clanRepository;
   final MemberRepository? memberRepository;
+  final EventRepository? eventRepository;
+  final FundRepository? fundRepository;
+  final GenealogyReadRepository? genealogyRepository;
+  final GenealogyDiscoveryRepository? genealogyDiscoveryRepository;
+  final BillingRepository? billingRepository;
+  final PushNotificationService? pushNotificationService;
+  final ProfileNotificationPreferencesRepository?
+  profileNotificationPreferencesRepository;
   final Locale? locale;
   final AppLocaleStore? localeStore;
   final AppLocaleController? localeController;
@@ -149,8 +174,17 @@ class _BeFamAppState extends State<BeFamApp> {
       authGateway: widget.authGateway,
       authAnalyticsService: widget.authAnalyticsService,
       sessionStore: widget.sessionStore,
+      clanContextService: widget.clanContextService,
       clanRepository: widget.clanRepository,
       memberRepository: widget.memberRepository,
+      eventRepository: widget.eventRepository,
+      fundRepository: widget.fundRepository,
+      genealogyRepository: widget.genealogyRepository,
+      genealogyDiscoveryRepository: widget.genealogyDiscoveryRepository,
+      billingRepository: widget.billingRepository,
+      pushNotificationService: widget.pushNotificationService,
+      profileNotificationPreferencesRepository:
+          widget.profileNotificationPreferencesRepository,
       localeController: _localeController,
     );
   }
