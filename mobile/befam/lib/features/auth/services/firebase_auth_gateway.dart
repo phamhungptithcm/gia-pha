@@ -23,6 +23,9 @@ import 'auth_trusted_device_store.dart';
 import 'phone_number_formatter.dart';
 
 class FirebaseAuthGateway implements AuthGateway {
+  static const String _stagingFirebaseProjectId = 'be-fam-3ab23';
+  static const String _productionFirebaseProjectId = 'befam-b43bd';
+
   FirebaseAuthGateway({
     FirebaseAuth? auth,
     FirebaseFunctions? functions,
@@ -434,17 +437,43 @@ class FirebaseAuthGateway implements AuthGateway {
   }
 
   AuthOtpProvider _resolveOtpProvider(AuthEntryMethod loginMethod) {
+    final useFirebaseSdkOtp = _shouldUseFirebaseSdkOtp();
     if (loginMethod == AuthEntryMethod.child) {
-      if (AppEnvironment.useFirebaseOtp) {
+      if (useFirebaseSdkOtp) {
         AppLogger.info(
-          'Child login keeps server OTP flow while BEFAM_OTP_PROVIDER=firebase is enabled.',
+          'Child login keeps server OTP flow while Firebase SDK OTP is enabled for phone login.',
         );
       }
       return AuthOtpProvider.twilio;
     }
-    return AppEnvironment.useFirebaseOtp
+    final provider = useFirebaseSdkOtp
         ? AuthOtpProvider.firebase
         : AuthOtpProvider.twilio;
+    AppLogger.info(
+      'OTP provider selected for phone login: ${provider.name}.',
+    );
+    return provider;
+  }
+
+  bool _shouldUseFirebaseSdkOtp() {
+    final configuredProjectId = AppEnvironment.firebaseProjectId
+        .trim()
+        .toLowerCase();
+
+    if (configuredProjectId == _productionFirebaseProjectId) {
+      return false;
+    }
+
+    if (configuredProjectId == _stagingFirebaseProjectId) {
+      return true;
+    }
+
+    if (AppEnvironment.allowBundledFirebaseOptions) {
+      // Local runs default to bundled staging Firebase config.
+      return true;
+    }
+
+    return AppEnvironment.useFirebaseOtp;
   }
 
   Future<AuthOtpRequestResult> _requestOtpViaFirebase({
