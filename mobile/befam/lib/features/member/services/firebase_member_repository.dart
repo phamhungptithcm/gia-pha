@@ -6,8 +6,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:collection/collection.dart';
 
 import '../../../core/services/app_environment.dart';
+import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
+import '../../../core/services/inflight_task_cache.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/services/phone_number_formatter.dart';
 import '../../clan/models/branch_profile.dart';
@@ -17,21 +19,30 @@ import '../models/member_workspace_snapshot.dart';
 import 'member_repository.dart';
 
 class FirebaseMemberRepository implements MemberRepository {
+  static const int _workspacePageSize = 200;
+  static const int _workspaceMaxDocuments = 1500;
+
   FirebaseMemberRepository({
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
     FirebaseFunctions? functions,
+    FirestorePagedQueryLoader? pagedQueryLoader,
   }) : _firestore = firestore ?? FirebaseServices.firestore,
        _storage = storage ?? FirebaseServices.storage,
        _functions =
            functions ??
            FirebaseFunctions.instanceFor(
              region: AppEnvironment.firebaseFunctionsRegion,
-           );
+           ),
+       _pagedQueryLoader =
+           pagedQueryLoader ?? const FirestorePagedQueryLoader();
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
   final FirebaseFunctions _functions;
+  final FirestorePagedQueryLoader _pagedQueryLoader;
+  final InflightTaskCache<String, MemberWorkspaceSnapshot> _workspaceLoadCache =
+      InflightTaskCache<String, MemberWorkspaceSnapshot>();
 
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
@@ -56,50 +67,37 @@ class FirebaseMemberRepository implements MemberRepository {
       return const MemberWorkspaceSnapshot(members: [], branches: []);
     }
 
-    final results =
-        await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
-          _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
-          _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
-        ]);
+    return _workspaceLoadCache.run(clanId, () async {
+      final results =
+          await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
+            _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
+            _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
+          ]);
 
-    final members = results[0]
-        .map((doc) => MemberProfile.fromJson(doc.data()))
-        .sortedBy((member) => member.fullName.toLowerCase())
-        .toList(growable: false);
-    final branches = results[1]
-        .map((doc) => BranchProfile.fromJson(doc.data()))
-        .sortedBy((branch) => branch.name.toLowerCase())
-        .toList(growable: false);
+      final members = results[0]
+          .map((doc) => MemberProfile.fromJson(doc.data()))
+          .sortedBy((member) => member.fullName.toLowerCase())
+          .toList(growable: false);
+      final branches = results[1]
+          .map((doc) => BranchProfile.fromJson(doc.data()))
+          .sortedBy((branch) => branch.name.toLowerCase())
+          .toList(growable: false);
 
-    return MemberWorkspaceSnapshot(members: members, branches: branches);
+      return MemberWorkspaceSnapshot(members: members, branches: branches);
+    });
   }
 
   Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
   _fetchPagedDocuments(
     Query<Map<String, dynamic>> baseQuery, {
-    int pageSize = 200,
-    int maxDocuments = 1500,
+    int pageSize = _workspacePageSize,
+    int maxDocuments = _workspaceMaxDocuments,
   }) async {
-    final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
-    while (docs.length < maxDocuments) {
-      final query = cursor == null
-          ? baseQuery.limit(pageSize)
-          : baseQuery.limit(pageSize).startAfterDocument(cursor);
-      final snapshot = await query.get();
-      if (snapshot.docs.isEmpty) {
-        break;
-      }
-      docs.addAll(snapshot.docs);
-      if (snapshot.docs.length < pageSize) {
-        break;
-      }
-      cursor = snapshot.docs.last;
-    }
-    if (docs.length > maxDocuments) {
-      return docs.take(maxDocuments).toList(growable: false);
-    }
-    return docs;
+    return _pagedQueryLoader.loadAll(
+      baseQuery: baseQuery,
+      pageSize: pageSize,
+      maxDocuments: maxDocuments,
+    );
   }
 
   @override
@@ -122,12 +120,14 @@ class FirebaseMemberRepository implements MemberRepository {
 
     final normalizedPhone = _normalizePhoneOrNull(draft.phoneInput);
     if (memberId == null) {
-      return _createMemberViaCallable(
+      final created = await _createMemberViaCallable(
         session: session,
         clanId: clanId,
         draft: draft,
         normalizedPhone: normalizedPhone,
       );
+      _workspaceLoadCache.invalidate(clanId);
+      return created;
     }
 
     await _ensureUniquePhone(
@@ -253,6 +253,7 @@ class FirebaseMemberRepository implements MemberRepository {
       ..['updatedAt'] = nowIso
       ..['id'] = memberRef.id;
     if (isNew) responsePayload['createdAt'] = nowIso;
+    _workspaceLoadCache.invalidate(clanId);
     return MemberProfile.fromJson(responsePayload);
   }
 
@@ -487,6 +488,7 @@ class FirebaseMemberRepository implements MemberRepository {
       responseData['avatarUrl'] = url;
       responseData['updatedAt'] = DateTime.now().toUtc().toIso8601String();
       responseData['updatedBy'] = actor;
+      _workspaceLoadCache.invalidate(clanId);
       return MemberProfile.fromJson(responseData);
     } catch (error) {
       throw MemberRepositoryException(
@@ -539,6 +541,7 @@ class FirebaseMemberRepository implements MemberRepository {
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': actor,
     }, SetOptions(merge: true));
+    _workspaceLoadCache.invalidate(clanId);
   }
 
   @override

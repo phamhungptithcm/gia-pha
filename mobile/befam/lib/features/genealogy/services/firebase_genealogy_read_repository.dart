@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 
+import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
@@ -15,14 +16,21 @@ import 'genealogy_root_entries.dart';
 import 'genealogy_segment_cache.dart';
 
 class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
+  static const int _workspacePageSize = 250;
+  static const int _workspaceMaxDocuments = 3000;
+
   FirebaseGenealogyReadRepository({
     FirebaseFirestore? firestore,
     GenealogySegmentCache? cache,
+    FirestorePagedQueryLoader? pagedQueryLoader,
   }) : _firestore = firestore ?? FirebaseServices.firestore,
-       _cache = cache ?? GenealogySegmentCache.shared();
+       _cache = cache ?? GenealogySegmentCache.shared(),
+       _pagedQueryLoader =
+           pagedQueryLoader ?? const FirestorePagedQueryLoader();
 
   final FirebaseFirestore _firestore;
   final GenealogySegmentCache _cache;
+  final FirestorePagedQueryLoader _pagedQueryLoader;
 
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
@@ -59,13 +67,14 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
       }
     }
 
-    final results = await Future.wait<
-      List<QueryDocumentSnapshot<Map<String, dynamic>>>
-    >([
-      _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
-      _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
-      _fetchPagedDocuments(_relationships.where('clanId', isEqualTo: clanId)),
-    ]);
+    final results =
+        await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
+          _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
+          _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
+          _fetchPagedDocuments(
+            _relationships.where('clanId', isEqualTo: clanId),
+          ),
+        ]);
 
     final members = results[0]
         .map((doc) => MemberProfile.fromJson(doc.data()))
@@ -167,31 +176,17 @@ class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
     );
   }
 
-  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchPagedDocuments(
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _fetchPagedDocuments(
     Query<Map<String, dynamic>> baseQuery, {
-    int pageSize = 250,
-    int maxDocuments = 3000,
+    int pageSize = _workspacePageSize,
+    int maxDocuments = _workspaceMaxDocuments,
   }) async {
-    final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
-    while (docs.length < maxDocuments) {
-      final query = cursor == null
-          ? baseQuery.limit(pageSize)
-          : baseQuery.limit(pageSize).startAfterDocument(cursor);
-      final snapshot = await query.get();
-      if (snapshot.docs.isEmpty) {
-        break;
-      }
-      docs.addAll(snapshot.docs);
-      if (snapshot.docs.length < pageSize) {
-        break;
-      }
-      cursor = snapshot.docs.last;
-    }
-    if (docs.length > maxDocuments) {
-      return docs.take(maxDocuments).toList(growable: false);
-    }
-    return docs;
+    return _pagedQueryLoader.loadAll(
+      baseQuery: baseQuery,
+      pageSize: pageSize,
+      maxDocuments: maxDocuments,
+    );
   }
 
   GenealogyReadSegment _buildAndCacheSegment({

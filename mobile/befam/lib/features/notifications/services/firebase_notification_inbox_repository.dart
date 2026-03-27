@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
+import '../../../core/services/inflight_task_cache.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/notification_inbox_item.dart';
 import 'notification_inbox_repository.dart';
@@ -12,6 +13,8 @@ class FirebaseNotificationInboxRepository
     : _firestore = firestore ?? FirebaseServices.firestore;
 
   final FirebaseFirestore _firestore;
+  final InflightTaskCache<String, NotificationInboxPageResult> _pageCache =
+      InflightTaskCache<String, NotificationInboxPageResult>();
 
   CollectionReference<Map<String, dynamic>> get _notifications =>
       _firestore.collection('notifications');
@@ -36,51 +39,58 @@ class FirebaseNotificationInboxRepository
     }
 
     final pageSize = limit.clamp(1, 100);
-    var query = _notifications
-        .where('memberId', isEqualTo: memberId)
-        .orderBy('createdAt', descending: true)
-        .orderBy(FieldPath.documentId, descending: true)
-        .limit(pageSize + 1);
-
-    final cursorCreatedAt = cursor?.createdAt;
-    final cursorDocumentId = cursor?.documentId.trim() ?? '';
-    if (cursorCreatedAt != null && cursorDocumentId.isNotEmpty) {
-      query = query.startAfter([
-        Timestamp.fromDate(cursorCreatedAt),
-        cursorDocumentId,
-      ]);
-    }
-
-    final snapshot = await query.get();
-
-    final mappedItems = snapshot.docs
-        .map(
-          (doc) => NotificationInboxItem.fromFirestore(
-            documentId: doc.id,
-            json: doc.data(),
-          ),
-        )
-        .toList(growable: false);
-
-    if (mappedItems.isEmpty) {
-      return const NotificationInboxPageResult(items: [], nextCursor: null);
-    }
-
-    final hasMore = mappedItems.length > pageSize;
-    final visibleItems = hasMore
-        ? mappedItems.take(pageSize).toList(growable: false)
-        : mappedItems;
-    final nextCursor = hasMore
-        ? NotificationInboxCursor(
-            createdAt: visibleItems.last.createdAt,
-            documentId: visibleItems.last.id,
-          )
-        : null;
-
-    return NotificationInboxPageResult(
-      items: visibleItems,
-      nextCursor: nextCursor,
+    final cacheKey = _buildPageCacheKey(
+      memberId: memberId,
+      pageSize: pageSize,
+      cursor: cursor,
     );
+    return _pageCache.run(cacheKey, () async {
+      var query = _notifications
+          .where('memberId', isEqualTo: memberId)
+          .orderBy('createdAt', descending: true)
+          .orderBy(FieldPath.documentId, descending: true)
+          .limit(pageSize + 1);
+
+      final cursorCreatedAt = cursor?.createdAt;
+      final cursorDocumentId = cursor?.documentId.trim() ?? '';
+      if (cursorCreatedAt != null && cursorDocumentId.isNotEmpty) {
+        query = query.startAfter([
+          Timestamp.fromDate(cursorCreatedAt),
+          cursorDocumentId,
+        ]);
+      }
+
+      final snapshot = await query.get();
+
+      final mappedItems = snapshot.docs
+          .map(
+            (doc) => NotificationInboxItem.fromFirestore(
+              documentId: doc.id,
+              json: doc.data(),
+            ),
+          )
+          .toList(growable: false);
+
+      if (mappedItems.isEmpty) {
+        return const NotificationInboxPageResult(items: [], nextCursor: null);
+      }
+
+      final hasMore = mappedItems.length > pageSize;
+      final visibleItems = hasMore
+          ? mappedItems.take(pageSize).toList(growable: false)
+          : mappedItems;
+      final nextCursor = hasMore
+          ? NotificationInboxCursor(
+              createdAt: visibleItems.last.createdAt,
+              documentId: visibleItems.last.id,
+            )
+          : null;
+
+      return NotificationInboxPageResult(
+        items: visibleItems,
+        nextCursor: nextCursor,
+      );
+    });
   }
 
   @override
@@ -99,5 +109,17 @@ class FirebaseNotificationInboxRepository
     }
 
     await _notifications.doc(normalizedId).update({'isRead': true});
+    _pageCache.invalidate();
+  }
+
+  String _buildPageCacheKey({
+    required String memberId,
+    required int pageSize,
+    required NotificationInboxCursor? cursor,
+  }) {
+    if (cursor == null) {
+      return '$memberId|$pageSize|root';
+    }
+    return '$memberId|$pageSize|${cursor.createdAt.toUtc().toIso8601String()}|${cursor.documentId.trim()}';
   }
 }

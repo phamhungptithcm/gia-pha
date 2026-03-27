@@ -4,8 +4,10 @@ import 'package:collection/collection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/services/app_environment.dart';
+import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
+import '../../../core/services/inflight_task_cache.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/branch_draft.dart';
 import '../models/branch_profile.dart';
@@ -24,17 +26,23 @@ class FirebaseClanRepository implements ClanRepository {
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
     FirebaseAuth? auth,
+    FirestorePagedQueryLoader? pagedQueryLoader,
   }) : _firestore = firestore ?? FirebaseServices.firestore,
        _functions =
            functions ??
            FirebaseFunctions.instanceFor(
              region: AppEnvironment.firebaseFunctionsRegion,
            ),
-       _auth = auth ?? FirebaseAuth.instance;
+       _auth = auth ?? FirebaseAuth.instance,
+       _pagedQueryLoader =
+           pagedQueryLoader ?? const FirestorePagedQueryLoader();
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
   final FirebaseAuth _auth;
+  final FirestorePagedQueryLoader _pagedQueryLoader;
+  final InflightTaskCache<String, ClanWorkspaceSnapshot> _workspaceLoadCache =
+      InflightTaskCache<String, ClanWorkspaceSnapshot>();
 
   CollectionReference<Map<String, dynamic>> get _clans =>
       _firestore.collection('clans');
@@ -62,41 +70,43 @@ class FirebaseClanRepository implements ClanRepository {
       return const ClanWorkspaceSnapshot(clan: null, branches: [], members: []);
     }
 
-    final results = await Future.wait<Object>([
-      _clans.doc(clanId).get(),
-      _fetchPagedDocuments(
-        _branches.where('clanId', isEqualTo: clanId),
-        maxDocuments: _workspaceMaxBranches,
-      ),
-      _fetchPagedDocuments(
-        _members.where('clanId', isEqualTo: clanId),
-        maxDocuments: _workspaceMaxMembers,
-      ),
-    ]);
+    return _workspaceLoadCache.run(clanId, () async {
+      final results = await Future.wait<Object>([
+        _clans.doc(clanId).get(),
+        _fetchPagedDocuments(
+          _branches.where('clanId', isEqualTo: clanId),
+          maxDocuments: _workspaceMaxBranches,
+        ),
+        _fetchPagedDocuments(
+          _members.where('clanId', isEqualTo: clanId),
+          maxDocuments: _workspaceMaxMembers,
+        ),
+      ]);
 
-    final clanSnapshot = results[0] as DocumentSnapshot<Map<String, dynamic>>;
-    final branchDocs =
-        results[1] as List<QueryDocumentSnapshot<Map<String, dynamic>>>;
-    final memberDocs =
-        results[2] as List<QueryDocumentSnapshot<Map<String, dynamic>>>;
+      final clanSnapshot = results[0] as DocumentSnapshot<Map<String, dynamic>>;
+      final branchDocs =
+          results[1] as List<QueryDocumentSnapshot<Map<String, dynamic>>>;
+      final memberDocs =
+          results[2] as List<QueryDocumentSnapshot<Map<String, dynamic>>>;
 
-    final clan = clanSnapshot.data() == null
-        ? null
-        : ClanProfile.fromJson(clanSnapshot.data()!);
-    final branches = branchDocs
-        .map((doc) => BranchProfile.fromJson(doc.data()))
-        .sortedBy((branch) => branch.name.toLowerCase())
-        .toList(growable: false);
-    final members = memberDocs
-        .map((doc) => ClanMemberSummary.fromJson(doc.data()))
-        .sortedBy((member) => member.fullName.toLowerCase())
-        .toList(growable: false);
+      final clan = clanSnapshot.data() == null
+          ? null
+          : ClanProfile.fromJson(clanSnapshot.data()!);
+      final branches = branchDocs
+          .map((doc) => BranchProfile.fromJson(doc.data()))
+          .sortedBy((branch) => branch.name.toLowerCase())
+          .toList(growable: false);
+      final members = memberDocs
+          .map((doc) => ClanMemberSummary.fromJson(doc.data()))
+          .sortedBy((member) => member.fullName.toLowerCase())
+          .toList(growable: false);
 
-    return ClanWorkspaceSnapshot(
-      clan: clan,
-      branches: branches,
-      members: members,
-    );
+      return ClanWorkspaceSnapshot(
+        clan: clan,
+        branches: branches,
+        members: members,
+      );
+    });
   }
 
   @override
@@ -147,6 +157,7 @@ class FirebaseClanRepository implements ClanRepository {
     };
 
     await _clans.doc(clanId).set(payload, SetOptions(merge: true));
+    _workspaceLoadCache.invalidate(clanId);
   }
 
   @override
@@ -212,6 +223,7 @@ class FirebaseClanRepository implements ClanRepository {
       'updatedAt': now,
       'updatedBy': actor,
     }, SetOptions(merge: true));
+    _workspaceLoadCache.invalidate(clanId);
 
     return BranchProfile.fromJson(payload);
   }
@@ -275,26 +287,10 @@ class FirebaseClanRepository implements ClanRepository {
     Query<Map<String, dynamic>> baseQuery, {
     required int maxDocuments,
   }) async {
-    final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
-    while (docs.length < maxDocuments) {
-      final remaining = maxDocuments - docs.length;
-      final pageLimit = remaining < _workspacePageSize
-          ? remaining
-          : _workspacePageSize;
-      final query = cursor == null
-          ? baseQuery.limit(pageLimit)
-          : baseQuery.limit(pageLimit).startAfterDocument(cursor);
-      final snapshot = await query.get();
-      if (snapshot.docs.isEmpty) {
-        break;
-      }
-      docs.addAll(snapshot.docs);
-      if (snapshot.docs.length < pageLimit) {
-        break;
-      }
-      cursor = snapshot.docs.last;
-    }
-    return docs;
+    return _pagedQueryLoader.loadAll(
+      baseQuery: baseQuery,
+      pageSize: _workspacePageSize,
+      maxDocuments: maxDocuments,
+    );
   }
 }
