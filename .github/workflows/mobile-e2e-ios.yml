@@ -1,26 +1,16 @@
-name: CI - Mobile E2E iOS (PR)
+name: CI - Mobile E2E iOS
 
 on:
-  pull_request:
-    branches:
-      - staging
-      - main
-    paths:
-      - mobile/befam/**
-      - firebase/functions/scripts/seed-debug-login-profiles.mjs
-      - scripts/run_mobile_e2e.sh
-      - .github/workflows/mobile-e2e.yml
-      - .github/workflows/mobile-e2e-ios.yml
   push:
     branches:
-      - staging
-      - main
+      - "**"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: mobile-e2e-ios-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}
+  group: mobile-e2e-ios-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -35,16 +25,51 @@ jobs:
       BEFAM_E2E_SKIP_GEN_L10N: "true"
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Decide whether iOS E2E is required
+        id: scope
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+            echo "Manual dispatch -> run iOS E2E."
+            exit 0
+          fi
+          before_sha="${{ github.event.before }}"
+          head_sha="${{ github.sha }}"
+          if [ -z "${before_sha}" ] || [ "${before_sha}" = "0000000000000000000000000000000000000000" ]; then
+            changed_files="$(git show --pretty='' --name-only "${head_sha}")"
+          else
+            if ! git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "${before_sha}" || true
+            fi
+            if git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+              changed_files="$(git diff --name-only "${before_sha}" "${head_sha}")"
+            else
+              echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+              echo "iOS E2E required: unable to resolve base commit ${before_sha} in shallow checkout."
+              exit 0
+            fi
+          fi
+          if printf '%s\n' "${changed_files}" | grep -Eq '^(mobile/befam/|scripts/run_mobile_e2e\.sh|\.github/workflows/mobile-e2e(\-ios)?\.yml)'; then
+            echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+            echo "iOS E2E required by changed files."
+          else
+            echo "run_e2e=false" >> "$GITHUB_OUTPUT"
+            echo "iOS E2E skipped: no mobile/e2e-related changes."
+          fi
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           cache: true
 
       - name: Cache iOS dependencies
-        uses: actions/cache@v4
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/Library/Caches/CocoaPods
@@ -55,6 +80,7 @@ jobs:
             ${{ runner.os }}-e2e-ios-deps-
 
       - name: Boot iOS simulator
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
         timeout-minutes: 10
         run: |
           set -euo pipefail
@@ -89,6 +115,7 @@ jobs:
           echo "BEFAM_E2E_IOS_DEVICE=${SIM_UDID}" >> "$GITHUB_ENV"
 
       - name: Run iOS E2E
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
         timeout-minutes: 100
         env:
           BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
@@ -118,8 +145,8 @@ jobs:
           PY
 
       - name: Upload iOS E2E artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.scope.outputs.run_e2e == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: mobile-e2e-ios-${{ github.run_id }}
           path: |

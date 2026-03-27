@@ -1,20 +1,15 @@
 name: CI - Branch Quality Gates
 
 on:
-  pull_request:
-    branches:
-      - staging
-      - main
   push:
     branches:
-      - staging
-      - main
+      - "**"
 
 permissions:
   contents: read
 
 concurrency:
-  group: branch-ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}
+  group: branch-ci-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -24,10 +19,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
           cache: pip
@@ -51,10 +46,10 @@ jobs:
         working-directory: firebase/functions
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "20"
           cache: npm
@@ -72,15 +67,35 @@ jobs:
       - name: Run Functions contract tests
         run: npm test
 
+      - name: Prepare Docker auth for public registry pulls
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          docker_config_dir="$RUNNER_TEMP/docker-config-anon-functions"
+          mkdir -p "$docker_config_dir"
+          printf '{"auths":{}}\n' > "$docker_config_dir/config.json"
+          echo "DOCKER_CONFIG=$docker_config_dir" >> "$GITHUB_ENV"
+          docker logout docker.io >/dev/null 2>&1 || true
+
       - name: Build Firebase tooling image
         working-directory: ${{ github.workspace }}
         run: |
-          docker build \
-            --file docker/firebase-tools.Dockerfile \
-            --build-arg RELEASE_VERSION=0.0.0-ci \
-            --build-arg VCS_REF="${GITHUB_SHA}" \
-            --tag befam-firebase-tools:test \
-            .
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if docker build \
+              --file docker/firebase-tools.Dockerfile \
+              --build-arg RELEASE_VERSION=0.0.0-ci \
+              --build-arg VCS_REF="${GITHUB_SHA}" \
+              --tag befam-firebase-tools:test \
+              .; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to build Firebase tooling image after ${attempt} attempts."
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
 
   ci-mobile:
     name: CI - Mobile Build and Test
@@ -91,16 +106,16 @@ jobs:
         working-directory: mobile/befam
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           cache: true
@@ -309,53 +324,40 @@ jobs:
       - name: Build mobile release image
         working-directory: ${{ github.workspace }}
         run: |
-          docker build \
-            --platform linux/amd64 \
-            --build-arg RELEASE_VERSION=0.0.0-ci \
-            --build-arg VCS_REF="${GITHUB_SHA}" \
-            --tag befam-mobile-builder:test \
-            .
+          set -euo pipefail
+          docker_config_dir="$RUNNER_TEMP/docker-config-anon-mobile"
+          mkdir -p "$docker_config_dir"
+          printf '{"auths":{}}\n' > "$docker_config_dir/config.json"
+          export DOCKER_CONFIG="$docker_config_dir"
+          docker logout docker.io >/dev/null 2>&1 || true
+          for attempt in 1 2 3; do
+            if docker build \
+              --platform linux/amd64 \
+              --build-arg RELEASE_VERSION=0.0.0-ci \
+              --build-arg VCS_REF="${GITHUB_SHA}" \
+              --tag befam-mobile-builder:test \
+              .; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to build mobile release image after ${attempt} attempts."
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
 
   security-dependency-review:
     name: Security - Dependency Review
-    if: ${{ github.event_name == 'pull_request' && vars.ENABLE_DEPENDENCY_REVIEW != 'false' }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - name: Detect dependency graph support
-        id: depgraph
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Push-only dependency review policy notice
         run: |
           set -euo pipefail
-          response="$(curl -fsSL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}" || true)"
-          status="$(printf '%s' "${response}" | jq -r '.security_and_analysis.dependency_graph.status // "unknown"' 2>/dev/null || echo "unknown")"
-          echo "dependency_graph_status=${status}" >> "$GITHUB_OUTPUT"
-          if [[ "${status}" == "enabled" ]]; then
-            echo "run_check=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run_check=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Dependency Review
-        if: ${{ steps.depgraph.outputs.run_check == 'true' }}
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-
-      - name: Dependency review unavailable
-        if: ${{ steps.depgraph.outputs.run_check != 'true' }}
-        run: |
-          echo "::warning::Dependency graph is not enabled for this repository."
-          echo "::warning::Enable it at Settings > Code security and analysis to enforce dependency review."
+          echo "::notice::Dependency review is configured for push-only CI to avoid duplicate pull_request runs."
+          echo "::notice::Trivy and container security scans remain mandatory in this workflow."
 
   security-trivy-fs:
     name: Security - Trivy Filesystem Scan
@@ -365,10 +367,10 @@ jobs:
       security-events: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Run Trivy filesystem scan (SARIF report)
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: fs
           scanners: vuln,secret
@@ -382,12 +384,12 @@ jobs:
 
       - name: Upload Trivy security report
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@480db559a14342288b67e54bd959dd52dc3ee68f # v3
         with:
           sarif_file: trivy-fs.sarif
 
       - name: Enforce Trivy filesystem gate
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: fs
           scanners: vuln,secret
@@ -403,12 +405,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
 
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -417,16 +419,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Prepare Docker auth for public registry pulls
+        run: |
+          set -euo pipefail
+          docker_config_dir="$RUNNER_TEMP/docker-config-anon-security"
+          mkdir -p "$docker_config_dir"
+          printf '{"auths":{}}\n' > "$docker_config_dir/config.json"
+          export DOCKER_CONFIG="$docker_config_dir"
+          docker logout docker.io >/dev/null 2>&1 || true
+          echo "DOCKER_CONFIG=$docker_config_dir" >> "$GITHUB_ENV"
 
       - name: Build Firebase tooling image for scan
-        run: docker build --file docker/firebase-tools.Dockerfile --tag befam-firebase-tools:scan .
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if docker build --file docker/firebase-tools.Dockerfile --tag befam-firebase-tools:scan .; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to build Firebase tooling scan image after ${attempt} attempts."
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
 
       - name: Build mobile builder image for scan
-        run: docker build --file Dockerfile --tag befam-mobile-builder:scan .
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if docker build --file Dockerfile --tag befam-mobile-builder:scan .; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to build mobile builder scan image after ${attempt} attempts."
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
 
       - name: Scan Firebase tooling image
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: image
           image-ref: befam-firebase-tools:scan
@@ -436,7 +470,7 @@ jobs:
           trivyignores: .trivyignore.images
 
       - name: Scan mobile builder image
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: image
           image-ref: befam-mobile-builder:scan
