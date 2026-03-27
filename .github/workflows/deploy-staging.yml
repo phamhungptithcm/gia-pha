@@ -18,14 +18,87 @@ on:
 permissions:
   contents: read
   id-token: write
+  checks: read
 
 concurrency:
   group: deploy-staging-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  gate-staging-ci-e2e:
+    name: Gate - Wait for Staging CI + E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Wait for required checks on staging commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          required_checks=(
+            "CI - Docs Validation and Build"
+            "CI - Functions Build and Test"
+            "CI - Mobile Build and Test"
+            "E2E - Android Test Run"
+            "E2E - iOS Test Run"
+          )
+
+          deadline_seconds=$((SECONDS + 80 * 60))
+
+          while [ "$SECONDS" -lt "$deadline_seconds" ]; do
+            echo "Checking status for commit ${COMMIT_SHA}..."
+            check_runs_json="$(
+              gh api \
+                "repos/${GITHUB_REPOSITORY}/commits/${COMMIT_SHA}/check-runs?per_page=100" \
+            )"
+
+            all_passed=true
+            for check_name in "${required_checks[@]}"; do
+              line="$(
+                jq -r --arg name "$check_name" '
+                  (.check_runs // [])
+                  | map(select(.name == $name))
+                  | sort_by(.completed_at // .started_at // .created_at)
+                  | last
+                  | if . == null then "" else [(.name // ""), (.status // ""), (.conclusion // "")] | @tsv end
+                ' <<<"$check_runs_json"
+              )"
+              if [ -z "$line" ]; then
+                echo " - ${check_name}: missing (waiting)"
+                all_passed=false
+                continue
+              fi
+
+              status="$(printf '%s' "$line" | awk -F'\t' '{print $2}')"
+              conclusion="$(printf '%s' "$line" | awk -F'\t' '{print $3}')"
+              echo " - ${check_name}: status=${status}, conclusion=${conclusion:-n/a}"
+
+              if [ "$status" != "completed" ]; then
+                all_passed=false
+                continue
+              fi
+
+              if [ "$conclusion" != "success" ]; then
+                echo "::error::Required check '${check_name}' completed with conclusion '${conclusion}'."
+                exit 1
+              fi
+            done
+
+            if [ "$all_passed" = true ]; then
+              echo "All required staging CI/E2E checks are green."
+              exit 0
+            fi
+
+            sleep 20
+          done
+
+          echo "::error::Timed out waiting for required staging CI/E2E checks."
+          exit 1
+
   deploy-staging-firebase:
     name: Deploy Firebase (Staging)
+    needs: gate-staging-ci-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -73,14 +146,14 @@ jobs:
 
       - name: Authenticate to Google Cloud (OIDC)
         if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - name: Set up gcloud (OIDC mode)
         if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
 
       - name: Write Firebase credentials (fallback key mode)
         if: ${{ steps.auth-mode.outputs.mode == 'key' }}
@@ -201,14 +274,14 @@ jobs:
 
       - name: Authenticate to Google Cloud (OIDC)
         if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - name: Set up gcloud (OIDC mode)
         if: ${{ steps.auth-mode.outputs.mode == 'oidc' }}
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
 
       - name: Write Firebase credentials (fallback key mode)
         if: ${{ steps.auth-mode.outputs.mode == 'key' }}
@@ -244,7 +317,7 @@ jobs:
           echo "FIRESTORE_DATABASE_ID=$database" >> "$GITHUB_ENV"
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           cache: true
@@ -300,14 +373,20 @@ jobs:
         run: npm install --global firebase-tools@14.19.1
 
       - name: Deploy Firebase Hosting
+        working-directory: ${{ github.workspace }}
         env:
           FIREBASE_HOSTING_TARGET: ${{ vars.FIREBASE_HOSTING_TARGET }}
         run: |
           set -euo pipefail
           project="${FIREBASE_PROJECT_ID}"
           target="${FIREBASE_HOSTING_TARGET:-}"
+          firebase_config="${GITHUB_WORKSPACE}/firebase.json"
+          if [ ! -f "$firebase_config" ]; then
+            echo "::error::Firebase config not found at ${firebase_config}."
+            exit 1
+          fi
           if [ -n "$target" ]; then
-            firebase deploy --project "$project" --non-interactive --only "hosting:${target}"
+            firebase deploy --project "$project" --config "$firebase_config" --non-interactive --only "hosting:${target}"
           else
-            firebase deploy --project "$project" --non-interactive --only hosting
+            firebase deploy --project "$project" --config "$firebase_config" --non-interactive --only hosting
           fi

@@ -1,0 +1,55 @@
+name: CI - Branch Push Guard
+
+on:
+  push:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  block-overlapping-pushes:
+    name: Gate - Block Push While Previous CI Is Running
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail when previous commit pipelines are still running on this branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          CURRENT_SHA: ${{ github.sha }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          in_progress_json="$(
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=${BRANCH_NAME}&status=in_progress&per_page=100"
+          )"
+          queued_json="$(
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=${BRANCH_NAME}&status=queued&per_page=100"
+          )"
+          blocking_runs="$(
+            jq -r -n \
+              --arg current_run_id "${CURRENT_RUN_ID}" \
+              --arg current_sha "${CURRENT_SHA}" \
+              --argjson in_progress "${in_progress_json}" \
+              --argjson queued "${queued_json}" '
+              [($in_progress.workflow_runs // []), ($queued.workflow_runs // [])]
+              | add
+              | unique_by(.id)
+              | map(
+                  select(
+                    ((.id | tostring) != $current_run_id)
+                    and (.head_sha != $current_sha)
+                  )
+                )
+              | .[]
+              | "- \(.name) #\(.id) (\(.status)) -> \(.html_url)"
+            '
+          )"
+          if [ -n "$blocking_runs" ]; then
+            echo "::error::A previous commit pipeline is still running on branch '${BRANCH_NAME}'. Wait for it to finish before pushing again."
+            echo "$blocking_runs"
+            exit 1
+          fi
+          echo "No previous commit pipeline is running on branch '${BRANCH_NAME}'."
