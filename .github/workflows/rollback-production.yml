@@ -34,7 +34,7 @@ jobs:
       name: production
     steps:
       - name: Checkout selected release tag
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           ref: ${{ inputs.release_tag }}
 
@@ -73,7 +73,7 @@ jobs:
           echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "20"
 

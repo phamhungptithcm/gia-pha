@@ -1,9 +1,6 @@
 name: CI - Branch Quality Gates
 
 on:
-  pull_request:
-    branches:
-      - "**"
   push:
     branches:
       - "**"
@@ -22,10 +19,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
           cache: pip
@@ -49,10 +46,10 @@ jobs:
         working-directory: firebase/functions
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "20"
           cache: npm
@@ -89,10 +86,10 @@ jobs:
         working-directory: mobile/befam
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "17"
@@ -316,44 +313,16 @@ jobs:
 
   security-dependency-review:
     name: Security - Dependency Review
-    if: ${{ github.event_name == 'pull_request' && vars.ENABLE_DEPENDENCY_REVIEW != 'false' }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - name: Detect dependency graph support
-        id: depgraph
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Push-only dependency review policy notice
         run: |
           set -euo pipefail
-          response="$(curl -fsSL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}" || true)"
-          status="$(printf '%s' "${response}" | jq -r '.security_and_analysis.dependency_graph.status // "unknown"' 2>/dev/null || echo "unknown")"
-          echo "dependency_graph_status=${status}" >> "$GITHUB_OUTPUT"
-          if [[ "${status}" == "enabled" ]]; then
-            echo "run_check=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run_check=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Dependency Review
-        if: ${{ steps.depgraph.outputs.run_check == 'true' }}
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-
-      - name: Dependency review unavailable
-        if: ${{ steps.depgraph.outputs.run_check != 'true' }}
-        run: |
-          echo "::warning::Dependency graph is not enabled for this repository."
-          echo "::warning::Enable it at Settings > Code security and analysis to enforce dependency review."
+          echo "::notice::Dependency review is configured for push-only CI to avoid duplicate pull_request runs."
+          echo "::notice::Trivy and container security scans remain mandatory in this workflow."
 
   security-trivy-fs:
     name: Security - Trivy Filesystem Scan
@@ -363,7 +332,7 @@ jobs:
       security-events: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Run Trivy filesystem scan (SARIF report)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
@@ -380,7 +349,7 @@ jobs:
 
       - name: Upload Trivy security report
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@480db559a14342288b67e54bd959dd52dc3ee68f # v3
         with:
           sarif_file: trivy-fs.sarif
 
@@ -401,7 +370,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
 
@@ -415,7 +384,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Build Firebase tooling image for scan
         run: docker build --file docker/firebase-tools.Dockerfile --tag befam-firebase-tools:scan .

@@ -28,7 +28,7 @@ jobs:
   gate-staging-ci-e2e:
     name: Gate - Wait for Staging CI + E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - name: Wait for required checks on staging commit
         env:
@@ -40,11 +40,14 @@ jobs:
             "CI - Docs Validation and Build"
             "CI - Functions Build and Test"
             "CI - Mobile Build and Test"
+            "Security - Trivy Filesystem Scan"
+            "Security - Gitleaks Secret Scan"
+            "Security - Trivy Container Image Scan"
             "E2E - Android Test Run"
             "E2E - iOS Test Run"
           )
 
-          deadline_seconds=$((SECONDS + 80 * 60))
+          deadline_seconds=$((SECONDS + 140 * 60))
 
           while [ "$SECONDS" -lt "$deadline_seconds" ]; do
             echo "Checking status for commit ${COMMIT_SHA}..."
@@ -105,7 +108,7 @@ jobs:
       name: staging
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Validate staging sandbox target
         env:
@@ -189,7 +192,7 @@ jobs:
           echo "FIRESTORE_DATABASE_ID=$database" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "20"
           cache: npm
@@ -233,7 +236,7 @@ jobs:
         working-directory: mobile/befam
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Validate staging sandbox target
         env:
@@ -365,7 +368,7 @@ jobs:
             "${optional_store_defines[@]}"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "20"
 
