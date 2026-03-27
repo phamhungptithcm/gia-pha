@@ -110,6 +110,58 @@ print(fallback)
 '
 }
 
+machine_output_has_ios_transient_start_failure() {
+  local machine_output_file="$1"
+  python3 - <<'PY' "${machine_output_file}"
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists():
+    print("0")
+    raise SystemExit(0)
+
+content = path.read_text(encoding="utf-8", errors="ignore").lower()
+needles = (
+    "connecting to the vm service timed out",
+    "unable to start the app on the device",
+)
+print("1" if any(needle in content for needle in needles) else "0")
+PY
+}
+
+reboot_ios_simulator() {
+  local simulator_udid="$1"
+  if [[ -z "${simulator_udid}" ]]; then
+    return 1
+  fi
+  if ! command -v xcrun >/dev/null 2>&1; then
+    return 1
+  fi
+
+  log "Rebooting iOS simulator (${simulator_udid}) before retry"
+  xcrun simctl shutdown "${simulator_udid}" >/dev/null 2>&1 || true
+  sleep 3
+  xcrun simctl boot "${simulator_udid}" >/dev/null 2>&1 || true
+
+  if ! xcrun simctl bootstatus "${simulator_udid}" -b >/dev/null 2>&1; then
+    local state=""
+    for _ in $(seq 1 60); do
+      state="$(
+        xcrun simctl list devices -j | python3 -c 'import json,sys;target=sys.argv[1].strip();payload=json.load(sys.stdin);state=next(((d.get("state") or "").strip() for entries in payload.get("devices", {}).values() for d in entries if (d.get("udid") or "").strip()==target),"");print(state)' "${simulator_udid}"
+      )"
+      if [[ "${state}" == "Booted" ]]; then
+        break
+      fi
+      sleep 2
+    done
+    if [[ "${state}" != "Booted" ]]; then
+      echo "Simulator ${simulator_udid} did not return to Booted state after retry reboot." >&2
+      return 1
+    fi
+  fi
+}
+
 maybe_seed_debug_profiles() {
   if [[ "${BEFAM_E2E_SEED_DEBUG_PROFILES:-false}" != "true" ]]; then
     return 0
@@ -140,6 +192,8 @@ run_suite_on_device() {
   local app_version
   local build_sha
   local flutter_exit_code=0
+  local retry_attempt=1
+  local max_attempts=1
   local tests=()
   local defines=(
     "--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true"
@@ -167,25 +221,30 @@ run_suite_on_device() {
   app_version="$(awk '/^version:/{print $2; exit}' "${APP_DIR}/pubspec.yaml" || true)"
   build_sha="$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || true)"
 
-  log "Running ${MODE} E2E on ${target_platform} (${device_id})"
-  set +e
-  (
-    cd "${APP_DIR}"
-    set -o pipefail
-    flutter test "${tests[@]}" \
-      -d "${device_id}" \
-      "${defines[@]}" \
-      --no-pub \
-      --machine \
-      | tee "${machine_output_file}"
-  )
-  flutter_exit_code=$?
-  set -e
+  if [[ "${target_platform}" == "ios" ]]; then
+    max_attempts=2
+  fi
 
-  if [[ ${flutter_exit_code} -eq 0 ]]; then
-    local machine_has_failures
-    machine_has_failures="$(
-      python3 - <<'PY' "${machine_output_file}"
+  while true; do
+    log "Running ${MODE} E2E on ${target_platform} (${device_id}) [attempt ${retry_attempt}/${max_attempts}]"
+    set +e
+    (
+      cd "${APP_DIR}"
+      set -o pipefail
+      flutter test "${tests[@]}" \
+        -d "${device_id}" \
+        "${defines[@]}" \
+        --no-pub \
+        --machine \
+        | tee "${machine_output_file}"
+    )
+    flutter_exit_code=$?
+    set -e
+
+    if [[ ${flutter_exit_code} -eq 0 ]]; then
+      local machine_has_failures
+      machine_has_failures="$(
+        python3 - <<'PY' "${machine_output_file}"
 import json
 import sys
 from pathlib import Path
@@ -217,11 +276,29 @@ for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
 
 print("1" if has_failure else "0")
 PY
-    )"
-    if [[ "${machine_has_failures}" == "1" ]]; then
-      flutter_exit_code=1
+      )"
+      if [[ "${machine_has_failures}" == "1" ]]; then
+        flutter_exit_code=1
+      fi
     fi
-  fi
+
+    if [[ ${flutter_exit_code} -eq 0 ]]; then
+      break
+    fi
+
+    if [[ "${target_platform}" == "ios" && "${retry_attempt}" -lt "${max_attempts}" ]]; then
+      local has_transient_ios_failure
+      has_transient_ios_failure="$(machine_output_has_ios_transient_start_failure "${machine_output_file}")"
+      if [[ "${has_transient_ios_failure}" == "1" ]]; then
+        log "Detected transient iOS startup/VM-service failure. Retrying once..."
+        reboot_ios_simulator "${device_id}" || true
+        retry_attempt=$((retry_attempt + 1))
+        continue
+      fi
+    fi
+
+    break
+  done
 
   {
     echo "mode=${MODE}"
@@ -230,6 +307,7 @@ PY
     echo "device_id=${device_id}"
     echo "machine_output=${machine_output_file}"
     echo "timestamp_utc=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    echo "attempt_count=${retry_attempt}"
     echo "flutter_exit_code=${flutter_exit_code}"
     echo "release_execution=${release_execution_file}"
     echo "release_dashboard=${release_dashboard_file}"
