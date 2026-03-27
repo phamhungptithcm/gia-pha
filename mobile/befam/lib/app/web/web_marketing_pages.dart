@@ -10,6 +10,11 @@ import '../../core/services/app_logger.dart';
 import '../../core/services/firebase_services.dart';
 import '../../l10n/l10n.dart';
 
+const double _kSectionGap = 32;
+const double _kBlockGap = 20;
+const double _kCardGap = 16;
+const double _kCardPadding = 22;
+
 Future<void> _trackMarketingCtaClick({
   required String ctaType,
   required String placement,
@@ -79,7 +84,7 @@ class WebLandingPage extends StatelessWidget {
         en: 'BeFam | Digital lineage platform for modern families',
       ),
       child: Padding(
-        padding: const EdgeInsets.only(top: 24, bottom: 40),
+        padding: const EdgeInsets.only(top: 26, bottom: 44),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -90,7 +95,7 @@ class WebLandingPage extends StatelessWidget {
                 en: 'Keep family heritage alive in modern life.',
               ),
               subtitle: context.l10n.pick(
-                vi: 'BeFam kết nối cây gia phả, lịch giỗ, quỹ họ và quy trình quản trị trong một không gian thống nhất để con cháu ở bất cứ đâu vẫn thấy mình thuộc về.',
+                vi: 'BeFam kết nối cây gia phả, lịch giỗ, quỹ họ và các việc chung của dòng tộc trong một không gian thống nhất, để con cháu ở đâu cũng thấy gần nhau.',
                 en: 'BeFam unifies genealogy, memorial calendars, clan funds, and governance workflows so every generation stays connected, wherever they live.',
               ),
               primaryLabel: l10n.webLandingPrimaryCta,
@@ -106,20 +111,20 @@ class WebLandingPage extends StatelessWidget {
                 en: 'Why BeFam stands out',
               ),
               highlightDescription: context.l10n.pick(
-                vi: 'Không chỉ là app vẽ cây gia phả, BeFam là nền tảng vận hành họ tộc theo dữ liệu, vai trò và quyền truy cập an toàn.',
+                vi: 'BeFam không chỉ để xem cây gia phả. Đây là không gian chung để cả dòng họ vận hành công việc, phân quyền rõ ràng và bảo vệ dữ liệu an toàn.',
                 en: 'More than a family tree app, BeFam is an operating platform for clan governance, roles, and secure access.',
               ),
               highlights: [
                 context.l10n.pick(
-                  vi: 'Genealogy + vận hành họ tộc + membership an toàn trong cùng một sản phẩm.',
+                  vi: 'Gia phả, vận hành họ tộc và quản lý thành viên nằm trong cùng một hệ thống.',
                   en: 'Genealogy + clan operations + secure membership in one product.',
                 ),
                 context.l10n.pick(
-                  vi: 'Thiết kế cho dòng họ Việt: giỗ, dỗ trạp, quỹ họ, khuyến học.',
+                  vi: 'Thiết kế theo bối cảnh dòng họ Việt: giỗ chạp, họp họ, quỹ họ, khuyến học.',
                   en: 'Built for Vietnamese family traditions: memorials, rituals, funds, and scholarships.',
                 ),
                 context.l10n.pick(
-                  vi: 'Dễ dùng cho cả trưởng tộc, trưởng chi và thế hệ trẻ ở xa quê.',
+                  vi: 'Thân thiện với cả trưởng tộc, trưởng chi và thế hệ trẻ ở xa quê.',
                   en: 'Usable for clan leaders and younger generations living far from home.',
                 ),
               ],
@@ -147,22 +152,22 @@ class WebLandingPage extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: _kSectionGap),
             _SectionHeading(
               eyebrow: context.l10n.pick(
                 vi: 'Giá trị cốt lõi',
                 en: 'Core value',
               ),
               title: context.l10n.pick(
-                vi: 'Một không gian chung để cả dòng tộc cùng nhìn về một hướng.',
+                vi: 'Một không gian chung để dòng tộc cùng nhìn về một hướng.',
                 en: 'A shared workspace where the whole clan stays aligned.',
               ),
               description: context.l10n.pick(
-                vi: 'Từ thông tin thế hệ, sự kiện đến tài chính đều có lịch sử rõ ràng, giảm bỏ sót và giảm hiểu nhầm trong quá trình điều hành.',
+                vi: 'Thông tin thế hệ, sự kiện và tài chính đều có lịch sử rõ ràng, giúp giảm bỏ sót và hạn chế hiểu nhầm khi phối hợp.',
                 en: 'From lineage records to events and finances, every action has clear history to reduce misses and misunderstandings.',
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: _kCardGap),
             _FeatureCardGrid(
               items: [
                 _FeatureItem(
@@ -193,7 +198,7 @@ class WebLandingPage extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: _kSectionGap),
             _JourneyTimeline(
               title: context.l10n.pick(
                 vi: 'Hành trình người dùng trên BeFam',
@@ -207,7 +212,7 @@ class WebLandingPage extends StatelessWidget {
                     en: 'Sign in and identify',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Đăng nhập OTP, đối soát hồ sơ, liên kết đúng thành viên.',
+                    vi: 'Đăng nhập bằng OTP, đối chiếu hồ sơ và gắn đúng thành viên.',
                     en: 'Use OTP, reconcile profile, and securely link the right member identity.',
                   ),
                 ),
@@ -218,7 +223,7 @@ class WebLandingPage extends StatelessWidget {
                     en: 'Run clan operations',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Quản lý cây gia phả, lịch sự kiện, ngày giỗ và hoạt động nội bộ.',
+                    vi: 'Quản lý cây gia phả, lịch sự kiện, ngày giỗ và các việc chung theo từng chi.',
                     en: 'Manage genealogy, event calendars, memorial days, and clan activities.',
                   ),
                 ),
@@ -229,13 +234,13 @@ class WebLandingPage extends StatelessWidget {
                     en: 'Keep finances transparent',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Theo dõi quỹ, khuyến học, giao dịch và gói dịch vụ trên cùng hệ thống.',
+                    vi: 'Theo dõi quỹ, khuyến học, giao dịch và gói dịch vụ trong một luồng rõ ràng.',
                     en: 'Track funds, scholarships, transactions, and subscription plans in one system.',
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: _kSectionGap),
             _MarketingFaqSection(
               title: context.l10n.pick(
                 vi: 'Câu hỏi thường gặp',
@@ -252,7 +257,7 @@ class WebLandingPage extends StatelessWidget {
                     en: 'Is BeFam only a family tree drawing app?',
                   ),
                   answer: context.l10n.pick(
-                    vi: 'Không. BeFam kết hợp 3 lớp: genealogy, vận hành họ tộc (sự kiện/quỹ/khuyến học), và membership access an toàn theo vai trò.',
+                    vi: 'Không. BeFam gồm 3 lớp: gia phả, vận hành họ tộc (sự kiện/quỹ/khuyến học) và quản lý truy cập theo vai trò.',
                     en: 'No. BeFam combines three layers: genealogy, clan operations (events/funds/scholarships), and secure role-based membership access.',
                   ),
                 ),
@@ -262,7 +267,7 @@ class WebLandingPage extends StatelessWidget {
                     en: 'Can clans with members living in many locations use BeFam?',
                   ),
                   answer: context.l10n.pick(
-                    vi: 'Có. BeFam được thiết kế cho bối cảnh con cháu học tập và làm việc xa quê, vẫn theo dõi lịch giỗ, sự kiện và vai vế rõ ràng.',
+                    vi: 'Có. BeFam phù hợp khi con cháu học tập, làm việc xa quê nhưng vẫn cần theo dõi lịch giỗ, sự kiện và vai vế rõ ràng.',
                     en: 'Yes. BeFam is built for distributed families so members can still track memorials, events, and lineage context clearly.',
                   ),
                 ),
@@ -272,7 +277,7 @@ class WebLandingPage extends StatelessWidget {
                     en: 'When does a plan become active after payment?',
                   ),
                   answer: context.l10n.pick(
-                    vi: 'Gói chỉ được kích hoạt sau khi hệ thống nhận callback/webhook thanh toán thành công. Trạng thái chờ hoặc thất bại sẽ không cấp quyền mới.',
+                    vi: 'Gói chỉ được kích hoạt khi hệ thống xác nhận thanh toán thành công từ cổng thanh toán hoặc kho ứng dụng.',
                     en: 'A plan is activated only after successful callback/webhook confirmation. Pending or failed payments do not grant new entitlements.',
                   ),
                 ),
@@ -282,20 +287,20 @@ class WebLandingPage extends StatelessWidget {
                     en: 'Does BeFam support Vietnamese and English?',
                   ),
                   answer: context.l10n.pick(
-                    vi: 'Có. BeFam hỗ trợ song ngữ Việt/Anh, giúp cả thành viên trong nước và ở nước ngoài dùng thuận tiện hơn.',
+                    vi: 'Có. BeFam hỗ trợ tiếng Việt và tiếng Anh để cả thành viên trong nước lẫn ở nước ngoài đều dễ dùng.',
                     en: 'Yes. BeFam supports both Vietnamese and English for smoother use by local and overseas family members.',
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: _kSectionGap),
             _CtaPanel(
               title: context.l10n.pick(
                 vi: 'Sẵn sàng đưa dòng họ lên nền tảng số?',
                 en: 'Ready to bring your clan to a digital platform?',
               ),
               description: context.l10n.pick(
-                vi: 'Bắt đầu với BeFam để tổ chức dữ liệu gia phả, kết nối thế hệ và quản trị hoạt động họ tộc rõ ràng hơn mỗi ngày.',
+                vi: 'Bắt đầu với BeFam để sắp xếp gia phả, kết nối thế hệ và quản lý hoạt động họ tộc gọn gàng hơn mỗi ngày.',
                 en: 'Start with BeFam to organize lineage data, connect generations, and run clan operations with clarity every day.',
               ),
               primaryLabel: context.l10n.pick(
@@ -333,14 +338,14 @@ class WebAboutUsPage extends StatelessWidget {
         en: 'About BeFam | Story and mission',
       ),
       child: Padding(
-        padding: const EdgeInsets.only(top: 18, bottom: 40),
+        padding: const EdgeInsets.only(top: 20, bottom: 44),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _SectionCard(
               title: l10n.webAboutTitle,
               subtitle: context.l10n.pick(
-                vi: 'Ngày trước, con cháu thường sống gần nhau nên việc kết nối trong mỗi dịp giỗ, lễ, họp họ diễn ra tự nhiên. Hôm nay, khi các thế hệ học tập và lập nghiệp khắp nơi, điều khó nhất không phải là không muốn về, mà là không thể về cùng lúc.',
+                vi: 'Trước đây, con cháu thường sống gần nhau nên chuyện giỗ lễ, họp họ diễn ra rất tự nhiên. Khi các thế hệ học tập và lập nghiệp ở nhiều nơi, điều khó nhất không phải là không muốn về, mà là khó về cùng lúc.',
                 en: 'Families once lived close together, so connection came naturally during memorial ceremonies and clan gatherings. Today, generations move across cities and countries, and the challenge is not willingness but being able to return at the same time.',
               ),
               icon: Icons.groups_2_rounded,
@@ -349,14 +354,14 @@ class WebAboutUsPage extends StatelessWidget {
                 en: 'Product story',
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: _kBlockGap),
             _QuoteCard(
               quote: context.l10n.pick(
-                vi: 'BeFam ra đời để giữ mạch kết nối của cả dòng tộc trong thời đại phân tán địa lý: đúng người, đúng vai trò, đúng dữ liệu.',
+                vi: 'BeFam được tạo ra để giữ nhịp kết nối của dòng tộc trong bối cảnh phân tán địa lý: đúng người, đúng vai trò, đúng dữ liệu.',
                 en: 'BeFam was built to keep clans connected across distance: the right person, the right role, and the right data.',
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: _kBlockGap),
             _FeatureCardGrid(
               items: [
                 _FeatureItem(
@@ -376,19 +381,19 @@ class WebAboutUsPage extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: _kBlockGap),
             _SectionHeading(
               eyebrow: context.l10n.pick(vi: 'Nguyên tắc', en: 'Principles'),
               title: context.l10n.pick(
-                vi: 'BeFam được thiết kế để đồng hành dài hạn cùng cộng đồng họ tộc.',
+                vi: 'BeFam được thiết kế để đồng hành lâu dài cùng cộng đồng họ tộc.',
                 en: 'BeFam is designed for long-term clan communities.',
               ),
               description: context.l10n.pick(
-                vi: 'Mọi quyết định sản phẩm đều ưu tiên tính dễ dùng, minh bạch vận hành và bảo vệ quyền riêng tư của từng thành viên.',
+                vi: 'Mỗi quyết định sản phẩm đều ưu tiên dễ dùng, minh bạch và tôn trọng quyền riêng tư của từng thành viên.',
                 en: 'Every product decision prioritizes usability, operational transparency, and member privacy.',
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: _kCardGap),
             _FeatureCardGrid(
               items: [
                 _FeatureItem(
@@ -398,7 +403,7 @@ class WebAboutUsPage extends StatelessWidget {
                     en: 'Security by design',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Truy cập dữ liệu theo vai trò và quy trình xác thực để giảm liên kết sai hồ sơ.',
+                    vi: 'Truy cập theo vai trò và quy trình xác thực rõ ràng để giảm liên kết nhầm hồ sơ.',
                     en: 'Role-based data access and verification flows reduce mis-linking risks.',
                   ),
                 ),
@@ -409,7 +414,7 @@ class WebAboutUsPage extends StatelessWidget {
                     en: 'Clear operational ownership',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Owner, admin, leader, thủ quỹ và các vai trò khác có phạm vi quyền riêng, tránh chồng chéo.',
+                    vi: 'Ban quản trị, trưởng chi, thủ quỹ... đều có phạm vi trách nhiệm rõ ràng, hạn chế chồng chéo.',
                     en: 'Owners, admins, leaders, treasurers, and other roles each have explicit permissions.',
                   ),
                 ),
@@ -420,22 +425,22 @@ class WebAboutUsPage extends StatelessWidget {
                     en: 'Multi-generation ready',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Ngôn ngữ gần gũi, thao tác đơn giản để người lớn tuổi và người trẻ đều sử dụng được.',
+                    vi: 'Ngôn ngữ gần gũi, thao tác trực quan để cả người lớn tuổi và người trẻ đều dùng thuận tiện.',
                     en: 'Natural language and simple flows so both elder and younger members can use it comfortably.',
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            const _FounderContactCard(),
-            const SizedBox(height: 24),
+            const SizedBox(height: _kBlockGap),
+            const _HunpeoLabsContactCard(),
+            const SizedBox(height: _kSectionGap),
             _CtaPanel(
               title: context.l10n.pick(
                 vi: 'Muốn xem BeFam hoạt động thực tế?',
                 en: 'Want to see BeFam in action?',
               ),
               description: context.l10n.pick(
-                vi: 'Mở ứng dụng để trải nghiệm luồng gia phả, sự kiện và quản trị họ tộc ngay trong một workspace thống nhất.',
+                vi: 'Mở ứng dụng để trải nghiệm luồng gia phả, sự kiện và quản trị họ tộc trong một không gian thống nhất.',
                 en: 'Open the app to explore genealogy, event, and governance workflows in one unified workspace.',
               ),
               primaryLabel: context.l10n.pick(
@@ -473,14 +478,14 @@ class WebBeFamInfoPage extends StatelessWidget {
         en: 'BeFam Information | Features and capabilities',
       ),
       child: Padding(
-        padding: const EdgeInsets.only(top: 18, bottom: 40),
+        padding: const EdgeInsets.only(top: 20, bottom: 44),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _SectionCard(
               title: l10n.webInfoTitle,
               subtitle: context.l10n.pick(
-                vi: 'BeFam là nền tảng vận hành họ tộc theo hướng mobile-first: quản lý gia phả, kết nối thành viên, vận hành sự kiện, quỹ và khuyến học trên cùng một cấu trúc dữ liệu nhất quán.',
+                vi: 'BeFam là nền tảng ưu tiên thiết bị di động, giúp quản lý gia phả, thành viên, sự kiện, quỹ và khuyến học trên cùng một nguồn dữ liệu thống nhất.',
                 en: 'BeFam is a mobile-first clan operations platform: manage genealogy, member access, events, funds, and scholarship workflows in one consistent data model.',
               ),
               icon: Icons.info_rounded,
@@ -489,7 +494,7 @@ class WebBeFamInfoPage extends StatelessWidget {
                 en: 'Product overview',
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: _kBlockGap),
             _FeatureCardGrid(
               items: [
                 _FeatureItem(
@@ -509,7 +514,7 @@ class WebBeFamInfoPage extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: _kBlockGap),
             _SectionHeading(
               eyebrow: context.l10n.pick(
                 vi: 'Đối tượng sử dụng',
@@ -524,7 +529,7 @@ class WebBeFamInfoPage extends StatelessWidget {
                 en: 'From clan leaders and treasurers to members living far from home, each role has a focused workflow.',
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: _kCardGap),
             _FeatureCardGrid(
               items: [
                 _FeatureItem(
@@ -534,7 +539,7 @@ class WebBeFamInfoPage extends StatelessWidget {
                     en: 'Clan governance team',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Theo dõi tổng quan, phân quyền, duyệt yêu cầu và điều phối hoạt động theo chi nhánh.',
+                    vi: 'Theo dõi tổng quan, phân quyền, duyệt yêu cầu và điều phối hoạt động theo từng chi.',
                     en: 'Track overview, manage permissions, review requests, and coordinate branch operations.',
                   ),
                 ),
@@ -556,13 +561,13 @@ class WebBeFamInfoPage extends StatelessWidget {
                     en: 'Members and descendants abroad',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Tìm đúng gia phả, gửi yêu cầu tham gia đúng quy trình và theo dõi lịch quan trọng không bị bỏ sót.',
+                    vi: 'Tìm đúng gia phả, gửi yêu cầu tham gia đúng quy trình và theo dõi các lịch quan trọng.',
                     en: 'Find the right clan, submit join requests safely, and keep up with important family dates.',
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: _kBlockGap),
             _InfoBulletList(
               title: l10n.webInfoHighlightsTitle,
               points: [
@@ -570,16 +575,16 @@ class WebBeFamInfoPage extends StatelessWidget {
                 l10n.webInfoHighlightsItemTwo,
                 l10n.webInfoHighlightsItemThree,
                 context.l10n.pick(
-                  vi: 'Thanh toán và kích hoạt gói chỉ hoàn tất sau khi callback/webhook xác nhận thành công.',
+                  vi: 'Thanh toán và kích hoạt gói chỉ hoàn tất khi hệ thống nhận xác nhận giao dịch thành công.',
                   en: 'Plan activation happens only after successful callback/webhook confirmation.',
                 ),
                 context.l10n.pick(
-                  vi: 'Thiết kế hỗ trợ điện thoại, tablet và web để điều hành linh hoạt theo ngữ cảnh sử dụng.',
+                  vi: 'Thiết kế hỗ trợ điện thoại, máy tính bảng và web để điều hành linh hoạt theo từng ngữ cảnh.',
                   en: 'Designed for phone, tablet, and web so operations stay flexible in every context.',
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: _kSectionGap),
             _CtaPanel(
               title: context.l10n.pick(
                 vi: 'Bạn muốn dùng BeFam cho dòng họ của mình?',
@@ -666,8 +671,8 @@ class _WebMarketingLayout extends StatelessWidget {
                   constraints: const BoxConstraints(maxWidth: 1220),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
+                      horizontal: 22,
+                      vertical: 14,
                     ),
                     child: Column(
                       children: [
@@ -721,7 +726,7 @@ class _TopNavigation extends StatelessWidget {
         return Card(
           margin: EdgeInsets.zero,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             child: Row(
               children: [
                 const _BrandMark(),
@@ -730,6 +735,7 @@ class _TopNavigation extends StatelessWidget {
                   'BeFam',
                   style: textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
                   ),
                 ),
                 const Spacer(),
@@ -762,8 +768,8 @@ class _TopNavigation extends StatelessWidget {
                     placement: 'top_nav_open_app',
                   ),
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 44),
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    minimumSize: const Size(0, 46),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                   ),
                   child: Text(
                     isCompact
@@ -815,7 +821,7 @@ class _HeroStorySection extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(28),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isCompact = constraints.maxWidth < 980;
@@ -824,24 +830,24 @@ class _HeroStorySection extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _EyebrowChip(label: badge),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
                 Text(
                   title,
                   style: textTheme.headlineLarge?.copyWith(
                     fontWeight: FontWeight.w900,
-                    height: 1.16,
-                    letterSpacing: -0.2,
+                    height: 1.12,
+                    letterSpacing: -0.35,
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
                 Text(
                   subtitle,
                   style: textTheme.titleMedium?.copyWith(
                     color: colorScheme.onSurfaceVariant,
-                    height: 1.55,
+                    height: 1.52,
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 20),
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
@@ -858,7 +864,7 @@ class _HeroStorySection extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 20),
                 _MarketingMetricStrip(metrics: metrics),
               ],
             );
@@ -902,6 +908,7 @@ class _HeroStorySection extends StatelessWidget {
                           highlightTitle,
                           style: textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
                           ),
                         ),
                       ),
@@ -912,12 +919,13 @@ class _HeroStorySection extends StatelessWidget {
                     highlightDescription,
                     style: textTheme.bodyLarge?.copyWith(
                       color: colorScheme.onSurfaceVariant,
+                      height: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   ...highlights.map(
                     (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(bottom: 10),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -928,7 +936,12 @@ class _HeroStorySection extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(item, style: textTheme.bodyMedium),
+                            child: Text(
+                              item,
+                              style: textTheme.bodyMedium?.copyWith(
+                                height: 1.45,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -941,7 +954,7 @@ class _HeroStorySection extends StatelessWidget {
             if (isCompact) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [leftPane, const SizedBox(height: 16), rightPane],
+                children: [leftPane, const SizedBox(height: 20), rightPane],
               );
             }
 
@@ -949,7 +962,7 @@ class _HeroStorySection extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(flex: 3, child: leftPane),
-                const SizedBox(width: 22),
+                const SizedBox(width: 24),
                 Expanded(flex: 2, child: rightPane),
               ],
             );
@@ -974,7 +987,7 @@ class _MarketingMetricStrip extends StatelessWidget {
             : constraints.maxWidth >= 500
             ? 2
             : 1;
-        const spacing = 10.0;
+        const spacing = 12.0;
         final width =
             (constraints.maxWidth - (spacing * (columns - 1))) / columns;
 
@@ -1004,24 +1017,30 @@ class _MetricCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Container(
+      constraints: const BoxConstraints(minHeight: 96),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: Colors.white.withValues(alpha: 0.84),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             metric.value,
-            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            style: textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              height: 1.2,
+              letterSpacing: -0.2,
+            ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
           Text(
             metric.label,
             style: textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
+              height: 1.4,
             ),
           ),
         ],
@@ -1053,13 +1072,21 @@ class _SectionHeading extends StatelessWidget {
         const SizedBox(height: 10),
         Text(
           title,
-          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+          style: textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            height: 1.2,
+            letterSpacing: -0.25,
+          ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          description,
-          style: textTheme.bodyLarge?.copyWith(
-            color: colorScheme.onSurfaceVariant,
+        const SizedBox(height: 10),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 980),
+          child: Text(
+            description,
+            style: textTheme.bodyLarge?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
         ),
       ],
@@ -1082,18 +1109,43 @@ class _FeatureCardGrid extends StatelessWidget {
             : width >= 700
             ? 2
             : 1;
-        const spacing = 14.0;
-        final cardWidth = (width - (spacing * (columns - 1))) / columns;
+        const spacing = 16.0;
+        final minCardHeight = width >= 1020
+            ? 236.0
+            : width >= 700
+            ? 248.0
+            : 0.0;
+        final rowCount = (items.length / columns).ceil();
 
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
+        return Column(
           children: [
-            for (final item in items)
-              SizedBox(
-                width: cardWidth,
-                child: _FeatureCard(item: item),
+            for (var row = 0; row < rowCount; row++) ...[
+              if (row > 0) const SizedBox(height: spacing),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var column = 0; column < columns; column++) ...[
+                      if (column > 0) const SizedBox(width: spacing),
+                      Expanded(
+                        child: Builder(
+                          builder: (context) {
+                            final index = (row * columns) + column;
+                            if (index >= items.length) {
+                              return const SizedBox.shrink();
+                            }
+                            return _FeatureCard(
+                              item: items[index],
+                              minHeight: minCardHeight,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
+            ],
           ],
         );
       },
@@ -1102,9 +1154,10 @@ class _FeatureCardGrid extends StatelessWidget {
 }
 
 class _FeatureCard extends StatelessWidget {
-  const _FeatureCard({required this.item});
+  const _FeatureCard({required this.item, required this.minHeight});
 
   final _FeatureItem item;
+  final double minHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -1112,8 +1165,11 @@ class _FeatureCard extends StatelessWidget {
 
     return Card(
       margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
+      child: Container(
+        constraints: minHeight <= 0
+            ? const BoxConstraints()
+            : BoxConstraints(minHeight: minHeight),
+        padding: const EdgeInsets.all(_kCardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1129,15 +1185,18 @@ class _FeatureCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               item.title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                height: 1.24,
+                letterSpacing: -0.2,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               item.description,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: colorScheme.onSurfaceVariant,
+                height: 1.5,
               ),
             ),
           ],
@@ -1161,7 +1220,7 @@ class _JourneyTimeline extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(_kCardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1169,9 +1228,11 @@ class _JourneyTimeline extends StatelessWidget {
               title,
               style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w900,
+                height: 1.22,
+                letterSpacing: -0.2,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             LayoutBuilder(
               builder: (context, constraints) {
                 final isCompact = constraints.maxWidth < 860;
@@ -1237,7 +1298,7 @@ class _JourneyStepCard extends StatelessWidget {
         border: Border.all(color: colorScheme.outlineVariant),
         color: Colors.white.withValues(alpha: 0.8),
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1258,13 +1319,18 @@ class _JourneyStepCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             step.title,
-            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              height: 1.24,
+              letterSpacing: -0.15,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             step.description,
             style: textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
+              height: 1.48,
             ),
           ),
         ],
@@ -1292,7 +1358,7 @@ class _MarketingFaqSection extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(_kCardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1300,19 +1366,22 @@ class _MarketingFaqSection extends StatelessWidget {
               title,
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w900,
+                height: 1.2,
+                letterSpacing: -0.2,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
               description,
               style: theme.textTheme.bodyLarge?.copyWith(
                 color: colorScheme.onSurfaceVariant,
+                height: 1.5,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             for (final item in items)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 10),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
@@ -1321,16 +1390,18 @@ class _MarketingFaqSection extends StatelessWidget {
                   ),
                   child: ExpansionTile(
                     tilePadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 2,
+                      horizontal: 16,
+                      vertical: 4,
                     ),
-                    childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                    childrenPadding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
                     iconColor: colorScheme.primary,
                     collapsedIconColor: colorScheme.primary,
                     title: Text(
                       item.question,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
+                        height: 1.3,
+                        letterSpacing: -0.15,
                       ),
                     ),
                     children: [
@@ -1340,6 +1411,7 @@ class _MarketingFaqSection extends StatelessWidget {
                           item.answer,
                           style: theme.textTheme.bodyLarge?.copyWith(
                             color: colorScheme.onSurfaceVariant,
+                            height: 1.52,
                           ),
                         ),
                       ),
@@ -1388,7 +1460,7 @@ class _CtaPanel extends StatelessWidget {
         ),
         border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
       ),
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(24),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isCompact = constraints.maxWidth < 760;
@@ -1399,13 +1471,16 @@ class _CtaPanel extends StatelessWidget {
                 title,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w900,
+                  height: 1.2,
+                  letterSpacing: -0.2,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Text(
                 description,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: colorScheme.onSurfaceVariant,
+                  height: 1.5,
                 ),
               ),
             ],
@@ -1469,7 +1544,7 @@ class _SectionCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(_kCardPadding),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1495,6 +1570,8 @@ class _SectionCard extends StatelessWidget {
                     title,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w900,
+                      height: 1.2,
+                      letterSpacing: -0.25,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -1502,6 +1579,7 @@ class _SectionCard extends StatelessWidget {
                     subtitle,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
+                      height: 1.5,
                     ),
                   ),
                 ],
@@ -1530,7 +1608,7 @@ class _QuoteCard extends StatelessWidget {
         color: colorScheme.primary.withValues(alpha: 0.08),
         border: Border.all(color: colorScheme.primary.withValues(alpha: 0.2)),
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(_kCardPadding),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1546,6 +1624,7 @@ class _QuoteCard extends StatelessWidget {
               style: textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
                 height: 1.45,
+                letterSpacing: -0.1,
               ),
             ),
           ),
@@ -1568,20 +1647,22 @@ class _InfoBulletList extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(_kCardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+                height: 1.22,
+                letterSpacing: -0.2,
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             ...points.map(
               (point) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.only(bottom: 12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1599,6 +1680,7 @@ class _InfoBulletList extends StatelessWidget {
                         point,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: colorScheme.onSurfaceVariant,
+                          height: 1.5,
                         ),
                       ),
                     ),
@@ -1613,8 +1695,8 @@ class _InfoBulletList extends StatelessWidget {
   }
 }
 
-class _FounderContactCard extends StatelessWidget {
-  const _FounderContactCard();
+class _HunpeoLabsContactCard extends StatelessWidget {
+  const _HunpeoLabsContactCard();
 
   @override
   Widget build(BuildContext context) {
@@ -1624,7 +1706,7 @@ class _FounderContactCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(_kCardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1641,7 +1723,7 @@ class _FounderContactCard extends StatelessWidget {
                     ).colorScheme.primary.withValues(alpha: 0.14),
                   ),
                   child: Icon(
-                    Icons.person_rounded,
+                    Icons.support_agent_rounded,
                     color: Theme.of(context).colorScheme.primary,
                     size: 28,
                   ),
@@ -1653,20 +1735,22 @@ class _FounderContactCard extends StatelessWidget {
                     children: [
                       Text(
                         l10n.pick(
-                          vi: 'Thông tin liên hệ',
-                          en: 'Contact information',
+                          vi: 'Kết nối với Hunpeo Labs',
+                          en: 'Connect with Hunpeo Labs',
                         ),
                         style: textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w900,
+                          height: 1.2,
+                          letterSpacing: -0.2,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         l10n.pick(
-                          vi: 'Hỗ trợ hợp tác, tư vấn triển khai và thông tin sản phẩm.',
-                          en: 'For partnerships, onboarding consulting, and product inquiries.',
+                          vi: 'Đội ngũ Hunpeo Labs tiếp nhận hợp tác, góp ý sản phẩm và phản ánh trải nghiệm người dùng.',
+                          en: 'Hunpeo Labs handles partnerships, product feedback, and user experience reports.',
                         ),
-                        style: textTheme.bodyLarge,
+                        style: textTheme.bodyLarge?.copyWith(height: 1.5),
                       ),
                     ],
                   ),
@@ -1675,42 +1759,97 @@ class _FounderContactCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Text(
-              'Phạm Hùng',
+              'Hunpeo Labs',
               style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
+                height: 1.2,
+                letterSpacing: -0.2,
               ),
             ),
             const SizedBox(height: 10),
-            const _ContactRow(
-              icon: Icons.phone_rounded,
-              value: '+19452369965',
-              link: 'tel:+19452369965',
+            _ContactRow(
+              icon: Icons.business_rounded,
+              value: l10n.pick(
+                vi: 'Đơn vị vận hành và phát triển sản phẩm BeFam.',
+                en: 'Product operator and developer of BeFam.',
+              ),
             ),
             const SizedBox(height: 8),
-            const _ContactRow(
-              icon: Icons.location_on_rounded,
-              value: 'Frisco, Texas, United States',
+            _ContactRow(
+              icon: Icons.mail_outline_rounded,
+              value: l10n.pick(
+                vi: 'Email hỗ trợ: support@hunpeo.vn',
+                en: 'Support email: support@hunpeo.vn',
+              ),
+              link: 'mailto:support@hunpeo.vn',
             ),
             const SizedBox(height: 8),
-            const _ContactRow(
-              icon: Icons.email_rounded,
-              value: 'phamhung.pitit@gmail.com',
-              link: 'mailto:phamhung.pitit@gmail.com',
+            _ContactRow(
+              icon: Icons.schedule_rounded,
+              value: l10n.pick(
+                vi: 'Google Form phản ánh và Fanpage BeFam đang được chuẩn bị.',
+                en: 'Google Form feedback and BeFam Fanpage are being prepared.',
+              ),
             ),
-            const SizedBox(height: 8),
-            const _ContactRow(
-              icon: Icons.facebook_rounded,
-              value: 'Facebook',
-              link: 'https://www.facebook.com/hawaihouu',
-            ),
-            const SizedBox(height: 8),
-            const _ContactRow(
-              icon: Icons.work_rounded,
-              value: 'LinkedIn',
-              link: 'https://www.linkedin.com/in/hunpham',
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _ContactChannelChip(
+                  icon: Icons.description_rounded,
+                  label: l10n.pick(
+                    vi: 'Google Form phản ánh',
+                    en: 'Feedback Google Form',
+                  ),
+                ),
+                _ContactChannelChip(
+                  icon: Icons.facebook_rounded,
+                  label: l10n.pick(vi: 'Fanpage BeFam', en: 'BeFam Fanpage'),
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ContactChannelChip extends StatelessWidget {
+  const _ContactChannelChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            context.l10n.pick(vi: 'Sắp cập nhật', en: 'Coming soon'),
+            style: textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1728,7 +1867,10 @@ class _ContactRow extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
 
-    Widget content = Text(value, style: textTheme.bodyLarge);
+    Widget content = Text(
+      value,
+      style: textTheme.bodyLarge?.copyWith(height: 1.5),
+    );
     if (link != null) {
       content = InkWell(
         onTap: () async {
@@ -1739,6 +1881,7 @@ class _ContactRow extends StatelessWidget {
           style: textTheme.bodyLarge?.copyWith(
             color: colorScheme.primary,
             decoration: TextDecoration.underline,
+            height: 1.5,
           ),
         ),
       );
@@ -1767,7 +1910,7 @@ class _WebFooter extends StatelessWidget {
     final iosStoreUrl = AppEnvironment.iosAppStoreUrl.trim();
     final androidStoreUrl = AppEnvironment.androidPlayStoreUrl.trim();
     return Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 20),
+      padding: const EdgeInsets.only(top: 10, bottom: 22),
       child: Column(
         children: [
           Wrap(
@@ -1890,12 +2033,14 @@ class _StoreDownloadButton extends StatelessWidget {
                     color: isEnabled
                         ? colorScheme.onSurface
                         : colorScheme.onSurfaceVariant,
+                    height: 1.2,
                   ),
                 ),
                 Text(
                   subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -1920,16 +2065,25 @@ class _NavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textStyle = Theme.of(
+      context,
+    ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700);
     if (isActive) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: FilledButton.tonal(onPressed: onPressed, child: Text(label)),
+        child: FilledButton.tonal(
+          onPressed: onPressed,
+          child: Text(label, style: textStyle),
+        ),
       );
     }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: TextButton(onPressed: onPressed, child: Text(label)),
+      child: TextButton(
+        onPressed: onPressed,
+        child: Text(label, style: textStyle),
+      ),
     );
   }
 }
@@ -1953,6 +2107,7 @@ class _EyebrowChip extends StatelessWidget {
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
           color: colorScheme.onSecondaryContainer,
           fontWeight: FontWeight.w800,
+          letterSpacing: 0.1,
         ),
       ),
     );
