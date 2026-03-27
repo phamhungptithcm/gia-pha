@@ -127,21 +127,46 @@ jobs:
           import os
           import subprocess
           import sys
+          import time
 
           mode = os.environ.get("E2E_MODE", "debug")
           suite = os.environ.get("E2E_SUITE", "smoke")
           # iOS cold builds can take >30 minutes before tests execute.
-          timeout_minutes = 80 if suite == "smoke" else 95
+          timeout_minutes = 70 if suite == "smoke" else 95
           timeout_seconds = timeout_minutes * 60
           cmd = ["./scripts/run_mobile_e2e.sh", mode, "ios", suite]
 
-          try:
-              result = subprocess.run(cmd, timeout=timeout_seconds, check=False)
-          except subprocess.TimeoutExpired:
-              print(f"::error::iOS E2E timed out after {timeout_minutes} minutes (suite={suite}).")
-              sys.exit(124)
+          start_time = time.monotonic()
+          heartbeat_at = start_time + 60
+          process = subprocess.Popen(cmd)
+          return_code = None
 
-          sys.exit(result.returncode)
+          while return_code is None:
+              return_code = process.poll()
+              now = time.monotonic()
+
+              if return_code is not None:
+                  break
+
+              if now - start_time > timeout_seconds:
+                  process.terminate()
+                  try:
+                      process.wait(timeout=30)
+                  except subprocess.TimeoutExpired:
+                      process.kill()
+                  print(f"::error::iOS E2E timed out after {timeout_minutes} minutes (suite={suite}).")
+                  sys.exit(124)
+
+              if now >= heartbeat_at:
+                  elapsed_minutes = int((now - start_time) // 60)
+                  print(
+                      f"::notice::iOS E2E still running ({elapsed_minutes}m elapsed, suite={suite})."
+                  )
+                  heartbeat_at += 60
+
+              time.sleep(5)
+
+          sys.exit(return_code)
           PY
 
       - name: Upload iOS E2E artifacts
