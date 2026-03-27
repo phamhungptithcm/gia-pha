@@ -10,15 +10,82 @@ permissions:
   packages: write
   id-token: write
   attestations: write
+  checks: read
 
 concurrency:
   group: release-main-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  gate-main-ci-e2e:
+    name: Gate - Wait for Main CI + E2E
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Wait for required checks on main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          required_checks=(
+            "CI - Docs Validation and Build"
+            "CI - Functions Build and Test"
+            "CI - Mobile Build and Test"
+            "E2E - Android Test Run"
+            "E2E - iOS Test Run"
+          )
+
+          deadline_seconds=$((SECONDS + 80 * 60))
+
+          while [ "$SECONDS" -lt "$deadline_seconds" ]; do
+            echo "Checking status for commit ${COMMIT_SHA}..."
+            check_runs="$(
+              gh api \
+                "repos/${GITHUB_REPOSITORY}/commits/${COMMIT_SHA}/check-runs?per_page=100" \
+                --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv'
+            )"
+
+            all_passed=true
+            for check_name in "${required_checks[@]}"; do
+              line="$(printf '%s\n' "$check_runs" | awk -F'\t' -v name="$check_name" '$1==name {print; exit}')"
+              if [ -z "$line" ]; then
+                echo " - ${check_name}: missing (waiting)"
+                all_passed=false
+                continue
+              fi
+
+              status="$(printf '%s' "$line" | awk -F'\t' '{print $2}')"
+              conclusion="$(printf '%s' "$line" | awk -F'\t' '{print $3}')"
+              echo " - ${check_name}: status=${status}, conclusion=${conclusion:-n/a}"
+
+              if [ "$status" != "completed" ]; then
+                all_passed=false
+                continue
+              fi
+
+              if [ "$conclusion" != "success" ]; then
+                echo "::error::Required check '${check_name}' completed with conclusion '${conclusion}'."
+                exit 1
+              fi
+            done
+
+            if [ "$all_passed" = true ]; then
+              echo "All required main CI/E2E checks are green."
+              exit 0
+            fi
+
+            sleep 20
+          done
+
+          echo "::error::Timed out waiting for required main CI/E2E checks."
+          exit 1
+
   quality-gate-docs:
     name: Quality Gate - Docs
     if: ${{ github.ref == 'refs/heads/main' }}
+    needs: gate-main-ci-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -44,6 +111,7 @@ jobs:
   quality-gate-functions:
     name: Quality Gate - Functions
     if: ${{ github.ref == 'refs/heads/main' }}
+    needs: gate-main-ci-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -75,6 +143,7 @@ jobs:
   quality-gate-security:
     name: Quality Gate - Security
     if: ${{ github.ref == 'refs/heads/main' }}
+    needs: gate-main-ci-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -103,6 +172,7 @@ jobs:
   quality-gate-mobile-fast:
     name: Quality Gate - Mobile Fast
     if: ${{ github.ref == 'refs/heads/main' }}
+    needs: gate-main-ci-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:

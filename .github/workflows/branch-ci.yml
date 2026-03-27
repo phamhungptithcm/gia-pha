@@ -5,6 +5,10 @@ on:
     branches:
       - staging
       - main
+  push:
+    branches:
+      - staging
+      - main
 
 permissions:
   contents: read
