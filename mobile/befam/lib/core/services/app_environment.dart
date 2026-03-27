@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+enum OtpProvider { firebase, twilio }
+
 class AppEnvironment {
   const AppEnvironment._();
 
@@ -110,6 +112,21 @@ class AppEnvironment {
         'BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK',
         defaultValue: false,
       );
+
+  static const String otpProviderRaw = String.fromEnvironment(
+    'BEFAM_OTP_PROVIDER',
+    defaultValue: 'twilio',
+  );
+
+  static OtpProvider get otpProvider {
+    final normalized = otpProviderRaw.trim().toLowerCase();
+    if (normalized == 'firebase') {
+      return OtpProvider.firebase;
+    }
+    return OtpProvider.twilio;
+  }
+
+  static bool get useFirebaseOtp => otpProvider == OtpProvider.firebase;
 
   static const String appCheckWebRecaptchaSiteKey = String.fromEnvironment(
     'BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY',

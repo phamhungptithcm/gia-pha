@@ -2086,13 +2086,6 @@ async function resolveVerifiedPhoneForAuth(
   );
 }
 
-function asTrimmedString(value: unknown, fallback = ''): string {
-  if (typeof value !== 'string') {
-    return fallback.trim();
-  }
-  return value.trim();
-}
-
 function asNullableTrimmedString(value: unknown): string | null {
   if (typeof value !== 'string') {
     return null;

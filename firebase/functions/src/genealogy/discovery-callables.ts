@@ -11,7 +11,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from '../config/runtime';
 import { requireAuth } from '../shared/errors';
 import { db } from '../shared/firestore';
-import { logError, logInfo } from '../shared/logger';
+import { logError, logInfo, logWarn } from '../shared/logger';
 import { notifyMembers } from '../notifications/push-delivery';
 import {
   GOVERNANCE_ROLES,
@@ -41,6 +41,7 @@ type JoinRequestRecord = {
   id?: string | null;
   clanId?: string | null;
   status?: string | null;
+  traceId?: string | null;
   applicantUid?: string | null;
   applicantName?: string | null;
   applicantMemberId?: string | null;
@@ -93,6 +94,24 @@ type JoinRequestAccessProvisionResult = {
     | 'not_required';
   linkedMemberId: string | null;
   clanIds: Array<string>;
+};
+
+type ReviewerNotificationResult = {
+  eventId: string;
+  audienceCount: number;
+  sent: boolean;
+  failed: boolean;
+  errorCode: string | null;
+  referencePath: string;
+};
+
+type ApplicantNotificationResult = {
+  eventId: string;
+  sent: boolean;
+  failed: boolean;
+  errorCode: string | null;
+  recipientMemberId: string | null;
+  referencePath: string;
 };
 
 type LinkedClanContext = {
@@ -271,6 +290,7 @@ export const submitJoinRequest = onCall(
     }
 
     const requestRef = joinRequestsCollection.doc();
+    const traceId = buildJoinRequestTraceId('submit', requestRef.id);
     await requestRef.set({
       id: requestRef.id,
       clanId,
@@ -282,16 +302,42 @@ export const submitJoinRequest = onCall(
       contactInfo,
       contactInfoNormalized: normalizedContact,
       message,
+      traceId,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    const reviewerDelivery = await notifyReviewersForJoinRequest({
-      joinRequestId: requestRef.id,
-      clanId,
-      applicantName,
-      relationshipToFamily,
-    });
+    let reviewerDelivery: ReviewerNotificationResult = {
+      eventId: `${requestRef.id}_reviewers`,
+      audienceCount: 0,
+      sent: false,
+      failed: false,
+      errorCode: null,
+      referencePath: buildJoinRequestReferencePath(clanId, requestRef.id),
+    };
+    try {
+      reviewerDelivery = await notifyReviewersForJoinRequest({
+        joinRequestId: requestRef.id,
+        clanId,
+        applicantName,
+        relationshipToFamily,
+        traceId,
+      });
+    } catch (error) {
+      reviewerDelivery = {
+        ...reviewerDelivery,
+        failed: true,
+        errorCode: normalizeJoinRequestErrorCode(error),
+      };
+      logError('submitJoinRequest reviewer notification failed', {
+        traceId,
+        joinRequestId: requestRef.id,
+        clanId,
+        applicantUid,
+        errorCode: reviewerDelivery.errorCode,
+        error: normalizeJoinRequestErrorMessage(error),
+      });
+    }
 
     const auditRef = auditLogsCollection.doc();
     await auditRef.set({
@@ -311,10 +357,15 @@ export const submitJoinRequest = onCall(
     });
 
     logInfo('submitJoinRequest succeeded', {
+      traceId,
       joinRequestId: requestRef.id,
       clanId,
       applicantUid,
-      ...reviewerDelivery,
+      reviewerNotificationEventId: reviewerDelivery.eventId,
+      reviewerAudienceCount: reviewerDelivery.audienceCount,
+      reviewerNotificationSent: reviewerDelivery.sent,
+      reviewerNotificationFailed: reviewerDelivery.failed,
+      reviewerNotificationErrorCode: reviewerDelivery.errorCode,
     });
 
     return {
@@ -322,6 +373,7 @@ export const submitJoinRequest = onCall(
       clanId,
       status: 'pending',
       notifiedReviewers: reviewerDelivery.audienceCount,
+      reviewerNotificationFailed: reviewerDelivery.failed,
     };
   },
 );
@@ -330,6 +382,7 @@ export const listMyJoinRequests = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
+    const traceId = buildJoinRequestTraceId('list_my', auth.uid);
     const statusFilterRaw = optionalString(request.data, 'status')?.trim().toLowerCase() ?? '';
     const statusFilter = ['pending', 'approved', 'rejected', 'canceled'].includes(statusFilterRaw)
       ? statusFilterRaw
@@ -349,6 +402,11 @@ export const listMyJoinRequests = onCall(
       if (!isMissingCompositeIndexError(error)) {
         throw error;
       }
+      logWarn('listMyJoinRequests fallback query without composite index', {
+        traceId,
+        uid: auth.uid,
+        statusFilter: statusFilter.length > 0 ? statusFilter : 'all',
+      });
       snapshot = await joinRequestsCollection
         .where('applicantUid', '==', auth.uid)
         .limit(300)
@@ -378,6 +436,13 @@ export const listMyJoinRequests = onCall(
       .filter((entry) => entry.clanId.length > 0)
       .sort((left, right) => (right.submittedAtEpochMs ?? 0) - (left.submittedAtEpochMs ?? 0));
 
+    logInfo('listMyJoinRequests succeeded', {
+      traceId,
+      uid: auth.uid,
+      statusFilter: statusFilter.length > 0 ? statusFilter : 'all',
+      count: requests.length,
+    });
+
     return { requests };
   },
 );
@@ -394,6 +459,7 @@ export const cancelJoinRequest = onCall(
     }
 
     const joinRequest = joinRequestSnapshot.data() as JoinRequestRecord;
+    const traceId = stringOrNull(joinRequest.traceId) ?? buildJoinRequestTraceId('cancel', requestId);
     const applicantUid = stringOrNull(joinRequest.applicantUid);
     if (applicantUid == null || applicantUid !== auth.uid) {
       throw new HttpsError('permission-denied', 'You can only cancel your own join request.');
@@ -411,6 +477,7 @@ export const cancelJoinRequest = onCall(
         status: 'canceled',
         canceledAt: FieldValue.serverTimestamp(),
         canceledByUid: auth.uid,
+        traceId,
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
@@ -425,10 +492,12 @@ export const cancelJoinRequest = onCall(
       entityId: requestId,
       uid: auth.uid,
       memberId,
+      traceId,
       createdAt: FieldValue.serverTimestamp(),
     });
 
     logInfo('cancelJoinRequest succeeded', {
+      traceId,
       requestId,
       clanId,
       applicantUid: auth.uid,
@@ -466,6 +535,7 @@ export const reviewJoinRequest = onCall(
     if (clanId == null) {
       throw new HttpsError('failed-precondition', 'Join request has no clan context.');
     }
+    const traceId = stringOrNull(joinRequest.traceId) ?? buildJoinRequestTraceId('review', requestId);
     ensureClanAccess(auth.token, clanId);
 
     const status = stringOrNull(joinRequest.status)?.toLowerCase() ?? 'pending';
@@ -493,10 +563,12 @@ export const reviewJoinRequest = onCall(
         });
       } catch (error) {
         logError('reviewJoinRequest access provisioning failed', {
+          traceId,
           requestId,
           clanId,
           reviewerMemberId,
-          errorMessage: error instanceof Error ? error.message : String(error),
+          errorCode: normalizeJoinRequestErrorCode(error),
+          errorMessage: normalizeJoinRequestErrorMessage(error),
         });
         accessProvisioning = {
           status: 'provisioning_failed',
@@ -514,6 +586,7 @@ export const reviewJoinRequest = onCall(
         accessProvisioningStatus: accessProvisioning.status,
         accessProvisioned: accessProvisioning.status === 'linked',
         linkedApplicantMemberId: accessProvisioning.linkedMemberId,
+        traceId,
         reviewedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       },
@@ -529,6 +602,7 @@ export const reviewJoinRequest = onCall(
       entityId: requestId,
       uid: auth.uid,
       memberId: reviewerMemberId,
+      traceId,
       after: {
         status: nextStatus,
         reviewerRole,
@@ -538,26 +612,56 @@ export const reviewJoinRequest = onCall(
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    const applicantDelivery = await notifyApplicantForJoinRequest({
-      requestId,
-      clanId,
-      joinRequest,
-      nextStatus,
-      reviewerMemberId,
-      reviewerRole,
-      note,
-      accessProvisioningStatus: accessProvisioning.status,
-      linkedApplicantMemberId: accessProvisioning.linkedMemberId,
-    });
+    let applicantDelivery: ApplicantNotificationResult = {
+      eventId: `${requestId}_applicant`,
+      sent: false,
+      failed: false,
+      errorCode: null,
+      recipientMemberId: stringOrNull(joinRequest.applicantMemberId),
+      referencePath: buildJoinRequestReferencePath(clanId, requestId),
+    };
+    try {
+      applicantDelivery = await notifyApplicantForJoinRequest({
+        requestId,
+        clanId,
+        joinRequest,
+        nextStatus,
+        reviewerMemberId,
+        reviewerRole,
+        note,
+        accessProvisioningStatus: accessProvisioning.status,
+        linkedApplicantMemberId: accessProvisioning.linkedMemberId,
+        traceId,
+      });
+    } catch (error) {
+      applicantDelivery = {
+        ...applicantDelivery,
+        failed: true,
+        errorCode: normalizeJoinRequestErrorCode(error),
+      };
+      logError('reviewJoinRequest applicant notification failed', {
+        traceId,
+        requestId,
+        clanId,
+        reviewerMemberId,
+        errorCode: applicantDelivery.errorCode,
+        error: normalizeJoinRequestErrorMessage(error),
+      });
+    }
 
     logInfo('reviewJoinRequest succeeded', {
+      traceId,
       requestId,
       clanId,
       reviewerMemberId,
       reviewerRole,
       nextStatus,
       accessProvisioningStatus: accessProvisioning.status,
-      ...applicantDelivery,
+      applicantNotificationEventId: applicantDelivery.eventId,
+      applicantNotificationSent: applicantDelivery.sent,
+      applicantNotificationFailed: applicantDelivery.failed,
+      applicantNotificationErrorCode: applicantDelivery.errorCode,
+      applicantRecipientMemberId: applicantDelivery.recipientMemberId,
     });
 
     return {
@@ -565,6 +669,7 @@ export const reviewJoinRequest = onCall(
       clanId,
       status: nextStatus,
       applicantNotified: applicantDelivery.sent,
+      applicantNotificationFailed: applicantDelivery.failed,
       accessProvisioningStatus: accessProvisioning.status,
       linkedApplicantMemberId: accessProvisioning.linkedMemberId,
     };
@@ -615,6 +720,14 @@ export const listJoinRequestsForReview = onCall(
         message: stringOrNull(item.message),
         submittedAtEpochMs: timestampToEpochMillis(item.createdAt),
       };
+    });
+
+    logInfo('listJoinRequestsForReview succeeded', {
+      reviewerUid: auth.uid,
+      reviewerMemberId: tokenMemberId(auth.token),
+      clanId,
+      status,
+      count: requests.length,
     });
 
     return { requests };
@@ -713,13 +826,21 @@ async function notifyReviewersForJoinRequest(input: {
   clanId: string;
   applicantName: string;
   relationshipToFamily: string;
-}): Promise<{ audienceCount: number }> {
+  traceId: string;
+}): Promise<ReviewerNotificationResult> {
   const eventId = `${input.joinRequestId}_reviewers`;
+  const referencePath = buildJoinRequestReferencePath(input.clanId, input.joinRequestId);
   const eventRef = joinRequestNotificationEventsCollection.doc(eventId);
   const existing = await eventRef.get();
   if (existing.exists) {
+    const existingData = existing.data() ?? {};
     return {
-      audienceCount: (existing.data()?.audienceCount as number | undefined) ?? 0,
+      eventId,
+      audienceCount: (existingData.audienceCount as number | undefined) ?? 0,
+      sent: existingData.sent === true,
+      failed: existingData.failed === true,
+      errorCode: stringOrNull(existingData.errorCode),
+      referencePath: stringOrNull(existingData.referencePath) ?? referencePath,
     };
   }
 
@@ -748,20 +869,43 @@ async function notifyReviewersForJoinRequest(input: {
   }
 
   const audience = [...reviewerMemberIds];
+  let sent = false;
+  let failed = false;
+  let errorCode: string | null = null;
   if (audience.length > 0) {
-    await notifyMembers({
-      clanId: input.clanId,
-      memberIds: audience,
-      type: 'join_request_created',
-      title: 'New join request',
-      body: `${input.applicantName} (${input.relationshipToFamily}) requested to join this genealogy.`,
-      target: 'generic',
-      targetId: input.joinRequestId,
-      extraData: {
-        target: 'join_request',
+    try {
+      await notifyMembers({
+        clanId: input.clanId,
+        memberIds: audience,
+        type: 'join_request_created',
+        title: 'New join request',
+        body: `${input.applicantName} (${input.relationshipToFamily}) requested to join this genealogy.`,
+        target: 'generic',
+        targetId: input.joinRequestId,
+        extraData: {
+          target: 'join_request',
+          joinRequestId: input.joinRequestId,
+          referencePath,
+        },
+      });
+      sent = true;
+    } catch (error) {
+      failed = true;
+      errorCode = normalizeJoinRequestErrorCode(error);
+      logError('notifyReviewersForJoinRequest failed', {
+        traceId: input.traceId,
         joinRequestId: input.joinRequestId,
-        referencePath: buildJoinRequestReferencePath(input.clanId, input.joinRequestId),
-      },
+        clanId: input.clanId,
+        audienceCount: audience.length,
+        errorCode,
+        error: normalizeJoinRequestErrorMessage(error),
+      });
+    }
+  } else {
+    logWarn('notifyReviewersForJoinRequest skipped due to empty audience', {
+      traceId: input.traceId,
+      joinRequestId: input.joinRequestId,
+      clanId: input.clanId,
     });
   }
 
@@ -771,11 +915,22 @@ async function notifyReviewersForJoinRequest(input: {
     eventType: 'reviewer_inbound',
     clanId: input.clanId,
     audienceCount: audience.length,
-    referencePath: buildJoinRequestReferencePath(input.clanId, input.joinRequestId),
+    traceId: input.traceId,
+    sent,
+    failed,
+    errorCode,
+    referencePath,
     createdAt: FieldValue.serverTimestamp(),
   });
 
-  return { audienceCount: audience.length };
+  return {
+    eventId,
+    audienceCount: audience.length,
+    sent,
+    failed,
+    errorCode,
+    referencePath,
+  };
 }
 
 async function notifyApplicantForJoinRequest(input: {
@@ -788,13 +943,22 @@ async function notifyApplicantForJoinRequest(input: {
   note: string | null;
   accessProvisioningStatus: JoinRequestAccessProvisionResult['status'];
   linkedApplicantMemberId: string | null;
-}): Promise<{ sent: boolean; recipientMemberId: string | null }> {
+  traceId: string;
+}): Promise<ApplicantNotificationResult> {
   const eventId = `${input.requestId}_applicant`;
+  const referencePath = buildJoinRequestReferencePath(input.clanId, input.requestId);
   const eventRef = joinRequestNotificationEventsCollection.doc(eventId);
   const existing = await eventRef.get();
   if (existing.exists) {
-    const recipientMemberId = stringOrNull(existing.data()?.recipientMemberId);
-    return { sent: existing.data()?.sent === true, recipientMemberId };
+    const existingData = existing.data() ?? {};
+    return {
+      eventId,
+      sent: existingData.sent === true,
+      failed: existingData.failed === true,
+      errorCode: stringOrNull(existingData.errorCode),
+      recipientMemberId: stringOrNull(existingData.recipientMemberId),
+      referencePath: stringOrNull(existingData.referencePath) ?? referencePath,
+    };
   }
 
   let recipientMemberId = stringOrNull(input.joinRequest.applicantMemberId);
@@ -811,6 +975,8 @@ async function notifyApplicantForJoinRequest(input: {
   }
 
   let sent = false;
+  let failed = false;
+  let errorCode: string | null = null;
   if (recipientMemberId != null) {
     const approvedAndLinked = input.nextStatus === 'approved' &&
       input.accessProvisioningStatus === 'linked';
@@ -827,23 +993,43 @@ async function notifyApplicantForJoinRequest(input: {
         ? 'Your join request was approved and is waiting for membership linking.'
         : 'Your join request was not approved at this time.';
 
-    await notifyMembers({
-      clanId: input.clanId,
-      memberIds: [recipientMemberId],
-      type: 'join_request_reviewed',
-      title: input.nextStatus === 'approved' ? 'Join request approved' : 'Join request reviewed',
-      body,
-      target: 'generic',
-      targetId: input.requestId,
-      extraData: {
-        target: 'join_request',
+    try {
+      await notifyMembers({
+        clanId: input.clanId,
+        memberIds: [recipientMemberId],
+        type: 'join_request_reviewed',
+        title: input.nextStatus === 'approved' ? 'Join request approved' : 'Join request reviewed',
+        body,
+        target: 'generic',
+        targetId: input.requestId,
+        extraData: {
+          target: 'join_request',
+          joinRequestId: input.requestId,
+          status: input.nextStatus,
+          accessProvisioningStatus: input.accessProvisioningStatus,
+          referencePath,
+        },
+      });
+      sent = true;
+    } catch (error) {
+      failed = true;
+      errorCode = normalizeJoinRequestErrorCode(error);
+      logError('notifyApplicantForJoinRequest failed', {
+        traceId: input.traceId,
         joinRequestId: input.requestId,
-        status: input.nextStatus,
-        accessProvisioningStatus: input.accessProvisioningStatus,
-        referencePath: buildJoinRequestReferencePath(input.clanId, input.requestId),
-      },
+        clanId: input.clanId,
+        recipientMemberId,
+        errorCode,
+        error: normalizeJoinRequestErrorMessage(error),
+      });
+    }
+  } else {
+    logWarn('notifyApplicantForJoinRequest skipped due to missing recipient member', {
+      traceId: input.traceId,
+      joinRequestId: input.requestId,
+      clanId: input.clanId,
+      accessProvisioningStatus: input.accessProvisioningStatus,
     });
-    sent = true;
   }
 
   const outboundRef = joinRequestNotificationsCollection.doc();
@@ -858,8 +1044,11 @@ async function notifyApplicantForJoinRequest(input: {
     note: input.note,
     accessProvisioningStatus: input.accessProvisioningStatus,
     linkedApplicantMemberId: input.linkedApplicantMemberId,
+    traceId: input.traceId,
     sent,
-    referencePath: buildJoinRequestReferencePath(input.clanId, input.requestId),
+    failed,
+    errorCode,
+    referencePath,
     createdAt: FieldValue.serverTimestamp(),
   });
 
@@ -871,12 +1060,22 @@ async function notifyApplicantForJoinRequest(input: {
     recipientMemberId,
     accessProvisioningStatus: input.accessProvisioningStatus,
     linkedApplicantMemberId: input.linkedApplicantMemberId,
+    traceId: input.traceId,
     sent,
-    referencePath: buildJoinRequestReferencePath(input.clanId, input.requestId),
+    failed,
+    errorCode,
+    referencePath,
     createdAt: FieldValue.serverTimestamp(),
   });
 
-  return { sent, recipientMemberId };
+  return {
+    eventId,
+    sent,
+    failed,
+    errorCode,
+    recipientMemberId,
+    referencePath,
+  };
 }
 
 async function provisionApprovedJoinRequestAccess(input: {
@@ -1212,6 +1411,34 @@ function normalizeRole(value: string): string {
 
 function buildJoinRequestReferencePath(clanId: string, joinRequestId: string): string {
   return `/clans/${clanId}/join-requests/${joinRequestId}`;
+}
+
+function buildJoinRequestTraceId(action: string, entityId: string): string {
+  const safeAction = action.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_').slice(0, 32);
+  const safeEntityId = entityId.trim().replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 48);
+  return `${safeAction || 'join_request'}_${safeEntityId || 'unknown'}_${Date.now().toString(36)}`;
+}
+
+function normalizeJoinRequestErrorCode(error: unknown): string {
+  if (error == null || typeof error !== 'object') {
+    return 'unknown';
+  }
+  const codeCandidate = (error as { code?: unknown }).code;
+  if (typeof codeCandidate === 'string' && codeCandidate.trim().length > 0) {
+    return codeCandidate.trim();
+  }
+  const statusCandidate = (error as { status?: unknown }).status;
+  if (typeof statusCandidate === 'string' && statusCandidate.trim().length > 0) {
+    return statusCandidate.trim();
+  }
+  return 'unknown';
+}
+
+function normalizeJoinRequestErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message.trim().slice(0, 300);
+  }
+  return String(error ?? 'unknown').trim().slice(0, 300);
 }
 
 async function loadDiscoveryNamesByClanIds(clanIds: Array<string>): Promise<Map<string, string>> {
