@@ -1,20 +1,15 @@
-name: CI - Mobile E2E Android (PR)
+name: CI - Mobile E2E Android
 
 on:
-  pull_request:
+  push:
     branches:
-      - staging
-      - main
+      - "**"
     paths:
       - mobile/befam/**
       - firebase/functions/scripts/seed-debug-login-profiles.mjs
       - scripts/run_mobile_e2e.sh
       - .github/workflows/mobile-e2e.yml
       - .github/workflows/mobile-e2e-ios.yml
-  push:
-    branches:
-      - staging
-      - main
 
 permissions:
   contents: read
