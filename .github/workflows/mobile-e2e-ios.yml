@@ -23,6 +23,7 @@ jobs:
       E2E_PLATFORM: ios
       E2E_SUITE: smoke
       BEFAM_E2E_SKIP_GEN_L10N: "true"
+      BEFAM_E2E_OTP_PROVIDER: firebase
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5

@@ -206,6 +206,36 @@ jobs:
         working-directory: firebase/functions
         run: npm run build
 
+      - name: Write Functions runtime env file (staging)
+        working-directory: firebase/functions
+        env:
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+          OTP_ALLOWED_DIAL_CODES: ${{ vars.OTP_ALLOWED_DIAL_CODES }}
+          CALLABLE_ENFORCE_APP_CHECK: ${{ vars.CALLABLE_ENFORCE_APP_CHECK }}
+        run: |
+          set -euo pipefail
+          resolved_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
+          resolved_firestore_database_id="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          resolved_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          resolved_otp_allowed_dial_codes="${OTP_ALLOWED_DIAL_CODES:-84}"
+          resolved_callable_enforce_app_check="${CALLABLE_ENFORCE_APP_CHECK:-true}"
+          case "$resolved_callable_enforce_app_check" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported CALLABLE_ENFORCE_APP_CHECK: $resolved_callable_enforce_app_check"; exit 1 ;;
+          esac
+          env_file=".env.${FIREBASE_PROJECT_ID}"
+          cat > "$env_file" <<EOF
+          APP_REGION=${resolved_region}
+          FIRESTORE_DATABASE_ID=${resolved_firestore_database_id}
+          APP_TIMEZONE=${resolved_timezone}
+          CALLABLE_ENFORCE_APP_CHECK=${resolved_callable_enforce_app_check}
+          OTP_PROVIDER=firebase
+          OTP_ALLOWED_DIAL_CODES=${resolved_otp_allowed_dial_codes}
+          EOF
+          echo "Wrote staging runtime env file: firebase/functions/$env_file"
+
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@14.19.1
 
@@ -337,6 +367,7 @@ jobs:
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
           BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
           BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
@@ -345,7 +376,12 @@ jobs:
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          otp_provider="${BEFAM_OTP_PROVIDER:-firebase}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          if [ "$otp_provider" != "firebase" ]; then
+            echo "::error::Staging web builds must use BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
+            exit 1
+          fi
           ios_store_url="${BEFAM_IOS_APP_STORE_URL:-}"
           android_store_url="${BEFAM_ANDROID_PLAY_STORE_URL:-}"
           optional_store_defines=()
@@ -359,7 +395,7 @@ jobs:
             --release \
             --no-wasm-dry-run \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
-            --dart-define=BEFAM_OTP_PROVIDER=firebase \
+            --dart-define=BEFAM_OTP_PROVIDER="${otp_provider}" \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \

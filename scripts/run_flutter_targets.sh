@@ -458,9 +458,16 @@ prompt_with_default() {
 
 build_befam_dart_define_args() {
   local allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+  local otp_provider="${BEFAM_OTP_PROVIDER:-}"
+  if [[ -z "$otp_provider" && "$allow_bundled" == "true" ]]; then
+    otp_provider="firebase"
+  fi
   BEFAM_DART_DEFINE_ARGS=(
     "--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=${allow_bundled}"
   )
+  if [[ -n "$otp_provider" ]]; then
+    BEFAM_DART_DEFINE_ARGS+=("--dart-define=BEFAM_OTP_PROVIDER=${otp_provider}")
+  fi
 
   local firebase_define_keys=(
     BEFAM_FIREBASE_PROJECT_ID
@@ -481,7 +488,6 @@ build_befam_dart_define_args() {
     BEFAM_DEFAULT_TIMEZONE
     BEFAM_INVALID_CHECKOUT_HOSTS
     BEFAM_ENABLE_APP_CHECK
-    BEFAM_OTP_PROVIDER
     BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
     BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
     BEFAM_IOS_APP_STORE_URL

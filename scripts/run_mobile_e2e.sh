@@ -197,6 +197,8 @@ run_suite_on_device() {
   local tests=()
   local defines=(
     "--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true"
+    "--dart-define=BEFAM_OTP_PROVIDER=${BEFAM_E2E_OTP_PROVIDER:-firebase}"
+    "--dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false"
     "--dart-define=BEFAM_ENABLE_APP_CHECK=false"
   )
 

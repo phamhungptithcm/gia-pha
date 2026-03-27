@@ -560,6 +560,7 @@ jobs:
           BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
@@ -573,6 +574,11 @@ jobs:
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          if [ "$otp_provider" != "twilio" ]; then
+            echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
+            exit 1
+          fi
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -605,7 +611,7 @@ jobs:
             --build-name "${{ needs.prepare-release.outputs.version }}" \
             --build-number "${{ needs.prepare-release.outputs.build_number }}" \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
-            --dart-define=BEFAM_OTP_PROVIDER=twilio \
+            --dart-define=BEFAM_OTP_PROVIDER="${otp_provider}" \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
@@ -735,6 +741,7 @@ jobs:
           BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
@@ -746,6 +753,11 @@ jobs:
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          if [ "$otp_provider" != "twilio" ]; then
+            echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
+            exit 1
+          fi
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -810,7 +822,7 @@ jobs:
             --build-number "${{ needs.prepare-release.outputs.build_number }}" \
             --export-options-plist="${export_options_plist}" \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
-            --dart-define=BEFAM_OTP_PROVIDER=twilio \
+            --dart-define=BEFAM_OTP_PROVIDER="${otp_provider}" \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
@@ -887,6 +899,7 @@ jobs:
           BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
@@ -896,6 +909,11 @@ jobs:
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          if [ "$otp_provider" != "twilio" ]; then
+            echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
+            exit 1
+          fi
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -927,7 +945,7 @@ jobs:
             --release \
             --no-wasm-dry-run \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
-            --dart-define=BEFAM_OTP_PROVIDER=twilio \
+            --dart-define=BEFAM_OTP_PROVIDER="${otp_provider}" \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \

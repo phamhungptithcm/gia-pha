@@ -233,7 +233,16 @@ if [[ "$missing" -ne 0 ]]; then
   exit 1
 fi
 
-otp_provider="${OTP_PROVIDER:-firebase}"
+otp_provider="${OTP_PROVIDER:-twilio}"
+befam_otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+if [[ "$otp_provider" != "twilio" ]]; then
+  echo "OTP_PROVIDER must be twilio for production setup." >&2
+  missing=1
+fi
+if [[ "$befam_otp_provider" != "twilio" ]]; then
+  echo "BEFAM_OTP_PROVIDER must be twilio for production setup." >&2
+  missing=1
+fi
 if [[ "$otp_provider" == "twilio" ]]; then
   for key in OTP_TWILIO_ACCOUNT_SID OTP_TWILIO_AUTH_TOKEN OTP_TWILIO_VERIFY_SERVICE_SID; do
     if ! require_non_empty_env "$key"; then
@@ -245,6 +254,10 @@ if [[ "$missing" -ne 0 ]]; then
   echo "Abort: Twilio OTP is enabled but Twilio credentials are incomplete." >&2
   exit 1
 fi
+
+: "${OTP_PROVIDER:=twilio}"
+: "${BEFAM_OTP_PROVIDER:=twilio}"
+: "${BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK:=false}"
 
 echo "Applying GitHub environment configuration:"
 echo "  repo: $REPO"
