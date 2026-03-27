@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto';
 
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import {
+  FieldValue,
+  Timestamp,
+  type DocumentReference,
+  type DocumentData,
+} from 'firebase-admin/firestore';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import {
@@ -34,6 +40,12 @@ type EventRecord = {
   startsAt?: unknown;
   status?: string | null;
   visibility?: string | null;
+  nextReminderAt?: unknown;
+  nextReminderOffsetMinutes?: unknown;
+  nextReminderOccurrenceStartsAt?: unknown;
+  reminderCursorVersion?: unknown;
+  reminderCursorUpdatedAt?: unknown;
+  reminderCursorSource?: string | null;
 };
 
 type EventReminderRunInput = {
@@ -53,8 +65,15 @@ type EventReminderRunResult = {
   truncatedRecurringQuery: boolean;
 };
 
+type ReminderPointer = {
+  reminderAt: Date;
+  offsetMinutes: number;
+  occurrenceStartsAt: Date;
+};
+
 const eventsCollection = db.collection('events');
 const eventReminderDispatchesCollection = db.collection('eventReminderDispatches');
+const EVENT_REMINDER_CURSOR_VERSION = 1;
 const reminderDateTimeFormatterEn = new Intl.DateTimeFormat('en-GB', {
   dateStyle: 'short',
   timeStyle: 'short',
@@ -150,12 +169,39 @@ export const sendEventReminder = onSchedule(
     schedule: EVENT_REMINDER_JOB_SCHEDULE,
     region: APP_REGION,
     timeZone: APP_TIMEZONE,
+    maxInstances: 1,
   },
   async () => {
     const result = await sendEventReminderRun({
       source: 'function:sendEventReminder',
     });
     logInfo('sendEventReminder tick', result);
+  },
+);
+
+export const syncEventReminderCursor = onDocumentWritten(
+  {
+    document: 'events/{eventId}',
+    region: APP_REGION,
+    maxInstances: 1,
+  },
+  async (event) => {
+    const snapshot = event.data?.after;
+    if (!snapshot?.exists) {
+      return;
+    }
+    const data = snapshot.data() as EventRecord;
+    const now = new Date();
+    const reminderWindowStart = new Date(
+      now.getTime() - (Math.max(5, EVENT_REMINDER_GRACE_MINUTES) * 60 * 1000),
+    );
+    await syncReminderCursorForEvent({
+      eventId: snapshot.id,
+      eventRef: snapshot.ref,
+      data,
+      baseline: reminderWindowStart,
+      source: 'trigger:syncEventReminderCursor',
+    });
   },
 );
 
@@ -170,23 +216,30 @@ export async function sendEventReminderRun(
     now.getTime() + (Math.max(60, EVENT_REMINDER_LOOKAHEAD_MINUTES) * 60 * 1000),
   );
   const safeScanLimit = Math.max(100, EVENT_REMINDER_SCAN_LIMIT);
+  const cursorBackfillLimit = Math.min(300, safeScanLimit);
 
-  const [upcomingSnapshot, recurringSnapshot] = await Promise.all([
+  const [dueSnapshot, cursorBackfillSnapshot] = await Promise.all([
     eventsCollection
-      .where('startsAt', '>=', Timestamp.fromDate(reminderWindowStart))
-      .where('startsAt', '<=', Timestamp.fromDate(lookAheadEnd))
-      .orderBy('startsAt', 'asc')
+      .where('nextReminderAt', '>=', Timestamp.fromDate(reminderWindowStart))
+      .where('nextReminderAt', '<=', Timestamp.fromDate(now))
+      .orderBy('nextReminderAt', 'asc')
       .limit(safeScanLimit)
       .get(),
     eventsCollection
-      .where('isRecurring', '==', true)
-      .limit(safeScanLimit)
+      .where('reminderCursorVersion', '==', null)
+      .limit(cursorBackfillLimit)
       .get(),
   ]);
 
-  const eventDocsById = new Map<string, EventRecord>();
-  for (const doc of [...upcomingSnapshot.docs, ...recurringSnapshot.docs]) {
-    eventDocsById.set(doc.id, doc.data() as EventRecord);
+  const eventDocsById = new Map<string, {
+    data: EventRecord;
+    ref: DocumentReference<DocumentData>;
+  }>();
+  for (const doc of [...dueSnapshot.docs, ...cursorBackfillSnapshot.docs]) {
+    eventDocsById.set(doc.id, {
+      data: doc.data() as EventRecord,
+      ref: doc.ref,
+    });
   }
 
   let candidates = 0;
@@ -196,8 +249,16 @@ export async function sendEventReminderRun(
   let skippedDeduplicated = 0;
   let skippedInvalidEvent = 0;
 
-  for (const [eventId, data] of eventDocsById.entries()) {
+  for (const [eventId, entry] of eventDocsById.entries()) {
+    const data = entry.data;
     if (!isEventStatusEligible(data.status)) {
+      await syncReminderCursorForEvent({
+        eventId,
+        eventRef: entry.ref,
+        data,
+        baseline: now,
+        source: input.source,
+      });
       continue;
     }
 
@@ -215,33 +276,30 @@ export async function sendEventReminderRun(
 
     const reminderOffsets = normalizeReminderOffsets(data.reminderOffsetsMinutes);
     if (reminderOffsets.length === 0) {
+      await syncReminderCursorForEvent({
+        eventId,
+        eventRef: entry.ref,
+        data,
+        baseline: now,
+        source: input.source,
+      });
       continue;
     }
     candidates += 1;
 
-    const occurrenceStartsAt = resolveReminderOccurrenceStart({
+    const dueReminders = resolveDueRemindersForWindow({
       startsAt,
       recurrenceRule: data.recurrenceRule,
       isRecurring: data.isRecurring === true,
+      offsets: reminderOffsets,
+      windowStart: reminderWindowStart,
       now,
-    });
-    if (occurrenceStartsAt == null) {
-      continue;
-    }
-    if (occurrenceStartsAt.getTime() > lookAheadEnd.getTime()) {
-      continue;
-    }
+    }).filter((reminder) => reminder.occurrenceStartsAt.getTime() <= lookAheadEnd.getTime());
 
-    for (const offsetMinutes of reminderOffsets) {
-      const reminderAt = new Date(
-        occurrenceStartsAt.getTime() - (offsetMinutes * 60 * 1000),
-      );
-      if (
-        reminderAt.getTime() > now.getTime() ||
-        reminderAt.getTime() < reminderWindowStart.getTime()
-      ) {
-        continue;
-      }
+    for (const reminder of dueReminders) {
+      const offsetMinutes = reminder.offsetMinutes;
+      const reminderAt = reminder.reminderAt;
+      const occurrenceStartsAt = reminder.occurrenceStartsAt;
       remindersDue += 1;
 
       const reminderDispatchId = buildReminderDispatchId({
@@ -331,6 +389,14 @@ export async function sendEventReminderRun(
         await dispatchRef.delete().catch(() => undefined);
       }
     }
+
+    await syncReminderCursorForEvent({
+      eventId,
+      eventRef: entry.ref,
+      data,
+      baseline: now,
+      source: input.source,
+    });
   }
 
   return {
@@ -341,25 +407,163 @@ export async function sendEventReminderRun(
     skippedNoAudience,
     skippedDeduplicated,
     skippedInvalidEvent,
-    truncatedUpcomingQuery: upcomingSnapshot.size >= safeScanLimit,
-    truncatedRecurringQuery: recurringSnapshot.size >= safeScanLimit,
+    truncatedUpcomingQuery: dueSnapshot.size >= safeScanLimit,
+    truncatedRecurringQuery: cursorBackfillSnapshot.size >= cursorBackfillLimit,
   };
 }
 
-function resolveReminderOccurrenceStart(input: {
+async function syncReminderCursorForEvent(input: {
+  eventId: string;
+  eventRef: DocumentReference<DocumentData>;
+  data: EventRecord;
+  baseline: Date;
+  source: string;
+}): Promise<void> {
+  const startsAt = toDate(input.data.startsAt);
+  const reminderOffsets = normalizeReminderOffsets(input.data.reminderOffsetsMinutes);
+  const pointer = resolveNextReminderPointer({
+    startsAt,
+    recurrenceRule: input.data.recurrenceRule,
+    isRecurring: input.data.isRecurring === true,
+    offsets: reminderOffsets,
+    baseline: input.baseline,
+  });
+
+  const currentPointer = resolveCurrentReminderPointer(input.data);
+  const currentVersion = parseInteger(input.data.reminderCursorVersion);
+  if (
+    currentVersion === EVENT_REMINDER_CURSOR_VERSION &&
+    pointersEqual(currentPointer, pointer)
+  ) {
+    return;
+  }
+
+  await input.eventRef.set({
+    nextReminderAt: pointer == null ? null : Timestamp.fromDate(pointer.reminderAt),
+    nextReminderOffsetMinutes: pointer?.offsetMinutes ?? null,
+    nextReminderOccurrenceStartsAt:
+      pointer == null ? null : Timestamp.fromDate(pointer.occurrenceStartsAt),
+    reminderCursorVersion: EVENT_REMINDER_CURSOR_VERSION,
+    reminderCursorUpdatedAt: FieldValue.serverTimestamp(),
+    reminderCursorSource: input.source,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+function resolveDueRemindersForWindow(input: {
   startsAt: Date;
   recurrenceRule: string | null | undefined;
   isRecurring: boolean;
+  offsets: Array<number>;
+  windowStart: Date;
   now: Date;
-}): Date | null {
-  const isYearlyRecurring = input.isRecurring &&
-    normalizeString(input.recurrenceRule).toUpperCase().includes('FREQ=YEARLY');
-  if (!isYearlyRecurring) {
-    return input.startsAt;
+}): Array<ReminderPointer> {
+  const occurrenceStartsAt = resolveReminderOccurrenceStart({
+    startsAt: input.startsAt,
+    recurrenceRule: input.recurrenceRule,
+    isRecurring: input.isRecurring,
+    now: input.now,
+  });
+  if (occurrenceStartsAt == null) {
+    return [];
   }
 
-  const startsAt = input.startsAt;
-  const now = input.now;
+  const due: Array<ReminderPointer> = [];
+  for (const offsetMinutes of input.offsets) {
+    const reminderAt = new Date(
+      occurrenceStartsAt.getTime() - (offsetMinutes * 60 * 1000),
+    );
+    if (
+      reminderAt.getTime() < input.windowStart.getTime() ||
+      reminderAt.getTime() > input.now.getTime()
+    ) {
+      continue;
+    }
+    due.push({
+      reminderAt,
+      offsetMinutes,
+      occurrenceStartsAt,
+    });
+  }
+  due.sort((left, right) => left.reminderAt.getTime() - right.reminderAt.getTime());
+  return due;
+}
+
+function resolveNextReminderPointer(input: {
+  startsAt: Date | null;
+  recurrenceRule: string | null | undefined;
+  isRecurring: boolean;
+  offsets: Array<number>;
+  baseline: Date;
+}): ReminderPointer | null {
+  if (input.startsAt == null || input.offsets.length === 0) {
+    return null;
+  }
+  if (!input.isRecurring) {
+    return resolveNextPointerForOccurrence(
+      input.startsAt,
+      input.offsets,
+      input.baseline,
+    );
+  }
+
+  const recurrenceRule = normalizeString(input.recurrenceRule).toUpperCase();
+  if (!recurrenceRule.includes('FREQ=YEARLY')) {
+    return resolveNextPointerForOccurrence(
+      input.startsAt,
+      input.offsets,
+      input.baseline,
+    );
+  }
+
+  const maxOffsetMinutes = Math.max(...input.offsets);
+  const shiftedBaseline = new Date(
+    input.baseline.getTime() + (maxOffsetMinutes * 60 * 1000),
+  );
+  let candidateOccurrence = resolveYearlyOccurrenceAtOrAfter(
+    input.startsAt,
+    shiftedBaseline,
+  );
+
+  for (let index = 0; index < 3; index += 1) {
+    const pointer = resolveNextPointerForOccurrence(
+      candidateOccurrence,
+      input.offsets,
+      input.baseline,
+    );
+    if (pointer != null) {
+      return pointer;
+    }
+    candidateOccurrence = addYearsSafely(candidateOccurrence, 1);
+  }
+  return null;
+}
+
+function resolveNextPointerForOccurrence(
+  occurrenceStartsAt: Date,
+  offsets: Array<number>,
+  baseline: Date,
+): ReminderPointer | null {
+  let pointer: ReminderPointer | null = null;
+  for (const offsetMinutes of offsets) {
+    const reminderAt = new Date(
+      occurrenceStartsAt.getTime() - (offsetMinutes * 60 * 1000),
+    );
+    if (reminderAt.getTime() < baseline.getTime()) {
+      continue;
+    }
+    if (pointer == null || reminderAt.getTime() < pointer.reminderAt.getTime()) {
+      pointer = {
+        reminderAt,
+        offsetMinutes,
+        occurrenceStartsAt,
+      };
+    }
+  }
+  return pointer;
+}
+
+function resolveYearlyOccurrenceAtOrAfter(startsAt: Date, now: Date): Date {
   const candidate = new Date(Date.UTC(
     now.getUTCFullYear(),
     startsAt.getUTCMonth(),
@@ -373,6 +577,69 @@ function resolveReminderOccurrenceStart(input: {
     candidate.setUTCFullYear(candidate.getUTCFullYear() + 1);
   }
   return candidate;
+}
+
+function addYearsSafely(value: Date, years: number): Date {
+  const candidate = new Date(value.getTime());
+  candidate.setUTCFullYear(candidate.getUTCFullYear() + years);
+  return candidate;
+}
+
+function resolveCurrentReminderPointer(data: EventRecord): ReminderPointer | null {
+  const reminderAt = toDate(data.nextReminderAt);
+  if (reminderAt == null) {
+    return null;
+  }
+  const occurrenceStartsAt = toDate(data.nextReminderOccurrenceStartsAt);
+  if (occurrenceStartsAt == null) {
+    return null;
+  }
+  const offsetMinutes = parseInteger(data.nextReminderOffsetMinutes);
+  if (offsetMinutes == null || offsetMinutes <= 0) {
+    return null;
+  }
+  return {
+    reminderAt,
+    offsetMinutes,
+    occurrenceStartsAt,
+  };
+}
+
+function pointersEqual(
+  left: ReminderPointer | null,
+  right: ReminderPointer | null,
+): boolean {
+  if (left == null || right == null) {
+    return left == null && right == null;
+  }
+  return left.offsetMinutes === right.offsetMinutes &&
+    left.reminderAt.getTime() === right.reminderAt.getTime() &&
+    left.occurrenceStartsAt.getTime() === right.occurrenceStartsAt.getTime();
+}
+
+function parseInteger(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value.trim(), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function resolveReminderOccurrenceStart(input: {
+  startsAt: Date;
+  recurrenceRule: string | null | undefined;
+  isRecurring: boolean;
+  now: Date;
+}): Date | null {
+  const isYearlyRecurring = input.isRecurring &&
+    normalizeString(input.recurrenceRule).toUpperCase().includes('FREQ=YEARLY');
+  if (!isYearlyRecurring) {
+    return input.startsAt;
+  }
+  return resolveYearlyOccurrenceAtOrAfter(input.startsAt, input.now);
 }
 
 function isEventStatusEligible(value: string | null | undefined): boolean {
@@ -556,5 +823,8 @@ function toDate(value: unknown): Date | null {
 export const __testOnly = {
   normalizeReminderOffsets,
   resolveReminderOccurrenceStart,
+  resolveDueRemindersForWindow,
+  resolveNextReminderPointer,
+  resolveYearlyOccurrenceAtOrAfter,
   buildReminderDispatchId,
 };

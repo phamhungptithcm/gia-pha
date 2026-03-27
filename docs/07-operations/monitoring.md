@@ -1,6 +1,6 @@
 # Monitoring
 
-_Last reviewed: March 15, 2026_
+_Last reviewed: March 26, 2026_
 
 ## Application monitoring
 
@@ -35,6 +35,8 @@ Operational notes:
 - Cloud Functions use structured logging helpers in `shared/logger.ts`
 - trigger/callable logs include ids and clan context where available
 - push delivery reports sent/failed/invalid token counts
+- join-request callables emit `traceId` and notification-delivery status fields
+  (`reviewerNotification*`, `applicantNotification*`) for easier triage
 
 Billing monitoring (Epic #213):
 
@@ -54,6 +56,13 @@ Required checks for protected branches:
 
 These checks validate docs build, functions compile, Flutter analyze/test, and
 release-image build viability.
+
+Quality gate additions:
+
+- Functions dead-code gate via `tsc --noUnusedLocals --noUnusedParameters`
+- Mobile strict static-analysis gate via
+  `dart analyze --fatal-infos --fatal-warnings`
+- Mobile coverage gate via `flutter test --coverage` + threshold check
 
 ## Runbook basics
 

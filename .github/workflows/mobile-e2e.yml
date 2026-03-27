@@ -1,0 +1,94 @@
+name: CI - Mobile E2E Android (PR)
+
+on:
+  pull_request:
+    branches:
+      - staging
+      - main
+    paths:
+      - mobile/befam/**
+      - firebase/functions/scripts/seed-debug-login-profiles.mjs
+      - scripts/run_mobile_e2e.sh
+      - .github/workflows/mobile-e2e.yml
+      - .github/workflows/mobile-e2e-ios.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-e2e-android-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-android:
+    name: E2E - Android Test Run
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      E2E_MODE: debug
+      E2E_PLATFORM: android
+      E2E_SUITE: smoke
+      BEFAM_E2E_SKIP_GEN_L10N: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Enable KVM acceleration
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm",GROUP="kvm",MODE="0666",OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache Android Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-e2e-gradle-${{ hashFiles('mobile/befam/android/**/*.gradle*', 'mobile/befam/android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-gradle-
+
+      - name: Run Android E2E
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 900
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -no-metrics
+          disable-animations: true
+          script: |
+            set -eu
+            adb start-server
+            adb wait-for-device
+            adb devices
+            chmod +x scripts/run_mobile_e2e.sh
+            bash -lc 'set +e; if [ "$E2E_SUITE" = "smoke" ]; then max_minutes=20; else max_minutes=30; fi; timeout "${max_minutes}m" ./scripts/run_mobile_e2e.sh "$E2E_MODE" android "$E2E_SUITE"; exit_code=$?; if [ "$exit_code" -eq 124 ]; then echo "::error::Android E2E timed out after ${max_minutes} minutes (suite=$E2E_SUITE)."; fi; exit "$exit_code"'
+
+      - name: Upload Android E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-e2e-android-${{ github.run_id }}
+          path: |
+            mobile/befam/artifacts/**
+            mobile/befam/integration_test/screenshots/**
+          if-no-files-found: ignore

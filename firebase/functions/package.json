@@ -8,10 +8,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf lib",
+    "config:subscription-packages:check": "node scripts/sync-subscription-packages.mjs --check-only",
+    "config:subscription-packages:sync": "node scripts/sync-subscription-packages.mjs --apply",
     "lint": "tsc --noEmit",
     "purge:billing-owner-column": "node scripts/purge-billing-owner-column.mjs",
     "purge:debug-auth-columns": "node scripts/purge-debug-auth-columns.mjs",
     "seed:demo": "node scripts/seed-demo-data.mjs",
+    "seed:debug-profiles": "node scripts/seed-debug-login-profiles.mjs",
+    "validate:debug-profiles": "node scripts/seed-debug-login-profiles.mjs --validate-only",
     "test": "npm run build && node --test lib/contract-tests/*.contract.test.js",
     "test:rules:emulator": "node --test lib/rules-tests/*.rules.test.js",
     "test:rules": "npm run build && firebase emulators:exec --project demo-befam-rules --only firestore,storage \"npm run test:rules:emulator\""
@@ -28,5 +32,8 @@
     "@types/node": "^20.19.37",
     "firebase": "^12.11.0",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.5.6"
   }
 }

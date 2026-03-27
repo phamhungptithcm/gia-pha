@@ -1,4 +1,4 @@
-name: Release Issue Closure
+name: Ops - Close Released Issues
 
 on:
   pull_request:
@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   close-released-work:
+    name: Close Released Stories and Epics
     if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,117 @@
+name: CD - Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to rollback to (example: v1.4.2)"
+        required: true
+        type: string
+      deploy_target:
+        description: "Rollback scope"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - firebase
+          - web
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: rollback-production
+  cancel-in-progress: false
+
+jobs:
+  rollback-production:
+    name: Rollback Production to Selected Release Tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+    steps:
+      - name: Checkout selected release tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Validate production OIDC configuration
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$GCP_WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$GCP_SERVICE_ACCOUNT_EMAIL"
+          test -n "$FIREBASE_PROJECT_ID"
+          if [ "$FIREBASE_PROJECT_ID" = "be-fam-3ab23" ]; then
+            echo "::error::Production rollback must not target staging Firebase project be-fam-3ab23."
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Export Firebase project env
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-}"
+          test -n "$project"
+          echo "GOOGLE_CLOUD_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$project" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Download web bundle asset for selected release
+        if: ${{ inputs.deploy_target == 'all' || inputs.deploy_target == 'web' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/web-release
+          gh release download "${{ inputs.release_tag }}" \
+            --pattern "befam-*-web-release.tar.gz" \
+            --dir dist/web-release
+          bundle_path="$(ls dist/web-release/befam-*-web-release.tar.gz | head -n1)"
+          mkdir -p mobile/befam/build/web
+          tar -xzf "$bundle_path" -C mobile/befam/build/web
+
+      - name: Rollback Firebase resources
+        if: ${{ inputs.deploy_target == 'all' || inputs.deploy_target == 'firebase' }}
+        run: >
+          firebase deploy
+          --project "${{ vars.FIREBASE_PROJECT_ID }}"
+          --non-interactive
+          --only firestore:rules,firestore:indexes,storage,functions
+
+      - name: Rollback Firebase Hosting
+        if: ${{ inputs.deploy_target == 'all' || inputs.deploy_target == 'web' }}
+        env:
+          FIREBASE_HOSTING_TARGET: ${{ vars.FIREBASE_HOSTING_TARGET }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID}"
+          target="${FIREBASE_HOSTING_TARGET:-}"
+          if [ -n "$target" ]; then
+            firebase deploy --project "$project" --non-interactive --only "hosting:${target}"
+          else
+            firebase deploy --project "$project" --non-interactive --only hosting
+          fi

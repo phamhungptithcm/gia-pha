@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+enum OtpProvider { firebase, twilio }
+
 class AppEnvironment {
   const AppEnvironment._();
 
@@ -111,6 +113,21 @@ class AppEnvironment {
         defaultValue: false,
       );
 
+  static const String otpProviderRaw = String.fromEnvironment(
+    'BEFAM_OTP_PROVIDER',
+    defaultValue: 'twilio',
+  );
+
+  static OtpProvider get otpProvider {
+    final normalized = otpProviderRaw.trim().toLowerCase();
+    if (normalized == 'firebase') {
+      return OtpProvider.firebase;
+    }
+    return OtpProvider.twilio;
+  }
+
+  static bool get useFirebaseOtp => otpProvider == OtpProvider.firebase;
+
   static const String appCheckWebRecaptchaSiteKey = String.fromEnvironment(
     'BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY',
     defaultValue: '',
@@ -119,5 +136,15 @@ class AppEnvironment {
   static const int billingPendingTimeoutMinutes = int.fromEnvironment(
     'BEFAM_BILLING_PENDING_TIMEOUT_MINUTES',
     defaultValue: 20,
+  );
+
+  static const String iosAppStoreUrl = String.fromEnvironment(
+    'BEFAM_IOS_APP_STORE_URL',
+    defaultValue: '',
+  );
+
+  static const String androidPlayStoreUrl = String.fromEnvironment(
+    'BEFAM_ANDROID_PLAY_STORE_URL',
+    defaultValue: '',
   );
 }

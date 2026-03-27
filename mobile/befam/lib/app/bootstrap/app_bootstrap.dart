@@ -7,6 +7,7 @@ import '../../core/services/app_environment.dart';
 import '../../core/services/crash_reporting_service.dart';
 import '../../core/services/firebase_services.dart';
 import '../../core/services/performance_measurement_logger.dart';
+import '../../features/ads/services/ad_controller.dart';
 import '../../firebase_options.dart';
 import 'firebase_setup_status.dart';
 
@@ -39,6 +40,7 @@ class AppBootstrap {
           final options = _resolveFirebaseOptions();
           await Firebase.initializeApp(options: options);
           await _activateAppCheck();
+          await AdController.initializeSdk();
 
           final crashReportingService = await CrashReportingService.create(
             enableCrashlytics: kReleaseMode,

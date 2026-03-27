@@ -8,6 +8,7 @@ type TransactionRecord = {
   fundId?: string | null;
   transactionType?: string | null;
   amountMinor?: number | null;
+  balanceApplied?: boolean | null;
 };
 
 type FundRecord = {
@@ -26,18 +27,27 @@ type RecalculationResult = {
   reason?: string;
   clanId?: string;
   fundId?: string;
-  transactionCount?: number;
-  previousBalanceMinor?: number;
-  recomputedBalanceMinor?: number;
+  deltaMinor?: number;
 };
 
+/**
+ * Applies an incremental balance update for a single new transaction.
+ * Uses FieldValue.increment to avoid reading the full transaction ledger —
+ * O(1) reads+writes regardless of fund history size.
+ *
+ * Use fullRecalculateFundBalance() for admin reconciliation only.
+ */
 export async function recalculateFundBalanceFromTransaction(
   input: RecalculationInput,
 ): Promise<RecalculationResult> {
+  if (input.transaction.balanceApplied === true) {
+    return { recalculated: false, reason: 'already_applied' };
+  }
+
   const clanId = normalizeId(input.transaction.clanId);
   const fundId = normalizeId(input.transaction.fundId);
   if (clanId == null || fundId == null) {
-    logWarn('fund balance recalculation skipped due to malformed transaction', {
+    logWarn('fund balance update skipped due to malformed transaction', {
       source: input.source,
       transactionId: input.transactionId,
       clanId: input.transaction.clanId ?? null,
@@ -46,30 +56,120 @@ export async function recalculateFundBalanceFromTransaction(
     return { recalculated: false, reason: 'malformed_transaction' };
   }
 
-  const fundRef = db.collection('funds').doc(fundId);
-  const fundSnapshot = await fundRef.get();
-  if (!fundSnapshot.exists) {
-    logWarn('fund balance recalculation skipped because fund is missing', {
+  const delta = deriveTransactionDeltaMinor(input.transaction);
+  if (delta == null) {
+    logWarn('fund balance update skipped due to unsupported transaction type', {
       source: input.source,
       transactionId: input.transactionId,
+      transactionType: input.transaction.transactionType ?? null,
       fundId,
       clanId,
     });
-    return { recalculated: false, reason: 'fund_not_found', clanId, fundId };
+    return { recalculated: false, reason: 'unsupported_transaction_type', clanId, fundId };
+  }
+
+  const fundRef = db.collection('funds').doc(fundId);
+  const transactionRef = db.collection('transactions').doc(input.transactionId);
+  const result = await db.runTransaction(async (transaction) => {
+    const [fundSnapshot, transactionSnapshot] = await Promise.all([
+      transaction.get(fundRef),
+      transaction.get(transactionRef),
+    ]);
+    if (!fundSnapshot.exists) {
+      return { recalculated: false, reason: 'fund_not_found' as const };
+    }
+    if (!transactionSnapshot.exists) {
+      return { recalculated: false, reason: 'transaction_not_found' as const };
+    }
+
+    const currentTransaction = (transactionSnapshot.data() ?? {}) as TransactionRecord;
+    if (currentTransaction.balanceApplied === true) {
+      return { recalculated: false, reason: 'already_applied' as const };
+    }
+
+    const fund = (fundSnapshot.data() ?? {}) as FundRecord;
+    const fundClanId = normalizeId(fund.clanId);
+    if (fundClanId != null && fundClanId !== clanId) {
+      return { recalculated: false, reason: 'clan_mismatch' as const };
+    }
+
+    transaction.set(
+      fundRef,
+      {
+        balanceMinor: FieldValue.increment(delta),
+        transactionCount: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: input.source,
+        lastRecalculatedAt: FieldValue.serverTimestamp(),
+        lastRecalculatedBy: input.source,
+      },
+      { merge: true },
+    );
+    transaction.set(
+      transactionRef,
+      {
+        balanceApplied: true,
+        balanceAppliedAt: FieldValue.serverTimestamp(),
+        balanceAppliedBy: input.source,
+      },
+      { merge: true },
+    );
+
+    return { recalculated: true as const };
+  });
+  if (!result.recalculated) {
+    if (result.reason === 'fund_not_found') {
+      logWarn('fund balance update skipped because fund is missing', {
+        source: input.source,
+        transactionId: input.transactionId,
+        fundId,
+        clanId,
+      });
+    } else if (result.reason === 'clan_mismatch') {
+      logWarn('fund balance update skipped due to clan mismatch', {
+        source: input.source,
+        transactionId: input.transactionId,
+        transactionClanId: clanId,
+        fundId,
+      });
+    } else if (result.reason === 'transaction_not_found') {
+      logWarn('fund balance update skipped because transaction is missing', {
+        source: input.source,
+        transactionId: input.transactionId,
+        fundId,
+        clanId,
+      });
+    }
+    return { recalculated: false, reason: result.reason, clanId, fundId };
+  }
+
+  logInfo('fund balance incremented', {
+    source: input.source,
+    transactionId: input.transactionId,
+    clanId,
+    fundId,
+    deltaMinor: delta,
+  });
+
+  return { recalculated: true, clanId, fundId, deltaMinor: delta };
+}
+
+/**
+ * Full ledger recompute for admin reconciliation only. Never call from triggers.
+ * Reads every transaction for the fund — cost grows with history size.
+ */
+export async function fullRecalculateFundBalance(
+  fundId: string,
+  source: string,
+): Promise<{ recalculated: boolean; reason?: string; transactionCount?: number; recomputedBalanceMinor?: number }> {
+  const fundRef = db.collection('funds').doc(fundId);
+  const fundSnapshot = await fundRef.get();
+  if (!fundSnapshot.exists) {
+    return { recalculated: false, reason: 'fund_not_found' };
   }
 
   const fund = (fundSnapshot.data() ?? {}) as FundRecord;
-  const fundClanId = normalizeId(fund.clanId);
-  if (fundClanId != null && fundClanId !== clanId) {
-    logWarn('fund balance recalculation skipped due to clan mismatch', {
-      source: input.source,
-      transactionId: input.transactionId,
-      transactionClanId: clanId,
-      fundClanId,
-      fundId,
-    });
-    return { recalculated: false, reason: 'clan_mismatch', clanId, fundId };
-  }
+  const clanId = normalizeId(fund.clanId);
 
   const transactionSnapshot = await db
     .collection('transactions')
@@ -77,42 +177,23 @@ export async function recalculateFundBalanceFromTransaction(
     .get();
   const ledger = transactionSnapshot.docs
     .map((doc) => doc.data() as TransactionRecord)
-    .filter(
-      (entry) => normalizeId(entry.clanId) == null || normalizeId(entry.clanId) === clanId,
-    );
+    .filter((entry) => normalizeId(entry.clanId) == null || normalizeId(entry.clanId) === clanId);
 
   const recomputedBalanceMinor = computeFundBalanceMinor(ledger);
-  const previousBalanceMinor = normalizeAmount(fund.balanceMinor);
   await fundRef.set(
     {
       balanceMinor: recomputedBalanceMinor,
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: input.source,
-      lastRecalculatedAt: FieldValue.serverTimestamp(),
-      lastRecalculatedBy: input.source,
       transactionCount: ledger.length,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: source,
+      lastRecalculatedAt: FieldValue.serverTimestamp(),
+      lastRecalculatedBy: source,
     },
     { merge: true },
   );
 
-  logInfo('fund balance recalculated', {
-    source: input.source,
-    transactionId: input.transactionId,
-    clanId,
-    fundId,
-    transactionCount: ledger.length,
-    previousBalanceMinor,
-    recomputedBalanceMinor,
-  });
-
-  return {
-    recalculated: true,
-    clanId,
-    fundId,
-    transactionCount: ledger.length,
-    previousBalanceMinor,
-    recomputedBalanceMinor,
-  };
+  logInfo('fund balance fully recomputed', { source, fundId, transactionCount: ledger.length, recomputedBalanceMinor });
+  return { recalculated: true, transactionCount: ledger.length, recomputedBalanceMinor };
 }
 
 export function computeFundBalanceMinor(

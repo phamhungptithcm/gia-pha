@@ -5,9 +5,11 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/services/inflight_task_cache.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/achievement_submission.dart';
 import '../models/achievement_submission_draft.dart';
@@ -21,17 +23,26 @@ import '../models/scholarship_workspace_snapshot.dart';
 import 'scholarship_repository.dart';
 
 class FirebaseScholarshipRepository implements ScholarshipRepository {
+  static const int _workspacePageSize = 200;
+
   FirebaseScholarshipRepository({
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
     FirebaseFunctions? functions,
+    FirestorePagedQueryLoader? pagedQueryLoader,
   }) : _firestore = firestore ?? FirebaseServices.firestore,
        _storage = storage ?? FirebaseServices.storage,
-       _functions = functions ?? FirebaseServices.functions;
+       _functions = functions ?? FirebaseServices.functions,
+       _pagedQueryLoader =
+           pagedQueryLoader ?? const FirestorePagedQueryLoader();
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
   final FirebaseFunctions _functions;
+  final FirestorePagedQueryLoader _pagedQueryLoader;
+  final InflightTaskCache<String, ScholarshipWorkspaceSnapshot>
+  _workspaceLoadCache =
+      InflightTaskCache<String, ScholarshipWorkspaceSnapshot>();
 
   CollectionReference<Map<String, dynamic>> get _programs =>
       _firestore.collection('scholarshipPrograms');
@@ -74,105 +85,111 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
         councilHeadMemberIds: [],
       );
     }
-
-    final canReadClanWideSubmissions =
-        GovernanceRoleMatrix.canManageScholarshipPrograms(session) ||
-        GovernanceRoleMatrix.canVoteScholarship(session);
-    final memberId = session.memberId?.trim() ?? '';
-    Query<Map<String, dynamic>> submissionsQuery = _submissions.where(
-      'clanId',
-      isEqualTo: clanId,
-    );
-    if (!canReadClanWideSubmissions) {
-      if (memberId.isEmpty) {
-        return const ScholarshipWorkspaceSnapshot(
-          programs: [],
-          awardLevels: [],
-          submissions: [],
-          memberNamesById: {},
-          approvalLogs: [],
-          councilHeadMemberIds: [],
+    return _workspaceLoadCache.run(clanId, () async {
+      final canReadClanWideSubmissions =
+          GovernanceRoleMatrix.canManageScholarshipPrograms(session) ||
+          GovernanceRoleMatrix.canVoteScholarship(session);
+      final memberId = session.memberId?.trim() ?? '';
+      Query<Map<String, dynamic>> submissionsQuery = _submissions.where(
+        'clanId',
+        isEqualTo: clanId,
+      );
+      if (!canReadClanWideSubmissions) {
+        if (memberId.isEmpty) {
+          return const ScholarshipWorkspaceSnapshot(
+            programs: [],
+            awardLevels: [],
+            submissions: [],
+            memberNamesById: {},
+            approvalLogs: [],
+            councilHeadMemberIds: [],
+          );
+        }
+        submissionsQuery = submissionsQuery.where(
+          'memberId',
+          isEqualTo: memberId,
         );
       }
-      submissionsQuery = submissionsQuery.where(
-        'memberId',
-        isEqualTo: memberId,
+
+      final results =
+          await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
+            _fetchPagedDocuments(_programs.where('clanId', isEqualTo: clanId)),
+            _fetchPagedDocuments(
+              _awardLevels.where('clanId', isEqualTo: clanId),
+            ),
+            _fetchPagedDocuments(submissionsQuery),
+            _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
+            _fetchPagedDocuments(
+              _approvalLogs
+                  .where('clanId', isEqualTo: clanId)
+                  .orderBy('createdAt', descending: true),
+              maxDocuments: 200,
+            ),
+          ]);
+
+      final programs = results[0]
+          .map((doc) => ScholarshipProgram.fromJson(doc.data()))
+          .sorted(
+            (left, right) => right.year.compareTo(left.year) != 0
+                ? right.year.compareTo(left.year)
+                : left.title.toLowerCase().compareTo(right.title.toLowerCase()),
+          )
+          .toList(growable: false);
+
+      final awardLevels = results[1]
+          .map((doc) => AwardLevel.fromJson(doc.data()))
+          .sortedBy<num>((award) => award.sortOrder)
+          .toList(growable: false);
+
+      final submissions = results[2]
+          .map((doc) => AchievementSubmission.fromJson(doc.data()))
+          .sorted(
+            (left, right) =>
+                right.updatedAtIso.compareTo(left.updatedAtIso) != 0
+                ? right.updatedAtIso.compareTo(left.updatedAtIso)
+                : left.title.toLowerCase().compareTo(right.title.toLowerCase()),
+          )
+          .toList(growable: false);
+
+      final memberNamesById = <String, String>{
+        for (final doc in results[3])
+          if ((doc.data()['id'] as String?)?.trim().isNotEmpty == true)
+            (doc.data()['id'] as String):
+                (doc.data()['fullName'] as String?)?.trim().isNotEmpty == true
+                ? (doc.data()['fullName'] as String)
+                : (doc.data()['id'] as String),
+      };
+
+      final councilHeadMemberIds = results[3]
+          .where((doc) {
+            final role = (doc.data()['primaryRole'] as String?)
+                ?.trim()
+                .toUpperCase();
+            final status = (doc.data()['status'] as String?)
+                ?.trim()
+                .toLowerCase();
+            return role == GovernanceRoles.scholarshipCouncilHead &&
+                (status == null || status.isEmpty || status == 'active');
+          })
+          .map((doc) => doc.id)
+          .toList(growable: false);
+
+      final approvalLogs = results[4]
+          .map((doc) => ScholarshipApprovalLogEntry.fromJson(doc.data()))
+          .sorted(
+            (left, right) => right.createdAtIso.compareTo(left.createdAtIso),
+          )
+          .toList(growable: false);
+
+      return ScholarshipWorkspaceSnapshot(
+        programs: programs,
+        awardLevels: awardLevels,
+        submissions: submissions,
+        memberNamesById: memberNamesById,
+        approvalLogs: approvalLogs,
+        councilHeadMemberIds: councilHeadMemberIds,
       );
-    }
-
-    final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-      _programs.where('clanId', isEqualTo: clanId).get(),
-      _awardLevels.where('clanId', isEqualTo: clanId).get(),
-      submissionsQuery.get(),
-      _members.where('clanId', isEqualTo: clanId).get(),
-      _approvalLogs
-          .where('clanId', isEqualTo: clanId)
-          .orderBy('createdAt', descending: true)
-          .limit(200)
-          .get(),
-    ]);
-
-    final programs = results[0].docs
-        .map((doc) => ScholarshipProgram.fromJson(doc.data()))
-        .sorted(
-          (left, right) => right.year.compareTo(left.year) != 0
-              ? right.year.compareTo(left.year)
-              : left.title.toLowerCase().compareTo(right.title.toLowerCase()),
-        )
-        .toList(growable: false);
-
-    final awardLevels = results[1].docs
-        .map((doc) => AwardLevel.fromJson(doc.data()))
-        .sortedBy<num>((award) => award.sortOrder)
-        .toList(growable: false);
-
-    final submissions = results[2].docs
-        .map((doc) => AchievementSubmission.fromJson(doc.data()))
-        .sorted(
-          (left, right) => right.updatedAtIso.compareTo(left.updatedAtIso) != 0
-              ? right.updatedAtIso.compareTo(left.updatedAtIso)
-              : left.title.toLowerCase().compareTo(right.title.toLowerCase()),
-        )
-        .toList(growable: false);
-
-    final memberNamesById = <String, String>{
-      for (final doc in results[3].docs)
-        if ((doc.data()['id'] as String?)?.trim().isNotEmpty == true)
-          (doc.data()['id'] as String):
-              (doc.data()['fullName'] as String?)?.trim().isNotEmpty == true
-              ? (doc.data()['fullName'] as String)
-              : (doc.data()['id'] as String),
-    };
-
-    final councilHeadMemberIds = results[3].docs
-        .where((doc) {
-          final role = (doc.data()['primaryRole'] as String?)
-              ?.trim()
-              .toUpperCase();
-          final status = (doc.data()['status'] as String?)
-              ?.trim()
-              .toLowerCase();
-          return role == GovernanceRoles.scholarshipCouncilHead &&
-              (status == null || status.isEmpty || status == 'active');
-        })
-        .map((doc) => doc.id)
-        .toList(growable: false);
-
-    final approvalLogs = results[4].docs
-        .map((doc) => ScholarshipApprovalLogEntry.fromJson(doc.data()))
-        .sorted(
-          (left, right) => right.createdAtIso.compareTo(left.createdAtIso),
-        )
-        .toList(growable: false);
-
-    return ScholarshipWorkspaceSnapshot(
-      programs: programs,
-      awardLevels: awardLevels,
-      submissions: submissions,
-      memberNamesById: memberNamesById,
-      approvalLogs: approvalLogs,
-      councilHeadMemberIds: councilHeadMemberIds,
-    );
+    });
   }
 
   @override
@@ -237,6 +254,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
 
     await programRef.set(payload, SetOptions(merge: true));
     final updated = await programRef.get();
+    _workspaceLoadCache.invalidate(clanId);
     return ScholarshipProgram.fromJson(updated.data()!);
   }
 
@@ -313,6 +331,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
 
     await awardRef.set(payload, SetOptions(merge: true));
     final updated = await awardRef.get();
+    _workspaceLoadCache.invalidate(clanId);
     return AwardLevel.fromJson(updated.data()!);
   }
 
@@ -414,6 +433,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
 
     await submissionRef.set(payload, SetOptions(merge: true));
     final updated = await submissionRef.get();
+    _workspaceLoadCache.invalidate(clanId);
     return AchievementSubmission.fromJson(updated.data()!);
   }
 
@@ -496,6 +516,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       });
       final data = response.data;
       if (data is Map && data['submission'] is Map<String, dynamic>) {
+        _workspaceLoadCache.invalidate(clanId);
         return AchievementSubmission.fromJson(
           data['submission'] as Map<String, dynamic>,
         );
@@ -512,6 +533,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
           ScholarshipRepositoryErrorCode.permissionDenied,
         );
       }
+      _workspaceLoadCache.invalidate(clanId);
       return AchievementSubmission.fromJson(updated.data()!);
     } on FirebaseFunctionsException catch (error) {
       if (error.code == 'already-exists') {
@@ -562,8 +584,10 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       );
     }
 
-    final snapshot = await _funds.where('clanId', isEqualTo: clanId).get();
-    return snapshot.docs
+    final documents = await _fetchPagedDocuments(
+      _funds.where('clanId', isEqualTo: clanId),
+    );
+    return documents
         .map((doc) {
           final payload = doc.data();
           return ScholarshipDisbursementFund.fromJson(<String, dynamic>{
@@ -608,6 +632,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       });
       final data = response.data;
       if (data is Map && data['submission'] is Map<String, dynamic>) {
+        _workspaceLoadCache.invalidate(clanId);
         return AchievementSubmission.fromJson(
           data['submission'] as Map<String, dynamic>,
         );
@@ -623,6 +648,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
           ScholarshipRepositoryErrorCode.permissionDenied,
         );
       }
+      _workspaceLoadCache.invalidate(clanId);
       return AchievementSubmission.fromJson(updated.data()!);
     } on FirebaseFunctionsException catch (error) {
       if (error.code == 'permission-denied') {
@@ -663,6 +689,19 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
         error.message ?? error.code,
       );
     }
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _fetchPagedDocuments(
+    Query<Map<String, dynamic>> query, {
+    int pageSize = _workspacePageSize,
+    int maxDocuments = 2000,
+  }) {
+    return _pagedQueryLoader.loadAll(
+      baseQuery: query,
+      pageSize: pageSize,
+      maxDocuments: maxDocuments,
+    );
   }
 }
 

@@ -94,56 +94,6 @@ class FirebaseBillingRepository implements BillingRepository {
   }
 
   @override
-  Future<BillingCheckoutResult> createCheckout({
-    required AuthSession session,
-    required String paymentMethod,
-    String? requestedPlanCode,
-    String? returnUrl,
-  }) async {
-    final scopeId = _sessionBillingScopeId(session);
-    await _ensureSessionDocumentBestEffort(session);
-    final payload = <String, dynamic>{
-      'paymentMethod': paymentMethod,
-      if (requestedPlanCode != null && requestedPlanCode.trim().isNotEmpty)
-        'requestedPlanCode': requestedPlanCode.trim().toUpperCase(),
-      if (returnUrl != null && returnUrl.trim().isNotEmpty)
-        'returnUrl': returnUrl.trim(),
-    };
-    final result = await _call(
-      'createSubscriptionCheckout',
-    ).call(_scopePayload(session, payload));
-    final map = _asMap(result.data);
-    return BillingCheckoutResult(
-      clanId: _readString(map, 'clanId', fallback: scopeId),
-      paymentMethod: _readString(map, 'paymentMethod', fallback: paymentMethod),
-      planCode: _readString(map, 'planCode', fallback: 'FREE'),
-      amountVnd: _readInt(map, 'amountVnd'),
-      vatIncluded: _readBool(map, 'vatIncluded', fallback: true),
-      transactionId: _readString(map, 'transactionId'),
-      invoiceId: _readString(map, 'invoiceId'),
-      checkoutUrl: _readString(map, 'checkoutUrl', fallback: ''),
-      requiresManualConfirmation: _readBool(
-        map,
-        'requiresManualConfirmation',
-        fallback: false,
-      ),
-      subscription: _parseSubscription(_asMap(map['subscription'])),
-      entitlement: _parseEntitlement(_asMap(map['entitlement'])),
-    );
-  }
-
-  @override
-  Future<void> completeCardCheckout({
-    required AuthSession session,
-    required String transactionId,
-  }) async {
-    await _ensureSessionDocumentBestEffort(session);
-    await _call(
-      'completeCardCheckout',
-    ).call(_scopePayload(session, {'transactionId': transactionId.trim()}));
-  }
-
-  @override
   Future<BillingEntitlement> verifyInAppPurchase({
     required AuthSession session,
     required String platform,
@@ -302,11 +252,6 @@ class FirebaseBillingRepository implements BillingRepository {
         map['storeProductIdsByPlan'],
       ),
       storeProductIdsByPlanByPlatform: byPlatform,
-      allowLegacyCardCheckout: _readBool(
-        map,
-        'allowLegacyCardCheckout',
-        fallback: false,
-      ),
     );
   }
 

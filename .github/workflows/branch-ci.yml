@@ -1,26 +1,21 @@
-name: Branch CI
+name: CI - Branch Quality Gates
 
 on:
   pull_request:
     branches:
       - staging
       - main
-  push:
-    branches:
-      - staging
-      - main
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: branch-ci-${{ github.event.pull_request.number || github.ref }}
+  group: branch-ci-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   ci-docs:
-    name: ci-docs
+    name: CI - Docs Validation and Build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -44,7 +39,7 @@ jobs:
         run: mkdocs build --strict
 
   ci-functions:
-    name: ci-functions
+    name: CI - Functions Build and Test
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -67,6 +62,9 @@ jobs:
       - name: Build Functions
         run: npm run build
 
+      - name: Enforce Functions dead-code gate
+        run: npx tsc --noEmit --noUnusedLocals --noUnusedParameters
+
       - name: Run Functions contract tests
         run: npm test
 
@@ -81,7 +79,7 @@ jobs:
             .
 
   ci-mobile:
-    name: ci-mobile
+    name: CI - Mobile Build and Test
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -112,8 +110,41 @@ jobs:
       - name: Analyze Flutter app
         run: flutter analyze
 
+      - name: Enforce Dart dead-code gate
+        run: dart analyze --fatal-infos --fatal-warnings
+
       - name: Run Flutter tests
-        run: flutter test --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
+        run: flutter test --coverage --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
+
+      - name: Enforce Flutter coverage gate
+        env:
+          MOBILE_MIN_COVERAGE_PERCENT: ${{ vars.MOBILE_MIN_COVERAGE_PERCENT }}
+        run: |
+          set -euo pipefail
+          min="${MOBILE_MIN_COVERAGE_PERCENT:-40}"
+          coverage_file="coverage/lcov.info"
+          if [ ! -f "$coverage_file" ]; then
+            echo "::error::Missing coverage report at ${coverage_file}"
+            exit 1
+          fi
+          actual="$(awk -F: '
+            /^LF:/ { lf += $2 }
+            /^LH:/ { lh += $2 }
+            END {
+              if (lf <= 0) {
+                print "0.00";
+                exit;
+              }
+              printf "%.2f", (100 * lh / lf);
+            }' "$coverage_file")"
+          echo "Flutter coverage: ${actual}% (minimum ${min}%)"
+          awk -v actual="$actual" -v min="$min" 'BEGIN { exit (actual + 0 >= min + 0 ? 0 : 1) }' || {
+            echo "::error::Flutter coverage gate failed: ${actual}% < ${min}%"
+            exit 1
+          }
+
+      - name: Run Flutter E2E release catalog contract
+        run: flutter test integration_test/e2e_release_catalog_contract_test.dart -d flutter-tester --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true --dart-define=BEFAM_ENABLE_APP_CHECK=false
 
       - name: Run Flutter web smoke tests
         run: xvfb-run -a flutter test --platform chrome --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true test/app/web/web_marketing_pages_test.dart
@@ -141,6 +172,8 @@ jobs:
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
@@ -164,6 +197,8 @@ jobs:
             BEFAM_FIREBASE_WEB_AUTH_DOMAIN
             BEFAM_FIREBASE_WEB_MEASUREMENT_ID
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+            BEFAM_IOS_APP_STORE_URL
+            BEFAM_ANDROID_PLAY_STORE_URL
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
@@ -176,6 +211,7 @@ jobs:
             --release \
             --no-wasm-dry-run \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
+            --dart-define=BEFAM_OTP_PROVIDER=twilio \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
@@ -203,10 +239,8 @@ jobs:
           BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
           BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY: ${{ vars.BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
-          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
-          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
-          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
@@ -227,6 +261,8 @@ jobs:
             BEFAM_FIREBASE_WEB_AUTH_DOMAIN
             BEFAM_FIREBASE_WEB_MEASUREMENT_ID
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+            BEFAM_IOS_APP_STORE_URL
+            BEFAM_ANDROID_PLAY_STORE_URL
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
@@ -239,44 +275,32 @@ jobs:
             --build-name 0.0.0
             --build-number 1
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}"
+            --dart-define=BEFAM_OTP_PROVIDER=twilio
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}"
             "${optional_firebase_defines[@]}"
           )
-          if [ -n "${ANDROID_RELEASE_KEYSTORE_BASE64:-}" ] && \
-             [ -n "${ANDROID_RELEASE_KEYSTORE_PASSWORD:-}" ] && \
-             [ -n "${ANDROID_RELEASE_KEY_ALIAS:-}" ] && \
-             [ -n "${ANDROID_RELEASE_KEY_PASSWORD:-}" ]; then
-            keystore_path="$RUNNER_TEMP/android-release.keystore"
-            echo "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
-            export ANDROID_KEYSTORE_PATH="$keystore_path"
-            export ANDROID_KEYSTORE_PASSWORD="$ANDROID_RELEASE_KEYSTORE_PASSWORD"
-            export ANDROID_KEY_ALIAS="$ANDROID_RELEASE_KEY_ALIAS"
-            export ANDROID_KEY_PASSWORD="$ANDROID_RELEASE_KEY_PASSWORD"
-            flutter build appbundle --release "${build_common_args[@]}"
-          else
-            echo "Release signing secrets are unavailable in this CI context. Generating temporary CI signing key for release AAB."
-            temp_keystore_path="$RUNNER_TEMP/android-ci-release.keystore"
-            temp_keystore_password="android"
-            temp_key_alias="ci-upload"
-            temp_key_password="android"
-            keytool -genkeypair \
-              -v \
-              -storetype PKCS12 \
-              -keystore "$temp_keystore_path" \
-              -storepass "$temp_keystore_password" \
-              -alias "$temp_key_alias" \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 3650 \
-              -keypass "$temp_key_password" \
-              -dname "CN=BeFam CI, OU=CI, O=BeFam, L=HCMC, S=HCMC, C=VN"
-            export ANDROID_KEYSTORE_PATH="$temp_keystore_path"
-            export ANDROID_KEYSTORE_PASSWORD="$temp_keystore_password"
-            export ANDROID_KEY_ALIAS="$temp_key_alias"
-            export ANDROID_KEY_PASSWORD="$temp_key_password"
-            flutter build appbundle --release "${build_common_args[@]}"
-          fi
+          # CI only needs compile validation; use ephemeral signing to avoid exposing release secrets in PR context.
+          temp_keystore_path="$RUNNER_TEMP/android-ci-release.keystore"
+          temp_keystore_password="android"
+          temp_key_alias="ci-upload"
+          temp_key_password="android"
+          keytool -genkeypair \
+            -v \
+            -storetype PKCS12 \
+            -keystore "$temp_keystore_path" \
+            -storepass "$temp_keystore_password" \
+            -alias "$temp_key_alias" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 3650 \
+            -keypass "$temp_key_password" \
+            -dname "CN=BeFam CI, OU=CI, O=BeFam, L=HCMC, S=HCMC, C=VN"
+          export ANDROID_KEYSTORE_PATH="$temp_keystore_path"
+          export ANDROID_KEYSTORE_PASSWORD="$temp_keystore_password"
+          export ANDROID_KEY_ALIAS="$temp_key_alias"
+          export ANDROID_KEY_PASSWORD="$temp_key_password"
+          flutter build appbundle --release "${build_common_args[@]}"
 
       - name: Build mobile release image
         working-directory: ${{ github.workspace }}
@@ -287,3 +311,132 @@ jobs:
             --build-arg VCS_REF="${GITHUB_SHA}" \
             --tag befam-mobile-builder:test \
             .
+
+  security-dependency-review:
+    name: Security - Dependency Review
+    if: ${{ github.event_name == 'pull_request' && vars.ENABLE_DEPENDENCY_REVIEW != 'false' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Detect dependency graph support
+        id: depgraph
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          response="$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}" || true)"
+          status="$(printf '%s' "${response}" | jq -r '.security_and_analysis.dependency_graph.status // "unknown"' 2>/dev/null || echo "unknown")"
+          echo "dependency_graph_status=${status}" >> "$GITHUB_OUTPUT"
+          if [[ "${status}" == "enabled" ]]; then
+            echo "run_check=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_check=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dependency Review
+        if: ${{ steps.depgraph.outputs.run_check == 'true' }}
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+      - name: Dependency review unavailable
+        if: ${{ steps.depgraph.outputs.run_check != 'true' }}
+        run: |
+          echo "::warning::Dependency graph is not enabled for this repository."
+          echo "::warning::Enable it at Settings > Code security and analysis to enforce dependency review."
+
+  security-trivy-fs:
+    name: Security - Trivy Filesystem Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Run Trivy filesystem scan (SARIF report)
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+          format: sarif
+          output: trivy-fs.sarif
+          trivyignores: .trivyignore
+          skip-files: firebase/functions/firestore-debug.log
+
+      - name: Upload Trivy security report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+
+      - name: Enforce Trivy filesystem gate
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+          trivyignores: .trivyignore
+          skip-files: firebase/functions/firestore-debug.log
+
+  security-gitleaks:
+    name: Security - Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  security-trivy-images:
+    name: Security - Trivy Container Image Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build Firebase tooling image for scan
+        run: docker build --file docker/firebase-tools.Dockerfile --tag befam-firebase-tools:scan .
+
+      - name: Build mobile builder image for scan
+        run: docker build --file Dockerfile --tag befam-mobile-builder:scan .
+
+      - name: Scan Firebase tooling image
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: image
+          image-ref: befam-firebase-tools:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore.images
+
+      - name: Scan mobile builder image
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: image
+          image-ref: befam-mobile-builder:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore.images

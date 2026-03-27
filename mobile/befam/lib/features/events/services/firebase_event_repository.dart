@@ -2,9 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 
 import '../../../core/services/app_environment.dart';
+import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/services/inflight_task_cache.dart';
 import '../../auth/models/auth_session.dart';
 import '../../clan/models/branch_profile.dart';
 import '../../member/models/member_profile.dart';
@@ -16,10 +18,20 @@ import 'event_repository.dart';
 import 'event_validation.dart';
 
 class FirebaseEventRepository implements EventRepository {
-  FirebaseEventRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseServices.firestore;
+  static const int _workspacePageSize = 250;
+  static const int _workspaceMaxDocuments = 2000;
+
+  FirebaseEventRepository({
+    FirebaseFirestore? firestore,
+    FirestorePagedQueryLoader? pagedQueryLoader,
+  }) : _firestore = firestore ?? FirebaseServices.firestore,
+       _pagedQueryLoader =
+           pagedQueryLoader ?? const FirestorePagedQueryLoader();
 
   final FirebaseFirestore _firestore;
+  final FirestorePagedQueryLoader _pagedQueryLoader;
+  final InflightTaskCache<String, EventWorkspaceSnapshot> _workspaceLoadCache =
+      InflightTaskCache<String, EventWorkspaceSnapshot>();
 
   CollectionReference<Map<String, dynamic>> get _events =>
       _firestore.collection('events');
@@ -51,61 +63,81 @@ class FirebaseEventRepository implements EventRepository {
       );
     }
 
-    final results = await Future.wait<
-      List<QueryDocumentSnapshot<Map<String, dynamic>>>
-    >([
-      _fetchPagedDocuments(
-        _events.where('clanId', isEqualTo: clanId).orderBy('startsAt'),
-      ),
-      _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
-      _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
-    ]);
+    return _workspaceLoadCache.run(clanId, () async {
+      final results =
+          await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
+            _fetchPagedDocuments(
+              _events.where('clanId', isEqualTo: clanId).orderBy('startsAt'),
+            ),
+            _fetchPagedDocuments(_members.where('clanId', isEqualTo: clanId)),
+            _fetchPagedDocuments(_branches.where('clanId', isEqualTo: clanId)),
+          ]);
 
-    final events = results[0]
-        .map((doc) => EventRecord.fromJson(doc.data()))
-        .sortedBy((event) => event.startsAt)
-        .toList(growable: false);
-    final members = results[1]
-        .map((doc) => MemberProfile.fromJson(doc.data()))
-        .sortedBy((member) => member.fullName.toLowerCase())
-        .toList(growable: false);
-    final branches = results[2]
-        .map((doc) => BranchProfile.fromJson(doc.data()))
-        .sortedBy((branch) => branch.name.toLowerCase())
-        .toList(growable: false);
+      final events = results[0]
+          .map((doc) => EventRecord.fromJson(doc.data()))
+          .sortedBy((event) => event.startsAt)
+          .toList(growable: false);
+      final members = results[1]
+          .map((doc) => MemberProfile.fromJson(doc.data()))
+          .sortedBy((member) => member.fullName.toLowerCase())
+          .toList(growable: false);
+      final branches = results[2]
+          .map((doc) => BranchProfile.fromJson(doc.data()))
+          .sortedBy((branch) => branch.name.toLowerCase())
+          .toList(growable: false);
 
-    return EventWorkspaceSnapshot(
-      events: events,
-      members: members,
-      branches: branches,
-    );
+      return EventWorkspaceSnapshot(
+        events: events,
+        members: members,
+        branches: branches,
+      );
+    });
   }
 
-  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchPagedDocuments(
-    Query<Map<String, dynamic>> baseQuery, {
-    int pageSize = 250,
-    int maxDocuments = 2000,
+  @override
+  Future<List<EventRecord>> loadUpcomingEvents({
+    required AuthSession session,
+    int limit = 80,
   }) async {
-    final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
-    while (docs.length < maxDocuments) {
-      final query = cursor == null
-          ? baseQuery.limit(pageSize)
-          : baseQuery.limit(pageSize).startAfterDocument(cursor);
-      final snapshot = await query.get();
-      if (snapshot.docs.isEmpty) {
-        break;
-      }
-      docs.addAll(snapshot.docs);
-      if (snapshot.docs.length < pageSize) {
-        break;
-      }
-      cursor = snapshot.docs.last;
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
+    final clanId = (session.clanId ?? '').trim();
+    if (clanId.isEmpty) {
+      return const <EventRecord>[];
     }
-    if (docs.length > maxDocuments) {
-      return docs.take(maxDocuments).toList(growable: false);
-    }
-    return docs;
+    final safeLimit = limit.clamp(1, 200);
+    final now = DateTime.now().toUtc();
+    final anchor = Timestamp.fromDate(now.subtract(const Duration(days: 1)));
+
+    final snapshot = await _events
+        .where('clanId', isEqualTo: clanId)
+        .where('startsAt', isGreaterThanOrEqualTo: anchor)
+        .orderBy('startsAt')
+        .limit(safeLimit)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => EventRecord.fromJson(doc.data()))
+        .where((event) => !event.startsAt.isBefore(now))
+        .sortedBy((event) => event.startsAt)
+        .take(safeLimit)
+        .toList(growable: false);
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _fetchPagedDocuments(
+    Query<Map<String, dynamic>> baseQuery, {
+    int pageSize = _workspacePageSize,
+    int maxDocuments = _workspaceMaxDocuments,
+  }) async {
+    return _pagedQueryLoader.loadAll(
+      baseQuery: baseQuery,
+      pageSize: pageSize,
+      maxDocuments: maxDocuments,
+    );
   }
 
   @override
@@ -192,6 +224,7 @@ class FirebaseEventRepository implements EventRepository {
 
     await eventRef.set(payload, SetOptions(merge: true));
     final updated = await eventRef.get();
+    _workspaceLoadCache.invalidate(clanId);
     return EventRecord.fromJson(updated.data()!);
   }
 

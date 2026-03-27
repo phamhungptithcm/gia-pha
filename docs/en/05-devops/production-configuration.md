@@ -1,6 +1,6 @@
 # Production Configuration Setup
 
-_Last reviewed: March 20, 2026_
+_Last reviewed: March 22, 2026_
 
 This runbook explains how BeFam separates local and production runtime
 configuration safely.
@@ -10,6 +10,14 @@ configuration safely.
 1. GitHub Environment `production` (vars + secrets)
 2. Firestore runtime overrides (`runtimeConfig/global`, non-secret only)
 3. Flutter build-time defines (`--dart-define`)
+
+## Staging Deployment Scope
+
+`staging` deploy pipeline is sandbox-only and deploys only:
+- Firebase resources in staging project (`firestore:rules`, `firestore:indexes`, `storage`, `functions`)
+- Web hosting bundle
+
+`staging` does **not** deploy Android/iOS artifacts.
 
 ## Supported OS Versions
 
@@ -35,6 +43,7 @@ If you need to support lower OS versions:
 Required vars (Functions runtime):
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_FUNCTIONS_REGION`
+- `FIRESTORE_DATABASE_ID` (`(default)` for staging, `befam` for production in current setup)
 - `APP_TIMEZONE`
 - `APP_RUNTIME_CONFIG_COLLECTION`
 - `APP_RUNTIME_CONFIG_DOC_ID`
@@ -74,15 +83,6 @@ Required vars (Functions runtime):
 - `OTP_TWILIO_MAX_RETRIES`
 - `OTP_TWILIO_BACKOFF_MS`
 - `GOOGLE_PLAY_PACKAGE_NAME`
-- `BILLING_IAP_PRODUCT_IDS_BASE`
-- `BILLING_IAP_PRODUCT_IDS_PLUS`
-- `BILLING_IAP_PRODUCT_IDS_PRO`
-- `BILLING_IAP_IOS_PRODUCT_IDS_BASE`
-- `BILLING_IAP_IOS_PRODUCT_IDS_PLUS`
-- `BILLING_IAP_IOS_PRODUCT_IDS_PRO`
-- `BILLING_IAP_ANDROID_PRODUCT_IDS_BASE`
-- `BILLING_IAP_ANDROID_PRODUCT_IDS_PLUS`
-- `BILLING_IAP_ANDROID_PRODUCT_IDS_PRO`
 - `BILLING_IAP_ALLOW_TEST_MOCK`
 - `BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS`
 - `BILLING_IAP_APPLE_VERIFY_MAX_RETRIES`
@@ -91,8 +91,11 @@ Required vars (Functions runtime):
 - `GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL`
 - `BILLING_PRICING_CACHE_MS`
 
-Required secrets:
-- `FIREBASE_SERVICE_ACCOUNT`
+IAP product IDs are loaded from Firestore collection `subscriptionPackages` (`storeProductIds.ios` and `storeProductIds.android`), not from environment variables.
+
+Required deploy secrets (OIDC + billing):
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT_EMAIL`
 - `BILLING_WEBHOOK_SECRET`
 - `APPLE_SHARED_SECRET`
 
@@ -106,6 +109,16 @@ Optional secrets:
 - `BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN`
 - `APPLE_IAP_WEBHOOK_BEARER_TOKEN`
 - `GOOGLE_IAP_WEBHOOK_BEARER_TOKEN`
+
+Required release signing secrets:
+- `ANDROID_RELEASE_KEYSTORE_BASE64`
+- `ANDROID_RELEASE_KEYSTORE_PASSWORD`
+- `ANDROID_RELEASE_KEY_ALIAS`
+- `ANDROID_RELEASE_KEY_PASSWORD`
+- `IOS_P12_BASE64`
+- `IOS_P12_PASSWORD`
+- `IOS_PROVISIONING_PROFILE_BASE64`
+- `IOS_TEAM_ID`
 
 Mobile/Web build vars (GitHub vars, optional):
 - `BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS`
@@ -122,13 +135,34 @@ Mobile/Web build vars (GitHub vars, optional):
 
 Before production deploy:
 - verify required vars/secrets exist
+- verify production Firestore database matches `FIRESTORE_DATABASE_ID` (current production value: `befam`)
+- verify staging Firestore database stays `(default)` and staging project id stays `be-fam-3ab23`
 - verify Apple + Google Play product IDs match published store subscriptions
 - verify `BILLING_IAP_ALLOW_TEST_MOCK=false` in production
 - verify `BILLING_ENABLE_LEGACY_CARD_FLOW=false` in production
 - verify `CALLABLE_ENFORCE_APP_CHECK=true` in production
+- verify branch protection is enabled on `staging` and `main` with required checks
+- rotate any leaked secret immediately (especially `APPLE_SHARED_SECRET`) before release
 - keep manual settlement disabled unless explicitly needed
+- verify `subscriptionPackages` has active `FREE/BASE/PLUS/PRO` (preflight blocks release if missing)
 
 After deploy:
 - verify runtime env file step succeeded
 - verify runtime override sync succeeded
+- verify subscription package catalog sync succeeded
 - run auth + billing smoke tests on real devices
+
+## Code-owned Firestore baseline
+
+Production and staging deployments now sync `subscriptionPackages` from:
+
+- `firebase/functions/config/subscription-packages.catalog.json`
+
+Sync/check command:
+
+```bash
+cd firebase/functions
+npm ci
+FIREBASE_PROJECT_ID=<project-id> npm run config:subscription-packages:check
+FIREBASE_PROJECT_ID=<project-id> npm run config:subscription-packages:sync
+```

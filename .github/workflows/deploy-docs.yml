@@ -1,4 +1,4 @@
-name: Deploy Docs
+name: CD - Deploy Docs (GitHub Pages)
 
 on:
   push:
@@ -9,10 +9,6 @@ on:
       - "mkdocs.yml"
       - "requirements-docs.txt"
       - ".github/workflows/deploy-docs.yml"
-  release:
-    types:
-      - published
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,6 +21,7 @@ concurrency:
 
 jobs:
   build:
+    name: Build Documentation Site
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,6 +49,7 @@ jobs:
           path: site
 
   deploy:
+    name: Deploy Documentation Site
     needs: build
     runs-on: ubuntu-latest
     environment:

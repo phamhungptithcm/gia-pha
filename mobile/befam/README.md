@@ -81,7 +81,11 @@ Validate the bootstrap foundation:
 ```bash
 flutter analyze
 flutter test
+./../../scripts/run_mobile_e2e.sh smoke
 ```
+
+E2E release-case mapping lives in `integration_test/README.md` and links to
+the release execution/dashboard templates in `/docs/vi/05-devops/`.
 
 Refresh the production brand asset pack:
 
@@ -110,6 +114,10 @@ For local UI testing in debug builds:
   `--dart-define=BEFAM_DEFAULT_TIMEZONE=Asia/Ho_Chi_Minh`
 - checkout host guard list can be overridden with
   `--dart-define=BEFAM_INVALID_CHECKOUT_HOSTS=example.com`
+- iOS App Store footer link can be set with
+  `--dart-define=BEFAM_IOS_APP_STORE_URL=https://apps.apple.com/app/id<your-app-id>`
+- Android Google Play footer link can be set with
+  `--dart-define=BEFAM_ANDROID_PLAY_STORE_URL=https://play.google.com/store/apps/details?id=<your-package>`
 
 ## Branding assets
 
