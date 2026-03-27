@@ -67,15 +67,35 @@ jobs:
       - name: Run Functions contract tests
         run: npm test
 
+      - name: Prepare Docker auth for public registry pulls
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          docker_config_dir="$RUNNER_TEMP/docker-config-anon-functions"
+          mkdir -p "$docker_config_dir"
+          printf '{"auths":{}}\n' > "$docker_config_dir/config.json"
+          echo "DOCKER_CONFIG=$docker_config_dir" >> "$GITHUB_ENV"
+          docker logout docker.io >/dev/null 2>&1 || true
+
       - name: Build Firebase tooling image
         working-directory: ${{ github.workspace }}
         run: |
-          docker build \
-            --file docker/firebase-tools.Dockerfile \
-            --build-arg RELEASE_VERSION=0.0.0-ci \
-            --build-arg VCS_REF="${GITHUB_SHA}" \
-            --tag befam-firebase-tools:test \
-            .
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if docker build \
+              --file docker/firebase-tools.Dockerfile \
+              --build-arg RELEASE_VERSION=0.0.0-ci \
+              --build-arg VCS_REF="${GITHUB_SHA}" \
+              --tag befam-firebase-tools:test \
+              .; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to build Firebase tooling image after ${attempt} attempts."
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
 
   ci-mobile:
     name: CI - Mobile Build and Test
@@ -304,12 +324,27 @@ jobs:
       - name: Build mobile release image
         working-directory: ${{ github.workspace }}
         run: |
-          docker build \
-            --platform linux/amd64 \
-            --build-arg RELEASE_VERSION=0.0.0-ci \
-            --build-arg VCS_REF="${GITHUB_SHA}" \
-            --tag befam-mobile-builder:test \
-            .
+          set -euo pipefail
+          docker_config_dir="$RUNNER_TEMP/docker-config-anon-mobile"
+          mkdir -p "$docker_config_dir"
+          printf '{"auths":{}}\n' > "$docker_config_dir/config.json"
+          export DOCKER_CONFIG="$docker_config_dir"
+          docker logout docker.io >/dev/null 2>&1 || true
+          for attempt in 1 2 3; do
+            if docker build \
+              --platform linux/amd64 \
+              --build-arg RELEASE_VERSION=0.0.0-ci \
+              --build-arg VCS_REF="${GITHUB_SHA}" \
+              --tag befam-mobile-builder:test \
+              .; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to build mobile release image after ${attempt} attempts."
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
 
   security-dependency-review:
     name: Security - Dependency Review
@@ -386,11 +421,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
+      - name: Prepare Docker auth for public registry pulls
+        run: |
+          set -euo pipefail
+          docker_config_dir="$RUNNER_TEMP/docker-config-anon-security"
+          mkdir -p "$docker_config_dir"
+          printf '{"auths":{}}\n' > "$docker_config_dir/config.json"
+          export DOCKER_CONFIG="$docker_config_dir"
+          docker logout docker.io >/dev/null 2>&1 || true
+          echo "DOCKER_CONFIG=$docker_config_dir" >> "$GITHUB_ENV"
+
       - name: Build Firebase tooling image for scan
-        run: docker build --file docker/firebase-tools.Dockerfile --tag befam-firebase-tools:scan .
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if docker build --file docker/firebase-tools.Dockerfile --tag befam-firebase-tools:scan .; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to build Firebase tooling scan image after ${attempt} attempts."
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
 
       - name: Build mobile builder image for scan
-        run: docker build --file Dockerfile --tag befam-mobile-builder:scan .
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if docker build --file Dockerfile --tag befam-mobile-builder:scan .; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to build mobile builder scan image after ${attempt} attempts."
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
 
       - name: Scan Firebase tooling image
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
