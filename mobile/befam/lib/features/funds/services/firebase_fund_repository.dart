@@ -2,9 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
 
+import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/services/inflight_task_cache.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/fund_draft.dart';
 import '../models/fund_profile.dart';
@@ -15,14 +17,22 @@ import 'currency_minor_units.dart';
 import 'fund_repository.dart';
 
 class FirebaseFundRepository implements FundRepository {
+  static const int _workspacePageSize = 200;
+
   FirebaseFundRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
+    FirestorePagedQueryLoader? pagedQueryLoader,
   }) : _firestore = firestore ?? FirebaseServices.firestore,
-       _functions = functions ?? FirebaseServices.functions;
+       _functions = functions ?? FirebaseServices.functions,
+       _pagedQueryLoader =
+           pagedQueryLoader ?? const FirestorePagedQueryLoader();
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
+  final FirestorePagedQueryLoader _pagedQueryLoader;
+  final InflightTaskCache<String, FundWorkspaceSnapshot> _workspaceLoadCache =
+      InflightTaskCache<String, FundWorkspaceSnapshot>();
 
   CollectionReference<Map<String, dynamic>> get _funds =>
       _firestore.collection('funds');
@@ -50,31 +60,37 @@ class FirebaseFundRepository implements FundRepository {
       return const FundWorkspaceSnapshot(funds: [], transactions: []);
     }
 
-    final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-      _funds.where('clanId', isEqualTo: clanId).get(),
-      _loadTransactionSnapshot(clanId: clanId),
-    ]);
+    return _workspaceLoadCache.run(clanId, () async {
+      final results = await Future.wait([
+        _fetchPagedDocuments(_funds.where('clanId', isEqualTo: clanId)),
+        _loadTransactionSnapshot(clanId: clanId),
+      ]);
+      final fundsDocs =
+          results[0] as List<QueryDocumentSnapshot<Map<String, dynamic>>>;
+      final transactionSnapshot =
+          results[1] as QuerySnapshot<Map<String, dynamic>>;
 
-    final funds = results[0].docs
-        .map(
-          (doc) => FundProfile.fromJson(
-            _normalizeFirestoreMap(doc.data(), fallbackId: doc.id),
-          ),
-        )
-        .sortedBy((fund) => fund.name.toLowerCase())
-        .toList(growable: false);
+      final funds = fundsDocs
+          .map(
+            (doc) => FundProfile.fromJson(
+              _normalizeFirestoreMap(doc.data(), fallbackId: doc.id),
+            ),
+          )
+          .sortedBy((fund) => fund.name.toLowerCase())
+          .toList(growable: false);
 
-    final transactions = results[1].docs
-        .map(
-          (doc) => FundTransaction.fromJson(
-            _normalizeFirestoreMap(doc.data(), fallbackId: doc.id),
-          ),
-        )
-        .sorted((left, right) => right.occurredAt.compareTo(left.occurredAt))
-        .take(400)
-        .toList(growable: false);
+      final transactions = transactionSnapshot.docs
+          .map(
+            (doc) => FundTransaction.fromJson(
+              _normalizeFirestoreMap(doc.data(), fallbackId: doc.id),
+            ),
+          )
+          .sorted((left, right) => right.occurredAt.compareTo(left.occurredAt))
+          .take(400)
+          .toList(growable: false);
 
-    return FundWorkspaceSnapshot(funds: funds, transactions: transactions);
+      return FundWorkspaceSnapshot(funds: funds, transactions: transactions);
+    });
   }
 
   Future<QuerySnapshot<Map<String, dynamic>>> _loadTransactionSnapshot({
@@ -212,6 +228,7 @@ class FirebaseFundRepository implements FundRepository {
 
         await batch.commit();
       }
+      _workspaceLoadCache.invalidate(sessionClanId);
 
       // Build response without an extra read: substitute FieldValue sentinels
       // with local timestamps (within milliseconds of the server timestamp).
@@ -273,6 +290,7 @@ class FirebaseFundRepository implements FundRepository {
       });
       final payload = response.data;
       if (payload is Map && payload['transaction'] is Map<String, dynamic>) {
+        _workspaceLoadCache.invalidate(clanId);
         return FundTransaction.fromJson(
           payload['transaction'] as Map<String, dynamic>,
         );
@@ -298,6 +316,7 @@ class FirebaseFundRepository implements FundRepository {
           FundRepositoryErrorCode.writeFailed,
         );
       }
+      _workspaceLoadCache.invalidate(clanId);
       return fallback;
     } on FundRepositoryException {
       rethrow;
@@ -306,6 +325,19 @@ class FirebaseFundRepository implements FundRepository {
     } on FirebaseException catch (error) {
       throw _mapFirebaseError(error);
     }
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _fetchPagedDocuments(
+    Query<Map<String, dynamic>> query, {
+    int pageSize = _workspacePageSize,
+    int maxDocuments = 2000,
+  }) {
+    return _pagedQueryLoader.loadAll(
+      baseQuery: query,
+      pageSize: pageSize,
+      maxDocuments: maxDocuments,
+    );
   }
 
   int _parseAmountMinor({
