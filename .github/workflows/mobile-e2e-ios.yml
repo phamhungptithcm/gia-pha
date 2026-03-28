@@ -24,6 +24,9 @@ jobs:
       E2E_SUITE: smoke
       BEFAM_E2E_SKIP_GEN_L10N: "true"
       BEFAM_E2E_OTP_PROVIDER: firebase
+      BEFAM_E2E_FAST_MODE: "true"
+      BEFAM_E2E_SKIP_SCREENSHOTS: "true"
+      BEFAM_E2E_IOS_MAX_ATTEMPTS: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -80,6 +83,28 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-e2e-ios-deps-
 
+      - name: Cache iOS build intermediates
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            mobile/befam/build/ios
+            mobile/befam/.dart_tool/flutter_build
+            ~/Library/Developer/Xcode/DerivedData/Runner-*
+            ~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex
+          key: ${{ runner.os }}-e2e-ios-build-v1-${{ hashFiles('mobile/befam/pubspec.lock', 'mobile/befam/ios/Podfile.lock', 'mobile/befam/ios/Runner.xcodeproj/project.pbxproj', '.github/workflows/mobile-e2e-ios.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-ios-build-v1-
+
+      - name: Prepare iOS E2E dependencies
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        run: |
+          set -euo pipefail
+          cd mobile/befam
+          flutter pub get
+          cd ios
+          pod install --deployment --silent
+
       - name: Boot iOS simulator
         if: ${{ steps.scope.outputs.run_e2e == 'true' }}
         timeout-minutes: 10
@@ -121,6 +146,7 @@ jobs:
         env:
           BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
           BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+          BEFAM_E2E_SKIP_DEP_PREP: "true"
         run: |
           set -euo pipefail
           chmod +x scripts/run_mobile_e2e.sh
@@ -132,13 +158,13 @@ jobs:
 
           mode = os.environ.get("E2E_MODE", "debug")
           suite = os.environ.get("E2E_SUITE", "smoke")
-          # iOS cold builds can take >30 minutes before tests execute.
-          timeout_minutes = 70 if suite == "smoke" else 95
+          # Keep smoke timeout tight to avoid long hung jobs.
+          timeout_minutes = 55 if suite == "smoke" else 95
           timeout_seconds = timeout_minutes * 60
           cmd = ["./scripts/run_mobile_e2e.sh", mode, "ios", suite]
 
           start_time = time.monotonic()
-          heartbeat_at = start_time + 60
+          heartbeat_at = start_time + 45
           process = subprocess.Popen(cmd)
           return_code = None
 
@@ -163,7 +189,7 @@ jobs:
                   print(
                       f"::notice::iOS E2E still running ({elapsed_minutes}m elapsed, suite={suite})."
                   )
-                  heartbeat_at += 60
+                  heartbeat_at += 45
 
               time.sleep(5)
 

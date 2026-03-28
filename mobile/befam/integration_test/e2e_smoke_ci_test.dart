@@ -17,25 +17,9 @@ void main() {
 
   group('CI Smoke · Auth + Tree', () {
     testWidgets(
-      '[AUTH-001][P0] phone OTP flow reaches shell in stable context',
+      '[AUTH-001][TREE-001][P0] phone OTP flow reaches shell and opens genealogy workspace',
       (tester) async {
         expect(allCaseIds, contains('AUTH-001'));
-        final context = await pumpE2EApp(tester, locale: const Locale('vi'));
-        final authPage = AuthPageObject(tester);
-        final shellPage = ShellPageObject(tester);
-
-        await authPage.loginByPhone(clanLeaderExistingGenealogy.phoneInput);
-        await shellPage.expectLoaded();
-        shellPage.expectScenario(clanLeaderExistingGenealogy);
-
-        await captureScreenshotSafe(binding, 'e2e-smoke-auth-001');
-        assertNoUnhandledFailures(tester, crashGuard: context.crashGuard);
-      },
-    );
-
-    testWidgets(
-      '[TREE-001][P0] linked user can open genealogy workspace',
-      (tester) async {
         expect(allCaseIds, contains('TREE-001'));
         final context = await pumpE2EApp(tester, locale: const Locale('vi'));
         final authPage = AuthPageObject(tester);
@@ -44,10 +28,11 @@ void main() {
 
         await authPage.loginByPhone(clanLeaderExistingGenealogy.phoneInput);
         await shellPage.expectLoaded();
+        shellPage.expectScenario(clanLeaderExistingGenealogy);
         await shellPage.openTreeTab();
         await genealogyPage.expectTreeLoaded();
 
-        await captureScreenshotSafe(binding, 'e2e-smoke-tree-001');
+        await captureScreenshotSafe(binding, 'e2e-smoke-auth-tree-001');
         assertNoUnhandledFailures(tester, crashGuard: context.crashGuard);
       },
     );

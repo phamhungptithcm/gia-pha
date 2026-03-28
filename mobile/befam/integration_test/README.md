@@ -52,6 +52,12 @@ Generated artifacts (per platform/mode):
 - `mobile/befam/artifacts/release-dashboard-<mode>-<platform>-<suite>.csv`
 - `mobile/befam/artifacts/e2e-report-<mode>-<platform>-<suite>.md`
 
+Performance toggles:
+
+- `BEFAM_E2E_FAST_MODE=true` reduces frame-settle waits in harness for CI smoke.
+- `BEFAM_E2E_SKIP_SCREENSHOTS=true` skips screenshot capture to reduce I/O overhead.
+- `BEFAM_E2E_IOS_MAX_ATTEMPTS=1` avoids expensive duplicate iOS rebuild retries in smoke.
+
 ## CI
 
 - Branch CI job `ci-mobile` runs smoke E2E contract checks.
