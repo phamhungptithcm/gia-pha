@@ -18,11 +18,14 @@ import {
   CALLABLE_ENFORCE_APP_CHECK,
   OTP_ALLOWED_DIAL_CODES,
   OTP_PROVIDER,
+  OTP_REVIEW_BYPASS_ENABLED,
+  OTP_REVIEW_BYPASS_PHONES,
   OTP_TWILIO_ACCOUNT_SID,
   OTP_TWILIO_BACKOFF_MS,
   OTP_TWILIO_MAX_RETRIES,
   OTP_TWILIO_TIMEOUT_MS,
   OTP_TWILIO_VERIFY_SERVICE_SID,
+  getOtpReviewBypassCode,
   getOtpTwilioAuthToken,
 } from '../config/runtime';
 import { db } from '../shared/firestore';
@@ -233,6 +236,7 @@ type OtpChallengeSessionRecord = {
   appId?: string | null;
   fingerprintHash?: string | null;
   twilioVerificationSid?: string | null;
+  reviewBypassEligible?: boolean | null;
   verifyAttempts?: number | null;
   maxVerifyAttempts?: number | null;
   expiresAt?: Timestamp | null;
@@ -278,6 +282,7 @@ const APP_CHECK_CALLABLE_OPTIONS = {
   enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
 } as const;
 const SUPPORTED_PHONE_DIAL_CODES = ['886', '84', '82', '81', '65', '61', '49', '44', '33', '1'];
+const OTP_REVIEW_BYPASS_PHONE_SET = buildOtpReviewBypassPhoneSet();
 
 function personalBillingScopeId(uid: string): string {
   return `user_scope__${uid.trim()}`;
@@ -331,7 +336,6 @@ export const resolveChildLoginContext = onCall(
 export const requestOtpChallenge = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
-    ensureTwilioOtpEnabled();
     const loginMethod = requireLoginMethod(request.data);
     const languageCode = resolvePreferredLanguageCode(request.data);
 
@@ -359,10 +363,16 @@ export const requestOtpChallenge = onCall(
     assertOtpDialCodeAllowed(phoneE164);
     await enforceOtpRequestRateLimit(request, phoneE164);
 
-    const providerResponse = await requestTwilioOtp({
-      phoneE164,
-      languageCode,
-    });
+    const reviewBypassEligible = shouldUseOtpReviewBypass(phoneE164);
+    if (!reviewBypassEligible) {
+      ensureTwilioOtpEnabled();
+    }
+    const providerResponse = reviewBypassEligible
+      ? null
+      : await requestTwilioOtp({
+        phoneE164,
+        languageCode,
+      });
     const sessionRef = authOtpSessionsCollection.doc();
     const fingerprint = resolveOtpRequestFingerprint(request, phoneE164);
     await sessionRef.set({
@@ -377,7 +387,8 @@ export const requestOtpChallenge = onCall(
       displayName,
       appId: request.app?.appId ?? null,
       fingerprintHash: hashValueForLog(fingerprint),
-      twilioVerificationSid: providerResponse.sid,
+      twilioVerificationSid: providerResponse?.sid ?? null,
+      reviewBypassEligible,
       verifyAttempts: 0,
       maxVerifyAttempts: OTP_CHALLENGE_MAX_VERIFY_ATTEMPTS,
       expiresAt: Timestamp.fromMillis(Date.now() + OTP_CHALLENGE_TTL_MS),
@@ -390,6 +401,7 @@ export const requestOtpChallenge = onCall(
       challengeId: sessionRef.id,
       phoneMasked: maskPhone(phoneE164),
       appId: request.app?.appId ?? null,
+      reviewBypassEligible,
     });
 
     return {
@@ -408,7 +420,6 @@ export const requestOtpChallenge = onCall(
 export const verifyOtpChallenge = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
-    ensureTwilioOtpEnabled();
     const verificationId = requireNonEmptyString(
       request.data,
       'verificationId',
@@ -505,18 +516,38 @@ export const verifyOtpChallenge = onCall(
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    const verification = await verifyTwilioOtpCode({
-      phoneE164,
-      smsCode,
-    });
-    if (!verification.approved) {
+    const reviewBypassEligible = session.reviewBypassEligible == true &&
+      shouldUseOtpReviewBypass(phoneE164);
+    let isApproved = false;
+    let failureReason = '';
+    if (reviewBypassEligible) {
+      isApproved = isOtpReviewBypassCodeValid(smsCode);
+      failureReason = isApproved ? 'approved' : 'invalid_code';
+      if (isApproved) {
+        logInfo('verifyOtpChallenge review bypass approved', {
+          challengeId: verificationId,
+          phoneMasked: maskPhone(phoneE164),
+          loginMethod: session.loginMethod ?? 'phone',
+        });
+      }
+    } else {
+      ensureTwilioOtpEnabled();
+      const verification = await verifyTwilioOtpCode({
+        phoneE164,
+        smsCode,
+      });
+      isApproved = verification.approved;
+      failureReason = verification.status;
+    }
+
+    if (!isApproved) {
       const exhausted = verifyAttempts + 1 >= maxVerifyAttempts;
       await sessionRef.set({
         status: exhausted ? 'failed' : 'pending',
         failedAt: exhausted ? FieldValue.serverTimestamp() : null,
         updatedAt: FieldValue.serverTimestamp(),
         failureCode: exhausted ? 'attempt_limit' : 'invalid_code',
-        failureReason: verification.status,
+        failureReason,
       }, { merge: true });
       throw new HttpsError(
         exhausted ? 'resource-exhausted' : 'invalid-argument',
@@ -2484,6 +2515,46 @@ function ensureTwilioOtpEnabled(): void {
       { reason: 'otp_provider_misconfigured' },
     );
   }
+}
+
+function shouldUseOtpReviewBypass(phoneE164: string): boolean {
+  if (!OTP_REVIEW_BYPASS_ENABLED) {
+    return false;
+  }
+  if (OTP_REVIEW_BYPASS_PHONE_SET.size === 0) {
+    return false;
+  }
+  return OTP_REVIEW_BYPASS_PHONE_SET.has(normalizePhoneE164(phoneE164));
+}
+
+function isOtpReviewBypassCodeValid(smsCode: string): boolean {
+  if (!OTP_REVIEW_BYPASS_ENABLED) {
+    return false;
+  }
+  const expectedCode = getOtpReviewBypassCode().trim();
+  if (expectedCode.length === 0) {
+    logWarn('OTP review bypass is enabled but OTP_REVIEW_BYPASS_CODE is empty.');
+    return false;
+  }
+  return smsCode.trim() === expectedCode;
+}
+
+function buildOtpReviewBypassPhoneSet(): Set<string> {
+  const normalizedPhones = new Set<string>();
+  for (const rawPhone of OTP_REVIEW_BYPASS_PHONES) {
+    const trimmed = rawPhone.trim();
+    if (trimmed.length === 0) {
+      continue;
+    }
+    try {
+      normalizedPhones.add(normalizePhoneE164(trimmed));
+    } catch {
+      logWarn('Ignoring invalid OTP_REVIEW_BYPASS_PHONES entry.', {
+        phoneHash: hashValueForLog(trimmed),
+      });
+    }
+  }
+  return normalizedPhones;
 }
 
 function assertOtpDialCodeAllowed(phoneE164: string): void {

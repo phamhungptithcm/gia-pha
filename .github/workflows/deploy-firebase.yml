@@ -191,6 +191,8 @@ jobs:
           OTP_TWILIO_TIMEOUT_MS: ${{ vars.OTP_TWILIO_TIMEOUT_MS }}
           OTP_TWILIO_MAX_RETRIES: ${{ vars.OTP_TWILIO_MAX_RETRIES }}
           OTP_TWILIO_BACKOFF_MS: ${{ vars.OTP_TWILIO_BACKOFF_MS }}
+          OTP_REVIEW_BYPASS_ENABLED: ${{ vars.OTP_REVIEW_BYPASS_ENABLED }}
+          OTP_REVIEW_BYPASS_PHONES: ${{ vars.OTP_REVIEW_BYPASS_PHONES }}
           BILLING_IAP_ALLOW_TEST_MOCK: ${{ vars.BILLING_IAP_ALLOW_TEST_MOCK }}
           GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
           BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS: ${{ vars.BILLING_IAP_APPLE_VERIFY_TIMEOUT_MS }}
@@ -204,6 +206,7 @@ jobs:
           APPLE_SHARED_SECRET: ${{ secrets.APPLE_SHARED_SECRET }}
           OTP_TWILIO_ACCOUNT_SID: ${{ secrets.OTP_TWILIO_ACCOUNT_SID }}
           OTP_TWILIO_AUTH_TOKEN: ${{ secrets.OTP_TWILIO_AUTH_TOKEN }}
+          OTP_REVIEW_BYPASS_CODE: ${{ secrets.OTP_REVIEW_BYPASS_CODE }}
           APPLE_IAP_WEBHOOK_BEARER_TOKEN: ${{ secrets.APPLE_IAP_WEBHOOK_BEARER_TOKEN }}
           GOOGLE_IAP_WEBHOOK_BEARER_TOKEN: ${{ secrets.GOOGLE_IAP_WEBHOOK_BEARER_TOKEN }}
           BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN: ${{ secrets.BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN }}
@@ -244,6 +247,9 @@ jobs:
           resolved_otp_twilio_timeout_ms="${OTP_TWILIO_TIMEOUT_MS:-6000}"
           resolved_otp_twilio_max_retries="${OTP_TWILIO_MAX_RETRIES:-2}"
           resolved_otp_twilio_backoff_ms="${OTP_TWILIO_BACKOFF_MS:-300}"
+          resolved_otp_review_bypass_enabled="${OTP_REVIEW_BYPASS_ENABLED:-false}"
+          resolved_otp_review_bypass_phones="${OTP_REVIEW_BYPASS_PHONES:-}"
+          resolved_otp_review_bypass_code="${OTP_REVIEW_BYPASS_CODE:-}"
           resolved_delinquency_grace_days="${BILLING_DELINQUENCY_GRACE_DAYS:-7}"
           resolved_delinquency_limit="${BILLING_DELINQUENCY_LIMIT:-800}"
           resolved_delinquency_reminder_days="${BILLING_DELINQUENCY_REMINDER_DAYS:-7,3,1}"
@@ -298,6 +304,10 @@ jobs:
             firebase|twilio) ;;
             *) echo "Unsupported OTP_PROVIDER: $resolved_otp_provider"; exit 1 ;;
           esac
+          case "$resolved_otp_review_bypass_enabled" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported OTP_REVIEW_BYPASS_ENABLED: $resolved_otp_review_bypass_enabled"; exit 1 ;;
+          esac
           if [[ "$resolved_otp_provider" != "twilio" ]]; then
             echo "OTP_PROVIDER must be twilio in production."
             exit 1
@@ -307,6 +317,23 @@ jobs:
             test -n "$OTP_TWILIO_AUTH_TOKEN"
             test -n "$OTP_TWILIO_VERIFY_SERVICE_SID"
           fi
+          case "$resolved_otp_review_bypass_enabled" in
+            true|1|yes)
+              test -n "$resolved_otp_review_bypass_phones" || {
+                echo "OTP_REVIEW_BYPASS_PHONES is required when OTP_REVIEW_BYPASS_ENABLED=true."
+                exit 1
+              }
+              test -n "$resolved_otp_review_bypass_code" || {
+                echo "OTP_REVIEW_BYPASS_CODE is required when OTP_REVIEW_BYPASS_ENABLED=true."
+                exit 1
+              }
+              ;;
+            *)
+              resolved_otp_review_bypass_enabled=false
+              resolved_otp_review_bypass_phones=""
+              resolved_otp_review_bypass_code=""
+              ;;
+          esac
           case "$resolved_iap_allow_test_mock" in
             true|1|yes) echo "BILLING_IAP_ALLOW_TEST_MOCK must be false in production."; exit 1 ;;
           esac
@@ -358,6 +385,9 @@ jobs:
           OTP_TWILIO_TIMEOUT_MS=${resolved_otp_twilio_timeout_ms}
           OTP_TWILIO_MAX_RETRIES=${resolved_otp_twilio_max_retries}
           OTP_TWILIO_BACKOFF_MS=${resolved_otp_twilio_backoff_ms}
+          OTP_REVIEW_BYPASS_ENABLED=${resolved_otp_review_bypass_enabled}
+          OTP_REVIEW_BYPASS_PHONES=${resolved_otp_review_bypass_phones}
+          OTP_REVIEW_BYPASS_CODE=${resolved_otp_review_bypass_code}
           BILLING_CARD_CHECKOUT_URL_BASE=${BILLING_CARD_CHECKOUT_URL_BASE}
           NOTIFICATION_PUSH_ENABLED=${resolved_notification_push_enabled}
           NOTIFICATION_EMAIL_ENABLED=${resolved_notification_email_enabled}
@@ -405,6 +435,8 @@ jobs:
           echo "OTP_TWILIO_TIMEOUT_MS=$resolved_otp_twilio_timeout_ms" >> "$GITHUB_ENV"
           echo "OTP_TWILIO_MAX_RETRIES=$resolved_otp_twilio_max_retries" >> "$GITHUB_ENV"
           echo "OTP_TWILIO_BACKOFF_MS=$resolved_otp_twilio_backoff_ms" >> "$GITHUB_ENV"
+          echo "OTP_REVIEW_BYPASS_ENABLED=$resolved_otp_review_bypass_enabled" >> "$GITHUB_ENV"
+          echo "OTP_REVIEW_BYPASS_PHONES=$resolved_otp_review_bypass_phones" >> "$GITHUB_ENV"
           echo "CALLABLE_ENFORCE_APP_CHECK=$resolved_callable_enforce_app_check" >> "$GITHUB_ENV"
           echo "BILLING_CARD_CHECKOUT_URL_BASE=$BILLING_CARD_CHECKOUT_URL_BASE" >> "$GITHUB_ENV"
           echo "NOTIFICATION_PUSH_ENABLED=$resolved_notification_push_enabled" >> "$GITHUB_ENV"
