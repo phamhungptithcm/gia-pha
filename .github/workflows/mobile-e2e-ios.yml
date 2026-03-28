@@ -143,12 +143,44 @@ jobs:
           open -a Simulator || true
           echo "BEFAM_E2E_IOS_DEVICE=${SIM_UDID}" >> "$GITHUB_ENV"
 
+      - name: Resolve iOS E2E mode (live/debug fallback)
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        id: runtime
+        env:
+          SECRET_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          SECRET_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+          VAR_PHONE: ${{ vars.BEFAM_E2E_TEST_PHONE }}
+          VAR_OTP: ${{ vars.BEFAM_E2E_TEST_OTP }}
+        run: |
+          set -euo pipefail
+          phone="${SECRET_PHONE:-}"
+          otp="${SECRET_OTP:-}"
+          if [[ -z "${phone}" ]]; then
+            phone="${VAR_PHONE:-}"
+          fi
+          if [[ -z "${otp}" ]]; then
+            otp="${VAR_OTP:-}"
+          fi
+
+          mode="${E2E_MODE}"
+          if [[ "${mode}" == "live" ]]; then
+            if [[ -z "${phone}" || -z "${otp}" ]]; then
+              echo "::warning::Live smoke requested but BEFAM_E2E_TEST_PHONE/OTP are missing. Falling back to debug smoke."
+              mode="debug"
+            fi
+          fi
+
+          echo "mode=${mode}" >> "$GITHUB_OUTPUT"
+          echo "phone=${phone}" >> "$GITHUB_OUTPUT"
+          echo "otp=${otp}" >> "$GITHUB_OUTPUT"
+
       - name: Run iOS E2E
         if: ${{ steps.scope.outputs.run_e2e == 'true' }}
         timeout-minutes: 100
         env:
-          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
-          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+          E2E_MODE: ${{ steps.runtime.outputs.mode }}
+          BEFAM_E2E_TEST_PHONE: ${{ steps.runtime.outputs.phone }}
+          BEFAM_E2E_TEST_OTP: ${{ steps.runtime.outputs.otp }}
           BEFAM_E2E_SKIP_DEP_PREP: "true"
         run: |
           set -euo pipefail
