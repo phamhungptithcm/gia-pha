@@ -17,7 +17,7 @@ jobs:
   e2e-ios:
     name: E2E - iOS Test Run
     runs-on: macos-latest
-    timeout-minutes: 110
+    timeout-minutes: 85
     env:
       E2E_MODE: live
       E2E_PLATFORM: ios
@@ -176,7 +176,7 @@ jobs:
 
       - name: Run iOS E2E
         if: ${{ steps.scope.outputs.run_e2e == 'true' }}
-        timeout-minutes: 100
+        timeout-minutes: 70
         env:
           E2E_MODE: ${{ steps.runtime.outputs.mode }}
           BEFAM_E2E_TEST_PHONE: ${{ steps.runtime.outputs.phone }}
@@ -194,7 +194,7 @@ jobs:
           mode = os.environ.get("E2E_MODE", "debug")
           suite = os.environ.get("E2E_SUITE", "smoke")
           # Keep smoke timeout tight to avoid long hung jobs.
-          timeout_minutes = 55 if suite == "smoke" else 95
+          timeout_minutes = 50 if suite == "smoke" else 90
           timeout_seconds = timeout_minutes * 60
           cmd = ["./scripts/run_mobile_e2e.sh", mode, "ios", suite]
 

@@ -18,7 +18,7 @@ jobs:
     name: Gate - Wait for Main CI + E2E
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 100
     steps:
       - name: Wait for required checks on main commit
         env:
@@ -37,7 +37,8 @@ jobs:
             "E2E - iOS Test Run"
           )
 
-          deadline_seconds=$((SECONDS + 140 * 60))
+          deadline_seconds=$((SECONDS + 90 * 60))
+          check_creation_deadline_seconds=$((SECONDS + 20 * 60))
 
           while [ "$SECONDS" -lt "$deadline_seconds" ]; do
             echo "Checking status for commit ${COMMIT_SHA}..."
@@ -47,6 +48,7 @@ jobs:
             )"
 
             all_passed=true
+            saw_any_required_check=false
             for check_name in "${required_checks[@]}"; do
               line="$(
                 jq -r --arg name "$check_name" '
@@ -63,6 +65,8 @@ jobs:
                 continue
               fi
 
+              saw_any_required_check=true
+
               status="$(printf '%s' "$line" | awk -F'\t' '{print $2}')"
               conclusion="$(printf '%s' "$line" | awk -F'\t' '{print $3}')"
               echo " - ${check_name}: status=${status}, conclusion=${conclusion:-n/a}"
@@ -77,6 +81,11 @@ jobs:
                 exit 1
               fi
             done
+
+            if [ "$saw_any_required_check" = false ] && [ "$SECONDS" -ge "$check_creation_deadline_seconds" ]; then
+              echo "::error::No required checks were created within 20 minutes for commit ${COMMIT_SHA}. Failing fast to avoid a stuck release gate."
+              exit 1
+            fi
 
             if [ "$all_passed" = true ]; then
               echo "All required main CI/E2E checks are green."
