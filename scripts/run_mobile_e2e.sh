@@ -227,7 +227,14 @@ run_suite_on_device() {
   if [[ "${MODE}" == "live" ]]; then
     : "${BEFAM_E2E_TEST_PHONE:?BEFAM_E2E_TEST_PHONE is required for live mode}"
     : "${BEFAM_E2E_TEST_OTP:?BEFAM_E2E_TEST_OTP is required for live mode}"
-    tests=("integration_test/e2e_live_firebase_test.dart")
+    if [[ "${SUITE}" == "smoke" ]]; then
+      tests=("integration_test/e2e_live_smoke_gate_test.dart")
+    else
+      tests=(
+        "integration_test/e2e_live_smoke_gate_test.dart"
+        "integration_test/e2e_live_firebase_test.dart"
+      )
+    fi
     defines+=(
       "--dart-define=BEFAM_E2E_RUN_LIVE=true"
       "--dart-define=BEFAM_E2E_TEST_PHONE=${BEFAM_E2E_TEST_PHONE}"

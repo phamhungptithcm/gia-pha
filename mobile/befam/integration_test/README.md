@@ -42,7 +42,7 @@ Optional live Firebase run (manual trigger):
 ```bash
 BEFAM_E2E_TEST_PHONE="+84901234567" \
 BEFAM_E2E_TEST_OTP="123456" \
-./scripts/run_mobile_e2e.sh live ios full
+./scripts/run_mobile_e2e.sh live ios smoke
 ```
 
 Generated artifacts (per platform/mode):
@@ -60,7 +60,10 @@ Performance toggles:
 
 ## CI
 
-- Branch CI job `ci-mobile` runs smoke E2E contract checks.
-- Workflow `.github/workflows/mobile-e2e.yml` behavior:
-  - Pull request: runs `debug + android + smoke` by default for fast feedback.
-  - Manual trigger: allows choosing `mode`, `platform`, `suite`.
+- Branch CI job `ci-mobile` runs release-catalog contract checks.
+- Push-gate mobile E2E runs as separate workflows on all branches:
+  - `.github/workflows/mobile-e2e.yml` -> `live + android + smoke`
+  - `.github/workflows/mobile-e2e-ios.yml` -> `live + ios + smoke`
+- Nightly deep regression is scheduled in:
+  - `.github/workflows/mobile-e2e-nightly.yml`
+  - Includes debug full suites (Android + iOS) and live full sanity (Android).

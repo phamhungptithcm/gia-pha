@@ -19,11 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      E2E_MODE: debug
+      E2E_MODE: live
       E2E_PLATFORM: android
       E2E_SUITE: smoke
       BEFAM_E2E_SKIP_GEN_L10N: "true"
       BEFAM_E2E_OTP_PROVIDER: firebase
+      BEFAM_E2E_FAST_MODE: "true"
+      BEFAM_E2E_SKIP_SCREENSHOTS: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5

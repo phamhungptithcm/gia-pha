@@ -19,7 +19,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 110
     env:
-      E2E_MODE: debug
+      E2E_MODE: live
       E2E_PLATFORM: ios
       E2E_SUITE: smoke
       BEFAM_E2E_SKIP_GEN_L10N: "true"

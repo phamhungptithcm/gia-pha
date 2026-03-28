@@ -1,0 +1,229 @@
+name: CI - Mobile E2E Nightly Deep
+
+on:
+  schedule:
+    - cron: "30 3 * * 1-6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-e2e-nightly-deep-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nightly-android-debug-full:
+    name: Nightly E2E - Android Debug Full
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      E2E_MODE: debug
+      E2E_PLATFORM: android
+      E2E_SUITE: full
+      BEFAM_E2E_SKIP_GEN_L10N: "true"
+      BEFAM_E2E_OTP_PROVIDER: firebase
+      BEFAM_E2E_FAST_MODE: "true"
+      BEFAM_E2E_SKIP_SCREENSHOTS: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Enable KVM acceleration
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm",GROUP="kvm",MODE="0666",OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache Android Gradle
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-nightly-e2e-gradle-${{ hashFiles('mobile/befam/android/**/*.gradle*', 'mobile/befam/android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-nightly-e2e-gradle-
+
+      - name: Run Android debug full E2E
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 900
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -no-metrics
+          disable-animations: true
+          script: |
+            set -eu
+            adb start-server
+            adb wait-for-device
+            adb devices
+            chmod +x scripts/run_mobile_e2e.sh
+            ./scripts/run_mobile_e2e.sh "$E2E_MODE" android "$E2E_SUITE"
+
+      - name: Upload Android nightly artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-mobile-e2e-android-debug-full-${{ github.run_id }}
+          path: |
+            mobile/befam/artifacts/**
+            mobile/befam/integration_test/screenshots/**
+          if-no-files-found: ignore
+
+  nightly-ios-debug-full:
+    name: Nightly E2E - iOS Debug Full
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      E2E_MODE: debug
+      E2E_PLATFORM: ios
+      E2E_SUITE: full
+      BEFAM_E2E_SKIP_GEN_L10N: "true"
+      BEFAM_E2E_OTP_PROVIDER: firebase
+      BEFAM_E2E_FAST_MODE: "true"
+      BEFAM_E2E_SKIP_SCREENSHOTS: "true"
+      BEFAM_E2E_IOS_MAX_ATTEMPTS: "2"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache iOS dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/Library/Caches/org.cocoapods.CocoaPods
+            mobile/befam/ios/Pods
+          key: ${{ runner.os }}-nightly-e2e-ios-deps-${{ hashFiles('mobile/befam/pubspec.lock', 'mobile/befam/ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-nightly-e2e-ios-deps-
+
+      - name: Prepare iOS dependencies
+        run: |
+          set -euo pipefail
+          cd mobile/befam
+          flutter pub get
+          cd ios
+          if ! pod install --deployment --silent; then
+            echo "::warning::CocoaPods deployment install failed due lockfile mismatch; retrying with non-deployment mode."
+            pod install --silent
+          fi
+
+      - name: Boot iOS simulator
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          SIM_UDID="$(
+            xcrun simctl list devices available -j | python3 -c 'import json,sys;payload=json.load(sys.stdin);devices=[d for runtime,entries in payload.get("devices",{}).items() if "iOS" in runtime for d in entries if d.get("isAvailable",True)];prefs=("iPhone 16 Pro","iPhone 16","iPhone 15 Pro","iPhone 15","iPhone SE");chosen=next((d for pref in prefs for d in devices if d.get("name","").startswith(pref)),None) or (devices[0] if devices else None);sys.exit(1) if chosen is None else print(chosen["udid"])'
+          )"
+          xcrun simctl boot "${SIM_UDID}" || true
+          xcrun simctl bootstatus "${SIM_UDID}" -b
+          open -a Simulator || true
+          echo "BEFAM_E2E_IOS_DEVICE=${SIM_UDID}" >> "$GITHUB_ENV"
+
+      - name: Run iOS debug full E2E
+        timeout-minutes: 105
+        env:
+          BEFAM_E2E_SKIP_DEP_PREP: "true"
+        run: |
+          set -euo pipefail
+          chmod +x scripts/run_mobile_e2e.sh
+          ./scripts/run_mobile_e2e.sh "$E2E_MODE" ios "$E2E_SUITE"
+
+      - name: Upload iOS nightly artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-mobile-e2e-ios-debug-full-${{ github.run_id }}
+          path: |
+            mobile/befam/artifacts/**
+            mobile/befam/integration_test/screenshots/**
+          if-no-files-found: ignore
+
+  nightly-android-live-full:
+    name: Nightly E2E - Android Live Full
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      E2E_MODE: live
+      E2E_PLATFORM: android
+      E2E_SUITE: full
+      BEFAM_E2E_SKIP_GEN_L10N: "true"
+      BEFAM_E2E_OTP_PROVIDER: firebase
+      BEFAM_E2E_FAST_MODE: "true"
+      BEFAM_E2E_SKIP_SCREENSHOTS: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Enable KVM acceleration
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm",GROUP="kvm",MODE="0666",OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Run Android live full E2E
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2
+        env:
+          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 900
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -no-metrics
+          disable-animations: true
+          script: |
+            set -eu
+            adb start-server
+            adb wait-for-device
+            adb devices
+            chmod +x scripts/run_mobile_e2e.sh
+            ./scripts/run_mobile_e2e.sh "$E2E_MODE" android "$E2E_SUITE"
+
+      - name: Upload Android live nightly artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-mobile-e2e-android-live-full-${{ github.run_id }}
+          path: |
+            mobile/befam/artifacts/**
+            mobile/befam/integration_test/screenshots/**
+          if-no-files-found: ignore
