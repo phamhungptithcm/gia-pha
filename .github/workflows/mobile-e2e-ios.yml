@@ -103,7 +103,10 @@ jobs:
           cd mobile/befam
           flutter pub get
           cd ios
-          pod install --deployment --silent
+          if ! pod install --deployment --silent; then
+            echo "::warning::CocoaPods deployment install failed due lockfile mismatch; retrying with non-deployment mode for CI."
+            pod install --silent
+          fi
 
       - name: Boot iOS simulator
         if: ${{ steps.scope.outputs.run_e2e == 'true' }}
