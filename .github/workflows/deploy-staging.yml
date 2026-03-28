@@ -28,7 +28,7 @@ jobs:
   gate-staging-ci-e2e:
     name: Gate - Wait for Staging CI + E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 100
     steps:
       - name: Wait for required checks on staging commit
         env:
@@ -47,7 +47,8 @@ jobs:
             "E2E - iOS Test Run"
           )
 
-          deadline_seconds=$((SECONDS + 140 * 60))
+          deadline_seconds=$((SECONDS + 90 * 60))
+          check_creation_deadline_seconds=$((SECONDS + 20 * 60))
 
           while [ "$SECONDS" -lt "$deadline_seconds" ]; do
             echo "Checking status for commit ${COMMIT_SHA}..."
@@ -57,6 +58,7 @@ jobs:
             )"
 
             all_passed=true
+            saw_any_required_check=false
             for check_name in "${required_checks[@]}"; do
               line="$(
                 jq -r --arg name "$check_name" '
@@ -73,6 +75,8 @@ jobs:
                 continue
               fi
 
+              saw_any_required_check=true
+
               status="$(printf '%s' "$line" | awk -F'\t' '{print $2}')"
               conclusion="$(printf '%s' "$line" | awk -F'\t' '{print $3}')"
               echo " - ${check_name}: status=${status}, conclusion=${conclusion:-n/a}"
@@ -87,6 +91,11 @@ jobs:
                 exit 1
               fi
             done
+
+            if [ "$saw_any_required_check" = false ] && [ "$SECONDS" -ge "$check_creation_deadline_seconds" ]; then
+              echo "::error::No required checks were created within 20 minutes for commit ${COMMIT_SHA}. Failing fast to avoid a stuck deploy gate."
+              exit 1
+            fi
 
             if [ "$all_passed" = true ]; then
               echo "All required staging CI/E2E checks are green."
@@ -113,13 +122,16 @@ jobs:
       - name: Validate staging sandbox target
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          STAGING_FIREBASE_PROJECT_ID: ${{ vars.STAGING_FIREBASE_PROJECT_ID }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
         run: |
           set -euo pipefail
           project="${FIREBASE_PROJECT_ID:-}"
           test -n "$project"
-          if [ "$project" != "be-fam-3ab23" ]; then
-            echo "::error::Staging deploy must target sandbox project be-fam-3ab23. Current: ${project}"
+          expected_project="${STAGING_FIREBASE_PROJECT_ID:-}"
+          test -n "$expected_project"
+          if [ "$project" != "$expected_project" ]; then
+            echo "::error::Staging deploy must target configured sandbox project ${expected_project}. Current: ${project}"
             exit 1
           fi
           database="${FIRESTORE_DATABASE_ID:-"(default)"}"
@@ -206,6 +218,36 @@ jobs:
         working-directory: firebase/functions
         run: npm run build
 
+      - name: Write Functions runtime env file (staging)
+        working-directory: firebase/functions
+        env:
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+          OTP_ALLOWED_DIAL_CODES: ${{ vars.OTP_ALLOWED_DIAL_CODES }}
+          CALLABLE_ENFORCE_APP_CHECK: ${{ vars.CALLABLE_ENFORCE_APP_CHECK }}
+        run: |
+          set -euo pipefail
+          resolved_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
+          resolved_firestore_database_id="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          resolved_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          resolved_otp_allowed_dial_codes="${OTP_ALLOWED_DIAL_CODES:-84}"
+          resolved_callable_enforce_app_check="${CALLABLE_ENFORCE_APP_CHECK:-true}"
+          case "$resolved_callable_enforce_app_check" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported CALLABLE_ENFORCE_APP_CHECK: $resolved_callable_enforce_app_check"; exit 1 ;;
+          esac
+          env_file=".env.${FIREBASE_PROJECT_ID}"
+          cat > "$env_file" <<EOF
+          APP_REGION=${resolved_region}
+          FIRESTORE_DATABASE_ID=${resolved_firestore_database_id}
+          APP_TIMEZONE=${resolved_timezone}
+          CALLABLE_ENFORCE_APP_CHECK=${resolved_callable_enforce_app_check}
+          OTP_PROVIDER=firebase
+          OTP_ALLOWED_DIAL_CODES=${resolved_otp_allowed_dial_codes}
+          EOF
+          echo "Wrote staging runtime env file: firebase/functions/$env_file"
+
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@14.19.1
 
@@ -241,13 +283,16 @@ jobs:
       - name: Validate staging sandbox target
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          STAGING_FIREBASE_PROJECT_ID: ${{ vars.STAGING_FIREBASE_PROJECT_ID }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
         run: |
           set -euo pipefail
           project="${FIREBASE_PROJECT_ID:-}"
           test -n "$project"
-          if [ "$project" != "be-fam-3ab23" ]; then
-            echo "::error::Staging deploy must target sandbox project be-fam-3ab23. Current: ${project}"
+          expected_project="${STAGING_FIREBASE_PROJECT_ID:-}"
+          test -n "$expected_project"
+          if [ "$project" != "$expected_project" ]; then
+            echo "::error::Staging deploy must target configured sandbox project ${expected_project}. Current: ${project}"
             exit 1
           fi
           database="${FIRESTORE_DATABASE_ID:-"(default)"}"
@@ -337,7 +382,10 @@ jobs:
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
           BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
           BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
+          BEFAM_WEB_BASE_URL: ${{ vars.BEFAM_WEB_BASE_URL }}
+          BEFAM_FIREBASE_PROJECT_ID: ${{ vars.BEFAM_FIREBASE_PROJECT_ID }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
@@ -345,7 +393,17 @@ jobs:
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          otp_provider="${BEFAM_OTP_PROVIDER:-firebase}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          if [ "$otp_provider" != "firebase" ]; then
+            echo "::error::Staging web builds must use BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
+            exit 1
+          fi
+          web_base_url="${BEFAM_WEB_BASE_URL:-}"
+          if [ -z "$web_base_url" ] && [ -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]; then
+            web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"
+          fi
+          ../../scripts/render_web_metadata.sh "$web_base_url"
           ios_store_url="${BEFAM_IOS_APP_STORE_URL:-}"
           android_store_url="${BEFAM_ANDROID_PLAY_STORE_URL:-}"
           optional_store_defines=()
@@ -359,7 +417,7 @@ jobs:
             --release \
             --no-wasm-dry-run \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
-            --dart-define=BEFAM_OTP_PROVIDER=firebase \
+            --dart-define=BEFAM_OTP_PROVIDER="${otp_provider}" \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \

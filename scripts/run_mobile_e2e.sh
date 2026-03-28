@@ -36,6 +36,10 @@ Environment:
   BEFAM_E2E_IOS_DEVICE          Optional iOS simulator/device id (default: first connected iOS simulator)
   BEFAM_E2E_TEST_PHONE          Required for live mode
   BEFAM_E2E_TEST_OTP            Required for live mode
+  BEFAM_E2E_SKIP_DEP_PREP       true/false. If true, skip flutter pub get/gen-l10n pre-step in this script.
+  BEFAM_E2E_FAST_MODE           true/false. If true, pass fast-mode test defines to integration tests.
+  BEFAM_E2E_SKIP_SCREENSHOTS    true/false. If true, integration tests skip screenshot capture.
+  BEFAM_E2E_IOS_MAX_ATTEMPTS    Optional integer override for iOS retry attempts (default: smoke=1, full=2).
   BEFAM_E2E_SEED_DEBUG_PROFILES true/false. If true, run Firebase debug profile seed script first.
   FIREBASE_PROJECT_ID           Firebase project for debug profile seed script.
   FIREBASE_SERVICE_ACCOUNT_JSON Optional service account JSON path for seed script.
@@ -59,6 +63,20 @@ if [[ "${SUITE}" != "smoke" && "${SUITE}" != "full" ]]; then
   echo "Unsupported suite: ${SUITE}" >&2
   exit 1
 fi
+
+seconds_now() {
+  date +%s
+}
+
+print_duration() {
+  local label="$1"
+  local started_at="$2"
+  local ended_at
+  local elapsed
+  ended_at="$(seconds_now)"
+  elapsed=$((ended_at - started_at))
+  printf '::notice::%s completed in %ss\n' "${label}" "${elapsed}"
+}
 
 resolve_android_device() {
   if [[ -n "${BEFAM_E2E_ANDROID_DEVICE:-}" ]]; then
@@ -194,16 +212,29 @@ run_suite_on_device() {
   local flutter_exit_code=0
   local retry_attempt=1
   local max_attempts=1
+  local run_started_at
+  local ios_max_attempts="${BEFAM_E2E_IOS_MAX_ATTEMPTS:-}"
   local tests=()
   local defines=(
     "--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true"
+    "--dart-define=BEFAM_OTP_PROVIDER=${BEFAM_E2E_OTP_PROVIDER:-firebase}"
+    "--dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false"
     "--dart-define=BEFAM_ENABLE_APP_CHECK=false"
+    "--dart-define=BEFAM_E2E_FAST_MODE=${BEFAM_E2E_FAST_MODE:-false}"
+    "--dart-define=BEFAM_E2E_SKIP_SCREENSHOTS=${BEFAM_E2E_SKIP_SCREENSHOTS:-false}"
   )
 
   if [[ "${MODE}" == "live" ]]; then
     : "${BEFAM_E2E_TEST_PHONE:?BEFAM_E2E_TEST_PHONE is required for live mode}"
     : "${BEFAM_E2E_TEST_OTP:?BEFAM_E2E_TEST_OTP is required for live mode}"
-    tests=("integration_test/e2e_live_firebase_test.dart")
+    if [[ "${SUITE}" == "smoke" ]]; then
+      tests=("integration_test/e2e_live_smoke_gate_test.dart")
+    else
+      tests=(
+        "integration_test/e2e_live_smoke_gate_test.dart"
+        "integration_test/e2e_live_firebase_test.dart"
+      )
+    fi
     defines+=(
       "--dart-define=BEFAM_E2E_RUN_LIVE=true"
       "--dart-define=BEFAM_E2E_TEST_PHONE=${BEFAM_E2E_TEST_PHONE}"
@@ -222,8 +253,16 @@ run_suite_on_device() {
   build_sha="$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || true)"
 
   if [[ "${target_platform}" == "ios" ]]; then
-    max_attempts=2
+    if [[ -n "${ios_max_attempts}" ]]; then
+      max_attempts="${ios_max_attempts}"
+    elif [[ "${SUITE}" == "smoke" ]]; then
+      max_attempts=1
+    else
+      max_attempts=2
+    fi
   fi
+
+  run_started_at="$(seconds_now)"
 
   while true; do
     log "Running ${MODE} E2E on ${target_platform} (${device_id}) [attempt ${retry_attempt}/${max_attempts}]"
@@ -341,17 +380,29 @@ PY
   if [[ ${flutter_exit_code} -ne 0 ]]; then
     return ${flutter_exit_code}
   fi
+
+  print_duration "E2E ${target_platform}/${SUITE}" "${run_started_at}"
 }
 
 main() {
-  log "Preparing Flutter dependencies (${MODE}/${PLATFORM}/${SUITE})"
-  (
-    cd "${APP_DIR}"
-    flutter pub get
-    if [[ "${BEFAM_E2E_SKIP_GEN_L10N:-false}" != "true" ]]; then
-      flutter gen-l10n
-    fi
-  )
+  local prepare_started_at
+  local run_started_at
+  run_started_at="$(seconds_now)"
+
+  if [[ "${BEFAM_E2E_SKIP_DEP_PREP:-false}" != "true" ]]; then
+    prepare_started_at="$(seconds_now)"
+    log "Preparing Flutter dependencies (${MODE}/${PLATFORM}/${SUITE})"
+    (
+      cd "${APP_DIR}"
+      flutter pub get
+      if [[ "${BEFAM_E2E_SKIP_GEN_L10N:-false}" != "true" ]]; then
+        flutter gen-l10n
+      fi
+    )
+    print_duration "Dependency preparation" "${prepare_started_at}"
+  else
+    echo "::notice::Skipping dependency preparation (BEFAM_E2E_SKIP_DEP_PREP=true)."
+  fi
 
   maybe_seed_debug_profiles
 
@@ -376,6 +427,7 @@ main() {
     run_suite_on_device "ios" "${ios_device}"
   fi
 
+  print_duration "Total E2E run (${MODE}/${PLATFORM}/${SUITE})" "${run_started_at}"
   log "E2E execution completed. Artifacts at ${ARTIFACTS_DIR}"
 }
 

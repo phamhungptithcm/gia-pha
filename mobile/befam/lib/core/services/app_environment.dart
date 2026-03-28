@@ -115,7 +115,7 @@ class AppEnvironment {
 
   static const String otpProviderRaw = String.fromEnvironment(
     'BEFAM_OTP_PROVIDER',
-    defaultValue: 'twilio',
+    defaultValue: 'firebase',
   );
 
   static OtpProvider get otpProvider {

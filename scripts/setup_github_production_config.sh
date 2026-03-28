@@ -26,6 +26,8 @@ Required deploy auth (choose one mode):
     FIREBASE_SERVICE_ACCOUNT
 
 Optional environment variables:
+  STAGING_FIREBASE_PROJECT_ID
+  PRODUCTION_FIREBASE_PROJECT_ID
   APP_RUNTIME_CONFIG_COLLECTION
   APP_RUNTIME_CONFIG_DOC_ID
   EXPIRE_INVITES_JOB_SCHEDULE
@@ -94,6 +96,7 @@ Optional environment variables:
   BEFAM_FIREBASE_WEB_MEASUREMENT_ID
   BEFAM_FIREBASE_FUNCTIONS_REGION
   BEFAM_DEFAULT_TIMEZONE
+  BEFAM_WEB_BASE_URL
   BEFAM_OTP_PROVIDER
   BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK
   BEFAM_IOS_APP_STORE_URL
@@ -233,7 +236,16 @@ if [[ "$missing" -ne 0 ]]; then
   exit 1
 fi
 
-otp_provider="${OTP_PROVIDER:-firebase}"
+otp_provider="${OTP_PROVIDER:-twilio}"
+befam_otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+if [[ "$otp_provider" != "twilio" ]]; then
+  echo "OTP_PROVIDER must be twilio for production setup." >&2
+  missing=1
+fi
+if [[ "$befam_otp_provider" != "twilio" ]]; then
+  echo "BEFAM_OTP_PROVIDER must be twilio for production setup." >&2
+  missing=1
+fi
 if [[ "$otp_provider" == "twilio" ]]; then
   for key in OTP_TWILIO_ACCOUNT_SID OTP_TWILIO_AUTH_TOKEN OTP_TWILIO_VERIFY_SERVICE_SID; do
     if ! require_non_empty_env "$key"; then
@@ -246,12 +258,18 @@ if [[ "$missing" -ne 0 ]]; then
   exit 1
 fi
 
+: "${OTP_PROVIDER:=twilio}"
+: "${BEFAM_OTP_PROVIDER:=twilio}"
+: "${BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK:=false}"
+
 echo "Applying GitHub environment configuration:"
 echo "  repo: $REPO"
 echo "  env : $ENV_NAME"
 
 # Functions runtime vars
 set_var_if_present FIREBASE_PROJECT_ID
+set_var_if_present STAGING_FIREBASE_PROJECT_ID
+set_var_if_present PRODUCTION_FIREBASE_PROJECT_ID
 set_var_if_present FIREBASE_FUNCTIONS_REGION
 set_var_if_present FIRESTORE_DATABASE_ID
 set_var_if_present APP_TIMEZONE
@@ -324,6 +342,7 @@ set_var_if_present BEFAM_FIREBASE_WEB_APP_ID
 set_var_if_present BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
 set_var_if_present BEFAM_FIREBASE_WEB_AUTH_DOMAIN
 set_var_if_present BEFAM_FIREBASE_WEB_MEASUREMENT_ID
+set_var_if_present BEFAM_WEB_BASE_URL
 set_var_if_present BEFAM_FIREBASE_FUNCTIONS_REGION
 set_var_if_present BEFAM_DEFAULT_TIMEZONE
 set_var_if_present BEFAM_OTP_PROVIDER

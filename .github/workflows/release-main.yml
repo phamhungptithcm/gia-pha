@@ -18,7 +18,7 @@ jobs:
     name: Gate - Wait for Main CI + E2E
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 100
     steps:
       - name: Wait for required checks on main commit
         env:
@@ -37,7 +37,8 @@ jobs:
             "E2E - iOS Test Run"
           )
 
-          deadline_seconds=$((SECONDS + 140 * 60))
+          deadline_seconds=$((SECONDS + 90 * 60))
+          check_creation_deadline_seconds=$((SECONDS + 20 * 60))
 
           while [ "$SECONDS" -lt "$deadline_seconds" ]; do
             echo "Checking status for commit ${COMMIT_SHA}..."
@@ -47,6 +48,7 @@ jobs:
             )"
 
             all_passed=true
+            saw_any_required_check=false
             for check_name in "${required_checks[@]}"; do
               line="$(
                 jq -r --arg name "$check_name" '
@@ -63,6 +65,8 @@ jobs:
                 continue
               fi
 
+              saw_any_required_check=true
+
               status="$(printf '%s' "$line" | awk -F'\t' '{print $2}')"
               conclusion="$(printf '%s' "$line" | awk -F'\t' '{print $3}')"
               echo " - ${check_name}: status=${status}, conclusion=${conclusion:-n/a}"
@@ -77,6 +81,11 @@ jobs:
                 exit 1
               fi
             done
+
+            if [ "$saw_any_required_check" = false ] && [ "$SECONDS" -ge "$check_creation_deadline_seconds" ]; then
+              echo "::error::No required checks were created within 20 minutes for commit ${COMMIT_SHA}. Failing fast to avoid a stuck release gate."
+              exit 1
+            fi
 
             if [ "$all_passed" = true ]; then
               echo "All required main CI/E2E checks are green."
@@ -331,6 +340,8 @@ jobs:
           GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          PRODUCTION_FIREBASE_PROJECT_ID: ${{ vars.PRODUCTION_FIREBASE_PROJECT_ID }}
+          STAGING_FIREBASE_PROJECT_ID: ${{ vars.STAGING_FIREBASE_PROJECT_ID }}
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
@@ -342,6 +353,7 @@ jobs:
             GCP_WORKLOAD_IDENTITY_PROVIDER
             GCP_SERVICE_ACCOUNT_EMAIL
             FIREBASE_PROJECT_ID
+            PRODUCTION_FIREBASE_PROJECT_ID
             FIREBASE_FUNCTIONS_REGION
             FIRESTORE_DATABASE_ID
             GOOGLE_PLAY_PACKAGE_NAME
@@ -354,8 +366,13 @@ jobs:
               exit 1
             fi
           done
-          if [ "${FIREBASE_PROJECT_ID}" = "be-fam-3ab23" ]; then
-            echo "::error::Release pipeline is targeting staging Firebase project be-fam-3ab23."
+          expected_project="${PRODUCTION_FIREBASE_PROJECT_ID}"
+          if [ "$FIREBASE_PROJECT_ID" != "$expected_project" ]; then
+            echo "::error::Release pipeline must target configured project ${expected_project}. Current: ${FIREBASE_PROJECT_ID}."
+            exit 1
+          fi
+          if [ -n "${STAGING_FIREBASE_PROJECT_ID:-}" ] && [ "$FIREBASE_PROJECT_ID" = "$STAGING_FIREBASE_PROJECT_ID" ]; then
+            echo "::error::Release pipeline is targeting staging Firebase project ${STAGING_FIREBASE_PROJECT_ID}."
             exit 1
           fi
 
@@ -560,6 +577,7 @@ jobs:
           BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
@@ -573,6 +591,11 @@ jobs:
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          if [ "$otp_provider" != "twilio" ]; then
+            echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
+            exit 1
+          fi
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -605,7 +628,7 @@ jobs:
             --build-name "${{ needs.prepare-release.outputs.version }}" \
             --build-number "${{ needs.prepare-release.outputs.build_number }}" \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
-            --dart-define=BEFAM_OTP_PROVIDER=twilio \
+            --dart-define=BEFAM_OTP_PROVIDER="${otp_provider}" \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
@@ -735,6 +758,7 @@ jobs:
           BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
@@ -746,6 +770,11 @@ jobs:
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          if [ "$otp_provider" != "twilio" ]; then
+            echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
+            exit 1
+          fi
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -810,7 +839,7 @@ jobs:
             --build-number "${{ needs.prepare-release.outputs.build_number }}" \
             --export-options-plist="${export_options_plist}" \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
-            --dart-define=BEFAM_OTP_PROVIDER=twilio \
+            --dart-define=BEFAM_OTP_PROVIDER="${otp_provider}" \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
@@ -887,6 +916,8 @@ jobs:
           BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
           BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
           BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_WEB_BASE_URL: ${{ vars.BEFAM_WEB_BASE_URL }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
@@ -896,6 +927,16 @@ jobs:
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          if [ "$otp_provider" != "twilio" ]; then
+            echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
+            exit 1
+          fi
+          web_base_url="${BEFAM_WEB_BASE_URL:-}"
+          if [ -z "$web_base_url" ] && [ -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]; then
+            web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"
+          fi
+          ../../scripts/render_web_metadata.sh "$web_base_url"
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -927,7 +968,7 @@ jobs:
             --release \
             --no-wasm-dry-run \
             --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
-            --dart-define=BEFAM_OTP_PROVIDER=twilio \
+            --dart-define=BEFAM_OTP_PROVIDER="${otp_provider}" \
             --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
             --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \

@@ -19,10 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      E2E_MODE: debug
+      E2E_MODE: live
       E2E_PLATFORM: android
       E2E_SUITE: smoke
       BEFAM_E2E_SKIP_GEN_L10N: "true"
+      BEFAM_E2E_OTP_PROVIDER: firebase
+      BEFAM_E2E_FAST_MODE: "true"
+      BEFAM_E2E_SKIP_SCREENSHOTS: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -93,12 +96,44 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-e2e-gradle-
 
+      - name: Resolve Android E2E mode (live/debug fallback)
+        if: ${{ steps.scope.outputs.run_e2e == 'true' }}
+        id: runtime
+        env:
+          SECRET_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          SECRET_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+          VAR_PHONE: ${{ vars.BEFAM_E2E_TEST_PHONE }}
+          VAR_OTP: ${{ vars.BEFAM_E2E_TEST_OTP }}
+        run: |
+          set -euo pipefail
+          phone="${SECRET_PHONE:-}"
+          otp="${SECRET_OTP:-}"
+          if [[ -z "${phone}" ]]; then
+            phone="${VAR_PHONE:-}"
+          fi
+          if [[ -z "${otp}" ]]; then
+            otp="${VAR_OTP:-}"
+          fi
+
+          mode="${E2E_MODE}"
+          if [[ "${mode}" == "live" ]]; then
+            if [[ -z "${phone}" || -z "${otp}" ]]; then
+              echo "::warning::Live smoke requested but BEFAM_E2E_TEST_PHONE/OTP are missing. Falling back to debug smoke."
+              mode="debug"
+            fi
+          fi
+
+          echo "mode=${mode}" >> "$GITHUB_OUTPUT"
+          echo "phone=${phone}" >> "$GITHUB_OUTPUT"
+          echo "otp=${otp}" >> "$GITHUB_OUTPUT"
+
       - name: Run Android E2E
         if: ${{ steps.scope.outputs.run_e2e == 'true' }}
         uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2
         env:
-          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
-          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+          E2E_MODE: ${{ steps.runtime.outputs.mode }}
+          BEFAM_E2E_TEST_PHONE: ${{ steps.runtime.outputs.phone }}
+          BEFAM_E2E_TEST_OTP: ${{ steps.runtime.outputs.otp }}
         with:
           api-level: 34
           arch: x86_64

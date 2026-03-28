@@ -25,6 +25,33 @@ import '../../test/support/features/auth/services/debug_clan_context_service.dar
 import 'e2e_scenarios.dart';
 import 'fakes/fake_push_notification_service.dart';
 
+const bool _e2eFastMode = bool.fromEnvironment('BEFAM_E2E_FAST_MODE');
+const bool _e2eSkipScreenshots = bool.fromEnvironment(
+  'BEFAM_E2E_SKIP_SCREENSHOTS',
+);
+const Duration _normalFrameDuration = Duration(milliseconds: 16);
+const Duration _fastFrameDuration = Duration(milliseconds: 12);
+
+Duration _resolveFrameDuration(Duration requested) {
+  if (!_e2eFastMode) {
+    return requested;
+  }
+  if (requested == _normalFrameDuration) {
+    return _fastFrameDuration;
+  }
+  return requested;
+}
+
+int _resolveMaxFrames(int requested, {required int fastModeCap}) {
+  if (!_e2eFastMode) {
+    return requested;
+  }
+  if (requested <= fastModeCap) {
+    return requested;
+  }
+  return fastModeCap;
+}
+
 final FirebaseSetupStatus e2eReadyStatus = FirebaseSetupStatus.ready(
   projectId: 'e2e-debug-sandbox',
   storageBucket: 'e2e-debug-sandbox.appspot.com',
@@ -89,11 +116,13 @@ class E2EAppContext {
 
 Future<void> safePumpAndSettle(
   WidgetTester tester, {
-  Duration duration = const Duration(milliseconds: 16),
+  Duration duration = _normalFrameDuration,
   int maxFrames = 300,
 }) async {
+  final frameDuration = _resolveFrameDuration(duration);
+  final effectiveMaxFrames = _resolveMaxFrames(maxFrames, fastModeCap: 180);
   try {
-    await tester.pumpAndSettle(duration);
+    await tester.pumpAndSettle(frameDuration);
     return;
   } catch (error) {
     if (!error.toString().contains('pumpAndSettle timed out')) {
@@ -101,8 +130,8 @@ Future<void> safePumpAndSettle(
     }
   }
 
-  for (var frame = 0; frame < maxFrames; frame += 1) {
-    await tester.pump(duration);
+  for (var frame = 0; frame < effectiveMaxFrames; frame += 1) {
+    await tester.pump(frameDuration);
   }
 }
 
@@ -110,14 +139,17 @@ Future<void> waitFor(
   WidgetTester tester, {
   required bool Function() condition,
   int maxFrames = 420,
-  Duration frameDuration = const Duration(milliseconds: 16),
+  Duration frameDuration = _normalFrameDuration,
   String? reason,
 }) async {
-  for (var frame = 0; frame < maxFrames; frame += 1) {
+  final effectiveFrameDuration = _resolveFrameDuration(frameDuration);
+  final effectiveMaxFrames = _resolveMaxFrames(maxFrames, fastModeCap: 320);
+
+  for (var frame = 0; frame < effectiveMaxFrames; frame += 1) {
     if (condition()) {
       return;
     }
-    await tester.pump(frameDuration);
+    await tester.pump(effectiveFrameDuration);
   }
   expect(condition(), isTrue, reason: reason);
 }
@@ -126,7 +158,7 @@ Future<void> waitForFinder(
   WidgetTester tester,
   Finder finder, {
   int maxFrames = 420,
-  Duration frameDuration = const Duration(milliseconds: 16),
+  Duration frameDuration = _normalFrameDuration,
   String? reason,
 }) async {
   await waitFor(
@@ -218,16 +250,19 @@ Future<Finder> waitForAnyFinder(
   WidgetTester tester,
   List<Finder> finders, {
   int maxFrames = 420,
-  Duration frameDuration = const Duration(milliseconds: 16),
+  Duration frameDuration = _normalFrameDuration,
   String? reason,
 }) async {
-  for (var frame = 0; frame < maxFrames; frame += 1) {
+  final effectiveFrameDuration = _resolveFrameDuration(frameDuration);
+  final effectiveMaxFrames = _resolveMaxFrames(maxFrames, fastModeCap: 320);
+
+  for (var frame = 0; frame < effectiveMaxFrames; frame += 1) {
     for (final finder in finders) {
       if (finder.evaluate().isNotEmpty) {
         return finder;
       }
     }
-    await tester.pump(frameDuration);
+    await tester.pump(effectiveFrameDuration);
   }
 
   fail(reason ?? 'Không tìm thấy bất kỳ widget nào phù hợp.');
@@ -237,10 +272,13 @@ Future<Finder?> waitForFinderOrOtpOrShell(
   WidgetTester tester,
   List<Finder> finders, {
   int maxFrames = 420,
-  Duration frameDuration = const Duration(milliseconds: 16),
+  Duration frameDuration = _normalFrameDuration,
   String? reason,
 }) async {
-  for (var frame = 0; frame < maxFrames; frame += 1) {
+  final effectiveFrameDuration = _resolveFrameDuration(frameDuration);
+  final effectiveMaxFrames = _resolveMaxFrames(maxFrames, fastModeCap: 320);
+
+  for (var frame = 0; frame < effectiveMaxFrames; frame += 1) {
     if (_isOtpOrShellVisible(tester)) {
       return null;
     }
@@ -249,7 +287,7 @@ Future<Finder?> waitForFinderOrOtpOrShell(
         return finder;
       }
     }
-    await tester.pump(frameDuration);
+    await tester.pump(effectiveFrameDuration);
   }
 
   fail(
@@ -670,6 +708,9 @@ Future<void> captureScreenshotSafe(
   IntegrationTestWidgetsFlutterBinding binding,
   String name,
 ) async {
+  if (_e2eSkipScreenshots) {
+    return;
+  }
   try {
     await binding.takeScreenshot(name).timeout(const Duration(seconds: 8));
   } catch (_) {}
