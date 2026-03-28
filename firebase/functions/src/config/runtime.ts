@@ -331,6 +331,20 @@ export const OTP_TWILIO_BACKOFF_MS = readEnvInt(
   { min: 50, max: 5000 },
 );
 
+export const OTP_REVIEW_BYPASS_ENABLED = readEnvBoolean(
+  'OTP_REVIEW_BYPASS_ENABLED',
+  false,
+);
+
+export const OTP_REVIEW_BYPASS_PHONES = readEnvStringList(
+  'OTP_REVIEW_BYPASS_PHONES',
+  [],
+);
+
 export function getOtpTwilioAuthToken(): string {
   return readEnvString('OTP_TWILIO_AUTH_TOKEN');
+}
+
+export function getOtpReviewBypassCode(): string {
+  return readEnvString('OTP_REVIEW_BYPASS_CODE');
 }
