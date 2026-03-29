@@ -1,6 +1,6 @@
 # CI/CD
 
-_Last reviewed: March 21, 2026_
+_Last reviewed: March 28, 2026_
 
 BeFam uses a protected promotion model:
 
@@ -30,6 +30,13 @@ Builds and publishes MkDocs to GitHub Pages.
 ### `deploy-staging.yml` (`CD - Deploy Staging`)
 Deploys Firebase resources and web hosting to the staging environment.
 Branch guard: staging only.
+
+### `release-staging.yml` (`CD - Release Staging (Manual)`)
+Manual `workflow_dispatch` to build signed staging mobile artifacts for store testing:
+- Android AAB
+- iOS IPA
+
+This workflow does not create a release tag and does not publish a GitHub Release.
 
 ### `release-main.yml` (`CD - Release Main`)
 Builds release artifacts, signs mobile binaries, publishes immutable release assets, checksums, and release manifest.

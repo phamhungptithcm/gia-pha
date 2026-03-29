@@ -1,0 +1,559 @@
+name: CD - Release Staging (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build (default: staging)"
+        required: false
+        default: staging
+        type: string
+      build_name:
+        description: "Optional build name override (example: 1.0.0)"
+        required: false
+        type: string
+      build_number:
+        description: "Optional build number override (integer). Default: GitHub run number"
+        required: false
+        type: string
+      build_android:
+        description: "Build Android AAB"
+        required: true
+        default: true
+        type: boolean
+      build_ios:
+        description: "Build iOS IPA"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-staging-manual-${{ inputs.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare Staging Build Metadata
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    outputs:
+      build_name: ${{ steps.meta.outputs.build_name }}
+      build_number: ${{ steps.meta.outputs.build_number }}
+      artifact_suffix: ${{ steps.meta.outputs.artifact_suffix }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Validate workflow inputs
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.build_android }}" != "true" ] && [ "${{ inputs.build_ios }}" != "true" ]; then
+            echo "::error::At least one platform must be selected (build_android or build_ios)."
+            exit 1
+          fi
+
+      - name: Validate staging sandbox target
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          STAGING_FIREBASE_PROJECT_ID: ${{ vars.STAGING_FIREBASE_PROJECT_ID }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          project="${FIREBASE_PROJECT_ID:-}"
+          test -n "$project"
+          expected_project="${STAGING_FIREBASE_PROJECT_ID:-}"
+          if [ -n "$expected_project" ]; then
+            if [ "$project" != "$expected_project" ]; then
+              echo "::error::Staging build must target configured sandbox project ${expected_project}. Current: ${project}"
+              exit 1
+            fi
+          else
+            echo "::warning::STAGING_FIREBASE_PROJECT_ID is empty; using FIREBASE_PROJECT_ID=${project} as staging target."
+          fi
+          database="${FIRESTORE_DATABASE_ID:-"(default)"}"
+          if [ "$database" != "(default)" ]; then
+            echo "::error::Staging build must target Firestore database (default). Current: ${database}"
+            exit 1
+          fi
+
+      - name: Resolve build metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          version_line="$(grep -E '^version:' mobile/befam/pubspec.yaml | head -n1 | awk '{print $2}')"
+          if [ -z "$version_line" ]; then
+            echo "::error::Unable to read app version from mobile/befam/pubspec.yaml"
+            exit 1
+          fi
+
+          default_build_name="${version_line%%+*}"
+          build_name="${{ inputs.build_name }}"
+          if [ -z "$build_name" ]; then
+            build_name="$default_build_name"
+          fi
+
+          build_number="${{ inputs.build_number }}"
+          if [ -z "$build_number" ]; then
+            build_number="${GITHUB_RUN_NUMBER}"
+          fi
+          if ! [[ "$build_number" =~ ^[0-9]+$ ]]; then
+            echo "::error::build_number must be an integer. Received: ${build_number}"
+            exit 1
+          fi
+
+          short_sha="$(git rev-parse --short=8 HEAD)"
+          safe_build_name="$(printf '%s' "$build_name" | tr -cs 'A-Za-z0-9._-' '-')"
+          artifact_suffix="${safe_build_name}-b${build_number}-${short_sha}"
+
+          {
+            echo "build_name=${build_name}"
+            echo "build_number=${build_number}"
+            echo "short_sha=${short_sha}"
+            echo "artifact_suffix=${artifact_suffix}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Staging release metadata"
+            echo "- Ref: \`${{ inputs.ref }}\`"
+            echo "- Commit: \`${short_sha}\`"
+            echo "- Build name: \`${build_name}\`"
+            echo "- Build number: \`${build_number}\`"
+            echo "- Build Android: \`${{ inputs.build_android }}\`"
+            echo "- Build iOS: \`${{ inputs.build_ios }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-android-staging:
+    name: Build Android AAB (Staging)
+    if: ${{ inputs.build_android }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: staging
+    defaults:
+      run:
+        working-directory: mobile/befam
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Generate localization files
+        run: flutter gen-l10n
+
+      - name: Resolve Android signing secrets
+        env:
+          ANDROID_STAGING_KEYSTORE_BASE64: ${{ secrets.ANDROID_STAGING_KEYSTORE_BASE64 }}
+          ANDROID_STAGING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_STAGING_KEYSTORE_PASSWORD }}
+          ANDROID_STAGING_KEY_ALIAS: ${{ secrets.ANDROID_STAGING_KEY_ALIAS }}
+          ANDROID_STAGING_KEY_PASSWORD: ${{ secrets.ANDROID_STAGING_KEY_PASSWORD }}
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keystore_b64="${ANDROID_STAGING_KEYSTORE_BASE64:-${ANDROID_RELEASE_KEYSTORE_BASE64:-}}"
+          keystore_password="${ANDROID_STAGING_KEYSTORE_PASSWORD:-${ANDROID_RELEASE_KEYSTORE_PASSWORD:-}}"
+          key_alias="${ANDROID_STAGING_KEY_ALIAS:-${ANDROID_RELEASE_KEY_ALIAS:-}}"
+          key_password="${ANDROID_STAGING_KEY_PASSWORD:-${ANDROID_RELEASE_KEY_PASSWORD:-}}"
+
+          if [ -z "$keystore_b64" ] || [ -z "$keystore_password" ] || [ -z "$key_alias" ] || [ -z "$key_password" ]; then
+            echo "::error::Missing Android signing secrets. Configure ANDROID_STAGING_* (or fallback ANDROID_RELEASE_* in staging env)."
+            exit 1
+          fi
+
+          keystore_path="$RUNNER_TEMP/android-staging-release.keystore"
+          printf '%s' "$keystore_b64" | base64 --decode > "$keystore_path"
+
+          {
+            echo "ANDROID_KEYSTORE_PATH=$keystore_path"
+            echo "ANDROID_KEYSTORE_PASSWORD=$keystore_password"
+            echo "ANDROID_KEY_ALIAS=$key_alias"
+            echo "ANDROID_KEY_PASSWORD=$key_password"
+          } >> "$GITHUB_ENV"
+
+      - name: Build Android release AAB for staging
+        env:
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+          BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
+          BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
+          BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
+          BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY: ${{ vars.BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY }}
+          BEFAM_FIREBASE_PROJECT_ID: ${{ vars.BEFAM_FIREBASE_PROJECT_ID }}
+          BEFAM_FIREBASE_STORAGE_BUCKET: ${{ vars.BEFAM_FIREBASE_STORAGE_BUCKET }}
+          BEFAM_FIREBASE_ANDROID_API_KEY: ${{ vars.BEFAM_FIREBASE_ANDROID_API_KEY }}
+          BEFAM_FIREBASE_ANDROID_APP_ID: ${{ vars.BEFAM_FIREBASE_ANDROID_APP_ID }}
+          BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_IOS_API_KEY: ${{ vars.BEFAM_FIREBASE_IOS_API_KEY }}
+          BEFAM_FIREBASE_IOS_APP_ID: ${{ vars.BEFAM_FIREBASE_IOS_APP_ID }}
+          BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_IOS_BUNDLE_ID: ${{ vars.BEFAM_FIREBASE_IOS_BUNDLE_ID }}
+          BEFAM_FIREBASE_WEB_API_KEY: ${{ vars.BEFAM_FIREBASE_WEB_API_KEY }}
+          BEFAM_FIREBASE_WEB_APP_ID: ${{ vars.BEFAM_FIREBASE_WEB_APP_ID }}
+          BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
+          BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
+          BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
+          ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ env.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ env.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ env.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
+          befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          otp_provider="${BEFAM_OTP_PROVIDER:-firebase}"
+          if [ "$otp_provider" != "firebase" ]; then
+            echo "::warning::Staging build usually uses BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
+          fi
+          firebase_define_keys=(
+            BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_STORAGE_BUCKET
+            BEFAM_FIREBASE_ANDROID_API_KEY
+            BEFAM_FIREBASE_ANDROID_APP_ID
+            BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_IOS_API_KEY
+            BEFAM_FIREBASE_IOS_APP_ID
+            BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_IOS_BUNDLE_ID
+            BEFAM_FIREBASE_WEB_API_KEY
+            BEFAM_FIREBASE_WEB_APP_ID
+            BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_WEB_AUTH_DOMAIN
+            BEFAM_FIREBASE_WEB_MEASUREMENT_ID
+            BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+            BEFAM_IOS_APP_STORE_URL
+            BEFAM_ANDROID_PLAY_STORE_URL
+          )
+          optional_firebase_defines=()
+          for key in "${firebase_define_keys[@]}"; do
+            value="${!key:-}"
+            if [ -n "$value" ]; then
+              optional_firebase_defines+=(--dart-define="${key}=${value}")
+            fi
+          done
+
+          flutter build appbundle \
+            --release \
+            --build-name "${{ needs.prepare.outputs.build_name }}" \
+            --build-number "${{ needs.prepare.outputs.build_number }}" \
+            --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
+            --dart-define=BEFAM_OTP_PROVIDER="${otp_provider}" \
+            --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
+            --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
+            --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
+            --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
+            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
+            "${optional_firebase_defines[@]}"
+
+      - name: Package Android artifact
+        env:
+          ARTIFACT_SUFFIX: ${{ needs.prepare.outputs.artifact_suffix }}
+        run: |
+          set -euo pipefail
+          source_path="build/app/outputs/bundle/release/app-release.aab"
+          if [ ! -f "$source_path" ]; then
+            echo "::error::Expected Android AAB not found at ${source_path}"
+            exit 1
+          fi
+          output_dir="${GITHUB_WORKSPACE}/dist/android"
+          artifact_name="befam-staging-${ARTIFACT_SUFFIX}-android-release.aab"
+          mkdir -p "$output_dir"
+          cp "$source_path" "${output_dir}/${artifact_name}"
+          echo "ANDROID_ARTIFACT_NAME=${artifact_name}" >> "$GITHUB_ENV"
+
+      - name: Upload Android AAB artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: staging-android-aab-${{ needs.prepare.outputs.artifact_suffix }}
+          path: dist/android/*.aab
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Add Android summary
+        run: |
+          {
+            echo "### Android artifact"
+            echo "- \`${ANDROID_ARTIFACT_NAME}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-ios-staging:
+    name: Build iOS IPA (Staging)
+    if: ${{ inputs.build_ios }}
+    needs: prepare
+    runs-on: macos-latest
+    timeout-minutes: 90
+    environment:
+      name: staging
+    env:
+      COCOAPODS_DISABLE_STATS: "true"
+    defaults:
+      run:
+        working-directory: mobile/befam
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Install CocoaPods dependencies
+        working-directory: mobile/befam/ios
+        run: pod install
+
+      - name: Generate localization files
+        run: flutter gen-l10n
+
+      - name: Resolve iOS signing secrets
+        env:
+          IOS_STAGING_P12_BASE64: ${{ secrets.IOS_STAGING_P12_BASE64 }}
+          IOS_STAGING_P12_PASSWORD: ${{ secrets.IOS_STAGING_P12_PASSWORD }}
+          IOS_STAGING_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_STAGING_PROVISIONING_PROFILE_BASE64 }}
+          IOS_STAGING_TEAM_ID: ${{ secrets.IOS_STAGING_TEAM_ID }}
+          IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          p12_b64="${IOS_STAGING_P12_BASE64:-${IOS_P12_BASE64:-}}"
+          p12_password="${IOS_STAGING_P12_PASSWORD:-${IOS_P12_PASSWORD:-}}"
+          profile_b64="${IOS_STAGING_PROVISIONING_PROFILE_BASE64:-${IOS_PROVISIONING_PROFILE_BASE64:-}}"
+          team_id="${IOS_STAGING_TEAM_ID:-${IOS_TEAM_ID:-}}"
+
+          if [ -z "$p12_b64" ] || [ -z "$p12_password" ] || [ -z "$profile_b64" ] || [ -z "$team_id" ]; then
+            echo "::error::Missing iOS signing secrets. Configure IOS_STAGING_* (or fallback IOS_* in staging env)."
+            exit 1
+          fi
+
+          cert_path="$RUNNER_TEMP/signing-cert.p12"
+          profile_path="$RUNNER_TEMP/befam.mobileprovision"
+          profile_plist="$RUNNER_TEMP/befam-profile.plist"
+          keychain_path="$RUNNER_TEMP/befam-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+
+          printf '%s' "$p12_b64" | base64 --decode > "$cert_path"
+          printf '%s' "$profile_b64" | base64 --decode > "$profile_path"
+
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security list-keychains -d user -s "$keychain_path" login.keychain-db
+          security default-keychain -s "$keychain_path"
+
+          security import "$cert_path" \
+            -k "$keychain_path" \
+            -P "$p12_password" \
+            -A \
+            -t cert \
+            -f pkcs12
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          security cms -D -i "$profile_path" > "$profile_plist"
+          profile_uuid=$(/usr/libexec/PlistBuddy -c "Print UUID" "$profile_plist")
+          profile_name=$(/usr/libexec/PlistBuddy -c "Print Name" "$profile_plist")
+          cp "$profile_path" "$HOME/Library/MobileDevice/Provisioning Profiles/${profile_uuid}.mobileprovision"
+
+          {
+            echo "IOS_SIGNING_KEYCHAIN_PATH=$keychain_path"
+            echo "IOS_SIGNING_KEYCHAIN_PASSWORD=$keychain_password"
+            echo "IOS_PROVISIONING_PROFILE_NAME=$profile_name"
+            echo "IOS_TEAM_ID=$team_id"
+          } >> "$GITHUB_ENV"
+
+      - name: Build iOS signed release IPA for staging
+        env:
+          FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
+          APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+          BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
+          BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
+          BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
+          BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY: ${{ vars.BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY }}
+          BEFAM_FIREBASE_PROJECT_ID: ${{ vars.BEFAM_FIREBASE_PROJECT_ID }}
+          BEFAM_FIREBASE_STORAGE_BUCKET: ${{ vars.BEFAM_FIREBASE_STORAGE_BUCKET }}
+          BEFAM_FIREBASE_ANDROID_API_KEY: ${{ vars.BEFAM_FIREBASE_ANDROID_API_KEY }}
+          BEFAM_FIREBASE_ANDROID_APP_ID: ${{ vars.BEFAM_FIREBASE_ANDROID_APP_ID }}
+          BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_IOS_API_KEY: ${{ vars.BEFAM_FIREBASE_IOS_API_KEY }}
+          BEFAM_FIREBASE_IOS_APP_ID: ${{ vars.BEFAM_FIREBASE_IOS_APP_ID }}
+          BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_IOS_BUNDLE_ID: ${{ vars.BEFAM_FIREBASE_IOS_BUNDLE_ID }}
+          BEFAM_FIREBASE_WEB_API_KEY: ${{ vars.BEFAM_FIREBASE_WEB_API_KEY }}
+          BEFAM_FIREBASE_WEB_APP_ID: ${{ vars.BEFAM_FIREBASE_WEB_APP_ID }}
+          BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
+          BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
+          BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
+          BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
+          BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
+          IOS_TEAM_ID: ${{ env.IOS_TEAM_ID }}
+          IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
+        run: |
+          set -euo pipefail
+          befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
+          befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
+          invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          otp_provider="${BEFAM_OTP_PROVIDER:-firebase}"
+          if [ "$otp_provider" != "firebase" ]; then
+            echo "::warning::Staging build usually uses BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
+          fi
+          firebase_define_keys=(
+            BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_STORAGE_BUCKET
+            BEFAM_FIREBASE_ANDROID_API_KEY
+            BEFAM_FIREBASE_ANDROID_APP_ID
+            BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_IOS_API_KEY
+            BEFAM_FIREBASE_IOS_APP_ID
+            BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_IOS_BUNDLE_ID
+            BEFAM_FIREBASE_WEB_API_KEY
+            BEFAM_FIREBASE_WEB_APP_ID
+            BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_WEB_AUTH_DOMAIN
+            BEFAM_FIREBASE_WEB_MEASUREMENT_ID
+            BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+            BEFAM_IOS_APP_STORE_URL
+            BEFAM_ANDROID_PLAY_STORE_URL
+          )
+          optional_firebase_defines=()
+          for key in "${firebase_define_keys[@]}"; do
+            value="${!key:-}"
+            if [ -n "$value" ]; then
+              optional_firebase_defines+=(--dart-define="${key}=${value}")
+            fi
+          done
+
+          bundle_id="${BEFAM_FIREBASE_IOS_BUNDLE_ID:-}"
+          if [ -z "$bundle_id" ]; then
+            echo "::error::Missing required staging var: BEFAM_FIREBASE_IOS_BUNDLE_ID"
+            exit 1
+          fi
+
+          export_options_plist="ios/ExportOptions.plist"
+          cat > "${export_options_plist}" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>teamID</key>
+            <string>${IOS_TEAM_ID}</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${bundle_id}</key>
+              <string>${IOS_PROVISIONING_PROFILE_NAME}</string>
+            </dict>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <false/>
+          </dict>
+          </plist>
+          EOF
+
+          flutter build ipa \
+            --release \
+            --build-name "${{ needs.prepare.outputs.build_name }}" \
+            --build-number "${{ needs.prepare.outputs.build_number }}" \
+            --export-options-plist="${export_options_plist}" \
+            --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS="${allow_bundled}" \
+            --dart-define=BEFAM_OTP_PROVIDER="${otp_provider}" \
+            --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
+            --dart-define=BEFAM_ENABLE_APP_CHECK="${enable_app_check}" \
+            --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
+            --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
+            --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
+            "${optional_firebase_defines[@]}"
+
+      - name: Package iOS artifact
+        env:
+          ARTIFACT_SUFFIX: ${{ needs.prepare.outputs.artifact_suffix }}
+        run: |
+          set -euo pipefail
+          ipa_path="build/ios/ipa/Runner.ipa"
+          if [ ! -f "${ipa_path}" ]; then
+            echo "::error::Expected signed iOS IPA not found at ${ipa_path}"
+            exit 1
+          fi
+          output_dir="${GITHUB_WORKSPACE}/dist/ios"
+          artifact_name="befam-staging-${ARTIFACT_SUFFIX}-ios-release.ipa"
+          mkdir -p "${output_dir}"
+          cp "${ipa_path}" "${output_dir}/${artifact_name}"
+          echo "IOS_ARTIFACT_NAME=${artifact_name}" >> "$GITHUB_ENV"
+
+      - name: Upload iOS IPA artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: staging-ios-ipa-${{ needs.prepare.outputs.artifact_suffix }}
+          path: dist/ios/*.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Add iOS summary
+        run: |
+          {
+            echo "### iOS artifact"
+            echo "- \`${IOS_ARTIFACT_NAME}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup temporary iOS signing keychain
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -n "${IOS_SIGNING_KEYCHAIN_PATH:-}" ] && [ -f "${IOS_SIGNING_KEYCHAIN_PATH}" ]; then
+            security delete-keychain "${IOS_SIGNING_KEYCHAIN_PATH}" || true
+          fi
