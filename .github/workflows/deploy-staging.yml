@@ -507,13 +507,25 @@ jobs:
     steps:
       - name: Validate staging release channels are non-production
         env:
+          STAGING_MOBILE_PUBLISH_ENABLED: ${{ vars.STAGING_MOBILE_PUBLISH_ENABLED }}
           STAGING_ANDROID_RELEASE_TRACK: ${{ vars.STAGING_ANDROID_RELEASE_TRACK }}
           STAGING_IOS_RELEASE_CHANNEL: ${{ vars.STAGING_IOS_RELEASE_CHANNEL }}
+          STAGING_ANDROID_CLOSED_TRACK_NAME: ${{ vars.STAGING_ANDROID_CLOSED_TRACK_NAME }}
         run: |
           set -euo pipefail
 
+          publish_enabled="${STAGING_MOBILE_PUBLISH_ENABLED:-false}"
           android_track="${STAGING_ANDROID_RELEASE_TRACK:-internal}"
           ios_channel="${STAGING_IOS_RELEASE_CHANNEL:-testflight}"
+
+          case "$publish_enabled" in
+            true|false)
+              ;;
+            *)
+              echo "::error::Invalid STAGING_MOBILE_PUBLISH_ENABLED=${publish_enabled}. Allowed values: true, false"
+              exit 1
+              ;;
+          esac
 
           case "$android_track" in
             internal|closed)
@@ -524,6 +536,10 @@ jobs:
               ;;
           esac
 
+          if [ "$android_track" = "closed" ] && [ -z "${STAGING_ANDROID_CLOSED_TRACK_NAME:-}" ]; then
+            echo "::warning::STAGING_ANDROID_CLOSED_TRACK_NAME is not set. Play upload will fallback to track=beta."
+          fi
+
           case "$ios_channel" in
             testflight)
               ;;
@@ -533,7 +549,38 @@ jobs:
               ;;
           esac
 
-          echo "Staging release policy guard passed. Android track=${android_track}, iOS channel=${ios_channel}"
+          echo "Staging release policy guard passed. publishEnabled=${publish_enabled}, Android track=${android_track}, iOS channel=${ios_channel}"
+
+      - name: Validate staging store publish credentials
+        if: ${{ vars.STAGING_MOBILE_PUBLISH_ENABLED == 'true' }}
+        env:
+          GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GOOGLE_PLAY_PACKAGE_NAME:-}" ]; then
+            echo "::error::Missing required staging var: GOOGLE_PLAY_PACKAGE_NAME"
+            exit 1
+          fi
+
+          if [ -z "${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:-}" ] && [ -z "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            echo "::error::Missing Google Play credential. Set GOOGLE_PLAY_SERVICE_ACCOUNT_JSON (preferred) or FIREBASE_SERVICE_ACCOUNT."
+            exit 1
+          fi
+
+          for key in APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_API_PRIVATE_KEY; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required TestFlight secret: ${key}"
+              exit 1
+            fi
+          done
+
+          echo "Staging store publish credential guard passed."
 
   build-android-release-staging:
     name: Build Android Release AAB (Staging Test)
@@ -888,3 +935,105 @@ jobs:
         with:
           name: ios-staging-release-ipa-${{ github.run_id }}
           path: dist/ios/*.ipa
+
+  publish-android-staging:
+    name: Publish Android Staging Track
+    if: ${{ vars.STAGING_MOBILE_PUBLISH_ENABLED == 'true' }}
+    needs:
+      - preflight-staging-mobile-release-policy
+      - build-android-release-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+    steps:
+      - name: Download Android staging release AAB
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: android-staging-release-aab-${{ github.run_id }}
+          path: dist/android
+
+      - name: Resolve Google Play credential for upload
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          service_account_json="${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:-}"
+          if [ -z "$service_account_json" ]; then
+            service_account_json="${FIREBASE_SERVICE_ACCOUNT:-}"
+          fi
+          if [ -z "$service_account_json" ]; then
+            echo "::error::Missing Google Play credential secret (GOOGLE_PLAY_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT)."
+            exit 1
+          fi
+          echo "::add-mask::$service_account_json"
+          {
+            echo "GOOGLE_PLAY_UPLOAD_SERVICE_ACCOUNT_JSON<<EOF"
+            echo "$service_account_json"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Resolve Android staging release track
+        env:
+          STAGING_ANDROID_RELEASE_TRACK: ${{ vars.STAGING_ANDROID_RELEASE_TRACK }}
+          STAGING_ANDROID_CLOSED_TRACK_NAME: ${{ vars.STAGING_ANDROID_CLOSED_TRACK_NAME }}
+        run: |
+          set -euo pipefail
+          track="${STAGING_ANDROID_RELEASE_TRACK:-internal}"
+          if [ "$track" = "closed" ]; then
+            track="${STAGING_ANDROID_CLOSED_TRACK_NAME:-beta}"
+          fi
+          if [ "$track" = "production" ]; then
+            echo "::error::Staging workflow cannot publish to production track."
+            exit 1
+          fi
+          echo "ANDROID_PLAY_TRACK=$track" >> "$GITHUB_ENV"
+          echo "Resolved Android Play track=${track}"
+
+      - name: Upload Android AAB to Google Play staging track
+        uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb # v1
+        with:
+          serviceAccountJsonPlainText: ${{ env.GOOGLE_PLAY_UPLOAD_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
+          releaseFiles: dist/android/*.aab
+          track: ${{ env.ANDROID_PLAY_TRACK }}
+          status: completed
+          changesNotSentForReview: true
+          releaseName: staging-${{ github.run_number }}.${{ github.run_attempt }}
+
+  publish-ios-staging:
+    name: Publish iOS Staging TestFlight
+    if: ${{ vars.STAGING_MOBILE_PUBLISH_ENABLED == 'true' }}
+    needs:
+      - preflight-staging-mobile-release-policy
+      - build-ios-release-staging
+    runs-on: macos-latest
+    timeout-minutes: 25
+    environment:
+      name: staging
+    steps:
+      - name: Download iOS staging IPA artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ios-staging-release-ipa-${{ github.run_id }}
+          path: dist/ios
+
+      - name: Resolve iOS staging IPA path
+        run: |
+          set -euo pipefail
+          ipa_path="$(find dist/ios -maxdepth 2 -name '*.ipa' | head -n1)"
+          if [ -z "$ipa_path" ]; then
+            echo "::error::No IPA artifact found in dist/ios."
+            exit 1
+          fi
+          echo "IOS_STAGING_IPA_PATH=$ipa_path" >> "$GITHUB_ENV"
+
+      - name: Upload iOS IPA to TestFlight (staging)
+        uses: apple-actions/upload-testflight-build@1fb41afa66075b5d62c79cb623c6c4999334e185 # v4
+        with:
+          app-path: ${{ env.IOS_STAGING_IPA_PATH }}
+          app-type: ios
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}

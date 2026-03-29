@@ -16,8 +16,11 @@ trường khi phát hành.
 Pipeline `staging` chỉ dùng môi trường sandbox và chỉ deploy:
 - Tài nguyên Firebase của staging (`firestore:rules`, `firestore:indexes`, `storage`, `functions`)
 - Web hosting
+- Artifact Android AAB + iOS IPA đã ký
+- Tùy chọn phát hành mobile thử nghiệm: Android track `internal/closed` và iOS `TestFlight`
 
-`staging` **không** deploy artifact Android/iOS.
+`staging` **không được** publish lên kênh mobile production.
+Dùng `STAGING_MOBILE_PUBLISH_ENABLED=true` để bật publish mobile staging.
 
 ## Phiên bản OS đang hỗ trợ
 
@@ -119,6 +122,12 @@ Secret ký build release bắt buộc:
 - `IOS_P12_PASSWORD`
 - `IOS_PROVISIONING_PROFILE_BASE64`
 - `IOS_TEAM_ID`
+
+Secret bắt buộc để publish mobile staging (nếu bật):
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` (hoặc fallback `FIREBASE_SERVICE_ACCOUNT`)
+- `APP_STORE_CONNECT_ISSUER_ID`
+- `APP_STORE_CONNECT_API_KEY_ID`
+- `APP_STORE_CONNECT_API_PRIVATE_KEY`
 
 Biến build Mobile/Web (GitHub vars, tùy chọn):
 - `BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS`
