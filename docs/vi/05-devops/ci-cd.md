@@ -1,6 +1,6 @@
 # CI/CD
 
-_Cập nhật gần nhất: 21/03/2026_
+_Cập nhật gần nhất: 28/03/2026_
 
 BeFam dùng mô hình phát hành có kiểm soát:
 
@@ -30,6 +30,13 @@ Build và publish site tài liệu lên GitHub Pages.
 ### `deploy-staging.yml` (`CD - Deploy Staging`)
 Deploy Firebase + web hosting cho môi trường staging.
 Chặn nhánh: chỉ `staging`.
+
+### `release-staging.yml` (`CD - Release Staging (Manual)`)
+Workflow chạy tay (`workflow_dispatch`) để build artifact mobile staging có ký số phục vụ test upload store:
+- Android AAB
+- iOS IPA
+
+Workflow này không tạo release tag và không publish GitHub Release.
 
 ### `release-main.yml` (`CD - Release Main`)
 Tạo version release, ký binary mobile, build artifact bất biến, checksum và manifest.
