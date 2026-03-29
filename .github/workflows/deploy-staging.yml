@@ -497,9 +497,81 @@ jobs:
             fi
           done
 
+  preflight-staging-mobile-targets:
+    name: Preflight - Staging Mobile App Targets
+    needs: preflight-staging-mobile-signing
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Validate Android and iOS app identifiers are non-production
+        env:
+          BEFAM_FIREBASE_IOS_BUNDLE_ID: ${{ vars.BEFAM_FIREBASE_IOS_BUNDLE_ID }}
+          STAGING_ANDROID_APPLICATION_ID: ${{ vars.STAGING_ANDROID_APPLICATION_ID }}
+          STAGING_IOS_BUNDLE_ID: ${{ vars.STAGING_IOS_BUNDLE_ID }}
+          PRODUCTION_ANDROID_APPLICATION_ID: ${{ vars.PRODUCTION_ANDROID_APPLICATION_ID }}
+          PRODUCTION_IOS_BUNDLE_ID: ${{ vars.PRODUCTION_IOS_BUNDLE_ID }}
+        run: |
+          set -euo pipefail
+
+          default_production_app_id="com.familyclanapp.befam"
+          production_android_app_id="${PRODUCTION_ANDROID_APPLICATION_ID:-$default_production_app_id}"
+          production_ios_bundle_id="${PRODUCTION_IOS_BUNDLE_ID:-$default_production_app_id}"
+
+          android_gradle_file="mobile/befam/android/app/build.gradle.kts"
+          ios_project_file="mobile/befam/ios/Runner.xcodeproj/project.pbxproj"
+          android_app_id="$(sed -nE 's/^[[:space:]]*applicationId[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$android_gradle_file" | head -n1)"
+          ios_project_bundle_id="$(sed -nE 's/^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER[[:space:]]*=[[:space:]]*([^;]+);/\1/p' "$ios_project_file" | grep -v "RunnerTests" | head -n1)"
+          staging_ios_bundle_id="${STAGING_IOS_BUNDLE_ID:-${BEFAM_FIREBASE_IOS_BUNDLE_ID:-}}"
+
+          if [ -z "$android_app_id" ]; then
+            echo "::error::Unable to resolve Android applicationId from ${android_gradle_file}."
+            exit 1
+          fi
+          if [ -z "$ios_project_bundle_id" ]; then
+            echo "::error::Unable to resolve iOS PRODUCT_BUNDLE_IDENTIFIER from ${ios_project_file}."
+            exit 1
+          fi
+          if [ -z "$staging_ios_bundle_id" ]; then
+            echo "::error::Missing staging iOS bundle id. Set STAGING_IOS_BUNDLE_ID or BEFAM_FIREBASE_IOS_BUNDLE_ID."
+            exit 1
+          fi
+
+          if [ -n "${STAGING_ANDROID_APPLICATION_ID:-}" ] && [ "$android_app_id" != "$STAGING_ANDROID_APPLICATION_ID" ]; then
+            echo "::error::Android applicationId mismatch. build.gradle.kts=${android_app_id}, STAGING_ANDROID_APPLICATION_ID=${STAGING_ANDROID_APPLICATION_ID}"
+            exit 1
+          fi
+          if [ "$ios_project_bundle_id" != "$staging_ios_bundle_id" ]; then
+            echo "::error::iOS bundle id mismatch. Xcode=${ios_project_bundle_id}, staging=${staging_ios_bundle_id}"
+            exit 1
+          fi
+
+          if [ "$android_app_id" = "$production_android_app_id" ]; then
+            echo "::error::Staging Android applicationId must differ from production. Current=${android_app_id}, production=${production_android_app_id}"
+            exit 1
+          fi
+          if [ "$staging_ios_bundle_id" = "$production_ios_bundle_id" ]; then
+            echo "::error::Staging iOS bundle id must differ from production. Current=${staging_ios_bundle_id}, production=${production_ios_bundle_id}"
+            exit 1
+          fi
+          if [ "$ios_project_bundle_id" = "$production_ios_bundle_id" ]; then
+            echo "::error::Xcode iOS PRODUCT_BUNDLE_IDENTIFIER is using production id (${ios_project_bundle_id})."
+            exit 1
+          fi
+
+          if [ -z "${STAGING_ANDROID_APPLICATION_ID:-}" ]; then
+            echo "::warning::STAGING_ANDROID_APPLICATION_ID is not set. Using Android applicationId from build.gradle.kts (${android_app_id})."
+          fi
+
+          echo "Staging mobile app target guard passed."
+
   build-android-release-staging:
     name: Build Android Release AAB (Staging Test)
-    needs: preflight-staging-mobile-signing
+    needs: preflight-staging-mobile-targets
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment:
@@ -636,7 +708,7 @@ jobs:
 
   build-ios-release-staging:
     name: Build iOS Release IPA (Staging Test)
-    needs: preflight-staging-mobile-signing
+    needs: preflight-staging-mobile-targets
     runs-on: macos-latest
     timeout-minutes: 60
     environment:
