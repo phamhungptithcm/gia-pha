@@ -239,7 +239,7 @@ abstract class AdPersistenceStore {
 }
 
 class SharedPrefsAdPersistenceStore implements AdPersistenceStore {
-  static const _prefsKey = 'befam_ads_persistence_v1';
+  static const _prefsStorageEntry = 'befam_ads_persistence_store_v1';
 
   SharedPrefsAdPersistenceStore({SharedPreferences? preferences})
     : _preferencesFuture = preferences != null
@@ -251,7 +251,7 @@ class SharedPrefsAdPersistenceStore implements AdPersistenceStore {
   @override
   Future<AdPersistedState> load(DateTime now) async {
     final prefs = await _preferencesFuture;
-    final raw = prefs.getString(_prefsKey);
+    final raw = prefs.getString(_prefsStorageEntry);
     if (raw == null || raw.trim().isEmpty) {
       final initial = AdPersistedState.initial(now);
       await save(initial);
@@ -279,6 +279,6 @@ class SharedPrefsAdPersistenceStore implements AdPersistenceStore {
   @override
   Future<void> save(AdPersistedState state) async {
     final prefs = await _preferencesFuture;
-    await prefs.setString(_prefsKey, jsonEncode(state.toJson()));
+    await prefs.setString(_prefsStorageEntry, jsonEncode(state.toJson()));
   }
 }
