@@ -41,6 +41,17 @@ abstract final class AnalyticsEventNames {
   static const onboardingInterrupted = 'onboarding_interrupted';
   static const onboardingAnchorMissing = 'onboarding_anchor_missing';
   static const webMarketingCtaClick = 'web_marketing_cta_click';
+  static const adOpportunity = 'ad_opportunity';
+  static const adRequested = 'ad_requested';
+  static const adLoaded = 'ad_loaded';
+  static const adFailed = 'ad_failed';
+  static const adShown = 'ad_shown';
+  static const adDismissed = 'ad_dismissed';
+  static const screenAfterAd = 'screen_after_ad';
+  static const sessionExitAfterAd = 'session_exit_after_ad';
+  static const premiumIntentMarked = 'premium_intent_marked';
+  static const premiumPurchaseAfterAdExposure =
+      'premium_purchase_after_ad_exposure';
 
   static const values = <String>[
     authMethodSelected,
@@ -73,12 +84,31 @@ abstract final class AnalyticsEventNames {
     onboardingInterrupted,
     onboardingAnchorMissing,
     webMarketingCtaClick,
+    adOpportunity,
+    adRequested,
+    adLoaded,
+    adFailed,
+    adShown,
+    adDismissed,
+    screenAfterAd,
+    sessionExitAfterAd,
+    premiumIntentMarked,
+    premiumPurchaseAfterAdExposure,
   ];
 }
 
 abstract final class AnalyticsUserPropertyNames {
   static const authMethod = 'auth_method';
   static const memberAccessMode = 'member_access_mode';
+  static const adSegment = 'ad_segment';
+  static const subscriptionTier = 'subscription_tier';
+  static const adsPolicyVersion = 'ads_policy_version';
 
-  static const values = <String>[authMethod, memberAccessMode];
+  static const values = <String>[
+    authMethod,
+    memberAccessMode,
+    adSegment,
+    subscriptionTier,
+    adsPolicyVersion,
+  ];
 }

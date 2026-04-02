@@ -147,4 +147,24 @@ class AppEnvironment {
     'BEFAM_ANDROID_PLAY_STORE_URL',
     defaultValue: '',
   );
+
+  static const String adMobAndroidBannerUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID',
+    defaultValue: '',
+  );
+
+  static const String adMobAndroidInterstitialUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID',
+    defaultValue: '',
+  );
+
+  static const String adMobIosBannerUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_IOS_BANNER_UNIT_ID',
+    defaultValue: '',
+  );
+
+  static const String adMobIosInterstitialUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID',
+    defaultValue: '',
+  );
 }

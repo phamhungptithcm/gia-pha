@@ -116,7 +116,9 @@ void main() {
     },
   );
 
-  testWidgets('ad banner auto hides after 10 seconds', (tester) async {
+  testWidgets('shell stays stable when banner ad is unavailable', (
+    tester,
+  ) async {
     setMobileViewport(tester);
     await tester.pumpWidget(
       _ShellTestApp(
@@ -132,12 +134,15 @@ void main() {
     );
     await pumpUi(tester);
 
-    expect(find.text('Free/Base plans show light ads.'), findsOneWidget);
+    expect(find.text('Billing'), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 11));
     await pumpUi(tester);
 
-    expect(find.text('Free/Base plans show light ads.'), findsNothing);
+    expect(find.text('Billing'), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/governance_role_matrix.dart';
+import '../../ads/services/ad_conversion_tracker.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
 import '../services/billing_repository.dart';
@@ -10,11 +13,15 @@ class BillingController extends ChangeNotifier {
   BillingController({
     required BillingRepository repository,
     required AuthSession session,
+    AdConversionTracker? adConversionTracker,
   }) : _repository = repository,
-       _session = session;
+       _session = session,
+       _adConversionTracker =
+           adConversionTracker ?? createDefaultAdConversionTracker();
 
   final BillingRepository _repository;
   final AuthSession _session;
+  final AdConversionTracker _adConversionTracker;
 
   bool _isLoading = true;
   bool _isSavingPreferences = false;
@@ -175,6 +182,12 @@ class BillingController extends ChangeNotifier {
       );
       _workspace = await _repository.loadWorkspace(session: _session);
       _viewerSummary = null;
+      unawaited(
+        _adConversionTracker.logPremiumPurchase(
+          planCode: entitlement.planCode,
+          productId: productId,
+        ),
+      );
       return entitlement;
     } on BillingRepositoryException catch (error) {
       _errorMessage = error.toString();

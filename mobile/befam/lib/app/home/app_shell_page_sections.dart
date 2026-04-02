@@ -29,6 +29,10 @@ class _SponsoredAdBanner extends StatelessWidget {
     final tokens = context.uiTokens;
     final banner = adController.bannerAd;
     final showBannerAd = adController.isBannerReady && banner != null;
+    final showFallback = adController.isBannerFallbackVisible;
+    if (!showBannerAd && !showFallback) {
+      return const SizedBox.shrink();
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 420;
@@ -77,8 +81,8 @@ class _SponsoredAdBanner extends StatelessWidget {
                       Expanded(
                         child: Text(
                           l10n.pick(
-                            vi: 'Gói Miễn phí/Cơ bản đang hiển thị quảng cáo nhẹ.',
-                            en: 'Free/Base plans show light ads.',
+                            vi: 'Quảng cáo tạm thời chưa tải xong. Bạn vẫn đang ở chế độ miễn phí có quảng cáo.',
+                            en: 'Ads are still loading. You are on the ad-supported free tier.',
                           ),
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
@@ -93,7 +97,10 @@ class _SponsoredAdBanner extends StatelessWidget {
                         AppCompactTextButton(
                           onPressed: onClose,
                           child: Text(
-                            l10n.pick(vi: 'Ẩn hôm nay', en: 'Hide today'),
+                            l10n.pick(
+                              vi: 'Ẩn trong phiên',
+                              en: 'Hide this session',
+                            ),
                             style: Theme.of(context).textTheme.labelMedium
                                 ?.copyWith(
                                   color: colorScheme.onTertiaryContainer,
