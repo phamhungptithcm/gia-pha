@@ -16,8 +16,11 @@ configuration safely.
 `staging` deploy pipeline is sandbox-only and deploys only:
 - Firebase resources in staging project (`firestore:rules`, `firestore:indexes`, `storage`, `functions`)
 - Web hosting bundle
+- Android release AAB + iOS signed IPA artifacts
+- Optional staged mobile publish: Android `internal/closed` track and iOS `TestFlight`
 
-`staging` does **not** deploy Android/iOS artifacts.
+`staging` must **never** publish to production mobile channels.
+Use `STAGING_MOBILE_PUBLISH_ENABLED=true` to enable staged mobile publish.
 
 ## Supported OS Versions
 
@@ -119,6 +122,12 @@ Required release signing secrets:
 - `IOS_P12_PASSWORD`
 - `IOS_PROVISIONING_PROFILE_BASE64`
 - `IOS_TEAM_ID`
+
+Required for staged mobile publish (if enabled):
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` (or fallback `FIREBASE_SERVICE_ACCOUNT`)
+- `APP_STORE_CONNECT_ISSUER_ID`
+- `APP_STORE_CONNECT_API_KEY_ID`
+- `APP_STORE_CONNECT_API_PRIVATE_KEY`
 
 Mobile/Web build vars (GitHub vars, optional):
 - `BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS`
