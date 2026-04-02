@@ -11,6 +11,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../../../app/theme/app_ui_tokens.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/governance_role_matrix.dart';
@@ -18,6 +19,7 @@ import '../../../core/services/kinship_title_resolver.dart';
 import '../../../core/services/performance_measurement_logger.dart';
 import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/app_async_action.dart';
+import '../../../core/widgets/app_compact_controls.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../core/widgets/member_phone_action.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -30,6 +32,9 @@ import '../../clan/services/clan_repository.dart';
 import '../../member/models/member_profile.dart';
 import '../../member/presentation/member_workspace_page.dart';
 import '../../member/services/member_repository.dart';
+import '../../onboarding/models/onboarding_models.dart';
+import '../../onboarding/presentation/onboarding_coordinator.dart';
+import '../../onboarding/presentation/onboarding_scope.dart';
 import '../models/genealogy_graph.dart';
 import '../models/genealogy_read_segment.dart';
 import '../models/genealogy_scope.dart';
@@ -82,6 +87,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   );
   AnimationController? _centerAnimController;
   late final ClanRepository _clanRepository;
+  late final OnboardingCoordinator _onboardingCoordinator;
 
   late GenealogyScopeType _scopeType;
   GenealogyReadSegment? _segment;
@@ -91,6 +97,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   bool _isSubmittingAddBranch = false;
   bool _showAddFabMenu = false;
   bool _shouldAutoFitTree = true;
+  bool _hasScheduledOnboarding = false;
 
   String? _rootMemberId;
   String? _selectedMemberId;
@@ -112,13 +119,27 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     _clanRepository =
         widget.clanRepository ??
         createDefaultClanRepository(session: widget.session);
+    _onboardingCoordinator = createDefaultOnboardingCoordinator(
+      session: widget.session,
+    );
     unawaited(_load());
+  }
+
+  @override
+  void didUpdateWidget(covariant GenealogyWorkspacePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session != widget.session) {
+      _onboardingCoordinator.updateSession(widget.session);
+      _hasScheduledOnboarding = false;
+    }
   }
 
   @override
   void dispose() {
     _centerAnimController?.dispose();
     _transformController.dispose();
+    unawaited(_onboardingCoordinator.interrupt());
+    _onboardingCoordinator.dispose();
     super.dispose();
   }
 
@@ -182,7 +203,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       siblingOrdersByMember,
     );
 
-    return Stack(
+    final content = Stack(
       children: [
         RefreshIndicator(
           onRefresh: () => _load(allowCached: false),
@@ -448,6 +469,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         ),
       ],
     );
+    return OnboardingScope(controller: _onboardingCoordinator, child: content);
   }
 
   Future<void> _load({bool allowCached = true}) async {
@@ -481,6 +503,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         _shouldAutoFitTree = true;
         _invalidateTreeSceneCache();
       });
+      _scheduleWorkspaceOnboardingIfNeeded();
 
       // Cached snapshots keep the workspace responsive, then we immediately
       // reconcile against Firestore to avoid stale production data.
@@ -496,6 +519,27 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         _isLoading = false;
       });
     }
+  }
+
+  void _scheduleWorkspaceOnboardingIfNeeded() {
+    if (_hasScheduledOnboarding || !mounted) {
+      return;
+    }
+    _hasScheduledOnboarding = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(
+        _onboardingCoordinator.scheduleTrigger(
+          const OnboardingTrigger(
+            id: 'genealogy_workspace_opened',
+            routeId: 'genealogy_workspace',
+          ),
+          delay: const Duration(milliseconds: 1100),
+        ),
+      );
+    });
   }
 
   void _updateScope(GenealogyScopeType value) {
@@ -2060,6 +2104,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       showDragHandle: true,
       builder: (context) {
         final theme = Theme.of(context);
+        final tokens = context.uiTokens;
         return SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
@@ -2092,18 +2137,9 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
+                    SizedBox(width: tokens.spaceSm),
+                    AppCompactTextButton(
                       key: const Key('genealogy-open-member-detail-action'),
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        minimumSize: const Size(0, 34),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
                       onPressed: () {
                         Navigator.of(context).pop();
                         unawaited(
@@ -2118,8 +2154,14 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                           ),
                         );
                       },
-                      icon: const Icon(Icons.open_in_new, size: 16),
-                      label: Text(l10n.pick(vi: 'Xem chi tiết', en: 'Details')),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.open_in_new, size: 16),
+                          SizedBox(width: tokens.spaceSm),
+                          Text(l10n.pick(vi: 'Xem chi tiết', en: 'Details')),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -3718,10 +3760,11 @@ class _LandingCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
 
     return Container(
       key: const Key('genealogy-landing-card'),
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(tokens.spaceXl + 2),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -3731,7 +3774,7 @@ class _LandingCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(tokens.radiusLg + 4),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3746,11 +3789,10 @@ class _LandingCard extends StatelessWidget {
                   ),
                 ),
               ),
-              IconButton(
+              AppCompactIconButton(
                 key: const Key('genealogy-refresh-icon'),
                 onPressed: onRefresh,
                 tooltip: l10n.genealogyRefreshAction,
-                visualDensity: VisualDensity.compact,
                 icon: isLoading
                     ? const SizedBox(
                         width: 18,
@@ -3761,10 +3803,10 @@ class _LandingCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: tokens.spaceMd),
           Wrap(
-            spacing: 10,
-            runSpacing: 10,
+            spacing: tokens.spaceMd - 2,
+            runSpacing: tokens.spaceMd - 2,
             children: [
               _LandingInfoChip(
                 icon: Icons.visibility_outlined,
@@ -3789,11 +3831,11 @@ class _LandingCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: tokens.spaceLg),
           if (allowBranchScope)
             Wrap(
-              spacing: 12,
-              runSpacing: 10,
+              spacing: tokens.spaceMd,
+              runSpacing: tokens.spaceMd - 2,
               children: [
                 ChoiceChip(
                   key: const Key('genealogy-scope-clan'),
@@ -3826,19 +3868,23 @@ class _LandingInfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
     return Container(
       constraints: const BoxConstraints(maxWidth: 240),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: tokens.spaceMd,
+        vertical: tokens.spaceSm,
+      ),
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.68),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(tokens.radiusPill),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: colorScheme.primary),
-          const SizedBox(width: 6),
+          SizedBox(width: tokens.spaceXs + 2),
           Flexible(
             child: Text(
               label,
@@ -3916,11 +3962,14 @@ class _AddActionFab extends StatelessWidget {
           ],
           const SizedBox(height: 10),
         ],
-        FloatingActionButton(
-          heroTag: 'genealogy-main-add-fab',
-          onPressed: onToggleMenu,
-          tooltip: l10n.pick(vi: 'Thêm mới', en: 'Add'),
-          child: Icon(isMenuOpen ? Icons.close : Icons.add),
+        OnboardingAnchor(
+          anchorId: 'genealogy.main_add_fab',
+          child: FloatingActionButton(
+            heroTag: 'genealogy-main-add-fab',
+            onPressed: onToggleMenu,
+            tooltip: l10n.pick(vi: 'Thêm mới', en: 'Add'),
+            child: Icon(isMenuOpen ? Icons.close : Icons.add),
+          ),
         ),
       ],
     );
@@ -3944,34 +3993,38 @@ class _TreeZoomControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(tokens.radiusMd),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: EdgeInsets.symmetric(
+          horizontal: tokens.spaceXs + 2,
+          vertical: tokens.spaceXs,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
+            AppCompactIconButton(
               key: const Key('tree-zoom-out'),
-              visualDensity: VisualDensity.compact,
               onPressed: onZoomOut,
               icon: const Icon(Icons.remove),
               tooltip: l10n.pick(vi: 'Thu nhỏ cây', en: 'Zoom out tree'),
             ),
-            IconButton(
-              key: const Key('tree-zoom-in'),
-              visualDensity: VisualDensity.compact,
-              onPressed: onZoomIn,
-              icon: const Icon(Icons.add),
-              tooltip: l10n.pick(vi: 'Phóng to cây', en: 'Zoom in tree'),
+            OnboardingAnchor(
+              anchorId: 'genealogy.zoom_in',
+              child: AppCompactIconButton(
+                key: const Key('tree-zoom-in'),
+                onPressed: onZoomIn,
+                icon: const Icon(Icons.add),
+                tooltip: l10n.pick(vi: 'Phóng to cây', en: 'Zoom in tree'),
+              ),
             ),
-            IconButton(
+            AppCompactIconButton(
               key: const Key('tree-zoom-reset'),
-              visualDensity: VisualDensity.compact,
               onPressed: onReset,
               icon: const Icon(Icons.filter_center_focus),
               tooltip: l10n.pick(
@@ -3982,9 +4035,8 @@ class _TreeZoomControls extends StatelessWidget {
             AppAsyncAction(
               onPressed: onExport,
               builder: (context, onPressed, isLoading) {
-                return IconButton(
+                return AppCompactIconButton(
                   key: const Key('tree-print'),
-                  visualDensity: VisualDensity.compact,
                   onPressed: onPressed,
                   icon: isLoading
                       ? const SizedBox(
@@ -4369,19 +4421,23 @@ class _MiniFactChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(tokens.radiusPill),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: EdgeInsets.symmetric(
+          horizontal: tokens.spaceSm,
+          vertical: tokens.spaceXs,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 14),
-            const SizedBox(width: 4),
+            SizedBox(width: tokens.spaceXs),
             Text(label, style: Theme.of(context).textTheme.labelMedium),
           ],
         ),

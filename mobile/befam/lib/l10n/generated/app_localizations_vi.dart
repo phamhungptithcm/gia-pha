@@ -1946,7 +1946,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webLandingSubtitle =>
-      'BeFam kết nối gia phả, sự kiện, quỹ họ và quản trị thành viên trong một không gian dữ liệu thống nhất.';
+      'BeFam kết nối gia phả, sự kiện, quỹ họ và quản trị thành viên trong một không gian dữ liệu thống nhất, dễ dùng cho mọi thế hệ.';
 
   @override
   String get webLandingPrimaryCta => 'Mở ứng dụng';
@@ -1966,42 +1966,42 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webLandingFeatureTreeDescription =>
-      'Quản lý quan hệ huyết thống theo chi, đời và vai vế để mọi thế hệ dễ tra cứu và cập nhật.';
+      'Quản lý quan hệ huyết thống theo chi, đời và vai vế để các thế hệ dễ tra cứu, cập nhật.';
 
   @override
   String get webLandingFeatureEventsTitle => 'Lịch sự kiện tập trung';
 
   @override
   String get webLandingFeatureEventsDescription =>
-      'Theo dõi lịch giỗ, lễ họp và các mốc quan trọng với nhắc lịch chủ động cho thành viên.';
+      'Theo dõi lịch giỗ, họp họ và các mốc quan trọng với nhắc lịch chủ động cho thành viên.';
 
   @override
   String get webLandingFeatureBillingTitle => 'Quản lý gói dịch vụ';
 
   @override
   String get webLandingFeatureBillingDescription =>
-      'Quản lý gói dịch vụ, gia hạn và trạng thái thanh toán minh bạch trên một luồng thống nhất.';
+      'Quản lý gói dịch vụ, gia hạn và trạng thái thanh toán trên một luồng rõ ràng, minh bạch.';
 
   @override
   String get webAboutTitle => 'Về chúng tôi';
 
   @override
   String get webAboutSubtitle =>
-      'BeFam ra đời từ trăn trở giữ kết nối họ tộc khi con cháu học tập, làm việc và sinh sống ở nhiều nơi trên thế giới.';
+      'BeFam ra đời từ mong muốn giữ kết nối họ tộc khi con cháu học tập, làm việc và sinh sống ở nhiều nơi.';
 
   @override
   String get webAboutMissionTitle => 'Sứ mệnh';
 
   @override
   String get webAboutMissionDescription =>
-      'Giúp mỗi dòng họ số hóa dữ liệu gia đình dễ hiểu, dễ dùng và bền vững theo thời gian.';
+      'Giúp mỗi dòng họ số hóa dữ liệu gia đình theo cách dễ hiểu, dễ dùng và bền vững theo thời gian.';
 
   @override
   String get webAboutVisionTitle => 'Tầm nhìn';
 
   @override
   String get webAboutVisionDescription =>
-      'Trở thành nền tảng vận hành họ tộc đáng tin cậy cho cộng đồng gia đình Việt trên toàn cầu.';
+      'Trở thành nền tảng vận hành họ tộc đáng tin cậy cho cộng đồng gia đình Việt ở mọi nơi.';
 
   @override
   String get webAboutTrustTitle => 'Cam kết';
@@ -2029,7 +2029,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webInfoNotificationsDescription =>
-      'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng để không bỏ sót mốc cần theo dõi.';
+      'Nhận thông báo về sự kiện, khuyến học và các thay đổi quan trọng để không bỏ sót mốc cần theo dõi.';
 
   @override
   String get webInfoBillingTitle => 'Gói và thanh toán';
@@ -2047,7 +2047,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webInfoHighlightsItemTwo =>
-      'Thiết kế responsive cho điện thoại, tablet và desktop.';
+      'Thiết kế responsive cho điện thoại, máy tính bảng và desktop.';
 
   @override
   String get webInfoHighlightsItemThree =>

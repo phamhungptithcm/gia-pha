@@ -388,37 +388,87 @@ jobs:
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
           BEFAM_INVALID_CHECKOUT_HOSTS: ${{ vars.BEFAM_INVALID_CHECKOUT_HOSTS }}
           BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
-          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
-          BEFAM_WEB_BASE_URL: ${{ vars.BEFAM_WEB_BASE_URL }}
+          BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY: ${{ vars.BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY }}
           BEFAM_FIREBASE_PROJECT_ID: ${{ vars.BEFAM_FIREBASE_PROJECT_ID }}
+          BEFAM_FIREBASE_STORAGE_BUCKET: ${{ vars.BEFAM_FIREBASE_STORAGE_BUCKET }}
+          BEFAM_FIREBASE_ANDROID_API_KEY: ${{ vars.BEFAM_FIREBASE_ANDROID_API_KEY }}
+          BEFAM_FIREBASE_ANDROID_APP_ID: ${{ vars.BEFAM_FIREBASE_ANDROID_APP_ID }}
+          BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_IOS_API_KEY: ${{ vars.BEFAM_FIREBASE_IOS_API_KEY }}
+          BEFAM_FIREBASE_IOS_APP_ID: ${{ vars.BEFAM_FIREBASE_IOS_APP_ID }}
+          BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_IOS_BUNDLE_ID: ${{ vars.BEFAM_FIREBASE_IOS_BUNDLE_ID }}
+          BEFAM_FIREBASE_WEB_API_KEY: ${{ vars.BEFAM_FIREBASE_WEB_API_KEY }}
+          BEFAM_FIREBASE_WEB_APP_ID: ${{ vars.BEFAM_FIREBASE_WEB_APP_ID }}
+          BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
+          BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_WEB_BASE_URL: ${{ vars.BEFAM_WEB_BASE_URL }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
+          BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
+          set -euo pipefail
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
-          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           otp_provider="${BEFAM_OTP_PROVIDER:-firebase}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
+          if [ "$allow_bundled" != "false" ]; then
+            echo "::error::Staging web builds must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${allow_bundled}"
+            exit 1
+          fi
           if [ "$otp_provider" != "firebase" ]; then
             echo "::error::Staging web builds must use BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
             exit 1
           fi
+          required_web_keys=(
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_WEB_API_KEY
+            BEFAM_FIREBASE_WEB_APP_ID
+            BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+          )
+          for key in "${required_web_keys[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required staging web var: ${key}"
+              exit 1
+            fi
+          done
           web_base_url="${BEFAM_WEB_BASE_URL:-}"
           if [ -z "$web_base_url" ] && [ -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]; then
             web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"
           fi
           ../../scripts/render_web_metadata.sh "$web_base_url"
-          ios_store_url="${BEFAM_IOS_APP_STORE_URL:-}"
-          android_store_url="${BEFAM_ANDROID_PLAY_STORE_URL:-}"
-          optional_store_defines=()
-          if [ -n "$ios_store_url" ]; then
-            optional_store_defines+=(--dart-define="BEFAM_IOS_APP_STORE_URL=${ios_store_url}")
-          fi
-          if [ -n "$android_store_url" ]; then
-            optional_store_defines+=(--dart-define="BEFAM_ANDROID_PLAY_STORE_URL=${android_store_url}")
-          fi
+          firebase_define_keys=(
+            BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_STORAGE_BUCKET
+            BEFAM_FIREBASE_ANDROID_API_KEY
+            BEFAM_FIREBASE_ANDROID_APP_ID
+            BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_IOS_API_KEY
+            BEFAM_FIREBASE_IOS_APP_ID
+            BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_IOS_BUNDLE_ID
+            BEFAM_FIREBASE_WEB_API_KEY
+            BEFAM_FIREBASE_WEB_APP_ID
+            BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_WEB_AUTH_DOMAIN
+            BEFAM_FIREBASE_WEB_MEASUREMENT_ID
+            BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
+            BEFAM_IOS_APP_STORE_URL
+            BEFAM_ANDROID_PLAY_STORE_URL
+          )
+          optional_firebase_defines=()
+          for key in "${firebase_define_keys[@]}"; do
+            value="${!key:-}"
+            if [ -n "$value" ]; then
+              optional_firebase_defines+=(--dart-define="${key}=${value}")
+            fi
+          done
           flutter build web \
             --release \
             --no-wasm-dry-run \
@@ -429,7 +479,7 @@ jobs:
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
             --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
             --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
-            "${optional_store_defines[@]}"
+            "${optional_firebase_defines[@]}"
 
       - name: Set up Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5

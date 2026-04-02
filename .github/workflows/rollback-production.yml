@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag to rollback to (example: v1.4.2)"
+        description: "Release tag to rollback to (example: v2026.04.02)"
         required: true
         type: string
       deploy_target:

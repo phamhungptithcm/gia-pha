@@ -1,6 +1,6 @@
 # CI/CD
 
-_Last reviewed: March 28, 2026_
+_Last reviewed: April 2, 2026_
 
 BeFam uses a protected promotion model:
 
@@ -11,8 +11,7 @@ BeFam uses a protected promotion model:
 
 ### `branch-ci.yml` (`CI - Branch Quality Gates`)
 Runs on:
-- pull requests targeting `staging` or `main`
-- pushes to all branches except `main` (including feature/dev branches and `staging`)
+- pushes to all branches, including `staging` and `main`
 
 Checks:
 - docs build and rules-doc validation
@@ -21,8 +20,12 @@ Checks:
 - Android release build verification
 - dependency review + Trivy + gitleaks + image vulnerability scanning
 
-### `mobile-e2e.yml` (`CI - Mobile E2E (PR/Manual)`)
-Runs Android + iOS E2E for mobile-focused pull requests and manual dispatch.
+### `mobile-e2e.yml` + `mobile-e2e-ios.yml`
+Run Android/iOS smoke E2E on pushes to all branches and on manual dispatch.
+The jobs self-skip when the push does not touch mobile or E2E-related files.
+
+### `mobile-e2e-deep.yml` (`CI - Mobile E2E Deep`)
+Runs the full deep mobile regression suite on pushes to `staging` and `main`, plus manual dispatch.
 
 ### `deploy-docs.yml` (`CD - Deploy Docs (GitHub Pages)`)
 Builds and publishes MkDocs to GitHub Pages.
@@ -54,8 +57,8 @@ Branch guard: main only.
 ### `rollback-production.yml` (`CD - Rollback Production`)
 Restores production Firebase/Hosting to a selected release tag.
 
-### `weekly-release-promotion.yml` (`Ops - Promote Staging to Main`)
-Auto-prepares `staging -> main` release PR weekly.
+### `promote-staging-to-main.yml` (`Ops - Promote Staging to Main`)
+Creates or refreshes the `staging -> main` promotion PR whenever new commits land on `staging`.
 
 ### `release-issue-closure.yml` (`Ops - Close Released Issues`)
 Closes linked delivered issues after release PR merge to `main`.

@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import '../theme/app_ui_tokens.dart';
 import '../../core/services/firebase_services.dart';
 import '../../core/widgets/member_phone_action.dart';
 import '../../core/widgets/address_action_tools.dart';
+import '../../core/widgets/app_compact_controls.dart';
 import '../../core/widgets/app_loading_skeletons.dart';
 import '../../features/ads/services/ad_controller.dart';
 import '../../features/billing/presentation/billing_workspace_page.dart';
@@ -32,6 +34,9 @@ import '../../features/member/models/member_profile.dart';
 import '../../features/member/services/member_repository.dart';
 import '../../features/notifications/presentation/notification_target_page.dart';
 import '../../features/notifications/services/push_notification_service.dart';
+import '../../features/onboarding/models/onboarding_models.dart';
+import '../../features/onboarding/presentation/onboarding_coordinator.dart';
+import '../../features/onboarding/presentation/onboarding_scope.dart';
 import '../../features/profile/presentation/profile_workspace_page.dart';
 import '../../features/profile/services/profile_notification_preferences_repository.dart';
 import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
@@ -115,6 +120,7 @@ class _AppShellPageState extends State<AppShellPage> {
   late final AdController _adController;
   late final PushNotificationService _pushNotificationService;
   late final ClanContextService _clanContextService;
+  late final OnboardingCoordinator _onboardingCoordinator;
   final AuthSessionStore _sessionStore = SharedPrefsAuthSessionStore();
   String? _lastOpenedNotificationMessageId;
   bool _showAdBanner = false;
@@ -211,6 +217,9 @@ class _AppShellPageState extends State<AppShellPage> {
     _clanContextService =
         widget.clanContextService ??
         createDefaultClanContextService(session: _session);
+    _onboardingCoordinator = createDefaultOnboardingCoordinator(
+      session: _session,
+    );
     unawaited(
       _pushNotificationService.start(
         session: _session,
@@ -221,6 +230,16 @@ class _AppShellPageState extends State<AppShellPage> {
     unawaited(_ensureActiveClanDisplayNameResolved());
     unawaited(_refreshBillingEntitlement());
     _syncAdBannerAutoHideTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        _onboardingCoordinator.scheduleTrigger(
+          const OnboardingTrigger(
+            id: 'app_shell_home',
+            routeId: 'app_shell_home',
+          ),
+        ),
+      );
+    });
   }
 
   @override
@@ -228,6 +247,7 @@ class _AppShellPageState extends State<AppShellPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session) {
       _activeSession = _sanitizeSessionContext(widget.session);
+      _onboardingCoordinator.updateSession(_activeSession);
       unawaited(
         _pushNotificationService.start(
           session: _session,
@@ -246,6 +266,8 @@ class _AppShellPageState extends State<AppShellPage> {
   void dispose() {
     _adBannerAutoHideTimer?.cancel();
     _adController.dispose();
+    unawaited(_onboardingCoordinator.interrupt());
+    _onboardingCoordinator.dispose();
     unawaited(_pushNotificationService.stop());
     super.dispose();
   }
@@ -899,61 +921,64 @@ class _AppShellPageState extends State<AppShellPage> {
       ],
     );
 
-    if (layout.useRailNavigation) {
-      return Scaffold(
-        appBar: appBar,
-        body: Row(
-          children: [
-            _ShellNavigationRail(
-              selectedIndex: _selectedIndex,
-              destinations: destinations,
-              onDestinationSelected: _handleDestinationSelected,
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(child: contentWithBanner),
-          ],
-        ),
-      );
-    }
-
-    return Scaffold(
-      appBar: appBar,
-      body: SafeArea(child: contentStack),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_isAdBannerVisible)
-            _SponsoredAdBanner(
-              adController: _adController,
-              onClose: () {
-                setState(() {
-                  _dismissAdBannerForSession = true;
-                });
-                _syncAdBannerAutoHideTimer();
-              },
-            ),
-          MediaQuery.withClampedTextScaling(
-            minScaleFactor: 1,
-            maxScaleFactor: 1,
-            child: NavigationBar(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: _handleDestinationSelected,
-              labelBehavior: layout.width < 460
-                  ? NavigationDestinationLabelBehavior.onlyShowSelected
-                  : NavigationDestinationLabelBehavior.alwaysShow,
-              destinations: [
-                for (final destination in destinations)
-                  NavigationDestination(
-                    icon: Icon(destination.icon),
-                    selectedIcon: Icon(destination.selectedIcon),
-                    label: l10n.shellDestinationLabel(destination.id),
-                  ),
+    final scaffold = layout.useRailNavigation
+        ? Scaffold(
+            appBar: appBar,
+            body: Row(
+              children: [
+                _ShellNavigationRail(
+                  selectedIndex: _selectedIndex,
+                  destinations: destinations,
+                  onDestinationSelected: _handleDestinationSelected,
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: contentWithBanner),
               ],
             ),
-          ),
-        ],
-      ),
-    );
+          )
+        : Scaffold(
+            appBar: appBar,
+            body: SafeArea(child: contentStack),
+            bottomNavigationBar: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_isAdBannerVisible)
+                  _SponsoredAdBanner(
+                    adController: _adController,
+                    onClose: () {
+                      setState(() {
+                        _dismissAdBannerForSession = true;
+                      });
+                      _syncAdBannerAutoHideTimer();
+                    },
+                  ),
+                MediaQuery.withClampedTextScaling(
+                  minScaleFactor: 1,
+                  maxScaleFactor: 1,
+                  child: NavigationBar(
+                    selectedIndex: _selectedIndex,
+                    onDestinationSelected: _handleDestinationSelected,
+                    labelBehavior: layout.width < 460
+                        ? NavigationDestinationLabelBehavior.onlyShowSelected
+                        : NavigationDestinationLabelBehavior.alwaysShow,
+                    destinations: [
+                      for (final destination in destinations)
+                        NavigationDestination(
+                          icon: _buildShellDestinationAnchor(
+                            destination.id,
+                            child: Icon(destination.icon),
+                          ),
+                          selectedIcon: Icon(destination.selectedIcon),
+                          label: l10n.shellDestinationLabel(destination.id),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+
+    return OnboardingScope(controller: _onboardingCoordinator, child: scaffold);
   }
 
   Map<String, String> _extractNamedClanContexts(

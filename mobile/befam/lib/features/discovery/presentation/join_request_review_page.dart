@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/join_request_review_item.dart';
+import '../services/genealogy_discovery_analytics_service.dart';
 import '../services/genealogy_discovery_repository.dart';
 
 class JoinRequestReviewPage extends StatefulWidget {
@@ -11,10 +14,12 @@ class JoinRequestReviewPage extends StatefulWidget {
     super.key,
     required this.session,
     required this.repository,
+    this.analyticsService,
   });
 
   final AuthSession session;
   final GenealogyDiscoveryRepository repository;
+  final GenealogyDiscoveryAnalyticsService? analyticsService;
 
   @override
   State<JoinRequestReviewPage> createState() => _JoinRequestReviewPageState();
@@ -25,11 +30,25 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
   String? _submittingRequestId;
   String? _errorMessage;
   List<JoinRequestReviewItem> _requests = const [];
+  late GenealogyDiscoveryAnalyticsService _analyticsService;
 
   @override
   void initState() {
     super.initState();
+    _analyticsService =
+        widget.analyticsService ??
+        createDefaultGenealogyDiscoveryAnalyticsService();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant JoinRequestReviewPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.analyticsService != widget.analyticsService) {
+      _analyticsService =
+          widget.analyticsService ??
+          createDefaultGenealogyDiscoveryAnalyticsService();
+    }
   }
 
   Future<void> _load() async {
@@ -82,6 +101,12 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
         requestId: item.id,
         approve: approve,
       );
+      unawaited(
+        _analyticsService.trackJoinRequestReviewSubmitted(
+          clanId: item.clanId,
+          decision: approve ? 'approve' : 'reject',
+        ),
+      );
       if (!mounted) {
         return;
       }
@@ -99,6 +124,12 @@ class _JoinRequestReviewPageState extends State<JoinRequestReviewPage> {
       );
       await _load();
     } catch (_) {
+      unawaited(
+        _analyticsService.trackJoinRequestReviewFailed(
+          clanId: item.clanId,
+          decision: approve ? 'approve' : 'reject',
+        ),
+      );
       if (!mounted) {
         return;
       }

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://befam.app/schemas/onboarding-flow.schema.json",
+  "title": "BeFam Onboarding Flow",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "triggerId",
+    "version",
+    "enabled",
+    "priority",
+    "maxDisplays",
+    "cooldownHours",
+    "resumeTtlHours",
+    "platforms",
+    "steps"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "triggerId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "maxDisplays": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cooldownHours": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resumeTtlHours": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["android", "ios", "web"]
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    }
+  },
+  "$defs": {
+    "localizedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vi", "en"],
+      "properties": {
+        "vi": {
+          "type": "string",
+          "minLength": 1
+        },
+        "en": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "anchorId", "title", "body"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "anchorId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "body": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "placement": {
+          "type": "string",
+          "enum": ["auto", "above", "below"]
+        },
+        "barrierDismissible": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

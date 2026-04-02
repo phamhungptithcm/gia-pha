@@ -1,0 +1,207 @@
+[
+  {
+    "id": "shell_navigation",
+    "triggerId": "app_shell_home",
+    "version": 1,
+    "enabled": true,
+    "priority": 10,
+    "maxDisplays": 2,
+    "cooldownHours": 24,
+    "resumeTtlHours": 72,
+    "platforms": ["android", "ios", "web"],
+    "steps": [
+      {
+        "id": "tree_tab",
+        "anchorId": "shell.destination.tree",
+        "title": {
+          "vi": "Bắt đầu từ cây gia phả",
+          "en": "Start with the family tree"
+        },
+        "body": {
+          "vi": "Mở sơ đồ gia phả để xem các thế hệ, nhánh họ và quan hệ chính trong cùng một chỗ.",
+          "en": "Open the tree to explore generations, branches, and core relationships in one place."
+        },
+        "placement": "above",
+        "barrierDismissible": false
+      },
+      {
+        "id": "events_tab",
+        "anchorId": "shell.destination.events",
+        "title": {
+          "vi": "Theo dõi ngày giỗ và lịch họ tộc",
+          "en": "Track memorial days and clan events"
+        },
+        "body": {
+          "vi": "Lịch sự kiện giúp bạn quản lý giỗ chạp, họp họ và nhắc việc theo từng gia phả.",
+          "en": "The calendar keeps memorials, gatherings, and reminders organized for each clan."
+        },
+        "placement": "above",
+        "barrierDismissible": false
+      },
+      {
+        "id": "profile_tab",
+        "anchorId": "shell.destination.profile",
+        "title": {
+          "vi": "Thiết lập hồ sơ và quyền truy cập",
+          "en": "Set up your profile and access"
+        },
+        "body": {
+          "vi": "Vào hồ sơ để hoàn thiện thông tin cá nhân, thông báo và các cài đặt liên quan đến tài khoản.",
+          "en": "Use Profile to finish account details, notification preferences, and personal settings."
+        },
+        "placement": "above",
+        "barrierDismissible": false
+      }
+    ]
+  },
+  {
+    "id": "member_add",
+    "triggerId": "member_workspace_opened",
+    "version": 1,
+    "enabled": true,
+    "priority": 20,
+    "maxDisplays": 3,
+    "cooldownHours": 12,
+    "resumeTtlHours": 72,
+    "platforms": ["android", "ios", "web"],
+    "steps": [
+      {
+        "id": "member_add_fab",
+        "anchorId": "member.add_fab",
+        "title": {
+          "vi": "Thêm thành viên mới",
+          "en": "Add a new member"
+        },
+        "body": {
+          "vi": "Bắt đầu từ nút này để tạo hồ sơ mới. BeFam sẽ cho phép tra cứu số điện thoại trước rồi tự điền dữ liệu khi có thể.",
+          "en": "Start here to create a profile. BeFam can check the phone number first and prefill known data when available."
+        },
+        "placement": "above",
+        "barrierDismissible": false
+      }
+    ]
+  },
+  {
+    "id": "genealogy_workspace",
+    "triggerId": "genealogy_workspace_opened",
+    "version": 1,
+    "enabled": true,
+    "priority": 30,
+    "maxDisplays": 2,
+    "cooldownHours": 24,
+    "resumeTtlHours": 72,
+    "platforms": ["android", "ios", "web"],
+    "steps": [
+      {
+        "id": "main_add_fab",
+        "anchorId": "genealogy.main_add_fab",
+        "title": {
+          "vi": "Mở trung tâm thao tác nhanh",
+          "en": "Open the quick action hub"
+        },
+        "body": {
+          "vi": "Từ nút này bạn có thể mở các thao tác tạo gia phả, thêm nhánh hoặc thêm thành viên theo đúng quyền hiện có.",
+          "en": "Use this button to open the actions your role allows, such as adding a genealogy, branch, or member."
+        },
+        "placement": "above",
+        "barrierDismissible": false
+      },
+      {
+        "id": "zoom_in",
+        "anchorId": "genealogy.zoom_in",
+        "title": {
+          "vi": "Phóng to để đọc quan hệ dễ hơn",
+          "en": "Zoom in for easier reading"
+        },
+        "body": {
+          "vi": "Khi sơ đồ dày đặc, dùng điều khiển này để phóng to nhanh rồi chạm vào từng thành viên để xem chi tiết.",
+          "en": "When the tree gets dense, use this control to zoom in quickly and inspect each member in detail."
+        },
+        "placement": "below",
+        "barrierDismissible": false
+      }
+    ]
+  },
+  {
+    "id": "genealogy_discovery",
+    "triggerId": "genealogy_discovery_opened",
+    "version": 1,
+    "enabled": true,
+    "priority": 40,
+    "maxDisplays": 2,
+    "cooldownHours": 24,
+    "resumeTtlHours": 72,
+    "platforms": ["android", "ios", "web"],
+    "steps": [
+      {
+        "id": "query_input",
+        "anchorId": "discovery.query_input",
+        "title": {
+          "vi": "Tìm gia phả theo tên hoặc từ khóa",
+          "en": "Search by name or keyword"
+        },
+        "body": {
+          "vi": "Nhập họ tộc, trưởng tộc hoặc một từ khóa nhận diện để thu hẹp danh sách nhanh hơn.",
+          "en": "Enter a family name, leader, or identifying keyword to narrow the list faster."
+        },
+        "placement": "below",
+        "barrierDismissible": false
+      },
+      {
+        "id": "search_button",
+        "anchorId": "discovery.search_button",
+        "title": {
+          "vi": "Chạy tìm kiếm và xem kết quả",
+          "en": "Run the search and review results"
+        },
+        "body": {
+          "vi": "Sau khi lọc, danh sách bên dưới sẽ cho phép bạn gửi yêu cầu tham gia đúng gia phả.",
+          "en": "After filtering, the list below lets you request access to the right genealogy."
+        },
+        "placement": "below",
+        "barrierDismissible": false
+      }
+    ]
+  },
+  {
+    "id": "clan_detail",
+    "triggerId": "clan_detail_opened",
+    "version": 1,
+    "enabled": true,
+    "priority": 50,
+    "maxDisplays": 2,
+    "cooldownHours": 24,
+    "resumeTtlHours": 72,
+    "platforms": ["android", "ios", "web"],
+    "steps": [
+      {
+        "id": "clan_edit_fab",
+        "anchorId": "clan.edit_fab",
+        "title": {
+          "vi": "Chỉnh sửa cấu hình gia phả",
+          "en": "Edit clan configuration"
+        },
+        "body": {
+          "vi": "Dùng nút này để cập nhật thông tin gốc của gia phả như tên, slug, người khai sáng và mô tả.",
+          "en": "Use this button to update the clan identity, slug, founder, and description."
+        },
+        "placement": "above",
+        "barrierDismissible": false
+      },
+      {
+        "id": "branch_section",
+        "anchorId": "clan.branch_section",
+        "title": {
+          "vi": "Quản lý các nhánh trong cùng một nơi",
+          "en": "Manage branches from one place"
+        },
+        "body": {
+          "vi": "Khu vực này là nơi thêm nhánh mới, xem nhanh người phụ trách và mở danh sách chi đầy đủ.",
+          "en": "This section is where you add branches, review leaders, and open the full branch list."
+        },
+        "placement": "below",
+        "barrierDismissible": false
+      }
+    ]
+  }
+]

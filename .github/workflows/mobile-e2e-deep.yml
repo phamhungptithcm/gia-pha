@@ -1,20 +1,28 @@
-name: CI - Mobile E2E Nightly Deep
+name: CI - Mobile E2E Deep
 
 on:
-  schedule:
-    - cron: "30 3 * * 1-6"
+  push:
+    branches:
+      - staging
+      - main
+    paths:
+      - "mobile/befam/**"
+      - "scripts/run_mobile_e2e.sh"
+      - ".github/workflows/mobile-e2e.yml"
+      - ".github/workflows/mobile-e2e-ios.yml"
+      - ".github/workflows/mobile-e2e-deep.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: mobile-e2e-nightly-deep-${{ github.ref }}
+  group: mobile-e2e-deep-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
-  nightly-android-debug-full:
-    name: Nightly E2E - Android Debug Full
+  deep-android-debug-full:
+    name: Deep E2E - Android Debug Full
     runs-on: ubuntu-latest
     timeout-minutes: 70
     env:
@@ -54,9 +62,9 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-nightly-e2e-gradle-${{ hashFiles('mobile/befam/android/**/*.gradle*', 'mobile/befam/android/**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-deep-e2e-gradle-${{ hashFiles('mobile/befam/android/**/*.gradle*', 'mobile/befam/android/**/gradle-wrapper.properties') }}
           restore-keys: |
-            ${{ runner.os }}-nightly-e2e-gradle-
+            ${{ runner.os }}-deep-e2e-gradle-
 
       - name: Run Android debug full E2E
         uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2
@@ -76,18 +84,18 @@ jobs:
             chmod +x scripts/run_mobile_e2e.sh
             ./scripts/run_mobile_e2e.sh "$E2E_MODE" android "$E2E_SUITE"
 
-      - name: Upload Android nightly artifacts
+      - name: Upload Android deep artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nightly-mobile-e2e-android-debug-full-${{ github.run_id }}
+          name: deep-mobile-e2e-android-debug-full-${{ github.run_id }}
           path: |
             mobile/befam/artifacts/**
             mobile/befam/integration_test/screenshots/**
           if-no-files-found: ignore
 
-  nightly-ios-debug-full:
-    name: Nightly E2E - iOS Debug Full
+  deep-ios-debug-full:
+    name: Deep E2E - iOS Debug Full
     runs-on: macos-latest
     timeout-minutes: 120
     env:
@@ -116,9 +124,9 @@ jobs:
             ~/Library/Caches/CocoaPods
             ~/Library/Caches/org.cocoapods.CocoaPods
             mobile/befam/ios/Pods
-          key: ${{ runner.os }}-nightly-e2e-ios-deps-${{ hashFiles('mobile/befam/pubspec.lock', 'mobile/befam/ios/Podfile.lock') }}
+          key: ${{ runner.os }}-deep-e2e-ios-deps-${{ hashFiles('mobile/befam/pubspec.lock', 'mobile/befam/ios/Podfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-nightly-e2e-ios-deps-
+            ${{ runner.os }}-deep-e2e-ios-deps-
 
       - name: Prepare iOS dependencies
         run: |
@@ -152,18 +160,18 @@ jobs:
           chmod +x scripts/run_mobile_e2e.sh
           ./scripts/run_mobile_e2e.sh "$E2E_MODE" ios "$E2E_SUITE"
 
-      - name: Upload iOS nightly artifacts
+      - name: Upload iOS deep artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nightly-mobile-e2e-ios-debug-full-${{ github.run_id }}
+          name: deep-mobile-e2e-ios-debug-full-${{ github.run_id }}
           path: |
             mobile/befam/artifacts/**
             mobile/befam/integration_test/screenshots/**
           if-no-files-found: ignore
 
-  nightly-android-live-full:
-    name: Nightly E2E - Android Live Full
+  deep-android-live-full:
+    name: Deep E2E - Android Live Full
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -178,7 +186,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
+      - name: Decide whether Android live full E2E can run
+        id: live-credentials
+        env:
+          SECRET_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          SECRET_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+          VAR_PHONE: ${{ vars.BEFAM_E2E_TEST_PHONE }}
+          VAR_OTP: ${{ vars.BEFAM_E2E_TEST_OTP }}
+        run: |
+          set -euo pipefail
+          phone="${SECRET_PHONE:-}"
+          otp="${SECRET_OTP:-}"
+          if [[ -z "${phone}" ]]; then
+            phone="${VAR_PHONE:-}"
+          fi
+          if [[ -z "${otp}" ]]; then
+            otp="${VAR_OTP:-}"
+          fi
+
+          if [[ -z "${phone}" || -z "${otp}" ]]; then
+            echo "run_e2e=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping Android live full E2E because BEFAM_E2E_TEST_PHONE/OTP are not configured."
+            exit 0
+          fi
+
+          echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+          echo "phone=${phone}" >> "$GITHUB_OUTPUT"
+          echo "otp=${otp}" >> "$GITHUB_OUTPUT"
+
       - name: Enable KVM acceleration
+        if: ${{ steps.live-credentials.outputs.run_e2e == 'true' }}
         run: |
           set -euo pipefail
           echo 'KERNEL=="kvm",GROUP="kvm",MODE="0666",OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -186,22 +223,25 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Set up Java
+        if: ${{ steps.live-credentials.outputs.run_e2e == 'true' }}
         uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Flutter
+        if: ${{ steps.live-credentials.outputs.run_e2e == 'true' }}
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           cache: true
 
       - name: Run Android live full E2E
+        if: ${{ steps.live-credentials.outputs.run_e2e == 'true' }}
         uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2
         env:
-          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
-          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+          BEFAM_E2E_TEST_PHONE: ${{ steps.live-credentials.outputs.phone }}
+          BEFAM_E2E_TEST_OTP: ${{ steps.live-credentials.outputs.otp }}
         with:
           api-level: 34
           arch: x86_64
@@ -218,11 +258,11 @@ jobs:
             chmod +x scripts/run_mobile_e2e.sh
             ./scripts/run_mobile_e2e.sh "$E2E_MODE" android "$E2E_SUITE"
 
-      - name: Upload Android live nightly artifacts
-        if: ${{ always() }}
+      - name: Upload Android live deep artifacts
+        if: ${{ always() && steps.live-credentials.outputs.run_e2e == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nightly-mobile-e2e-android-live-full-${{ github.run_id }}
+          name: deep-mobile-e2e-android-live-full-${{ github.run_id }}
           path: |
             mobile/befam/artifacts/**
             mobile/befam/integration_test/screenshots/**

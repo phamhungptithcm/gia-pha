@@ -3617,7 +3617,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'BeFam kết nối gia phả, sự kiện, quỹ họ và quản trị thành viên trong một không gian dữ liệu thống nhất.'**
+  /// **'BeFam kết nối gia phả, sự kiện, quỹ họ và quản trị thành viên trong một không gian dữ liệu thống nhất, dễ dùng cho mọi thế hệ.'**
   String get webLandingSubtitle;
 
   /// No description provided for @webLandingPrimaryCta.
@@ -3653,7 +3653,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingFeatureTreeDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Quản lý quan hệ huyết thống theo chi, đời và vai vế để mọi thế hệ dễ tra cứu và cập nhật.'**
+  /// **'Quản lý quan hệ huyết thống theo chi, đời và vai vế để các thế hệ dễ tra cứu, cập nhật.'**
   String get webLandingFeatureTreeDescription;
 
   /// No description provided for @webLandingFeatureEventsTitle.
@@ -3665,7 +3665,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingFeatureEventsDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Theo dõi lịch giỗ, lễ họp và các mốc quan trọng với nhắc lịch chủ động cho thành viên.'**
+  /// **'Theo dõi lịch giỗ, họp họ và các mốc quan trọng với nhắc lịch chủ động cho thành viên.'**
   String get webLandingFeatureEventsDescription;
 
   /// No description provided for @webLandingFeatureBillingTitle.
@@ -3677,7 +3677,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingFeatureBillingDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Quản lý gói dịch vụ, gia hạn và trạng thái thanh toán minh bạch trên một luồng thống nhất.'**
+  /// **'Quản lý gói dịch vụ, gia hạn và trạng thái thanh toán trên một luồng rõ ràng, minh bạch.'**
   String get webLandingFeatureBillingDescription;
 
   /// No description provided for @webAboutTitle.
@@ -3689,7 +3689,7 @@ abstract class AppLocalizations {
   /// No description provided for @webAboutSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'BeFam ra đời từ trăn trở giữ kết nối họ tộc khi con cháu học tập, làm việc và sinh sống ở nhiều nơi trên thế giới.'**
+  /// **'BeFam ra đời từ mong muốn giữ kết nối họ tộc khi con cháu học tập, làm việc và sinh sống ở nhiều nơi.'**
   String get webAboutSubtitle;
 
   /// No description provided for @webAboutMissionTitle.
@@ -3701,7 +3701,7 @@ abstract class AppLocalizations {
   /// No description provided for @webAboutMissionDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Giúp mỗi dòng họ số hóa dữ liệu gia đình dễ hiểu, dễ dùng và bền vững theo thời gian.'**
+  /// **'Giúp mỗi dòng họ số hóa dữ liệu gia đình theo cách dễ hiểu, dễ dùng và bền vững theo thời gian.'**
   String get webAboutMissionDescription;
 
   /// No description provided for @webAboutVisionTitle.
@@ -3713,7 +3713,7 @@ abstract class AppLocalizations {
   /// No description provided for @webAboutVisionDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Trở thành nền tảng vận hành họ tộc đáng tin cậy cho cộng đồng gia đình Việt trên toàn cầu.'**
+  /// **'Trở thành nền tảng vận hành họ tộc đáng tin cậy cho cộng đồng gia đình Việt ở mọi nơi.'**
   String get webAboutVisionDescription;
 
   /// No description provided for @webAboutTrustTitle.
@@ -3761,7 +3761,7 @@ abstract class AppLocalizations {
   /// No description provided for @webInfoNotificationsDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng để không bỏ sót mốc cần theo dõi.'**
+  /// **'Nhận thông báo về sự kiện, khuyến học và các thay đổi quan trọng để không bỏ sót mốc cần theo dõi.'**
   String get webInfoNotificationsDescription;
 
   /// No description provided for @webInfoBillingTitle.
@@ -3791,7 +3791,7 @@ abstract class AppLocalizations {
   /// No description provided for @webInfoHighlightsItemTwo.
   ///
   /// In vi, this message translates to:
-  /// **'Thiết kế responsive cho điện thoại, tablet và desktop.'**
+  /// **'Thiết kế responsive cho điện thoại, máy tính bảng và desktop.'**
   String get webInfoHighlightsItemTwo;
 
   /// No description provided for @webInfoHighlightsItemThree.

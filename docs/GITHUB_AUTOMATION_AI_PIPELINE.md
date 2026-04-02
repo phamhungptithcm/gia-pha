@@ -77,13 +77,13 @@ Deploys production hosting from immutable release assets.
 
 Manual rollback to a selected release tag.
 
-### `weekly-release-promotion.yml` (`Ops - Promote Staging to Main`)
+### `promote-staging-to-main.yml` (`Ops - Promote Staging to Main`)
 
-Every Monday at 14:00 UTC (and manual dispatch):
+On every push to `staging` (and manual dispatch):
 
 - compares `staging` to `main`
 - creates/refreshes production promotion PR
-- enables auto-merge once approval + CI are satisfied
+- keeps final merge approval in human hands
 
 ### `release-issue-closure.yml` (`Ops - Close Released Issues`)
 

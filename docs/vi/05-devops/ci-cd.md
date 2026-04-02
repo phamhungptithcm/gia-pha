@@ -1,6 +1,6 @@
 # CI/CD
 
-_Cập nhật gần nhất: 28/03/2026_
+_Cập nhật gần nhất: 02/04/2026_
 
 BeFam dùng mô hình phát hành có kiểm soát:
 
@@ -11,8 +11,7 @@ BeFam dùng mô hình phát hành có kiểm soát:
 
 ### `branch-ci.yml` (`CI - Branch Quality Gates`)
 Chạy khi:
-- có pull request vào `staging` hoặc `main`
-- có push vào mọi nhánh trừ `main` (bao gồm sub-branch dev/task và `staging`)
+- có push vào mọi nhánh, bao gồm `staging` và `main`
 
 Kiểm tra gồm:
 - build docs và kiểm tra tài liệu rules
@@ -21,8 +20,12 @@ Kiểm tra gồm:
 - kiểm tra build Android release
 - dependency review + Trivy + gitleaks + scan image
 
-### `mobile-e2e.yml` (`CI - Mobile E2E (PR/Manual)`)
-Chạy E2E Android + iOS cho PR mobile và khi chạy tay.
+### `mobile-e2e.yml` + `mobile-e2e-ios.yml`
+Chạy smoke E2E Android/iOS khi có push vào mọi nhánh và khi chạy tay.
+Job sẽ tự bỏ qua khi push không đụng tới phần mobile hoặc file E2E liên quan.
+
+### `mobile-e2e-deep.yml` (`CI - Mobile E2E Deep`)
+Chạy deep regression đầy đủ cho mobile khi có push vào `staging` hoặc `main`, và khi chạy tay.
 
 ### `deploy-docs.yml` (`CD - Deploy Docs (GitHub Pages)`)
 Build và publish site tài liệu lên GitHub Pages.
@@ -54,8 +57,8 @@ Chặn nhánh: chỉ `main`.
 ### `rollback-production.yml` (`CD - Rollback Production`)
 Rollback production về tag release đã chọn.
 
-### `weekly-release-promotion.yml` (`Ops - Promote Staging to Main`)
-Tạo/cập nhật PR promote `staging -> main` theo lịch tuần.
+### `promote-staging-to-main.yml` (`Ops - Promote Staging to Main`)
+Tạo hoặc cập nhật PR promote `staging -> main` mỗi khi có commit mới vào `staging`.
 
 ### `release-issue-closure.yml` (`Ops - Close Released Issues`)
 Tự đóng issue liên quan sau khi PR phát hành vào `main`.

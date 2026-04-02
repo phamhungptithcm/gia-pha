@@ -1,5 +1,21 @@
 part of 'app_shell_page.dart';
 
+Widget _buildShellDestinationAnchor(
+  String destinationId, {
+  required Widget child,
+}) {
+  final anchorId = switch (destinationId) {
+    'tree' => 'shell.destination.tree',
+    'events' => 'shell.destination.events',
+    'profile' => 'shell.destination.profile',
+    _ => null,
+  };
+  if (anchorId == null) {
+    return child;
+  }
+  return OnboardingAnchor(anchorId: anchorId, child: child);
+}
+
 class _SponsoredAdBanner extends StatelessWidget {
   const _SponsoredAdBanner({required this.adController, required this.onClose});
 
@@ -10,6 +26,7 @@ class _SponsoredAdBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
     final banner = adController.bannerAd;
     final showBannerAd = adController.isBannerReady && banner != null;
     return LayoutBuilder(
@@ -19,7 +36,10 @@ class _SponsoredAdBanner extends StatelessWidget {
           color: colorScheme.tertiaryContainer.withValues(alpha: 0.88),
           child: SafeArea(
             top: false,
-            minimum: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            minimum: EdgeInsets.symmetric(
+              horizontal: tokens.spaceMd,
+              vertical: tokens.spaceSm,
+            ),
             child: showBannerAd
                 ? Column(
                     mainAxisSize: MainAxisSize.min,
@@ -28,12 +48,11 @@ class _SponsoredAdBanner extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          IconButton(
+                          AppCompactIconButton(
                             tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
                             onPressed: onClose,
                             icon: const Icon(Icons.close),
                             color: colorScheme.onTertiaryContainer,
-                            visualDensity: VisualDensity.compact,
                           ),
                         ],
                       ),
@@ -54,7 +73,7 @@ class _SponsoredAdBanner extends StatelessWidget {
                         color: colorScheme.onTertiaryContainer,
                         size: 18,
                       ),
-                      const SizedBox(width: 10),
+                      SizedBox(width: tokens.spaceMd),
                       Expanded(
                         child: Text(
                           l10n.pick(
@@ -71,7 +90,7 @@ class _SponsoredAdBanner extends StatelessWidget {
                         ),
                       ),
                       if (!compact)
-                        TextButton(
+                        AppCompactTextButton(
                           onPressed: onClose,
                           child: Text(
                             l10n.pick(vi: 'Ẩn hôm nay', en: 'Hide today'),
@@ -82,12 +101,11 @@ class _SponsoredAdBanner extends StatelessWidget {
                                 ),
                           ),
                         ),
-                      IconButton(
+                      AppCompactIconButton(
                         tooltip: l10n.pick(vi: 'Đóng', en: 'Close'),
                         onPressed: onClose,
                         icon: const Icon(Icons.close),
                         color: colorScheme.onTertiaryContainer,
-                        visualDensity: VisualDensity.compact,
                       ),
                     ],
                   ),
@@ -127,7 +145,10 @@ class _ShellNavigationRail extends StatelessWidget {
           destinations: [
             for (final destination in destinations)
               NavigationRailDestination(
-                icon: Icon(destination.icon),
+                icon: _buildShellDestinationAnchor(
+                  destination.id,
+                  child: Icon(destination.icon),
+                ),
                 selectedIcon: Icon(destination.selectedIcon),
                 label: Text(
                   l10n.shellDestinationLabel(destination.id),
@@ -215,6 +236,7 @@ class _HomeDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
     final layout = ResponsiveLayout.of(context);
     final maxCrossAxisCount = layout.gridColumns(
       mobile: 1,
@@ -260,7 +282,7 @@ class _HomeDashboard extends StatelessWidget {
                   onOpenEventDetailRequested:
                       onOpenUpcomingEventDetailRequested,
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: tokens.space2xl),
                 _TodoSection(
                   status: status,
                   session: session,
@@ -272,12 +294,12 @@ class _HomeDashboard extends StatelessWidget {
                       onOpenMemorialChecklistRequested,
                   onOpenJoinRequestsRequested: onOpenJoinRequestsRequested,
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: tokens.space2xl),
                 _NearbyRelativesSection(
                   session: session,
                   memberRepository: memberRepository,
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: tokens.space2xl),
                 Row(
                   children: [
                     Expanded(
@@ -288,21 +310,21 @@ class _HomeDashboard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    TextButton(
+                    AppCompactTextButton(
                       onPressed: () => _openAllShortcutsSheet(context),
                       child: Text(l10n.pick(vi: 'Xem tất cả', en: 'View all')),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: tokens.spaceMd),
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: _primaryShortcuts.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
+                    crossAxisSpacing: tokens.spaceLg,
+                    mainAxisSpacing: tokens.spaceLg,
                     childAspectRatio: childAspectRatio,
                   ),
                   itemBuilder: (context, index) {
@@ -940,6 +962,7 @@ class _UpcomingEventEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final tokens = context.uiTokens;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -962,16 +985,14 @@ class _UpcomingEventEmptyState extends StatelessWidget {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
-            IconButton(
+            AppCompactIconButton(
               tooltip: l10n.pick(vi: 'Làm mới sự kiện', en: 'Refresh event'),
               onPressed: onRefresh,
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
               icon: const Icon(Icons.refresh),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: tokens.spaceSm),
         Text(
           l10n.pick(
             vi: 'Hiện chưa có sự kiện nào trong thời gian tới.',
@@ -1002,6 +1023,7 @@ class _UpcomingEventResolvedState extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
     final event = data.event;
     final hostLabel = data.hostHousehold?.trim().isNotEmpty == true
         ? data.hostHousehold!.trim()
@@ -1015,7 +1037,7 @@ class _UpcomingEventResolvedState extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(Icons.event_outlined, color: theme.colorScheme.primary),
-            const SizedBox(width: 8),
+            SizedBox(width: tokens.spaceSm),
             Expanded(
               child: Text(
                 l10n.pick(vi: 'Sự kiện gần tới', en: 'Upcoming event'),
@@ -1027,17 +1049,11 @@ class _UpcomingEventResolvedState extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 4),
-            TextButton(
+            SizedBox(width: tokens.spaceXs),
+            AppCompactTextButton(
               onPressed: () {
                 onOpenEventDetailRequested(event);
               },
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: const Size(0, 32),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
               child: Text(l10n.pick(vi: 'Xem chi tiết', en: 'View details')),
             ),
             if (isRefreshing)
@@ -1049,23 +1065,21 @@ class _UpcomingEventResolvedState extends StatelessWidget {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
-            IconButton(
+            AppCompactIconButton(
               tooltip: l10n.pick(vi: 'Làm mới sự kiện', en: 'Refresh event'),
               onPressed: onRefresh,
-              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-              visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.refresh),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: tokens.spaceSm),
         Text(
           event.title,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: tokens.spaceXs + 2),
         Text(
           _formatDashboardDateTime(data.startsAt),
           style: theme.textTheme.bodyLarge?.copyWith(
@@ -1351,16 +1365,20 @@ class _NearbyRelativeLoadResult {
     required this.items,
     required this.message,
     this.canRetry = true,
+    this.retryAction = _NearbyRetryAction.reload,
     this.settingsTarget,
   });
 
   final List<_NearbyRelative> items;
   final String message;
   final bool canRetry;
+  final _NearbyRetryAction retryAction;
   final _NearbySettingsTarget? settingsTarget;
 
   bool get hasItems => items.isNotEmpty;
 }
+
+enum _NearbyRetryAction { reload, requestPermission }
 
 enum _NearbySettingsTarget { appPermission, locationService }
 
@@ -1483,18 +1501,24 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
       );
     }
 
-    var permission = await Geolocator.checkPermission();
+    final permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
       return _NearbyRelativeLoadResult(
         items: const [],
-        canRetry: permission != LocationPermission.deniedForever,
+        canRetry: true,
+        retryAction: _NearbyRetryAction.requestPermission,
         message: l10n.pick(
-          vi: 'Bạn chưa cấp quyền vị trí. Cấp quyền để xem khoảng cách người thân.',
-          en: 'Location permission is required to calculate nearby relative distances.',
+          vi: 'Cho phép vị trí để xem khoảng cách và phát hiện người thân ở gần bạn.',
+          en: 'Allow location access to calculate distance and discover nearby relatives.',
+        ),
+      );
+    }
+    if (permission == LocationPermission.deniedForever) {
+      return _NearbyRelativeLoadResult(
+        items: const [],
+        message: l10n.pick(
+          vi: 'Quyền vị trí đang bị tắt vĩnh viễn. Mở cài đặt ứng dụng để bật lại và xem người thân ở gần.',
+          en: 'Location access is permanently disabled. Open app settings to re-enable nearby relatives.',
         ),
         settingsTarget: _NearbySettingsTarget.appPermission,
       );
@@ -1925,6 +1949,17 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
     });
   }
 
+  Future<void> _requestLocationPermissionAndReload() async {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      await Geolocator.requestPermission();
+    }
+    if (!mounted) {
+      return;
+    }
+    _reload();
+  }
+
   void _openNearbySheet(List<_NearbyRelative> items) {
     showModalBottomSheet<void>(
       context: context,
@@ -1939,9 +1974,10 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(tokens.spaceLg),
         child: FutureBuilder<_NearbyRelativeLoadResult>(
           future: _future,
           builder: (context, snapshot) {
@@ -1962,6 +1998,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                   en: 'Unable to load nearby relatives. Please try again.',
                 ),
                 canRetry: true,
+                retryAction: _NearbyRetryAction.reload,
                 onRetry: _reload,
                 onRadarScan: _reload,
                 onOpenSettings: _openNearbySettings,
@@ -1973,7 +2010,11 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                 key: const ValueKey<String>('nearby-empty'),
                 message: result.message,
                 canRetry: result.canRetry,
-                onRetry: _reload,
+                retryAction: result.retryAction,
+                onRetry:
+                    result.retryAction == _NearbyRetryAction.requestPermission
+                    ? _requestLocationPermissionAndReload
+                    : _reload,
                 onRadarScan: _reload,
                 settingsTarget: result.settingsTarget,
                 onOpenSettings: _openNearbySettings,
@@ -1993,7 +2034,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                       Icons.near_me_outlined,
                       color: theme.colorScheme.primary,
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: tokens.spaceSm),
                     Expanded(
                       child: Text(
                         l10n.pick(
@@ -2014,39 +2055,25 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                       ),
-                    IconButton(
+                    AppCompactIconButton(
                       tooltip: l10n.pick(
                         vi: 'Rà lại người thân gần đây',
                         en: 'Rescan nearby relatives',
                       ),
                       onPressed: _reload,
                       icon: const Icon(Icons.radar),
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints.tightFor(
-                        width: 36,
-                        height: 36,
-                      ),
                     ),
-                    TextButton(
+                    AppCompactTextButton(
                       onPressed: () => _openNearbySheet(result.items),
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        minimumSize: const Size(0, 32),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
                       child: Text(
                         l10n.pick(vi: 'Xem danh sách', en: 'View list'),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: tokens.spaceXs + 2),
                 Text(result.message, style: theme.textTheme.bodyMedium),
-                const SizedBox(height: 8),
+                SizedBox(height: tokens.spaceSm),
                 for (final item in previewItems)
                   ListTile(
                     dense: true,
@@ -2378,6 +2405,7 @@ class _NearbyRelativesEmpty extends StatelessWidget {
     super.key,
     required this.message,
     required this.canRetry,
+    required this.retryAction,
     required this.onRetry,
     required this.onRadarScan,
     this.settingsTarget,
@@ -2386,6 +2414,7 @@ class _NearbyRelativesEmpty extends StatelessWidget {
 
   final String message;
   final bool canRetry;
+  final _NearbyRetryAction retryAction;
   final VoidCallback onRetry;
   final VoidCallback onRadarScan;
   final _NearbySettingsTarget? settingsTarget;
@@ -2394,6 +2423,7 @@ class _NearbyRelativesEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2403,7 +2433,7 @@ class _NearbyRelativesEmpty extends StatelessWidget {
               Icons.near_me_disabled_outlined,
               color: Theme.of(context).colorScheme.primary,
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: tokens.spaceSm),
             Expanded(
               child: Text(
                 l10n.pick(vi: 'Người thân ở gần bạn', en: 'Relatives nearby'),
@@ -2412,43 +2442,65 @@ class _NearbyRelativesEmpty extends StatelessWidget {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
-            IconButton(
+            AppCompactIconButton(
               tooltip: l10n.pick(
                 vi: 'Rà lại người thân gần đây',
                 en: 'Rescan nearby relatives',
               ),
               onPressed: onRadarScan,
               icon: const Icon(Icons.radar),
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: tokens.spaceSm),
         Text(message),
         if (settingsTarget != null && onOpenSettings != null) ...[
-          const SizedBox(height: 8),
-          TextButton.icon(
+          SizedBox(height: tokens.spaceSm),
+          AppCompactTextButton(
             onPressed: () => unawaited(onOpenSettings!(settingsTarget!)),
-            icon: const Icon(Icons.open_in_new),
-            label: Text(switch (settingsTarget!) {
-              _NearbySettingsTarget.appPermission => l10n.pick(
-                vi: 'Mở cài đặt quyền vị trí',
-                en: 'Open app location permission',
-              ),
-              _NearbySettingsTarget.locationService => l10n.pick(
-                vi: 'Mở dịch vụ vị trí của máy',
-                en: 'Open device location services',
-              ),
-            }),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.open_in_new, size: 18),
+                SizedBox(width: tokens.spaceSm),
+                Text(switch (settingsTarget!) {
+                  _NearbySettingsTarget.appPermission => l10n.pick(
+                    vi: 'Mở cài đặt quyền vị trí',
+                    en: 'Open app location permission',
+                  ),
+                  _NearbySettingsTarget.locationService => l10n.pick(
+                    vi: 'Mở dịch vụ vị trí của máy',
+                    en: 'Open device location services',
+                  ),
+                }),
+              ],
+            ),
           ),
         ],
         if (canRetry) ...[
-          const SizedBox(height: 8),
-          TextButton.icon(
+          SizedBox(height: tokens.spaceSm),
+          AppCompactTextButton(
             onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: Text(l10n.notificationInboxRetryAction),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  retryAction == _NearbyRetryAction.requestPermission
+                      ? Icons.my_location_outlined
+                      : Icons.refresh,
+                  size: 18,
+                ),
+                SizedBox(width: tokens.spaceSm),
+                Text(
+                  retryAction == _NearbyRetryAction.requestPermission
+                      ? l10n.pick(
+                          vi: 'Cho phép vị trí',
+                          en: 'Allow location access',
+                        )
+                      : l10n.notificationInboxRetryAction,
+                ),
+              ],
+            ),
           ),
         ],
       ],

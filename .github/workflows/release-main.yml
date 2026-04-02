@@ -458,6 +458,8 @@ jobs:
 
       - name: Resolve release version
         id: version
+        env:
+          RELEASE_TIMEZONE: ${{ vars.APP_TIMEZONE }}
         run: node scripts/next_release_version.mjs
 
       - name: Create release tag
@@ -586,16 +588,33 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          if [ "$allow_bundled" != "false" ]; then
+            echo "::error::Production release builds must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${allow_bundled}"
+            exit 1
+          fi
           if [ "$otp_provider" != "twilio" ]; then
             echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
             exit 1
           fi
+          required_android_keys=(
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_ANDROID_API_KEY
+            BEFAM_FIREBASE_ANDROID_APP_ID
+            BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID
+          )
+          for key in "${required_android_keys[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required production Android var: ${key}"
+              exit 1
+            fi
+          done
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -765,16 +784,34 @@ jobs:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
+          set -euo pipefail
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          if [ "$allow_bundled" != "false" ]; then
+            echo "::error::Production release builds must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${allow_bundled}"
+            exit 1
+          fi
           if [ "$otp_provider" != "twilio" ]; then
             echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
             exit 1
           fi
+          required_ios_keys=(
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_IOS_API_KEY
+            BEFAM_FIREBASE_IOS_APP_ID
+            BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_IOS_BUNDLE_ID
+          )
+          for key in "${required_ios_keys[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required production iOS var: ${key}"
+              exit 1
+            fi
+          done
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -922,16 +959,33 @@ jobs:
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
+          set -euo pipefail
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          if [ "$allow_bundled" != "false" ]; then
+            echo "::error::Production release builds must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${allow_bundled}"
+            exit 1
+          fi
           if [ "$otp_provider" != "twilio" ]; then
             echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
             exit 1
           fi
+          required_web_keys=(
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_WEB_API_KEY
+            BEFAM_FIREBASE_WEB_APP_ID
+            BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+          )
+          for key in "${required_web_keys[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required production web var: ${key}"
+              exit 1
+            fi
+          done
           web_base_url="${BEFAM_WEB_BASE_URL:-}"
           if [ -z "$web_base_url" ] && [ -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]; then
             web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"

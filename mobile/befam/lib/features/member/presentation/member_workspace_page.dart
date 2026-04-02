@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_ui_tokens.dart';
 import '../../../core/services/firebase_services.dart';
+import '../../../core/widgets/app_compact_controls.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
@@ -16,6 +18,9 @@ import '../../auth/models/clan_context_option.dart';
 import '../../auth/services/phone_number_formatter.dart';
 import '../../auth/widgets/phone_country_selector_field.dart';
 import '../../clan/models/branch_profile.dart';
+import '../../onboarding/models/onboarding_models.dart';
+import '../../onboarding/presentation/onboarding_coordinator.dart';
+import '../../onboarding/presentation/onboarding_scope.dart';
 import '../../relationship/presentation/relationship_inspector_panel.dart';
 import '../../relationship/services/relationship_repository.dart';
 import '../models/member_draft.dart';
@@ -62,6 +67,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
   late final TextEditingController _searchController;
   late final ScrollController _scrollController;
   late RelationshipRepository _relationshipRepository;
+  late final OnboardingCoordinator _onboardingCoordinator;
   int _visibleMemberCount = _memberBatchSize;
   String _memberListSeed = '';
 
@@ -81,9 +87,12 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
     _relationshipRepository =
         widget.relationshipRepository ??
         createDefaultRelationshipRepository(session: _session);
+    _onboardingCoordinator = createDefaultOnboardingCoordinator(
+      session: _session,
+    );
     _searchController = TextEditingController();
     _scrollController = ScrollController()..addListener(_handleWorkspaceScroll);
-    unawaited(_controller.initialize());
+    unawaited(_initializeWorkspace());
   }
 
   @override
@@ -112,11 +121,12 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
       searchProvider: widget.searchProvider,
       searchAnalyticsService: widget.searchAnalyticsService,
     );
+    _onboardingCoordinator.updateSession(_session);
     _relationshipRepository =
         widget.relationshipRepository ??
         createDefaultRelationshipRepository(session: _session);
     _searchController.clear();
-    unawaited(_controller.initialize());
+    unawaited(_initializeWorkspace());
   }
 
   @override
@@ -125,8 +135,24 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
       ..removeListener(_handleWorkspaceScroll)
       ..dispose();
     _searchController.dispose();
+    unawaited(_onboardingCoordinator.interrupt());
+    _onboardingCoordinator.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeWorkspace() async {
+    await _controller.initialize();
+    if (!mounted || !_controller.permissions.canCreateMembers) {
+      return;
+    }
+    await _onboardingCoordinator.scheduleTrigger(
+      const OnboardingTrigger(
+        id: 'member_workspace_opened',
+        routeId: 'member_workspace',
+      ),
+      delay: const Duration(milliseconds: 900),
+    );
   }
 
   void _handleWorkspaceScroll() {
@@ -428,7 +454,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
             .toList(growable: false);
         final hasMoreMembers = visibleMembers.length < filteredMembers.length;
 
-        return Scaffold(
+        final scaffold = Scaffold(
           appBar: AppBar(
             title: Text(l10n.memberWorkspaceTitle),
             actions: [
@@ -440,11 +466,14 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
             ],
           ),
           floatingActionButton: _controller.permissions.canCreateMembers
-              ? FloatingActionButton(
-                  key: const Key('member-add-fab'),
-                  onPressed: _openMemberEditor,
-                  tooltip: l10n.memberAddAction,
-                  child: const Icon(Icons.add),
+              ? OnboardingAnchor(
+                  anchorId: 'member.add_fab',
+                  child: FloatingActionButton(
+                    key: const Key('member-add-fab'),
+                    onPressed: _openMemberEditor,
+                    tooltip: l10n.memberAddAction,
+                    child: const Icon(Icons.add),
+                  ),
                 )
               : null,
           body: SafeArea(
@@ -683,6 +712,10 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                     ),
                   ),
           ),
+        );
+        return OnboardingScope(
+          controller: _onboardingCoordinator,
+          child: scaffold,
         );
       },
     );
@@ -2679,7 +2712,7 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                               !pairLocked)
                             Align(
                               alignment: Alignment.centerLeft,
-                              child: TextButton(
+                              child: AppCompactTextButton(
                                 onPressed: () {
                                   setModalState(() {
                                     fatherId = null;
@@ -3191,7 +3224,7 @@ class _FilterPanel extends StatelessWidget {
             hintText: l10n.memberSearchHint,
             suffixIcon: searchController.text.trim().isEmpty
                 ? null
-                : IconButton(
+                : AppCompactIconButton(
                     key: const Key('members-search-clear-query'),
                     tooltip: l10n.memberClearFiltersAction,
                     onPressed: () {

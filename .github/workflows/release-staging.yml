@@ -232,12 +232,29 @@ jobs:
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
-          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           otp_provider="${BEFAM_OTP_PROVIDER:-firebase}"
-          if [ "$otp_provider" != "firebase" ]; then
-            echo "::warning::Staging build usually uses BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
+          if [ "$allow_bundled" != "false" ]; then
+            echo "::error::Staging release builds must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${allow_bundled}"
+            exit 1
           fi
+          if [ "$otp_provider" != "firebase" ]; then
+            echo "::error::Staging release builds must use BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
+            exit 1
+          fi
+          required_android_keys=(
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_ANDROID_API_KEY
+            BEFAM_FIREBASE_ANDROID_APP_ID
+            BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID
+          )
+          for key in "${required_android_keys[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required staging Android var: ${key}"
+              exit 1
+            fi
+          done
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -440,12 +457,30 @@ jobs:
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
-          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
+          allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           otp_provider="${BEFAM_OTP_PROVIDER:-firebase}"
-          if [ "$otp_provider" != "firebase" ]; then
-            echo "::warning::Staging build usually uses BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
+          if [ "$allow_bundled" != "false" ]; then
+            echo "::error::Staging release builds must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${allow_bundled}"
+            exit 1
           fi
+          if [ "$otp_provider" != "firebase" ]; then
+            echo "::error::Staging release builds must use BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
+            exit 1
+          fi
+          required_ios_keys=(
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_IOS_API_KEY
+            BEFAM_FIREBASE_IOS_APP_ID
+            BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_IOS_BUNDLE_ID
+          )
+          for key in "${required_ios_keys[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required staging iOS var: ${key}"
+              exit 1
+            fi
+          done
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID

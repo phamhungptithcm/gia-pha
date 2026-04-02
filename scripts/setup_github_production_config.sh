@@ -236,17 +236,38 @@ if [[ "$missing" -ne 0 ]]; then
   exit 1
 fi
 
-otp_provider="${OTP_PROVIDER:-twilio}"
-befam_otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
-if [[ "$otp_provider" != "twilio" ]]; then
-  echo "OTP_PROVIDER must be twilio for production setup." >&2
+case "$ENV_NAME" in
+  production)
+    expected_otp_provider="twilio"
+    expected_befam_otp_provider="twilio"
+    ;;
+  staging)
+    expected_otp_provider="firebase"
+    expected_befam_otp_provider="firebase"
+    ;;
+  *)
+    echo "Unsupported environment: $ENV_NAME (expected production or staging)." >&2
+    exit 1
+    ;;
+esac
+
+otp_provider="${OTP_PROVIDER:-$expected_otp_provider}"
+befam_otp_provider="${BEFAM_OTP_PROVIDER:-$expected_befam_otp_provider}"
+bundled_firebase_options="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
+
+if [[ "$otp_provider" != "$expected_otp_provider" ]]; then
+  echo "OTP_PROVIDER must be $expected_otp_provider for $ENV_NAME setup." >&2
   missing=1
 fi
-if [[ "$befam_otp_provider" != "twilio" ]]; then
-  echo "BEFAM_OTP_PROVIDER must be twilio for production setup." >&2
+if [[ "$befam_otp_provider" != "$expected_befam_otp_provider" ]]; then
+  echo "BEFAM_OTP_PROVIDER must be $expected_befam_otp_provider for $ENV_NAME setup." >&2
   missing=1
 fi
-if [[ "$otp_provider" == "twilio" ]]; then
+if [[ "$bundled_firebase_options" != "false" ]]; then
+  echo "BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS must be false for $ENV_NAME setup." >&2
+  missing=1
+fi
+if [[ "$expected_otp_provider" == "twilio" ]]; then
   for key in OTP_TWILIO_ACCOUNT_SID OTP_TWILIO_AUTH_TOKEN OTP_TWILIO_VERIFY_SERVICE_SID; do
     if ! require_non_empty_env "$key"; then
       missing=1
@@ -254,12 +275,13 @@ if [[ "$otp_provider" == "twilio" ]]; then
   done
 fi
 if [[ "$missing" -ne 0 ]]; then
-  echo "Abort: Twilio OTP is enabled but Twilio credentials are incomplete." >&2
+  echo "Abort: environment configuration is incomplete or violates the OTP/bundled-Firebase policy." >&2
   exit 1
 fi
 
-: "${OTP_PROVIDER:=twilio}"
-: "${BEFAM_OTP_PROVIDER:=twilio}"
+: "${OTP_PROVIDER:=$expected_otp_provider}"
+: "${BEFAM_OTP_PROVIDER:=$expected_befam_otp_provider}"
+: "${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:=false}"
 : "${BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK:=false}"
 
 echo "Applying GitHub environment configuration:"

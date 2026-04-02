@@ -6,11 +6,17 @@ import 'package:intl/intl.dart';
 import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
+import '../../auth/models/auth_entry_method.dart';
+import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
+import '../../onboarding/models/onboarding_models.dart';
+import '../../onboarding/presentation/onboarding_coordinator.dart';
+import '../../onboarding/presentation/onboarding_scope.dart';
 import '../models/genealogy_discovery_result.dart';
 import '../models/join_request_draft.dart';
 import '../models/my_join_request_item.dart';
 import 'my_join_requests_page.dart';
+import '../services/genealogy_discovery_analytics_service.dart';
 import '../services/genealogy_discovery_repository.dart';
 
 class GenealogyDiscoveryPage extends StatefulWidget {
@@ -20,12 +26,16 @@ class GenealogyDiscoveryPage extends StatefulWidget {
     this.session,
     this.onAddGenealogyRequested,
     this.initialQuery,
+    this.analyticsService,
+    this.onboardingCoordinator,
   });
 
   final GenealogyDiscoveryRepository repository;
   final AuthSession? session;
   final Future<void> Function()? onAddGenealogyRequested;
   final String? initialQuery;
+  final GenealogyDiscoveryAnalyticsService? analyticsService;
+  final OnboardingCoordinator? onboardingCoordinator;
 
   @override
   State<GenealogyDiscoveryPage> createState() => _GenealogyDiscoveryPageState();
@@ -45,15 +55,53 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
   List<GenealogyDiscoveryResult> _results = const [];
   List<MyJoinRequestItem> _myRequests = const [];
   final Set<String> _submittingClanIds = <String>{};
+  late final OnboardingCoordinator _onboardingCoordinator;
+  late final bool _ownsOnboardingCoordinator;
+  late GenealogyDiscoveryAnalyticsService _analyticsService;
+  bool _hasScheduledOnboarding = false;
 
   @override
   void initState() {
     super.initState();
+    _ownsOnboardingCoordinator = widget.onboardingCoordinator == null;
+    _onboardingCoordinator =
+        widget.onboardingCoordinator ??
+        createDefaultOnboardingCoordinator(
+          session: widget.session ?? _fallbackSession,
+        );
+    _analyticsService =
+        widget.analyticsService ??
+        createDefaultGenealogyDiscoveryAnalyticsService();
     final initialQuery = widget.initialQuery?.trim() ?? '';
     if (initialQuery.isNotEmpty) {
       _queryController.text = initialQuery;
     }
-    _runSearch();
+    _runSearch(source: 'initial');
+  }
+
+  AuthSession get _fallbackSession => AuthSession(
+    uid: 'guest_discovery',
+    loginMethod: AuthEntryMethod.phone,
+    phoneE164: '',
+    displayName: 'Guest discovery',
+    accessMode: AuthMemberAccessMode.unlinked,
+    linkedAuthUid: false,
+    isSandbox: true,
+    signedInAtIso: DateTime.now().toIso8601String(),
+  );
+
+  @override
+  void didUpdateWidget(covariant GenealogyDiscoveryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session != widget.session) {
+      _onboardingCoordinator.updateSession(widget.session ?? _fallbackSession);
+      _hasScheduledOnboarding = false;
+    }
+    if (oldWidget.analyticsService != widget.analyticsService) {
+      _analyticsService =
+          widget.analyticsService ??
+          createDefaultGenealogyDiscoveryAnalyticsService();
+    }
   }
 
   @override
@@ -61,11 +109,18 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
     _queryController.dispose();
     _leaderController.dispose();
     _locationController.dispose();
+    unawaited(_onboardingCoordinator.interrupt());
+    if (_ownsOnboardingCoordinator) {
+      _onboardingCoordinator.dispose();
+    }
     super.dispose();
   }
 
-  Future<void> _runSearch() async {
+  Future<void> _runSearch({String source = 'manual'}) async {
     final requestId = ++_searchRequestSequence;
+    final queryLength = _queryController.text.trim().length;
+    final hasLeaderFilter = _leaderController.text.trim().isNotEmpty;
+    final hasLocationFilter = _locationController.text.trim().isNotEmpty;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -109,6 +164,14 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
       return;
     }
     if (searchError != null) {
+      unawaited(
+        _analyticsService.trackSearchFailed(
+          queryLength: queryLength,
+          hasLeaderFilter: hasLeaderFilter,
+          hasLocationFilter: hasLocationFilter,
+          source: source,
+        ),
+      );
       if (!mounted || requestId != _searchRequestSequence) {
         return;
       }
@@ -127,6 +190,15 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
               );
       });
     } else {
+      unawaited(
+        _analyticsService.trackSearchSubmitted(
+          queryLength: queryLength,
+          hasLeaderFilter: hasLeaderFilter,
+          hasLocationFilter: hasLocationFilter,
+          resultCount: items.length,
+          source: source,
+        ),
+      );
       setState(() {
         _results = items;
         if (myRequestsError == null) {
@@ -145,7 +217,29 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
       setState(() {
         _isLoading = false;
       });
+      _scheduleOnboardingIfNeeded();
     }
+  }
+
+  void _scheduleOnboardingIfNeeded() {
+    if (_hasScheduledOnboarding || !mounted) {
+      return;
+    }
+    _hasScheduledOnboarding = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(
+        _onboardingCoordinator.scheduleTrigger(
+          const OnboardingTrigger(
+            id: 'genealogy_discovery_opened',
+            routeId: 'genealogy_discovery',
+          ),
+          delay: const Duration(milliseconds: 900),
+        ),
+      );
+    });
   }
 
   Map<String, MyJoinRequestItem> get _pendingRequestsByClanId {
@@ -215,6 +309,12 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
         session: session,
         requestId: request.id,
       );
+      unawaited(
+        _analyticsService.trackJoinRequestCanceled(
+          clanId: request.clanId,
+          source: 'discovery_page',
+        ),
+      );
       if (!mounted) {
         return;
       }
@@ -228,8 +328,14 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
           ),
         ),
       );
-      await _runSearch();
+      await _runSearch(source: 'post_cancel_refresh');
     } catch (_) {
+      unawaited(
+        _analyticsService.trackJoinRequestCancelFailed(
+          clanId: request.clanId,
+          source: 'discovery_page',
+        ),
+      );
       if (!mounted) {
         return;
       }
@@ -258,6 +364,11 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
     }
     final pendingRequest = _pendingRequestsByClanId[result.clanId];
     if (pendingRequest != null) {
+      unawaited(
+        _analyticsService.trackJoinRequestDuplicateBlocked(
+          clanId: result.clanId,
+        ),
+      );
       final sentDate = _formatShortDate(pendingRequest.submittedAtEpochMs);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -275,6 +386,12 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
     setState(() {
       _submittingClanIds.add(result.clanId);
     });
+    unawaited(
+      _analyticsService.trackJoinRequestSheetOpened(
+        clanId: result.clanId,
+        hasMemberLink: (widget.session?.memberId ?? '').trim().isNotEmpty,
+      ),
+    );
     final submitted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -284,6 +401,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
           session: widget.session,
           result: result,
           repository: widget.repository,
+          analyticsService: _analyticsService,
         );
       },
     );
@@ -317,7 +435,14 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
           ),
         ),
       );
-      await _runSearch();
+      await _runSearch(source: 'post_submit_refresh');
+    } else {
+      unawaited(
+        _analyticsService.trackJoinRequestSheetDismissed(
+          clanId: result.clanId,
+          dismissalReason: submitted == false ? 'cta_cancel' : 'system_dismiss',
+        ),
+      );
     }
     if (mounted) {
       setState(() {
@@ -356,6 +481,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
           return MyJoinRequestsPage(
             session: session,
             repository: widget.repository,
+            analyticsService: _analyticsService,
             onOpenDiscoveryRequested: (query) async {
               await Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -365,6 +491,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                       repository: widget.repository,
                       onAddGenealogyRequested: widget.onAddGenealogyRequested,
                       initialQuery: query,
+                      analyticsService: _analyticsService,
                     );
                   },
                 ),
@@ -375,7 +502,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
       ),
     );
     if (mounted) {
-      await _runSearch();
+      await _runSearch(source: 'post_requests_refresh');
     }
   }
 
@@ -413,7 +540,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
     final theme = Theme.of(context);
     final pendingRequestsByClanId = _pendingRequestsByClanId;
 
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: AppBar(
         title: Text(
           l10n.pick(vi: 'Khám phá gia phả', en: 'Genealogy discovery'),
@@ -421,18 +548,22 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
       ),
       floatingActionButton: widget.onAddGenealogyRequested == null
           ? null
-          : FloatingActionButton(
-              onPressed: _isOpeningAddAction
-                  ? null
-                  : () => unawaited(_openAddGenealogyAction()),
-              tooltip: l10n.pick(vi: 'Thêm gia phả', en: 'Add genealogy'),
-              child: _isOpeningAddAction
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.2),
-                    )
-                  : const Icon(Icons.add),
+          : OnboardingAnchor(
+              anchorId: 'discovery.add_fab',
+              child: FloatingActionButton(
+                key: const Key('discovery-add-fab'),
+                onPressed: _isOpeningAddAction
+                    ? null
+                    : () => unawaited(_openAddGenealogyAction()),
+                tooltip: l10n.pick(vi: 'Thêm gia phả', en: 'Add genealogy'),
+                child: _isOpeningAddAction
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.2),
+                      )
+                    : const Icon(Icons.add),
+              ),
             ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -461,17 +592,22 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                         style: theme.textTheme.bodySmall,
                       ),
                       const SizedBox(height: 12),
-                      TextField(
-                        controller: _queryController,
-                        enabled: !_isLoading,
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: (_) => _runSearch(),
-                        decoration: InputDecoration(
-                          labelText: l10n.pick(
-                            vi: 'Từ khóa chung',
-                            en: 'General keyword',
+                      OnboardingAnchor(
+                        anchorId: 'discovery.query_input',
+                        child: TextField(
+                          key: const Key('discovery-query-input'),
+                          controller: _queryController,
+                          enabled: !_isLoading,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) =>
+                              _runSearch(source: 'keyboard_submit'),
+                          decoration: InputDecoration(
+                            labelText: l10n.pick(
+                              vi: 'Từ khóa chung',
+                              en: 'General keyword',
+                            ),
+                            prefixIcon: const Icon(Icons.search),
                           ),
-                          prefixIcon: const Icon(Icons.search),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -481,7 +617,8 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                             child: TextField(
                               controller: _leaderController,
                               enabled: !_isLoading,
-                              onSubmitted: (_) => _runSearch(),
+                              onSubmitted: (_) =>
+                                  _runSearch(source: 'keyboard_submit'),
                               decoration: InputDecoration(
                                 labelText: l10n.pick(
                                   vi: 'Trưởng tộc',
@@ -496,7 +633,8 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                               controller: _locationController,
                               enabled: !_isLoading,
                               cityCountryOnly: true,
-                              onSubmitted: (_) => _runSearch(),
+                              onSubmitted: (_) =>
+                                  _runSearch(source: 'keyboard_submit'),
                               labelText: l10n.pick(
                                 vi: 'Địa phương',
                                 en: 'Location',
@@ -511,15 +649,21 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: _isLoading ? null : _runSearch,
-                          icon: const Icon(Icons.travel_explore_outlined),
-                          label: Text(
-                            l10n.pick(
-                              vi: 'Tìm gia phả',
-                              en: 'Search genealogies',
+                      OnboardingAnchor(
+                        anchorId: 'discovery.search_button',
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            key: const Key('discovery-search-button'),
+                            onPressed: _isLoading
+                                ? null
+                                : () => _runSearch(source: 'search_button'),
+                            icon: const Icon(Icons.travel_explore_outlined),
+                            label: Text(
+                              l10n.pick(
+                                vi: 'Tìm gia phả',
+                                en: 'Search genealogies',
+                              ),
                             ),
                           ),
                         ),
@@ -758,6 +902,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
         ),
       ),
     );
+    return OnboardingScope(controller: _onboardingCoordinator, child: scaffold);
   }
 }
 
@@ -766,11 +911,13 @@ class _JoinRequestSheet extends StatefulWidget {
     required this.result,
     required this.repository,
     required this.session,
+    required this.analyticsService,
   });
 
   final GenealogyDiscoveryResult result;
   final GenealogyDiscoveryRepository repository;
   final AuthSession? session;
+  final GenealogyDiscoveryAnalyticsService analyticsService;
 
   @override
   State<_JoinRequestSheet> createState() => _JoinRequestSheetState();
@@ -849,6 +996,13 @@ class _JoinRequestSheetState extends State<_JoinRequestSheet> {
           applicantMemberId: widget.session?.memberId,
         ),
       );
+      unawaited(
+        widget.analyticsService.trackJoinRequestSubmitted(
+          clanId: widget.result.clanId,
+          hasMessage: _messageController.text.trim().isNotEmpty,
+          hasMemberLink: (widget.session?.memberId ?? '').trim().isNotEmpty,
+        ),
+      );
       if (!mounted) {
         return;
       }
@@ -862,6 +1016,12 @@ class _JoinRequestSheetState extends State<_JoinRequestSheet> {
           errorText.contains('already-exists') ||
           errorText.contains('already exists') ||
           errorText.contains('pending join request');
+      unawaited(
+        widget.analyticsService.trackJoinRequestSubmitFailed(
+          clanId: widget.result.clanId,
+          reason: alreadyRequested ? 'already_pending' : 'unknown',
+        ),
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

@@ -64,6 +64,6 @@ Performance toggles:
 - Push-gate mobile E2E runs as separate workflows on all branches:
   - `.github/workflows/mobile-e2e.yml` -> `live + android + smoke`
   - `.github/workflows/mobile-e2e-ios.yml` -> `live + ios + smoke`
-- Nightly deep regression is scheduled in:
-  - `.github/workflows/mobile-e2e-nightly.yml`
-  - Includes debug full suites (Android + iOS) and live full sanity (Android).
+- Deep regression runs on pushes to `staging` and `main`, plus manual dispatch:
+  - `.github/workflows/mobile-e2e-deep.yml`
+  - Includes debug full suites (Android + iOS) and live full sanity (Android, only when live test credentials are configured).

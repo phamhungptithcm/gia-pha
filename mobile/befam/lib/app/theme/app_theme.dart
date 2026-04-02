@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'app_ui_tokens.dart';
+
 abstract final class AppTheme {
   static ThemeData light() {
+    const uiTokens = AppUiTokens.light();
     const colorScheme = ColorScheme(
       brightness: Brightness.light,
       primary: Color(0xFF1F4E5F),
@@ -37,6 +40,7 @@ abstract final class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      extensions: const <ThemeExtension<dynamic>>[uiTokens],
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
       textTheme: textTheme.copyWith(
@@ -86,30 +90,30 @@ abstract final class AppTheme {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(uiTokens.radiusLg),
           side: BorderSide(color: colorScheme.outlineVariant),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 48),
+          minimumSize: Size(0, uiTokens.buttonHeight),
           textStyle: textTheme.labelLarge?.copyWith(
             fontWeight: FontWeight.w700,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(uiTokens.radiusMd),
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 48),
+          minimumSize: Size(0, uiTokens.buttonHeight),
           side: BorderSide(color: colorScheme.outline),
           textStyle: textTheme.labelLarge?.copyWith(
             fontWeight: FontWeight.w700,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(uiTokens.radiusMd),
           ),
         ),
       ),
@@ -123,20 +127,20 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.74),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 14,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: uiTokens.inputHorizontalPadding,
+          vertical: uiTokens.inputVerticalPadding,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(uiTokens.radiusMd),
           borderSide: BorderSide(color: colorScheme.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(uiTokens.radiusMd),
           borderSide: BorderSide(color: colorScheme.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(uiTokens.radiusMd),
           borderSide: BorderSide(color: colorScheme.primary, width: 1.4),
         ),
       ),
@@ -154,11 +158,15 @@ abstract final class AppTheme {
       ),
       listTileTheme: ListTileThemeData(
         iconColor: colorScheme.primary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(uiTokens.radiusMd),
+        ),
       ),
       chipTheme: ChipThemeData(
         side: BorderSide.none,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(uiTokens.radiusPill),
+        ),
         labelStyle: textTheme.labelMedium?.copyWith(
           color: colorScheme.onSurface,
           fontWeight: FontWeight.w700,

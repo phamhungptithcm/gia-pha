@@ -15,7 +15,9 @@
     "purge:debug-auth-columns": "node scripts/purge-debug-auth-columns.mjs",
     "seed:demo": "node scripts/seed-demo-data.mjs",
     "seed:debug-profiles": "node scripts/seed-debug-login-profiles.mjs",
+    "seed:onboarding-flows": "node scripts/seed-onboarding-flows.mjs",
     "validate:debug-profiles": "node scripts/seed-debug-login-profiles.mjs --validate-only",
+    "validate:onboarding-flows": "node scripts/seed-onboarding-flows.mjs --check-only",
     "test": "npm run build && node --test lib/contract-tests/*.contract.test.js",
     "test:rules:emulator": "node --test lib/rules-tests/*.rules.test.js",
     "test:rules": "npm run build && firebase emulators:exec --project demo-befam-rules --only firestore,storage \"npm run test:rules:emulator\""

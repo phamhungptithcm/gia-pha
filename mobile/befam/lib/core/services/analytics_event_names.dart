@@ -11,6 +11,35 @@ abstract final class AnalyticsEventNames {
   static const memberSearchFiltersUpdated = 'member_search_filters_updated';
   static const memberSearchRetryRequested = 'member_search_retry';
   static const memberSearchResultOpened = 'member_search_open_result';
+  static const genealogyDiscoverySearchSubmitted =
+      'genealogy_discovery_search_submitted';
+  static const genealogyDiscoverySearchFailed =
+      'genealogy_discovery_search_failed';
+  static const genealogyMyJoinRequestsOpened =
+      'genealogy_my_join_requests_opened';
+  static const genealogyJoinRequestSheetOpened =
+      'genealogy_join_request_sheet_opened';
+  static const genealogyJoinRequestSheetDismissed =
+      'genealogy_join_request_sheet_dismissed';
+  static const genealogyJoinRequestDuplicateBlocked =
+      'genealogy_join_request_duplicate_blocked';
+  static const genealogyJoinRequestSubmitted =
+      'genealogy_join_request_submitted';
+  static const genealogyJoinRequestSubmitFailed =
+      'genealogy_join_request_submit_failed';
+  static const genealogyJoinRequestCanceled = 'genealogy_join_request_canceled';
+  static const genealogyJoinRequestCancelFailed =
+      'genealogy_join_request_cancel_failed';
+  static const genealogyJoinRequestReviewSubmitted =
+      'genealogy_join_request_review_submitted';
+  static const genealogyJoinRequestReviewFailed =
+      'genealogy_join_request_review_failed';
+  static const onboardingStarted = 'onboarding_started';
+  static const onboardingStepViewed = 'onboarding_step_viewed';
+  static const onboardingCompleted = 'onboarding_completed';
+  static const onboardingSkipped = 'onboarding_skipped';
+  static const onboardingInterrupted = 'onboarding_interrupted';
+  static const onboardingAnchorMissing = 'onboarding_anchor_missing';
   static const webMarketingCtaClick = 'web_marketing_cta_click';
 
   static const values = <String>[
@@ -25,6 +54,24 @@ abstract final class AnalyticsEventNames {
     memberSearchFiltersUpdated,
     memberSearchRetryRequested,
     memberSearchResultOpened,
+    genealogyDiscoverySearchSubmitted,
+    genealogyDiscoverySearchFailed,
+    genealogyMyJoinRequestsOpened,
+    genealogyJoinRequestSheetOpened,
+    genealogyJoinRequestSheetDismissed,
+    genealogyJoinRequestDuplicateBlocked,
+    genealogyJoinRequestSubmitted,
+    genealogyJoinRequestSubmitFailed,
+    genealogyJoinRequestCanceled,
+    genealogyJoinRequestCancelFailed,
+    genealogyJoinRequestReviewSubmitted,
+    genealogyJoinRequestReviewFailed,
+    onboardingStarted,
+    onboardingStepViewed,
+    onboardingCompleted,
+    onboardingSkipped,
+    onboardingInterrupted,
+    onboardingAnchorMissing,
     webMarketingCtaClick,
   ];
 }

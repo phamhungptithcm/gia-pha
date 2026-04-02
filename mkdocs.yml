@@ -134,6 +134,7 @@ nav:
       - Store Assets Checklist: 05-devops/store-assets-checklist.md
       - GitHub Workflow: 05-devops/github-workflow.md
       - Branching Strategy: 05-devops/branching-strategy.md
+      - CI/CD Architecture: 05-devops/ci-cd-architecture.md
       - GitHub Backlog: 05-devops/github-backlog.md
   - Operations:
       - Monitoring: 07-operations/monitoring.md

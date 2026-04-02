@@ -6,7 +6,9 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../../../app/theme/app_ui_tokens.dart';
 import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/widgets/app_compact_controls.dart';
 import '../../../core/services/kinship_title_resolver.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
@@ -2378,10 +2380,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                         vi: 'Chi áp dụng (tuỳ chọn)',
                         en: 'Branch scope (optional)',
                       ),
-                      hintText: l10n.pick(
-                        vi: 'chi-truong',
-                        en: 'branch-main',
-                      ),
+                      hintText: l10n.pick(vi: 'chi-truong', en: 'branch-main'),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -2896,10 +2895,7 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                       vi: 'Thành viên liên quan (tuỳ chọn)',
                       en: 'Linked member (optional)',
                     ),
-                    hintText: l10n.pick(
-                      vi: 'nguyen-minh',
-                      en: 'nguyen-minh',
-                    ),
+                    hintText: l10n.pick(vi: 'nguyen-minh', en: 'nguyen-minh'),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -2987,6 +2983,7 @@ class _FundSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -3027,11 +3024,7 @@ class _FundSummaryCard extends StatelessWidget {
                     ),
                   ),
                   if (onEdit != null)
-                    IconButton(
-                      constraints: const BoxConstraints.tightFor(
-                        width: 44,
-                        height: 44,
-                      ),
+                    AppCompactIconButton(
                       tooltip: context.l10n.pick(
                         vi: 'Chỉnh sửa quỹ',
                         en: 'Edit fund',
@@ -3042,22 +3035,22 @@ class _FundSummaryCard extends StatelessWidget {
                 ],
               ),
               if (fund.description.trim().isNotEmpty) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: tokens.spaceMd - 2),
                 Text(
                   fund.description,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
-              const SizedBox(height: 14),
+              SizedBox(height: tokens.spaceLg - 2),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+                padding: EdgeInsets.symmetric(
+                  horizontal: tokens.spaceMd,
+                  vertical: tokens.spaceMd - 2,
                 ),
                 decoration: BoxDecoration(
                   color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(tokens.spaceMd),
                 ),
                 child: Row(
                   children: [
@@ -3371,6 +3364,7 @@ class _FundTransferInfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.uiTokens;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -3383,14 +3377,13 @@ class _FundTransferInfoRow extends StatelessWidget {
             ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: tokens.spaceMd - 2),
         Expanded(child: Text(value)),
-        const SizedBox(width: 8),
+        SizedBox(width: tokens.spaceSm),
         if (canCopy)
-          IconButton(
+          AppCompactIconButton(
             tooltip: context.l10n.pick(vi: 'Sao chép', en: 'Copy'),
             icon: const Icon(Icons.copy_outlined),
-            visualDensity: VisualDensity.compact,
             onPressed: onCopy,
           ),
       ],

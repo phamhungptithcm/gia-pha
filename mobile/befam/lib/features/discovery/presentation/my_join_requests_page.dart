@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -5,6 +7,7 @@ import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/my_join_request_item.dart';
+import '../services/genealogy_discovery_analytics_service.dart';
 import '../services/genealogy_discovery_repository.dart';
 
 class MyJoinRequestsPage extends StatefulWidget {
@@ -13,11 +16,13 @@ class MyJoinRequestsPage extends StatefulWidget {
     required this.session,
     required this.repository,
     this.onOpenDiscoveryRequested,
+    this.analyticsService,
   });
 
   final AuthSession session;
   final GenealogyDiscoveryRepository repository;
   final Future<void> Function(String query)? onOpenDiscoveryRequested;
+  final GenealogyDiscoveryAnalyticsService? analyticsService;
 
   @override
   State<MyJoinRequestsPage> createState() => _MyJoinRequestsPageState();
@@ -29,11 +34,25 @@ class _MyJoinRequestsPageState extends State<MyJoinRequestsPage> {
   String? _cancelingRequestId;
   List<MyJoinRequestItem> _requests = const [];
   Map<String, String> _genealogyNameByClanId = const {};
+  late GenealogyDiscoveryAnalyticsService _analyticsService;
 
   @override
   void initState() {
     super.initState();
+    _analyticsService =
+        widget.analyticsService ??
+        createDefaultGenealogyDiscoveryAnalyticsService();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant MyJoinRequestsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.analyticsService != widget.analyticsService) {
+      _analyticsService =
+          widget.analyticsService ??
+          createDefaultGenealogyDiscoveryAnalyticsService();
+    }
   }
 
   Future<void> _load() async {
@@ -53,6 +72,12 @@ class _MyJoinRequestsPageState extends State<MyJoinRequestsPage> {
         _requests = requests;
         _genealogyNameByClanId = clanNames;
       });
+      unawaited(
+        _analyticsService.trackMyJoinRequestsOpened(
+          totalCount: requests.length,
+          pendingCount: requests.where((item) => item.isPending).length,
+        ),
+      );
     } catch (_) {
       if (!mounted) {
         return;
@@ -114,6 +139,12 @@ class _MyJoinRequestsPageState extends State<MyJoinRequestsPage> {
         session: widget.session,
         requestId: request.id,
       );
+      unawaited(
+        _analyticsService.trackJoinRequestCanceled(
+          clanId: request.clanId,
+          source: 'my_requests_page',
+        ),
+      );
       if (!mounted) {
         return;
       }
@@ -129,6 +160,12 @@ class _MyJoinRequestsPageState extends State<MyJoinRequestsPage> {
       );
       await _load();
     } catch (_) {
+      unawaited(
+        _analyticsService.trackJoinRequestCancelFailed(
+          clanId: request.clanId,
+          source: 'my_requests_page',
+        ),
+      );
       if (!mounted) {
         return;
       }

@@ -5,6 +5,7 @@ import path from "node:path";
 import process from "node:process";
 import { execSync } from "node:child_process";
 
+const RELEASE_TAG_RE = /^v(?:(\d{4})\.(\d{2})\.(\d{2})|(\d+)\.(\d+)\.(\d+))$/;
 const releaseTag = process.env.RELEASE_TAG;
 const releaseVersion = process.env.RELEASE_VERSION || releaseTag?.replace(/^v/, "");
 const outputPath = process.env.RELEASE_NOTES_PATH || "dist/release-notes.md";
@@ -29,12 +30,12 @@ function run(command) {
   }).trim();
 }
 
-function listSemverTags() {
+function listReleaseTags() {
   return run("git tag --list 'v*'")
     .split("\n")
     .map((tag) => tag.trim())
     .filter(Boolean)
-    .filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag))
+    .filter((tag) => RELEASE_TAG_RE.test(tag))
     .sort((a, b) =>
       a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
     );
@@ -211,7 +212,7 @@ function shouldSkipCommit(commit) {
     return true;
   }
 
-  if (/^chore\(release\):\s*cut v\d+\.\d+\.\d+$/i.test(raw)) {
+  if (/^chore\(release\):\s*cut v(?:(\d{4})\.(\d{2})\.(\d{2})|(\d+)\.(\d+)\.(\d+))$/i.test(raw)) {
     return true;
   }
 
@@ -227,7 +228,7 @@ function shouldSkipCommit(commit) {
     return true;
   }
 
-  if (/^(cut|bump)\s+v?\d+\.\d+\.\d+$/i.test(message)) {
+  if (/^(cut|bump)\s+v?(?:(\d{4})\.(\d{2})\.(\d{2})|(\d+)\.(\d+)\.(\d+))$/i.test(message)) {
     return true;
   }
 
@@ -310,7 +311,7 @@ function summarizeFocus(commits) {
   )}, with better reliability across the app.`;
 }
 
-const tags = listSemverTags();
+const tags = listReleaseTags();
 const previousTag = previousTagFor(releaseTag, tags);
 const logEndRef = refExists(releaseTag) ? releaseTag : "HEAD";
 const logRange = previousTag ? `${previousTag}..${logEndRef}` : logEndRef;

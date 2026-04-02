@@ -72,6 +72,23 @@ Run the app:
 ../../scripts/run_flutter_targets.sh web-chrome
 ```
 
+Build signed local release artifacts (Android AAB + iOS IPA):
+
+```bash
+../../scripts/build_mobile_release_local.sh
+```
+
+By default the script opens a selection menu and auto-fills build metadata
+using release logic (no manual typing required).
+
+Optional examples:
+
+```bash
+../../scripts/build_mobile_release_local.sh --build-name 1.2.0 --build-number 120
+../../scripts/build_mobile_release_local.sh --skip-ios
+../../scripts/build_mobile_release_local.sh --skip-android
+```
+
 `run_flutter_targets.sh` auto-injects
 `--dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true` for local runs and
 forwards any exported `BEFAM_FIREBASE_*` env variables as dart-defines.

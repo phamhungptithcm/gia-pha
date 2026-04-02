@@ -9,6 +9,9 @@ import '../../auth/models/auth_session.dart';
 import '../../auth/models/clan_context_option.dart';
 import '../../discovery/presentation/join_request_review_page.dart';
 import '../../discovery/services/genealogy_discovery_repository.dart';
+import '../../onboarding/models/onboarding_models.dart';
+import '../../onboarding/presentation/onboarding_coordinator.dart';
+import '../../onboarding/presentation/onboarding_scope.dart';
 import '../models/branch_draft.dart';
 import '../models/branch_profile.dart';
 import '../models/clan_draft.dart';
@@ -44,6 +47,8 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
   bool _isHeroDescriptionExpanded = false;
   bool _isProfileDetailsExpanded = false;
   bool _hasTriggeredAutoOpenClanEditor = false;
+  bool _hasScheduledOnboarding = false;
+  late final OnboardingCoordinator _onboardingCoordinator;
 
   static final Map<String, String> _lastSelectedClanByUid = <String, String>{};
 
@@ -56,7 +61,10 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
       _lastSelectedClanByUid[_session.uid] = currentClanId;
     }
     _controller = _createController(_session);
-    unawaited(_controller.initialize());
+    _onboardingCoordinator = createDefaultOnboardingCoordinator(
+      session: _session,
+    );
+    unawaited(_initializeWorkspace());
     if (widget.autoOpenClanEditorOnOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _hasTriggeredAutoOpenClanEditor) {
@@ -72,8 +80,29 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
     return ClanController(repository: widget.repository, session: session);
   }
 
+  Future<void> _initializeWorkspace() async {
+    await _controller.initialize();
+    _scheduleOnboardingIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(covariant ClanDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session != widget.session) {
+      _session = widget.session;
+      _onboardingCoordinator.updateSession(_session);
+      _hasScheduledOnboarding = false;
+      final previous = _controller;
+      _controller = _createController(_session);
+      previous.dispose();
+      unawaited(_initializeWorkspace());
+    }
+  }
+
   @override
   void dispose() {
+    unawaited(_onboardingCoordinator.interrupt());
+    _onboardingCoordinator.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -212,13 +241,39 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
         _isHeroDescriptionExpanded = false;
         _isProfileDetailsExpanded = false;
       });
+      _onboardingCoordinator.updateSession(switched);
+      _hasScheduledOnboarding = false;
       previous.dispose();
-      await _controller.initialize();
+      await _initializeWorkspace();
     } finally {
       if (mounted) {
         setState(() => _isSwitchingClanContext = false);
       }
     }
+  }
+
+  void _scheduleOnboardingIfNeeded() {
+    if (_hasScheduledOnboarding ||
+        !mounted ||
+        widget.autoOpenClanEditorOnOpen ||
+        !_controller.permissions.canEditClanSettings) {
+      return;
+    }
+    _hasScheduledOnboarding = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(
+        _onboardingCoordinator.scheduleTrigger(
+          const OnboardingTrigger(
+            id: 'clan_detail_opened',
+            routeId: 'clan_detail',
+          ),
+          delay: const Duration(milliseconds: 900),
+        ),
+      );
+    });
   }
 
   @override
@@ -231,7 +286,7 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
         final l10n = context.l10n;
         final profileRows = _profileRows();
 
-        return Scaffold(
+        final scaffold = Scaffold(
           appBar: AppBar(
             title: Text(l10n.clanDetailTitle),
             actions: [
@@ -377,7 +432,9 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                         ),
                         const SizedBox(height: 20),
                         _SectionCard(
+                          key: const Key('clan-branch-section'),
                           title: l10n.clanBranchSectionTitle,
+                          anchorId: 'clan.branch_section',
                           actionLabel: _controller.permissions.canManageBranches
                               ? l10n.clanAddBranchAction
                               : null,
@@ -445,17 +502,26 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
                   ),
           ),
           floatingActionButton: _controller.permissions.canEditClanSettings
-              ? FloatingActionButton(
-                  key: const Key('clan-edit-fab'),
-                  onPressed: _openClanEditor,
-                  tooltip: _controller.clan == null
-                      ? l10n.clanCreateAction
-                      : l10n.clanEditAction,
-                  child: Icon(
-                    _controller.clan == null ? Icons.add : Icons.edit_outlined,
+              ? OnboardingAnchor(
+                  anchorId: 'clan.edit_fab',
+                  child: FloatingActionButton(
+                    key: const Key('clan-edit-fab'),
+                    onPressed: _openClanEditor,
+                    tooltip: _controller.clan == null
+                        ? l10n.clanCreateAction
+                        : l10n.clanEditAction,
+                    child: Icon(
+                      _controller.clan == null
+                          ? Icons.add
+                          : Icons.edit_outlined,
+                    ),
                   ),
                 )
               : null,
+        );
+        return OnboardingScope(
+          controller: _onboardingCoordinator,
+          child: scaffold,
         );
       },
     );
@@ -558,8 +624,10 @@ class _WorkspaceHero extends StatelessWidget {
 
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
+    super.key,
     required this.title,
     required this.child,
+    this.anchorId,
     this.actionLabel,
     this.onAction,
     this.footer,
@@ -567,6 +635,7 @@ class _SectionCard extends StatelessWidget {
 
   final String title;
   final Widget child;
+  final String? anchorId;
   final String? actionLabel;
   final VoidCallback? onAction;
   final Widget? footer;
@@ -576,7 +645,8 @@ class _SectionCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Card(
+    final card = Card(
+      key: key,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(color: colorScheme.outlineVariant),
@@ -615,6 +685,10 @@ class _SectionCard extends StatelessWidget {
         ),
       ),
     );
+    if (anchorId == null) {
+      return card;
+    }
+    return OnboardingAnchor(anchorId: anchorId!, child: card);
   }
 }
 
