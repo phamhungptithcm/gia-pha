@@ -142,6 +142,29 @@ class _ReviewAnalyticsService implements GenealogyDiscoveryAnalyticsService {
   }) async {}
 
   @override
+  Future<void> trackAttemptLimitReached({
+    required int freeSearchesPerSession,
+    required int manualSearchesUsed,
+    required int rewardedUnlocksUsed,
+    required bool canOfferReward,
+  }) async {}
+
+  @override
+  Future<void> trackRewardPromptOpened({
+    required int freeSearchesPerSession,
+    required int rewardedUnlocksUsed,
+  }) async {}
+
+  @override
+  Future<void> trackRewardPromptDismissed({required String reason}) async {}
+
+  @override
+  Future<void> trackRewardUnlocked({
+    required int rewardedUnlocksUsed,
+    required int extraSearchesGranted,
+  }) async {}
+
+  @override
   Future<void> trackSearchFailed({
     required int queryLength,
     required bool hasLeaderFilter,

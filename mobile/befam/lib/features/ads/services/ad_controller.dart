@@ -12,10 +12,11 @@ import 'ad_policy.dart';
 import 'ad_remote_config_provider.dart';
 import 'ad_runtime_models.dart';
 import 'ad_service.dart';
+import 'rewarded_discovery_attempt_service.dart';
 import 'screen_context_policy.dart';
 import 'user_segmentation_service.dart';
 
-class AdController {
+class AdController implements RewardedDiscoveryAttemptService {
   AdController({
     VoidCallback? onStateChanged,
     AdService? adService,
@@ -70,6 +71,24 @@ class AdController {
       _shouldPlaceBannerOnCurrentScreen &&
       (isBannerReady || isBannerFallbackVisible);
   bool get hasAdsEnabled => _adsEnabled;
+  @override
+  bool get isRewardedDiscoveryEnabled =>
+      _adsEnabled &&
+      _policy.rewardedEnabled &&
+      _policy.rewardedDiscoveryEnabled &&
+      !(_userState?.isPremium ?? true);
+  @override
+  int get freeSearchesPerSession =>
+      _policy.rewardedDiscoveryFreeSearchesPerSession;
+  @override
+  int get maxUnlocksPerSession => _policy.rewardedDiscoveryMaxUnlocksPerSession;
+  @override
+  int get extraSearchesPerReward =>
+      _policy.rewardedDiscoveryExtraSearchesPerReward;
+
+  bool get _shouldPrimeRewardedDiscovery {
+    return _currentScreenId == 'tree';
+  }
 
   bool shouldShowAds({String? tier, bool backendShowAds = true}) {
     final normalizedTier = (tier ?? _currentTier).trim().toUpperCase();
@@ -350,6 +369,9 @@ class AdController {
       await _requestBanner(userState: userState);
     }
     await _requestInterstitial(userState: userState);
+    if (_shouldPrimeRewardedDiscovery) {
+      await primeRewardedDiscoveryAttempt();
+    }
   }
 
   bool get _shouldPlaceBannerOnCurrentScreen {
@@ -430,6 +452,148 @@ class AdController {
         _notifyStateChanged();
       },
     );
+  }
+
+  Future<void> _requestRewarded({required AdUserState userState}) async {
+    if (!_policy.rewardedEnabled ||
+        !_policy.rewardedDiscoveryEnabled ||
+        _adService.isRewardedReady ||
+        _adService.isShowingRewarded) {
+      return;
+    }
+    await _analyticsTracker.trackRequest(
+      format: 'rewarded',
+      placement: 'rewarded_discovery_extra_attempt',
+      userState: userState,
+    );
+    await _adService.ensureRewardedLoaded(
+      onLoaded: () {
+        unawaited(
+          _analyticsTracker.trackLoaded(
+            format: 'rewarded',
+            placement: 'rewarded_discovery_extra_attempt',
+            userState: userState,
+          ),
+        );
+        _notifyStateChanged();
+      },
+      onFailed: (errorCode) {
+        unawaited(
+          _analyticsTracker.trackFailed(
+            format: 'rewarded',
+            placement: 'rewarded_discovery_extra_attempt',
+            userState: userState,
+            errorCode: errorCode,
+          ),
+        );
+        _notifyStateChanged();
+      },
+    );
+  }
+
+  @override
+  Future<void> primeRewardedDiscoveryAttempt() async {
+    final userState = _userState;
+    if (_isDisposed ||
+        !_isInitialized ||
+        !isRewardedDiscoveryEnabled ||
+        !_shouldPrimeRewardedDiscovery ||
+        userState == null) {
+      return;
+    }
+    await _requestRewarded(userState: userState);
+  }
+
+  @override
+  Future<RewardedDiscoveryAttemptResult> unlockExtraDiscoveryAttempt({
+    required String screenId,
+    required String placementId,
+  }) async {
+    final userState = _userState;
+    if (_isDisposed ||
+        !_isInitialized ||
+        !isRewardedDiscoveryEnabled ||
+        userState == null) {
+      return RewardedDiscoveryAttemptResult.disabled;
+    }
+
+    await _requestRewarded(userState: userState);
+    if (!_adService.isRewardedReady) {
+      return RewardedDiscoveryAttemptResult.unavailable;
+    }
+
+    final completer = Completer<RewardedDiscoveryAttemptResult>();
+    final showSucceeded = await _adService.showRewarded(
+      onShown: () {
+        unawaited(
+          _analyticsTracker.trackShown(
+            format: 'rewarded',
+            placement: placementId,
+            screenId: screenId,
+            userState: userState,
+            sessionAgeSec: _sessionState?.sessionAgeSec(_clock()) ?? 0,
+          ),
+        );
+      },
+      onDismissed: (dismissDelaySec, rewardEarned) {
+        final dismissedAt = _clock();
+        final currentPersisted = _persistedState;
+        if (currentPersisted != null) {
+          _persistedState = currentPersisted.copyWith(
+            lastAdDismissedAt: dismissedAt,
+            lastAdPlacement: placementId,
+            lastAdFormat: 'rewarded',
+          );
+        }
+        unawaited(_savePersistedState());
+        unawaited(
+          _analyticsTracker.trackDismissed(
+            format: 'rewarded',
+            placement: placementId,
+            userState: userState,
+            dismissDelaySec: dismissDelaySec,
+          ),
+        );
+        unawaited(_requestRewarded(userState: userState));
+        if (!completer.isCompleted) {
+          completer.complete(
+            rewardEarned
+                ? RewardedDiscoveryAttemptResult.granted
+                : RewardedDiscoveryAttemptResult.dismissed,
+          );
+        }
+      },
+      onFailedToShow: (errorCode) {
+        unawaited(
+          _analyticsTracker.trackFailed(
+            format: 'rewarded',
+            placement: placementId,
+            userState: userState,
+            errorCode: errorCode,
+          ),
+        );
+        unawaited(_requestRewarded(userState: userState));
+        if (!completer.isCompleted) {
+          completer.complete(RewardedDiscoveryAttemptResult.failed);
+        }
+      },
+      onRewardEarned: (rewardAmount, rewardType) {
+        unawaited(
+          _analyticsTracker.trackRewardEarned(
+            placement: placementId,
+            rewardType: rewardType,
+            rewardValue: rewardAmount,
+            userState: userState,
+          ),
+        );
+      },
+    );
+
+    if (!showSucceeded) {
+      unawaited(_requestRewarded(userState: userState));
+      return RewardedDiscoveryAttemptResult.unavailable;
+    }
+    return completer.future;
   }
 
   Future<void> _evaluateAndMaybeShowInterstitial(

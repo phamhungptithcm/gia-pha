@@ -15,6 +15,10 @@ class AdService {
       'ca-app-pub-3940256099942544/1033173712';
   static const String _iosInterstitialTestAdUnitId =
       'ca-app-pub-3940256099942544/4411468910';
+  static const String _androidRewardedTestAdUnitId =
+      'ca-app-pub-3940256099942544/5224354917';
+  static const String _iosRewardedTestAdUnitId =
+      'ca-app-pub-3940256099942544/1712485313';
 
   static Future<void> initializeSdk() async {
     if (kIsWeb) {
@@ -34,14 +38,19 @@ class AdService {
 
   BannerAd? _bannerAd;
   InterstitialAd? _interstitialAd;
+  RewardedAd? _rewardedAd;
   bool _loadingBanner = false;
   bool _loadingInterstitial = false;
+  bool _loadingRewarded = false;
   bool _showingInterstitial = false;
+  bool _showingRewarded = false;
 
   BannerAd? get bannerAd => _bannerAd;
   bool get isBannerReady => _bannerAd != null;
   bool get isInterstitialReady => _interstitialAd != null;
+  bool get isRewardedReady => _rewardedAd != null;
   bool get isShowingInterstitial => _showingInterstitial;
+  bool get isShowingRewarded => _showingRewarded;
 
   Future<void> ensureBannerLoaded({
     required VoidCallback onLoaded,
@@ -135,6 +144,50 @@ class AdService {
     }
   }
 
+  Future<void> ensureRewardedLoaded({
+    required VoidCallback onLoaded,
+    required void Function(String errorCode) onFailed,
+  }) async {
+    if (kIsWeb || _loadingRewarded || _rewardedAd != null) {
+      return;
+    }
+    final adUnitId = _rewardedAdUnitIdForPlatform();
+    if (adUnitId == null) {
+      onFailed('rewarded_ad_unit_missing');
+      return;
+    }
+
+    _loadingRewarded = true;
+    try {
+      await RewardedAd.load(
+        adUnitId: adUnitId,
+        request: const AdRequest(),
+        rewardedAdLoadCallback: RewardedAdLoadCallback(
+          onAdLoaded: (ad) {
+            _loadingRewarded = false;
+            _rewardedAd?.dispose();
+            _rewardedAd = ad;
+            onLoaded();
+          },
+          onAdFailedToLoad: (error) {
+            _loadingRewarded = false;
+            _rewardedAd = null;
+            onFailed(error.code.toString());
+          },
+        ),
+      );
+    } catch (error, stackTrace) {
+      _loadingRewarded = false;
+      _rewardedAd = null;
+      onFailed('rewarded_load_exception');
+      AppLogger.warning(
+        'Rewarded ad load threw an exception.',
+        error,
+        stackTrace,
+      );
+    }
+  }
+
   Future<bool> showInterstitial({
     required VoidCallback onShown,
     required void Function(int dismissDelaySec) onDismissed,
@@ -180,6 +233,58 @@ class AdService {
     }
   }
 
+  Future<bool> showRewarded({
+    required VoidCallback onShown,
+    required void Function(int dismissDelaySec, bool rewardEarned) onDismissed,
+    required void Function(String errorCode) onFailedToShow,
+    required void Function(int rewardAmount, String rewardType) onRewardEarned,
+  }) async {
+    final ad = _rewardedAd;
+    if (kIsWeb || ad == null || _showingRewarded) {
+      return false;
+    }
+
+    _showingRewarded = true;
+    _rewardedAd = null;
+    var rewardEarned = false;
+    final shownAt = DateTime.now();
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (ad) {
+        onShown();
+      },
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        _showingRewarded = false;
+        onDismissed(DateTime.now().difference(shownAt).inSeconds, rewardEarned);
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        ad.dispose();
+        _showingRewarded = false;
+        onFailedToShow(error.code.toString());
+      },
+    );
+
+    try {
+      ad.show(
+        onUserEarnedReward: (_, reward) {
+          rewardEarned = true;
+          onRewardEarned(reward.amount.toInt(), reward.type);
+        },
+      );
+      return true;
+    } catch (error, stackTrace) {
+      _showingRewarded = false;
+      onFailedToShow('rewarded_show_exception');
+      AppLogger.warning(
+        'Rewarded ad show threw an exception.',
+        error,
+        stackTrace,
+      );
+      return false;
+    }
+  }
+
   void disposeBanner() {
     _bannerAd?.dispose();
     _bannerAd = null;
@@ -193,9 +298,17 @@ class AdService {
     _showingInterstitial = false;
   }
 
+  void disposeRewarded() {
+    _rewardedAd?.dispose();
+    _rewardedAd = null;
+    _loadingRewarded = false;
+    _showingRewarded = false;
+  }
+
   void dispose() {
     disposeBanner();
     disposeInterstitial();
+    disposeRewarded();
   }
 
   String? _bannerAdUnitIdForPlatform() {
@@ -229,6 +342,26 @@ class AdService {
         return _resolveAdUnitId(
           configured: AppEnvironment.adMobIosInterstitialUnitId,
           test: _iosInterstitialTestAdUnitId,
+        );
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+      case TargetPlatform.fuchsia:
+        return null;
+    }
+  }
+
+  String? _rewardedAdUnitIdForPlatform() {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return _resolveAdUnitId(
+          configured: AppEnvironment.adMobAndroidRewardedUnitId,
+          test: _androidRewardedTestAdUnitId,
+        );
+      case TargetPlatform.iOS:
+        return _resolveAdUnitId(
+          configured: AppEnvironment.adMobIosRewardedUnitId,
+          test: _iosRewardedTestAdUnitId,
         );
       case TargetPlatform.macOS:
       case TargetPlatform.windows:

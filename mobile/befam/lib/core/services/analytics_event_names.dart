@@ -47,11 +47,20 @@ abstract final class AnalyticsEventNames {
   static const adFailed = 'ad_failed';
   static const adShown = 'ad_shown';
   static const adDismissed = 'ad_dismissed';
+  static const adRewardEarned = 'ad_reward_earned';
   static const screenAfterAd = 'screen_after_ad';
   static const sessionExitAfterAd = 'session_exit_after_ad';
   static const premiumIntentMarked = 'premium_intent_marked';
   static const premiumPurchaseAfterAdExposure =
       'premium_purchase_after_ad_exposure';
+  static const genealogyDiscoveryAttemptLimitReached =
+      'genealogy_discovery_attempt_limit_reached';
+  static const genealogyDiscoveryRewardPromptOpened =
+      'genealogy_discovery_reward_prompt_opened';
+  static const genealogyDiscoveryRewardPromptDismissed =
+      'genealogy_discovery_reward_prompt_dismissed';
+  static const genealogyDiscoveryRewardUnlocked =
+      'genealogy_discovery_reward_unlocked';
 
   static const values = <String>[
     authMethodSelected,
@@ -90,10 +99,15 @@ abstract final class AnalyticsEventNames {
     adFailed,
     adShown,
     adDismissed,
+    adRewardEarned,
     screenAfterAd,
     sessionExitAfterAd,
     premiumIntentMarked,
     premiumPurchaseAfterAdExposure,
+    genealogyDiscoveryAttemptLimitReached,
+    genealogyDiscoveryRewardPromptOpened,
+    genealogyDiscoveryRewardPromptDismissed,
+    genealogyDiscoveryRewardUnlocked,
   ];
 }
 

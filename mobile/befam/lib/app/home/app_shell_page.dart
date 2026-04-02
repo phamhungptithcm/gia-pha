@@ -852,6 +852,7 @@ class _AppShellPageState extends State<AppShellPage>
                 session: _session,
                 repository: _genealogyDiscoveryRepository,
                 onAddGenealogyRequested: _openClanWorkspaceFromTreeAddAction,
+                rewardedDiscoveryAttemptService: _adController,
               )
       else
         const SizedBox.shrink(),
@@ -1311,6 +1312,7 @@ class _AppShellPageState extends State<AppShellPage>
                           ? null
                           : _openClanWorkspaceFromTreeAddAction,
                       initialQuery: query,
+                      rewardedDiscoveryAttemptService: _adController,
                     );
                   },
                 ),
@@ -1345,6 +1347,7 @@ class _AppShellPageState extends State<AppShellPage>
                           ? null
                           : _openClanWorkspaceFromTreeAddAction,
                       initialQuery: query,
+                      rewardedDiscoveryAttemptService: _adController,
                     );
                   },
                 ),

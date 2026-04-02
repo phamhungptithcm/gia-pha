@@ -20,6 +20,25 @@ abstract interface class GenealogyDiscoveryAnalyticsService {
     required String source,
   });
 
+  Future<void> trackAttemptLimitReached({
+    required int freeSearchesPerSession,
+    required int manualSearchesUsed,
+    required int rewardedUnlocksUsed,
+    required bool canOfferReward,
+  });
+
+  Future<void> trackRewardPromptOpened({
+    required int freeSearchesPerSession,
+    required int rewardedUnlocksUsed,
+  });
+
+  Future<void> trackRewardPromptDismissed({required String reason});
+
+  Future<void> trackRewardUnlocked({
+    required int rewardedUnlocksUsed,
+    required int extraSearchesGranted,
+  });
+
   Future<void> trackMyJoinRequestsOpened({
     required int totalCount,
     required int pendingCount,
@@ -139,6 +158,29 @@ class NoopGenealogyDiscoveryAnalyticsService
     required bool hasLeaderFilter,
     required bool hasLocationFilter,
     required String source,
+  }) async {}
+
+  @override
+  Future<void> trackAttemptLimitReached({
+    required int freeSearchesPerSession,
+    required int manualSearchesUsed,
+    required int rewardedUnlocksUsed,
+    required bool canOfferReward,
+  }) async {}
+
+  @override
+  Future<void> trackRewardPromptOpened({
+    required int freeSearchesPerSession,
+    required int rewardedUnlocksUsed,
+  }) async {}
+
+  @override
+  Future<void> trackRewardPromptDismissed({required String reason}) async {}
+
+  @override
+  Future<void> trackRewardUnlocked({
+    required int rewardedUnlocksUsed,
+    required int extraSearchesGranted,
   }) async {}
 
   @override
@@ -287,6 +329,60 @@ class FirebaseGenealogyDiscoveryAnalyticsService
         'has_leader_filter': hasLeaderFilter ? 1 : 0,
         'has_location_filter': hasLocationFilter ? 1 : 0,
         'source': source,
+      },
+    );
+  }
+
+  @override
+  Future<void> trackAttemptLimitReached({
+    required int freeSearchesPerSession,
+    required int manualSearchesUsed,
+    required int rewardedUnlocksUsed,
+    required bool canOfferReward,
+  }) {
+    return _logEvent(
+      AnalyticsEventNames.genealogyDiscoveryAttemptLimitReached,
+      <String, Object>{
+        'free_searches_per_session': freeSearchesPerSession,
+        'manual_searches_used': manualSearchesUsed,
+        'rewarded_unlocks_used': rewardedUnlocksUsed,
+        'can_offer_reward': canOfferReward ? 1 : 0,
+      },
+    );
+  }
+
+  @override
+  Future<void> trackRewardPromptOpened({
+    required int freeSearchesPerSession,
+    required int rewardedUnlocksUsed,
+  }) {
+    return _logEvent(
+      AnalyticsEventNames.genealogyDiscoveryRewardPromptOpened,
+      <String, Object>{
+        'free_searches_per_session': freeSearchesPerSession,
+        'rewarded_unlocks_used': rewardedUnlocksUsed,
+      },
+    );
+  }
+
+  @override
+  Future<void> trackRewardPromptDismissed({required String reason}) {
+    return _logEvent(
+      AnalyticsEventNames.genealogyDiscoveryRewardPromptDismissed,
+      <String, Object>{'reason': reason},
+    );
+  }
+
+  @override
+  Future<void> trackRewardUnlocked({
+    required int rewardedUnlocksUsed,
+    required int extraSearchesGranted,
+  }) {
+    return _logEvent(
+      AnalyticsEventNames.genealogyDiscoveryRewardUnlocked,
+      <String, Object>{
+        'rewarded_unlocks_used': rewardedUnlocksUsed,
+        'extra_searches_granted': extraSearchesGranted,
       },
     );
   }

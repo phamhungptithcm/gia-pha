@@ -69,6 +69,13 @@ abstract class AdAnalyticsTracker {
     required int secondsFromDismiss,
   });
 
+  Future<void> trackRewardEarned({
+    required String placement,
+    required String rewardType,
+    required int rewardValue,
+    required AdUserState userState,
+  });
+
   Future<void> trackPremiumIntent({
     required String source,
     required AdUserState userState,
@@ -257,6 +264,22 @@ class FirebaseAdAnalyticsTracker implements AdAnalyticsTracker {
       'placement': placement,
       'segment': userState.segmentName,
       'seconds_from_dismiss': secondsFromDismiss,
+    });
+  }
+
+  @override
+  Future<void> trackRewardEarned({
+    required String placement,
+    required String rewardType,
+    required int rewardValue,
+    required AdUserState userState,
+  }) {
+    return _logEvent(AnalyticsEventNames.adRewardEarned, <String, Object>{
+      'format': 'rewarded',
+      'placement': placement,
+      'reward_type': rewardType,
+      'reward_value': rewardValue,
+      'segment': userState.segmentName,
     });
   }
 

@@ -167,4 +167,14 @@ class AppEnvironment {
     'BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID',
     defaultValue: '',
   );
+
+  static const String adMobAndroidRewardedUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID',
+    defaultValue: '',
+  );
+
+  static const String adMobIosRewardedUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_IOS_REWARDED_UNIT_ID',
+    defaultValue: '',
+  );
 }

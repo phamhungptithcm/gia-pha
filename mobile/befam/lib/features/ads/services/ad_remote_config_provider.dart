@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
 import 'ad_policy.dart';
+import 'ad_remote_config_keys.dart';
 
 abstract class AdRemoteConfigProvider {
   Future<AdPolicy> load();
@@ -36,52 +37,9 @@ class FirebaseAdRemoteConfigProvider implements AdRemoteConfigProvider {
               : const Duration(minutes: 5),
         ),
       );
-      await _remoteConfig.setDefaults(<String, Object>{
-        'ads_enabled': AdPolicy.defaults.adsEnabled,
-        'ads_policy_version': AdPolicy.defaults.policyVersion,
-        'banner_enabled': AdPolicy.defaults.bannerEnabled,
-        'banner_screen_allowlist': AdPolicy.defaults.bannerScreenAllowlist.join(
-          ',',
-        ),
-        'interstitial_enabled': AdPolicy.defaults.interstitialEnabled,
-        'interstitial_breakpoint_allowlist': AdPolicy
-            .defaults
-            .interstitialBreakpointAllowlist
-            .join(','),
-        'ads_new_user_grace_sessions': AdPolicy.defaults.newUserGraceSessions,
-        'ads_new_user_grace_days': AdPolicy.defaults.newUserGraceDays,
-        'interstitial_min_session_age_sec':
-            AdPolicy.defaults.interstitialMinSessionAgeSec,
-        'interstitial_min_actions': AdPolicy.defaults.interstitialMinActions,
-        'interstitial_min_interval_sec':
-            AdPolicy.defaults.interstitialMinIntervalSec,
-        'interstitial_min_screen_transitions':
-            AdPolicy.defaults.interstitialMinScreenTransitions,
-        'interstitial_max_per_session':
-            AdPolicy.defaults.interstitialMaxPerSession,
-        'interstitial_max_per_day': AdPolicy.defaults.interstitialMaxPerDay,
-        'interstitial_fail_backoff_sec':
-            AdPolicy.defaults.interstitialFailBackoffSec,
-        'important_action_suppress_sec':
-            AdPolicy.defaults.importantActionSuppressSec,
-        'post_crash_suppress_sessions':
-            AdPolicy.defaults.postCrashSuppressSessions,
-        'rewarded_enabled': AdPolicy.defaults.rewardedEnabled,
-        'app_open_enabled': AdPolicy.defaults.appOpenEnabled,
-        'premium_candidate_low_ad_pressure':
-            AdPolicy.defaults.premiumCandidateLowAdPressure,
-        'premium_candidate_cooldown_multiplier':
-            AdPolicy.defaults.premiumCandidateCooldownMultiplier,
-        'churn_risk_cooldown_multiplier':
-            AdPolicy.defaults.churnRiskCooldownMultiplier,
-        'low_engagement_daily_cap': AdPolicy.defaults.lowEngagementDailyCap,
-        'app_open_min_opens_before_eligible':
-            AdPolicy.defaults.appOpenMinOpensBeforeEligible,
-        'app_open_min_foreground_gap_sec':
-            AdPolicy.defaults.appOpenMinForegroundGapSec,
-        'session_exit_after_ad_window_sec':
-            AdPolicy.defaults.sessionExitAfterAdWindowSec,
-      });
+      await _remoteConfig.setDefaults(
+        AdRemoteConfigKeys.defaults(AdPolicy.defaults),
+      );
       await _remoteConfig.fetchAndActivate();
     } catch (error, stackTrace) {
       AppLogger.warning(
@@ -92,76 +50,97 @@ class FirebaseAdRemoteConfigProvider implements AdRemoteConfigProvider {
     }
 
     final policy = AdPolicy(
-      adsEnabled: _remoteConfig.getBool('ads_enabled'),
+      adsEnabled: _remoteConfig.getBool(AdRemoteConfigKeys.adsEnabled),
       policyVersion:
-          _remoteConfig.getString('ads_policy_version').trim().isEmpty
+          _remoteConfig
+              .getString(AdRemoteConfigKeys.adsPolicyVersion)
+              .trim()
+              .isEmpty
           ? AdPolicy.defaults.policyVersion
-          : _remoteConfig.getString('ads_policy_version').trim(),
-      bannerEnabled: _remoteConfig.getBool('banner_enabled'),
+          : _remoteConfig.getString(AdRemoteConfigKeys.adsPolicyVersion).trim(),
+      bannerEnabled: _remoteConfig.getBool(AdRemoteConfigKeys.bannerEnabled),
       bannerScreenAllowlist: parseRemoteConfigStringList(
-        _remoteConfig.getString('banner_screen_allowlist'),
+        _remoteConfig.getString(AdRemoteConfigKeys.bannerScreenAllowlist),
         fallback: AdPolicy.defaults.bannerScreenAllowlist,
       ),
-      interstitialEnabled: _remoteConfig.getBool('interstitial_enabled'),
+      interstitialEnabled: _remoteConfig.getBool(
+        AdRemoteConfigKeys.interstitialEnabled,
+      ),
       interstitialBreakpointAllowlist: parseRemoteConfigStringList(
-        _remoteConfig.getString('interstitial_breakpoint_allowlist'),
+        _remoteConfig.getString(
+          AdRemoteConfigKeys.interstitialBreakpointAllowlist,
+        ),
         fallback: AdPolicy.defaults.interstitialBreakpointAllowlist,
       ),
       newUserGraceSessions: _remoteConfig
-          .getInt('ads_new_user_grace_sessions')
+          .getInt(AdRemoteConfigKeys.adsNewUserGraceSessions)
           .clamp(0, 20),
       newUserGraceDays: _remoteConfig
-          .getInt('ads_new_user_grace_days')
+          .getInt(AdRemoteConfigKeys.adsNewUserGraceDays)
           .clamp(0, 30),
       interstitialMinSessionAgeSec: _remoteConfig
-          .getInt('interstitial_min_session_age_sec')
+          .getInt(AdRemoteConfigKeys.interstitialMinSessionAgeSec)
           .clamp(0, 3600),
       interstitialMinActions: _remoteConfig
-          .getInt('interstitial_min_actions')
+          .getInt(AdRemoteConfigKeys.interstitialMinActions)
           .clamp(0, 50),
       interstitialMinIntervalSec: _remoteConfig
-          .getInt('interstitial_min_interval_sec')
+          .getInt(AdRemoteConfigKeys.interstitialMinIntervalSec)
           .clamp(0, 3600),
       interstitialMinScreenTransitions: _remoteConfig
-          .getInt('interstitial_min_screen_transitions')
+          .getInt(AdRemoteConfigKeys.interstitialMinScreenTransitions)
           .clamp(0, 20),
       interstitialMaxPerSession: _remoteConfig
-          .getInt('interstitial_max_per_session')
+          .getInt(AdRemoteConfigKeys.interstitialMaxPerSession)
           .clamp(0, 10),
       interstitialMaxPerDay: _remoteConfig
-          .getInt('interstitial_max_per_day')
+          .getInt(AdRemoteConfigKeys.interstitialMaxPerDay)
           .clamp(0, 20),
       interstitialFailBackoffSec: _remoteConfig
-          .getInt('interstitial_fail_backoff_sec')
+          .getInt(AdRemoteConfigKeys.interstitialFailBackoffSec)
           .clamp(0, 7200),
       importantActionSuppressSec: _remoteConfig
-          .getInt('important_action_suppress_sec')
+          .getInt(AdRemoteConfigKeys.importantActionSuppressSec)
           .clamp(0, 600),
       postCrashSuppressSessions: _remoteConfig
-          .getInt('post_crash_suppress_sessions')
+          .getInt(AdRemoteConfigKeys.postCrashSuppressSessions)
           .clamp(0, 5),
-      rewardedEnabled: _remoteConfig.getBool('rewarded_enabled'),
-      appOpenEnabled: _remoteConfig.getBool('app_open_enabled'),
+      rewardedEnabled: _remoteConfig.getBool(
+        AdRemoteConfigKeys.rewardedEnabled,
+      ),
+      rewardedDiscoveryEnabled: _remoteConfig.getBool(
+        AdRemoteConfigKeys.rewardedDiscoveryEnabled,
+      ),
+      rewardedDiscoveryFreeSearchesPerSession: _remoteConfig
+          .getInt(AdRemoteConfigKeys.rewardedDiscoveryFreeSearchesPerSession)
+          .clamp(0, 20),
+      rewardedDiscoveryMaxUnlocksPerSession: _remoteConfig
+          .getInt(AdRemoteConfigKeys.rewardedDiscoveryMaxUnlocksPerSession)
+          .clamp(0, 10),
+      rewardedDiscoveryExtraSearchesPerReward: _remoteConfig
+          .getInt(AdRemoteConfigKeys.rewardedDiscoveryExtraSearchesPerReward)
+          .clamp(1, 10),
+      appOpenEnabled: _remoteConfig.getBool(AdRemoteConfigKeys.appOpenEnabled),
       premiumCandidateLowAdPressure: _remoteConfig.getBool(
-        'premium_candidate_low_ad_pressure',
+        AdRemoteConfigKeys.premiumCandidateLowAdPressure,
       ),
       premiumCandidateCooldownMultiplier: _remoteConfig
-          .getDouble('premium_candidate_cooldown_multiplier')
+          .getDouble(AdRemoteConfigKeys.premiumCandidateCooldownMultiplier)
           .clamp(1, 10),
       churnRiskCooldownMultiplier: _remoteConfig
-          .getDouble('churn_risk_cooldown_multiplier')
+          .getDouble(AdRemoteConfigKeys.churnRiskCooldownMultiplier)
           .clamp(1, 10),
       lowEngagementDailyCap: _remoteConfig
-          .getInt('low_engagement_daily_cap')
+          .getInt(AdRemoteConfigKeys.lowEngagementDailyCap)
           .clamp(0, 10),
       appOpenMinOpensBeforeEligible: _remoteConfig
-          .getInt('app_open_min_opens_before_eligible')
+          .getInt(AdRemoteConfigKeys.appOpenMinOpensBeforeEligible)
           .clamp(0, 50),
       appOpenMinForegroundGapSec: _remoteConfig
-          .getInt('app_open_min_foreground_gap_sec')
+          .getInt(AdRemoteConfigKeys.appOpenMinForegroundGapSec)
           .clamp(0, 86400),
       sessionExitAfterAdWindowSec: _remoteConfig
-          .getInt('session_exit_after_ad_window_sec')
+          .getInt(AdRemoteConfigKeys.sessionExitAfterAdWindowSec)
           .clamp(0, 300),
     );
     _cache = policy;

@@ -20,6 +20,10 @@ class AdPolicy {
     required this.importantActionSuppressSec,
     required this.postCrashSuppressSessions,
     required this.rewardedEnabled,
+    required this.rewardedDiscoveryEnabled,
+    required this.rewardedDiscoveryFreeSearchesPerSession,
+    required this.rewardedDiscoveryMaxUnlocksPerSession,
+    required this.rewardedDiscoveryExtraSearchesPerReward,
     required this.appOpenEnabled,
     required this.premiumCandidateLowAdPressure,
     required this.premiumCandidateCooldownMultiplier,
@@ -54,7 +58,11 @@ class AdPolicy {
     interstitialFailBackoffSec: 300,
     importantActionSuppressSec: 45,
     postCrashSuppressSessions: 1,
-    rewardedEnabled: false,
+    rewardedEnabled: true,
+    rewardedDiscoveryEnabled: true,
+    rewardedDiscoveryFreeSearchesPerSession: 3,
+    rewardedDiscoveryMaxUnlocksPerSession: 1,
+    rewardedDiscoveryExtraSearchesPerReward: 1,
     appOpenEnabled: false,
     premiumCandidateLowAdPressure: true,
     premiumCandidateCooldownMultiplier: 2,
@@ -83,6 +91,10 @@ class AdPolicy {
   final int importantActionSuppressSec;
   final int postCrashSuppressSessions;
   final bool rewardedEnabled;
+  final bool rewardedDiscoveryEnabled;
+  final int rewardedDiscoveryFreeSearchesPerSession;
+  final int rewardedDiscoveryMaxUnlocksPerSession;
+  final int rewardedDiscoveryExtraSearchesPerReward;
   final bool appOpenEnabled;
   final bool premiumCandidateLowAdPressure;
   final double premiumCandidateCooldownMultiplier;
@@ -111,6 +123,10 @@ class AdPolicy {
     int? importantActionSuppressSec,
     int? postCrashSuppressSessions,
     bool? rewardedEnabled,
+    bool? rewardedDiscoveryEnabled,
+    int? rewardedDiscoveryFreeSearchesPerSession,
+    int? rewardedDiscoveryMaxUnlocksPerSession,
+    int? rewardedDiscoveryExtraSearchesPerReward,
     bool? appOpenEnabled,
     bool? premiumCandidateLowAdPressure,
     double? premiumCandidateCooldownMultiplier,
@@ -152,6 +168,17 @@ class AdPolicy {
       postCrashSuppressSessions:
           postCrashSuppressSessions ?? this.postCrashSuppressSessions,
       rewardedEnabled: rewardedEnabled ?? this.rewardedEnabled,
+      rewardedDiscoveryEnabled:
+          rewardedDiscoveryEnabled ?? this.rewardedDiscoveryEnabled,
+      rewardedDiscoveryFreeSearchesPerSession:
+          rewardedDiscoveryFreeSearchesPerSession ??
+          this.rewardedDiscoveryFreeSearchesPerSession,
+      rewardedDiscoveryMaxUnlocksPerSession:
+          rewardedDiscoveryMaxUnlocksPerSession ??
+          this.rewardedDiscoveryMaxUnlocksPerSession,
+      rewardedDiscoveryExtraSearchesPerReward:
+          rewardedDiscoveryExtraSearchesPerReward ??
+          this.rewardedDiscoveryExtraSearchesPerReward,
       appOpenEnabled: appOpenEnabled ?? this.appOpenEnabled,
       premiumCandidateLowAdPressure:
           premiumCandidateLowAdPressure ?? this.premiumCandidateLowAdPressure,

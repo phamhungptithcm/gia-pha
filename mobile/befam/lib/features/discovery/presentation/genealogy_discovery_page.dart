@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
+import '../../ads/services/rewarded_discovery_attempt_service.dart';
 import '../../auth/models/auth_entry_method.dart';
 import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
@@ -28,6 +29,7 @@ class GenealogyDiscoveryPage extends StatefulWidget {
     this.initialQuery,
     this.analyticsService,
     this.onboardingCoordinator,
+    this.rewardedDiscoveryAttemptService,
   });
 
   final GenealogyDiscoveryRepository repository;
@@ -36,6 +38,7 @@ class GenealogyDiscoveryPage extends StatefulWidget {
   final String? initialQuery;
   final GenealogyDiscoveryAnalyticsService? analyticsService;
   final OnboardingCoordinator? onboardingCoordinator;
+  final RewardedDiscoveryAttemptService? rewardedDiscoveryAttemptService;
 
   @override
   State<GenealogyDiscoveryPage> createState() => _GenealogyDiscoveryPageState();
@@ -59,6 +62,9 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
   late final bool _ownsOnboardingCoordinator;
   late GenealogyDiscoveryAnalyticsService _analyticsService;
   bool _hasScheduledOnboarding = false;
+  int _manualSearchesUsed = 0;
+  int _rewardedUnlocksUsed = 0;
+  int _rewardedExtraSearchesRemaining = 0;
 
   @override
   void initState() {
@@ -76,6 +82,9 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
     if (initialQuery.isNotEmpty) {
       _queryController.text = initialQuery;
     }
+    unawaited(
+      widget.rewardedDiscoveryAttemptService?.primeRewardedDiscoveryAttempt(),
+    );
     _runSearch(source: 'initial');
   }
 
@@ -102,6 +111,12 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
           widget.analyticsService ??
           createDefaultGenealogyDiscoveryAnalyticsService();
     }
+    if (oldWidget.rewardedDiscoveryAttemptService !=
+        widget.rewardedDiscoveryAttemptService) {
+      unawaited(
+        widget.rewardedDiscoveryAttemptService?.primeRewardedDiscoveryAttempt(),
+      );
+    }
   }
 
   @override
@@ -114,6 +129,207 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
       _onboardingCoordinator.dispose();
     }
     super.dispose();
+  }
+
+  RewardedDiscoveryAttemptService? get _rewardedService =>
+      widget.rewardedDiscoveryAttemptService;
+
+  bool get _isRewardedDiscoveryActive =>
+      _rewardedService?.isRewardedDiscoveryEnabled ?? false;
+
+  bool _sourceConsumesDiscoveryAttempt(String source) {
+    return source == 'search_button' || source == 'keyboard_submit';
+  }
+
+  int get _freeSearchesRemaining {
+    final service = _rewardedService;
+    if (service == null) {
+      return 0;
+    }
+    final remaining = service.freeSearchesPerSession - _manualSearchesUsed;
+    if (remaining < 0) {
+      return 0;
+    }
+    return remaining;
+  }
+
+  Future<void> _requestSearch({String source = 'manual'}) async {
+    if (!_sourceConsumesDiscoveryAttempt(source)) {
+      await _runSearch(source: source);
+      return;
+    }
+
+    final allowed = await _tryAcquireDiscoveryAttempt();
+    if (!allowed) {
+      return;
+    }
+    await _runSearch(source: source);
+  }
+
+  Future<bool> _tryAcquireDiscoveryAttempt() async {
+    final service = _rewardedService;
+    if (!_isRewardedDiscoveryActive || service == null) {
+      return true;
+    }
+
+    if (_freeSearchesRemaining > 0) {
+      setState(() {
+        _manualSearchesUsed += 1;
+      });
+      return true;
+    }
+
+    if (_rewardedExtraSearchesRemaining > 0) {
+      setState(() {
+        _rewardedExtraSearchesRemaining -= 1;
+      });
+      return true;
+    }
+
+    final canOfferReward = _rewardedUnlocksUsed < service.maxUnlocksPerSession;
+    unawaited(
+      _analyticsService.trackAttemptLimitReached(
+        freeSearchesPerSession: service.freeSearchesPerSession,
+        manualSearchesUsed: _manualSearchesUsed,
+        rewardedUnlocksUsed: _rewardedUnlocksUsed,
+        canOfferReward: canOfferReward,
+      ),
+    );
+
+    if (!canOfferReward) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick(
+                vi: 'Bạn đã dùng hết lượt khám phá thêm trong phiên này. Vui lòng thử lại sau.',
+                en: 'You have used all extra discovery attempts for this session. Please try again later.',
+              ),
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+
+    return _promptToUnlockExtraDiscoveryAttempt(service);
+  }
+
+  Future<bool> _promptToUnlockExtraDiscoveryAttempt(
+    RewardedDiscoveryAttemptService service,
+  ) async {
+    final l10n = context.l10n;
+    unawaited(
+      _analyticsService.trackRewardPromptOpened(
+        freeSearchesPerSession: service.freeSearchesPerSession,
+        rewardedUnlocksUsed: _rewardedUnlocksUsed,
+      ),
+    );
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            l10n.pick(
+              vi: 'Mở thêm lượt khám phá?',
+              en: 'Unlock an extra discovery attempt?',
+            ),
+          ),
+          content: Text(
+            l10n.pick(
+              vi: 'Bạn đã dùng hết lượt tìm miễn phí trong phiên này. Xem một quảng cáo thưởng để mở thêm 1 lượt tìm gia phả.',
+              en: 'You have used the free searches for this session. Watch a rewarded ad to unlock 1 extra genealogy search.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.pick(vi: 'Để sau', en: 'Maybe later')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l10n.pick(vi: 'Xem quảng cáo', en: 'Watch ad')),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (accepted != true || !mounted) {
+      unawaited(
+        _analyticsService.trackRewardPromptDismissed(reason: 'user_cancelled'),
+      );
+      return false;
+    }
+
+    final result = await service.unlockExtraDiscoveryAttempt(
+      screenId: 'tree_discovery',
+      placementId: 'rewarded_discovery_extra_attempt',
+    );
+    switch (result) {
+      case RewardedDiscoveryAttemptResult.granted:
+        setState(() {
+          _rewardedUnlocksUsed += 1;
+          _rewardedExtraSearchesRemaining += service.extraSearchesPerReward;
+          _rewardedExtraSearchesRemaining = _rewardedExtraSearchesRemaining - 1;
+        });
+        unawaited(
+          _analyticsService.trackRewardUnlocked(
+            rewardedUnlocksUsed: _rewardedUnlocksUsed,
+            extraSearchesGranted: service.extraSearchesPerReward,
+          ),
+        );
+        return true;
+      case RewardedDiscoveryAttemptResult.dismissed:
+        unawaited(
+          _analyticsService.trackRewardPromptDismissed(reason: 'ad_dismissed'),
+        );
+      case RewardedDiscoveryAttemptResult.unavailable:
+        unawaited(
+          _analyticsService.trackRewardPromptDismissed(
+            reason: 'ad_unavailable',
+          ),
+        );
+      case RewardedDiscoveryAttemptResult.failed:
+        unawaited(
+          _analyticsService.trackRewardPromptDismissed(reason: 'ad_failed'),
+        );
+      case RewardedDiscoveryAttemptResult.disabled:
+        unawaited(
+          _analyticsService.trackRewardPromptDismissed(
+            reason: 'reward_disabled',
+          ),
+        );
+    }
+
+    if (!mounted) {
+      return false;
+    }
+    final message = switch (result) {
+      RewardedDiscoveryAttemptResult.dismissed => l10n.pick(
+        vi: 'Bạn chưa hoàn tất quảng cáo thưởng nên chưa mở thêm lượt tìm.',
+        en: 'You did not complete the rewarded ad, so no extra search was unlocked.',
+      ),
+      RewardedDiscoveryAttemptResult.unavailable => l10n.pick(
+        vi: 'Quảng cáo thưởng tạm thời chưa sẵn sàng. Vui lòng thử lại sau.',
+        en: 'Rewarded ad is not available right now. Please try again later.',
+      ),
+      RewardedDiscoveryAttemptResult.failed => l10n.pick(
+        vi: 'Không thể phát quảng cáo thưởng lúc này. Vui lòng thử lại sau.',
+        en: 'Could not show the rewarded ad right now. Please try again later.',
+      ),
+      RewardedDiscoveryAttemptResult.disabled => l10n.pick(
+        vi: 'Mở thêm lượt khám phá hiện đang tắt.',
+        en: 'Extra discovery attempts are currently disabled.',
+      ),
+      RewardedDiscoveryAttemptResult.granted => '',
+    };
+    if (message.isNotEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
+    return false;
   }
 
   Future<void> _runSearch({String source = 'manual'}) async {
@@ -492,6 +708,8 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                       onAddGenealogyRequested: widget.onAddGenealogyRequested,
                       initialQuery: query,
                       analyticsService: _analyticsService,
+                      rewardedDiscoveryAttemptService:
+                          widget.rewardedDiscoveryAttemptService,
                     );
                   },
                 ),
@@ -600,7 +818,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                           enabled: !_isLoading,
                           textInputAction: TextInputAction.search,
                           onSubmitted: (_) =>
-                              _runSearch(source: 'keyboard_submit'),
+                              _requestSearch(source: 'keyboard_submit'),
                           decoration: InputDecoration(
                             labelText: l10n.pick(
                               vi: 'Từ khóa chung',
@@ -618,7 +836,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                               controller: _leaderController,
                               enabled: !_isLoading,
                               onSubmitted: (_) =>
-                                  _runSearch(source: 'keyboard_submit'),
+                                  _requestSearch(source: 'keyboard_submit'),
                               decoration: InputDecoration(
                                 labelText: l10n.pick(
                                   vi: 'Trưởng tộc',
@@ -634,7 +852,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                               enabled: !_isLoading,
                               cityCountryOnly: true,
                               onSubmitted: (_) =>
-                                  _runSearch(source: 'keyboard_submit'),
+                                  _requestSearch(source: 'keyboard_submit'),
                               labelText: l10n.pick(
                                 vi: 'Địa phương',
                                 en: 'Location',
@@ -657,7 +875,7 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                             key: const Key('discovery-search-button'),
                             onPressed: _isLoading
                                 ? null
-                                : () => _runSearch(source: 'search_button'),
+                                : () => _requestSearch(source: 'search_button'),
                             icon: const Icon(Icons.travel_explore_outlined),
                             label: Text(
                               l10n.pick(
@@ -668,6 +886,26 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                           ),
                         ),
                       ),
+                      if (_isRewardedDiscoveryActive) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          _freeSearchesRemaining > 0
+                              ? l10n.pick(
+                                  vi: 'Còn $_freeSearchesRemaining lượt tìm miễn phí trong phiên này.',
+                                  en: '$_freeSearchesRemaining free discovery searches left in this session.',
+                                )
+                              : _rewardedExtraSearchesRemaining > 0
+                              ? l10n.pick(
+                                  vi: 'Bạn còn $_rewardedExtraSearchesRemaining lượt tìm đã mở bằng quảng cáo thưởng.',
+                                  en: 'You have $_rewardedExtraSearchesRemaining rewarded discovery search remaining.',
+                                )
+                              : l10n.pick(
+                                  vi: 'Đã hết lượt tìm miễn phí. Bạn có thể xem quảng cáo thưởng để mở thêm lượt khám phá.',
+                                  en: 'Free discovery searches are exhausted. You can watch a rewarded ad to unlock another attempt.',
+                                ),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
                     ],
                   ),
                 ),
