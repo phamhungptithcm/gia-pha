@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
@@ -25,7 +27,7 @@ class FirebaseBillingRepository implements BillingRepository {
   Future<BillingWorkspaceSnapshot> loadWorkspace({
     required AuthSession session,
   }) async {
-    await _ensureSessionDocumentBestEffort(session);
+    unawaited(_ensureSessionDocumentBestEffort(session));
     final result = await _call(
       'loadBillingWorkspace',
     ).call(_scopePayload(session));
@@ -37,7 +39,7 @@ class FirebaseBillingRepository implements BillingRepository {
     required AuthSession session,
   }) async {
     final scopeId = _sessionBillingScopeId(session);
-    await _ensureSessionDocumentBestEffort(session);
+    unawaited(_ensureSessionDocumentBestEffort(session));
     final result = await _call(
       'resolveBillingEntitlement',
     ).call(_scopePayload(session));
@@ -64,7 +66,7 @@ class FirebaseBillingRepository implements BillingRepository {
   Future<BillingEntitlement> resolveEntitlement({
     required AuthSession session,
   }) async {
-    await _ensureSessionDocumentBestEffort(session);
+    unawaited(_ensureSessionDocumentBestEffort(session));
     final result = await _call(
       'resolveBillingEntitlement',
     ).call(_scopePayload(session));
@@ -79,7 +81,7 @@ class FirebaseBillingRepository implements BillingRepository {
     required bool autoRenew,
     List<int>? reminderDaysBefore,
   }) async {
-    await _ensureSessionDocumentBestEffort(session);
+    unawaited(_ensureSessionDocumentBestEffort(session));
     final payload = <String, dynamic>{
       'paymentMode': paymentMode,
       'autoRenew': autoRenew,
@@ -100,7 +102,7 @@ class FirebaseBillingRepository implements BillingRepository {
     required String productId,
     required Map<String, dynamic> payload,
   }) async {
-    await _ensureSessionDocumentBestEffort(session);
+    unawaited(_ensureSessionDocumentBestEffort(session));
     final result = await _call('verifyInAppPurchase').call(
       _scopePayload(session, <String, dynamic>{
         'platform': platform.trim(),
@@ -240,6 +242,11 @@ class FirebaseBillingRepository implements BillingRepository {
       vatIncluded: _readBool(map, 'vatIncluded', fallback: true),
       showAds: _readBool(map, 'showAds', fallback: true),
       adFree: _readBool(map, 'adFree', fallback: false),
+      displayName: _readNullableString(map, 'displayName'),
+      displayNameEn: _readNullableString(map, 'displayNameEn'),
+      displayNameVi: _readNullableString(map, 'displayNameVi'),
+      descriptionEn: _readNullableString(map, 'descriptionEn'),
+      descriptionVi: _readNullableString(map, 'descriptionVi'),
     );
   }
 

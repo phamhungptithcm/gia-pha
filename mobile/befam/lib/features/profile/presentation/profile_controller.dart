@@ -71,16 +71,19 @@ class ProfileController extends ChangeNotifier {
     }
 
     String? failureMessage;
+    final preferencesFuture = _notificationPreferencesRepository.load(
+      session: _session,
+    );
+    final workspaceFuture = _memberRepository.loadWorkspace(session: _session);
+
     try {
-      _notificationPreferences = await _notificationPreferencesRepository.load(
-        session: _session,
-      );
+      _notificationPreferences = await preferencesFuture;
     } catch (error) {
       failureMessage = error.toString();
     }
 
     try {
-      final snapshot = await _memberRepository.loadWorkspace(session: _session);
+      final snapshot = await workspaceFuture;
       final memberId = _session.memberId!.trim();
       final uid = _session.uid.trim();
       _profile =

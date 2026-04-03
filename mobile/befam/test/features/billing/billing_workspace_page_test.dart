@@ -125,7 +125,7 @@ void main() {
     await pumpBillingPage(tester, session: buildNoClanSession());
 
     expect(find.text('Gói cá nhân của bạn'), findsNothing);
-    expect(find.text('Gói dịch vụ & thanh toán'), findsOneWidget);
+    expect(find.text('Chọn gói phù hợp'), findsOneWidget);
     final selector = find.byKey(const Key('billing-plan-selector'));
     expect(selector, findsOneWidget);
     final baseOption = find.byKey(const Key('billing-plan-option-base'));

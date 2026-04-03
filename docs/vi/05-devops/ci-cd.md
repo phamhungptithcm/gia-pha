@@ -11,7 +11,7 @@ BeFam dùng mô hình phát hành có kiểm soát:
 
 ### `branch-ci.yml` (`CI - Branch Quality Gates`)
 Chạy khi:
-- có push vào mọi nhánh, bao gồm `staging` và `main`
+- có push vào `staging` và `main`
 
 Kiểm tra gồm:
 - build docs và kiểm tra tài liệu rules
@@ -21,7 +21,7 @@ Kiểm tra gồm:
 - dependency review + Trivy + gitleaks + scan image
 
 ### `mobile-e2e.yml` + `mobile-e2e-ios.yml`
-Chạy smoke E2E Android/iOS khi có push vào mọi nhánh và khi chạy tay.
+Chạy smoke E2E Android/iOS khi có push vào `staging` và `main`, cùng với chạy tay.
 Job sẽ tự bỏ qua khi push không đụng tới phần mobile hoặc file E2E liên quan.
 
 ### `mobile-e2e-deep.yml` (`CI - Mobile E2E Deep`)

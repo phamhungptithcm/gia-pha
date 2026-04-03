@@ -115,10 +115,13 @@ class _OnboardingOverlay extends StatelessWidget {
             final overlayOrigin = overlayBox.localToGlobal(Offset.zero);
             final localRect = targetGlobalRect.shift(-overlayOrigin);
             final viewport = Size(constraints.maxWidth, constraints.maxHeight);
+            final safePadding =
+                MediaQuery.maybeOf(context)?.padding ?? EdgeInsets.zero;
             final layout = _TooltipLayout.resolve(
               viewport: viewport,
               targetRect: localRect,
               placement: step.placement,
+              safePadding: safePadding,
             );
             final theme = Theme.of(context);
             final colorScheme = theme.colorScheme;
@@ -167,17 +170,31 @@ class _OnboardingOverlay extends StatelessWidget {
                 ),
                 Positioned(
                   left: layout.left,
+                  right: math.max(
+                    0,
+                    viewport.width - layout.left - layout.width,
+                  ),
                   top: layout.top,
                   bottom: layout.bottom,
-                  width: layout.width,
-                  child: _TooltipCard(
-                    controller: controller,
-                    step: step,
-                    theme: theme,
-                    targetRect: localRect,
-                    layout: layout,
-                    title: step.title.resolve(l10n),
-                    body: step.body.resolve(l10n),
+                  child: Align(
+                    alignment: layout.placeBelow
+                        ? Alignment.topCenter
+                        : Alignment.bottomCenter,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: layout.width,
+                        maxHeight: layout.maxHeight,
+                      ),
+                      child: _TooltipCard(
+                        controller: controller,
+                        step: step,
+                        theme: theme,
+                        targetRect: localRect,
+                        layout: layout,
+                        title: step.title.resolve(l10n),
+                        body: step.body.resolve(l10n),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -371,57 +388,70 @@ class _TooltipBody extends StatelessWidget {
       elevation: 10,
       color: theme.colorScheme.surface,
       borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(
-              '${controller.currentStepIndex + 1}/${controller.stepCount}',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(body, style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 14),
-            Row(
-              children: <Widget>[
-                TextButton(
-                  onPressed: () {
-                    unawaited(controller.skip());
-                  },
-                  child: Text(skipLabel),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        width: double.infinity,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                '${controller.currentStepIndex + 1}/${controller.stepCount}',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w700,
                 ),
-                const Spacer(),
-                if (controller.currentStepIndex > 0)
+              ),
+              const SizedBox(height: 6),
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(body, style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 14),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                spacing: 8,
+                overflowSpacing: 8,
+                children: <Widget>[
                   TextButton(
-                    onPressed: () {
-                      unawaited(controller.back());
-                    },
-                    child: Text(backLabel),
+                    onPressed: controller.isActionInFlight
+                        ? null
+                        : () {
+                            unawaited(controller.skip());
+                          },
+                    child: Text(skipLabel),
                   ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: () {
-                    unawaited(
-                      isLastStep ? controller.complete() : controller.next(),
-                    );
-                  },
-                  child: Text(isLastStep ? doneLabel : nextLabel),
-                ),
-              ],
-            ),
-          ],
+                  if (controller.currentStepIndex > 0)
+                    TextButton(
+                      onPressed: controller.isActionInFlight
+                          ? null
+                          : () {
+                              unawaited(controller.back());
+                            },
+                      child: Text(backLabel),
+                    ),
+                  FilledButton(
+                    onPressed: controller.isActionInFlight
+                        ? null
+                        : () {
+                            unawaited(
+                              isLastStep
+                                  ? controller.complete()
+                                  : controller.next(),
+                            );
+                          },
+                    child: Text(isLastStep ? doneLabel : nextLabel),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -434,47 +464,70 @@ class _TooltipLayout {
     required this.top,
     required this.bottom,
     required this.width,
+    required this.maxHeight,
     required this.placeBelow,
   });
 
   final double left;
-  final double? top;
-  final double? bottom;
+  final double top;
+  final double bottom;
   final double width;
+  final double maxHeight;
   final bool placeBelow;
 
   static _TooltipLayout resolve({
     required Size viewport,
     required Rect targetRect,
     required OnboardingTooltipPlacement placement,
+    required EdgeInsets safePadding,
   }) {
     const horizontalPadding = 16.0;
     const gap = 12.0;
-    final width = math.min(340.0, viewport.width - (horizontalPadding * 2));
+    const minimumTooltipHeight = 180.0;
+    final leftInset = math.max(horizontalPadding, safePadding.left + 8);
+    final rightInset = math.max(horizontalPadding, safePadding.right + 8);
+    final topInset = math.max(16.0, safePadding.top + 8);
+    final bottomInset = math.max(16.0, safePadding.bottom + 8);
+    final width = math.min(340.0, viewport.width - leftInset - rightInset);
     final centeredLeft = (targetRect.center.dx - (width / 2))
-        .clamp(horizontalPadding, viewport.width - width - horizontalPadding)
+        .clamp(leftInset, viewport.width - width - rightInset)
         .toDouble();
-    final hasMoreSpaceBelow =
-        (viewport.height - targetRect.bottom) >= targetRect.top;
+    final availableBelow = math.max(
+      0.0,
+      viewport.height - bottomInset - (targetRect.bottom + gap),
+    );
+    final availableAbove = math.max(0.0, targetRect.top - gap - topInset);
+    final hasMoreSpaceBelow = availableBelow >= availableAbove;
     final placeBelow = switch (placement) {
-      OnboardingTooltipPlacement.below => true,
-      OnboardingTooltipPlacement.above => false,
+      OnboardingTooltipPlacement.below =>
+        availableBelow >= minimumTooltipHeight ||
+            availableBelow >= availableAbove,
+      OnboardingTooltipPlacement.above =>
+        !(availableAbove >= minimumTooltipHeight ||
+            availableAbove >= availableBelow),
       OnboardingTooltipPlacement.auto => hasMoreSpaceBelow,
     };
     if (placeBelow) {
+      final top = math.max(topInset, targetRect.bottom + gap);
       return _TooltipLayout(
         left: centeredLeft,
-        top: math.min(viewport.height - 16, targetRect.bottom + gap),
-        bottom: null,
+        top: top,
+        bottom: bottomInset,
         width: width,
+        maxHeight: math.max(120.0, viewport.height - top - bottomInset),
         placeBelow: true,
       );
     }
+    final bottom = math.max(
+      bottomInset,
+      viewport.height - targetRect.top + gap,
+    );
     return _TooltipLayout(
       left: centeredLeft,
-      top: null,
-      bottom: math.max(16, viewport.height - targetRect.top + gap),
+      top: topInset,
+      bottom: bottom,
       width: width,
+      maxHeight: math.max(120.0, viewport.height - topInset - bottom),
       placeBelow: false,
     );
   }

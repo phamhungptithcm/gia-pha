@@ -10,12 +10,13 @@ reviews, CI, and release promotion.
 3. implement changes
 4. run local verification
 5. open a pull request to `staging`
-6. let GitHub Actions validate docs and code
+6. collect review and local verification evidence
 7. merge to `staging` after approval
-8. use `Closes #123` keywords in the staging PR for stories that are truly complete in that branch
-9. let the push-driven promotion workflow open or refresh the `staging` to `main` production PR
-10. approve and merge the release PR to complete the production promotion
-11. publish docs from `main`, deploy Firebase production changes, create the GitHub release, upload the Android AAB plus signed iOS IPA, publish the mobile and Firebase images, and close released stories and epics
+8. let GitHub Actions validate docs and code on the resulting `staging` push
+9. use `Closes #123` keywords in the staging PR for stories that are truly complete in that branch
+10. let the push-driven promotion workflow open or refresh the `staging` to `main` production PR
+11. approve and merge the release PR to complete the production promotion
+12. publish docs from `main`, deploy Firebase production changes, create the GitHub release, upload the Android AAB plus signed iOS IPA, publish the mobile and Firebase images, and close released stories and epics
 
 ## Pull request checklist
 

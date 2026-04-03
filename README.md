@@ -104,30 +104,41 @@ Mental model:
 Use the helper script when you want a simple guided menu to run on Android, iOS, or Web without manually typing every target/device flag.
 
 ```bash
-./scripts/run_flutter_targets.sh
+./run_flutter_targets.sh
 ```
 
 You can still call specific targets directly if needed:
 
 ```bash
-./scripts/run_flutter_targets.sh devices
-./scripts/run_flutter_targets.sh android-sim
-./scripts/run_flutter_targets.sh android-build-aab
-./scripts/run_flutter_targets.sh android-build-aab-ci
-./scripts/run_flutter_targets.sh ios-device-release
-./scripts/run_flutter_targets.sh web-server 8080
+./run_flutter_targets.sh devices
+./run_flutter_targets.sh android-doctor
+./run_flutter_targets.sh android-restart-adb
+./run_flutter_targets.sh android-debug
+./run_flutter_targets.sh android-usb
+./run_flutter_targets.sh android-usb-release-ci
+./run_flutter_targets.sh android-build-aab
+./run_flutter_targets.sh android-build-aab-ci
+./run_flutter_targets.sh ios-device-release
+./run_flutter_targets.sh web-server 8080
+```
+
+If Android USB detection looks wrong, start with:
+
+```bash
+./run_flutter_targets.sh android-doctor
+./run_flutter_targets.sh android-restart-adb
 ```
 
 Android production-style local build (same sequence as CI):
 
 ```bash
-./scripts/run_flutter_targets.sh android-build-aab
+./run_flutter_targets.sh android-build-aab
 ```
 
 Optional build metadata override:
 
 ```bash
-BEFAM_BUILD_NAME=1.2.3 BEFAM_BUILD_NUMBER=123 ./scripts/run_flutter_targets.sh android-build-aab
+BEFAM_BUILD_NAME=1.2.3 BEFAM_BUILD_NUMBER=123 ./run_flutter_targets.sh android-build-aab
 ```
 
 Interactive wizard example:

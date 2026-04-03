@@ -4,6 +4,7 @@ This folder is the operational source of truth for the Flutter ads baseline.
 
 - Runtime implementation lives in `lib/features/ads/services/`.
 - Firebase Remote Config template lives in `remote_config_defaults.json`.
+- Launch checklist lives in `LAUNCH_CHECKLIST.md`.
 - The baseline currently activates `banner + interstitial + rewarded discovery`.
 - `app_open` remains intentionally disabled by default.
 

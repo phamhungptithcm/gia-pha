@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../../core/services/app_environment.dart';
@@ -95,9 +97,11 @@ class FirebaseGenealogyDiscoveryRepository
   Future<List<JoinRequestReviewItem>> loadPendingJoinRequests({
     required AuthSession session,
   }) async {
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: FirebaseServices.firestore,
-      session: session,
+    unawaited(
+      FirebaseSessionAccessSync.ensureUserSessionDocument(
+        firestore: FirebaseServices.firestore,
+        session: session,
+      ),
     );
     final callable = _functions.httpsCallable('listJoinRequestsForReview');
     final response = await callable.call(<String, dynamic>{
@@ -125,9 +129,11 @@ class FirebaseGenealogyDiscoveryRepository
     required bool approve,
     String? note,
   }) async {
-    await FirebaseSessionAccessSync.ensureUserSessionDocument(
-      firestore: FirebaseServices.firestore,
-      session: session,
+    unawaited(
+      FirebaseSessionAccessSync.ensureUserSessionDocument(
+        firestore: FirebaseServices.firestore,
+        session: session,
+      ),
     );
     final callable = _functions.httpsCallable('reviewJoinRequest');
     await callable.call(<String, dynamic>{

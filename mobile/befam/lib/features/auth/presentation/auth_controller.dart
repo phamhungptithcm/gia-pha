@@ -76,8 +76,12 @@ class AuthController extends ChangeNotifier {
 
     _initialized = true;
     try {
-      hasAcceptedPrivacyPolicy = await _privacyPolicyStore.readAccepted();
-      final restoredSession = await _sessionStore.read();
+      final restoredState = await Future.wait<Object?>([
+        _privacyPolicyStore.readAccepted(),
+        _sessionStore.read(),
+      ]);
+      hasAcceptedPrivacyPolicy = restoredState[0] as bool;
+      final restoredSession = restoredState[1] as AuthSession?;
       if (restoredSession != null &&
           restoredSession.isSandbox != _authGateway.isSandbox) {
         AppLogger.warning(

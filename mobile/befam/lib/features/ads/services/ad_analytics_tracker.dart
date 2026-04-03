@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../../../core/services/analytics_event_names.dart';
@@ -89,6 +90,107 @@ abstract class AdAnalyticsTracker {
     required String? lastAdPlacement,
     int? secondsSinceLastAd,
   });
+}
+
+class NoopAdAnalyticsTracker implements AdAnalyticsTracker {
+  const NoopAdAnalyticsTracker();
+
+  @override
+  Future<void> syncUserState(
+    AdUserState userState, {
+    required String policyVersion,
+  }) async {}
+
+  @override
+  Future<void> trackOpportunity({
+    required AdOpportunityContext context,
+    required AdUserState userState,
+    required bool eligible,
+    required String blockReason,
+    required String policyVersion,
+    int? score,
+    bool? shown,
+  }) async {}
+
+  @override
+  Future<void> trackRequest({
+    required String format,
+    required String placement,
+    required AdUserState userState,
+  }) async {}
+
+  @override
+  Future<void> trackLoaded({
+    required String format,
+    required String placement,
+    required AdUserState userState,
+  }) async {}
+
+  @override
+  Future<void> trackFailed({
+    required String format,
+    required String placement,
+    required AdUserState userState,
+    required String errorCode,
+  }) async {}
+
+  @override
+  Future<void> trackShown({
+    required String format,
+    required String placement,
+    required String screenId,
+    required AdUserState userState,
+    required int sessionAgeSec,
+  }) async {}
+
+  @override
+  Future<void> trackDismissed({
+    required String format,
+    required String placement,
+    required AdUserState userState,
+    required int dismissDelaySec,
+  }) async {}
+
+  @override
+  Future<void> trackScreenAfterAd({
+    required String previousAdFormat,
+    required String previousPlacement,
+    required String nextScreenId,
+    required AdUserState userState,
+    required int secondsFromDismiss,
+  }) async {}
+
+  @override
+  Future<void> trackSessionExitAfterAd({
+    required String format,
+    required String placement,
+    required AdUserState userState,
+    required int secondsFromDismiss,
+  }) async {}
+
+  @override
+  Future<void> trackRewardEarned({
+    required String placement,
+    required String rewardType,
+    required int rewardValue,
+    required AdUserState userState,
+  }) async {}
+
+  @override
+  Future<void> trackPremiumIntent({
+    required String source,
+    required AdUserState userState,
+  }) async {}
+
+  @override
+  Future<void> trackPremiumPurchaseAfterAdExposure({
+    required String planCode,
+    required String productId,
+    required bool hadAdExposure24h,
+    required String? lastAdFormat,
+    required String? lastAdPlacement,
+    int? secondsSinceLastAd,
+  }) async {}
 }
 
 class FirebaseAdAnalyticsTracker implements AdAnalyticsTracker {
@@ -333,5 +435,17 @@ class FirebaseAdAnalyticsTracker implements AdAnalyticsTracker {
 }
 
 AdAnalyticsTracker createDefaultAdAnalyticsTracker() {
-  return FirebaseAdAnalyticsTracker(FirebaseAnalytics.instance);
+  try {
+    if (Firebase.apps.isEmpty) {
+      return const NoopAdAnalyticsTracker();
+    }
+    return FirebaseAdAnalyticsTracker(FirebaseAnalytics.instance);
+  } catch (error, stackTrace) {
+    AppLogger.warning(
+      'Ads analytics bootstrap is unavailable. Falling back to no-op tracker.',
+      error,
+      stackTrace,
+    );
+    return const NoopAdAnalyticsTracker();
+  }
 }

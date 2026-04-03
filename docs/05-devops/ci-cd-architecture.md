@@ -26,7 +26,7 @@ Slide assets:
 The delivery system is a promotion pipeline rather than direct-to-production
 deployment.
 
-1. All pushes run branch CI and mobile smoke E2E.
+1. Pushes to `staging` and `main` run branch CI and mobile smoke E2E.
 2. Pushes to `staging` wait for checks, then deploy to the staging Firebase
    project and staging web hosting.
 3. A separate promotion workflow opens or refreshes the `staging -> main`
@@ -50,7 +50,7 @@ deployment.
 
 ## Current Workflow Map
 
-### Always-on validation
+### Release-branch validation
 
 - `branch-ci.yml`
   - docs validation and build
@@ -124,7 +124,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  Dev["Developer"] --> Push["Git push"]
+  Dev["Developer"] --> Push["Git push to staging/main"]
 
   Push --> BranchCI["branch-ci.yml
   docs
@@ -204,7 +204,7 @@ sequenceDiagram
   participant PH as Prod Hosting Deploy
   participant FB as Firebase/GCP
 
-  Dev->>GH: Push commit
+  Dev->>GH: Push commit to staging/main
 
   GH->>CI: Trigger branch-ci.yml
   GH->>AE2E: Trigger mobile-e2e.yml

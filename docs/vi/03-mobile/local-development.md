@@ -45,7 +45,7 @@ Kỳ vọng:
 ## Mở Android emulator
 
 ```bash
-./scripts/run_flutter_targets.sh android-emulator-start
+./run_flutter_targets.sh android-emulator-start
 ```
 
 Tên emulator:
@@ -57,10 +57,20 @@ flutter_android_test
 ## Chạy app
 
 ```bash
-./scripts/run_flutter_targets.sh
-./scripts/run_flutter_targets.sh android-sim
-./scripts/run_flutter_targets.sh ios-sim
-./scripts/run_flutter_targets.sh web-server 8080
+./run_flutter_targets.sh
+./run_flutter_targets.sh android-debug
+./run_flutter_targets.sh android-usb
+./run_flutter_targets.sh android-usb-release-ci
+./run_flutter_targets.sh android-doctor
+./run_flutter_targets.sh ios-sim
+./run_flutter_targets.sh web-server 8080
+```
+
+Nếu máy Android cắm dây chưa hiện ra, chạy:
+
+```bash
+./run_flutter_targets.sh android-doctor
+./run_flutter_targets.sh android-restart-adb
 ```
 
 Hoặc chạy trực tiếp:

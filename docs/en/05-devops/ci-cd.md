@@ -11,7 +11,7 @@ BeFam uses a protected promotion model:
 
 ### `branch-ci.yml` (`CI - Branch Quality Gates`)
 Runs on:
-- pushes to all branches, including `staging` and `main`
+- pushes to `staging` and `main`
 
 Checks:
 - docs build and rules-doc validation
@@ -21,7 +21,7 @@ Checks:
 - dependency review + Trivy + gitleaks + image vulnerability scanning
 
 ### `mobile-e2e.yml` + `mobile-e2e-ios.yml`
-Run Android/iOS smoke E2E on pushes to all branches and on manual dispatch.
+Run Android/iOS smoke E2E on pushes to `staging` and `main`, plus manual dispatch.
 The jobs self-skip when the push does not touch mobile or E2E-related files.
 
 ### `mobile-e2e-deep.yml` (`CI - Mobile E2E Deep`)

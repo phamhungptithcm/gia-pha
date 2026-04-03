@@ -16,7 +16,7 @@ import 'genealogy_root_entries.dart';
 import 'genealogy_segment_cache.dart';
 
 class FirebaseGenealogyReadRepository implements GenealogyReadRepository {
-  static const int _workspacePageSize = 250;
+  static const int _workspacePageSize = 400;
   static const int _workspaceMaxDocuments = 3000;
 
   FirebaseGenealogyReadRepository({

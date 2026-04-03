@@ -61,7 +61,7 @@ Performance toggles:
 ## CI
 
 - Branch CI job `ci-mobile` runs release-catalog contract checks.
-- Push-gate mobile E2E runs as separate workflows on all branches:
+- Push-gate mobile E2E runs as separate workflows on `staging` and `main`:
   - `.github/workflows/mobile-e2e.yml` -> `live + android + smoke`
   - `.github/workflows/mobile-e2e-ios.yml` -> `live + ios + smoke`
 - Deep regression runs on pushes to `staging` and `main`, plus manual dispatch:

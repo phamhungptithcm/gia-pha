@@ -30,6 +30,7 @@ class OnboardingCoordinator extends ChangeNotifier {
   Timer? _scheduledTrigger;
   bool _isResolving = false;
   bool _disposed = false;
+  bool _isActionInFlight = false;
   OnboardingFlow? _activeFlow;
   OnboardingFlowProgress? _activeProgress;
   String? _activeRouteId;
@@ -41,6 +42,7 @@ class OnboardingCoordinator extends ChangeNotifier {
   int get currentStepIndex => _currentStepIndex;
   int get stepCount => _activeFlow?.steps.length ?? 0;
   bool get isVisible => _activeFlow != null && currentStep != null;
+  bool get isActionInFlight => _isActionInFlight;
 
   OnboardingStep? get currentStep {
     final flow = _activeFlow;
@@ -169,142 +171,144 @@ class OnboardingCoordinator extends ChangeNotifier {
   }
 
   Future<void> next() async {
-    final flow = _activeFlow;
-    final progress = _activeProgress;
-    final routeId = _activeRouteId;
-    if (flow == null || progress == null || routeId == null) {
-      return;
-    }
-    final nextIndex = _currentStepIndex + 1;
-    if (nextIndex >= flow.steps.length) {
-      await complete();
-      return;
-    }
+    await _runAction(() async {
+      final flow = _activeFlow;
+      final progress = _activeProgress;
+      final routeId = _activeRouteId;
+      if (flow == null || progress == null || routeId == null) {
+        return;
+      }
+      final nextIndex = _currentStepIndex + 1;
+      if (nextIndex >= flow.steps.length) {
+        await _completeActiveFlow(
+          flow: flow,
+          progress: progress,
+          routeId: routeId,
+        );
+        return;
+      }
 
-    final anchorReady = await _waitForAnchor(flow.steps[nextIndex].anchorId);
-    if (!anchorReady) {
-      await _analyticsService.logAnchorMissing(
+      final anchorReady = await _waitForAnchor(flow.steps[nextIndex].anchorId);
+      if (!anchorReady) {
+        await _analyticsService.logAnchorMissing(
+          flow: flow,
+          step: flow.steps[nextIndex],
+          stepIndex: nextIndex,
+          routeId: routeId,
+        );
+        return;
+      }
+
+      final now = DateTime.now();
+      final nextProgress = progress.copyWith(
+        status: OnboardingFlowStatus.inProgress,
+        currentStepIndex: nextIndex,
+        resumeExpiresAt: now.add(flow.resumeTtl),
+        updatedAt: now,
+      );
+      _activeProgress = nextProgress;
+      _currentStepIndex = nextIndex;
+      notifyListeners();
+      await _stateRepository.saveProgress(
+        session: _session,
+        progress: nextProgress,
+      );
+      await _analyticsService.logStepViewed(
         flow: flow,
         step: flow.steps[nextIndex],
         stepIndex: nextIndex,
         routeId: routeId,
       );
-      return;
-    }
-
-    final now = DateTime.now();
-    final nextProgress = progress.copyWith(
-      status: OnboardingFlowStatus.inProgress,
-      currentStepIndex: nextIndex,
-      resumeExpiresAt: now.add(flow.resumeTtl),
-      updatedAt: now,
-    );
-    _activeProgress = nextProgress;
-    _currentStepIndex = nextIndex;
-    notifyListeners();
-    await _stateRepository.saveProgress(
-      session: _session,
-      progress: nextProgress,
-    );
-    await _analyticsService.logStepViewed(
-      flow: flow,
-      step: flow.steps[nextIndex],
-      stepIndex: nextIndex,
-      routeId: routeId,
-    );
+    });
   }
 
   Future<void> back() async {
-    final flow = _activeFlow;
-    final progress = _activeProgress;
-    final routeId = _activeRouteId;
-    if (flow == null ||
-        progress == null ||
-        routeId == null ||
-        _currentStepIndex <= 0) {
-      return;
-    }
-    final previousIndex = _currentStepIndex - 1;
-    final anchorReady = await _waitForAnchor(
-      flow.steps[previousIndex].anchorId,
-    );
-    if (!anchorReady) {
-      return;
-    }
-    final now = DateTime.now();
-    final nextProgress = progress.copyWith(
-      status: OnboardingFlowStatus.inProgress,
-      currentStepIndex: previousIndex,
-      resumeExpiresAt: now.add(flow.resumeTtl),
-      updatedAt: now,
-    );
-    _activeProgress = nextProgress;
-    _currentStepIndex = previousIndex;
-    notifyListeners();
-    await _stateRepository.saveProgress(
-      session: _session,
-      progress: nextProgress,
-    );
-    await _analyticsService.logStepViewed(
-      flow: flow,
-      step: flow.steps[previousIndex],
-      stepIndex: previousIndex,
-      routeId: routeId,
-    );
+    await _runAction(() async {
+      final flow = _activeFlow;
+      final progress = _activeProgress;
+      final routeId = _activeRouteId;
+      if (flow == null ||
+          progress == null ||
+          routeId == null ||
+          _currentStepIndex <= 0) {
+        return;
+      }
+      final previousIndex = _currentStepIndex - 1;
+      final anchorReady = await _waitForAnchor(
+        flow.steps[previousIndex].anchorId,
+      );
+      if (!anchorReady) {
+        return;
+      }
+      final now = DateTime.now();
+      final nextProgress = progress.copyWith(
+        status: OnboardingFlowStatus.inProgress,
+        currentStepIndex: previousIndex,
+        resumeExpiresAt: now.add(flow.resumeTtl),
+        updatedAt: now,
+      );
+      _activeProgress = nextProgress;
+      _currentStepIndex = previousIndex;
+      notifyListeners();
+      await _stateRepository.saveProgress(
+        session: _session,
+        progress: nextProgress,
+      );
+      await _analyticsService.logStepViewed(
+        flow: flow,
+        step: flow.steps[previousIndex],
+        stepIndex: previousIndex,
+        routeId: routeId,
+      );
+    });
   }
 
   Future<void> skip() async {
-    final flow = _activeFlow;
-    final progress = _activeProgress;
-    final step = currentStep;
-    final routeId = _activeRouteId;
-    if (flow == null || progress == null || step == null || routeId == null) {
-      return;
-    }
-    final now = DateTime.now();
-    final nextProgress = progress.copyWith(
-      status: OnboardingFlowStatus.skipped,
-      currentStepIndex: _currentStepIndex,
-      lastSkippedAt: now,
-      cooldownUntil: now.add(flow.cooldown),
-      updatedAt: now,
-      clearResumeExpiresAt: true,
-    );
-    await _stateRepository.saveProgress(
-      session: _session,
-      progress: nextProgress,
-    );
-    await _analyticsService.logSkipped(
-      flow: flow,
-      step: step,
-      stepIndex: _currentStepIndex,
-      routeId: routeId,
-    );
-    _clearPresentation();
+    await _runAction(() async {
+      final flow = _activeFlow;
+      final progress = _activeProgress;
+      final step = currentStep;
+      final routeId = _activeRouteId;
+      if (flow == null || progress == null || step == null || routeId == null) {
+        return;
+      }
+      final now = DateTime.now();
+      final nextProgress = progress.copyWith(
+        status: OnboardingFlowStatus.skipped,
+        currentStepIndex: _currentStepIndex,
+        lastSkippedAt: now,
+        cooldownUntil: now.add(flow.cooldown),
+        updatedAt: now,
+        clearResumeExpiresAt: true,
+      );
+      _clearPresentation();
+      await _stateRepository.saveProgress(
+        session: _session,
+        progress: nextProgress,
+      );
+      await _analyticsService.logSkipped(
+        flow: flow,
+        step: step,
+        stepIndex: _currentStepIndex,
+        routeId: routeId,
+      );
+    });
   }
 
   Future<void> complete() async {
-    final flow = _activeFlow;
-    final progress = _activeProgress;
-    final routeId = _activeRouteId;
-    if (flow == null || progress == null || routeId == null) {
-      return;
-    }
-    final now = DateTime.now();
-    final nextProgress = progress.copyWith(
-      status: OnboardingFlowStatus.completed,
-      currentStepIndex: flow.steps.length - 1,
-      lastCompletedAt: now,
-      updatedAt: now,
-      clearCooldownUntil: true,
-      clearResumeExpiresAt: true,
-    );
-    await _stateRepository.saveProgress(
-      session: _session,
-      progress: nextProgress,
-    );
-    await _analyticsService.logCompleted(flow: flow, routeId: routeId);
-    _clearPresentation();
+    await _runAction(() async {
+      final flow = _activeFlow;
+      final progress = _activeProgress;
+      final routeId = _activeRouteId;
+      if (flow == null || progress == null || routeId == null) {
+        return;
+      }
+      await _completeActiveFlow(
+        flow: flow,
+        progress: progress,
+        routeId: routeId,
+      );
+    });
   }
 
   Future<void> interrupt() async {
@@ -410,6 +414,46 @@ class OnboardingCoordinator extends ChangeNotifier {
     }
     final rect = rectForAnchor(anchorId);
     return rect != null && rect.width > 0 && rect.height > 0;
+  }
+
+  Future<void> _completeActiveFlow({
+    required OnboardingFlow flow,
+    required OnboardingFlowProgress progress,
+    required String routeId,
+  }) async {
+    final now = DateTime.now();
+    final nextProgress = progress.copyWith(
+      status: OnboardingFlowStatus.completed,
+      currentStepIndex: flow.steps.length - 1,
+      lastCompletedAt: now,
+      updatedAt: now,
+      clearCooldownUntil: true,
+      clearResumeExpiresAt: true,
+    );
+    _clearPresentation();
+    await _stateRepository.saveProgress(
+      session: _session,
+      progress: nextProgress,
+    );
+    await _analyticsService.logCompleted(flow: flow, routeId: routeId);
+  }
+
+  Future<void> _runAction(Future<void> Function() action) async {
+    if (_isActionInFlight || _disposed) {
+      return;
+    }
+    _isActionInFlight = true;
+    if (!_disposed) {
+      notifyListeners();
+    }
+    try {
+      await action();
+    } finally {
+      _isActionInFlight = false;
+      if (!_disposed) {
+        notifyListeners();
+      }
+    }
   }
 
   void _clearPresentation({bool notify = true}) {

@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../theme/app_ui_tokens.dart';
 import '../../core/services/firebase_services.dart';
+import '../../core/services/performance_measurement_logger.dart';
 import '../../core/widgets/member_phone_action.dart';
 import '../../core/widgets/address_action_tools.dart';
 import '../../core/widgets/app_compact_controls.dart';
@@ -58,6 +60,11 @@ import 'app_shortcuts.dart';
 part 'app_shell_page_sections.dart';
 
 enum _ShellOverflowAction { switchClan, logout }
+
+final PerformanceMeasurementLogger _shellPerformanceLogger =
+    PerformanceMeasurementLogger(
+      defaultSlowThreshold: const Duration(milliseconds: 2000),
+    );
 
 bool _sessionHasClanContext(AuthSession session) {
   final clanId = (session.clanId ?? '').trim();
@@ -127,6 +134,7 @@ class _AppShellPageState extends State<AppShellPage>
   bool _dismissAdBannerForSession = false;
   bool _isLoadingClanContexts = false;
   bool _isSwitchingClanContext = false;
+  AsyncCallback? _billingPricingQuickAction;
   List<ClanContextOption> _clanContexts = const [];
   final Map<String, String> _resolvedClanNamesById = <String, String>{};
   bool _isResolvingActiveClanName = false;
@@ -224,16 +232,9 @@ class _AppShellPageState extends State<AppShellPage>
     _onboardingCoordinator = createDefaultOnboardingCoordinator(
       session: _session,
     );
-    unawaited(
-      _pushNotificationService.start(
-        session: _session,
-        onDeepLink: _handleNotificationDeepLink,
-      ),
-    );
     unawaited(_loadClanContexts());
-    unawaited(_ensureActiveClanDisplayNameResolved());
-    unawaited(_refreshBillingEntitlement());
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_scheduleDeferredShellWarmup());
       unawaited(
         _onboardingCoordinator.scheduleTrigger(
           const OnboardingTrigger(
@@ -251,17 +252,10 @@ class _AppShellPageState extends State<AppShellPage>
     if (oldWidget.session != widget.session) {
       _activeSession = _sanitizeSessionContext(widget.session);
       _onboardingCoordinator.updateSession(_activeSession);
-      unawaited(
-        _pushNotificationService.start(
-          session: _session,
-          onDeepLink: _handleNotificationDeepLink,
-        ),
-      );
       unawaited(_loadClanContexts());
-      unawaited(_ensureActiveClanDisplayNameResolved());
       _dismissAdBannerForSession = false;
-      unawaited(_refreshBillingEntitlement());
       _adController.updateCurrentScreen(_screenIdForIndex(_selectedIndex));
+      unawaited(_scheduleDeferredShellWarmup());
     }
   }
 
@@ -285,6 +279,34 @@ class _AppShellPageState extends State<AppShellPage>
       return;
     }
     setState(() {});
+  }
+
+  void _handleBillingPricingQuickActionChanged(AsyncCallback? action) {
+    if (_billingPricingQuickAction == action || !mounted) {
+      return;
+    }
+    setState(() {
+      _billingPricingQuickAction = action;
+    });
+  }
+
+  Future<void> _scheduleDeferredShellWarmup() async {
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    if (!mounted) {
+      return;
+    }
+    unawaited(_startPushNotificationsForActiveSession());
+    if (_session.loginMethod == AuthEntryMethod.child) {
+      unawaited(_ensureActiveClanDisplayNameResolved());
+      unawaited(_refreshBillingEntitlement());
+    }
+  }
+
+  Future<void> _startPushNotificationsForActiveSession() {
+    return _pushNotificationService.start(
+      session: _session,
+      onDeepLink: _handleNotificationDeepLink,
+    );
   }
 
   void _handleNotificationDeepLink(NotificationDeepLink deepLink) {
@@ -479,8 +501,11 @@ class _AppShellPageState extends State<AppShellPage>
 
     _isResolvingBillingEntitlement = true;
     try {
-      final entitlement = await _billingRepository.resolveEntitlement(
-        session: _session,
+      final entitlement = await _shellPerformanceLogger.measureAsync(
+        metric: 'shell.billing_entitlement',
+        dimensions: {'has_clan_context': _hasClanContext ? 1 : 0},
+        warnAfter: const Duration(milliseconds: 2000),
+        action: () => _billingRepository.resolveEntitlement(session: _session),
       );
       final normalizedTier = entitlement.planCode.trim().toUpperCase();
       final resolvedTier = normalizedTier.isEmpty ? 'FREE' : normalizedTier;
@@ -560,8 +585,11 @@ class _AppShellPageState extends State<AppShellPage>
     }
     _isLoadingClanContexts = true;
     try {
-      final snapshot = await _clanContextService.loadContexts(
-        session: _session,
+      final snapshot = await _shellPerformanceLogger.measureAsync(
+        metric: 'shell.clan_contexts',
+        dimensions: {'login_method': _session.loginMethod.name},
+        warnAfter: const Duration(milliseconds: 2000),
+        action: () => _clanContextService.loadContexts(session: _session),
       );
       if (!mounted) {
         return;
@@ -574,24 +602,26 @@ class _AppShellPageState extends State<AppShellPage>
         _resolvedClanNamesById.addAll(resolvedNames);
       });
       await _sessionStore.write(_activeSession);
-      await _pushNotificationService.start(
-        session: _session,
-        onDeepLink: _handleNotificationDeepLink,
-      );
+      await _startPushNotificationsForActiveSession();
       unawaited(_ensureActiveClanDisplayNameResolved());
       unawaited(_refreshBillingEntitlement());
     } catch (_) {
       final sanitizedSession = _sanitizeSessionContext(_session);
-      if (!mounted || sanitizedSession == _session) {
+      if (!mounted) {
         return;
       }
-      setState(() {
-        _activeSession = sanitizedSession;
-        if (!_sessionHasClanContext(sanitizedSession)) {
-          _clanContexts = const [];
-        }
-      });
-      await _sessionStore.write(_activeSession);
+      if (sanitizedSession != _session) {
+        setState(() {
+          _activeSession = sanitizedSession;
+          if (!_sessionHasClanContext(sanitizedSession)) {
+            _clanContexts = const [];
+          }
+        });
+        await _sessionStore.write(_activeSession);
+      }
+      await _startPushNotificationsForActiveSession();
+      unawaited(_ensureActiveClanDisplayNameResolved());
+      unawaited(_refreshBillingEntitlement());
     } finally {
       _isLoadingClanContexts = false;
     }
@@ -623,10 +653,7 @@ class _AppShellPageState extends State<AppShellPage>
         _visitedDestinationIndexes.add(_selectedIndex);
       });
       await _sessionStore.write(_activeSession);
-      await _pushNotificationService.start(
-        session: _session,
-        onDeepLink: _handleNotificationDeepLink,
-      );
+      await _startPushNotificationsForActiveSession();
       unawaited(_ensureActiveClanDisplayNameResolved());
       unawaited(_refreshBillingEntitlement());
       return _activeSession;
@@ -659,10 +686,7 @@ class _AppShellPageState extends State<AppShellPage>
       _visitedDestinationIndexes.add(_selectedIndex);
     });
     await _sessionStore.write(_activeSession);
-    await _pushNotificationService.start(
-      session: _session,
-      onDeepLink: _handleNotificationDeepLink,
-    );
+    await _startPushNotificationsForActiveSession();
     unawaited(_ensureActiveClanDisplayNameResolved());
     unawaited(_refreshBillingEntitlement());
   }
@@ -876,6 +900,7 @@ class _AppShellPageState extends State<AppShellPage>
           session: _session,
           repository: _billingRepository,
           embeddedInShell: true,
+          onPricingQuickActionChanged: _handleBillingPricingQuickActionChanged,
         )
       else
         const SizedBox.shrink(),
@@ -1075,10 +1100,13 @@ class _AppShellPageState extends State<AppShellPage>
 
     _isResolvingActiveClanName = true;
     try {
-      final workspace = await widget.clanRepository.loadWorkspace(
-        session: _session,
+      final clan = await _shellPerformanceLogger.measureAsync(
+        metric: 'shell.active_clan_name',
+        dimensions: {'selected_index': _selectedIndex},
+        warnAfter: const Duration(milliseconds: 1200),
+        action: () => widget.clanRepository.loadClanProfile(session: _session),
       );
-      final clanName = workspace.clan?.name.trim() ?? '';
+      final clanName = clan?.name.trim() ?? '';
       if (!mounted || clanName.isEmpty) {
         return;
       }
@@ -1151,6 +1179,21 @@ class _AppShellPageState extends State<AppShellPage>
           ),
           onPressed: _openSubmittedJoinRequests,
           icon: const Icon(Icons.list_alt_outlined),
+        ),
+      if (_selectedIndex == 3 && _billingPricingQuickAction != null)
+        IconButton(
+          key: const Key('billing-pricing-quick-action'),
+          tooltip: l10n.pick(
+            vi: 'Xem nhanh bảng giá',
+            en: 'Quick pricing view',
+          ),
+          onPressed: () {
+            final action = _billingPricingQuickAction;
+            if (action != null) {
+              unawaited(action());
+            }
+          },
+          icon: const Icon(Icons.sell_outlined),
         ),
       if (canSwitchClan || canLogout)
         PopupMenuButton<_ShellOverflowAction>(

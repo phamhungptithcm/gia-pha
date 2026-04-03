@@ -106,6 +106,13 @@ class AppEnvironment {
     defaultValue: true,
   );
 
+  static const bool useMockAuth =
+      !kReleaseMode &&
+      bool.fromEnvironment(
+        'BEFAM_USE_MOCK_AUTH',
+        defaultValue: false,
+      );
+
   static const bool allowFirebasePhoneAuthFallback =
       !kReleaseMode &&
       bool.fromEnvironment(

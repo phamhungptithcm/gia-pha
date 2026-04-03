@@ -3,7 +3,8 @@ name: CI - Mobile E2E Android
 on:
   push:
     branches:
-      - "**"
+      - staging
+      - main
   workflow_dispatch:
 
 permissions:

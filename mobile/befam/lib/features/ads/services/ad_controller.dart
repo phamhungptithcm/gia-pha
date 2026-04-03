@@ -346,7 +346,8 @@ class AdController implements RewardedDiscoveryAttemptService {
       subscriptionTier: normalizedTier,
       policy: _policy,
     );
-    _adsEnabled = !kIsWeb && _policy.adsEnabled && !isPremium;
+    _adsEnabled =
+        !kIsWeb && AdService.canRequestAds && _policy.adsEnabled && !isPremium;
     await _analyticsTracker.syncUserState(
       _userState!,
       policyVersion: _policy.policyVersion,

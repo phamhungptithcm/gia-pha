@@ -245,7 +245,7 @@ const OnboardingFlow _genealogyFlow = OnboardingFlow(
         vi: 'Khi sơ đồ dày đặc, dùng điều khiển này để phóng to nhanh rồi chạm vào từng thành viên để xem chi tiết.',
         en: 'When the tree gets dense, use this control to zoom in quickly and inspect each member in detail.',
       ),
-      placement: OnboardingTooltipPlacement.below,
+      placement: OnboardingTooltipPlacement.above,
     ),
   ],
 );

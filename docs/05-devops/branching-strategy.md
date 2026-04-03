@@ -17,7 +17,7 @@ releases.
 - branch from the latest `staging`
 - keep changes scoped to one issue or one closely related set of issues
 - open a pull request to `staging` before merge
-- require one approval and passing `CI - Branch Quality Gates` before merge to `staging` or `main`
+- require one approval before merge, then ensure `CI - Branch Quality Gates` passes on the resulting `staging` or `main` push
 - promote `staging` to `main` through the push-driven release PR
 - use merge commits for the `staging` to `main` promotion so release history stays aligned
 - let `main` release automation create the semver tag, GitHub release, Android AAB asset, signed iOS IPA asset, and GHCR mobile plus Firebase images

@@ -176,6 +176,11 @@ class BillingPlanPricing {
     required this.vatIncluded,
     required this.showAds,
     required this.adFree,
+    this.displayName,
+    this.displayNameEn,
+    this.displayNameVi,
+    this.descriptionEn,
+    this.descriptionVi,
   });
 
   final String planCode;
@@ -185,6 +190,11 @@ class BillingPlanPricing {
   final bool vatIncluded;
   final bool showAds;
   final bool adFree;
+  final String? displayName;
+  final String? displayNameEn;
+  final String? displayNameVi;
+  final String? descriptionEn;
+  final String? descriptionVi;
 }
 
 class BillingPaymentTransaction {
@@ -274,4 +284,3 @@ class BillingAuditLog {
   final String entityId;
   final String? createdAtIso;
 }
-

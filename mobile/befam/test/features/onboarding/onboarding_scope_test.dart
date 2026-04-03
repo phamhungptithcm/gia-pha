@@ -57,10 +57,39 @@ void main() {
     ],
   );
 
+  const bottomAnchoredFlow = OnboardingFlow(
+    id: 'bottom-flow',
+    triggerId: 'bottom-trigger',
+    version: 1,
+    steps: <OnboardingStep>[
+      OnboardingStep(
+        id: 'bottom-step',
+        anchorId: 'anchor.bottom',
+        title: OnboardingLocalizedText(
+          vi: 'Bước cuối ở đáy màn hình',
+          en: 'Bottom edge step',
+        ),
+        body: OnboardingLocalizedText(
+          vi: 'Tooltip phải tự đổi vị trí để nút Xong luôn bấm được.',
+          en: 'The tooltip should reposition so Done always stays tappable.',
+        ),
+        placement: OnboardingTooltipPlacement.below,
+      ),
+    ],
+  );
+
   Future<void> pumpHarness(
     WidgetTester tester, {
     required OnboardingCoordinator coordinator,
+    Widget? body,
+    Size surfaceSize = const Size(390, 844),
   }) async {
+    final dpr = tester.view.devicePixelRatio;
+    tester.view.physicalSize = Size(
+      surfaceSize.width * dpr,
+      surfaceSize.height * dpr,
+    );
+    addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('en'),
@@ -74,29 +103,31 @@ void main() {
         home: OnboardingScope(
           controller: coordinator,
           child: Scaffold(
-            body: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  OnboardingAnchor(
-                    anchorId: 'anchor.one',
-                    child: ElevatedButton(
-                      onPressed: () {},
-                      child: const Text('Anchor one'),
-                    ),
+            body:
+                body ??
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      OnboardingAnchor(
+                        anchorId: 'anchor.one',
+                        child: ElevatedButton(
+                          onPressed: () {},
+                          child: const Text('Anchor one'),
+                        ),
+                      ),
+                      const SizedBox(height: 220),
+                      OnboardingAnchor(
+                        anchorId: 'anchor.two',
+                        child: ElevatedButton(
+                          onPressed: () {},
+                          child: const Text('Anchor two'),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 220),
-                  OnboardingAnchor(
-                    anchorId: 'anchor.two',
-                    child: ElevatedButton(
-                      onPressed: () {},
-                      child: const Text('Anchor two'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
           ),
         ),
       ),
@@ -177,6 +208,71 @@ void main() {
       OnboardingFlowStatus.skipped,
     );
   });
+
+  testWidgets(
+    'keeps the done button visible and tappable near the bottom edge',
+    (tester) async {
+      final stateRepository = _MemoryOnboardingStateRepository();
+      final coordinator = OnboardingCoordinator(
+        session: buildSession(),
+        stateRepository: stateRepository,
+        catalogRepository: _StaticCatalogRepository(
+          flows: const <OnboardingFlow>[bottomAnchoredFlow],
+        ),
+        analyticsService: _RecordingOnboardingAnalyticsService(),
+      );
+
+      await pumpHarness(
+        tester,
+        coordinator: coordinator,
+        surfaceSize: const Size(390, 640),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Stack(
+            children: <Widget>[
+              OnboardingAnchor(
+                anchorId: 'anchor.one',
+                child: ElevatedButton(
+                  onPressed: () {},
+                  child: const Text('Anchor one'),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomRight,
+                child: OnboardingAnchor(
+                  anchorId: 'anchor.bottom',
+                  child: ElevatedButton(
+                    onPressed: () {},
+                    child: const Text('Bottom anchor'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await coordinator.handleTrigger(
+        const OnboardingTrigger(id: 'bottom-trigger', routeId: 'bottom-route'),
+      );
+      await tester.pumpAndSettle();
+
+      final doneButton = find.widgetWithText(FilledButton, 'Done');
+      expect(doneButton, findsOneWidget);
+
+      final doneRect = tester.getRect(doneButton);
+      expect(doneRect.bottom, lessThanOrEqualTo(640));
+
+      await tester.tap(doneButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bottom edge step'), findsNothing);
+      expect(
+        stateRepository.state.progressFor('bottom-flow')?.status,
+        OnboardingFlowStatus.completed,
+      );
+    },
+  );
 }
 
 class _StaticCatalogRepository implements OnboardingCatalogRepository {

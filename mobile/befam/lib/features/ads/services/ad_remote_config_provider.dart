@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 
@@ -9,6 +10,13 @@ import 'ad_remote_config_keys.dart';
 
 abstract class AdRemoteConfigProvider {
   Future<AdPolicy> load();
+}
+
+class DefaultAdRemoteConfigProvider implements AdRemoteConfigProvider {
+  const DefaultAdRemoteConfigProvider();
+
+  @override
+  Future<AdPolicy> load() async => AdPolicy.defaults;
 }
 
 class FirebaseAdRemoteConfigProvider implements AdRemoteConfigProvider {
@@ -149,6 +157,26 @@ class FirebaseAdRemoteConfigProvider implements AdRemoteConfigProvider {
   }
 }
 
-AdRemoteConfigProvider createDefaultAdRemoteConfigProvider() {
-  return FirebaseAdRemoteConfigProvider();
+AdRemoteConfigProvider createDefaultAdRemoteConfigProvider({
+  bool Function()? hasFirebaseApp,
+  AdRemoteConfigProvider Function()? firebaseProviderFactory,
+}) {
+  final resolveHasFirebaseApp =
+      hasFirebaseApp ?? () => Firebase.apps.isNotEmpty;
+  final createFirebaseProvider =
+      firebaseProviderFactory ?? () => FirebaseAdRemoteConfigProvider();
+
+  try {
+    if (!resolveHasFirebaseApp()) {
+      return const DefaultAdRemoteConfigProvider();
+    }
+    return createFirebaseProvider();
+  } catch (error, stackTrace) {
+    AppLogger.warning(
+      'Ads Remote Config bootstrap is unavailable. Falling back to default ad policy.',
+      error,
+      stackTrace,
+    );
+    return const DefaultAdRemoteConfigProvider();
+  }
 }

@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../../core/services/app_environment.dart';
 import '../../../core/services/app_logger.dart';
+import 'ad_consent_service.dart';
 
 class AdService {
   AdService();
@@ -20,14 +22,36 @@ class AdService {
   static const String _iosRewardedTestAdUnitId =
       'ca-app-pub-3940256099942544/1712485313';
 
-  static Future<void> initializeSdk() async {
+  static bool _canRequestAds = false;
+  static bool _sdkInitialized = false;
+
+  static bool get canRequestAds => _canRequestAds;
+  static bool get isSdkInitialized => _sdkInitialized;
+
+  static Future<void> initializeSdk({AdConsentService? consentService}) async {
     if (kIsWeb) {
+      _canRequestAds = false;
+      _sdkInitialized = false;
       return;
     }
     try {
+      final consentResult =
+          await (consentService ?? createDefaultAdConsentService())
+              .gatherConsent();
+      _canRequestAds = consentResult.canRequestAds;
+      if (!_canRequestAds) {
+        _sdkInitialized = false;
+        AppLogger.info(
+          'Ads remain disabled because consent does not allow ad requests yet.',
+        );
+        return;
+      }
       await MobileAds.instance.initialize();
+      _sdkInitialized = true;
       AppLogger.info('Google Mobile Ads SDK initialized.');
     } catch (error, stackTrace) {
+      _canRequestAds = false;
+      _sdkInitialized = false;
       AppLogger.warning(
         'Google Mobile Ads SDK initialization failed; app will continue without ads.',
         error,
@@ -39,6 +63,7 @@ class AdService {
   BannerAd? _bannerAd;
   InterstitialAd? _interstitialAd;
   RewardedAd? _rewardedAd;
+  int? _bannerWidthDp;
   bool _loadingBanner = false;
   bool _loadingInterstitial = false;
   bool _loadingRewarded = false;
@@ -56,8 +81,19 @@ class AdService {
     required VoidCallback onLoaded,
     required void Function(String errorCode) onFailed,
   }) async {
-    if (kIsWeb || _loadingBanner || _bannerAd != null) {
+    if (kIsWeb || _loadingBanner) {
       return;
+    }
+    final widthDp = _currentBannerWidthDp();
+    if (widthDp == null || widthDp <= 0) {
+      onFailed('banner_size_unavailable');
+      return;
+    }
+    if (_bannerAd != null && _bannerWidthDp == widthDp) {
+      return;
+    }
+    if (_bannerAd != null && _bannerWidthDp != widthDp) {
+      disposeBanner();
     }
     final adUnitId = _bannerAdUnitIdForPlatform();
     if (adUnitId == null) {
@@ -66,21 +102,31 @@ class AdService {
     }
 
     _loadingBanner = true;
+    final size = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
+      widthDp,
+    );
+    if (size == null) {
+      _loadingBanner = false;
+      onFailed('banner_size_unavailable');
+      return;
+    }
     final banner = BannerAd(
       adUnitId: adUnitId,
       request: const AdRequest(),
-      size: AdSize.banner,
+      size: size,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
           _loadingBanner = false;
           _bannerAd?.dispose();
           _bannerAd = ad as BannerAd;
+          _bannerWidthDp = widthDp;
           onLoaded();
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           _loadingBanner = false;
           _bannerAd = null;
+          _bannerWidthDp = null;
           onFailed(error.code.toString());
         },
       ),
@@ -91,6 +137,7 @@ class AdService {
     } catch (error, stackTrace) {
       _loadingBanner = false;
       _bannerAd = null;
+      _bannerWidthDp = null;
       onFailed('banner_load_exception');
       AppLogger.warning(
         'Banner ad load threw an exception.',
@@ -288,6 +335,7 @@ class AdService {
   void disposeBanner() {
     _bannerAd?.dispose();
     _bannerAd = null;
+    _bannerWidthDp = null;
     _loadingBanner = false;
   }
 
@@ -380,5 +428,19 @@ class AdService {
       return test;
     }
     return null;
+  }
+
+  int? _currentBannerWidthDp() {
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    if (views.isEmpty) {
+      return null;
+    }
+    final view = views.first;
+    final mediaQuery = MediaQueryData.fromView(view);
+    final widthDp = mediaQuery.size.width - mediaQuery.padding.horizontal;
+    if (widthDp <= 0) {
+      return null;
+    }
+    return widthDp.truncate();
   }
 }
