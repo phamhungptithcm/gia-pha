@@ -199,14 +199,6 @@ class _AuthStepProgress extends StatelessWidget {
                 context,
               ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 6),
-            Text(
-              l10n.pick(
-                vi: 'Mất khoảng 30 giây để hoàn tất.',
-                en: 'This usually takes about 30 seconds.',
-              ),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
             const SizedBox(height: 10),
             LinearProgressIndicator(
               minHeight: 6,
@@ -247,16 +239,6 @@ class _AuthHero extends StatelessWidget {
             style: theme.textTheme.headlineSmall?.copyWith(
               color: colorScheme.onPrimary,
               fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            l10n.pick(
-              vi: 'Chọn cách đăng nhập để vào đúng không gian gia phả.',
-              en: 'Choose a sign-in method to open the right family workspace.',
-            ),
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onPrimary.withValues(alpha: 0.92),
             ),
           ),
         ],
@@ -348,13 +330,6 @@ class _LoginMethodSelectionCard extends StatelessWidget {
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.pick(
-                    vi: 'Chúng tôi chỉ dùng dữ liệu để xác thực tài khoản.',
-                    en: 'We only use account data for authentication.',
-                  ),
                 ),
                 const SizedBox(height: 14),
                 _MethodActionButton(
@@ -582,7 +557,6 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
 
     return _AuthFormCard(
       title: l10n.authPhoneTitle,
-      description: l10n.authPhoneDescription,
       isBusy: widget.isBusy,
       onBack: widget.onBack,
       child: Column(
@@ -697,7 +671,6 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
 
     return _AuthFormCard(
       title: l10n.authChildTitle,
-      description: l10n.authChildDescription,
       isBusy: widget.isBusy,
       onBack: widget.onBack,
       child: Column(
@@ -712,7 +685,6 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
               labelText: l10n.authChildLabel,
               hintText: l10n.authChildHint,
               prefixIcon: const Icon(Icons.badge_outlined),
-              helperText: l10n.authChildHelper,
             ),
             textCapitalization: TextCapitalization.characters,
             onSubmitted: widget.isBusy
@@ -867,7 +839,6 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
 
     return _AuthFormCard(
       title: l10n.authOtpTitle,
-      description: l10n.authOtpDescription(challenge.maskedDestination),
       isBusy: widget.isBusy,
       onBack: widget.onBack,
       child: Column(
@@ -937,25 +908,6 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
               ),
             ),
           ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      l10n.pick(
-                        vi: 'Bạn cần hỗ trợ? Vui lòng liên hệ quản trị gia phả hoặc CSKH BeFam.',
-                        en: 'Need help? Please contact your clan admin or BeFam support.',
-                      ),
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.support_agent_outlined),
-              label: Text(l10n.pick(vi: 'Tôi cần hỗ trợ', en: 'I need help')),
-            ),
-          ),
         ],
       ),
     );
@@ -988,8 +940,8 @@ class _MemberSelectionCard extends StatelessWidget {
           en: 'No match data found',
         ),
         description: l10n.pick(
-          vi: 'Không thể tải danh sách hồ sơ phù hợp. Vui lòng quay lại và thử OTP lại.',
-          en: 'We could not load candidate profiles. Please go back and retry OTP.',
+          vi: 'Không thể tải danh sách hồ sơ phù hợp. Vui lòng thử lại.',
+          en: 'We could not load matching profiles. Please try again.',
         ),
         isBusy: isBusy,
         onBack: onBack,
@@ -1002,10 +954,6 @@ class _MemberSelectionCard extends StatelessWidget {
       title: l10n.pick(
         vi: 'Chọn hồ sơ hoặc tạo mới',
         en: 'Choose a profile or create a new one',
-      ),
-      description: l10n.pick(
-        vi: 'Để bảo vệ dữ liệu, BeFam không liên kết tự động chỉ dựa vào OTP. Hãy chọn hồ sơ phù hợp hoặc tạo mới nếu chưa có hồ sơ của bạn.',
-        en: 'For privacy, BeFam does not auto-link based on OTP alone. Choose your profile, or create a new account if none matches.',
       ),
       isBusy: isBusy,
       onBack: onBack,
@@ -1034,12 +982,6 @@ class _MemberSelectionCard extends StatelessWidget {
                             en: 'Clan: ${candidate.clanLabel}',
                           ),
                         ),
-                      Text(
-                        l10n.pick(
-                          vi: 'Mã hồ sơ: ...${_lastProfileRef(candidate.memberId)}',
-                          en: 'Profile ref: ...${_lastProfileRef(candidate.memberId)}',
-                        ),
-                      ),
                       const SizedBox(height: 10),
                       if (candidate.selectable)
                         SizedBox(
@@ -1137,14 +1079,6 @@ class _MemberSelectionCard extends StatelessWidget {
         );
     }
   }
-
-  String _lastProfileRef(String memberId) {
-    final normalized = memberId.trim();
-    if (normalized.length <= 6) {
-      return normalized;
-    }
-    return normalized.substring(normalized.length - 6);
-  }
 }
 
 class _MemberVerificationCard extends StatefulWidget {
@@ -1205,10 +1139,6 @@ class _MemberVerificationCardState extends State<_MemberVerificationCard> {
       title: l10n.pick(
         vi: 'Xác minh trước khi liên kết',
         en: 'Verify before linking',
-      ),
-      description: l10n.pick(
-        vi: 'Trả lời nhanh các câu hỏi để xác nhận đúng hồ sơ. Chúng tôi chỉ lưu kết quả chấm, không hiển thị đáp án đúng/sai cụ thể.',
-        en: 'Answer a few quick questions to confirm this profile. We only store pass/fail results.',
       ),
       isBusy: widget.isBusy,
       onBack: widget.onBack,
@@ -1480,14 +1410,14 @@ class _OtpDigitTile extends StatelessWidget {
 class _AuthFormCard extends StatelessWidget {
   const _AuthFormCard({
     required this.title,
-    required this.description,
     required this.isBusy,
     required this.onBack,
     required this.child,
+    this.description,
   });
 
   final String title;
-  final String description;
+  final String? description;
   final bool isBusy;
   final VoidCallback onBack;
   final Widget child;
@@ -1524,8 +1454,10 @@ class _AuthFormCard extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 10),
-            Text(description, style: theme.textTheme.bodyLarge),
+            if (description != null && description!.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(description!, style: theme.textTheme.bodyLarge),
+            ],
             const SizedBox(height: 24),
             child,
           ],

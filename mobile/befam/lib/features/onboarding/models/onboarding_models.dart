@@ -329,6 +329,9 @@ class OnboardingFlowProgress {
     if (raw is DateTime) {
       return raw;
     }
+    if (raw is String) {
+      return DateTime.tryParse(raw);
+    }
     if (raw is int) {
       return DateTime.fromMillisecondsSinceEpoch(raw);
     }

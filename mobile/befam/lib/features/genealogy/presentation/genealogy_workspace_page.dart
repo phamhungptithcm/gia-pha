@@ -21,6 +21,7 @@ import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_compact_controls.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../core/widgets/member_phone_action.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -97,6 +98,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   bool _isSubmittingAddBranch = false;
   bool _showAddFabMenu = false;
   bool _shouldAutoFitTree = true;
+  bool _preferFocusedViewport = true;
   bool _hasScheduledOnboarding = false;
 
   String? _rootMemberId;
@@ -202,234 +204,320 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       segment.graph,
       siblingOrdersByMember,
     );
+    final selectedMember = _selectedMemberForGraph(segment.graph);
+    final treeViewportHeight = (math.min(
+      MediaQuery.sizeOf(context).height * 0.58,
+      720.0,
+    )).clamp(560.0, 720.0).toDouble();
 
     final content = Stack(
       children: [
         RefreshIndicator(
           onRefresh: () => _load(allowCached: false),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
-            children: [
-              _LandingCard(
-                scopeType: _scopeType,
-                isLoading: _isLoading,
-                isFromCache: segment.fromCache,
-                onRefresh: _isLoading ? null : () => _load(allowCached: false),
-                onScopeChanged: _updateScope,
-                allowBranchScope: false,
-                session: widget.session,
-                memberCount: segment.graph.membersById.length,
-                branchCount: segment.branches.length,
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 620,
-                child: RepaintBoundary(
-                  key: _treePrintBoundaryKey,
-                  child: Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final viewport = Size(
-                          constraints.maxWidth,
-                          constraints.maxHeight,
-                        );
-                        if (_shouldAutoFitTree && scene.nodeRects.isNotEmpty) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted || !_shouldAutoFitTree) {
-                              return;
-                            }
-                            _shouldAutoFitTree = false;
-                            _fitTreeToViewport(
-                              scene: scene,
-                              viewport: viewport,
-                              focusMemberId: _rootMemberId,
-                            );
-                          });
-                        }
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: InteractiveViewer(
-                                transformationController: _transformController,
-                                constrained: false,
-                                boundaryMargin: const EdgeInsets.all(220),
-                                minScale: _minTreeScale,
-                                maxScale: _maxTreeScale,
-                                child: RepaintBoundary(
-                                  key: _treeCanvasPrintBoundaryKey,
-                                  child: SizedBox(
-                                    width: scene.canvasSize.width,
-                                    height: scene.canvasSize.height,
-                                    child: Stack(
-                                      children: [
-                                        Positioned.fill(
-                                          child: CustomPaint(
-                                            key: const Key('tree-connectors'),
-                                            painter: _TreeConnectorPainter(
-                                              connectorGroups:
-                                                  scene.connectorGroups,
-                                              selectedMemberId:
-                                                  _selectedMemberId,
-                                            ),
-                                          ),
+          child: AppWorkspaceViewport(
+            child: ListView(
+              padding: appWorkspacePagePadding(context, top: 20, bottom: 120),
+              children: [
+                _LandingCard(
+                  scopeType: _scopeType,
+                  isLoading: _isLoading,
+                  isFromCache: segment.fromCache,
+                  onRefresh: _isLoading
+                      ? null
+                      : () => _load(allowCached: false),
+                  onScopeChanged: _updateScope,
+                  allowBranchScope: false,
+                  session: widget.session,
+                  memberCount: segment.graph.membersById.length,
+                  branchCount: segment.branches.length,
+                  canFocusViewer: viewer != null,
+                  onFocusViewer: viewer == null
+                      ? null
+                      : () => _focusTreeAroundMember(viewer.id),
+                  onShowOverview: _showTreeOverview,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: treeViewportHeight,
+                  child: RepaintBoundary(
+                    key: _treePrintBoundaryKey,
+                    child: AppWorkspaceSurface(
+                      padding: EdgeInsets.zero,
+                      borderRadius: BorderRadius.circular(28),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final viewport = Size(
+                            constraints.maxWidth,
+                            constraints.maxHeight,
+                          );
+                          if (_shouldAutoFitTree &&
+                              scene.nodeRects.isNotEmpty) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted || !_shouldAutoFitTree) {
+                                return;
+                              }
+                              _shouldAutoFitTree = false;
+                              _fitTreeToViewport(
+                                scene: scene,
+                                graph: segment.graph,
+                                viewport: viewport,
+                                focusMemberId: _rootMemberId,
+                                preferFocusedView: _preferFocusedViewport,
+                              );
+                            });
+                          }
+                          final colorScheme = Theme.of(context).colorScheme;
+                          return Stack(
+                            children: [
+                              Positioned.fill(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.white.withValues(alpha: 0.98),
+                                        colorScheme.surfaceContainerLowest
+                                            .withValues(alpha: 0.92),
+                                        colorScheme.primaryContainer.withValues(
+                                          alpha: 0.18,
                                         ),
-                                        for (final entry
-                                            in scene.nodeRects.entries)
-                                          Positioned(
-                                            left: entry.value.left,
-                                            top: entry.value.top,
-                                            width: entry.value.width,
-                                            height: entry.value.height,
-                                            child: _MemberNodeCard(
-                                              key: Key(
-                                                'tree-node-${entry.key}',
-                                              ),
-                                              member: segment
-                                                  .graph
-                                                  .membersById[entry.key]!,
-                                              siblingOrderLabel:
-                                                  _siblingOrderLabel(
-                                                    l10n,
-                                                    siblingOrdersByMember[entry
-                                                            .key] ??
-                                                        segment
-                                                            .graph
-                                                            .membersById[entry
-                                                                .key]!
-                                                            .siblingOrder,
-                                                  ),
-                                              honorBadges: _honorBadgeLabels(
-                                                l10n,
-                                                honorBadgesByMember[entry
-                                                        .key] ??
-                                                    const [],
-                                              ),
-                                              generationLabel:
-                                                  _memberGenerationLabelForDisplay(
-                                                    l10n: l10n,
-                                                    member:
-                                                        segment
-                                                            .graph
-                                                            .membersById[entry
-                                                            .key]!,
-                                                    viewer: viewer,
-                                                    membersById: segment
-                                                        .graph
-                                                        .membersById,
-                                                    relativeLevel:
-                                                        relativeLevelsByCurrentUser[entry
-                                                            .key],
-                                                    compact: true,
-                                                  ),
-                                              parentCount: segment.graph
-                                                  .parentsOf(entry.key)
-                                                  .length,
-                                              childCount: segment.graph
-                                                  .childrenOf(entry.key)
-                                                  .length,
-                                              spouseCount: segment.graph
-                                                  .spousesOf(entry.key)
-                                                  .length,
-                                              isAlive: _isMemberAlive(
-                                                segment.graph.membersById[entry
-                                                    .key]!,
-                                              ),
-                                              aliveStatusLabel: l10n
-                                                  .genealogyMemberAliveStatus,
-                                              deceasedStatusLabel: l10n
-                                                  .genealogyMemberDeceasedStatus,
-                                              isSelected:
-                                                  _selectedMemberId ==
-                                                  entry.key,
-                                              onTap: () {
-                                                final member = segment
-                                                    .graph
-                                                    .membersById[entry.key]!;
-                                                setState(() {
-                                                  _selectedMemberId = member.id;
-                                                });
-                                                _centerOnMember(
-                                                  memberId: member.id,
-                                                  scene: scene,
-                                                  viewport: viewport,
-                                                );
-                                                unawaited(
-                                                  _openMemberDetailSheet(
-                                                    member: member,
-                                                    graph: segment.graph,
-                                                    branches: segment.branches,
-                                                    siblingOrder:
-                                                        siblingOrdersByMember[member
-                                                            .id] ??
-                                                        member.siblingOrder,
-                                                    honorBadges:
-                                                        honorBadgesByMember[member
-                                                            .id] ??
-                                                        const [],
-                                                    relativeLevelsByCurrentUser:
-                                                        relativeLevelsByCurrentUser,
-                                                  ),
-                                                );
-                                              },
-                                              onViewMemberInfo: () {
-                                                final member = segment
-                                                    .graph
-                                                    .membersById[entry.key]!;
-                                                setState(() {
-                                                  _selectedMemberId = member.id;
-                                                });
-                                                _centerOnMember(
-                                                  memberId: member.id,
-                                                  scene: scene,
-                                                  viewport: viewport,
-                                                );
-                                                unawaited(
-                                                  _openMemberDetailPage(
-                                                    member: member,
-                                                    graph: segment.graph,
-                                                    branches: segment.branches,
-                                                    siblingOrder:
-                                                        siblingOrdersByMember[member
-                                                            .id] ??
-                                                        member.siblingOrder,
-                                                    honorBadges:
-                                                        honorBadgesByMember[member
-                                                            .id] ??
-                                                        const [],
-                                                    relativeLevelsByCurrentUser:
-                                                        relativeLevelsByCurrentUser,
-                                                  ),
-                                                );
-                                              },
-                                              viewInfoTooltip: l10n
-                                                  .genealogyViewMemberInfoAction,
-                                            ),
-                                          ),
                                       ],
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            Positioned(
-                              left: 12,
-                              top: 12,
-                              child: _TreeZoomControls(
-                                onZoomIn: _zoomIn,
-                                onZoomOut: _zoomOut,
-                                onReset: _resetTreeViewport,
-                                onExport: _openTreeExportSheet,
+                              Positioned.fill(
+                                child: InteractiveViewer(
+                                  transformationController:
+                                      _transformController,
+                                  constrained: false,
+                                  boundaryMargin: const EdgeInsets.all(220),
+                                  minScale: _minTreeScale,
+                                  maxScale: _maxTreeScale,
+                                  child: RepaintBoundary(
+                                    key: _treeCanvasPrintBoundaryKey,
+                                    child: SizedBox(
+                                      width: scene.canvasSize.width,
+                                      height: scene.canvasSize.height,
+                                      child: Stack(
+                                        children: [
+                                          Positioned.fill(
+                                            child: CustomPaint(
+                                              key: const Key('tree-connectors'),
+                                              painter: _TreeConnectorPainter(
+                                                connectorGroups:
+                                                    scene.connectorGroups,
+                                                selectedMemberId:
+                                                    _selectedMemberId,
+                                              ),
+                                            ),
+                                          ),
+                                          for (final entry
+                                              in scene.nodeRects.entries)
+                                            Positioned(
+                                              left: entry.value.left,
+                                              top: entry.value.top,
+                                              width: entry.value.width,
+                                              height: entry.value.height,
+                                              child: _MemberNodeCard(
+                                                key: Key(
+                                                  'tree-node-${entry.key}',
+                                                ),
+                                                member: segment
+                                                    .graph
+                                                    .membersById[entry.key]!,
+                                                siblingOrderLabel:
+                                                    _siblingOrderLabel(
+                                                      l10n,
+                                                      siblingOrdersByMember[entry
+                                                              .key] ??
+                                                          segment
+                                                              .graph
+                                                              .membersById[entry
+                                                                  .key]!
+                                                              .siblingOrder,
+                                                    ),
+                                                honorBadges: _honorBadgeLabels(
+                                                  l10n,
+                                                  honorBadgesByMember[entry
+                                                          .key] ??
+                                                      const [],
+                                                ),
+                                                generationLabel:
+                                                    _memberGenerationLabelForDisplay(
+                                                      l10n: l10n,
+                                                      member:
+                                                          segment
+                                                              .graph
+                                                              .membersById[entry
+                                                              .key]!,
+                                                      viewer: viewer,
+                                                      membersById: segment
+                                                          .graph
+                                                          .membersById,
+                                                      relativeLevel:
+                                                          relativeLevelsByCurrentUser[entry
+                                                              .key],
+                                                      compact: true,
+                                                    ),
+                                                parentCount: segment.graph
+                                                    .parentsOf(entry.key)
+                                                    .length,
+                                                childCount: segment.graph
+                                                    .childrenOf(entry.key)
+                                                    .length,
+                                                spouseCount: segment.graph
+                                                    .spousesOf(entry.key)
+                                                    .length,
+                                                isAlive: _isMemberAlive(
+                                                  segment
+                                                      .graph
+                                                      .membersById[entry.key]!,
+                                                ),
+                                                aliveStatusLabel: l10n
+                                                    .genealogyMemberAliveStatus,
+                                                deceasedStatusLabel: l10n
+                                                    .genealogyMemberDeceasedStatus,
+                                                isSelected:
+                                                    _selectedMemberId ==
+                                                    entry.key,
+                                                onTap: () {
+                                                  final member = segment
+                                                      .graph
+                                                      .membersById[entry.key]!;
+                                                  setState(() {
+                                                    _selectedMemberId =
+                                                        member.id;
+                                                  });
+                                                  _centerOnMember(
+                                                    memberId: member.id,
+                                                    scene: scene,
+                                                    viewport: viewport,
+                                                  );
+                                                },
+                                                onViewMemberInfo: () {
+                                                  final member = segment
+                                                      .graph
+                                                      .membersById[entry.key]!;
+                                                  setState(() {
+                                                    _selectedMemberId =
+                                                        member.id;
+                                                  });
+                                                  _centerOnMember(
+                                                    memberId: member.id,
+                                                    scene: scene,
+                                                    viewport: viewport,
+                                                  );
+                                                  unawaited(
+                                                    _openMemberDetailPage(
+                                                      member: member,
+                                                      graph: segment.graph,
+                                                      branches:
+                                                          segment.branches,
+                                                      siblingOrder:
+                                                          siblingOrdersByMember[member
+                                                              .id] ??
+                                                          member.siblingOrder,
+                                                      honorBadges:
+                                                          honorBadgesByMember[member
+                                                              .id] ??
+                                                          const [],
+                                                      relativeLevelsByCurrentUser:
+                                                          relativeLevelsByCurrentUser,
+                                                    ),
+                                                  );
+                                                },
+                                                viewInfoTooltip: l10n
+                                                    .genealogyViewMemberInfoAction,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
+                              Positioned(
+                                left: 12,
+                                top: 12,
+                                child: _TreeZoomControls(
+                                  onZoomIn: _zoomIn,
+                                  onZoomOut: _zoomOut,
+                                  onReset: _resetTreeViewport,
+                                  onExport: _openTreeExportSheet,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+                if (selectedMember != null) ...[
+                  const SizedBox(height: 16),
+                  _TreeMemberSpotlightCard(
+                    member: selectedMember,
+                    branchName: _branchDisplayNameForMember(
+                      selectedMember,
+                      segment.branches,
+                      l10n,
+                    ),
+                    generationLabel: _memberGenerationLabelForDisplay(
+                      l10n: l10n,
+                      member: selectedMember,
+                      viewer: viewer,
+                      membersById: segment.graph.membersById,
+                      relativeLevel:
+                          relativeLevelsByCurrentUser[selectedMember.id],
+                      compact: true,
+                    ),
+                    siblingOrderLabel: _siblingOrderLabel(
+                      l10n,
+                      siblingOrdersByMember[selectedMember.id] ??
+                          selectedMember.siblingOrder,
+                    ),
+                    honorBadges: _honorBadgeLabels(
+                      l10n,
+                      honorBadgesByMember[selectedMember.id] ?? const [],
+                    ),
+                    parentCount: segment.graph
+                        .parentsOf(selectedMember.id)
+                        .length,
+                    childCount: segment.graph
+                        .childrenOf(selectedMember.id)
+                        .length,
+                    spouseCount: segment.graph
+                        .spousesOf(selectedMember.id)
+                        .length,
+                    isAlive: _isMemberAlive(selectedMember),
+                    aliveStatusLabel: l10n.genealogyMemberAliveStatus,
+                    deceasedStatusLabel: l10n.genealogyMemberDeceasedStatus,
+                    isFocusRoot: _rootMemberId == selectedMember.id,
+                    onViewDetails: () {
+                      unawaited(
+                        _openMemberDetailPage(
+                          member: selectedMember,
+                          graph: segment.graph,
+                          branches: segment.branches,
+                          siblingOrder:
+                              siblingOrdersByMember[selectedMember.id] ??
+                              selectedMember.siblingOrder,
+                          honorBadges:
+                              honorBadgesByMember[selectedMember.id] ??
+                              const [],
+                          relativeLevelsByCurrentUser:
+                              relativeLevelsByCurrentUser,
+                        ),
+                      );
+                    },
+                    onFocusMember: () =>
+                        _focusTreeAroundMember(selectedMember.id),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
         Positioned(
@@ -555,6 +643,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       _selectedMemberId = null;
       _transformController.value = Matrix4.identity();
       _shouldAutoFitTree = true;
+      _preferFocusedViewport = true;
       _invalidateTreeSceneCache();
     });
     unawaited(_load());
@@ -2024,157 +2113,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     _animateTransformTo(target, duration: const Duration(milliseconds: 260));
   }
 
-  Future<void> _openMemberDetailSheet({
-    required MemberProfile member,
-    required GenealogyGraph graph,
-    required List<BranchProfile> branches,
-    required int? siblingOrder,
-    required List<_GenealogyHonorBadge> honorBadges,
-    required Map<String, int?> relativeLevelsByCurrentUser,
-  }) async {
-    final l10n = context.l10n;
-    final viewer = _viewerMemberForGraph(graph);
-    final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
-      graph: graph,
-      memberId: member.id,
-    );
-    final descendants = GenealogyGraphAlgorithms.buildDescendantsTraversal(
-      graph: graph,
-      memberId: member.id,
-    );
-    final statusLabel = _isMemberAlive(member)
-        ? l10n.genealogyMemberAliveStatus
-        : l10n.genealogyMemberDeceasedStatus;
-    final generationLabel = _memberGenerationLabelForDisplay(
-      l10n: l10n,
-      member: member,
-      viewer: viewer,
-      membersById: graph.membersById,
-      relativeLevel: relativeLevelsByCurrentUser[member.id],
-      compact: true,
-    );
-    final siblingLabel =
-        _siblingOrderLabel(l10n, siblingOrder) ?? l10n.memberFieldUnset;
-    final honorBadgeLabels = _honorBadgeLabels(l10n, honorBadges);
-    final honorBadgeLabel = honorBadgeLabels.isEmpty
-        ? l10n.memberFieldUnset
-        : honorBadgeLabels.join(' • ');
-
-    final compactFacts = <_CompactFactItem>[
-      _CompactFactItem(
-        label: l10n.genealogyMemberStatusLabel,
-        value: statusLabel,
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Đời trong gia phả', en: 'Generation'),
-        value: generationLabel,
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Thứ bậc anh/chị/em', en: 'Sibling order'),
-        value: siblingLabel,
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Vai trò trong họ', en: 'Honor badges'),
-        value: honorBadgeLabel,
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Số cha/mẹ', en: 'Parents'),
-        value: '${graph.parentsOf(member.id).length}',
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Số con', en: 'Children'),
-        value: '${graph.childrenOf(member.id).length}',
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Số vợ/chồng', en: 'Spouses'),
-        value: '${graph.spousesOf(member.id).length}',
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Tổng con cháu', en: 'Descendants'),
-        value: '${descendants.length}',
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Số đời tổ tiên', en: 'Ancestry depth'),
-        value: '${ancestry.length}',
-      ),
-    ];
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (context) {
-        final theme = Theme.of(context);
-        final tokens = context.uiTokens;
-        return SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            member.fullName,
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          if (member.nickName.trim().isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              member.nickName,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    SizedBox(width: tokens.spaceSm),
-                    AppCompactTextButton(
-                      key: const Key('genealogy-open-member-detail-action'),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        unawaited(
-                          _openMemberDetailPage(
-                            member: member,
-                            graph: graph,
-                            branches: branches,
-                            siblingOrder: siblingOrder,
-                            honorBadges: honorBadges,
-                            relativeLevelsByCurrentUser:
-                                relativeLevelsByCurrentUser,
-                          ),
-                        );
-                      },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.open_in_new, size: 16),
-                          SizedBox(width: tokens.spaceSm),
-                          Text(l10n.pick(vi: 'Xem chi tiết', en: 'Details')),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _CompactFactGrid(items: compactFacts),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _openMemberDetailPage({
     required MemberProfile member,
     required GenealogyGraph graph,
@@ -2328,6 +2266,35 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       return null;
     }
     return graph.membersById[viewerId];
+  }
+
+  MemberProfile? _selectedMemberForGraph(GenealogyGraph graph) {
+    final selectedId = _selectedMemberId?.trim();
+    if (selectedId != null && selectedId.isNotEmpty) {
+      final selected = graph.membersById[selectedId];
+      if (selected != null) {
+        return selected;
+      }
+    }
+    return _viewerMemberForGraph(graph) ??
+        (graph.membersById.isEmpty ? null : graph.membersById.values.first);
+  }
+
+  String _branchDisplayNameForMember(
+    MemberProfile member,
+    List<BranchProfile> branches,
+    AppLocalizations l10n,
+  ) {
+    final branchId = member.branchId.trim();
+    if (branchId.isEmpty) {
+      return l10n.pick(vi: 'Chưa gán chi', en: 'No branch yet');
+    }
+    for (final branch in branches) {
+      if (branch.id == branchId && branch.name.trim().isNotEmpty) {
+        return branch.name.trim();
+      }
+    }
+    return branchId;
   }
 
   Map<String, int?> _resolveRelativeLevelsByCurrentUser(GenealogyGraph graph) {
@@ -2589,8 +2556,27 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   void _zoomOut() => _scaleTree(0.86);
 
   void _resetTreeViewport() {
+    _showTreeOverview();
+  }
+
+  void _showTreeOverview() {
     setState(() {
       _shouldAutoFitTree = true;
+      _preferFocusedViewport = false;
+    });
+  }
+
+  void _focusTreeAroundMember(String memberId) {
+    final normalizedId = memberId.trim();
+    if (normalizedId.isEmpty) {
+      return;
+    }
+    setState(() {
+      _rootMemberId = normalizedId;
+      _selectedMemberId = normalizedId;
+      _shouldAutoFitTree = true;
+      _preferFocusedViewport = true;
+      _invalidateTreeSceneCache();
     });
   }
 
@@ -3097,10 +3083,45 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
 
   void _fitTreeToViewport({
     required _TreeScene scene,
+    required GenealogyGraph graph,
     required Size viewport,
     String? focusMemberId,
+    bool preferFocusedView = false,
   }) {
     if (viewport.width <= 0 || viewport.height <= 0) {
+      return;
+    }
+
+    final focusBounds = preferFocusedView && focusMemberId != null
+        ? _focusedViewportRect(
+            graph: graph,
+            scene: scene,
+            focusMemberId: focusMemberId,
+          )
+        : null;
+    if (focusBounds != null) {
+      const focusedPadding = 28.0;
+      final availableWidth = math.max(
+        1.0,
+        viewport.width - (focusedPadding * 2),
+      );
+      final availableHeight = math.max(
+        1.0,
+        viewport.height - (focusedPadding * 2),
+      );
+      final focusedScale = math.min(
+        availableWidth / focusBounds.width,
+        availableHeight / focusBounds.height,
+      );
+      final targetScale = focusedScale
+          .clamp(math.max(_minTreeScale, 0.42), 1.2)
+          .toDouble();
+      final dx = (viewport.width / 2) - (focusBounds.center.dx * targetScale);
+      final dy = (viewport.height / 2) - (focusBounds.center.dy * targetScale);
+      final target = Matrix4.identity()
+        ..translateByDouble(dx, dy, 0, 1)
+        ..scaleByDouble(targetScale, targetScale, targetScale, 1);
+      _animateTransformTo(target, duration: const Duration(milliseconds: 320));
       return;
     }
 
@@ -3139,6 +3160,30 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       ..translateByDouble(dx, dy, 0, 1)
       ..scaleByDouble(targetScale, targetScale, targetScale, 1);
     _animateTransformTo(target, duration: const Duration(milliseconds: 320));
+  }
+
+  Rect? _focusedViewportRect({
+    required GenealogyGraph graph,
+    required _TreeScene scene,
+    required String focusMemberId,
+  }) {
+    if (!scene.nodeRects.containsKey(focusMemberId)) {
+      return null;
+    }
+    final focusIds = <String>{
+      focusMemberId,
+      ...graph.parentsOf(focusMemberId),
+      ...graph.childrenOf(focusMemberId),
+      ...graph.spousesOf(focusMemberId),
+    }.where(scene.nodeRects.containsKey).toList(growable: false);
+    if (focusIds.isEmpty) {
+      return scene.nodeRects[focusMemberId];
+    }
+    Rect bounds = scene.nodeRects[focusIds.first]!;
+    for (final memberId in focusIds.skip(1)) {
+      bounds = bounds.expandToInclude(scene.nodeRects[memberId]!);
+    }
+    return bounds.inflate(72);
   }
 
   void _animateTransformTo(Matrix4 target, {required Duration duration}) {
@@ -3743,6 +3788,9 @@ class _LandingCard extends StatelessWidget {
     required this.session,
     required this.memberCount,
     required this.branchCount,
+    required this.canFocusViewer,
+    this.onFocusViewer,
+    required this.onShowOverview,
   });
 
   final GenealogyScopeType scopeType;
@@ -3754,28 +3802,22 @@ class _LandingCard extends StatelessWidget {
   final AuthSession session;
   final int memberCount;
   final int branchCount;
+  final bool canFocusViewer;
+  final VoidCallback? onFocusViewer;
+  final VoidCallback onShowOverview;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
     final tokens = context.uiTokens;
 
-    return Container(
+    return AppWorkspaceSurface(
       key: const Key('genealogy-landing-card'),
       padding: EdgeInsets.all(tokens.spaceXl + 2),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colorScheme.primaryContainer,
-            colorScheme.secondaryContainer,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(tokens.radiusLg + 4),
-      ),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
+      borderRadius: BorderRadius.circular(tokens.radiusLg + 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3783,7 +3825,7 @@ class _LandingCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  l10n.genealogyWorkspaceTitle,
+                  l10n.pick(vi: 'Cây gia phả', en: 'Family tree'),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -3803,18 +3845,21 @@ class _LandingCard extends StatelessWidget {
               ),
             ],
           ),
+          SizedBox(height: tokens.spaceSm),
+          Text(
+            l10n.pick(
+              vi: 'Theo dõi các nhánh, thế hệ và mối liên kết trong gia đình trong một sơ đồ gọn, rõ và dễ khám phá hơn trên điện thoại.',
+              en: 'Explore branches, generations, and family relationships in a clearer mobile-friendly tree.',
+            ),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           SizedBox(height: tokens.spaceMd),
           Wrap(
             spacing: tokens.spaceMd - 2,
             runSpacing: tokens.spaceMd - 2,
             children: [
-              _LandingInfoChip(
-                icon: Icons.visibility_outlined,
-                label: l10n.pick(
-                  vi: 'Đang xem: ${scopeType == GenealogyScopeType.clan ? 'Cả họ' : 'Chi hiện tại'}',
-                  en: 'Viewing: ${scopeType == GenealogyScopeType.clan ? 'Whole clan' : 'Current branch'}',
-                ),
-              ),
               _LandingInfoChip(
                 icon: Icons.groups_2_outlined,
                 label: l10n.pick(
@@ -3832,6 +3877,22 @@ class _LandingCard extends StatelessWidget {
             ],
           ),
           SizedBox(height: tokens.spaceLg),
+          Wrap(
+            spacing: tokens.spaceSm,
+            runSpacing: tokens.spaceSm,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: canFocusViewer ? onFocusViewer : null,
+                icon: const Icon(Icons.person_search_outlined),
+                label: Text(l10n.pick(vi: 'Xem quanh tôi', en: 'Focus on me')),
+              ),
+              OutlinedButton.icon(
+                onPressed: onShowOverview,
+                icon: const Icon(Icons.grid_view_rounded),
+                label: Text(l10n.pick(vi: 'Xem toàn cảnh', en: 'Overview')),
+              ),
+            ],
+          ),
           if (allowBranchScope)
             Wrap(
               spacing: tokens.spaceMd,
@@ -4126,14 +4187,7 @@ class _TreeExportSheet extends StatelessWidget {
               context,
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.pick(
-              vi: 'Khuyên dùng poster nhiều trang cho cây lớn để chữ rõ và tránh quá tải bộ nhớ.',
-              en: 'For large trees, multi-page poster mode is recommended for better readability and lower memory load.',
-            ),
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           for (var index = 0; index < actions.length; index++) ...[
             Builder(
               builder: (context) {
@@ -4151,12 +4205,6 @@ class _TreeExportSheet extends StatelessWidget {
                     l10n.pick(
                       vi: _treeExportActionTitleVi(action),
                       en: _treeExportActionTitleEn(action),
-                    ),
-                  ),
-                  subtitle: Text(
-                    l10n.pick(
-                      vi: _treeExportActionSubtitleVi(action),
-                      en: _treeExportActionSubtitleEn(action),
                     ),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -4197,26 +4245,170 @@ String _treeExportActionTitleEn(_TreeExportAction action) {
       : 'Download single-page PDF ($paper)';
 }
 
-String _treeExportActionSubtitleVi(_TreeExportAction action) {
-  if (action.layout == _TreeExportLayout.poster) {
-    return action.mode == _TreeExportMode.print
-        ? 'Giữ chữ rõ hơn cho cây lớn, mở hộp thoại in theo nhiều trang.'
-        : 'Tạo PDF nhiều trang để lưu/chia sẻ dễ in khổ lớn.';
-  }
-  return action.mode == _TreeExportMode.print
-      ? 'Mở hộp thoại in và dồn toàn bộ cây vào một trang.'
-      : 'Lưu một tệp PDF 1 trang để chia sẻ nhanh.';
-}
+class _TreeMemberSpotlightCard extends StatelessWidget {
+  const _TreeMemberSpotlightCard({
+    required this.member,
+    required this.branchName,
+    required this.generationLabel,
+    required this.siblingOrderLabel,
+    required this.honorBadges,
+    required this.parentCount,
+    required this.childCount,
+    required this.spouseCount,
+    required this.isAlive,
+    required this.aliveStatusLabel,
+    required this.deceasedStatusLabel,
+    required this.isFocusRoot,
+    required this.onViewDetails,
+    required this.onFocusMember,
+  });
 
-String _treeExportActionSubtitleEn(_TreeExportAction action) {
-  if (action.layout == _TreeExportLayout.poster) {
-    return action.mode == _TreeExportMode.print
-        ? 'Keeps text readable on large trees and opens print dialog in multi-page poster mode.'
-        : 'Generates a multi-page PDF that is easier to print in large formats.';
+  final MemberProfile member;
+  final String branchName;
+  final String generationLabel;
+  final String? siblingOrderLabel;
+  final List<String> honorBadges;
+  final int parentCount;
+  final int childCount;
+  final int spouseCount;
+  final bool isAlive;
+  final String aliveStatusLabel;
+  final String deceasedStatusLabel;
+  final bool isFocusRoot;
+  final VoidCallback onViewDetails;
+  final VoidCallback onFocusMember;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.uiTokens;
+    final theme = Theme.of(context);
+    final accentLabel = honorBadges.isNotEmpty
+        ? honorBadges.first
+        : siblingOrderLabel;
+    return AppWorkspaceSurface(
+      padding: EdgeInsets.all(tokens.spaceLg),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.l10n.pick(vi: 'Đang chọn', en: 'Selected member'),
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(height: tokens.spaceMd),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                foregroundColor: theme.colorScheme.onPrimaryContainer,
+                child: Text(
+                  member.initials,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              SizedBox(width: tokens.spaceMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      member.displayName,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: tokens.spaceXs),
+                    Text(
+                      generationLabel,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (accentLabel != null) ...[
+                      SizedBox(height: tokens.spaceSm),
+                      _NodeAccentBadge(label: accentLabel),
+                    ],
+                  ],
+                ),
+              ),
+              SizedBox(width: tokens.spaceSm),
+              _StatusChip(
+                isAlive: isAlive,
+                aliveStatusLabel: aliveStatusLabel,
+                deceasedStatusLabel: deceasedStatusLabel,
+              ),
+            ],
+          ),
+          SizedBox(height: tokens.spaceMd),
+          Wrap(
+            spacing: tokens.spaceSm,
+            runSpacing: tokens.spaceSm,
+            children: [
+              _MiniFactChip(
+                icon: Icons.account_tree_outlined,
+                label: branchName,
+              ),
+              _MiniFactChip(icon: Icons.north_outlined, label: '$parentCount'),
+              _MiniFactChip(icon: Icons.south_outlined, label: '$childCount'),
+              _MiniFactChip(icon: Icons.favorite_border, label: '$spouseCount'),
+            ],
+          ),
+          SizedBox(height: tokens.spaceMd),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stackActions = constraints.maxWidth < 430;
+              final detailAction = FilledButton.icon(
+                onPressed: onViewDetails,
+                icon: const Icon(Icons.open_in_new),
+                label: Text(
+                  context.l10n.pick(vi: 'Xem chi tiết', en: 'View details'),
+                ),
+              );
+              final focusAction = OutlinedButton.icon(
+                onPressed: isFocusRoot ? null : onFocusMember,
+                icon: const Icon(Icons.center_focus_strong_outlined),
+                label: Text(
+                  isFocusRoot
+                      ? context.l10n.pick(
+                          vi: 'Đang là tâm điểm',
+                          en: 'Already focused',
+                        )
+                      : context.l10n.pick(
+                          vi: 'Xem quanh người này',
+                          en: 'Focus on this person',
+                        ),
+                ),
+              );
+              if (stackActions) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    detailAction,
+                    SizedBox(height: tokens.spaceSm),
+                    focusAction,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: detailAction),
+                  SizedBox(width: tokens.spaceSm),
+                  Expanded(child: focusAction),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
-  return action.mode == _TreeExportMode.print
-      ? 'Opens print dialog and fits the entire tree into a single page.'
-      : 'Creates a single-page PDF for quick sharing.';
 }
 
 class _MemberNodeCard extends StatelessWidget {
@@ -4257,46 +4449,111 @@ class _MemberNodeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    return Card(
-      color: isSelected ? colorScheme.primaryContainer : null,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
+    final tokens = context.uiTokens;
+    final accentLabel = honorBadges.isNotEmpty
+        ? honorBadges.first
+        : siblingOrderLabel;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isSelected
+              ? [
+                  colorScheme.primaryContainer.withValues(alpha: 0.94),
+                  Colors.white.withValues(alpha: 0.98),
+                ]
+              : [
+                  Colors.white.withValues(alpha: 0.98),
+                  colorScheme.surfaceContainerLowest.withValues(alpha: 0.92),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
           color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
           width: isSelected ? 2 : 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(
+              alpha: isSelected ? 0.12 : 0.06,
+            ),
+            blurRadius: isSelected ? 18 : 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    child: Text(
-                      member.initials,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 19,
+                      backgroundColor: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.primaryContainer,
+                      foregroundColor: isSelected
+                          ? colorScheme.onPrimary
+                          : colorScheme.onPrimaryContainer,
+                      child: Text(
+                        member.initials,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            member.fullName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            generationLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (accentLabel != null) ...[
+                            const SizedBox(height: 6),
+                            _NodeAccentBadge(label: accentLabel),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(
-                          member.fullName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
+                        Tooltip(
+                          message: viewInfoTooltip,
+                          child: IconButton(
+                            key: Key('tree-node-info-${member.id}'),
+                            visualDensity: VisualDensity.compact,
+                            iconSize: 16,
+                            splashRadius: 16,
+                            onPressed: onViewMemberInfo,
+                            icon: const Icon(Icons.info_outline),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -4307,68 +4564,58 @@ class _MemberNodeCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 2),
-                  Tooltip(
-                    message: viewInfoTooltip,
-                    child: IconButton(
-                      key: Key('tree-node-info-${member.id}'),
-                      visualDensity: VisualDensity.compact,
-                      iconSize: 16,
-                      splashRadius: 16,
-                      onPressed: onViewMemberInfo,
-                      icon: const Icon(Icons.info_outline),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.bottomLeft,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        if (siblingOrderLabel != null) ...[
-                          _MiniFactChip(
-                            icon: Icons.format_list_numbered,
-                            label: siblingOrderLabel!,
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        for (final badge in honorBadges.take(2)) ...[
-                          _MiniFactChip(
-                            icon: Icons.workspace_premium_outlined,
-                            label: badge,
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        _MiniFactChip(
-                          icon: Icons.layers_outlined,
-                          label: generationLabel,
-                        ),
-                        const SizedBox(width: 8),
-                        _MiniFactChip(
-                          icon: Icons.north_outlined,
-                          label: '$parentCount',
-                        ),
-                        const SizedBox(width: 8),
-                        _MiniFactChip(
-                          icon: Icons.south_outlined,
-                          label: '$childCount',
-                        ),
-                        const SizedBox(width: 8),
-                        _MiniFactChip(
-                          icon: Icons.favorite_border,
-                          label: '$spouseCount',
-                        ),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
-              ),
-            ],
+                const Spacer(),
+                Wrap(
+                  spacing: tokens.spaceXs + 2,
+                  runSpacing: tokens.spaceXs + 2,
+                  children: [
+                    _MiniFactChip(
+                      icon: Icons.north_outlined,
+                      label: '$parentCount',
+                    ),
+                    _MiniFactChip(
+                      icon: Icons.south_outlined,
+                      label: '$childCount',
+                    ),
+                    _MiniFactChip(
+                      icon: Icons.favorite_border,
+                      label: '$spouseCount',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NodeAccentBadge extends StatelessWidget {
+  const _NodeAccentBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.secondaryContainer.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: colorScheme.onSecondaryContainer,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -4552,84 +4799,6 @@ class _FactLine extends StatelessWidget {
                   Align(alignment: Alignment.centerRight, child: trailing!),
                 ],
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CompactFactItem {
-  const _CompactFactItem({required this.label, required this.value});
-
-  final String label;
-  final String value;
-}
-
-class _CompactFactGrid extends StatelessWidget {
-  const _CompactFactGrid({required this.items});
-
-  final List<_CompactFactItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth >= 620 ? 3 : 2;
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            mainAxisExtent: 62,
-          ),
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return _CompactFactCard(item: item);
-          },
-        );
-      },
-    );
-  }
-}
-
-class _CompactFactCard extends StatelessWidget {
-  const _CompactFactCard({required this.item});
-
-  final _CompactFactItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Text(
-            item.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            item.value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w700,
             ),
           ),
         ],

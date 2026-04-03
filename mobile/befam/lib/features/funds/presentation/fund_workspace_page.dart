@@ -11,6 +11,7 @@ import '../../../core/services/governance_role_matrix.dart';
 import '../../../core/widgets/app_compact_controls.dart';
 import '../../../core/services/kinship_title_resolver.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/models/clan_context_option.dart';
@@ -192,10 +193,6 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           title: fund == null
               ? l10n.pick(vi: 'Tạo quỹ', en: 'Create fund')
               : l10n.pick(vi: 'Chỉnh sửa quỹ', en: 'Edit fund'),
-          description: l10n.pick(
-            vi: 'Thiết lập quỹ để ghi nhận thu, chi và số dư.',
-            en: 'Set up a fund to track income, expense, and balance.',
-          ),
           initialDraft: fund == null
               ? FundDraft.empty()
               : FundDraft.fromProfile(fund),
@@ -264,6 +261,45 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         },
       ),
     );
+  }
+
+  Future<void> _openTransactionEditor(
+    FundProfile fund,
+    FundTransactionType type,
+  ) async {
+    final l10n = context.l10n;
+    final didSave = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return _TransactionEditorSheet(
+          title: type == FundTransactionType.donation
+              ? l10n.pick(vi: 'Ghi nhận đóng góp', en: 'Record donation')
+              : l10n.pick(vi: 'Ghi nhận chi tiêu', en: 'Record expense'),
+          initialDraft: FundTransactionDraft.empty(
+            fundId: fund.id,
+            currency: fund.currency,
+            transactionType: type,
+          ),
+          isSaving: _controller.isSavingTransaction,
+          onSubmit: (draft) => _controller.recordTransaction(draft: draft),
+        );
+      },
+    );
+
+    if (didSave == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            type == FundTransactionType.donation
+                ? l10n.pick(vi: 'Đã lưu đóng góp.', en: 'Donation saved.')
+                : l10n.pick(vi: 'Đã lưu chi tiêu.', en: 'Expense saved.'),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _refreshWorkspace() async {
@@ -345,8 +381,6 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       animation: _controller,
       builder: (context, _) {
         final l10n = context.l10n;
-        final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
         final currentFund = _controller.selectedFund;
         final hasFunds = _controller.funds.isNotEmpty;
         final listBottomPadding =
@@ -362,6 +396,61 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
             .take(_visibleFundCount)
             .toList(growable: false);
         final hasMoreFunds = visibleFunds.length < _controller.funds.length;
+        final workspaceError = _friendlyRuntimeErrorMessage(
+          context,
+          _controller.errorMessage,
+        );
+        final treasurerDashboardError = _friendlyRuntimeErrorMessage(
+          context,
+          _controller.treasurerDashboardErrorMessage,
+        );
+        final currentTreasurerLabel = currentFund == null
+            ? ''
+            : _treasurerSummaryLabel(context, currentFund: currentFund).trim();
+        final selectedFundMemberLabel = currentFund == null
+            ? ''
+            : (_memberCountLabelForFund(context, currentFund) ?? '').trim();
+        final heroHighlights = <_WorkspaceHeroHighlight>[
+          _WorkspaceHeroHighlight(
+            icon: Icons.account_balance_wallet_outlined,
+            label: _formatMoney(
+              context,
+              amountMinor: _totalBalanceMinor(),
+              currency: displayCurrency,
+            ),
+          ),
+          _WorkspaceHeroHighlight(
+            icon: Icons.inventory_2_outlined,
+            label: l10n.pick(
+              vi: '${_controller.funds.length} ${_controller.funds.length == 1 ? 'quỹ hoạt động' : 'quỹ đang hoạt động'}',
+              en: '${_controller.funds.length} ${_controller.funds.length == 1 ? 'active fund' : 'active funds'}',
+            ),
+            tone: Theme.of(context).colorScheme.secondaryContainer,
+          ),
+          if (currentFund != null)
+            _WorkspaceHeroHighlight(
+              icon: Icons.person_outline,
+              label: currentTreasurerLabel.isNotEmpty
+                  ? currentTreasurerLabel
+                  : _fundTypeLabel(context, currentFund.fundType),
+            ),
+        ];
+        final heroPrimaryActionLabel = !hasFunds && _controller.canManageFunds
+            ? l10n.pick(vi: 'Tạo quỹ đầu tiên', en: 'Create first fund')
+            : currentFund != null
+            ? l10n.pick(vi: 'Mở quỹ đang chọn', en: 'Open selected fund')
+            : null;
+        final heroPrimaryAction = !hasFunds && _controller.canManageFunds
+            ? () => _openFundEditor()
+            : currentFund != null
+            ? () => _openFundDetail(currentFund)
+            : null;
+        final heroSecondaryActionLabel = hasFunds && _controller.canManageFunds
+            ? l10n.pick(vi: 'Tạo quỹ', en: 'Create fund')
+            : null;
+        final heroSecondaryAction = hasFunds && _controller.canManageFunds
+            ? () => _openFundEditor()
+            : null;
 
         return Scaffold(
           appBar: AppBar(
@@ -378,8 +467,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
             child: _controller.isLoading
                 ? AppLoadingState(
                     message: l10n.pick(
-                      vi: 'Đang tải không gian quỹ...',
-                      en: 'Loading fund workspace...',
+                      vi: 'Đang tải sổ quỹ...',
+                      en: 'Loading funds...',
                     ),
                   )
                 : !_controller.canViewFunds
@@ -389,103 +478,137 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                       vi: 'Không có quyền tài chính',
                       en: 'No finance access',
                     ),
-                    description: l10n.pick(
-                      vi: 'Chỉ Trưởng tộc, Trưởng chi hoặc Thủ quỹ được xem sổ quỹ.',
-                      en: 'Only Clan Lead, Branch Lead, or Treasurer can view the ledger.',
-                    ),
+                    standalone: true,
                   )
                 : RefreshIndicator(
                     onRefresh: _refreshWorkspace,
-                    child: ListView(
-                      controller: _workspaceScrollController,
-                      padding: EdgeInsets.fromLTRB(
-                        20,
-                        16,
-                        20,
-                        listBottomPadding,
-                      ),
-                      children: [
-                        _WorkspaceHero(
-                          title: l10n.pick(
-                            vi: 'Không gian sổ quỹ',
-                            en: 'Fund ledger workspace',
-                          ),
-                          description: hasFunds
-                              ? l10n.pick(
-                                  vi: 'Theo dõi số dư và biến động theo quỹ.',
-                                  en: 'Track balance changes by fund.',
-                                )
-                              : l10n.pick(
-                                  vi: 'Theo dõi thu, chi và số dư theo từng quỹ.',
-                                  en: 'Track income, expense, and balance by fund.',
-                                ),
-                          canManageFunds: _controller.canManageFunds,
-                          compact: hasFunds,
-                          onPrimaryAction:
-                              _controller.canManageFunds && !hasFunds
-                              ? () => _openFundEditor()
-                              : null,
+                    child: AppWorkspaceViewport(
+                      child: ListView(
+                        controller: _workspaceScrollController,
+                        padding: appWorkspacePagePadding(
+                          context,
+                          top: 16,
+                          bottom: listBottomPadding,
                         ),
-                        const SizedBox(height: 16),
-                        if (_controller.canViewFunds)
-                          _buildTreasurerDashboardSection(
-                            context,
-                            displayCurrency: displayCurrency,
-                          ),
-                        if (_controller.canViewFunds)
-                          const SizedBox(height: 16),
-                        if (_friendlyRuntimeErrorMessage(
-                              context,
-                              _controller.errorMessage,
-                            )
-                            case final error?) ...[
-                          _InfoCard(
-                            icon: Icons.error_outline,
+                        children: [
+                          _WorkspaceHero(
                             title: l10n.pick(
-                              vi: 'Không thể đồng bộ quỹ',
-                              en: 'Unable to sync funds',
+                              vi: 'Sổ quỹ gia tộc',
+                              en: 'Family funds',
                             ),
-                            description: error,
-                            tone: colorScheme.errorContainer,
+                            highlights: heroHighlights,
+                            primaryActionLabel: heroPrimaryActionLabel,
+                            onPrimaryAction: heroPrimaryAction,
+                            secondaryActionLabel: heroSecondaryActionLabel,
+                            onSecondaryAction: heroSecondaryAction,
                           ),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              onPressed: () {
-                                unawaited(_refreshWorkspace());
-                              },
-                              icon: const Icon(Icons.refresh),
-                              label: Text(
-                                l10n.pick(vi: 'Tải lại', en: 'Retry'),
+                          if (workspaceError != null) ...[
+                            const SizedBox(height: 14),
+                            _InfoCard(
+                              icon: Icons.error_outline,
+                              title: l10n.pick(
+                                vi: 'Chưa thể cập nhật dữ liệu quỹ',
+                                en: 'Unable to refresh fund data',
                               ),
+                              description: workspaceError,
+                              tone: Theme.of(
+                                context,
+                              ).colorScheme.errorContainer,
+                              compact: true,
                             ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        if (_controller.canManageFunds &&
-                            currentFund != null &&
-                            _treasurerSummaryLabel(
-                              context,
-                              currentFund: currentFund,
-                            ).trim().isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: Text(
-                              l10n.pick(
-                                vi: 'Thủ quỹ hiện tại: ${_treasurerSummaryLabel(context, currentFund: currentFund)}',
-                                en: 'Current treasurer: ${_treasurerSummaryLabel(context, currentFund: currentFund)}',
+                          ],
+                          if (treasurerDashboardError != null &&
+                              !_shouldShowTreasurerDashboardSection()) ...[
+                            const SizedBox(height: 12),
+                            _InfoCard(
+                              icon: Icons.info_outline,
+                              title: l10n.pick(
+                                vi: 'Phần tổng quan sẽ hiển thị khi có dữ liệu',
+                                en: 'The overview will appear when data is available',
                               ),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
+                              tone: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
+                              compact: true,
                             ),
-                          ),
-                        if (currentFund != null &&
-                            _hasFundTransferInfo(currentFund))
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: _FundTransferInfoCard(
+                          ],
+                          if (hasFunds && _shouldShowFundSummaryTiles()) ...[
+                            const SizedBox(height: 16),
+                            _StatRow(
+                              items: [
+                                _StatTile(
+                                  label: l10n.pick(vi: 'Số dư', en: 'Balance'),
+                                  value: _formatMoney(
+                                    context,
+                                    amountMinor: _totalBalanceMinor(),
+                                    currency: displayCurrency,
+                                  ),
+                                  icon: Icons.account_balance_wallet_outlined,
+                                ),
+                                _StatTile(
+                                  label: l10n.pick(
+                                    vi: 'Thu tháng này',
+                                    en: 'This month income',
+                                  ),
+                                  value: _formatMoney(
+                                    context,
+                                    amountMinor: _donationThisMonthMinor(),
+                                    currency: displayCurrency,
+                                  ),
+                                  icon: Icons.south_west_rounded,
+                                  iconBackgroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primaryContainer,
+                                  valueColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
+                                ),
+                                _StatTile(
+                                  label: l10n.pick(
+                                    vi: 'Chi tháng này',
+                                    en: 'This month expense',
+                                  ),
+                                  value: _formatMoney(
+                                    context,
+                                    amountMinor: _expenseThisMonthMinor(),
+                                    currency: displayCurrency,
+                                  ),
+                                  icon: Icons.north_east_rounded,
+                                  iconBackgroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.errorContainer,
+                                  valueColor: Theme.of(
+                                    context,
+                                  ).colorScheme.error,
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (currentFund != null) ...[
+                            const SizedBox(height: 16),
+                            _SelectedFundSpotlight(
+                              fund: currentFund,
+                              memberCountLabel: selectedFundMemberLabel,
+                              treasurerLabel: currentTreasurerLabel,
+                              onOpenDetail: () => _openFundDetail(currentFund),
+                              onRecordDonation: _controller.canManageFunds
+                                  ? () => _openTransactionEditor(
+                                      currentFund,
+                                      FundTransactionType.donation,
+                                    )
+                                  : null,
+                              onRecordExpense: _controller.canManageFunds
+                                  ? () => _openTransactionEditor(
+                                      currentFund,
+                                      FundTransactionType.expense,
+                                    )
+                                  : null,
+                            ),
+                          ],
+                          if (currentFund != null &&
+                              _hasFundTransferInfo(currentFund)) ...[
+                            const SizedBox(height: 16),
+                            _FundTransferInfoCard(
                               bankName: currentFund.bankName,
                               accountNumber: currentFund.bankAccountNumber,
                               accountHolder: currentFund.bankAccountHolder,
@@ -506,102 +629,86 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                                     ),
                                   ),
                             ),
-                          ),
-                        if (hasFunds && _shouldShowFundSummaryTiles()) ...[
-                          _StatRow(
-                            items: [
-                              _StatTile(
-                                label: l10n.pick(vi: 'Số dư', en: 'Balance'),
-                                value: _formatMoney(
-                                  context,
-                                  amountMinor: _totalBalanceMinor(),
-                                  currency: displayCurrency,
-                                ),
-                                icon: Icons.account_balance_wallet_outlined,
-                              ),
-                              _StatTile(
-                                label: l10n.pick(
-                                  vi: 'Thu tháng này',
-                                  en: 'This month income',
-                                ),
-                                value: _formatMoney(
-                                  context,
-                                  amountMinor: _donationThisMonthMinor(),
-                                  currency: displayCurrency,
-                                ),
-                                icon: Icons.south_west_rounded,
-                                iconBackgroundColor:
-                                    colorScheme.primaryContainer,
-                                valueColor: colorScheme.primary,
-                              ),
-                              _StatTile(
-                                label: l10n.pick(
-                                  vi: 'Chi tháng này',
-                                  en: 'This month expense',
-                                ),
-                                value: _formatMoney(
-                                  context,
-                                  amountMinor: _expenseThisMonthMinor(),
-                                  currency: displayCurrency,
-                                ),
-                                icon: Icons.north_east_rounded,
-                                iconBackgroundColor: colorScheme.errorContainer,
-                                valueColor: colorScheme.error,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            l10n.pick(vi: 'Danh sách quỹ', en: 'Fund list'),
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
+                          ],
+                          const SizedBox(height: 16),
+                          _SectionCard(
+                            title: l10n.pick(
+                              vi: 'Danh sách quỹ',
+                              en: 'Fund list',
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Column(
-                            children: [
-                              for (var i = 0; i < visibleFunds.length; i++)
-                                Padding(
-                                  padding: EdgeInsets.only(
-                                    bottom:
-                                        i == visibleFunds.length - 1 &&
-                                            !hasMoreFunds
-                                        ? 0
-                                        : 14,
-                                  ),
-                                  child: _FundSummaryCard(
-                                    key: Key('fund-row-${visibleFunds[i].id}'),
-                                    fund: visibleFunds[i],
-                                    memberCountLabel: _memberCountLabelForFund(
-                                      context,
-                                      visibleFunds[i],
+                            child: !hasFunds
+                                ? _InfoCard(
+                                    icon: Icons.account_balance_wallet_outlined,
+                                    title: l10n.pick(
+                                      vi: 'Chưa có quỹ nào',
+                                      en: 'No funds yet',
                                     ),
-                                    onTap: () =>
-                                        _openFundDetail(visibleFunds[i]),
-                                    onEdit: _controller.canManageFunds
-                                        ? () => _openFundEditor(
+                                    tone: Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest,
+                                    compact: true,
+                                  )
+                                : Column(
+                                    children: [
+                                      for (
+                                        var i = 0;
+                                        i < visibleFunds.length;
+                                        i++
+                                      )
+                                        Padding(
+                                          padding: EdgeInsets.only(
+                                            bottom:
+                                                i == visibleFunds.length - 1 &&
+                                                    !hasMoreFunds
+                                                ? 0
+                                                : 14,
+                                          ),
+                                          child: _FundSummaryCard(
+                                            key: Key(
+                                              'fund-row-${visibleFunds[i].id}',
+                                            ),
                                             fund: visibleFunds[i],
-                                          )
-                                        : null,
+                                            memberCountLabel:
+                                                _memberCountLabelForFund(
+                                                  context,
+                                                  visibleFunds[i],
+                                                ),
+                                            onTap: () => _openFundDetail(
+                                              visibleFunds[i],
+                                            ),
+                                            onEdit: _controller.canManageFunds
+                                                ? () => _openFundEditor(
+                                                    fund: visibleFunds[i],
+                                                  )
+                                                : null,
+                                          ),
+                                        ),
+                                      if (hasMoreFunds) ...[
+                                        const SizedBox(height: 2),
+                                        _InfoCard(
+                                          icon: Icons.unfold_more_outlined,
+                                          title: l10n.pick(
+                                            vi: 'Đã hiển thị ${visibleFunds.length}/${_controller.funds.length}',
+                                            en: 'Showing ${visibleFunds.length}/${_controller.funds.length}',
+                                          ),
+                                          tone: Theme.of(
+                                            context,
+                                          ).colorScheme.surfaceContainerHighest,
+                                          compact: true,
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                ),
-                              if (hasMoreFunds)
-                                _InfoCard(
-                                  icon: Icons.unfold_more_outlined,
-                                  title: l10n.pick(
-                                    vi: 'Đang tải thêm quỹ',
-                                    en: 'Loading more funds',
-                                  ),
-                                  description: l10n.pick(
-                                    vi: 'Đã hiển thị ${visibleFunds.length}/${_controller.funds.length}. Kéo xuống để tải thêm.',
-                                    en: 'Showing ${visibleFunds.length}/${_controller.funds.length}. Scroll to load more.',
-                                  ),
-                                  tone: colorScheme.surfaceContainerHighest,
-                                ),
-                            ],
                           ),
+                          if (_shouldShowTreasurerDashboardSection()) ...[
+                            const SizedBox(height: 16),
+                            _buildTreasurerDashboardSection(
+                              context,
+                              displayCurrency: displayCurrency,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
           ),
@@ -649,12 +756,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       return _InfoCard(
         icon: Icons.analytics_outlined,
         title: l10n.pick(
-          vi: 'Đang tải bảng điều hành thủ quỹ',
-          en: 'Loading treasurer dashboard',
-        ),
-        description: l10n.pick(
-          vi: 'Đang đồng bộ số dư, lịch sử đóng góp và yêu cầu chi...',
-          en: 'Syncing balances, donations, and payout requests...',
+          vi: 'Đang chuẩn bị tổng quan tài chính',
+          en: 'Preparing financial overview',
         ),
         tone: colorScheme.surfaceContainerHighest,
       );
@@ -664,8 +767,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       return _InfoCard(
         icon: Icons.error_outline,
         title: l10n.pick(
-          vi: 'Không tải được bảng điều hành thủ quỹ',
-          en: 'Unable to load treasurer dashboard',
+          vi: 'Chưa thể tải phần tổng quan tài chính',
+          en: 'Unable to load the financial overview',
         ),
         description: loadError,
         tone: colorScheme.errorContainer,
@@ -673,7 +776,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     }
 
     return _SectionCard(
-      title: l10n.pick(vi: 'Bảng điều hành thủ quỹ', en: 'Treasurer dashboard'),
+      title: l10n.pick(vi: 'Tổng quan tài chính', en: 'Financial overview'),
       actionLabel: _controller.isLoadingTreasurerDashboard
           ? null
           : l10n.pick(vi: 'Làm mới', en: 'Refresh'),
@@ -683,25 +786,12 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (dashboardClanId.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                l10n.pick(
-                  vi: 'Phạm vi gia phả: $dashboardClanLabel',
-                  en: 'Clan scope: $dashboardClanLabel',
-                ),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
           if (loadError != null && hasDashboardData) ...[
             _InfoCard(
               icon: Icons.info_outline,
               title: l10n.pick(
-                vi: 'Dữ liệu thủ quỹ chưa đồng bộ hoàn toàn',
-                en: 'Dashboard data is partially synced',
+                vi: 'Một phần dữ liệu vẫn đang được cập nhật',
+                en: 'Some information is still updating',
               ),
               description: loadError,
               tone: colorScheme.surfaceContainerHighest,
@@ -758,8 +848,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           if (donationHistory.isEmpty)
             Text(
               l10n.pick(
-                vi: 'Chưa có bản ghi đóng góp trong phạm vi hiển thị.',
-                en: 'No donation records in the current dashboard range.',
+                vi: 'Chưa có khoản đóng góp nào trong giai đoạn đang xem.',
+                en: 'No contributions in the current period.',
               ),
             )
           else
@@ -825,8 +915,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           if (scholarshipHistory.isEmpty)
             Text(
               l10n.pick(
-                vi: 'Chưa có hồ sơ học bổng trong phạm vi hiển thị.',
-                en: 'No scholarship requests in the current dashboard range.',
+                vi: 'Chưa có đề nghị hỗ trợ khuyến học nào trong giai đoạn đang xem.',
+                en: 'No scholarship support requests in the current period.',
               ),
             )
           else
@@ -957,6 +1047,15 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         dashboard.totals.totalDonationsMinor != 0 ||
         dashboard.totals.totalExpensesMinor != 0;
     return !(_controller.canViewFunds && hasDashboardMetrics);
+  }
+
+  bool _shouldShowTreasurerDashboardSection() {
+    final dashboard = _controller.treasurerDashboard;
+    return _controller.isLoadingTreasurerDashboard ||
+        dashboard.funds.isNotEmpty ||
+        dashboard.transactions.isNotEmpty ||
+        dashboard.scholarshipRequests.isNotEmpty ||
+        dashboard.reportSummary.trim().isNotEmpty;
   }
 
   String? _friendlyRuntimeErrorMessage(BuildContext context, String? rawError) {
@@ -1431,15 +1530,6 @@ class _FundDetailPageState extends State<_FundDetailPage> {
           title: type == FundTransactionType.donation
               ? l10n.pick(vi: 'Ghi nhận đóng góp', en: 'Record donation')
               : l10n.pick(vi: 'Ghi nhận chi tiêu', en: 'Record expense'),
-          description: type == FundTransactionType.donation
-              ? l10n.pick(
-                  vi: 'Thêm khoản đóng góp vào quỹ này.',
-                  en: 'Add incoming contributions to this fund.',
-                )
-              : l10n.pick(
-                  vi: 'Ghi nhận khoản chi từ quỹ này.',
-                  en: 'Log outgoing expenses from this fund.',
-                ),
           initialDraft: FundTransactionDraft.empty(
             fundId: fund.id,
             transactionType: type,
@@ -1487,10 +1577,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                   vi: 'Không tìm thấy quỹ',
                   en: 'Fund not found',
                 ),
-                description: l10n.pick(
-                  vi: 'Quỹ này có thể đã bị xóa hoặc thay đổi.',
-                  en: 'This fund may have been removed or changed.',
-                ),
+                standalone: true,
               ),
             ),
           );
@@ -1705,10 +1792,6 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                             vi: 'Chưa có giao dịch',
                             en: 'No transactions',
                           ),
-                          description: l10n.pick(
-                            vi: 'Thêm giao dịch thu hoặc chi để bắt đầu sổ quỹ.',
-                            en: 'Add an income or expense transaction to start the ledger.',
-                          ),
                         )
                       : Column(
                           children: [
@@ -1736,7 +1819,6 @@ class _FundDetailPageState extends State<_FundDetailPage> {
 class _FundEditorSheet extends StatefulWidget {
   const _FundEditorSheet({
     required this.title,
-    required this.description,
     required this.initialDraft,
     required this.activeClanId,
     required this.activeClanLabel,
@@ -1747,7 +1829,6 @@ class _FundEditorSheet extends StatefulWidget {
   });
 
   final String title;
-  final String description;
   final FundDraft initialDraft;
   final String activeClanId;
   final String activeClanLabel;
@@ -2259,8 +2340,6 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 10),
-                Text(widget.description, style: theme.textTheme.bodyMedium),
                 if (_submitError != null) ...[
                   const SizedBox(height: 16),
                   _InfoCard(
@@ -2403,10 +2482,6 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                     title: l10n.pick(
                       vi: 'Bước 2: Gán thành viên',
                       en: 'Step 2: Assign members',
-                    ),
-                    description: l10n.pick(
-                      vi: 'Chọn thủ quỹ phụ trách và danh sách thành viên áp dụng cho quỹ này.',
-                      en: 'Select treasurers and members who belong to this fund.',
                     ),
                     tone: theme.colorScheme.surfaceContainerHighest,
                     compact: true,
@@ -2684,14 +2759,12 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
 class _TransactionEditorSheet extends StatefulWidget {
   const _TransactionEditorSheet({
     required this.title,
-    required this.description,
     required this.initialDraft,
     required this.isSaving,
     required this.onSubmit,
   });
 
   final String title;
-  final String description;
   final FundTransactionDraft initialDraft;
   final bool isSaving;
   final Future<FundRepositoryErrorCode?> Function(FundTransactionDraft draft)
@@ -2836,8 +2909,6 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 10),
-                Text(widget.description, style: theme.textTheme.bodyMedium),
                 if (_submitError != null) ...[
                   const SizedBox(height: 16),
                   _InfoCard(
@@ -2982,15 +3053,26 @@ class _FundSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final colorScheme = Theme.of(context).colorScheme;
     final tokens = context.uiTokens;
+    final radius = BorderRadius.circular(tokens.radiusLg);
+    final statusLabel = context.l10n.pick(
+      vi: fund.isActive ? 'Đang hoạt động' : 'Tạm ngưng',
+      en: fund.isActive ? 'Active' : 'Paused',
+    );
+    final statusTone = fund.isActive
+        ? colorScheme.primaryContainer
+        : colorScheme.surfaceContainerHighest;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
+        borderRadius: radius,
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
+        child: AppWorkspaceSurface(
+          padding: EdgeInsets.all(tokens.spaceLg),
+          borderRadius: radius,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -3003,26 +3085,28 @@ class _FundSummaryCard extends StatelessWidget {
                       children: [
                         Text(
                           fund.name,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w800),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _fundTypeLabel(context, fund.fundType),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        if (memberCountLabel != null &&
-                            memberCountLabel!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            memberCountLabel!,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                          fund.description.trim().isEmpty
+                              ? context.l10n.pick(
+                                  vi: 'Theo dõi thu chi và số dư quỹ.',
+                                  en: 'Track inflow, outflow, and balance.',
+                                )
+                              : fund.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 12),
                   if (onEdit != null)
                     AppCompactIconButton(
                       tooltip: context.l10n.pick(
@@ -3034,46 +3118,194 @@ class _FundSummaryCard extends StatelessWidget {
                     ),
                 ],
               ),
-              if (fund.description.trim().isNotEmpty) ...[
-                SizedBox(height: tokens.spaceMd - 2),
-                Text(
-                  fund.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              SizedBox(height: tokens.spaceLg - 2),
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: tokens.spaceMd,
-                  vertical: tokens.spaceMd - 2,
-                ),
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(tokens.spaceMd),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.trending_up_outlined, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _formatMoneyText(
-                          context,
-                          amountMinor: fund.balanceMinor,
-                          currency: fund.currency,
-                        ),
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
+              SizedBox(height: tokens.spaceMd),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _WorkspaceHeroHighlightChip(
+                    icon: Icons.account_balance_outlined,
+                    label: _fundTypeLabel(context, fund.fundType),
+                  ),
+                  if (memberCountLabel != null &&
+                      memberCountLabel!.trim().isNotEmpty)
+                    _WorkspaceHeroHighlightChip(
+                      icon: Icons.groups_2_outlined,
+                      label: memberCountLabel!,
                     ),
-                    const Icon(Icons.chevron_right),
-                  ],
-                ),
+                  _WorkspaceHeroHighlightChip(
+                    icon: fund.isActive
+                        ? Icons.check_circle_outline
+                        : Icons.pause_circle_outline,
+                    label: statusLabel,
+                    tone: statusTone,
+                  ),
+                ],
+              ),
+              SizedBox(height: tokens.spaceLg),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.l10n.pick(
+                            vi: 'Số dư hiện tại',
+                            en: 'Current balance',
+                          ),
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatMoneyText(
+                            context,
+                            amountMinor: fund.balanceMinor,
+                            currency: fund.currency,
+                          ),
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ],
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SelectedFundSpotlight extends StatelessWidget {
+  const _SelectedFundSpotlight({
+    required this.fund,
+    required this.onOpenDetail,
+    this.memberCountLabel,
+    this.treasurerLabel,
+    this.onRecordDonation,
+    this.onRecordExpense,
+  });
+
+  final FundProfile fund;
+  final String? memberCountLabel;
+  final String? treasurerLabel;
+  final VoidCallback onOpenDetail;
+  final VoidCallback? onRecordDonation;
+  final VoidCallback? onRecordExpense;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final tokens = context.uiTokens;
+
+    return AppWorkspaceSurface(
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
+      padding: EdgeInsets.all(tokens.spaceLg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.l10n.pick(vi: 'Quỹ đang chọn', en: 'Selected fund'),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: tokens.spaceSm + 2),
+          Text(
+            fund.name,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.4,
+            ),
+          ),
+          SizedBox(height: tokens.spaceSm),
+          Text(
+            fund.description.trim().isEmpty
+                ? context.l10n.pick(
+                    vi: 'Xem nhanh số dư, người phụ trách và các giao dịch chính của quỹ này.',
+                    en: 'Quickly review this fund\'s balance, owner, and key transactions.',
+                  )
+                : fund.description,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
+          ),
+          SizedBox(height: tokens.spaceMd),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _WorkspaceHeroHighlightChip(
+                icon: Icons.account_balance_outlined,
+                label: _fundTypeLabel(context, fund.fundType),
+              ),
+              _WorkspaceHeroHighlightChip(
+                icon: Icons.account_balance_wallet_outlined,
+                label: _formatMoneyText(
+                  context,
+                  amountMinor: fund.balanceMinor,
+                  currency: fund.currency,
+                ),
+              ),
+              if (treasurerLabel != null && treasurerLabel!.trim().isNotEmpty)
+                _WorkspaceHeroHighlightChip(
+                  icon: Icons.badge_outlined,
+                  label: treasurerLabel!,
+                ),
+              if (memberCountLabel != null &&
+                  memberCountLabel!.trim().isNotEmpty)
+                _WorkspaceHeroHighlightChip(
+                  icon: Icons.groups_2_outlined,
+                  label: memberCountLabel!,
+                ),
+            ],
+          ),
+          SizedBox(height: tokens.spaceLg),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.icon(
+                onPressed: onOpenDetail,
+                icon: const Icon(Icons.visibility_outlined),
+                label: Text(
+                  context.l10n.pick(vi: 'Xem chi tiết', en: 'View details'),
+                ),
+              ),
+              if (onRecordDonation != null)
+                OutlinedButton.icon(
+                  onPressed: onRecordDonation,
+                  icon: const Icon(Icons.south_west_rounded),
+                  label: Text(
+                    context.l10n.pick(vi: 'Ghi nhận thu', en: 'Record income'),
+                  ),
+                ),
+              if (onRecordExpense != null)
+                OutlinedButton.icon(
+                  onPressed: onRecordExpense,
+                  icon: const Icon(Icons.north_east_rounded),
+                  label: Text(
+                    context.l10n.pick(vi: 'Ghi nhận chi', en: 'Record expense'),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -3087,73 +3319,73 @@ class _TransactionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
     final isDonation =
         transaction.transactionType == FundTransactionType.donation;
     final tileColor = isDonation
         ? colorScheme.primaryContainer
         : colorScheme.tertiaryContainer;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: tileColor,
-              child: Icon(
-                isDonation ? Icons.add : Icons.remove,
-                color: colorScheme.onSurface,
-              ),
+    return AppWorkspaceSurface(
+      padding: EdgeInsets.all(tokens.spaceLg),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            backgroundColor: tileColor,
+            child: Icon(
+              isDonation ? Icons.add : Icons.remove,
+              color: colorScheme.onSurface,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          transaction.note.trim().isEmpty
-                              ? transaction.transactionType.label
-                              : transaction.note,
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '${isDonation ? '+' : '-'}${_formatMoneyText(context, amountMinor: transaction.amountMinor, currency: transaction.currency)}',
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        transaction.note.trim().isEmpty
+                            ? transaction.transactionType.label
+                            : transaction.note,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: isDonation
-                              ? colorScheme.primary
-                              : colorScheme.tertiary,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${_transactionTypeLabel(context, transaction.transactionType)} • ${_formatDate(context, transaction.occurredAt)}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  if ((transaction.externalReference ?? '')
-                      .trim()
-                      .isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                    ),
+                    const SizedBox(width: 10),
                     Text(
-                      '${context.l10n.pick(vi: 'Tham chiếu: ', en: 'Reference: ')}${transaction.externalReference}',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      '${isDonation ? '+' : '-'}${_formatMoneyText(context, amountMinor: transaction.amountMinor, currency: transaction.currency)}',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: isDonation
+                            ? colorScheme.primary
+                            : colorScheme.tertiary,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${_transactionTypeLabel(context, transaction.transactionType)} • ${_formatDate(context, transaction.occurredAt)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if ((transaction.externalReference ?? '')
+                    .trim()
+                    .isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '${context.l10n.pick(vi: 'Tham chiếu: ', en: 'Reference: ')}${transaction.externalReference}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -3174,31 +3406,44 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
+    final theme = Theme.of(context);
+    final tokens = context.uiTokens;
+
+    return AppWorkspaceSurface(
+      padding: EdgeInsets.all(tokens.spaceLg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                      ),
                     ),
+                  ],
+                ),
+              ),
+              if (actionLabel != null && onAction != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: TextButton(
+                    onPressed: onAction,
+                    child: Text(actionLabel!),
                   ),
                 ),
-                if (actionLabel != null && onAction != null)
-                  TextButton(onPressed: onAction, child: Text(actionLabel!)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
+            ],
+          ),
+          SizedBox(height: tokens.spaceLg),
+          child,
+        ],
       ),
     );
   }
@@ -3232,45 +3477,61 @@ class _InfoCard extends StatelessWidget {
   const _InfoCard({
     required this.icon,
     required this.title,
-    required this.description,
     required this.tone,
+    this.description,
     this.compact = false,
   });
 
   final IconData icon;
   final String title;
-  final String description;
+  final String? description;
   final Color tone;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final tokens = context.uiTokens;
+
+    return AppWorkspaceSurface(
       color: tone,
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 14 : 18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(description),
-                ],
-              ),
+      padding: EdgeInsets.all(compact ? 14 : tokens.spaceLg),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: compact ? 34 : 40,
+            height: compact ? 34 : 40,
+            decoration: BoxDecoration(
+              color: colorScheme.surface.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
-        ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: compact ? 18 : 20),
+          ),
+          SizedBox(width: tokens.spaceMd - 2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (description != null && description!.trim().isNotEmpty) ...[
+                  SizedBox(height: compact ? 4 : 6),
+                  Text(
+                    description!,
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3294,6 +3555,7 @@ class _FundTransferInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
     final normalizedBankName = (bankName ?? '').trim();
     final normalizedAccountNumber = (accountNumber ?? '').trim();
     final normalizedAccountHolder = (accountHolder ?? '').trim();
@@ -3301,49 +3563,47 @@ class _FundTransferInfoCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.pick(
-                vi: 'Thông tin chuyển khoản quỹ',
-                en: 'Fund transfer details',
-              ),
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+    return AppWorkspaceSurface(
+      padding: EdgeInsets.all(tokens.spaceLg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.pick(
+              vi: 'Thông tin chuyển khoản quỹ',
+              en: 'Fund transfer details',
             ),
-            if (normalizedBankName.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _FundTransferInfoRow(
-                label: l10n.pick(vi: 'Ngân hàng', en: 'Bank'),
-                value: normalizedBankName,
-                canCopy: false,
-              ),
-            ],
-            if (normalizedAccountNumber.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _FundTransferInfoRow(
-                label: l10n.pick(vi: 'Số tài khoản', en: 'Account number'),
-                value: normalizedAccountNumber,
-                canCopy: true,
-                onCopy: () => onCopyAccountNumber(normalizedAccountNumber),
-              ),
-            ],
-            if (normalizedAccountHolder.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _FundTransferInfoRow(
-                label: l10n.pick(vi: 'Chủ tài khoản', en: 'Account holder'),
-                value: normalizedAccountHolder,
-                canCopy: true,
-                onCopy: () => onCopyAccountHolder(normalizedAccountHolder),
-              ),
-            ],
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          if (normalizedBankName.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _FundTransferInfoRow(
+              label: l10n.pick(vi: 'Ngân hàng', en: 'Bank'),
+              value: normalizedBankName,
+              canCopy: false,
+            ),
           ],
-        ),
+          if (normalizedAccountNumber.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _FundTransferInfoRow(
+              label: l10n.pick(vi: 'Số tài khoản', en: 'Account number'),
+              value: normalizedAccountNumber,
+              canCopy: true,
+              onCopy: () => onCopyAccountNumber(normalizedAccountNumber),
+            ),
+          ],
+          if (normalizedAccountHolder.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _FundTransferInfoRow(
+              label: l10n.pick(vi: 'Chủ tài khoản', en: 'Account holder'),
+              value: normalizedAccountHolder,
+              canCopy: true,
+              onCopy: () => onCopyAccountHolder(normalizedAccountHolder),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -3395,33 +3655,51 @@ class _EmptyWorkspace extends StatelessWidget {
   const _EmptyWorkspace({
     required this.icon,
     required this.title,
-    required this.description,
+    this.standalone = false,
   });
 
   final IconData icon;
   final String title;
-  final String description;
+  final bool standalone;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Icon(icon, size: 30),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+    final tokens = context.uiTokens;
+
+    final content = AppWorkspaceSurface(
+      padding: EdgeInsets.all(tokens.spaceXl),
+      child: Column(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(18),
             ),
-            const SizedBox(height: 8),
-            Text(description, textAlign: TextAlign.center),
-          ],
-        ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 28),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
+    );
+
+    if (!standalone) {
+      return content;
+    }
+
+    return AppWorkspaceViewport(
+      child: Padding(
+        padding: appWorkspacePagePadding(context, top: 24),
+        child: content,
       ),
     );
   }
@@ -3430,71 +3708,133 @@ class _EmptyWorkspace extends StatelessWidget {
 class _WorkspaceHero extends StatelessWidget {
   const _WorkspaceHero({
     required this.title,
-    required this.description,
-    required this.canManageFunds,
-    this.compact = false,
+    required this.highlights,
+    this.primaryActionLabel,
     this.onPrimaryAction,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
   });
 
   final String title;
-  final String description;
-  final bool canManageFunds;
-  final bool compact;
+  final List<_WorkspaceHeroHighlight> highlights;
+  final String? primaryActionLabel;
   final VoidCallback? onPrimaryAction;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final l10n = context.l10n;
+    final tokens = context.uiTokens;
 
-    return Container(
-      padding: EdgeInsets.all(compact ? 18 : 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colorScheme.primary, colorScheme.primaryContainer],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
-      ),
+    return AppWorkspaceSurface(
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
+      padding: EdgeInsets.all(tokens.spaceXl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style:
-                (compact
-                        ? theme.textTheme.titleLarge
-                        : theme.textTheme.headlineSmall)
-                    ?.copyWith(
-                      color: colorScheme.onPrimary,
-                      fontWeight: FontWeight.w800,
-                    ),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.4,
+            ),
           ),
-          SizedBox(height: compact ? 8 : 10),
-          Text(
-            description,
-            maxLines: compact ? 2 : null,
-            overflow: compact ? TextOverflow.ellipsis : TextOverflow.visible,
-            style:
-                (compact
-                        ? theme.textTheme.bodyMedium
-                        : theme.textTheme.bodyLarge)
-                    ?.copyWith(
-                      color: colorScheme.onPrimary.withValues(alpha: 0.9),
+          if (highlights.isNotEmpty) ...[
+            SizedBox(height: tokens.spaceLg),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: highlights
+                  .map(
+                    (highlight) => _WorkspaceHeroHighlightChip(
+                      icon: highlight.icon,
+                      label: highlight.label,
+                      tone: highlight.tone,
                     ),
-          ),
-          if (canManageFunds && onPrimaryAction != null) ...[
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: onPrimaryAction,
-              icon: const Icon(Icons.add),
-              label: Text(
-                l10n.pick(vi: 'Tạo quỹ đầu tiên', en: 'Create first fund'),
-              ),
+                  )
+                  .toList(growable: false),
             ),
           ],
+          if (primaryActionLabel != null || secondaryActionLabel != null) ...[
+            SizedBox(height: tokens.spaceLg),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (primaryActionLabel != null && onPrimaryAction != null)
+                  FilledButton.icon(
+                    onPressed: onPrimaryAction,
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: Text(primaryActionLabel!),
+                  ),
+                if (secondaryActionLabel != null && onSecondaryAction != null)
+                  OutlinedButton.icon(
+                    onPressed: onSecondaryAction,
+                    icon: const Icon(Icons.add_circle_outline),
+                    label: Text(secondaryActionLabel!),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkspaceHeroHighlight {
+  const _WorkspaceHeroHighlight({
+    required this.icon,
+    required this.label,
+    this.tone,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color? tone;
+}
+
+class _WorkspaceHeroHighlightChip extends StatelessWidget {
+  const _WorkspaceHeroHighlightChip({
+    required this.icon,
+    required this.label,
+    this.tone,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color? tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: tone ?? colorScheme.surface.withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.92),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
         ],
       ),
     );
@@ -3677,44 +4017,43 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor:
-                      iconBackgroundColor ?? colorScheme.primaryContainer,
-                  radius: 20,
-                  child: Icon(icon, size: 19),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: valueColor,
+    return AppWorkspaceSurface(
+      padding: EdgeInsets.all(tokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor:
+                    iconBackgroundColor ?? colorScheme.primaryContainer,
+                radius: 20,
+                child: Icon(icon, size: 19),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: valueColor,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

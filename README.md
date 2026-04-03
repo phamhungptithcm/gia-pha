@@ -115,6 +115,7 @@ You can still call specific targets directly if needed:
 ./run_flutter_targets.sh android-restart-adb
 ./run_flutter_targets.sh android-debug
 ./run_flutter_targets.sh android-usb
+./run_flutter_targets.sh android-usb-staging-release
 ./run_flutter_targets.sh android-usb-release-ci
 ./run_flutter_targets.sh android-build-aab
 ./run_flutter_targets.sh android-build-aab-ci

@@ -401,7 +401,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileSettingsLogoutDescription =>
-      'This confirmation helps prevent accidental sign-out while managing settings.';
+      'Sign in again to keep using BeFam on this device.';
 
   @override
   String get profileCancelAction => 'Cancel';
@@ -428,13 +428,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileLanguageVietnameseSubtitle =>
-      'Use Vietnamese across all screens';
+      'A natural fit for people using BeFam in Vietnam';
 
   @override
   String get profileLanguageEnglish => 'English';
 
   @override
-  String get profileLanguageEnglishSubtitle => 'Use English across all screens';
+  String get profileLanguageEnglishSubtitle => 'Show the entire app in English';
 
   @override
   String get profileSecuritySectionTitle => 'Privacy and security';

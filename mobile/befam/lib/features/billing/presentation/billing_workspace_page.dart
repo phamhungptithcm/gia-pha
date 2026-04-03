@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../core/services/app_environment.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -538,7 +539,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                 ? AppLoadingState(
                     message: l10n.pick(
                       vi: 'Đang tải thông tin gói dịch vụ...',
-                      en: 'Loading subscription workspace...',
+                      en: 'Loading subscription details...',
                     ),
                   )
                 : _controller.canManageBilling && workspace == null
@@ -664,722 +665,707 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
 
     return RefreshIndicator(
       onRefresh: _controller.refresh,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        children: [
-          if (_controller.errorMessage case final error?) ...[
-            _InfoCard(
-              icon: Icons.error_outline,
-              title: l10n.pick(
-                vi: 'Thao tác thanh toán chưa thành công',
-                en: 'Billing action failed',
-              ),
-              description: _friendlyErrorMessage(error, l10n),
-              tone: colorScheme.errorContainer,
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (_controller.isSavingPreferences ||
-              _controller.isProcessingPayment)
-            const LinearProgressIndicator(minHeight: 2),
-          if (_controller.isSavingPreferences ||
-              _controller.isProcessingPayment)
-            const SizedBox(height: 12),
-          _SubscriptionHeroCard(
-            planCode: entitlement.planCode,
-            planDisplayName: _localizedPlanName(
-              entitlement.planCode,
-              l10n,
-              tier: tier,
-            ),
-            status: entitlement.status,
-            memberCount: workspace.memberCount,
-            amountVnd:
-                tier?.priceVndYear ?? workspace.subscription.amountVndYear,
-            showAds: entitlement.showAds,
-            adFree: entitlement.adFree,
-            expiresAtIso:
-                entitlement.expiresAtIso ?? workspace.subscription.expiresAtIso,
-            nextPaymentDueAtIso:
-                entitlement.nextPaymentDueAtIso ??
-                workspace.subscription.nextPaymentDueAtIso,
-          ),
-          if (!canManage) ...[
-            const SizedBox(height: 12),
-            _InfoCard(
-              icon: Icons.lock_outline,
-              title: l10n.pick(
-                vi: 'Chỉ tài khoản quản trị clan được thanh toán và đổi gói',
-                en: 'Only clan admin roles can manage checkout',
-              ),
-              description: l10n.pick(
-                vi: 'Gói dịch vụ được tính theo owner. Liên hệ $resolvedOwnerLabel để nâng cấp hoặc gia hạn khi vượt giới hạn thành viên.',
-                en: 'The subscription is enforced by owner scope. Contact $resolvedOwnerLabel to upgrade or renew when member limits are reached.',
-              ),
-              tone: colorScheme.primaryContainer,
-            ),
-          ],
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: l10n.pick(
-              vi: 'Chọn gói phù hợp',
-              en: 'Choose the right plan',
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.pick(
-                    vi: 'Chọn gói theo số lượng thành viên hiện tại. Giá tính theo năm và đã gồm VAT.',
-                    en: 'Choose a plan based on your current member count. Pricing is annual and VAT included.',
-                  ),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+      child: AppWorkspaceViewport(
+        child: ListView(
+          padding: appWorkspacePagePadding(context, top: 16, bottom: 32),
+          children: [
+            if (_controller.errorMessage case final error?) ...[
+              _InfoCard(
+                icon: Icons.error_outline,
+                title: l10n.pick(
+                  vi: 'Thao tác thanh toán chưa thành công',
+                  en: 'Billing action failed',
                 ),
-                const SizedBox(height: 12),
-                if (hasSelectablePlans)
-                  Column(
-                    key: const Key('billing-plan-selector'),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (
-                        var index = 0;
-                        index < selectablePlans.length;
-                        index++
-                      )
-                        Padding(
-                          padding: EdgeInsets.only(
-                            bottom: index == selectablePlans.length - 1
-                                ? 0
-                                : 10,
+                description: _friendlyErrorMessage(error, l10n),
+                tone: colorScheme.errorContainer,
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (_controller.isSavingPreferences ||
+                _controller.isProcessingPayment)
+              const LinearProgressIndicator(minHeight: 2),
+            if (_controller.isSavingPreferences ||
+                _controller.isProcessingPayment)
+              const SizedBox(height: 12),
+            _SubscriptionHeroCard(
+              planCode: entitlement.planCode,
+              planDisplayName: _localizedPlanName(
+                entitlement.planCode,
+                l10n,
+                tier: tier,
+              ),
+              status: entitlement.status,
+              memberCount: workspace.memberCount,
+              amountVnd:
+                  tier?.priceVndYear ?? workspace.subscription.amountVndYear,
+              showAds: entitlement.showAds,
+              adFree: entitlement.adFree,
+              expiresAtIso:
+                  entitlement.expiresAtIso ??
+                  workspace.subscription.expiresAtIso,
+              nextPaymentDueAtIso:
+                  entitlement.nextPaymentDueAtIso ??
+                  workspace.subscription.nextPaymentDueAtIso,
+            ),
+            if (!canManage) ...[
+              const SizedBox(height: 16),
+              _InfoCard(
+                icon: Icons.lock_outline,
+                title: l10n.pick(
+                  vi: 'Chỉ quản trị viên có thể đổi gói',
+                  en: 'Only admins can manage billing',
+                ),
+                description: l10n.pick(
+                  vi: 'Liên hệ $resolvedOwnerLabel để nâng cấp hoặc gia hạn.',
+                  en: 'Contact $resolvedOwnerLabel to upgrade or renew.',
+                ),
+                tone: colorScheme.primaryContainer,
+              ),
+            ],
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: l10n.pick(
+                vi: 'Chọn gói phù hợp',
+                en: 'Choose the right plan',
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (hasSelectablePlans)
+                    Column(
+                      key: const Key('billing-plan-selector'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (
+                          var index = 0;
+                          index < selectablePlans.length;
+                          index++
+                        )
+                          Padding(
+                            padding: EdgeInsets.only(
+                              bottom: index == selectablePlans.length - 1
+                                  ? 0
+                                  : 10,
+                            ),
+                            child: _CheckoutPlanOptionTile(
+                              key: Key(
+                                'billing-plan-option-${selectablePlans[index].planCode.toLowerCase()}',
+                              ),
+                              planName: _localizedPlanName(
+                                selectablePlans[index].planCode,
+                                l10n,
+                                tier: selectablePlans[index],
+                              ),
+                              detailLabel:
+                                  '${_memberRangeLabel(selectablePlans[index], l10n)} • ${_adsExperienceLabel(selectablePlans[index], l10n)}',
+                              priceLabel: _annualPriceLabel(
+                                selectablePlans[index].priceVndYear,
+                                l10n,
+                              ),
+                              isSelected:
+                                  selectablePlans[index].planCode
+                                      .trim()
+                                      .toUpperCase() ==
+                                  selectedTier.planCode.trim().toUpperCase(),
+                              isCurrentPlan:
+                                  selectablePlans[index].planCode
+                                      .trim()
+                                      .toUpperCase() ==
+                                  currentPlanCode,
+                              isEnabled: canManage,
+                              onTap: !canManage
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _selectedPlanCodeDraft =
+                                            selectablePlans[index].planCode
+                                                .trim()
+                                                .toUpperCase();
+                                      });
+                                    },
+                            ),
                           ),
-                          child: _CheckoutPlanOptionTile(
-                            key: Key(
-                              'billing-plan-option-${selectablePlans[index].planCode.toLowerCase()}',
-                            ),
-                            planName: _localizedPlanName(
-                              selectablePlans[index].planCode,
-                              l10n,
-                              tier: selectablePlans[index],
-                            ),
-                            description: _planShortDescription(
-                              selectablePlans[index].planCode,
-                              l10n,
-                              tier: selectablePlans[index],
-                            ),
-                            detailLabel:
-                                '${_memberRangeLabel(selectablePlans[index], l10n)} • ${_adsExperienceLabel(selectablePlans[index], l10n)}',
-                            priceLabel: _annualPriceLabel(
-                              selectablePlans[index].priceVndYear,
-                              l10n,
-                            ),
-                            isSelected:
-                                selectablePlans[index].planCode
-                                    .trim()
-                                    .toUpperCase() ==
-                                selectedTier.planCode.trim().toUpperCase(),
-                            isCurrentPlan:
-                                selectablePlans[index].planCode
-                                    .trim()
-                                    .toUpperCase() ==
-                                currentPlanCode,
-                            isEnabled: canManage,
-                            onTap: !canManage
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _selectedPlanCodeDraft =
-                                          selectablePlans[index].planCode
-                                              .trim()
-                                              .toUpperCase();
-                                    });
-                                  },
-                          ),
-                        ),
-                    ],
-                  ),
-                const SizedBox(height: 12),
-                if (!hasSelectablePlans)
-                  Text(
-                    l10n.pick(
-                      vi: 'Hiện chưa có lựa chọn thanh toán phù hợp.',
-                      en: 'No eligible payment choice at this time.',
+                      ],
                     ),
-                    style: theme.textTheme.bodySmall,
-                  )
-                else if (selectedTier.priceVndYear == 0)
-                  _InfoCard(
-                    icon: Icons.info_outline,
-                    title: l10n.pick(
-                      vi: 'Gói miễn phí đã được chọn',
-                      en: 'Free plan selected',
-                    ),
-                    description: l10n.pick(
-                      vi: useStoreCheckout
-                          ? 'Gói miễn phí không cần mua trong ứng dụng.'
-                          : 'Gói miễn phí không tạo checkout.',
-                      en: useStoreCheckout
-                          ? 'Free plan does not require in-app purchase.'
-                          : 'Free plan does not create checkout.',
-                    ),
-                    tone: colorScheme.tertiaryContainer,
-                  )
-                else if (!hasStoreProductConfig)
-                  _InfoCard(
-                    icon: Icons.warning_amber_rounded,
-                    title: l10n.pick(
-                      vi: 'Thiếu cấu hình gói trên cửa hàng',
-                      en: 'Missing store product config',
-                    ),
-                    description: l10n.pick(
-                      vi: 'Gói ${_localizedPlanName(selectedTier.planCode, l10n, tier: selectedTier)} chưa được map với productId IAP trên máy chủ.',
-                      en: '${_localizedPlanName(selectedTier.planCode, l10n, tier: selectedTier)} is not mapped to a store productId on the server.',
-                    ),
-                    tone: colorScheme.errorContainer,
-                  )
-                else if (isBelowMinimumForMemberCount)
-                  _InfoCard(
-                    icon: Icons.warning_amber_rounded,
-                    title: l10n.pick(
-                      vi: 'Không thể hạ xuống gói này',
-                      en: 'Downgrade blocked',
-                    ),
-                    description: l10n.pick(
-                      vi: 'Gia phả hiện có ${workspace.memberCount} thành viên, vượt giới hạn gói ${_localizedPlanName(selectedTier.planCode, l10n, tier: selectedTier)}.',
-                      en: 'Current clan has ${workspace.memberCount} members, which exceeds ${_localizedPlanName(selectedTier.planCode, l10n, tier: selectedTier)}.',
-                    ),
-                    tone: colorScheme.errorContainer,
-                  )
-                else if (!canCheckoutSelectedPlan)
-                  Text(
-                    l10n.pick(
-                      vi: 'Gia hạn cùng gói sẽ mở khi gần ngày hết hạn. Bạn có thể chọn gói khác ngay.',
-                      en: 'Renewing the same plan opens near expiry. You can switch to another plan now.',
-                    ),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                else ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: AppAsyncAction(
-                      enabled: canCheckoutSelectedPlan,
-                      onPressed: canCheckoutSelectedPlan
-                          ? () async {
-                              if (!useStoreCheckout) {
-                                if (!mounted) {
-                                  return;
-                                }
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      l10n.pick(
-                                        vi: 'Môi trường thử nghiệm chưa mở mua trong ứng dụng.',
-                                        en: 'Sandbox mode does not enable in-app purchase.',
+                  const SizedBox(height: 12),
+                  if (!hasSelectablePlans)
+                    Text(
+                      l10n.pick(
+                        vi: 'Hiện chưa có lựa chọn thanh toán phù hợp.',
+                        en: 'No eligible payment choice at this time.',
+                      ),
+                      style: theme.textTheme.bodySmall,
+                    )
+                  else if (selectedTier.priceVndYear == 0)
+                    _InfoCard(
+                      icon: Icons.info_outline,
+                      title: l10n.pick(
+                        vi: 'Gói miễn phí đã được chọn',
+                        en: 'Free plan selected',
+                      ),
+                      description: l10n.pick(
+                        vi: useStoreCheckout
+                            ? 'Gói miễn phí không cần mua trong ứng dụng.'
+                            : 'Gói miễn phí không tạo checkout.',
+                        en: useStoreCheckout
+                            ? 'Free plan does not require in-app purchase.'
+                            : 'Free plan does not create checkout.',
+                      ),
+                      tone: colorScheme.tertiaryContainer,
+                    )
+                  else if (!hasStoreProductConfig)
+                    _InfoCard(
+                      icon: Icons.warning_amber_rounded,
+                      title: l10n.pick(
+                        vi: 'Gói này chưa sẵn sàng để thanh toán',
+                        en: 'This plan is not ready for checkout',
+                      ),
+                      description: l10n.pick(
+                        vi: 'Vui lòng thử lại sau.',
+                        en: 'Please try again later.',
+                      ),
+                      tone: colorScheme.errorContainer,
+                    )
+                  else if (isBelowMinimumForMemberCount)
+                    _InfoCard(
+                      icon: Icons.warning_amber_rounded,
+                      title: l10n.pick(
+                        vi: 'Không thể hạ xuống gói này',
+                        en: 'Downgrade blocked',
+                      ),
+                      description: l10n.pick(
+                        vi: 'Gia phả hiện có ${workspace.memberCount} thành viên, vượt giới hạn gói ${_localizedPlanName(selectedTier.planCode, l10n, tier: selectedTier)}.',
+                        en: 'Current clan has ${workspace.memberCount} members, which exceeds ${_localizedPlanName(selectedTier.planCode, l10n, tier: selectedTier)}.',
+                      ),
+                      tone: colorScheme.errorContainer,
+                    )
+                  else if (!canCheckoutSelectedPlan)
+                    Text(
+                      l10n.pick(
+                        vi: 'Gia hạn cùng gói sẽ mở khi gần ngày hết hạn. Bạn có thể chọn gói khác ngay.',
+                        en: 'Renewing the same plan opens near expiry. You can switch to another plan now.',
+                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    )
+                  else ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: AppAsyncAction(
+                        enabled: canCheckoutSelectedPlan,
+                        onPressed: canCheckoutSelectedPlan
+                            ? () async {
+                                if (!useStoreCheckout) {
+                                  if (!mounted) {
+                                    return;
+                                  }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        l10n.pick(
+                                          vi: 'Thanh toán chưa sẵn sàng trên phiên này.',
+                                          en: 'Checkout is not available in this session.',
+                                        ),
                                       ),
                                     ),
-                                  ),
+                                  );
+                                  return;
+                                }
+                                await _openStoreCheckoutFlow(
+                                  workspace: workspace,
+                                  minimumTier: minimumTier,
+                                  selectedTier: selectedTier,
+                                  canRenewCurrentPlan: canRenewCurrentPlan,
                                 );
-                                return;
                               }
-                              await _openStoreCheckoutFlow(
-                                workspace: workspace,
-                                minimumTier: minimumTier,
-                                selectedTier: selectedTier,
-                                canRenewCurrentPlan: canRenewCurrentPlan,
-                              );
-                            }
-                          : null,
-                      builder: (context, onPressed, isLoading) {
-                        return FilledButton(
-                          key: const Key('billing-open-checkout-button'),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(60),
-                          ),
-                          onPressed: onPressed,
-                          child: AppStableLoadingChild(
-                            isLoading: isLoading,
+                            : null,
+                        builder: (context, onPressed, isLoading) {
+                          return FilledButton(
+                            key: const Key('billing-open-checkout-button'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(60),
+                            ),
+                            onPressed: onPressed,
+                            child: AppStableLoadingChild(
+                              isLoading: isLoading,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Icon(checkoutActionIcon),
+                                  const SizedBox(width: 10),
+                                  Flexible(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          checkoutActionTitle,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          checkoutActionPriceLabel,
+                                          style: theme.textTheme.labelLarge
+                                              ?.copyWith(
+                                                color: colorScheme.onPrimary
+                                                    .withValues(alpha: 0.92),
+                                              ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  if (pendingTransactions.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      l10n.pick(
+                        vi: 'Giao dịch đang chờ xử lý',
+                        en: 'Pending transactions',
+                      ),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    for (final entry
+                        in pendingTransactions
+                            .take(3)
+                            .toList(growable: false)
+                            .asMap()
+                            .entries)
+                      Card(
+                        key: Key(
+                          'billing-pending-transaction-item-${entry.key}',
+                        ),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            _openPendingTransactionDetail(
+                              transaction: entry.value,
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(checkoutActionIcon),
-                                const SizedBox(width: 10),
-                                Flexible(
+                                Expanded(
                                   child: Column(
-                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        checkoutActionTitle,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.center,
+                                        '${entry.value.paymentMethod.toUpperCase()} • ${_formatVnd(entry.value.amountVnd)}',
+                                        style: theme.textTheme.titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        l10n.pick(
+                                          vi: 'Tạo lúc: ${_dateLabel(entry.value.createdAtIso, l10n)}',
+                                          en: 'Created: ${_dateLabel(entry.value.createdAtIso, l10n)}',
+                                        ),
+                                        style: theme.textTheme.bodyMedium,
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        checkoutActionPriceLabel,
-                                        style: theme.textTheme.labelLarge
-                                            ?.copyWith(
-                                              color: colorScheme.onPrimary
-                                                  .withValues(alpha: 0.92),
-                                            ),
-                                        textAlign: TextAlign.center,
+                                        l10n.pick(
+                                          vi: 'Trạng thái: ${_humanizeStatus(entry.value.paymentStatus, l10n)}',
+                                          en: 'Status: ${_humanizeStatus(entry.value.paymentStatus, l10n)}',
+                                        ),
+                                        style: theme.textTheme.bodyMedium,
                                       ),
                                     ],
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-                if (pendingTransactions.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.pick(
-                      vi: 'Giao dịch đang chờ xử lý',
-                      en: 'Pending transactions',
-                    ),
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  for (final entry
-                      in pendingTransactions
-                          .take(3)
-                          .toList(growable: false)
-                          .asMap()
-                          .entries)
-                    Card(
-                      key: Key('billing-pending-transaction-item-${entry.key}'),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          _openPendingTransactionDetail(
-                            transaction: entry.value,
-                          );
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                const SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
+                                    Icon(
+                                      Icons.schedule_outlined,
+                                      color: colorScheme.primary,
+                                    ),
+                                    const SizedBox(height: 4),
                                     Text(
-                                      '${entry.value.paymentMethod.toUpperCase()} • ${_formatVnd(entry.value.amountVnd)}',
-                                      style: theme.textTheme.titleSmall
+                                      _pendingTimeoutLabel(entry.value, l10n),
+                                      textAlign: TextAlign.right,
+                                      style: theme.textTheme.bodySmall
                                           ?.copyWith(
+                                            color: colorScheme.primary,
                                             fontWeight: FontWeight.w700,
                                           ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
-                                      l10n.pick(
-                                        vi: 'Tạo lúc: ${_dateLabel(entry.value.createdAtIso, l10n)}',
-                                        en: 'Created: ${_dateLabel(entry.value.createdAtIso, l10n)}',
-                                      ),
-                                      style: theme.textTheme.bodyMedium,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      l10n.pick(
-                                        vi: 'Trạng thái: ${_humanizeStatus(entry.value.paymentStatus, l10n)}',
-                                        en: 'Status: ${_humanizeStatus(entry.value.paymentStatus, l10n)}',
-                                      ),
-                                      style: theme.textTheme.bodyMedium,
+                                    Icon(
+                                      Icons.chevron_right,
+                                      size: 18,
+                                      color: colorScheme.outline,
                                     ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Icon(
-                                    Icons.schedule_outlined,
-                                    color: colorScheme.primary,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _pendingTimeoutLabel(entry.value, l10n),
-                                    textAlign: TextAlign.right,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.primary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Icon(
-                                    Icons.chevron_right,
-                                    size: 18,
-                                    color: colorScheme.outline,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: l10n.pick(
-              vi: 'Gia hạn & nhắc hạn',
-              en: 'Renewal & reminders',
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Semantics(
-                  container: true,
-                  label: l10n.pick(
-                    vi: 'Công tắc bật tự động gia hạn',
-                    en: 'Auto-renew switch',
-                  ),
-                  hint: renewalAutomationDescription,
-                  toggled: _autoRenewDraft,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.pick(
-                                  vi: 'Tự động gia hạn',
-                                  en: 'Auto-renew',
-                                ),
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                renewalAutomationDescription,
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        height: 48,
-                        child: Switch.adaptive(
-                          value: _autoRenewDraft,
-                          activeThumbColor: colorScheme.onPrimaryContainer,
-                          activeTrackColor: colorScheme.primaryContainer,
-                          inactiveThumbColor: colorScheme.onSurface,
-                          inactiveTrackColor:
-                              colorScheme.surfaceContainerHighest,
-                          onChanged: canManage
-                              ? (value) {
-                                  setState(() {
-                                    _autoRenewDraft = value;
-                                    _paymentModeDraft = value
-                                        ? 'auto_renew'
-                                        : 'manual';
-                                    _showPreferencesSavedInline = false;
-                                  });
-                                }
-                              : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  l10n.pick(vi: 'Nhắc trước hạn', en: 'Reminder schedule'),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (!_autoRenewDraft)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text(
-                      l10n.pick(
-                        vi: 'Bạn vẫn nhận nhắc để gia hạn thủ công.',
-                        en: 'You will still receive reminders for manual renewal.',
-                      ),
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final day in const [1, 3, 7, 14, 30])
-                      Builder(
-                        builder: (context) {
-                          final isSelected = _reminderDaysDraft.contains(day);
-                          return Semantics(
-                            button: true,
-                            selected: isSelected,
-                            label: l10n.pick(
-                              vi: 'Nhắc trước hạn $day ngày',
-                              en: '$day-day reminder',
-                            ),
-                            child: FilterChip(
-                              key: Key('billing-reminder-chip-$day'),
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.padded,
-                              showCheckmark: isSelected,
-                              checkmarkColor: colorScheme.onSecondaryContainer,
-                              side: BorderSide(
-                                color: isSelected
-                                    ? colorScheme.secondaryContainer
-                                    : colorScheme.outline,
-                              ),
-                              backgroundColor: colorScheme.surface,
-                              selectedColor: colorScheme.secondaryContainer,
-                              labelStyle: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: isSelected
-                                    ? colorScheme.onSecondaryContainer
-                                    : colorScheme.onSurface,
-                              ),
-                              label: Text(
-                                l10n.pick(vi: '$day ngày', en: '$day days'),
-                              ),
-                              selected: isSelected,
-                              onSelected: canManage
-                                  ? (selected) {
-                                      setState(() {
-                                        if (selected) {
-                                          _reminderDaysDraft.add(day);
-                                        } else {
-                                          _reminderDaysDraft.remove(day);
-                                        }
-                                        if (_reminderDaysDraft.isEmpty) {
-                                          _reminderDaysDraft = {7, 1};
-                                        }
-                                        _showPreferencesSavedInline = false;
-                                      });
-                                    }
-                                  : null,
-                            ),
-                          );
-                        },
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Semantics(
-                  button: true,
-                  label: l10n.pick(
-                    vi: 'Lưu cài đặt gia hạn',
-                    en: 'Save renewal settings',
-                  ),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: AppAsyncAction(
-                      enabled:
-                          canManage &&
-                          !_controller.isSavingPreferences &&
-                          hasRenewalSettingsChanges,
-                      onPressed:
-                          canManage &&
-                              !_controller.isSavingPreferences &&
-                              hasRenewalSettingsChanges
-                          ? _savePreferences
-                          : null,
-                      builder: (context, onPressed, isLoading) {
-                        final saveInProgress =
-                            isLoading || _controller.isSavingPreferences;
-                        return FilledButton(
-                          key: const Key('billing-save-preferences-button'),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(48),
-                          ),
-                          onPressed: onPressed,
-                          child: AppStableLoadingChild(
-                            isLoading: saveInProgress,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.save_outlined),
-                                const SizedBox(width: 8),
-                                Text(l10n.pick(vi: 'Lưu', en: 'Save')),
                               ],
                             ),
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                if (_showPreferencesSavedInline)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Row(
-                      key: const Key('billing-save-success-indicator'),
-                      children: [
-                        Icon(
-                          Icons.check_circle_outline,
-                          size: 18,
-                          color: colorScheme.primary,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          l10n.pick(vi: 'Đã lưu', en: 'Saved'),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.w600,
+                      ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: l10n.pick(
+                vi: 'Gia hạn & nhắc hạn',
+                en: 'Renewal & reminders',
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    container: true,
+                    label: l10n.pick(
+                      vi: 'Công tắc bật tự động gia hạn',
+                      en: 'Auto-renew switch',
+                    ),
+                    hint: renewalAutomationDescription,
+                    toggled: _autoRenewDraft,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  l10n.pick(
+                                    vi: 'Tự động gia hạn',
+                                    en: 'Auto-renew',
+                                  ),
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  renewalAutomationDescription,
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          height: 48,
+                          child: Switch.adaptive(
+                            value: _autoRenewDraft,
+                            activeThumbColor: colorScheme.onPrimaryContainer,
+                            activeTrackColor: colorScheme.primaryContainer,
+                            inactiveThumbColor: colorScheme.onSurface,
+                            inactiveTrackColor:
+                                colorScheme.surfaceContainerHighest,
+                            onChanged: canManage
+                                ? (value) {
+                                    setState(() {
+                                      _autoRenewDraft = value;
+                                      _paymentModeDraft = value
+                                          ? 'auto_renew'
+                                          : 'manual';
+                                      _showPreferencesSavedInline = false;
+                                    });
+                                  }
+                                : null,
                           ),
                         ),
                       ],
                     ),
                   ),
-              ],
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.pick(vi: 'Nhắc trước hạn', en: 'Reminder schedule'),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (!_autoRenewDraft)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        l10n.pick(
+                          vi: 'Bạn vẫn nhận nhắc để gia hạn thủ công.',
+                          en: 'You will still receive reminders for manual renewal.',
+                        ),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final day in const [1, 3, 7, 14, 30])
+                        Builder(
+                          builder: (context) {
+                            final isSelected = _reminderDaysDraft.contains(day);
+                            return Semantics(
+                              button: true,
+                              selected: isSelected,
+                              label: l10n.pick(
+                                vi: 'Nhắc trước hạn $day ngày',
+                                en: '$day-day reminder',
+                              ),
+                              child: FilterChip(
+                                key: Key('billing-reminder-chip-$day'),
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.padded,
+                                showCheckmark: isSelected,
+                                checkmarkColor:
+                                    colorScheme.onSecondaryContainer,
+                                side: BorderSide(
+                                  color: isSelected
+                                      ? colorScheme.secondaryContainer
+                                      : colorScheme.outline,
+                                ),
+                                backgroundColor: colorScheme.surface,
+                                selectedColor: colorScheme.secondaryContainer,
+                                labelStyle: theme.textTheme.titleSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: isSelected
+                                          ? colorScheme.onSecondaryContainer
+                                          : colorScheme.onSurface,
+                                    ),
+                                label: Text(
+                                  l10n.pick(vi: '$day ngày', en: '$day days'),
+                                ),
+                                selected: isSelected,
+                                onSelected: canManage
+                                    ? (selected) {
+                                        setState(() {
+                                          if (selected) {
+                                            _reminderDaysDraft.add(day);
+                                          } else {
+                                            _reminderDaysDraft.remove(day);
+                                          }
+                                          if (_reminderDaysDraft.isEmpty) {
+                                            _reminderDaysDraft = {7, 1};
+                                          }
+                                          _showPreferencesSavedInline = false;
+                                        });
+                                      }
+                                    : null,
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Semantics(
+                    button: true,
+                    label: l10n.pick(
+                      vi: 'Lưu cài đặt gia hạn',
+                      en: 'Save renewal settings',
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: AppAsyncAction(
+                        enabled:
+                            canManage &&
+                            !_controller.isSavingPreferences &&
+                            hasRenewalSettingsChanges,
+                        onPressed:
+                            canManage &&
+                                !_controller.isSavingPreferences &&
+                                hasRenewalSettingsChanges
+                            ? _savePreferences
+                            : null,
+                        builder: (context, onPressed, isLoading) {
+                          final saveInProgress =
+                              isLoading || _controller.isSavingPreferences;
+                          return FilledButton(
+                            key: const Key('billing-save-preferences-button'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                            ),
+                            onPressed: onPressed,
+                            child: AppStableLoadingChild(
+                              isLoading: saveInProgress,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.save_outlined),
+                                  const SizedBox(width: 8),
+                                  Text(l10n.pick(vi: 'Lưu', en: 'Save')),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  if (_showPreferencesSavedInline)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        key: const Key('billing-save-success-indicator'),
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            size: 18,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            l10n.pick(vi: 'Đã lưu', en: 'Saved'),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            sectionKey: const Key('billing-payment-history-section'),
-            title: l10n.pick(vi: 'Lịch sử thanh toán', en: 'Payment history'),
-            child: workspace.transactions.isEmpty
-                ? _EmptyState(
-                    icon: Icons.receipt_long_outlined,
-                    title: l10n.pick(
-                      vi: 'Chưa có giao dịch',
-                      en: 'No transactions',
+            const SizedBox(height: 16),
+            _SectionCard(
+              sectionKey: const Key('billing-payment-history-section'),
+              title: l10n.pick(vi: 'Lịch sử thanh toán', en: 'Payment history'),
+              child: workspace.transactions.isEmpty
+                  ? _EmptyState(
+                      icon: Icons.receipt_long_outlined,
+                      title: l10n.pick(
+                        vi: 'Chưa có giao dịch',
+                        en: 'No transactions',
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (final tx in workspace.transactions.take(8))
+                          ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              '${tx.paymentMethod.toUpperCase()} • ${_formatVnd(tx.amountVnd)}',
+                            ),
+                            subtitle: Text(
+                              '${_localizedPlanName(tx.planCode, l10n, tier: _findPricingTierByPlanCode(workspace.pricingTiers, tx.planCode))} • ${_humanizeStatus(tx.paymentStatus, l10n)}',
+                            ),
+                            trailing: Text(
+                              _dateLabel(tx.paidAtIso ?? tx.createdAtIso, l10n),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                      ],
                     ),
-                    description: l10n.pick(
-                      vi: 'Giao dịch sẽ xuất hiện sau khi bạn thanh toán hoặc gia hạn.',
-                      en: 'Transactions appear here after checkout and renewals.',
-                    ),
-                  )
-                : Column(
-                    children: [
-                      for (final tx in workspace.transactions.take(8))
-                        ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            '${tx.paymentMethod.toUpperCase()} • ${_formatVnd(tx.amountVnd)}',
-                          ),
-                          subtitle: Text(
-                            '${_localizedPlanName(tx.planCode, l10n, tier: _findPricingTierByPlanCode(workspace.pricingTiers, tx.planCode))} • ${_humanizeStatus(tx.paymentStatus, l10n)}',
-                          ),
-                          trailing: Text(
-                            _dateLabel(tx.paidAtIso ?? tx.createdAtIso, l10n),
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ),
-                    ],
-                  ),
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: l10n.pick(vi: 'Hóa đơn', en: 'Invoices'),
-            child: workspace.invoices.isEmpty
-                ? _EmptyState(
-                    icon: Icons.description_outlined,
-                    title: l10n.pick(vi: 'Chưa có hóa đơn', en: 'No invoices'),
-                    description: l10n.pick(
-                      vi: 'Hóa đơn sẽ được tạo cùng giao dịch thanh toán.',
-                      en: 'Invoices are generated together with transactions.',
-                    ),
-                  )
-                : Column(
-                    children: [
-                      for (final invoice in workspace.invoices.take(6))
-                        ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            '${_localizedPlanName(invoice.planCode, l10n, tier: _findPricingTierByPlanCode(workspace.pricingTiers, invoice.planCode))} • ${_formatVnd(invoice.amountVnd)}',
-                          ),
-                          subtitle: Text(
-                            '${l10n.pick(vi: 'Trạng thái', en: 'Status')}: '
-                            '${_humanizeInvoiceStatus(invoice.status, l10n)}',
-                          ),
-                          trailing: Text(
-                            _dateLabel(invoice.issuedAtIso, l10n),
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ),
-                    ],
-                  ),
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: l10n.pick(vi: 'Nhật ký hệ thống', en: 'Audit logs'),
-            child: workspace.auditLogs.isEmpty
-                ? _EmptyState(
-                    icon: Icons.history_toggle_off,
-                    title: l10n.pick(
-                      vi: 'Chưa có nhật ký',
-                      en: 'No audit records',
-                    ),
-                    description: l10n.pick(
-                      vi: 'Nhật ký thao tác billing sẽ hiển thị tại đây.',
-                      en: 'Billing action logs will appear here.',
-                    ),
-                  )
-                : Column(
-                    children: [
-                      for (final log in workspace.auditLogs.take(8))
-                        ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(_humanizeAuditAction(log.action, l10n)),
-                          subtitle: Text(
-                            _humanizeAuditEntityType(log.entityType, l10n),
-                          ),
-                          trailing: Text(
-                            _dateLabel(log.createdAtIso, l10n),
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ),
-                    ],
-                  ),
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: l10n.pick(vi: 'Bảng giá', en: 'Pricing tiers'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.pick(
-                    vi: 'So sánh nhanh các gói hiện có.',
-                    en: 'Compare the available plans at a glance.',
-                  ),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildPricingTierList(
-                  context,
-                  tiers: workspace.pricingTiers,
-                  currentPlanCode: entitlement.planCode,
-                ),
-              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: l10n.pick(vi: 'Hóa đơn', en: 'Invoices'),
+              child: workspace.invoices.isEmpty
+                  ? _EmptyState(
+                      icon: Icons.description_outlined,
+                      title: l10n.pick(
+                        vi: 'Chưa có hóa đơn',
+                        en: 'No invoices',
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (final invoice in workspace.invoices.take(6))
+                          ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              '${_localizedPlanName(invoice.planCode, l10n, tier: _findPricingTierByPlanCode(workspace.pricingTiers, invoice.planCode))} • ${_formatVnd(invoice.amountVnd)}',
+                            ),
+                            subtitle: Text(
+                              '${l10n.pick(vi: 'Trạng thái', en: 'Status')}: '
+                              '${_humanizeInvoiceStatus(invoice.status, l10n)}',
+                            ),
+                            trailing: Text(
+                              _dateLabel(invoice.issuedAtIso, l10n),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: l10n.pick(vi: 'Hoạt động gần đây', en: 'Recent activity'),
+              child: workspace.auditLogs.isEmpty
+                  ? _EmptyState(
+                      icon: Icons.history_toggle_off,
+                      title: l10n.pick(
+                        vi: 'Chưa có hoạt động nào',
+                        en: 'No recent activity',
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (final log in workspace.auditLogs.take(8))
+                          ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(_humanizeAuditAction(log.action, l10n)),
+                            subtitle: Text(
+                              _humanizeAuditEntityType(log.entityType, l10n),
+                            ),
+                            trailing: Text(
+                              _dateLabel(log.createdAtIso, l10n),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: l10n.pick(vi: 'Bảng giá', en: 'Pricing tiers'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.pick(
+                      vi: 'So sánh nhanh các gói hiện có.',
+                      en: 'Compare the available plans at a glance.',
+                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildPricingTierList(
+                    context,
+                    tiers: workspace.pricingTiers,
+                    currentPlanCode: entitlement.planCode,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1398,74 +1384,63 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
 
     return RefreshIndicator(
       onRefresh: _controller.refresh,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        children: [
-          if (_controller.errorMessage case final error?) ...[
-            _InfoCard(
-              icon: Icons.error_outline,
-              title: l10n.pick(
-                vi: 'Không thể cập nhật trạng thái gói',
-                en: 'Unable to refresh subscription state',
+      child: AppWorkspaceViewport(
+        child: ListView(
+          padding: appWorkspacePagePadding(context, top: 16, bottom: 32),
+          children: [
+            if (_controller.errorMessage case final error?) ...[
+              _InfoCard(
+                icon: Icons.error_outline,
+                title: l10n.pick(
+                  vi: 'Không thể cập nhật trạng thái gói',
+                  en: 'Unable to refresh subscription state',
+                ),
+                description: _friendlyErrorMessage(error, l10n),
+                tone: colorScheme.errorContainer,
               ),
-              description: _friendlyErrorMessage(error, l10n),
-              tone: colorScheme.errorContainer,
+              const SizedBox(height: 12),
+            ],
+            _SubscriptionHeroCard(
+              planCode: entitlement.planCode,
+              planDisplayName: _localizedPlanName(
+                entitlement.planCode,
+                l10n,
+                tier: tier,
+              ),
+              status: entitlement.status,
+              memberCount: summary.memberCount,
+              amountVnd:
+                  tier?.priceVndYear ?? summary.subscription.amountVndYear,
+              showAds: entitlement.showAds,
+              adFree: entitlement.adFree,
+              expiresAtIso:
+                  entitlement.expiresAtIso ?? summary.subscription.expiresAtIso,
+              nextPaymentDueAtIso:
+                  entitlement.nextPaymentDueAtIso ??
+                  summary.subscription.nextPaymentDueAtIso,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+            _InfoCard(
+              icon: Icons.visibility_outlined,
+              title: l10n.pick(vi: 'Chế độ xem', en: 'View mode'),
+              tone: colorScheme.secondaryContainer,
+            ),
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: l10n.pick(vi: 'Bảng giá', en: 'Pricing tiers'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildPricingTierList(
+                    context,
+                    tiers: summary.pricingTiers,
+                    currentPlanCode: entitlement.planCode,
+                  ),
+                ],
+              ),
+            ),
           ],
-          _SubscriptionHeroCard(
-            planCode: entitlement.planCode,
-            planDisplayName: _localizedPlanName(
-              entitlement.planCode,
-              l10n,
-              tier: tier,
-            ),
-            status: entitlement.status,
-            memberCount: summary.memberCount,
-            amountVnd: tier?.priceVndYear ?? summary.subscription.amountVndYear,
-            showAds: entitlement.showAds,
-            adFree: entitlement.adFree,
-            expiresAtIso:
-                entitlement.expiresAtIso ?? summary.subscription.expiresAtIso,
-            nextPaymentDueAtIso:
-                entitlement.nextPaymentDueAtIso ??
-                summary.subscription.nextPaymentDueAtIso,
-          ),
-          const SizedBox(height: 16),
-          _InfoCard(
-            icon: Icons.visibility_outlined,
-            title: l10n.pick(vi: 'Chế độ xem', en: 'View mode'),
-            description: l10n.pick(
-              vi: 'Bạn có thể xem trạng thái gói. Chủ tộc và quản trị viên sẽ thực hiện thanh toán/gia hạn.',
-              en: 'You can view subscription status. Clan owner/admin accounts handle checkout and renewal.',
-            ),
-            tone: colorScheme.secondaryContainer,
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: l10n.pick(vi: 'Bảng giá', en: 'Pricing tiers'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.pick(
-                    vi: 'So sánh nhanh các gói hiện có.',
-                    en: 'Compare the available plans at a glance.',
-                  ),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildPricingTierList(
-                  context,
-                  tiers: summary.pricingTiers,
-                  currentPlanCode: entitlement.planCode,
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1571,11 +1546,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             ),
             child: _PricingTierTile(
               planName: _localizedPlanName(
-                tiers[index].planCode,
-                l10n,
-                tier: tiers[index],
-              ),
-              description: _planShortDescription(
                 tiers[index].planCode,
                 l10n,
                 tier: tiers[index],
@@ -1878,16 +1848,10 @@ class _SubscriptionHeroCard extends StatelessWidget {
       _ => status,
     };
 
-    return Container(
+    return AppWorkspaceSurface(
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colorScheme.primary, colorScheme.primaryContainer],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1896,7 +1860,7 @@ class _SubscriptionHeroCard extends StatelessWidget {
               Text(
                 planDisplayName,
                 style: theme.textTheme.headlineSmall?.copyWith(
-                  color: colorScheme.onPrimary,
+                  color: colorScheme.onSurface,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1907,13 +1871,13 @@ class _SubscriptionHeroCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: colorScheme.onPrimary.withValues(alpha: 0.16),
+                  color: colorScheme.primary.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   statusLabel,
                   style: theme.textTheme.labelLarge?.copyWith(
-                    color: colorScheme.onPrimary,
+                    color: colorScheme.onSurface,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1927,7 +1891,7 @@ class _SubscriptionHeroCard extends StatelessWidget {
               en: 'Current members: $memberCount',
             ),
             style: theme.textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onPrimary.withValues(alpha: 0.95),
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 6),
@@ -1937,7 +1901,7 @@ class _SubscriptionHeroCard extends StatelessWidget {
               en: 'Annual fee: ${_formatVnd(amountVnd)} (VAT included)',
             ),
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onPrimary.withValues(alpha: 0.92),
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 10),
@@ -1977,7 +1941,6 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
   const _CheckoutPlanOptionTile({
     super.key,
     required this.planName,
-    required this.description,
     required this.detailLabel,
     required this.priceLabel,
     required this.isSelected,
@@ -1987,7 +1950,6 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
   });
 
   final String planName;
-  final String description;
   final String detailLabel;
   final String priceLabel;
   final bool isSelected;
@@ -2086,19 +2048,6 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
                             ],
                           ],
                         ),
-                        if (description.trim().isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            description,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: isInteractive
-                                  ? colorScheme.onSurfaceVariant
-                                  : mutedColor,
-                            ),
-                          ),
-                        ],
                         const SizedBox(height: 4),
                         Text(
                           detailLabel,
@@ -2141,7 +2090,6 @@ class _CheckoutPlanOptionTile extends StatelessWidget {
 class _PricingTierTile extends StatelessWidget {
   const _PricingTierTile({
     required this.planName,
-    required this.description,
     required this.detailLabel,
     required this.priceLabel,
     this.badgeLabel,
@@ -2149,7 +2097,6 @@ class _PricingTierTile extends StatelessWidget {
   });
 
   final String planName;
-  final String description;
   final String detailLabel;
   final String priceLabel;
   final String? badgeLabel;
@@ -2210,15 +2157,6 @@ class _PricingTierTile extends StatelessWidget {
                 ),
             ],
           ),
-          if (description.trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              description,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
           const SizedBox(height: 4),
           Text(
             detailLabel,
@@ -2283,18 +2221,18 @@ class _HeroPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: colorScheme.onPrimary.withValues(alpha: 0.14),
+        color: colorScheme.primary.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: colorScheme.onPrimary),
+          Icon(icon, size: 14, color: colorScheme.onSurface),
           const SizedBox(width: 6),
           Text(
             text,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: colorScheme.onPrimary,
+              color: colorScheme.onSurface,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -2308,45 +2246,45 @@ class _InfoCard extends StatelessWidget {
   const _InfoCard({
     required this.icon,
     required this.title,
-    required this.description,
     required this.tone,
+    this.description,
   });
 
   final IconData icon;
   final String title;
-  final String description;
+  final String? description;
   final Color tone;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return AppWorkspaceSurface(
       color: tone,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                if (description != null && description!.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
-                    description,
+                    description!,
                     maxLines: 6,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -2365,23 +2303,21 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return AppWorkspaceSurface(
       key: sectionKey,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-            child,
-          ],
-        ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          child,
+        ],
       ),
     );
   }
@@ -2391,12 +2327,12 @@ class _EmptyState extends StatelessWidget {
   const _EmptyState({
     required this.icon,
     required this.title,
-    required this.description,
+    this.description,
   });
 
   final IconData icon;
   final String title;
-  final String description;
+  final String? description;
 
   @override
   Widget build(BuildContext context) {
@@ -2425,12 +2361,15 @@ class _EmptyState extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      description,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium,
-                    ),
+                    if (description != null &&
+                        description!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        description!,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -2502,49 +2441,6 @@ String _resolveLocalizedText({
     return fallback;
   }
   return '';
-}
-
-String _defaultPlanShortDescription(String planCode, AppLocalizations l10n) {
-  switch (planCode.trim().toUpperCase()) {
-    case 'FREE':
-      return l10n.pick(
-        vi: 'Cho gia phả nhỏ, bắt đầu nhanh',
-        en: 'A quick start for small family trees',
-      );
-    case 'BASE':
-      return l10n.pick(
-        vi: 'Phù hợp khi gia phả bắt đầu mở rộng',
-        en: 'A good fit for growing family trees',
-      );
-    case 'PLUS':
-      return l10n.pick(
-        vi: 'Không quảng cáo, phù hợp quy mô lớn',
-        en: 'Ad-free for larger family trees',
-      );
-    case 'PRO':
-      return l10n.pick(
-        vi: 'Không giới hạn thành viên',
-        en: 'Unlimited members for large family trees',
-      );
-    default:
-      return '';
-  }
-}
-
-String _planShortDescription(
-  String planCode,
-  AppLocalizations l10n, {
-  BillingPlanPricing? tier,
-}) {
-  final localized = _resolveLocalizedText(
-    l10n: l10n,
-    vi: tier?.descriptionVi,
-    en: tier?.descriptionEn,
-  );
-  if (localized.isNotEmpty) {
-    return localized;
-  }
-  return _defaultPlanShortDescription(planCode, l10n);
 }
 
 String _heroTimelineLabel({

@@ -803,7 +803,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileSettingsLogoutDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Xác nhận này giúp tránh đăng xuất nhầm khi bạn đang điều chỉnh cài đặt.'**
+  /// **'Bạn sẽ cần đăng nhập lại để tiếp tục dùng BeFam trên thiết bị này.'**
   String get profileSettingsLogoutDescription;
 
   /// No description provided for @profileCancelAction.
@@ -851,7 +851,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileLanguageVietnameseSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'Mặc định cho người dùng tại Việt Nam'**
+  /// **'Phù hợp với cách dùng phổ biến tại Việt Nam'**
   String get profileLanguageVietnameseSubtitle;
 
   /// No description provided for @profileLanguageEnglish.
@@ -863,7 +863,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileLanguageEnglishSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'Hiển thị tiếng Anh trên toàn bộ ứng dụng'**
+  /// **'Hiển thị toàn bộ ứng dụng bằng tiếng Anh'**
   String get profileLanguageEnglishSubtitle;
 
   /// No description provided for @profileSecuritySectionTitle.

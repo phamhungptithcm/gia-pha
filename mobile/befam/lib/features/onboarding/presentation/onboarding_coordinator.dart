@@ -367,6 +367,9 @@ class OnboardingCoordinator extends ChangeNotifier {
     if (progress == null || progress.version != flow.version) {
       return true;
     }
+    if (progress.status == OnboardingFlowStatus.skipped) {
+      return false;
+    }
     if (progress.canResume) {
       return true;
     }

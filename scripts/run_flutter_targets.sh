@@ -102,6 +102,10 @@ Targets:
     - Run Android in release mode on a physical USB device only
     - Requires release signing (env vars or android/key.properties)
 
+  android-usb-staging-release [device_id]
+    - Run Android on a physical USB device with staging release defaults
+    - Requires real staging signing (env vars or android/key.properties)
+
   android-usb-release-ci [device_id]
     - Run Android in release mode on a physical USB device only
     - Uses a temporary local signing keystore when real signing is not configured
@@ -140,6 +144,7 @@ Examples:
   ./run_flutter_targets.sh android-restart-adb
   ./run_flutter_targets.sh android-debug
   ./run_flutter_targets.sh android-usb
+  ./run_flutter_targets.sh android-usb-staging-release
   ./run_flutter_targets.sh android-usb-release-ci
   ./run_flutter_targets.sh android-build-aab
   ./run_flutter_targets.sh android-build-aab-ci
@@ -154,6 +159,8 @@ Notes:
   - Any exported supported `BEFAM_*` env value (Firebase/app-check/billing/store links)
     will also be forwarded as `--dart-define` so you can switch runtime setup
     without changing source files.
+  - Release targets auto-load local release defaults from:
+      BEFAM_LOCAL_RELEASE_ENV_FILE -> scripts/local-release.env -> staging examples
   - For AAB build targets, you can override version metadata with:
       BEFAM_BUILD_NAME=1.2.3
       BEFAM_BUILD_NUMBER=123
@@ -166,6 +173,85 @@ require_cmd() {
     print_error "I couldn't find a required command: $cmd"
     exit 1
   fi
+}
+
+load_env_file_safe_defaults() {
+  local file="$1"
+  local line=""
+  local key=""
+  local value=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line//[[:space:]]/}" ]] && continue
+    if [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*) ]]; then
+      key="${BASH_REMATCH[1]}"
+      value="${BASH_REMATCH[2]}"
+      if [[ "$value" =~ ^\"(.*)\"$ ]] || [[ "$value" =~ ^\'(.*)\'$ ]]; then
+        value="${BASH_REMATCH[1]}"
+      fi
+      if [[ -z "${!key-}" ]]; then
+        export "$key=$value"
+      fi
+    fi
+  done < "$file"
+}
+
+pick_release_env_file() {
+  local profile="${BEFAM_RELEASE_PROFILE:-staging}"
+  local -a candidates=()
+  local candidate=""
+
+  if [[ -n "${BEFAM_LOCAL_RELEASE_ENV_FILE:-}" ]]; then
+    candidates+=("${BEFAM_LOCAL_RELEASE_ENV_FILE}")
+  fi
+
+  candidates+=("$SCRIPT_DIR/local-release.env")
+
+  if [[ "$profile" == "staging" ]]; then
+    candidates+=(
+      "$SCRIPT_DIR/local-release.env.example"
+      "$SCRIPT_DIR/github-staging.env.example"
+    )
+  else
+    candidates+=("$SCRIPT_DIR/local-release.env.example")
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  echo ""
+  return 0
+}
+
+load_release_env_defaults_if_needed() {
+  if [[ "${BEFAM_RELEASE_ENV_DEFAULTS_LOADED:-false}" == "true" ]]; then
+    return 0
+  fi
+
+  local env_file=""
+  env_file="$(pick_release_env_file)"
+  if [[ -z "$env_file" ]]; then
+    return 0
+  fi
+
+  print_info "Loading release defaults from $(basename "$env_file")."
+  load_env_file_safe_defaults "$env_file"
+  export BEFAM_RELEASE_ENV_DEFAULTS_LOADED="true"
+}
+
+target_needs_release_defaults() {
+  case "$1" in
+    android-release|android-usb-release|android-usb-staging-release|android-usb-release-ci|android-build-aab|android-build-aab-ci|ios-device-release)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 run_flutter_cmd() {
@@ -486,10 +572,10 @@ select_android_target_interactive() {
   local options=(
     "Android device or emulator (Debug)"
     "Android USB device only (Debug)"
-    "Android device or emulator (Release)"
-    "Android USB device only (Release)"
+    "Android device or emulator (Release, real signing required)"
+    "Android USB device only (Staging release, real signing required)"
     "Android USB device only (Release, temporary local signing)"
-    "Build Android AAB (Release)"
+    "Build Android AAB (Release, real signing required)"
     "Build Android AAB (CI-like local test)"
     "Show Android diagnostics"
     "Restart adb server"
@@ -517,7 +603,7 @@ select_android_target_interactive() {
         return 0
         ;;
       4)
-        echo "android-usb-release"
+        echo "android-usb-staging-release"
         return 0
         ;;
       5)
@@ -656,8 +742,11 @@ prepare_android_release_signing() {
   echo "If you only need a quick local run, use one of these instead:" >&2
   echo "  - ./run_flutter_targets.sh android-debug" >&2
   echo "  - ./run_flutter_targets.sh android-usb" >&2
+  echo "  - ./run_flutter_targets.sh android-usb-staging-release" >&2
   echo "  - ./run_flutter_targets.sh android-usb-release-ci" >&2
   echo "  - ./run_flutter_targets.sh android-build-aab-ci" >&2
+  echo >&2
+  echo "If you are using the interactive menu, choose Android option 4 for staging release or option 5 for temporary local signing." >&2
   return 1
 }
 
@@ -1054,6 +1143,14 @@ if [[ "$TARGET" == "interactive" || "$TARGET" == "menu" ]]; then
   TARGET="$(select_target_interactive)"
 fi
 
+if [[ "$TARGET" == "android-usb-staging-release" ]]; then
+  export BEFAM_RELEASE_PROFILE="staging"
+fi
+
+if target_needs_release_defaults "$TARGET"; then
+  load_release_env_defaults_if_needed
+fi
+
 BEFAM_DART_DEFINE_ARGS=()
 build_befam_dart_define_args
 
@@ -1119,6 +1216,15 @@ case "$TARGET" in
     ;;
 
   android-usb-release)
+    DEVICE_ID="${1:-}"
+    if [[ -n "$DEVICE_ID" ]]; then
+      shift
+    fi
+    DEVICE_ID="$(resolve_android_device_id "$DEVICE_ID" "" "physical" "No Android USB device detected.")"
+    run_android_target "release" "$DEVICE_ID" "false" "$@"
+    ;;
+
+  android-usb-staging-release)
     DEVICE_ID="${1:-}"
     if [[ -n "$DEVICE_ID" ]]; then
       shift

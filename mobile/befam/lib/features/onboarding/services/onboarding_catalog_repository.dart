@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/services/app_environment.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
@@ -77,7 +78,9 @@ class FirebaseOnboardingCatalogRepository
     }
 
     List<OnboardingFlow> flows = const <OnboardingFlow>[];
-    if (settings.firestoreCatalogEnabled) {
+    if (AppEnvironment.useLocalFirebaseFallbacks) {
+      flows = _fallbackFlowsFor(trigger.id);
+    } else if (settings.firestoreCatalogEnabled) {
       flows = await _loadRemoteFlows(
         collection: settings.catalogCollection,
         triggerId: trigger.id,

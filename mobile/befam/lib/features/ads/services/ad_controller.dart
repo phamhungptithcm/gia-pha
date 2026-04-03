@@ -162,6 +162,18 @@ class AdController implements RewardedDiscoveryAttemptService {
     _notifyStateChanged();
   }
 
+  void disposeBannerForSession() {
+    _bannerLoadFailed = false;
+    _adService.disposeBanner();
+    _notifyStateChanged();
+  }
+
+  void invalidateBannerPlacement() {
+    _bannerLoadFailed = false;
+    _adService.disposeBanner();
+    _notifyStateChanged();
+  }
+
   void recordNavigationTransition({
     required String fromScreenId,
     required String toScreenId,
@@ -290,6 +302,7 @@ class AdController implements RewardedDiscoveryAttemptService {
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
+        invalidateBannerPlacement();
         if (sessionState.awaitingScreenAfterAdEvent &&
             sessionState.timeSinceLastDismissSec(now) <=
                 _policy.sessionExitAfterAdWindowSec &&

@@ -69,6 +69,7 @@ Run the app:
 ../../run_flutter_targets.sh
 ../../run_flutter_targets.sh android-debug
 ../../run_flutter_targets.sh android-usb
+../../run_flutter_targets.sh android-usb-staging-release
 ../../run_flutter_targets.sh android-usb-release-ci
 ../../run_flutter_targets.sh android-doctor
 ../../run_flutter_targets.sh ios-sim

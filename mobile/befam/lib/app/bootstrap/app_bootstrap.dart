@@ -196,7 +196,9 @@ class AppBootstrap {
   static Future<void> _activateAppCheck() async {
     if (!AppEnvironment.enableAppCheck) {
       AppLogger.info(
-        'Firebase App Check is disabled by BEFAM_ENABLE_APP_CHECK.',
+        kReleaseMode
+            ? 'Firebase App Check is disabled by BEFAM_ENABLE_APP_CHECK.'
+            : 'Firebase App Check is skipped in local/testing builds.',
       );
       return;
     }

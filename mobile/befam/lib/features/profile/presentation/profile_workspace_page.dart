@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../core/services/app_locale_controller.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/member_phone_action.dart';
@@ -325,26 +326,65 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     final action = await showModalBottomSheet<_AvatarAction>(
       context: context,
       useSafeArea: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.image_outlined),
-                title: Text(
-                  l10n.pick(vi: 'Xem ảnh hiện tại', en: 'View current photo'),
-                ),
-                onTap: () => Navigator.of(context).pop(_AvatarAction.view),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: AppWorkspaceSurface(
+              padding: const EdgeInsets.all(18),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(32),
+                bottom: Radius.circular(28),
               ),
-              ListTile(
-                leading: const Icon(Icons.file_upload_outlined),
-                title: Text(
-                  l10n.pick(vi: 'Tải ảnh mới', en: 'Upload new photo'),
-                ),
-                onTap: () => Navigator.of(context).pop(_AvatarAction.upload),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    l10n.pick(vi: 'Ảnh đại diện', en: 'Profile photo'),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.pick(
+                      vi: 'Giữ các thao tác với ảnh ở một nơi ngắn gọn để chỉnh nhanh.',
+                      en: 'Keep photo actions in one compact place for quick updates.',
+                    ),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 14),
+                  _AvatarActionTile(
+                    icon: Icons.image_outlined,
+                    title: l10n.pick(
+                      vi: 'Xem ảnh hiện tại',
+                      en: 'View current photo',
+                    ),
+                    onTap: () => Navigator.of(context).pop(_AvatarAction.view),
+                  ),
+                  const SizedBox(height: 10),
+                  _AvatarActionTile(
+                    icon: Icons.file_upload_outlined,
+                    title: l10n.pick(vi: 'Tải ảnh mới', en: 'Upload new photo'),
+                    onTap: () =>
+                        Navigator.of(context).pop(_AvatarAction.upload),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
@@ -409,37 +449,6 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     );
   }
 
-  Future<void> _confirmLogout() async {
-    if (widget.onLogoutRequested == null) {
-      return;
-    }
-
-    final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(l10n.profileLogoutDialogTitle),
-          content: Text(l10n.profileLogoutDialogDescription),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(l10n.profileCancelAction),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(l10n.shellLogout),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true && mounted) {
-      await widget.onLogoutRequested?.call();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -462,6 +471,46 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                     l10n: l10n,
                   )
                 : null);
+        final socialLinkCount = [
+          displayProfile?.socialLinks.facebook,
+          displayProfile?.socialLinks.zalo,
+          displayProfile?.socialLinks.linkedin,
+        ].where((value) => (value ?? '').trim().isNotEmpty).length;
+        final phoneBadgeLabel = (displayProfile?.phoneE164 ?? '').trim();
+        final emailBadgeLabel = (displayProfile?.email ?? '').trim();
+        final settingsBadges = <_ProfileHeroBadgeData>[
+          _ProfileHeroBadgeData(
+            icon: Icons.language_outlined,
+            label: selectedLanguageCode == 'vi'
+                ? l10n.profileLanguageVietnamese
+                : l10n.profileLanguageEnglish,
+          ),
+        ];
+        final heroBadges = <_ProfileHeroBadgeData>[
+          _ProfileHeroBadgeData(
+            icon: Icons.call_outlined,
+            label: phoneBadgeLabel.isEmpty
+                ? l10n.pick(vi: 'Thêm số điện thoại', en: 'Add phone number')
+                : phoneBadgeLabel,
+          ),
+          _ProfileHeroBadgeData(
+            icon: Icons.mail_outline,
+            label: emailBadgeLabel.isEmpty
+                ? l10n.pick(vi: 'Thêm email', en: 'Add email')
+                : emailBadgeLabel,
+          ),
+          _ProfileHeroBadgeData(
+            icon: Icons.share_outlined,
+            label: l10n.pick(
+              vi: socialLinkCount == 0
+                  ? 'Chưa có liên kết liên hệ'
+                  : '$socialLinkCount liên kết liên hệ',
+              en: socialLinkCount == 0
+                  ? 'No contact links yet'
+                  : '$socialLinkCount contact links',
+            ),
+          ),
+        ];
 
         return Scaffold(
           appBar: widget.showAppBar
@@ -501,243 +550,210 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                   )
                 : RefreshIndicator(
                     onRefresh: _controller.refresh,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                      children: [
-                        if (!widget.showAppBar) ...[
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Wrap(
-                              spacing: 8,
+                    child: AppWorkspaceViewport(
+                      child: ListView(
+                        padding: appWorkspacePagePadding(
+                          context,
+                          top: 16,
+                          bottom: 32,
+                        ),
+                        children: [
+                          _ProfileHeroCard(
+                            profile: displayProfile,
+                            roleLabel: l10n.roleLabel(
+                              displayProfile.primaryRole,
+                            ),
+                            badges: heroBadges,
+                            onEditProfile: usesFallbackProfile
+                                ? _openUnlinkedEditor
+                                : () => _openEditor(displayProfile),
+                            onAvatarTap:
+                                usesFallbackProfile ||
+                                    _controller.isUploadingAvatar
+                                ? null
+                                : () => _openAvatarActions(displayProfile),
+                            isUploadingAvatar: usesFallbackProfile
+                                ? _isSavingUnlinkedProfile
+                                : _controller.isUploadingAvatar,
+                            showAvatarActionBadge: !usesFallbackProfile,
+                          ),
+                          const SizedBox(height: 16),
+                          if (_controller.errorMessage != null) ...[
+                            _ProfileInfoCard(
+                              icon: Icons.error_outline,
+                              title: l10n.profileUpdateErrorTitle,
+                              description: _friendlyProfileErrorMessage(
+                                _controller.errorMessage!,
+                                l10n,
+                              ),
+                              tone: colorScheme.errorContainer,
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: _controller.refresh,
+                                icon: const Icon(Icons.refresh),
+                                label: Text(l10n.profileRefreshAction),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          _ProfileControlCard(
+                            badges: const [],
+                            primaryActionLabel: l10n.pick(
+                              vi: 'Chỉnh sửa hồ sơ',
+                              en: 'Edit profile',
+                            ),
+                            onPrimaryAction: usesFallbackProfile
+                                ? _openUnlinkedEditor
+                                : () => _openEditor(displayProfile),
+                            secondaryActionLabel: l10n.pick(
+                              vi: 'Mở cài đặt',
+                              en: 'Open settings',
+                            ),
+                            onSecondaryAction: _openSettings,
+                          ),
+                          const SizedBox(height: 16),
+                          _ProfileSectionCard(
+                            title: l10n.pick(
+                              vi: 'Thông tin chính',
+                              en: 'Main info',
+                            ),
+                            child: Column(
                               children: [
-                                IconButton(
-                                  tooltip: l10n.profileRefreshAction,
-                                  onPressed: _controller.isLoading
-                                      ? null
-                                      : _controller.refresh,
-                                  icon: const Icon(Icons.refresh),
+                                _ProfileDetailRow(
+                                  label: l10n.memberNicknameLabel,
+                                  value: _blankIfMissing(
+                                    displayProfile.nickName,
+                                  ),
                                 ),
-                                IconButton(
-                                  tooltip: l10n.profileOpenSettingsAction,
-                                  onPressed: _openSettings,
-                                  icon: const Icon(Icons.settings_outlined),
+                                _ProfileDetailRow(
+                                  label: l10n.memberPhoneLabel,
+                                  value: _blankIfMissing(
+                                    displayProfile.phoneE164,
+                                  ),
+                                  trailing: MemberPhoneActionIconButton(
+                                    phoneNumber: displayProfile.phoneE164 ?? '',
+                                    contactName: displayProfile.displayName,
+                                  ),
+                                ),
+                                _ProfileDetailRow(
+                                  label: l10n.memberEmailLabel,
+                                  value: _blankIfMissing(displayProfile.email),
+                                ),
+                                _ProfileDetailRow(
+                                  label: l10n.memberJobTitleLabel,
+                                  value: _blankIfMissing(
+                                    displayProfile.jobTitle,
+                                  ),
+                                ),
+                                _ProfileDetailRow(
+                                  label: l10n.memberAddressLabel,
+                                  value: _blankIfMissing(
+                                    displayProfile.addressText,
+                                  ),
+                                  trailing: AddressDirectionIconButton(
+                                    address: displayProfile.addressText ?? '',
+                                    label: displayProfile.displayName,
+                                  ),
+                                ),
+                                _ProfileDetailRow(
+                                  label: l10n.memberBioLabel,
+                                  value: _blankIfMissing(displayProfile.bio),
+                                  isLast: true,
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                        ],
-                        _ProfileHeroCard(
-                          profile: displayProfile,
-                          roleLabel: l10n.roleLabel(displayProfile.primaryRole),
-                          onEditProfile: usesFallbackProfile
-                              ? _openUnlinkedEditor
-                              : () => _openEditor(displayProfile),
-                          onAvatarTap:
-                              usesFallbackProfile ||
-                                  _controller.isUploadingAvatar
-                              ? null
-                              : () => _openAvatarActions(displayProfile),
-                          isUploadingAvatar: usesFallbackProfile
-                              ? _isSavingUnlinkedProfile
-                              : _controller.isUploadingAvatar,
-                          showAvatarActionBadge: !usesFallbackProfile,
-                        ),
-                        const SizedBox(height: 20),
-                        if (_controller.errorMessage != null) ...[
-                          _ProfileInfoCard(
-                            icon: Icons.error_outline,
-                            title: l10n.profileUpdateErrorTitle,
-                            description: _friendlyProfileErrorMessage(
-                              _controller.errorMessage!,
-                              l10n,
+                          const SizedBox(height: 16),
+                          _ProfileSectionCard(
+                            title: l10n.pick(
+                              vi: 'Liên hệ & mạng xã hội',
+                              en: 'Contacts & social links',
                             ),
-                            tone: colorScheme.errorContainer,
-                          ),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              onPressed: _controller.refresh,
-                              icon: const Icon(Icons.refresh),
-                              label: Text(l10n.profileRefreshAction),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        _ProfileSectionCard(
-                          title: l10n.profileDetailsSectionTitle,
-                          child: Column(
-                            children: [
-                              _ProfileDetailRow(
-                                label: l10n.memberFullNameLabel,
-                                value: displayProfile.fullName,
-                              ),
-                              _ProfileDetailRow(
-                                label: l10n.memberNicknameLabel,
-                                value: _blankIfMissing(displayProfile.nickName),
-                              ),
-                              _ProfileDetailRow(
-                                label: l10n.memberPhoneLabel,
-                                value: _blankIfMissing(
-                                  displayProfile.phoneE164,
-                                ),
-                                trailing: MemberPhoneActionIconButton(
-                                  phoneNumber: displayProfile.phoneE164 ?? '',
-                                  contactName: displayProfile.displayName,
-                                ),
-                              ),
-                              _ProfileDetailRow(
-                                label: l10n.memberEmailLabel,
-                                value: _blankIfMissing(displayProfile.email),
-                              ),
-                              _ProfileDetailRow(
-                                label: l10n.memberJobTitleLabel,
-                                value: _blankIfMissing(displayProfile.jobTitle),
-                              ),
-                              _ProfileDetailRow(
-                                label: l10n.memberAddressLabel,
-                                value: _blankIfMissing(
-                                  displayProfile.addressText,
-                                ),
-                                trailing: AddressDirectionIconButton(
-                                  address: displayProfile.addressText ?? '',
-                                  label: displayProfile.displayName,
-                                ),
-                              ),
-                              _ProfileDetailRow(
-                                label: l10n.memberBioLabel,
-                                value: _blankIfMissing(displayProfile.bio),
-                                isLast: true,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        _ProfileSectionCard(
-                          title: l10n.memberSocialLinksTitle,
-                          child: displayProfile.socialLinks.isEmpty
-                              ? Text(
-                                  l10n.memberSocialLinksEmptyDescription,
-                                  style: theme.textTheme.bodyMedium,
-                                )
-                              : Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      l10n.pick(
-                                        vi: 'Bấm vào biểu tượng để mở ứng dụng mạng xã hội hoặc trình duyệt.',
-                                        en: 'Tap an icon to open the social app or browser.',
+                            child: displayProfile.socialLinks.isEmpty
+                                ? Text(
+                                    l10n.memberSocialLinksEmptyDescription,
+                                    style: theme.textTheme.bodyMedium,
+                                  )
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: [
+                                          if (displayProfile
+                                                  .socialLinks
+                                                  .facebook !=
+                                              null)
+                                            SocialLinkActionIconButton(
+                                              platform: SocialPlatform.facebook,
+                                              rawValue: displayProfile
+                                                  .socialLinks
+                                                  .facebook!,
+                                            ),
+                                          if (displayProfile.socialLinks.zalo !=
+                                              null)
+                                            SocialLinkActionIconButton(
+                                              platform: SocialPlatform.zalo,
+                                              rawValue: displayProfile
+                                                  .socialLinks
+                                                  .zalo!,
+                                            ),
+                                          if (displayProfile
+                                                  .socialLinks
+                                                  .linkedin !=
+                                              null)
+                                            SocialLinkActionIconButton(
+                                              platform: SocialPlatform.linkedin,
+                                              rawValue: displayProfile
+                                                  .socialLinks
+                                                  .linkedin!,
+                                            ),
+                                        ],
                                       ),
-                                      style: theme.textTheme.bodyMedium,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: [
-                                        if (displayProfile
-                                                .socialLinks
-                                                .facebook !=
-                                            null)
-                                          SocialLinkActionIconButton(
-                                            platform: SocialPlatform.facebook,
-                                            rawValue: displayProfile
-                                                .socialLinks
-                                                .facebook!,
-                                          ),
-                                        if (displayProfile.socialLinks.zalo !=
-                                            null)
-                                          SocialLinkActionIconButton(
-                                            platform: SocialPlatform.zalo,
-                                            rawValue: displayProfile
-                                                .socialLinks
-                                                .zalo!,
-                                          ),
-                                        if (displayProfile
-                                                .socialLinks
-                                                .linkedin !=
-                                            null)
-                                          SocialLinkActionIconButton(
-                                            platform: SocialPlatform.linkedin,
-                                            rawValue: displayProfile
-                                                .socialLinks
-                                                .linkedin!,
-                                          ),
-                                      ],
-                                    ),
+                                    ],
+                                  ),
+                          ),
+                          const SizedBox(height: 16),
+                          _ProfileSectionCard(
+                            title: l10n.pick(
+                              vi: 'Cài đặt & tùy chọn',
+                              en: 'Settings',
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final badge in settingsBadges)
+                                      _ProfileHeroBadge(data: badge),
                                   ],
                                 ),
-                        ),
-                        const SizedBox(height: 20),
-                        _ProfileSectionCard(
-                          title: l10n.profileLanguageSectionTitle,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.profileLanguageSectionDescription,
-                                style: theme.textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: 10),
-                              SegmentedButton<String>(
-                                showSelectedIcon: true,
-                                segments: [
-                                  ButtonSegment<String>(
-                                    value: 'vi',
+                                const SizedBox(height: 14),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: _openSettings,
+                                    icon: const Icon(Icons.settings_outlined),
                                     label: Text(
-                                      l10n.profileLanguageVietnamese,
-                                      key: const Key('profile-language-option-vi'),
+                                      l10n.pick(
+                                        vi: 'Mở cài đặt',
+                                        en: 'Open settings',
+                                      ),
                                     ),
                                   ),
-                                  ButtonSegment<String>(
-                                    value: 'en',
-                                    label: Text(
-                                      l10n.profileLanguageEnglish,
-                                      key: const Key('profile-language-option-en'),
-                                    ),
-                                  ),
-                                ],
-                                selected: {selectedLanguageCode},
-                                onSelectionChanged: (selected) {
-                                  if (selected.isEmpty) {
-                                    return;
-                                  }
-                                  unawaited(
-                                    _localeController.updateLanguageCode(
-                                      selected.first,
-                                    ),
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                selectedLanguageCode == 'vi'
-                                    ? l10n.profileLanguageVietnameseSubtitle
-                                    : l10n.profileLanguageEnglishSubtitle,
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        _ProfileSectionCard(
-                          title: l10n.notificationSettingsTitle,
-                          child: _NotificationSettingsPanel(
-                            controller: _controller,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        if (widget.onLogoutRequested != null)
-                          _ProfileSectionCard(
-                            title: l10n.profileAccountSectionTitle,
-                            child: OutlinedButton.icon(
-                              onPressed: _confirmLogout,
-                              icon: const Icon(Icons.logout),
-                              label: Text(l10n.shellLogout),
+                                ),
+                              ],
                             ),
                           ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
           ),
@@ -804,91 +820,82 @@ class _SettingsScreenShell extends StatelessWidget {
       animation: Listenable.merge([controller, localeController]),
       builder: (context, _) {
         final selectedLanguageCode = localeController.locale.languageCode;
+        final heroBadges = <_ProfileHeroBadgeData>[
+          _ProfileHeroBadgeData(
+            icon: Icons.language_outlined,
+            label: selectedLanguageCode == 'vi'
+                ? l10n.pick(vi: 'Tiếng Việt', en: 'Vietnamese')
+                : l10n.pick(vi: 'English', en: 'English'),
+          ),
+        ];
         return Scaffold(
           appBar: AppBar(title: Text(l10n.profileSettingsTitle)),
           body: SafeArea(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              children: [
-                _ProfileSectionCard(
-                  title: l10n.profileSettingsOverviewTitle,
-                  child: Text(
-                    l10n.profileSettingsOverviewDescription,
-                    style: theme.textTheme.bodyMedium,
+            child: AppWorkspaceViewport(
+              child: ListView(
+                padding: appWorkspacePagePadding(context, top: 16, bottom: 32),
+                children: [
+                  _SettingsHeroCard(
+                    title: l10n.profileSettingsTitle,
+                    badges: heroBadges,
                   ),
-                ),
-                const SizedBox(height: 20),
-                _ProfileSectionCard(
-                  title: l10n.profileLanguageSectionTitle,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.profileLanguageSectionDescription,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 10),
-                      SegmentedButton<String>(
-                        showSelectedIcon: true,
-                        segments: [
-                          ButtonSegment<String>(
-                            value: 'vi',
-                            label: Text(
-                              l10n.profileLanguageVietnamese,
-                              key: const Key('profile-language-option-vi'),
+                  const SizedBox(height: 16),
+                  _ProfileSectionCard(
+                    title: l10n.notificationSettingsTitle,
+                    child: _NotificationSettingsPanel(
+                      controller: controller,
+                      showDescription: false,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _ProfileSectionCard(
+                    title: l10n.profileLanguageSectionTitle,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SegmentedButton<String>(
+                          showSelectedIcon: true,
+                          segments: [
+                            ButtonSegment<String>(
+                              value: 'vi',
+                              label: Text(
+                                l10n.profileLanguageVietnamese,
+                                key: const Key('profile-language-option-vi'),
+                              ),
                             ),
-                          ),
-                          ButtonSegment<String>(
-                            value: 'en',
-                            label: Text(
-                              l10n.profileLanguageEnglish,
-                              key: const Key('profile-language-option-en'),
+                            ButtonSegment<String>(
+                              value: 'en',
+                              label: Text(
+                                l10n.profileLanguageEnglish,
+                                key: const Key('profile-language-option-en'),
+                              ),
                             ),
-                          ),
-                        ],
-                        selected: {selectedLanguageCode},
-                        onSelectionChanged: (selected) {
-                          if (selected.isEmpty) {
-                            return;
-                          }
-                          unawaited(
-                            localeController.updateLanguageCode(selected.first),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        selectedLanguageCode == 'vi'
-                            ? l10n.profileLanguageVietnameseSubtitle
-                            : l10n.profileLanguageEnglishSubtitle,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _ProfileSectionCard(
-                  title: l10n.notificationSettingsTitle,
-                  child: _NotificationSettingsPanel(controller: controller),
-                ),
-                const SizedBox(height: 20),
-                _ProfileSectionCard(
-                  title: l10n.pick(
-                    vi: 'Gói dịch vụ & thanh toán',
-                    en: 'Subscription & billing',
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.pick(
-                          vi: 'Xem trạng thái gói, ngày hết hạn, chế độ thanh toán tự động/thủ công và lịch sử giao dịch.',
-                          en: 'View your current plan, expiry date, payment mode, and transaction history.',
+                          ],
+                          selected: {selectedLanguageCode},
+                          onSelectionChanged: (selected) {
+                            if (selected.isEmpty) {
+                              return;
+                            }
+                            unawaited(
+                              localeController.updateLanguageCode(
+                                selected.first,
+                              ),
+                            );
+                          },
                         ),
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 10),
-                      AppAsyncAction(
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _ProfileSectionCard(
+                    title: l10n.pick(
+                      vi: 'Gói dịch vụ và thanh toán',
+                      en: 'Subscription & billing',
+                    ),
+                    child: AppWorkspaceSurface(
+                      padding: const EdgeInsets.all(16),
+                      color: Colors.white.withValues(alpha: 0.76),
+                      child: AppAsyncAction(
                         onPressed: () async {
                           await Navigator.of(context).push(
                             MaterialPageRoute<void>(
@@ -901,42 +908,53 @@ class _SettingsScreenShell extends StatelessWidget {
                           onBillingStateChanged?.call();
                         },
                         builder: (context, onPressed, isLoading) {
-                          return FilledButton.tonal(
-                            onPressed: onPressed,
-                            child: AppStableLoadingChild(
-                              isLoading: isLoading,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.workspace_premium_outlined),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    l10n.pick(
-                                      vi: 'Mở quản lý gói',
-                                      en: 'Open billing workspace',
-                                    ),
+                          return SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.tonalIcon(
+                              onPressed: onPressed,
+                              icon: const Icon(Icons.open_in_new_rounded),
+                              label: AppStableLoadingChild(
+                                isLoading: isLoading,
+                                child: Text(
+                                  l10n.pick(
+                                    vi: 'Mở quản lý gói',
+                                    en: 'Open billing',
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           );
                         },
                       ),
-                    ],
-                  ),
-                ),
-                if (onLogoutRequested != null) ...[
-                  const SizedBox(height: 20),
-                  _ProfileSectionCard(
-                    title: l10n.profileSessionSectionTitle,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _confirmLogout(context),
-                      icon: const Icon(Icons.logout),
-                      label: Text(l10n.shellLogout),
                     ),
                   ),
+                  if (onLogoutRequested != null) ...[
+                    const SizedBox(height: 16),
+                    _ProfileSectionCard(
+                      title: l10n.profileAccountSectionTitle,
+                      child: AppWorkspaceSurface(
+                        padding: const EdgeInsets.all(16),
+                        color: theme.colorScheme.errorContainer.withValues(
+                          alpha: 0.38,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () => _confirmLogout(context),
+                                icon: const Icon(Icons.logout),
+                                label: Text(l10n.shellLogout),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         );
@@ -946,9 +964,13 @@ class _SettingsScreenShell extends StatelessWidget {
 }
 
 class _NotificationSettingsPanel extends StatelessWidget {
-  const _NotificationSettingsPanel({required this.controller});
+  const _NotificationSettingsPanel({
+    required this.controller,
+    this.showDescription = true,
+  });
 
   final ProfileController controller;
+  final bool showDescription;
 
   @override
   Widget build(BuildContext context) {
@@ -960,51 +982,50 @@ class _NotificationSettingsPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.notificationSettingsDescription,
-          style: theme.textTheme.bodyMedium,
-        ),
+        if (showDescription)
+          Text(
+            l10n.notificationSettingsDescription,
+            style: theme.textTheme.bodyMedium,
+          ),
         if (isSaving) ...[
           const SizedBox(height: 10),
           const LinearProgressIndicator(minHeight: 2),
         ],
-        const SizedBox(height: 8),
-        SwitchListTile.adaptive(
-          key: const Key('notification-setting-push-enabled'),
+        SizedBox(height: showDescription ? 8 : 2),
+        _NotificationPreferenceTile(
+          title: l10n.notificationSettingsPushChannel,
           value: prefs.pushEnabled,
+          isLast: false,
           onChanged: isSaving
               ? null
               : (value) {
                   unawaited(controller.updatePushEnabledPreference(value));
                 },
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.notificationSettingsPushChannel),
         ),
-        SwitchListTile.adaptive(
-          key: const Key('notification-setting-email-enabled'),
+        _NotificationPreferenceTile(
+          title: l10n.notificationSettingsEmailChannel,
           value: prefs.emailEnabled,
+          isLast: false,
           onChanged: isSaving
               ? null
               : (value) {
                   unawaited(controller.updateEmailEnabledPreference(value));
                 },
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.notificationSettingsEmailChannel),
         ),
-        SwitchListTile.adaptive(
-          key: const Key('notification-setting-event-updates'),
+        _NotificationPreferenceTile(
+          title: l10n.notificationSettingsEventUpdates,
           value: prefs.eventReminders,
+          isLast: false,
           onChanged: isSaving
               ? null
               : (value) {
                   unawaited(controller.updateEventRemindersPreference(value));
                 },
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.notificationSettingsEventUpdates),
         ),
-        SwitchListTile.adaptive(
-          key: const Key('notification-setting-scholarship-updates'),
+        _NotificationPreferenceTile(
+          title: l10n.notificationSettingsScholarshipUpdates,
           value: prefs.scholarshipUpdates,
+          isLast: false,
           onChanged: isSaving
               ? null
               : (value) {
@@ -1012,47 +1033,131 @@ class _NotificationSettingsPanel extends StatelessWidget {
                     controller.updateScholarshipUpdatesPreference(value),
                   );
                 },
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.notificationSettingsScholarshipUpdates),
         ),
-        SwitchListTile.adaptive(
-          key: const Key('notification-setting-fund-transactions'),
+        _NotificationPreferenceTile(
+          title: l10n.profileNotificationFundAlerts,
           value: prefs.fundTransactions,
+          isLast: false,
           onChanged: isSaving
               ? null
               : (value) {
                   unawaited(controller.updateFundTransactionsPreference(value));
                 },
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.profileNotificationFundAlerts),
         ),
-        SwitchListTile.adaptive(
-          key: const Key('notification-setting-general-updates'),
+        _NotificationPreferenceTile(
+          title: l10n.notificationSettingsGeneralUpdates,
           value: prefs.systemNotices,
+          isLast: false,
           onChanged: isSaving
               ? null
               : (value) {
                   unawaited(controller.updateSystemNoticesPreference(value));
                 },
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.notificationSettingsGeneralUpdates),
         ),
-        SwitchListTile.adaptive(
-          key: const Key('notification-setting-quiet-hours'),
+        _NotificationPreferenceTile(
+          title: l10n.notificationSettingsQuietHours,
           value: prefs.quietHoursEnabled,
+          isLast: true,
           onChanged: isSaving
               ? null
               : (value) {
                   unawaited(controller.updateQuietHoursPreference(value));
                 },
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.notificationSettingsQuietHours),
         ),
-        const SizedBox(height: 6),
-        Text(
-          l10n.notificationSettingsSmsOtpOnlyNote,
-          style: theme.textTheme.bodySmall,
+      ],
+    );
+  }
+}
+
+class _SettingsHeroCard extends StatelessWidget {
+  const _SettingsHeroCard({required this.title, required this.badges});
+
+  final String title;
+  final List<_ProfileHeroBadgeData> badges;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.all(20),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (badges.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final badge in badges) _ProfileHeroBadge(data: badge),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationPreferenceTile extends StatelessWidget {
+  const _NotificationPreferenceTile({
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    required this.isLast,
+  });
+
+  final String title;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Switch.adaptive(value: value, onChanged: onChanged),
+              ),
+            ],
+          ),
         ),
+        if (!isLast)
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+          ),
       ],
     );
   }
@@ -1062,6 +1167,7 @@ class _ProfileHeroCard extends StatelessWidget {
   const _ProfileHeroCard({
     required this.profile,
     required this.roleLabel,
+    required this.badges,
     required this.onEditProfile,
     this.onAvatarTap,
     this.isUploadingAvatar = false,
@@ -1070,6 +1176,7 @@ class _ProfileHeroCard extends StatelessWidget {
 
   final MemberProfile profile;
   final String roleLabel;
+  final List<_ProfileHeroBadgeData> badges;
   final VoidCallback onEditProfile;
   final VoidCallback? onAvatarTap;
   final bool isUploadingAvatar;
@@ -1080,21 +1187,21 @@ class _ProfileHeroCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
-    final resolvedSubtitle = l10n.pick(
-      vi: 'Bạn có thể cập nhật hồ sơ bất kỳ lúc nào.',
-      en: 'You can update your profile anytime.',
-    );
+    final bio = (profile.bio ?? '').trim();
+    final jobTitle = (profile.jobTitle ?? '').trim();
+    final resolvedSubtitle = bio.isNotEmpty
+        ? bio
+        : jobTitle.isNotEmpty
+        ? jobTitle
+        : l10n.pick(
+            vi: 'Giữ hồ sơ luôn đầy đủ để người thân dễ kết nối với bạn hơn.',
+            en: 'Keep your profile complete so relatives can connect with you more easily.',
+          );
 
-    return Container(
+    return AppWorkspaceSurface(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colorScheme.primary, colorScheme.primaryContainer],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
-      ),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1170,7 +1277,7 @@ class _ProfileHeroCard extends StatelessWidget {
                       child: Text(
                         profile.fullName,
                         style: theme.textTheme.headlineSmall?.copyWith(
-                          color: colorScheme.onPrimary,
+                          color: colorScheme.onSurface,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -1179,10 +1286,10 @@ class _ProfileHeroCard extends StatelessWidget {
                       tooltip: l10n.memberEditAction,
                       onPressed: onEditProfile,
                       icon: const Icon(Icons.edit_outlined),
-                      color: colorScheme.onPrimary,
+                      color: colorScheme.onSurface,
                       style: IconButton.styleFrom(
-                        backgroundColor: colorScheme.onPrimary.withValues(
-                          alpha: 0.12,
+                        backgroundColor: colorScheme.primary.withValues(
+                          alpha: 0.10,
                         ),
                       ),
                     ),
@@ -1192,17 +1299,119 @@ class _ProfileHeroCard extends StatelessWidget {
                 Text(
                   roleLabel,
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: colorScheme.onPrimary.withValues(alpha: 0.9),
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 Text(
                   resolvedSubtitle,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onPrimary.withValues(alpha: 0.9),
+                    color: colorScheme.onSurfaceVariant,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
+                if (badges.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final badge in badges)
+                        _ProfileHeroBadge(data: badge),
+                    ],
+                  ),
+                ],
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileControlCard extends StatelessWidget {
+  const _ProfileControlCard({
+    required this.badges,
+    required this.primaryActionLabel,
+    required this.onPrimaryAction,
+    required this.secondaryActionLabel,
+    required this.onSecondaryAction,
+  });
+
+  final List<_ProfileHeroBadgeData> badges;
+  final String primaryActionLabel;
+  final VoidCallback onPrimaryAction;
+  final String secondaryActionLabel;
+  final VoidCallback onSecondaryAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.l10n.pick(vi: 'Thao tác nhanh', en: 'Quick access'),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (badges.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final badge in badges) _ProfileHeroBadge(data: badge),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stackActions = constraints.maxWidth < 420;
+              if (stackActions) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: onPrimaryAction,
+                      icon: const Icon(Icons.edit_outlined),
+                      label: Text(primaryActionLabel),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: onSecondaryAction,
+                      icon: const Icon(Icons.settings_outlined),
+                      label: Text(secondaryActionLabel),
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: onPrimaryAction,
+                      icon: const Icon(Icons.edit_outlined),
+                      label: Text(primaryActionLabel),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onSecondaryAction,
+                      icon: const Icon(Icons.settings_outlined),
+                      label: Text(secondaryActionLabel),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1390,20 +1599,33 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
   Widget build(BuildContext context) {
     final insets = MediaQuery.viewInsetsOf(context);
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
     final phoneHint = PhoneNumberFormatter.nationalNumberHint(
       _phoneCountryIsoCode,
     );
+    final socialLinkCount = [
+      _facebookController.text,
+      _zaloController.text,
+      _linkedinController.text,
+    ].where((value) => value.trim().isNotEmpty).length;
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.shadow.withValues(alpha: 0.14),
+              blurRadius: 32,
+              offset: const Offset(0, -10),
+            ),
+          ],
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
           child: Form(
             key: _formKey,
             child: Column(
@@ -1419,17 +1641,47 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  l10n.profileEditSheetTitle,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+                const SizedBox(height: 18),
+                AppWorkspaceSurface(
+                  padding: const EdgeInsets.all(20),
+                  gradient: appWorkspaceHeroGradient(context),
+                  showAccentOrbs: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.profileEditSheetTitle,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _EditorBadge(
+                            icon: Icons.badge_outlined,
+                            label: l10n.pick(
+                              vi: 'Thông tin chính',
+                              en: 'Core info',
+                            ),
+                          ),
+                          _EditorBadge(
+                            icon: Icons.call_outlined,
+                            label: l10n.pick(vi: 'Liên hệ', en: 'Contact'),
+                          ),
+                          _EditorBadge(
+                            icon: Icons.share_outlined,
+                            label: l10n.pick(
+                              vi: '$socialLinkCount mạng xã hội',
+                              en: '$socialLinkCount socials',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  l10n.profileEditSheetDescription,
-                  style: theme.textTheme.bodyMedium,
                 ),
                 if (_submitError != null) ...[
                   const SizedBox(height: 16),
@@ -1440,173 +1692,194 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                     tone: theme.colorScheme.errorContainer,
                   ),
                 ],
-                const SizedBox(height: 18),
-                TextFormField(
-                  controller: _fullNameController,
-                  decoration: InputDecoration(
-                    labelText: l10n.memberFullNameLabel,
-                  ),
-                  validator: (value) {
-                    return value == null || value.trim().isEmpty
-                        ? l10n.memberValidationNameRequired
-                        : null;
-                  },
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _nickNameController,
-                  decoration: InputDecoration(
-                    labelText: l10n.memberNicknameLabel,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    PhoneCountrySelectorField(
-                      selectedIsoCode: _phoneCountryIsoCode,
-                      enabled: !_isSubmitting,
-                      onChanged: (value) {
-                        setState(() {
-                          _phoneCountryIsoCode = value;
-                          _normalizePhoneInputForCountry();
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _phoneController,
+                const SizedBox(height: 16),
+                _EditorSectionCard(
+                  title: l10n.pick(vi: 'Thông tin chính', en: 'Core details'),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _fullNameController,
                         decoration: InputDecoration(
-                          labelText: l10n.memberPhoneLabel,
-                          hintText: phoneHint,
+                          labelText: l10n.memberFullNameLabel,
                         ),
-                        keyboardType: TextInputType.phone,
-                        onEditingComplete: _normalizePhoneInputForCountry,
                         validator: (value) {
-                          final trimmed = value?.trim() ?? '';
-                          if (trimmed.isEmpty) {
-                            return null;
-                          }
-                          try {
-                            PhoneNumberFormatter.parse(
-                              trimmed,
-                              defaultCountryIso: _phoneCountryIsoCode,
-                            );
-                            return null;
-                          } catch (_) {
-                            return l10n.memberValidationPhoneInvalid;
-                          }
+                          return value == null || value.trim().isEmpty
+                              ? l10n.memberValidationNameRequired
+                              : null;
                         },
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: InputDecoration(labelText: l10n.memberEmailLabel),
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _jobTitleController,
-                  decoration: InputDecoration(
-                    labelText: l10n.memberJobTitleLabel,
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _nickNameController,
+                        decoration: InputDecoration(
+                          labelText: l10n.memberNicknameLabel,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _jobTitleController,
+                        decoration: InputDecoration(
+                          labelText: l10n.memberJobTitleLabel,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _bioController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: l10n.memberBioLabel,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 14),
-                AddressAutocompleteField(
-                  controller: _addressController,
-                  maxLines: 2,
-                  labelText: l10n.memberAddressLabel,
-                  hintText: l10n.pick(
-                    vi: 'Số nhà, đường, phường/xã, quận/huyện...',
-                    en: 'Street, ward, district...',
+                _EditorSectionCard(
+                  title: l10n.pick(vi: 'Liên hệ', en: 'Contact'),
+                  child: Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          PhoneCountrySelectorField(
+                            selectedIsoCode: _phoneCountryIsoCode,
+                            enabled: !_isSubmitting,
+                            onChanged: (value) {
+                              setState(() {
+                                _phoneCountryIsoCode = value;
+                                _normalizePhoneInputForCountry();
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _phoneController,
+                              decoration: InputDecoration(
+                                labelText: l10n.memberPhoneLabel,
+                                hintText: phoneHint,
+                              ),
+                              keyboardType: TextInputType.phone,
+                              onEditingComplete: _normalizePhoneInputForCountry,
+                              validator: (value) {
+                                final trimmed = value?.trim() ?? '';
+                                if (trimmed.isEmpty) {
+                                  return null;
+                                }
+                                try {
+                                  PhoneNumberFormatter.parse(
+                                    trimmed,
+                                    defaultCountryIso: _phoneCountryIsoCode,
+                                  );
+                                  return null;
+                                } catch (_) {
+                                  return l10n.memberValidationPhoneInvalid;
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _emailController,
+                        decoration: InputDecoration(
+                          labelText: l10n.memberEmailLabel,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      AddressAutocompleteField(
+                        controller: _addressController,
+                        maxLines: 2,
+                        labelText: l10n.memberAddressLabel,
+                        hintText: l10n.pick(
+                          vi: 'Số nhà, đường, phường/xã, quận/huyện...',
+                          en: 'Street, ward, district...',
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
-                  controller: _bioController,
-                  maxLines: 3,
-                  decoration: InputDecoration(labelText: l10n.memberBioLabel),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  l10n.pick(
-                    vi: 'Nhập tên tài khoản hoặc liên kết. Bấm biểu tượng bên phải để mở app/web và liên kết nhanh.',
-                    en: 'Enter a username or link. Tap the right icon to open app/web for quick linking.',
+                _EditorSectionCard(
+                  title: l10n.memberSocialLinksTitle,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: _facebookController,
+                        decoration: InputDecoration(
+                          labelText: l10n.profileFacebookUrlLabel,
+                          hintText: l10n.pick(
+                            vi: 'Tên tài khoản hoặc URL',
+                            en: 'Username or profile URL',
+                          ),
+                          prefixIcon: const Icon(Icons.facebook),
+                          suffixIcon: SocialLinkFieldConnectButton(
+                            platform: SocialPlatform.facebook,
+                            controller: _facebookController,
+                          ),
+                        ),
+                        keyboardType: TextInputType.url,
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _zaloController,
+                        decoration: InputDecoration(
+                          labelText: l10n.profileZaloUrlLabel,
+                          hintText: l10n.pick(
+                            vi: 'Tên tài khoản hoặc URL',
+                            en: 'Username or profile URL',
+                          ),
+                          prefixIcon: const Icon(Icons.forum_outlined),
+                          suffixIcon: SocialLinkFieldConnectButton(
+                            platform: SocialPlatform.zalo,
+                            controller: _zaloController,
+                          ),
+                        ),
+                        keyboardType: TextInputType.url,
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _linkedinController,
+                        decoration: InputDecoration(
+                          labelText: l10n.profileLinkedinUrlLabel,
+                          hintText: l10n.pick(
+                            vi: 'Tên tài khoản hoặc URL',
+                            en: 'Username or profile URL',
+                          ),
+                          prefixIcon: const Icon(Icons.work_outline),
+                          suffixIcon: SocialLinkFieldConnectButton(
+                            platform: SocialPlatform.linkedin,
+                            controller: _linkedinController,
+                          ),
+                        ),
+                        keyboardType: TextInputType.url,
+                      ),
+                    ],
                   ),
-                  style: theme.textTheme.bodySmall,
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _facebookController,
-                  decoration: InputDecoration(
-                    labelText: l10n.profileFacebookUrlLabel,
-                    hintText: l10n.pick(
-                      vi: 'Tên tài khoản hoặc URL',
-                      en: 'Username or profile URL',
-                    ),
-                    prefixIcon: const Icon(Icons.facebook),
-                    suffixIcon: SocialLinkFieldConnectButton(
-                      platform: SocialPlatform.facebook,
-                      controller: _facebookController,
-                    ),
-                  ),
-                  keyboardType: TextInputType.url,
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _zaloController,
-                  decoration: InputDecoration(
-                    labelText: l10n.profileZaloUrlLabel,
-                    hintText: l10n.pick(
-                      vi: 'Tên tài khoản hoặc URL',
-                      en: 'Username or profile URL',
-                    ),
-                    prefixIcon: const Icon(Icons.forum_outlined),
-                    suffixIcon: SocialLinkFieldConnectButton(
-                      platform: SocialPlatform.zalo,
-                      controller: _zaloController,
-                    ),
-                  ),
-                  keyboardType: TextInputType.url,
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _linkedinController,
-                  decoration: InputDecoration(
-                    labelText: l10n.profileLinkedinUrlLabel,
-                    hintText: l10n.pick(
-                      vi: 'Tên tài khoản hoặc URL',
-                      en: 'Username or profile URL',
-                    ),
-                    prefixIcon: const Icon(Icons.work_outline),
-                    suffixIcon: SocialLinkFieldConnectButton(
-                      platform: SocialPlatform.linkedin,
-                      controller: _linkedinController,
-                    ),
-                  ),
-                  keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: (_isSubmitting || widget.isSaving)
-                        ? null
-                        : _submit,
-                    icon: (_isSubmitting || widget.isSaving)
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: Text(
-                      (_isSubmitting || widget.isSaving)
-                          ? l10n.profileSavingAction
-                          : l10n.memberSaveAction,
+                AppWorkspaceSurface(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: (_isSubmitting || widget.isSaving)
+                          ? null
+                          : _submit,
+                      icon: (_isSubmitting || widget.isSaving)
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: Text(
+                        (_isSubmitting || widget.isSaving)
+                            ? l10n.profileSavingAction
+                            : l10n.memberSaveAction,
+                      ),
                     ),
                   ),
                 ),
@@ -1627,29 +1900,32 @@ class _ProfileSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
       ),
     );
   }
@@ -1720,29 +1996,185 @@ class _ProfileInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return AppWorkspaceSurface(
       color: tone,
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(description),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileHeroBadgeData {
+  const _ProfileHeroBadgeData({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+}
+
+class _ProfileHeroBadge extends StatelessWidget {
+  const _ProfileHeroBadge({required this.data});
+
+  final _ProfileHeroBadgeData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.92),
+        ),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon),
+            Icon(data.icon, size: 16, color: colorScheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              data.label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditorSectionCard extends StatelessWidget {
+  const _EditorSectionCard({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _EditorBadge extends StatelessWidget {
+  const _EditorBadge({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.9),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: colorScheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarActionTile extends StatelessWidget {
+  const _AvatarActionTile({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      color: Colors.white.withValues(alpha: 0.76),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: colorScheme.primaryContainer,
+              foregroundColor: colorScheme.onPrimaryContainer,
+              child: Icon(icon, size: 18),
+            ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(description),
-                ],
+              child: Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: colorScheme.onSurfaceVariant,
             ),
           ],
         ),
@@ -1788,7 +2220,7 @@ String _normalizeUnlinkedFullName({
   if (fallback.isNotEmpty && !_looksLikeUnlinkedPlaceholder(fallback)) {
     return fallback;
   }
-  return l10n.pick(vi: 'Chưa Có Tên', en: 'No Name Yet');
+  return l10n.pick(vi: 'Chưa cập nhật tên', en: 'Name not added yet');
 }
 
 bool _looksLikeUnlinkedPlaceholder(String value) {
@@ -1878,27 +2310,30 @@ class _ProfileEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return AppWorkspaceViewport(
       child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Icon(icon, size: 30),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(description, textAlign: TextAlign.center),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 12),
-              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+        padding: appWorkspacePagePadding(context, top: 20),
+        child: AppWorkspaceSurface(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Icon(icon, size: 30),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(description, textAlign: TextAlign.center),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(height: 12),
+                FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

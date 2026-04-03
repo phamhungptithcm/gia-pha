@@ -223,16 +223,16 @@ class _NotificationInboxPageState extends State<NotificationInboxPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         children: [
-          _InboxHeroCard(
-            unreadCount: _unreadCount,
-            isSandbox: widget.repository.isSandbox,
-          ),
+          _InboxHeroCard(unreadCount: _unreadCount),
           const SizedBox(height: 20),
           if (_errorMessage != null) ...[
             _MessageCard(
               icon: Icons.error_outline,
               title: l10n.notificationInboxLoadErrorTitle,
-              description: l10n.notificationInboxLoadErrorDescription,
+              description: l10n.pick(
+                vi: 'Hãy kéo để tải lại hoặc thử lại sau.',
+                en: 'Pull to refresh or try again later.',
+              ),
               tone: colorScheme.errorContainer,
               actionLabel: l10n.notificationInboxRetryAction,
               onAction: _isRefreshing
@@ -319,10 +319,9 @@ class _NotificationInboxLoadingSkeleton extends StatelessWidget {
 }
 
 class _InboxHeroCard extends StatelessWidget {
-  const _InboxHeroCard({required this.unreadCount, required this.isSandbox});
+  const _InboxHeroCard({required this.unreadCount});
 
   final int unreadCount;
-  final bool isSandbox;
 
   @override
   Widget build(BuildContext context) {
@@ -333,10 +332,6 @@ class _InboxHeroCard extends StatelessWidget {
     final unreadLabel = unreadCount > 0
         ? l10n.notificationInboxUnreadCount(unreadCount)
         : l10n.notificationInboxAllRead;
-    final sourceLabel = isSandbox
-        ? l10n.notificationInboxSourceSandbox
-        : l10n.notificationInboxSourceLive;
-
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -372,10 +367,6 @@ class _InboxHeroCard extends StatelessWidget {
               _HeroChip(
                 label: unreadLabel,
                 tone: colorScheme.secondaryContainer,
-              ),
-              _HeroChip(
-                label: sourceLabel,
-                tone: colorScheme.surfaceContainerHighest,
               ),
             ],
           ),

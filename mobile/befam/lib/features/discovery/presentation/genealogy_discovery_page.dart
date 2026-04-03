@@ -801,14 +801,6 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        l10n.pick(
-                          vi: 'Nhập từ khóa, trưởng tộc hoặc địa phương để tìm nhanh.',
-                          en: 'Search by keyword, clan leader, or location.',
-                        ),
-                        style: theme.textTheme.bodySmall,
-                      ),
                       const SizedBox(height: 12),
                       OnboardingAnchor(
                         anchorId: 'discovery.query_input',
@@ -886,26 +878,6 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                           ),
                         ),
                       ),
-                      if (_isRewardedDiscoveryActive) ...[
-                        const SizedBox(height: 10),
-                        Text(
-                          _freeSearchesRemaining > 0
-                              ? l10n.pick(
-                                  vi: 'Còn $_freeSearchesRemaining lượt tìm miễn phí trong phiên này.',
-                                  en: '$_freeSearchesRemaining free discovery searches left in this session.',
-                                )
-                              : _rewardedExtraSearchesRemaining > 0
-                              ? l10n.pick(
-                                  vi: 'Bạn còn $_rewardedExtraSearchesRemaining lượt tìm đã mở bằng quảng cáo thưởng.',
-                                  en: 'You have $_rewardedExtraSearchesRemaining rewarded discovery search remaining.',
-                                )
-                              : l10n.pick(
-                                  vi: 'Đã hết lượt tìm miễn phí. Bạn có thể xem quảng cáo thưởng để mở thêm lượt khám phá.',
-                                  en: 'Free discovery searches are exhausted. You can watch a rewarded ad to unlock another attempt.',
-                                ),
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -939,8 +911,8 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                     padding: const EdgeInsets.all(16),
                     child: Text(
                       l10n.pick(
-                        vi: 'Chưa có kết quả phù hợp. Hãy đổi từ khóa và thử lại.',
-                        en: 'No matching genealogy found. Try adjusting your search.',
+                        vi: 'Chưa có kết quả phù hợp.',
+                        en: 'No matching genealogy found.',
                       ),
                     ),
                   ),
@@ -987,10 +959,6 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                                         en: 'Unknown location',
                                       )
                                     : result.provinceCity;
-                                final pendingSubmittedDate = _formatShortDate(
-                                  pendingSinceEpochMs ??
-                                      DateTime.now().millisecondsSinceEpoch,
-                                );
                                 final pendingCancelAction =
                                     pendingRequest != null
                                     ? () => _cancelRequest(pendingRequest)
@@ -1030,16 +998,13 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                                       ),
                                       style: theme.textTheme.bodyMedium,
                                     ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      result.summary.isEmpty
-                                          ? l10n.pick(
-                                              vi: 'Chưa có tóm tắt cho gia phả này.',
-                                              en: 'No summary available for this genealogy.',
-                                            )
-                                          : result.summary,
-                                      style: theme.textTheme.bodySmall,
-                                    ),
+                                    if (result.summary.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        result.summary,
+                                        style: theme.textTheme.bodySmall,
+                                      ),
+                                    ],
                                     const SizedBox(height: 10),
                                     Text(
                                       l10n.pick(
@@ -1048,16 +1013,6 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                                       ),
                                       style: theme.textTheme.labelLarge,
                                     ),
-                                    if (isPendingForCurrentUser) ...[
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        l10n.pick(
-                                          vi: 'Yêu cầu đã gửi ngày $pendingSubmittedDate.',
-                                          en: 'Submitted on $pendingSubmittedDate.',
-                                        ),
-                                        style: theme.textTheme.bodySmall,
-                                      ),
-                                    ],
                                     const SizedBox(height: 12),
                                     Wrap(
                                       spacing: 10,
@@ -1114,17 +1069,6 @@ class _GenealogyDiscoveryPageState extends State<GenealogyDiscoveryPage> {
                                         ),
                                       ],
                                     ),
-                                    if (isPendingForCurrentUser &&
-                                        pendingRequest == null) ...[
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        l10n.pick(
-                                          vi: 'Nếu cần hủy ngay, mở danh sách yêu cầu đã gửi ở góc trên bên phải.',
-                                          en: 'To cancel now, open your submitted requests from the top-right list button.',
-                                        ),
-                                        style: theme.textTheme.bodySmall,
-                                      ),
-                                    ],
                                   ],
                                 );
                               },

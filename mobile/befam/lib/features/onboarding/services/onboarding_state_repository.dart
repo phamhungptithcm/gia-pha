@@ -1,5 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../core/services/app_environment.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
@@ -49,6 +53,8 @@ class FirestoreOnboardingStateRepository implements OnboardingStateRepository {
   FirestoreOnboardingStateRepository({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseServices.firestore;
 
+  static const String _prefsKeyPrefix = 'befam.onboarding.state';
+
   final FirebaseFirestore _firestore;
   String? _cachedUid;
   OnboardingUserState? _cachedState;
@@ -66,6 +72,11 @@ class FirestoreOnboardingStateRepository implements OnboardingStateRepository {
       return _cachedState!;
     }
 
+    final localState = await _loadLocalState(uid);
+    if (AppEnvironment.useLocalFirebaseFallbacks) {
+      return _cacheAndPersistLocalState(uid, localState);
+    }
+
     try {
       await FirebaseSessionAccessSync.ensureUserSessionDocument(
         firestore: _firestore,
@@ -79,10 +90,12 @@ class FirestoreOnboardingStateRepository implements OnboardingStateRepository {
       final data = snapshot.data();
       final rawFlows = data?['flows'];
       if (rawFlows is! Map<Object?, Object?>) {
-        const empty = OnboardingUserState();
-        _cachedUid = uid;
-        _cachedState = empty;
-        return empty;
+        return _cacheAndPersistLocalState(
+          uid,
+          localState.flows.isNotEmpty
+              ? localState
+              : const OnboardingUserState(),
+        );
       }
 
       final flows = <String, OnboardingFlowProgress>{};
@@ -98,17 +111,19 @@ class FirestoreOnboardingStateRepository implements OnboardingStateRepository {
         );
       }
 
-      final state = OnboardingUserState(flows: flows);
-      _cachedUid = uid;
-      _cachedState = state;
-      return state;
+      final remoteState = OnboardingUserState(flows: flows);
+      final resolvedState =
+          remoteState.flows.isEmpty && localState.flows.isNotEmpty
+          ? localState
+          : remoteState;
+      return _cacheAndPersistLocalState(uid, resolvedState);
     } catch (error, stackTrace) {
       AppLogger.warning(
-        'Failed to load onboarding state. Falling back to empty state.',
+        'Failed to load onboarding state. Falling back to local state.',
         error,
         stackTrace,
       );
-      return const OnboardingUserState();
+      return _cacheAndPersistLocalState(uid, localState);
     }
   }
 
@@ -127,6 +142,10 @@ class FirestoreOnboardingStateRepository implements OnboardingStateRepository {
         await load(session: session);
     _cachedUid = uid;
     _cachedState = nextState.copyWithFlow(progress);
+    await _saveLocalState(uid, _cachedState!);
+    if (AppEnvironment.useLocalFirebaseFallbacks) {
+      return;
+    }
 
     try {
       await FirebaseSessionAccessSync.ensureUserSessionDocument(
@@ -148,6 +167,90 @@ class FirestoreOnboardingStateRepository implements OnboardingStateRepository {
         stackTrace,
       );
     }
+  }
+
+  Future<OnboardingUserState> _cacheAndPersistLocalState(
+    String uid,
+    OnboardingUserState state,
+  ) async {
+    _cachedUid = uid;
+    _cachedState = state;
+    await _saveLocalState(uid, state);
+    return state;
+  }
+
+  Future<OnboardingUserState> _loadLocalState(String uid) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = prefs.getString(_prefsKey(uid));
+      if (encoded == null || encoded.trim().isEmpty) {
+        return const OnboardingUserState();
+      }
+      final decoded = jsonDecode(encoded);
+      if (decoded is! Map<String, dynamic>) {
+        return const OnboardingUserState();
+      }
+      final rawFlows = decoded['flows'];
+      if (rawFlows is! Map<String, dynamic>) {
+        return const OnboardingUserState();
+      }
+      final flows = <String, OnboardingFlowProgress>{};
+      for (final entry in rawFlows.entries) {
+        final rawProgress = entry.value;
+        if (rawProgress is! Map) {
+          continue;
+        }
+        flows[entry.key] = OnboardingFlowProgress.fromJson(
+          entry.key,
+          rawProgress.map((key, value) => MapEntry(key.toString(), value)),
+        );
+      }
+      return OnboardingUserState(flows: flows);
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Failed to load local onboarding state. Falling back to empty state.',
+        error,
+        stackTrace,
+      );
+      return const OnboardingUserState();
+    }
+  }
+
+  Future<void> _saveLocalState(String uid, OnboardingUserState state) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(<String, Object?>{
+        'flows': state.flows.map(
+          (flowId, progress) =>
+              MapEntry(flowId, _normalizeJsonValue(progress.toJson())),
+        ),
+      });
+      await prefs.setString(_prefsKey(uid), encoded);
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Failed to persist onboarding progress locally.',
+        error,
+        stackTrace,
+      );
+    }
+  }
+
+  String _prefsKey(String uid) => '$_prefsKeyPrefix.$uid';
+
+  Object? _normalizeJsonValue(Object? value) {
+    if (value is DateTime) {
+      return value.toIso8601String();
+    }
+    if (value is Map<Object?, Object?>) {
+      return value.map(
+        (key, entryValue) =>
+            MapEntry(key.toString(), _normalizeJsonValue(entryValue)),
+      );
+    }
+    if (value is Iterable<Object?>) {
+      return value.map(_normalizeJsonValue).toList(growable: false);
+    }
+    return value;
   }
 }
 

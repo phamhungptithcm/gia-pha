@@ -103,15 +103,15 @@ class AppEnvironment {
 
   static const bool enableAppCheck = bool.fromEnvironment(
     'BEFAM_ENABLE_APP_CHECK',
-    defaultValue: true,
+    defaultValue: false,
   );
+
+  static const bool useLocalFirebaseFallbacks =
+      !kReleaseMode && allowBundledFirebaseOptions;
 
   static const bool useMockAuth =
       !kReleaseMode &&
-      bool.fromEnvironment(
-        'BEFAM_USE_MOCK_AUTH',
-        defaultValue: false,
-      );
+      bool.fromEnvironment('BEFAM_USE_MOCK_AUTH', defaultValue: false);
 
   static const bool allowFirebasePhoneAuthFallback =
       !kReleaseMode &&

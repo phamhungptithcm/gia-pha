@@ -260,6 +260,17 @@ class _AppShellPageState extends State<AppShellPage>
   }
 
   @override
+  void reassemble() {
+    super.reassemble();
+    if (!kDebugMode) {
+      return;
+    }
+    _adController.invalidateBannerPlacement();
+    _dismissAdBannerForSession = false;
+    _adController.updateCurrentScreen(_screenIdForIndex(_selectedIndex));
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _adController.dispose();
@@ -826,11 +837,6 @@ class _AppShellPageState extends State<AppShellPage>
       _selectedIndex = 0;
     }
     final sessionTooltip = l10n.authEntryMethodSummary(_session.loginMethod);
-    final readinessTooltip = widget.status.isReady
-        ? l10n.shellReadinessReady
-        : widget.status.errorMessage?.trim().isNotEmpty == true
-        ? widget.status.errorMessage!
-        : l10n.shellReadinessPending;
     final pages = [
       _HomeDashboard(
         key: ValueKey<String>('home-${_session.clanId ?? 'none'}'),
@@ -930,7 +936,6 @@ class _AppShellPageState extends State<AppShellPage>
       actions: _buildAppBarActions(
         l10n: l10n,
         sessionTooltip: sessionTooltip,
-        readinessTooltip: readinessTooltip,
       ),
     );
 
@@ -951,6 +956,7 @@ class _AppShellPageState extends State<AppShellPage>
           _SponsoredAdBanner(
             adController: _adController,
             onClose: () {
+              _adController.disposeBannerForSession();
               setState(() {
                 _dismissAdBannerForSession = true;
               });
@@ -985,6 +991,7 @@ class _AppShellPageState extends State<AppShellPage>
                   _SponsoredAdBanner(
                     adController: _adController,
                     onClose: () {
+                      _adController.disposeBannerForSession();
                       setState(() {
                         _dismissAdBannerForSession = true;
                       });
@@ -1130,7 +1137,6 @@ class _AppShellPageState extends State<AppShellPage>
   List<Widget> _buildAppBarActions({
     required AppLocalizations l10n,
     required String sessionTooltip,
-    required String readinessTooltip,
   }) {
     final canSwitchClan =
         !_isLoadingClanContexts &&
@@ -1162,15 +1168,6 @@ class _AppShellPageState extends State<AppShellPage>
         )
       else
         const SizedBox(width: 4),
-      Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Tooltip(
-          message: readinessTooltip,
-          child: Icon(
-            widget.status.isReady ? Icons.cloud_done : Icons.cloud_off,
-          ),
-        ),
-      ),
       if (_selectedIndex == 1)
         IconButton(
           tooltip: l10n.pick(

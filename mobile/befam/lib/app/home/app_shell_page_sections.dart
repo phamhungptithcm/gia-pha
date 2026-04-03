@@ -286,17 +286,9 @@ class _HomeDashboard extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                SizedBox(height: tokens.spaceXs),
-                Text(
-                  l10n.pick(
-                    vi: 'Tập trung vào một điểm nổi bật, các lối vào nhanh và những việc cần xử lý tiếp theo.',
-                    en: 'Keep one highlight, quick entry points, and the next actions in view.',
-                  ),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                SizedBox(
+                  height: layout.isMobile ? tokens.spaceMd : tokens.spaceLg,
                 ),
-                SizedBox(height: tokens.spaceLg),
                 _UpcomingEventSection(
                   session: session,
                   eventRepository: eventRepository,
@@ -305,7 +297,9 @@ class _HomeDashboard extends StatelessWidget {
                   onOpenEventDetailRequested:
                       onOpenUpcomingEventDetailRequested,
                 ),
-                SizedBox(height: tokens.spaceLg),
+                SizedBox(
+                  height: layout.isMobile ? tokens.spaceMd : tokens.spaceLg,
+                ),
                 _DashboardSectionShell(
                   padding: EdgeInsets.all(tokens.spaceLg),
                   child: Column(
@@ -332,17 +326,11 @@ class _HomeDashboard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      SizedBox(height: tokens.spaceXs),
-                      Text(
-                        l10n.pick(
-                          vi: 'Vào thẳng 4 khu vực dùng nhiều nhất thay vì cuộn qua từng thẻ dài.',
-                          en: 'Jump straight into the four most-used workspaces.',
-                        ),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      SizedBox(
+                        height: layout.isMobile
+                            ? tokens.spaceSm
+                            : tokens.spaceMd,
                       ),
-                      SizedBox(height: tokens.spaceMd),
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -364,7 +352,9 @@ class _HomeDashboard extends StatelessWidget {
                     ],
                   ),
                 ),
-                SizedBox(height: tokens.spaceLg),
+                SizedBox(
+                  height: layout.isMobile ? tokens.spaceMd : tokens.spaceLg,
+                ),
                 if (layout.isMobile) ...[
                   _TodoSection(
                     status: status,
@@ -377,7 +367,7 @@ class _HomeDashboard extends StatelessWidget {
                         onOpenMemorialChecklistRequested,
                     onOpenJoinRequestsRequested: onOpenJoinRequestsRequested,
                   ),
-                  SizedBox(height: tokens.spaceLg),
+                  SizedBox(height: tokens.spaceMd),
                   _NearbyRelativesSection(
                     session: session,
                     memberRepository: memberRepository,
@@ -445,9 +435,6 @@ class _HomeDashboard extends StatelessWidget {
                     child: ListTile(
                       leading: Icon(_iconFor(shortcut.iconKey)),
                       title: Text(l10n.shortcutTitle(shortcut.id)),
-                      subtitle: Text(
-                        _productionShortcutDescription(context, shortcut.id),
-                      ),
                       trailing: Icon(
                         isEnabled
                             ? Icons.arrow_forward_ios
@@ -560,14 +547,12 @@ class _DashboardSectionShell extends StatelessWidget {
   const _DashboardSectionShell({
     required this.child,
     this.padding,
-    this.color,
     this.gradient,
     this.showAccentOrbs = false,
   });
 
   final Widget child;
   final EdgeInsetsGeometry? padding;
-  final Color? color;
   final Gradient? gradient;
   final bool showAccentOrbs;
 
@@ -582,7 +567,7 @@ class _DashboardSectionShell extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color ?? Colors.white.withValues(alpha: 0.86),
+        color: Colors.white.withValues(alpha: 0.86),
         gradient: gradient,
         borderRadius: radius,
         border: Border.all(
@@ -764,43 +749,6 @@ class _ShortcutCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ShortcutStatusChip extends StatelessWidget {
-  const _ShortcutStatusChip({required this.status});
-
-  final AppShortcutStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final background = switch (status) {
-      AppShortcutStatus.live => colorScheme.primaryContainer,
-      AppShortcutStatus.bootstrap => colorScheme.secondaryContainer,
-      AppShortcutStatus.planned => colorScheme.surfaceContainerHighest,
-    };
-    final label = switch (status) {
-      AppShortcutStatus.live => context.l10n.pick(
-        vi: 'Đang dùng',
-        en: 'In use',
-      ),
-      AppShortcutStatus.bootstrap => context.l10n.pick(
-        vi: 'Chưa thiết lập',
-        en: 'Not set',
-      ),
-      AppShortcutStatus.planned => context.l10n.pick(
-        vi: 'Cần cập nhật',
-        en: 'Needs update',
-      ),
-    };
-
-    return Chip(
-      label: Text(label),
-      backgroundColor: background,
-      visualDensity: VisualDensity.compact,
-      side: BorderSide.none,
     );
   }
 }
@@ -1252,14 +1200,6 @@ class _UpcomingEventEmptyState extends StatelessWidget {
             fontWeight: FontWeight.w800,
           ),
         ),
-        SizedBox(height: tokens.spaceSm),
-        Text(
-          l10n.pick(
-            vi: 'Bạn vẫn có thể mở lịch để xem các ngày giỗ, lời nhắc và sự kiện sắp diễn ra của cả họ.',
-            en: 'Open the calendar to review memorial days, reminders, and clan events.',
-          ),
-          style: theme.textTheme.bodyMedium,
-        ),
         SizedBox(height: tokens.spaceLg),
         Wrap(
           spacing: tokens.spaceSm,
@@ -1270,10 +1210,6 @@ class _UpcomingEventEmptyState extends StatelessWidget {
               child: Text(
                 l10n.pick(vi: 'Mở lịch sự kiện', en: 'Open calendar'),
               ),
-            ),
-            OutlinedButton(
-              onPressed: onRefresh,
-              child: Text(l10n.pick(vi: 'Làm mới', en: 'Refresh')),
             ),
           ],
         ),
@@ -1616,15 +1552,6 @@ class _TodoSectionState extends State<_TodoSection> {
           ),
           onTap: widget.onOpenTreeRequested,
         ),
-      if (!widget.status.isReady)
-        (
-          icon: Icons.cloud_off,
-          title: l10n.pick(
-            vi: 'Kiểm tra kết nối Firebase',
-            en: 'Check Firebase connectivity',
-          ),
-          onTap: widget.onOpenProfileRequested,
-        ),
     ];
 
     final visibleTasks = tasks.take(layout.isMobile ? 3 : 4);
@@ -1638,16 +1565,6 @@ class _TodoSectionState extends State<_TodoSection> {
             l10n.pick(vi: 'Việc cần làm', en: 'To-do'),
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
-            ),
-          ),
-          SizedBox(height: tokens.spaceXs),
-          Text(
-            l10n.pick(
-              vi: 'Giữ những việc quan trọng nhất ở ngay đầu màn hình.',
-              en: 'Keep the most important follow-up actions close.',
-            ),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
             ),
           ),
           SizedBox(height: tokens.spaceMd),
@@ -1717,6 +1634,7 @@ class _NearbyRelativeLoadResult {
     this.canRetry = true,
     this.retryAction = _NearbyRetryAction.reload,
     this.settingsTarget,
+    this.emptyStateType,
   });
 
   final List<_NearbyRelative> items;
@@ -1724,6 +1642,7 @@ class _NearbyRelativeLoadResult {
   final bool canRetry;
   final _NearbyRetryAction retryAction;
   final _NearbySettingsTarget? settingsTarget;
+  final _NearbyEmptyStateType? emptyStateType;
 
   bool get hasItems => items.isNotEmpty;
 }
@@ -1731,6 +1650,16 @@ class _NearbyRelativeLoadResult {
 enum _NearbyRetryAction { reload, requestPermission }
 
 enum _NearbySettingsTarget { appPermission, locationService }
+
+enum _NearbyEmptyStateType {
+  joinGenealogy,
+  enableLocationService,
+  requestLocationPermission,
+  openAppPermission,
+  locateCurrentUser,
+  noSharedMembers,
+  loadFailed,
+}
 
 class _NearbyRelativesSection extends StatefulWidget {
   const _NearbyRelativesSection({
@@ -1828,8 +1757,9 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
       return _NearbyRelativeLoadResult(
         items: const [],
         canRetry: false,
+        emptyStateType: _NearbyEmptyStateType.joinGenealogy,
         message: l10n.pick(
-          vi: 'Hãy tham gia gia phả để xem người thân ở gần bạn.',
+          vi: 'Tham gia gia phả để biết ai trong gia đình đang ở gần bạn.',
           en: 'Join a genealogy first to see nearby relatives.',
         ),
       );
@@ -1839,8 +1769,9 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
       return _NearbyRelativeLoadResult(
         items: const [],
         canRetry: false,
+        emptyStateType: _NearbyEmptyStateType.joinGenealogy,
         message: l10n.pick(
-          vi: 'Hãy tham gia gia phả để xem người thân ở gần bạn.',
+          vi: 'Tham gia gia phả để biết ai trong gia đình đang ở gần bạn.',
           en: 'Join a genealogy first to see nearby relatives.',
         ),
       );
@@ -1850,8 +1781,9 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
     if (!serviceEnabled) {
       return _NearbyRelativeLoadResult(
         items: const [],
+        emptyStateType: _NearbyEmptyStateType.enableLocationService,
         message: l10n.pick(
-          vi: 'Vui lòng bật dịch vụ vị trí để tìm người thân ở gần.',
+          vi: 'Bật vị trí để xem người thân nào đang ở gần bạn nhất.',
           en: 'Please enable location services to discover nearby relatives.',
         ),
         settingsTarget: _NearbySettingsTarget.locationService,
@@ -1864,8 +1796,9 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
         items: const [],
         canRetry: true,
         retryAction: _NearbyRetryAction.requestPermission,
+        emptyStateType: _NearbyEmptyStateType.requestLocationPermission,
         message: l10n.pick(
-          vi: 'Cho phép vị trí để xem khoảng cách và phát hiện người thân ở gần bạn.',
+          vi: 'Cho phép BeFam dùng vị trí để tính khoảng cách và gợi ý người thân ở gần bạn.',
           en: 'Allow location access to calculate distance and discover nearby relatives.',
         ),
       );
@@ -1873,8 +1806,9 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
     if (permission == LocationPermission.deniedForever) {
       return _NearbyRelativeLoadResult(
         items: const [],
+        emptyStateType: _NearbyEmptyStateType.openAppPermission,
         message: l10n.pick(
-          vi: 'Quyền vị trí đang bị tắt vĩnh viễn. Mở cài đặt ứng dụng để bật lại và xem người thân ở gần.',
+          vi: 'Mở lại quyền vị trí trong cài đặt để BeFam tìm người thân quanh bạn.',
           en: 'Location access is permanently disabled. Open app settings to re-enable nearby relatives.',
         ),
         settingsTarget: _NearbySettingsTarget.appPermission,
@@ -1885,8 +1819,9 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
     if (currentPosition == null) {
       return _NearbyRelativeLoadResult(
         items: const [],
+        emptyStateType: _NearbyEmptyStateType.locateCurrentUser,
         message: l10n.pick(
-          vi: 'Không lấy được vị trí hiện tại. Vui lòng thử lại.',
+          vi: 'BeFam chưa lấy được vị trí của bạn. Hãy thử lại sau ít phút.',
           en: 'Unable to read your current location. Please retry.',
         ),
       );
@@ -1927,8 +1862,9 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
       return _NearbyRelativeLoadResult(
         items: const [],
         canRetry: true,
+        emptyStateType: _NearbyEmptyStateType.loadFailed,
         message: l10n.pick(
-          vi: 'Không tải được danh sách người thân ở gần lúc này. Vui lòng thử lại.',
+          vi: 'Chưa tải được danh sách người thân quanh bạn lúc này. Hãy thử lại.',
           en: 'Unable to load nearby relatives right now. Please retry.',
         ),
       );
@@ -1977,8 +1913,9 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
       return _NearbyRelativeLoadResult(
         items: const [],
         canRetry: true,
+        emptyStateType: _NearbyEmptyStateType.noSharedMembers,
         message: l10n.pick(
-          vi: 'Chưa có người thân nào chia sẻ vị trí thực tế. Nhờ họ bật quyền vị trí và mở BeFam để cập nhật gần bạn.',
+          vi: 'Chưa có người thân nào chia sẻ vị trí lúc này. Khi họ bật vị trí và mở BeFam, bạn sẽ thấy ngay tại đây.',
           en: 'No relatives are sharing live location yet. Ask them to allow location and open BeFam to appear nearby.',
         ),
       );
@@ -1987,7 +1924,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
     return _NearbyRelativeLoadResult(
       items: nearbyItems,
       message: l10n.pick(
-        vi: 'Đã tìm thấy ${nearbyItems.length} người thân có thể ở gần bạn.',
+        vi: 'Đã thấy ${nearbyItems.length} người thân đang ở quanh bạn.',
         en: 'Found ${nearbyItems.length} relatives that may be near you.',
       ),
     );
@@ -2351,6 +2288,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
           if (result == null) {
             return _NearbyRelativesEmpty(
               key: const ValueKey<String>('nearby-null'),
+              emptyStateType: _NearbyEmptyStateType.loadFailed,
               message: l10n.pick(
                 vi: 'Không tải được danh sách người thân ở gần. Vui lòng thử lại.',
                 en: 'Unable to load nearby relatives. Please try again.',
@@ -2366,6 +2304,8 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
           if (!result.hasItems) {
             return _NearbyRelativesEmpty(
               key: const ValueKey<String>('nearby-empty'),
+              emptyStateType:
+                  result.emptyStateType ?? _NearbyEmptyStateType.loadFailed,
               message: result.message,
               canRetry: result.canRetry,
               retryAction: result.retryAction,
@@ -2380,8 +2320,20 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
           }
 
           final previewItems = result.items
+              .skip(1)
               .take(layout.isMobile ? 2 : 3)
               .toList(growable: false);
+          final spotlight = result.items.first;
+          final remainingCount = result.items.length - previewItems.length - 1;
+          final summaryText = result.items.length == 1
+              ? l10n.pick(
+                  vi: 'Bạn đang có 1 người thân ở gần để liên hệ nhanh.',
+                  en: 'You currently have 1 nearby relative you can contact quickly.',
+                )
+              : l10n.pick(
+                  vi: 'Đã thấy ${result.items.length} người thân đang ở quanh bạn để gọi, nhắn hoặc hẹn gặp nhanh.',
+                  en: 'Found ${result.items.length} nearby relatives you can call or message quickly.',
+                );
           final content = Column(
             key: ValueKey<String>(
               'nearby-${result.items.length}-${result.items.first.member.id}',
@@ -2392,7 +2344,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                 children: [
                   Text(
                     l10n.pick(
-                      vi: 'Người thân ở gần bạn',
+                      vi: 'Người thân quanh bạn',
                       en: 'Relatives nearby',
                     ),
                     style: theme.textTheme.titleLarge?.copyWith(
@@ -2410,10 +2362,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
                       ),
                     ),
                   AppCompactIconButton(
-                    tooltip: l10n.pick(
-                      vi: 'Rà lại người thân gần đây',
-                      en: 'Rescan nearby relatives',
-                    ),
+                    tooltip: l10n.pick(vi: 'Làm mới', en: 'Refresh'),
                     onPressed: _reload,
                     icon: const Icon(Icons.radar),
                   ),
@@ -2421,92 +2370,55 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
               ),
               SizedBox(height: tokens.spaceXs),
               Text(
-                result.message,
+                l10n.pick(
+                  vi: 'Biết ai trong gia đình đang ở gần để liên hệ, gặp mặt hoặc hỗ trợ nhau nhanh hơn.',
+                  en: 'See which relatives are nearby so you can reach out or meet up faster.',
+                ),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               SizedBox(height: tokens.spaceMd),
-              for (final item in previewItems)
-                Padding(
-                  padding: EdgeInsets.only(bottom: tokens.spaceSm),
-                  child: Material(
-                    color: theme.colorScheme.surface.withValues(alpha: 0.78),
-                    borderRadius: BorderRadius.circular(tokens.radiusMd),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: tokens.spaceMd,
-                        vertical: tokens.spaceMd,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CircleAvatar(
-                            radius: 18,
-                            backgroundColor: theme.colorScheme.primaryContainer,
-                            foregroundColor:
-                                theme.colorScheme.onPrimaryContainer,
-                            child: const Icon(
-                              Icons.person_pin_circle_outlined,
-                              size: 18,
-                            ),
-                          ),
-                          SizedBox(width: tokens.spaceMd),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.member.displayName,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                if ((item.member.phoneE164 ?? '').isNotEmpty)
-                                  Text(
-                                    item.member.phoneE164!,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                SizedBox(height: tokens.spaceXs),
-                                Text(
-                                  item.relationHint,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(width: tokens.spaceSm),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              _DashboardMetaChip(
-                                label: _formatDistanceLabel(item.distanceKm),
-                                backgroundColor: theme.colorScheme.primary
-                                    .withValues(alpha: 0.10),
-                                foregroundColor: theme.colorScheme.onSurface,
-                              ),
-                              SizedBox(height: tokens.spaceXs),
-                              MemberPhoneActionIconButton(
-                                phoneNumber: item.member.phoneE164 ?? '',
-                                contactName: item.member.displayName,
-                                iconSize: 18,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+              _NearbySpotlightCard(
+                item: spotlight,
+                totalCount: result.items.length,
+                summaryText: summaryText,
+                onOpenList: () => _openNearbySheet(result.items),
+              ),
+              if (previewItems.isNotEmpty) ...[
+                SizedBox(height: tokens.spaceMd),
+                for (final item in previewItems)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: tokens.spaceSm),
+                    child: _NearbyRelativeMiniCard(item: item),
+                  ),
+                if (remainingCount > 0)
+                  Text(
+                    l10n.pick(
+                      vi: '+$remainingCount người thân khác đang ở quanh bạn',
+                      en: '+$remainingCount more nearby relatives',
+                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                ),
-              AppCompactTextButton(
-                onPressed: () => _openNearbySheet(result.items),
-                child: Text(l10n.pick(vi: 'Xem danh sách', en: 'View list')),
+              ],
+              SizedBox(height: tokens.spaceSm),
+              Wrap(
+                spacing: tokens.spaceSm,
+                runSpacing: tokens.spaceSm,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: () => _openNearbySheet(result.items),
+                    icon: const Icon(Icons.radar_outlined),
+                    label: Text(l10n.pick(vi: 'Xem tất cả', en: 'View all')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _reload,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(l10n.pick(vi: 'Làm mới', en: 'Refresh')),
+                  ),
+                ],
               ),
             ],
           );
@@ -2646,7 +2558,7 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  l10n.pick(vi: 'Người thân ở gần', en: 'Nearby relatives'),
+                  l10n.pick(vi: 'Người thân quanh bạn', en: 'Relatives nearby'),
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
@@ -2657,8 +2569,8 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.search),
                     hintText: l10n.pick(
-                      vi: 'Tìm theo tên, SĐT, quan hệ',
-                      en: 'Search by name, phone, relation',
+                      vi: 'Tìm theo tên, số điện thoại hoặc quan hệ',
+                      en: 'Search by name, phone number, or relationship',
                     ),
                     suffixIcon: _query.isEmpty
                         ? null
@@ -2686,14 +2598,6 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
                       ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.pick(
-                    vi: 'Hiển thị ${visibleItems.length}/${widget.items.length} người thân gần nhất.',
-                    en: 'Showing ${visibleItems.length}/${widget.items.length} nearest relatives.',
-                  ),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
               ],
             ),
           ),
@@ -2705,8 +2609,8 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
                       padding: const EdgeInsets.all(20),
                       child: Text(
                         l10n.pick(
-                          vi: 'Không có kết quả phù hợp với bộ lọc hiện tại.',
-                          en: 'No relatives match your current search/filter.',
+                          vi: 'Không có người thân phù hợp.',
+                          en: 'No matching relatives.',
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -2721,19 +2625,14 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
                         child: ListTile(
                           leading: const Icon(Icons.people_alt_outlined),
                           title: Text(item.member.displayName),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(item.member.phoneE164 ?? ''),
-                              Text(
-                                item.relationHint,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
+                          subtitle: item.relationHint.trim().isEmpty
+                              ? null
+                              : Text(
+                                  item.relationHint,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
                           trailing: SizedBox(
                             width: 116,
                             child: Row(
@@ -2792,6 +2691,7 @@ class _NearbyRelativesLoadingSkeleton extends StatelessWidget {
 class _NearbyRelativesEmpty extends StatelessWidget {
   const _NearbyRelativesEmpty({
     super.key,
+    required this.emptyStateType,
     required this.message,
     required this.canRetry,
     required this.retryAction,
@@ -2801,6 +2701,7 @@ class _NearbyRelativesEmpty extends StatelessWidget {
     this.onOpenSettings,
   });
 
+  final _NearbyEmptyStateType emptyStateType;
   final String message;
   final bool canRetry;
   final _NearbyRetryAction retryAction;
@@ -2814,85 +2715,443 @@ class _NearbyRelativesEmpty extends StatelessWidget {
     final l10n = context.l10n;
     final tokens = context.uiTokens;
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryLabel = switch (emptyStateType) {
+      _NearbyEmptyStateType.enableLocationService => l10n.pick(
+        vi: 'Bật vị trí',
+        en: 'Turn on location',
+      ),
+      _NearbyEmptyStateType.requestLocationPermission => l10n.pick(
+        vi: 'Cho phép vị trí',
+        en: 'Allow location',
+      ),
+      _NearbyEmptyStateType.openAppPermission => l10n.pick(
+        vi: 'Mở cài đặt vị trí',
+        en: 'Open location settings',
+      ),
+      _NearbyEmptyStateType.locateCurrentUser ||
+      _NearbyEmptyStateType.noSharedMembers ||
+      _NearbyEmptyStateType.loadFailed => l10n.pick(
+        vi: 'Làm mới',
+        en: 'Refresh',
+      ),
+      _NearbyEmptyStateType.joinGenealogy => null,
+    };
+    final primaryAction = switch (emptyStateType) {
+      _NearbyEmptyStateType.enableLocationService =>
+        settingsTarget != null && onOpenSettings != null
+            ? () => unawaited(onOpenSettings!(settingsTarget!))
+            : onRetry,
+      _NearbyEmptyStateType.requestLocationPermission => onRetry,
+      _NearbyEmptyStateType.openAppPermission =>
+        settingsTarget != null && onOpenSettings != null
+            ? () => unawaited(onOpenSettings!(settingsTarget!))
+            : onRetry,
+      _NearbyEmptyStateType.locateCurrentUser ||
+      _NearbyEmptyStateType.noSharedMembers ||
+      _NearbyEmptyStateType.loadFailed => canRetry ? onRetry : null,
+      _NearbyEmptyStateType.joinGenealogy => null,
+    };
+    final heroTitle = switch (emptyStateType) {
+      _NearbyEmptyStateType.joinGenealogy => l10n.pick(
+        vi: 'Khi vào gia phả, bạn sẽ biết ai đang ở gần mình',
+        en: 'Join a genealogy to see which relatives are near you',
+      ),
+      _NearbyEmptyStateType.enableLocationService => l10n.pick(
+        vi: 'Bật vị trí để mở tính năng này',
+        en: 'Turn on location to unlock this feature',
+      ),
+      _NearbyEmptyStateType.requestLocationPermission => l10n.pick(
+        vi: 'Cho phép vị trí để thấy người thân quanh bạn',
+        en: 'Allow location to see nearby relatives',
+      ),
+      _NearbyEmptyStateType.openAppPermission => l10n.pick(
+        vi: 'Mở lại quyền vị trí cho BeFam',
+        en: 'Re-enable location access for BeFam',
+      ),
+      _NearbyEmptyStateType.locateCurrentUser => l10n.pick(
+        vi: 'BeFam cần vị trí của bạn để tính khoảng cách',
+        en: 'BeFam needs your location to calculate distance',
+      ),
+      _NearbyEmptyStateType.noSharedMembers => l10n.pick(
+        vi: 'Khi người thân mở vị trí, bạn sẽ thấy ngay tại đây',
+        en: 'When relatives share location, they will appear here',
+      ),
+      _NearbyEmptyStateType.loadFailed => l10n.pick(
+        vi: 'Tạm thời chưa tải được người thân quanh bạn',
+        en: 'Nearby relatives are temporarily unavailable',
+      ),
+    };
+    final heroDescription = switch (emptyStateType) {
+      _NearbyEmptyStateType.joinGenealogy => l10n.pick(
+        vi: 'Tính năng này giúp bạn biết ai trong gia đình đang ở gần để gọi, nhắn hoặc hẹn gặp nhanh hơn.',
+        en: 'This feature helps you see which relatives are nearby so you can call or meet up faster.',
+      ),
+      _NearbyEmptyStateType.enableLocationService ||
+      _NearbyEmptyStateType.requestLocationPermission ||
+      _NearbyEmptyStateType.openAppPermission => l10n.pick(
+        vi: 'BeFam chỉ dùng vị trí để tính khoảng cách và gợi ý người thân đang ở gần bạn.',
+        en: 'BeFam only uses location to calculate distance and suggest relatives near you.',
+      ),
+      _NearbyEmptyStateType.locateCurrentUser ||
+      _NearbyEmptyStateType.noSharedMembers ||
+      _NearbyEmptyStateType.loadFailed => message,
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Text(
-              l10n.pick(vi: 'Người thân ở gần bạn', en: 'Relatives nearby'),
+              l10n.pick(vi: 'Người thân quanh bạn', en: 'Relatives nearby'),
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
             ),
             const Spacer(),
             AppCompactIconButton(
-              tooltip: l10n.pick(
-                vi: 'Rà lại người thân gần đây',
-                en: 'Rescan nearby relatives',
-              ),
+              tooltip: l10n.pick(vi: 'Làm mới', en: 'Refresh'),
               onPressed: onRadarScan,
               icon: const Icon(Icons.radar),
             ),
           ],
         ),
-        SizedBox(height: tokens.spaceXs),
-        Text(
-          message,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        SizedBox(height: tokens.spaceMd),
+        _DashboardSectionShell(
+          padding: EdgeInsets.all(tokens.spaceLg),
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.94),
+              colorScheme.primaryContainer.withValues(alpha: 0.42),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          showAccentOrbs: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          heroTitle,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: tokens.spaceSm),
+                        Text(
+                          heroDescription,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: tokens.spaceMd),
+                  const _NearbyRadarGlyph(size: 86),
+                ],
+              ),
+              SizedBox(height: tokens.spaceMd),
+              if (primaryLabel != null && primaryAction != null)
+                FilledButton.icon(
+                  onPressed: primaryAction,
+                  icon: Icon(
+                    emptyStateType ==
+                            _NearbyEmptyStateType.requestLocationPermission
+                        ? Icons.my_location_outlined
+                        : emptyStateType ==
+                                  _NearbyEmptyStateType.enableLocationService ||
+                              emptyStateType ==
+                                  _NearbyEmptyStateType.openAppPermission
+                        ? Icons.open_in_new
+                        : Icons.refresh,
+                  ),
+                  label: Text(primaryLabel),
+                ),
+              if (settingsTarget != null &&
+                  onOpenSettings != null &&
+                  emptyStateType ==
+                      _NearbyEmptyStateType.requestLocationPermission) ...[
+                SizedBox(height: tokens.spaceSm),
+                AppCompactTextButton(
+                  onPressed: () => unawaited(onOpenSettings!(settingsTarget!)),
+                  child: Text(
+                    l10n.pick(
+                      vi: 'Mở cài đặt vị trí',
+                      en: 'Open location settings',
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-        if (settingsTarget != null && onOpenSettings != null) ...[
-          SizedBox(height: tokens.spaceSm),
-          AppCompactTextButton(
-            onPressed: () => unawaited(onOpenSettings!(settingsTarget!)),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.open_in_new, size: 18),
-                SizedBox(width: tokens.spaceSm),
-                Text(switch (settingsTarget!) {
-                  _NearbySettingsTarget.appPermission => l10n.pick(
-                    vi: 'Mở cài đặt quyền vị trí',
-                    en: 'Open app location permission',
-                  ),
-                  _NearbySettingsTarget.locationService => l10n.pick(
-                    vi: 'Mở dịch vụ vị trí của máy',
-                    en: 'Open device location services',
-                  ),
-                }),
-              ],
-            ),
-          ),
-        ],
-        if (canRetry) ...[
-          SizedBox(height: tokens.spaceSm),
-          AppCompactTextButton(
-            onPressed: onRetry,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  retryAction == _NearbyRetryAction.requestPermission
-                      ? Icons.my_location_outlined
-                      : Icons.refresh,
-                  size: 18,
-                ),
-                SizedBox(width: tokens.spaceSm),
-                Text(
-                  retryAction == _NearbyRetryAction.requestPermission
-                      ? l10n.pick(
-                          vi: 'Cho phép vị trí',
-                          en: 'Allow location access',
-                        )
-                      : l10n.notificationInboxRetryAction,
-                ),
-              ],
-            ),
-          ),
-        ],
       ],
+    );
+  }
+}
+
+class _NearbySpotlightCard extends StatelessWidget {
+  const _NearbySpotlightCard({
+    required this.item,
+    required this.totalCount,
+    required this.summaryText,
+    required this.onOpenList,
+  });
+
+  final _NearbyRelative item;
+  final int totalCount;
+  final String summaryText;
+  final VoidCallback onOpenList;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.uiTokens;
+    final theme = Theme.of(context);
+    return _DashboardSectionShell(
+      padding: EdgeInsets.all(tokens.spaceLg),
+      gradient: LinearGradient(
+        colors: [
+          Colors.white.withValues(alpha: 0.94),
+          theme.colorScheme.primaryContainer.withValues(alpha: 0.42),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      showAccentOrbs: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.l10n.pick(
+                        vi: 'Người đang ở gần nhất',
+                        en: 'Closest right now',
+                      ),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: tokens.spaceSm),
+                    Text(
+                      summaryText,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: tokens.spaceMd),
+              const _NearbyRadarGlyph(size: 72),
+            ],
+          ),
+          SizedBox(height: tokens.spaceMd),
+          Material(
+            color: Colors.white.withValues(alpha: 0.80),
+            borderRadius: BorderRadius.circular(tokens.radiusMd + 4),
+            child: Padding(
+              padding: EdgeInsets.all(tokens.spaceMd),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    foregroundColor: theme.colorScheme.onPrimaryContainer,
+                    child: const Icon(Icons.person_pin_circle_outlined),
+                  ),
+                  SizedBox(width: tokens.spaceMd),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.member.displayName,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: tokens.spaceXs),
+                        Text(
+                          item.relationHint,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        SizedBox(height: tokens.spaceSm),
+                        Wrap(
+                          spacing: tokens.spaceSm,
+                          runSpacing: tokens.spaceSm,
+                          children: [
+                            _DashboardMetaChip(
+                              label: _formatDistanceLabel(item.distanceKm),
+                              icon: Icons.near_me_outlined,
+                              backgroundColor: theme.colorScheme.primary
+                                  .withValues(alpha: 0.12),
+                            ),
+                            _DashboardMetaChip(
+                              label: context.l10n.pick(
+                                vi: '$totalCount người đang chia sẻ',
+                                en: '$totalCount sharing now',
+                              ),
+                              icon: Icons.radar_outlined,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: tokens.spaceSm),
+                  MemberPhoneActionIconButton(
+                    phoneNumber: item.member.phoneE164 ?? '',
+                    contactName: item.member.displayName,
+                    iconSize: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: tokens.spaceMd),
+          FilledButton.tonalIcon(
+            onPressed: onOpenList,
+            icon: const Icon(Icons.list_alt_outlined),
+            label: Text(
+              context.l10n.pick(vi: 'Xem danh sách', en: 'View list'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NearbyRelativeMiniCard extends StatelessWidget {
+  const _NearbyRelativeMiniCard({required this.item});
+
+  final _NearbyRelative item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.uiTokens;
+    return Material(
+      color: theme.colorScheme.surface.withValues(alpha: 0.80),
+      borderRadius: BorderRadius.circular(tokens.radiusMd),
+      child: Padding(
+        padding: EdgeInsets.all(tokens.spaceMd),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: theme.colorScheme.primaryContainer,
+              foregroundColor: theme.colorScheme.onPrimaryContainer,
+              child: const Icon(Icons.people_alt_outlined, size: 18),
+            ),
+            SizedBox(width: tokens.spaceMd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.member.displayName,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: tokens.spaceXs),
+                  Text(
+                    item.relationHint,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: tokens.spaceSm),
+            _DashboardMetaChip(
+              label: _formatDistanceLabel(item.distanceKm),
+              backgroundColor: theme.colorScheme.primary.withValues(
+                alpha: 0.10,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NearbyRadarGlyph extends StatelessWidget {
+  const _NearbyRadarGlyph({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: colorScheme.primary.withValues(alpha: 0.08),
+              border: Border.all(
+                color: colorScheme.primary.withValues(alpha: 0.16),
+              ),
+            ),
+          ),
+          Container(
+            width: size * 0.72,
+            height: size * 0.72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: colorScheme.secondary.withValues(alpha: 0.10),
+              border: Border.all(
+                color: colorScheme.secondary.withValues(alpha: 0.18),
+              ),
+            ),
+          ),
+          Container(
+            width: size * 0.42,
+            height: size * 0.42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: colorScheme.primaryContainer,
+            ),
+            child: Icon(
+              Icons.radar_outlined,
+              color: colorScheme.onPrimaryContainer,
+              size: size * 0.22,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

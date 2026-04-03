@@ -399,7 +399,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get profileSettingsLogoutDescription =>
-      'Xác nhận này giúp tránh đăng xuất nhầm khi bạn đang điều chỉnh cài đặt.';
+      'Bạn sẽ cần đăng nhập lại để tiếp tục dùng BeFam trên thiết bị này.';
 
   @override
   String get profileCancelAction => 'Hủy';
@@ -426,14 +426,14 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get profileLanguageVietnameseSubtitle =>
-      'Mặc định cho người dùng tại Việt Nam';
+      'Phù hợp với cách dùng phổ biến tại Việt Nam';
 
   @override
   String get profileLanguageEnglish => 'Tiếng Anh';
 
   @override
   String get profileLanguageEnglishSubtitle =>
-      'Hiển thị tiếng Anh trên toàn bộ ứng dụng';
+      'Hiển thị toàn bộ ứng dụng bằng tiếng Anh';
 
   @override
   String get profileSecuritySectionTitle => 'Riêng tư và bảo mật';

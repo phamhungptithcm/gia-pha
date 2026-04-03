@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../features/auth/models/auth_session.dart';
+import 'app_environment.dart';
 import 'performance_measurement_logger.dart';
 
 class FirebaseSessionAccessSync {
@@ -29,6 +30,9 @@ class FirebaseSessionAccessSync {
     sessionWriter,
     DateTime Function()? nowProvider,
   }) async {
+    if (AppEnvironment.useLocalFirebaseFallbacks) {
+      return;
+    }
     final uid = session.uid.trim();
     if (uid.isEmpty) {
       return;

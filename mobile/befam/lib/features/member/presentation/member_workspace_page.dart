@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/widgets/app_compact_controls.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/member_phone_action.dart';
@@ -303,8 +304,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
             SnackBar(
               content: Text(
                 l10n.pick(
-                  vi: 'Số điện thoại này đã có trong gia phả hiện tại. Mở chế độ chỉnh sửa hồ sơ.',
-                  en: 'This phone already exists in the current genealogy. Opening edit mode.',
+                  vi: 'Số điện thoại này đã có trong gia phả. Mở hồ sơ để cập nhật.',
+                  en: 'This phone already exists in the current genealogy. Opening the profile.',
                 ),
               ),
             ),
@@ -326,8 +327,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
           SnackBar(
             content: Text(
               l10n.pick(
-                vi: 'Đã tìm thấy hồ sơ trong BeFam. Hệ thống đã tự điền thông tin, bạn chỉ cần cập nhật "Con của".',
-                en: 'A BeFam profile was found. We prefilled the form, you only need to choose "Child of".',
+                vi: 'Đã tìm thấy hồ sơ phù hợp. Một số thông tin đã được điền sẵn.',
+                en: 'A matching profile was found. Some details were prefilled.',
               ),
             ),
           ),
@@ -356,25 +357,15 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
       }
       final profile = _asStringKeyMap(payload['profile']);
       return profile.isEmpty ? null : profile;
-    } on FirebaseFunctionsException catch (error) {
+    } on FirebaseFunctionsException {
       if (!mounted) {
         return null;
       }
       final l10n = context.l10n;
-      final message = switch (error.code) {
-        'permission-denied' => l10n.pick(
-          vi: 'Tài khoản hiện tại chưa đủ quyền tra cứu toàn hệ thống. Bạn vẫn có thể tạo mới thủ công.',
-          en: 'This account is not allowed to search across the whole system yet. You can still create manually.',
-        ),
-        'unimplemented' => l10n.pick(
-          vi: 'Máy chủ chưa bật tra cứu toàn hệ thống. Bạn vẫn có thể tạo mới thủ công.',
-          en: 'Global profile lookup is not enabled on the server yet. You can still create manually.',
-        ),
-        _ => l10n.pick(
-          vi: 'Không thể tra cứu hồ sơ toàn hệ thống lúc này. Bạn vẫn có thể tạo mới thủ công.',
-          en: 'Unable to lookup global profiles right now. You can still create manually.',
-        ),
-      };
+      final message = l10n.pick(
+        vi: 'Chưa thể tự điền từ số điện thoại lúc này. Bạn vẫn có thể tạo mới thủ công.',
+        en: 'Unable to prefill from this phone number right now. You can still create the profile manually.',
+      );
       ScaffoldMessenger.maybeOf(context)
         ?..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(message)));
@@ -452,6 +443,20 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
             .take(_visibleMemberCount)
             .toList(growable: false);
         final hasMoreMembers = visibleMembers.length < filteredMembers.length;
+        final heroBadges = <_HeroBadgeData>[
+          _HeroBadgeData(
+            icon: Icons.groups_2_outlined,
+            label: l10n.pick(
+              vi: '${_controller.members.length} hồ sơ',
+              en: '${_controller.members.length} profiles',
+            ),
+          ),
+          if (hasActiveFilters)
+            _HeroBadgeData(
+              icon: Icons.tune_outlined,
+              label: l10n.pick(vi: 'Đang lọc', en: 'Filtered'),
+            ),
+        ];
 
         final scaffold = Scaffold(
           appBar: AppBar(
@@ -479,8 +484,8 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
             child: _controller.isLoading
                 ? AppLoadingState(
                     message: l10n.pick(
-                      vi: 'Đang tải không gian thành viên...',
-                      en: 'Loading member workspace...',
+                      vi: 'Đang tải danh sách thành viên...',
+                      en: 'Loading members...',
                     ),
                   )
                 : !_controller.hasClanContext
@@ -491,223 +496,224 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                   )
                 : RefreshIndicator(
                     onRefresh: _controller.refresh,
-                    child: ListView(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                      children: [
-                        _WorkspaceHero(
-                          title: l10n.memberWorkspaceHeroTitle,
-                          description: l10n.pick(
-                            vi: 'Quản lý và cập nhật hồ sơ thành viên theo chi và đời.',
-                            en: 'Manage and update member profiles by branch and generation.',
-                          ),
+                    child: AppWorkspaceViewport(
+                      child: ListView(
+                        controller: _scrollController,
+                        padding: appWorkspacePagePadding(
+                          context,
+                          top: 16,
+                          bottom: 32,
                         ),
-                        const SizedBox(height: 20),
-                        if (_controller.permissions.isReadOnly) ...[
-                          _MessageCard(
-                            icon: Icons.visibility_outlined,
-                            title: l10n.memberReadOnlyTitle,
-                            description: l10n.memberReadOnlyDescription,
-                            tone: colorScheme.secondaryContainer,
+                        children: [
+                          _WorkspaceHero(
+                            title: l10n.memberWorkspaceHeroTitle,
+                            badges: heroBadges,
                           ),
-                          const SizedBox(height: 20),
-                        ],
-                        if (_controller.errorMessage != null) ...[
-                          _MessageCard(
-                            icon: Icons.error_outline,
-                            title: l10n.memberLoadErrorTitle,
-                            description: l10n.memberLoadErrorDescription,
-                            tone: colorScheme.errorContainer,
-                          ),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              onPressed: _controller.refresh,
-                              icon: const Icon(Icons.refresh),
-                              label: Text(l10n.memberRefreshAction),
+                          const SizedBox(height: 14),
+                          if (_controller.permissions.isReadOnly) ...[
+                            _MessageCard(
+                              icon: Icons.visibility_outlined,
+                              title: l10n.memberReadOnlyTitle,
+                              description: l10n.memberReadOnlyDescription,
+                              tone: colorScheme.secondaryContainer,
                             ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        _StatGrid(
-                          items: [
-                            _StatTile(
-                              label: l10n.memberStatCount,
-                              value: '${_controller.members.length}',
-                              icon: Icons.groups_2_outlined,
-                            ),
-                            _StatTile(
-                              label: l10n.memberStatVisible,
-                              value: '${filteredMembers.length}',
-                              icon: Icons.filter_alt_outlined,
-                            ),
+                            const SizedBox(height: 14),
                           ],
-                        ),
-                        const SizedBox(height: 20),
-                        if (_controller.selfMember case final selfMember?) ...[
-                          Text(
-                            l10n.memberOwnProfileTitle,
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
+                          if (_controller.errorMessage != null) ...[
+                            _MessageCard(
+                              icon: Icons.error_outline,
+                              title: l10n.memberLoadErrorTitle,
+                              description: l10n.memberLoadErrorDescription,
+                              tone: colorScheme.errorContainer,
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          _MemberSummaryCard(
-                            member: selfMember,
-                            branchName: _controller.branchName(
-                              selfMember.branchId,
-                            ),
-                            roleLabel: l10n.roleLabel(selfMember.primaryRole),
-                            showRoleBadge: true,
-                            onTap: () => _openMemberDetail(selfMember),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        _SectionCard(
-                          title: l10n.memberFilterSectionTitle,
-                          child: _FilterPanel(
-                            searchController: _searchController,
-                            branches: _controller.visibleBranches,
-                            generationOptions: _controller.generationOptions,
-                            filtersBranchId: _controller.filters.branchId,
-                            filtersGeneration: _controller.filters.generation,
-                            onSearchChanged: _controller.updateSearchQuery,
-                            onBranchChanged: _controller.updateBranchFilter,
-                            onGenerationChanged:
-                                _controller.updateGenerationFilter,
-                            onClearFilters: () {
-                              _searchController.clear();
-                              _controller.updateSearchQuery('');
-                              _controller.updateBranchFilter(null);
-                              _controller.updateGenerationFilter(null);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          l10n.memberListSectionTitle,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _controller.isSearching
-                            ? _SearchStateCard(
-                                key: const Key('member-search-loading-state'),
-                                icon: Icons.search,
-                                title: l10n.memberSearchLabel,
-                                description: l10n.memberSearchHint,
-                                trailing: const Padding(
-                                  padding: EdgeInsets.only(top: 4),
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              )
-                            : _controller.searchError != null
-                            ? _SearchStateCard(
-                                key: const Key('member-search-error-state'),
-                                icon: Icons.wifi_tethering_error_outlined,
-                                title: l10n.memberLoadErrorTitle,
-                                description: l10n.memberLoadErrorDescription,
-                                trailing: TextButton.icon(
-                                  key: const Key('member-search-retry-action'),
-                                  onPressed: _controller.retrySearch,
-                                  icon: const Icon(Icons.refresh),
-                                  label: Text(l10n.memberRefreshAction),
-                                ),
-                              )
-                            : filteredMembers.isEmpty
-                            ? _SearchStateCard(
-                                key: const Key('member-search-empty-state'),
-                                icon: Icons.person_search_outlined,
-                                title: hasActiveFilters
-                                    ? l10n.memberSearchLabel
-                                    : l10n.memberListEmptyTitle,
-                                description: hasActiveFilters
-                                    ? l10n.memberSearchHint
-                                    : l10n.memberListEmptyDescription,
-                                trailing: hasActiveFilters
-                                    ? TextButton.icon(
-                                        onPressed: () {
-                                          _searchController.clear();
-                                          _controller.updateSearchQuery('');
-                                          _controller.updateBranchFilter(null);
-                                          _controller.updateGenerationFilter(
-                                            null,
-                                          );
-                                        },
-                                        icon: const Icon(
-                                          Icons.filter_alt_off_outlined,
-                                        ),
-                                        label: Text(
-                                          l10n.memberClearFiltersAction,
-                                        ),
-                                      )
-                                    : null,
-                              )
-                            : Column(
-                                children: [
-                                  for (final member in visibleMembers)
-                                    Padding(
-                                      padding: EdgeInsets.only(
-                                        bottom: member == visibleMembers.last
-                                            ? 0
-                                            : 14,
-                                      ),
-                                      child: KeyedSubtree(
-                                        key: Key(
-                                          'member-search-result-${member.id}',
-                                        ),
-                                        child: _MemberSummaryCard(
-                                          key: Key('member-row-${member.id}'),
-                                          member: member,
-                                          branchName: _controller.branchName(
-                                            member.branchId,
-                                          ),
-                                          roleLabel: l10n.roleLabel(
-                                            member.primaryRole,
-                                          ),
-                                          showRoleBadge:
-                                              member.primaryRole
-                                                  .trim()
-                                                  .toUpperCase() !=
-                                              'MEMBER',
-                                          highlightQuery:
-                                              _controller.filters.query,
-                                          onTap: () =>
-                                              _openMemberDetail(member),
-                                        ),
-                                      ),
-                                    ),
-                                  if (hasMoreMembers) ...[
-                                    const SizedBox(height: 14),
-                                    _SearchStateCard(
-                                      icon: Icons.unfold_more_outlined,
-                                      title: l10n.pick(
-                                        vi: 'Đang tải thêm thành viên',
-                                        en: 'Loading more members',
-                                      ),
-                                      description: l10n.pick(
-                                        vi: 'Đã hiển thị ${visibleMembers.length}/${filteredMembers.length}. Kéo xuống để tải thêm.',
-                                        en: 'Showing ${visibleMembers.length}/${filteredMembers.length}. Scroll down to load more.',
-                                      ),
-                                      trailing: TextButton.icon(
-                                        onPressed: _loadMoreMembersIfNeeded,
-                                        icon: const Icon(Icons.expand_more),
-                                        label: Text(
-                                          l10n.pick(
-                                            vi: 'Tải thêm',
-                                            en: 'Load more',
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: _controller.refresh,
+                                icon: const Icon(Icons.refresh),
+                                label: Text(l10n.memberRefreshAction),
                               ),
-                      ],
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          _StatGrid(
+                            items: [
+                              _StatTile(
+                                label: l10n.memberStatCount,
+                                value: '${_controller.members.length}',
+                                icon: Icons.groups_2_outlined,
+                              ),
+                              _StatTile(
+                                label: l10n.memberStatVisible,
+                                value: '${filteredMembers.length}',
+                                icon: Icons.filter_alt_outlined,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          if (_controller.selfMember
+                              case final selfMember?) ...[
+                            _SectionCard(
+                              title: l10n.memberOwnProfileTitle,
+                              child: _MemberSummaryCard(
+                                member: selfMember,
+                                branchName: _controller.branchName(
+                                  selfMember.branchId,
+                                ),
+                                roleLabel: l10n.roleLabel(
+                                  selfMember.primaryRole,
+                                ),
+                                showRoleBadge: true,
+                                onTap: () => _openMemberDetail(selfMember),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          _SectionCard(
+                            title: l10n.memberFilterSectionTitle,
+                            child: _FilterPanel(
+                              searchController: _searchController,
+                              branches: _controller.visibleBranches,
+                              generationOptions: _controller.generationOptions,
+                              filtersBranchId: _controller.filters.branchId,
+                              filtersGeneration: _controller.filters.generation,
+                              onSearchChanged: _controller.updateSearchQuery,
+                              onBranchChanged: _controller.updateBranchFilter,
+                              onGenerationChanged:
+                                  _controller.updateGenerationFilter,
+                              onClearFilters: () {
+                                _searchController.clear();
+                                _controller.updateSearchQuery('');
+                                _controller.updateBranchFilter(null);
+                                _controller.updateGenerationFilter(null);
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          _SectionCard(
+                            title: l10n.memberListSectionTitle,
+                            child: _controller.isSearching
+                                ? _SearchStateCard(
+                                    key: const Key(
+                                      'member-search-loading-state',
+                                    ),
+                                    icon: Icons.search,
+                                    title: l10n.memberSearchLabel,
+                                    trailing: const Padding(
+                                      padding: EdgeInsets.only(top: 4),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                : _controller.searchError != null
+                                ? _SearchStateCard(
+                                    key: const Key('member-search-error-state'),
+                                    icon: Icons.wifi_tethering_error_outlined,
+                                    title: l10n.memberLoadErrorTitle,
+                                    description:
+                                        l10n.memberLoadErrorDescription,
+                                    trailing: TextButton.icon(
+                                      key: const Key(
+                                        'member-search-retry-action',
+                                      ),
+                                      onPressed: _controller.retrySearch,
+                                      icon: const Icon(Icons.refresh),
+                                      label: Text(l10n.memberRefreshAction),
+                                    ),
+                                  )
+                                : filteredMembers.isEmpty
+                                ? _SearchStateCard(
+                                    key: const Key('member-search-empty-state'),
+                                    icon: Icons.person_search_outlined,
+                                    title: hasActiveFilters
+                                        ? l10n.memberSearchLabel
+                                        : l10n.memberListEmptyTitle,
+                                    description: hasActiveFilters
+                                        ? null
+                                        : l10n.memberListEmptyDescription,
+                                    trailing: hasActiveFilters
+                                        ? TextButton.icon(
+                                            onPressed: () {
+                                              _searchController.clear();
+                                              _controller.updateSearchQuery('');
+                                              _controller.updateBranchFilter(
+                                                null,
+                                              );
+                                              _controller
+                                                  .updateGenerationFilter(null);
+                                            },
+                                            icon: const Icon(
+                                              Icons.filter_alt_off_outlined,
+                                            ),
+                                            label: Text(
+                                              l10n.memberClearFiltersAction,
+                                            ),
+                                          )
+                                        : null,
+                                  )
+                                : Column(
+                                    children: [
+                                      for (final member in visibleMembers)
+                                        Padding(
+                                          padding: EdgeInsets.only(
+                                            bottom:
+                                                member == visibleMembers.last
+                                                ? 0
+                                                : 12,
+                                          ),
+                                          child: KeyedSubtree(
+                                            key: Key(
+                                              'member-search-result-${member.id}',
+                                            ),
+                                            child: _MemberSummaryCard(
+                                              key: Key(
+                                                'member-row-${member.id}',
+                                              ),
+                                              member: member,
+                                              branchName: _controller
+                                                  .branchName(member.branchId),
+                                              roleLabel: l10n.roleLabel(
+                                                member.primaryRole,
+                                              ),
+                                              showRoleBadge:
+                                                  member.primaryRole
+                                                      .trim()
+                                                      .toUpperCase() !=
+                                                  'MEMBER',
+                                              highlightQuery:
+                                                  _controller.filters.query,
+                                              onTap: () =>
+                                                  _openMemberDetail(member),
+                                            ),
+                                          ),
+                                        ),
+                                      if (hasMoreMembers) ...[
+                                        const SizedBox(height: 12),
+                                        _SearchStateCard(
+                                          icon: Icons.unfold_more_outlined,
+                                          title: l10n.pick(
+                                            vi: 'Đã hiển thị ${visibleMembers.length}/${filteredMembers.length}',
+                                            en: 'Showing ${visibleMembers.length}/${filteredMembers.length}',
+                                          ),
+                                          trailing: TextButton.icon(
+                                            onPressed: _loadMoreMembersIfNeeded,
+                                            icon: const Icon(Icons.expand_more),
+                                            label: Text(
+                                              l10n.pick(
+                                                vi: 'Tải thêm',
+                                                en: 'Load more',
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
           ),
@@ -821,12 +827,18 @@ class _MemberDetailPage extends StatelessWidget {
                     title: l10n.memberNotFoundTitle,
                     description: l10n.memberNotFoundDescription,
                   )
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                    children: [
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
+                : AppWorkspaceViewport(
+                    child: ListView(
+                      padding: appWorkspacePagePadding(
+                        context,
+                        top: 16,
+                        bottom: 32,
+                      ),
+                      children: [
+                        AppWorkspaceSurface(
+                          padding: const EdgeInsets.all(24),
+                          gradient: appWorkspaceHeroGradient(context),
+                          showAccentOrbs: true,
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -848,7 +860,12 @@ class _MemberDetailPage extends StatelessWidget {
                                       member.nickName.trim().isEmpty
                                           ? l10n.memberDetailNoNickname
                                           : member.nickName,
-                                      style: theme.textTheme.titleMedium,
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
                                     ),
                                     const SizedBox(height: 12),
                                     Wrap(
@@ -887,149 +904,145 @@ class _MemberDetailPage extends StatelessWidget {
                             ],
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      _SectionCard(
-                        title: l10n.memberDetailSummaryTitle,
-                        child: Column(
-                          children: [
-                            _DetailRow(
-                              label: l10n.memberFullNameLabel,
-                              value: member.fullName,
-                            ),
-                            _DetailRow(
-                              label: l10n.memberNicknameLabel,
-                              value: member.nickName.trim().isEmpty
-                                  ? l10n.memberFieldUnset
-                                  : member.nickName,
-                            ),
-                            _DetailRow(
-                              label: l10n.memberPhoneLabel,
-                              value: member.phoneE164 ?? l10n.memberFieldUnset,
-                              trailing: MemberPhoneActionIconButton(
-                                phoneNumber: member.phoneE164 ?? '',
-                                contactName: member.displayName,
+                        const SizedBox(height: 14),
+                        _SectionCard(
+                          title: l10n.memberDetailSummaryTitle,
+                          child: Column(
+                            children: [
+                              _DetailRow(
+                                label: l10n.memberFullNameLabel,
+                                value: member.fullName,
                               ),
-                            ),
-                            _DetailRow(
-                              label: l10n.memberEmailLabel,
-                              value: member.email ?? l10n.memberFieldUnset,
-                            ),
-                            _DetailRow(
-                              label: l10n.memberGenderLabel,
-                              value: _genderLabel(l10n, member.gender),
-                            ),
-                            _DetailRow(
-                              label: l10n.pick(
-                                vi: 'Thứ bậc anh/chị/em',
-                                en: 'Sibling order',
+                              _DetailRow(
+                                label: l10n.memberNicknameLabel,
+                                value: member.nickName.trim().isEmpty
+                                    ? l10n.memberFieldUnset
+                                    : member.nickName,
                               ),
-                              value: siblingOrderLabel ?? l10n.memberFieldUnset,
-                            ),
-                            _DetailRow(
-                              label: l10n.memberBirthDateLabel,
-                              value: member.birthDate ?? l10n.memberFieldUnset,
-                            ),
-                            _DetailRow(
-                              label: l10n.memberDeathDateLabel,
-                              value: member.deathDate ?? l10n.memberFieldUnset,
-                            ),
-                            _DetailRow(
-                              label: l10n.memberJobTitleLabel,
-                              value: member.jobTitle ?? l10n.memberFieldUnset,
-                            ),
-                            _DetailRow(
-                              label: l10n.memberAddressLabel,
-                              value:
-                                  member.addressText ?? l10n.memberFieldUnset,
-                              trailing: AddressDirectionIconButton(
-                                address: member.addressText ?? '',
-                                label: member.displayName,
+                              _DetailRow(
+                                label: l10n.memberPhoneLabel,
+                                value:
+                                    member.phoneE164 ?? l10n.memberFieldUnset,
+                                trailing: MemberPhoneActionIconButton(
+                                  phoneNumber: member.phoneE164 ?? '',
+                                  contactName: member.displayName,
+                                ),
                               ),
-                            ),
-                            _DetailRow(
-                              label: l10n.memberBioLabel,
-                              value: member.bio ?? l10n.memberFieldUnset,
-                              isLast: true,
-                            ),
-                          ],
+                              _DetailRow(
+                                label: l10n.memberEmailLabel,
+                                value: member.email ?? l10n.memberFieldUnset,
+                              ),
+                              _DetailRow(
+                                label: l10n.memberGenderLabel,
+                                value: _genderLabel(l10n, member.gender),
+                              ),
+                              _DetailRow(
+                                label: l10n.pick(
+                                  vi: 'Thứ bậc anh/chị/em',
+                                  en: 'Sibling order',
+                                ),
+                                value:
+                                    siblingOrderLabel ?? l10n.memberFieldUnset,
+                              ),
+                              _DetailRow(
+                                label: l10n.memberBirthDateLabel,
+                                value:
+                                    member.birthDate ?? l10n.memberFieldUnset,
+                              ),
+                              _DetailRow(
+                                label: l10n.memberDeathDateLabel,
+                                value:
+                                    member.deathDate ?? l10n.memberFieldUnset,
+                              ),
+                              _DetailRow(
+                                label: l10n.memberJobTitleLabel,
+                                value: member.jobTitle ?? l10n.memberFieldUnset,
+                              ),
+                              _DetailRow(
+                                label: l10n.memberAddressLabel,
+                                value:
+                                    member.addressText ?? l10n.memberFieldUnset,
+                                trailing: AddressDirectionIconButton(
+                                  address: member.addressText ?? '',
+                                  label: member.displayName,
+                                ),
+                              ),
+                              _DetailRow(
+                                label: l10n.memberBioLabel,
+                                value: member.bio ?? l10n.memberFieldUnset,
+                                isLast: true,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      _SectionCard(
-                        title: l10n.memberSocialLinksTitle,
-                        child: member.socialLinks.isEmpty
-                            ? _WorkspaceEmptyState(
-                                icon: Icons.link_off_outlined,
-                                title: l10n.memberSocialLinksEmptyTitle,
-                                description:
-                                    l10n.memberSocialLinksEmptyDescription,
-                              )
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    l10n.pick(
-                                      vi: 'Bấm vào biểu tượng để mở ứng dụng mạng xã hội hoặc trình duyệt.',
-                                      en: 'Tap an icon to open the social app or browser.',
+                        const SizedBox(height: 14),
+                        _SectionCard(
+                          title: l10n.memberSocialLinksTitle,
+                          child: member.socialLinks.isEmpty
+                              ? _WorkspaceEmptyState(
+                                  icon: Icons.link_off_outlined,
+                                  title: l10n.memberSocialLinksEmptyTitle,
+                                  description:
+                                      l10n.memberSocialLinksEmptyDescription,
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: [
+                                        if (member.socialLinks.facebook != null)
+                                          SocialLinkActionIconButton(
+                                            platform: SocialPlatform.facebook,
+                                            rawValue:
+                                                member.socialLinks.facebook!,
+                                          ),
+                                        if (member.socialLinks.zalo != null)
+                                          SocialLinkActionIconButton(
+                                            platform: SocialPlatform.zalo,
+                                            rawValue: member.socialLinks.zalo!,
+                                          ),
+                                        if (member.socialLinks.linkedin != null)
+                                          SocialLinkActionIconButton(
+                                            platform: SocialPlatform.linkedin,
+                                            rawValue:
+                                                member.socialLinks.linkedin!,
+                                          ),
+                                      ],
                                     ),
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    children: [
-                                      if (member.socialLinks.facebook != null)
-                                        SocialLinkActionIconButton(
-                                          platform: SocialPlatform.facebook,
-                                          rawValue:
-                                              member.socialLinks.facebook!,
-                                        ),
-                                      if (member.socialLinks.zalo != null)
-                                        SocialLinkActionIconButton(
-                                          platform: SocialPlatform.zalo,
-                                          rawValue: member.socialLinks.zalo!,
-                                        ),
-                                      if (member.socialLinks.linkedin != null)
-                                        SocialLinkActionIconButton(
-                                          platform: SocialPlatform.linkedin,
-                                          rawValue:
-                                              member.socialLinks.linkedin!,
-                                        ),
-                                    ],
-                                  ),
-                                ],
+                                  ],
+                                ),
+                        ),
+                        const SizedBox(height: 14),
+                        RelationshipInspectorPanel(
+                          session: session,
+                          member: member,
+                          members: controller.members,
+                          repository: relationshipRepository,
+                          onOpenMemberDetail: (linkedMember) {
+                            if (linkedMember.id == member.id) {
+                              return;
+                            }
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (context) {
+                                  return _MemberDetailPage(
+                                    controller: controller,
+                                    session: session,
+                                    memberId: linkedMember.id,
+                                    avatarPicker: avatarPicker,
+                                    relationshipRepository:
+                                        relationshipRepository,
+                                    onEditMember: onEditMember,
+                                  );
+                                },
                               ),
-                      ),
-                      const SizedBox(height: 20),
-                      RelationshipInspectorPanel(
-                        session: session,
-                        member: member,
-                        members: controller.members,
-                        repository: relationshipRepository,
-                        onOpenMemberDetail: (linkedMember) {
-                          if (linkedMember.id == member.id) {
-                            return;
-                          }
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (context) {
-                                return _MemberDetailPage(
-                                  controller: controller,
-                                  session: session,
-                                  memberId: linkedMember.id,
-                                  avatarPicker: avatarPicker,
-                                  relationshipRepository:
-                                      relationshipRepository,
-                                  onEditMember: onEditMember,
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
           ),
         );
@@ -1148,19 +1161,28 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final insets = MediaQuery.viewInsetsOf(context);
     final phoneHint = PhoneNumberFormatter.nationalNumberHint(
       _selectedCountryIsoCode,
     );
+    final heroBadges = <_HeroBadgeData>[];
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.shadow.withValues(alpha: 0.14),
+              blurRadius: 32,
+              offset: const Offset(0, -10),
+            ),
+          ],
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
           child: Form(
             key: _formKey,
             child: Column(
@@ -1176,125 +1198,146 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  l10n.pick(
-                    vi: 'Nhập số điện thoại trước',
-                    en: 'Enter phone number first',
+                const SizedBox(height: 18),
+                AppWorkspaceSurface(
+                  padding: const EdgeInsets.all(20),
+                  gradient: appWorkspaceHeroGradient(context),
+                  showAccentOrbs: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.pick(
+                          vi: 'Nhập số điện thoại trước',
+                          en: 'Enter phone number first',
+                        ),
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (heroBadges.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final badge in heroBadges)
+                              _HeroBadge(data: badge),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  l10n.pick(
-                    vi: 'BeFam sẽ kiểm tra toàn hệ thống. Nếu đã có hồ sơ, hệ thống tự điền thông tin để bạn chỉ cần chọn "Con của".',
-                    en: 'BeFam will search the whole system. If a profile exists, we will prefill details so you only need to choose "Child of".',
-                  ),
-                  style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    PhoneCountrySelectorField(
-                      selectedIsoCode: _selectedCountryIsoCode,
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCountryIsoCode = value;
-                          _normalizePhoneInputForCountry();
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextFormField(
-                        key: const Key('member-phone-lookup-input'),
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        textInputAction: TextInputAction.done,
-                        decoration: InputDecoration(
-                          labelText: l10n.memberPhoneLabel,
-                          hintText: phoneHint,
-                        ),
-                        onEditingComplete: _normalizePhoneInputForCountry,
-                        onFieldSubmitted: (_) => _submit(),
-                        validator: (value) {
-                          final trimmed = value?.trim() ?? '';
-                          if (trimmed.isEmpty) {
-                            return null;
-                          }
-                          try {
-                            PhoneNumberFormatter.parse(
-                              trimmed,
-                              defaultCountryIso: _selectedCountryIsoCode,
-                            );
-                            return null;
-                          } catch (_) {
-                            return l10n.pick(
-                              vi: 'Số điện thoại chưa đúng định dạng.',
-                              en: 'Invalid phone number format.',
-                            );
-                          }
+                _SectionCard(
+                  title: l10n.pick(vi: 'Số điện thoại', en: 'Phone number'),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      PhoneCountrySelectorField(
+                        selectedIsoCode: _selectedCountryIsoCode,
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCountryIsoCode = value;
+                            _normalizePhoneInputForCountry();
+                          });
                         },
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 520;
-                    final cancelButton = OutlinedButton(
-                      key: const Key('member-phone-lookup-cancel'),
-                      onPressed: () => Navigator.of(context).pop<String?>(null),
-                      child: Text(l10n.pick(vi: 'Hủy', en: 'Cancel')),
-                    );
-                    final skipButton = OutlinedButton(
-                      key: const Key('member-phone-lookup-skip'),
-                      onPressed: () => Navigator.of(context).pop(''),
-                      child: Text(
-                        l10n.pick(
-                          vi: 'Tạo mới thủ công',
-                          en: 'Create manually',
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextFormField(
+                          key: const Key('member-phone-lookup-input'),
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.done,
+                          decoration: InputDecoration(
+                            labelText: l10n.memberPhoneLabel,
+                            hintText: phoneHint,
+                          ),
+                          onEditingComplete: _normalizePhoneInputForCountry,
+                          onFieldSubmitted: (_) => _submit(),
+                          validator: (value) {
+                            final trimmed = value?.trim() ?? '';
+                            if (trimmed.isEmpty) {
+                              return null;
+                            }
+                            try {
+                              PhoneNumberFormatter.parse(
+                                trimmed,
+                                defaultCountryIso: _selectedCountryIsoCode,
+                              );
+                              return null;
+                            } catch (_) {
+                              return l10n.pick(
+                                vi: 'Số điện thoại chưa đúng định dạng.',
+                                en: 'Invalid phone number format.',
+                              );
+                            }
+                          },
                         ),
                       ),
-                    );
-                    final continueButton = FilledButton.icon(
-                      key: const Key('member-phone-lookup-continue'),
-                      onPressed: _submit,
-                      icon: const Icon(Icons.search),
-                      label: Text(l10n.pick(vi: 'Tiếp tục', en: 'Continue')),
-                    );
-
-                    if (compact) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: cancelButton),
-                              const SizedBox(width: 10),
-                              Expanded(child: skipButton),
-                            ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                AppWorkspaceSurface(
+                  padding: const EdgeInsets.all(16),
+                  color: Colors.white.withValues(alpha: 0.76),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 520;
+                      final cancelButton = OutlinedButton(
+                        key: const Key('member-phone-lookup-cancel'),
+                        onPressed: () =>
+                            Navigator.of(context).pop<String?>(null),
+                        child: Text(l10n.pick(vi: 'Hủy', en: 'Cancel')),
+                      );
+                      final skipButton = OutlinedButton(
+                        key: const Key('member-phone-lookup-skip'),
+                        onPressed: () => Navigator.of(context).pop(''),
+                        child: Text(
+                          l10n.pick(
+                            vi: 'Tạo mới thủ công',
+                            en: 'Create manually',
                           ),
-                          const SizedBox(height: 10),
-                          continueButton,
+                        ),
+                      );
+                      final continueButton = FilledButton.icon(
+                        key: const Key('member-phone-lookup-continue'),
+                        onPressed: _submit,
+                        icon: const Icon(Icons.search),
+                        label: Text(l10n.pick(vi: 'Tiếp tục', en: 'Continue')),
+                      );
+
+                      if (compact) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(child: cancelButton),
+                                const SizedBox(width: 10),
+                                Expanded(child: skipButton),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            continueButton,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(child: cancelButton),
+                          const SizedBox(width: 10),
+                          Expanded(child: skipButton),
+                          const SizedBox(width: 10),
+                          Expanded(child: continueButton),
                         ],
                       );
-                    }
-
-                    return Row(
-                      children: [
-                        Expanded(child: cancelButton),
-                        const SizedBox(width: 10),
-                        Expanded(child: skipButton),
-                        const SizedBox(width: 10),
-                        Expanded(child: continueButton),
-                      ],
-                    );
-                  },
+                    },
+                  ),
                 ),
               ],
             ),
@@ -1527,6 +1570,7 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
     final insets = MediaQuery.viewInsetsOf(context);
     final selectedParent = _primarySelectedParent;
@@ -1534,16 +1578,52 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
     final phoneHint = PhoneNumberFormatter.nationalNumberHint(
       _phoneCountryIsoCode,
     );
+    final socialLinkCount = [
+      _facebookController.text,
+      _zaloController.text,
+      _linkedinController.text,
+    ].where((value) => value.trim().isNotEmpty).length;
+    final selectedParentCount = [
+      if (_selectedFather != null) true,
+      if (_selectedMother != null) true,
+    ].length;
+    final summaryBadge = selectedParentCount > 0
+        ? l10n.pick(
+            vi: '$selectedParentCount quan hệ chính',
+            en: '$selectedParentCount key relations',
+          )
+        : l10n.pick(
+            vi: '$socialLinkCount liên kết xã hội',
+            en: '$socialLinkCount social links',
+          );
+    final heroBadges = <_HeroBadgeData>[
+      _HeroBadgeData(
+        icon: widget.isEditing
+            ? Icons.edit_outlined
+            : Icons.person_add_alt_1_outlined,
+        label: widget.isEditing
+            ? l10n.pick(vi: 'Cập nhật hồ sơ', en: 'Updating profile')
+            : l10n.pick(vi: 'Tạo thành viên mới', en: 'Creating member'),
+      ),
+      _HeroBadgeData(icon: Icons.badge_outlined, label: summaryBadge),
+    ];
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.shadow.withValues(alpha: 0.14),
+              blurRadius: 32,
+              offset: const Offset(0, -10),
+            ),
+          ],
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
           child: Form(
             key: _formKey,
             child: Column(
@@ -1554,22 +1634,36 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                     width: 44,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.outlineVariant,
+                      color: colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  widget.title,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+                const SizedBox(height: 18),
+                AppWorkspaceSurface(
+                  padding: const EdgeInsets.all(20),
+                  gradient: appWorkspaceHeroGradient(context),
+                  showAccentOrbs: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final badge in heroBadges)
+                            _HeroBadge(data: badge),
+                        ],
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  l10n.memberEditorDescription,
-                  style: theme.textTheme.bodyMedium,
                 ),
                 if (_submitError != null) ...[
                   const SizedBox(height: 16),
@@ -1584,641 +1678,702 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                     tone: theme.colorScheme.errorContainer,
                   ),
                 ],
-                const SizedBox(height: 20),
-                _MemberEditorStepIndicator(
-                  currentStep: _editorStep,
-                  labels: [
-                    l10n.pick(vi: 'Thông tin', en: 'Info'),
-                    l10n.pick(vi: 'Quan hệ', en: 'Relation'),
-                    l10n.pick(vi: 'Bổ sung', en: 'More'),
-                  ],
-                  onStepSelected: (step) {
-                    setState(() => _editorStep = step);
-                  },
+                const SizedBox(height: 16),
+                AppWorkspaceSurface(
+                  padding: const EdgeInsets.all(16),
+                  color: Colors.white.withValues(alpha: 0.76),
+                  child: _MemberEditorStepIndicator(
+                    currentStep: _editorStep,
+                    labels: [
+                      l10n.pick(vi: 'Thông tin', en: 'Info'),
+                      l10n.pick(vi: 'Quan hệ', en: 'Relation'),
+                      l10n.pick(vi: 'Bổ sung', en: 'More'),
+                    ],
+                    onStepSelected: (step) {
+                      setState(() => _editorStep = step);
+                    },
+                  ),
                 ),
                 const SizedBox(height: 16),
-                if (_editorStep == 0) ...[
-                  TextFormField(
-                    key: const Key('member-full-name-input'),
-                    controller: _fullNameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.memberFullNameLabel,
-                      hintText: l10n.memberFullNameHint,
+                if (_editorStep == 0)
+                  _SectionCard(
+                    title: l10n.pick(
+                      vi: 'Thông tin cơ bản',
+                      en: 'Core details',
                     ),
-                    textInputAction: TextInputAction.next,
-                    validator: (value) {
-                      return value == null || value.trim().isEmpty
-                          ? l10n.memberValidationNameRequired
-                          : null;
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    key: const Key('member-nickname-input'),
-                    controller: _nickNameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.memberNicknameLabel,
-                      hintText: l10n.memberNicknameHint,
-                    ),
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: 14),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final compact = constraints.maxWidth < 520;
-                      final birthDateField = TextFormField(
-                        key: const Key('member-birth-date-input'),
-                        controller: _birthDateController,
-                        decoration: InputDecoration(
-                          labelText: l10n.memberBirthDateLabel,
-                          hintText: l10n.pick(
-                            vi: 'YYYY-MM-DD',
-                            en: 'YYYY-MM-DD',
-                          ),
-                          suffixIcon: IconButton(
-                            tooltip: l10n.pick(
-                              vi: 'Chọn ngày sinh',
-                              en: 'Select birth date',
-                            ),
-                            onPressed: () => _pickDate(_birthDateController),
-                            icon: const Icon(Icons.calendar_today_outlined),
-                          ),
-                        ),
-                        validator: (value) {
-                          return _isValidIsoDateOrBlank(value)
-                              ? null
-                              : l10n.memberValidationDateInvalid;
-                        },
-                        onChanged: (_) =>
-                            setState(_syncParentSelectionWithBirthDate),
-                      );
-                      final deathDateField = TextFormField(
-                        key: const Key('member-death-date-input'),
-                        controller: _deathDateController,
-                        decoration: InputDecoration(
-                          labelText: l10n.memberDeathDateLabel,
-                          hintText: l10n.pick(
-                            vi: 'YYYY-MM-DD',
-                            en: 'YYYY-MM-DD',
-                          ),
-                          suffixIcon: IconButton(
-                            tooltip: l10n.pick(
-                              vi: 'Chọn ngày mất',
-                              en: 'Select death date',
-                            ),
-                            onPressed: () => _pickDate(_deathDateController),
-                            icon: const Icon(Icons.calendar_today_outlined),
-                          ),
-                        ),
-                        validator: (value) {
-                          return _isValidIsoDateOrBlank(value)
-                              ? null
-                              : l10n.memberValidationDateInvalid;
-                        },
-                      );
-                      if (compact) {
-                        return Column(
-                          children: [
-                            birthDateField,
-                            const SizedBox(height: 14),
-                            deathDateField,
-                          ],
-                        );
-                      }
-                      return Row(
-                        children: [
-                          Expanded(child: birthDateField),
-                          const SizedBox(width: 14),
-                          Expanded(child: deathDateField),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      PhoneCountrySelectorField(
-                        selectedIsoCode: _phoneCountryIsoCode,
-                        onChanged: (value) {
-                          setState(() {
-                            _phoneCountryIsoCode = value;
-                            _normalizePhoneInputForCountry();
-                          });
-                        },
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextFormField(
-                          key: const Key('member-phone-input'),
-                          controller: _phoneController,
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          key: const Key('member-full-name-input'),
+                          controller: _fullNameController,
                           decoration: InputDecoration(
-                            labelText: l10n.memberPhoneLabel,
-                            hintText: phoneHint,
+                            labelText: l10n.memberFullNameLabel,
+                            hintText: l10n.memberFullNameHint,
                           ),
-                          keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.next,
-                          onEditingComplete: _normalizePhoneInputForCountry,
                           validator: (value) {
-                            final trimmed = value?.trim() ?? '';
-                            if (trimmed.isEmpty) {
-                              return l10n.pick(
-                                vi: 'Hãy nhập số điện thoại.',
-                                en: 'Please enter a phone number.',
-                              );
-                            }
-                            try {
-                              PhoneNumberFormatter.parse(
-                                trimmed,
-                                defaultCountryIso: _phoneCountryIsoCode,
-                              );
-                              return null;
-                            } catch (_) {
-                              return l10n.memberValidationPhoneInvalid;
-                            }
+                            return value == null || value.trim().isEmpty
+                                ? l10n.memberValidationNameRequired
+                                : null;
                           },
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (_editorStep == 1) ...[
-                  const SizedBox(height: 14),
-                  if (widget.isEditing)
-                    DropdownButtonFormField<String>(
-                      key: const Key('member-branch-input'),
-                      isExpanded: true,
-                      initialValue: _branchId,
-                      decoration: InputDecoration(
-                        labelText: l10n.memberBranchLabel,
-                      ),
-                      items: [
-                        for (final branch in widget.branches)
-                          DropdownMenuItem<String>(
-                            value: branch.id,
-                            child: Text(branch.name),
-                          ),
-                      ],
-                      onChanged: widget.allowOrganizationFields
-                          ? (value) {
-                              setState(() {
-                                _branchId = value;
-                              });
-                            }
-                          : null,
-                      validator: (value) {
-                        return value == null || value.isEmpty
-                            ? l10n.memberValidationBranchRequired
-                            : null;
-                      },
-                    )
-                  else
-                    FormField<List<String>>(
-                      key: const Key('member-parent-input'),
-                      initialValue: _resolvedParentIds,
-                      validator: (_) {
-                        if (_parentCandidates.isEmpty) {
-                          return null;
-                        }
-                        return _resolvedParentIds.isEmpty
-                            ? l10n.pick(
-                                vi: 'Hãy chọn cha/mẹ để hệ thống tự gán chi và thứ bậc anh/chị/em.',
-                                en: 'Choose parents so the system can auto-assign branch and sibling order.',
-                              )
-                            : null;
-                      },
-                      builder: (field) {
-                        final father = _selectedFather;
-                        final mother = _selectedMother;
-                        return InputDecorator(
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          key: const Key('member-nickname-input'),
+                          controller: _nickNameController,
                           decoration: InputDecoration(
-                            labelText: l10n.pick(vi: 'Con của', en: 'Child of'),
-                            errorText: field.errorText,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
+                            labelText: l10n.memberNicknameLabel,
+                            hintText: l10n.memberNicknameHint,
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  key: const Key('member-parent-picker-button'),
-                                  onPressed: _parentCandidates.isEmpty
-                                      ? null
-                                      : () async {
-                                          final result =
-                                              await _pickParentsFromBottomSheet();
-                                          if (!mounted || result == null) {
-                                            return;
-                                          }
-                                          setState(() {
-                                            _selectedFatherId = result.fatherId;
-                                            _selectedMotherId = result.motherId;
-                                            _autofillPhoneFromSelectedFather();
-                                          });
-                                          field.didChange(_resolvedParentIds);
-                                          _formKey.currentState?.validate();
-                                        },
-                                  icon: const Icon(
-                                    Icons.family_restroom_outlined,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 14),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final compact = constraints.maxWidth < 520;
+                            final birthDateField = TextFormField(
+                              key: const Key('member-birth-date-input'),
+                              controller: _birthDateController,
+                              decoration: InputDecoration(
+                                labelText: l10n.memberBirthDateLabel,
+                                hintText: l10n.pick(
+                                  vi: 'YYYY-MM-DD',
+                                  en: 'YYYY-MM-DD',
+                                ),
+                                suffixIcon: IconButton(
+                                  tooltip: l10n.pick(
+                                    vi: 'Chọn ngày sinh',
+                                    en: 'Select birth date',
                                   ),
-                                  label: Text(_parentPickerButtonLabel(l10n)),
+                                  onPressed: () =>
+                                      _pickDate(_birthDateController),
+                                  icon: const Icon(
+                                    Icons.calendar_today_outlined,
+                                  ),
                                 ),
                               ),
-                              if (father != null || mother != null) ...[
-                                const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
+                              validator: (value) {
+                                return _isValidIsoDateOrBlank(value)
+                                    ? null
+                                    : l10n.memberValidationDateInvalid;
+                              },
+                              onChanged: (_) =>
+                                  setState(_syncParentSelectionWithBirthDate),
+                            );
+                            final deathDateField = TextFormField(
+                              key: const Key('member-death-date-input'),
+                              controller: _deathDateController,
+                              decoration: InputDecoration(
+                                labelText: l10n.memberDeathDateLabel,
+                                hintText: l10n.pick(
+                                  vi: 'YYYY-MM-DD',
+                                  en: 'YYYY-MM-DD',
+                                ),
+                                suffixIcon: IconButton(
+                                  tooltip: l10n.pick(
+                                    vi: 'Chọn ngày mất',
+                                    en: 'Select death date',
+                                  ),
+                                  onPressed: () =>
+                                      _pickDate(_deathDateController),
+                                  icon: const Icon(
+                                    Icons.calendar_today_outlined,
+                                  ),
+                                ),
+                              ),
+                              validator: (value) {
+                                return _isValidIsoDateOrBlank(value)
+                                    ? null
+                                    : l10n.memberValidationDateInvalid;
+                              },
+                            );
+                            if (compact) {
+                              return Column(
+                                children: [
+                                  birthDateField,
+                                  const SizedBox(height: 14),
+                                  deathDateField,
+                                ],
+                              );
+                            }
+                            return Row(
+                              children: [
+                                Expanded(child: birthDateField),
+                                const SizedBox(width: 14),
+                                Expanded(child: deathDateField),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            PhoneCountrySelectorField(
+                              selectedIsoCode: _phoneCountryIsoCode,
+                              onChanged: (value) {
+                                setState(() {
+                                  _phoneCountryIsoCode = value;
+                                  _normalizePhoneInputForCountry();
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextFormField(
+                                key: const Key('member-phone-input'),
+                                controller: _phoneController,
+                                decoration: InputDecoration(
+                                  labelText: l10n.memberPhoneLabel,
+                                  hintText: phoneHint,
+                                ),
+                                keyboardType: TextInputType.phone,
+                                textInputAction: TextInputAction.next,
+                                onEditingComplete:
+                                    _normalizePhoneInputForCountry,
+                                validator: (value) {
+                                  final trimmed = value?.trim() ?? '';
+                                  if (trimmed.isEmpty) {
+                                    return l10n.pick(
+                                      vi: 'Hãy nhập số điện thoại.',
+                                      en: 'Please enter a phone number.',
+                                    );
+                                  }
+                                  try {
+                                    PhoneNumberFormatter.parse(
+                                      trimmed,
+                                      defaultCountryIso: _phoneCountryIsoCode,
+                                    );
+                                    return null;
+                                  } catch (_) {
+                                    return l10n.memberValidationPhoneInvalid;
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_editorStep == 1)
+                  _SectionCard(
+                    title: l10n.pick(
+                      vi: 'Quan hệ & vai trò',
+                      en: 'Relations & role',
+                    ),
+                    child: Column(
+                      children: [
+                        if (widget.isEditing)
+                          DropdownButtonFormField<String>(
+                            key: const Key('member-branch-input'),
+                            isExpanded: true,
+                            initialValue: _branchId,
+                            decoration: InputDecoration(
+                              labelText: l10n.memberBranchLabel,
+                            ),
+                            items: [
+                              for (final branch in widget.branches)
+                                DropdownMenuItem<String>(
+                                  value: branch.id,
+                                  child: Text(branch.name),
+                                ),
+                            ],
+                            onChanged: widget.allowOrganizationFields
+                                ? (value) {
+                                    setState(() {
+                                      _branchId = value;
+                                    });
+                                  }
+                                : null,
+                            validator: (value) {
+                              return value == null || value.isEmpty
+                                  ? l10n.memberValidationBranchRequired
+                                  : null;
+                            },
+                          )
+                        else
+                          FormField<List<String>>(
+                            key: const Key('member-parent-input'),
+                            initialValue: _resolvedParentIds,
+                            validator: (_) {
+                              if (_parentCandidates.isEmpty) {
+                                return null;
+                              }
+                              return _resolvedParentIds.isEmpty
+                                  ? l10n.pick(
+                                      vi: 'Hãy chọn cha hoặc mẹ.',
+                                      en: 'Choose a parent.',
+                                    )
+                                  : null;
+                            },
+                            builder: (field) {
+                              final father = _selectedFather;
+                              final mother = _selectedMother;
+                              return InputDecorator(
+                                decoration: InputDecoration(
+                                  labelText: l10n.pick(
+                                    vi: 'Con của',
+                                    en: 'Child of',
+                                  ),
+                                  errorText: field.errorText,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    if (father != null)
-                                      _ParentRoleBadge(
-                                        icon: Icons.male,
-                                        roleLabel: l10n.pick(
-                                          vi: 'Cha',
-                                          en: 'Father',
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        key: const Key(
+                                          'member-parent-picker-button',
                                         ),
-                                        memberName: father.displayName,
-                                      ),
-                                    if (mother != null)
-                                      _ParentRoleBadge(
-                                        icon: Icons.female,
-                                        roleLabel: l10n.pick(
-                                          vi: 'Mẹ',
-                                          en: 'Mother',
+                                        onPressed: _parentCandidates.isEmpty
+                                            ? null
+                                            : () async {
+                                                final result =
+                                                    await _pickParentsFromBottomSheet();
+                                                if (!mounted ||
+                                                    result == null) {
+                                                  return;
+                                                }
+                                                setState(() {
+                                                  _selectedFatherId =
+                                                      result.fatherId;
+                                                  _selectedMotherId =
+                                                      result.motherId;
+                                                  _autofillPhoneFromSelectedFather();
+                                                });
+                                                field.didChange(
+                                                  _resolvedParentIds,
+                                                );
+                                                _formKey.currentState
+                                                    ?.validate();
+                                              },
+                                        icon: const Icon(
+                                          Icons.family_restroom_outlined,
                                         ),
-                                        memberName: mother.displayName,
+                                        label: Text(
+                                          _parentPickerButtonLabel(l10n),
+                                        ),
                                       ),
+                                    ),
+                                    if (father != null || mother != null) ...[
+                                      const SizedBox(height: 10),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          if (father != null)
+                                            _ParentRoleBadge(
+                                              icon: Icons.male,
+                                              roleLabel: l10n.pick(
+                                                vi: 'Cha',
+                                                en: 'Father',
+                                              ),
+                                              memberName: father.displayName,
+                                            ),
+                                          if (mother != null)
+                                            _ParentRoleBadge(
+                                              icon: Icons.female,
+                                              roleLabel: l10n.pick(
+                                                vi: 'Mẹ',
+                                                en: 'Mother',
+                                              ),
+                                              memberName: mother.displayName,
+                                            ),
+                                        ],
+                                      ),
+                                    ],
                                   ],
                                 ),
-                              ],
-                            ],
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<String?>(
-                    key: const Key('member-gender-input'),
-                    isExpanded: true,
-                    initialValue: _gender,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w400,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: l10n.memberGenderLabel,
-                    ),
-                    items: [
-                      DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text(l10n.memberGenderUnspecified),
-                      ),
-                      DropdownMenuItem<String?>(
-                        value: 'male',
-                        child: Text(l10n.memberGenderMale),
-                      ),
-                      DropdownMenuItem<String?>(
-                        value: 'female',
-                        child: Text(l10n.memberGenderFemale),
-                      ),
-                      DropdownMenuItem<String?>(
-                        value: 'other',
-                        child: Text(l10n.memberGenderOther),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _gender = value;
-                      });
-                    },
-                  ),
-                  if (!widget.isEditing) ...[
-                    const SizedBox(height: 14),
-                    InputDecorator(
-                      key: const Key('member-branch-auto-input'),
-                      decoration: InputDecoration(
-                        labelText: l10n.memberBranchLabel,
-                      ),
-                      child: Text(
-                        selectedParent == null
-                            ? l10n.pick(
-                                vi: 'Trống (sẽ hiển thị sau khi chọn cha/mẹ)',
-                                en: 'Empty (will be shown after choosing parents)',
-                              )
-                            : selectedParentBranchName,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    if (widget.canAssignRoleManually)
-                      DropdownButtonFormField<String>(
-                        key: const Key('member-role-input'),
-                        isExpanded: true,
-                        initialValue: _selectedPrimaryRole,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w400,
-                        ),
-                        decoration: InputDecoration(
-                          labelText: l10n.pick(vi: 'Vai trò', en: 'Role'),
-                        ),
-                        items: [
-                          for (final role in widget.assignableRoles)
-                            DropdownMenuItem<String>(
-                              value: role,
-                              child: Text(l10n.roleLabel(role)),
-                            ),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedPrimaryRole = value;
-                          });
-                        },
-                        validator: (value) {
-                          return value == null || value.trim().isEmpty
-                              ? l10n.pick(
-                                  vi: 'Hãy chọn vai trò cho thành viên.',
-                                  en: 'Please choose a role for this member.',
-                                )
-                              : null;
-                        },
-                      )
-                    else
-                      InputDecorator(
-                        key: const Key('member-role-auto-input'),
-                        decoration: InputDecoration(
-                          labelText: l10n.pick(vi: 'Vai trò', en: 'Role'),
-                        ),
-                        child: Text(
-                          l10n.roleLabel(_autoResolvedRole),
+                        const SizedBox(height: 14),
+                        DropdownButtonFormField<String?>(
+                          key: const Key('member-gender-input'),
+                          isExpanded: true,
+                          initialValue: _gender,
                           style: theme.textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.w400,
                           ),
-                        ),
-                      ),
-                    const SizedBox(height: 14),
-                    InputDecorator(
-                      key: const Key('member-sibling-order-auto-input'),
-                      decoration: InputDecoration(
-                        labelText: l10n.pick(
-                          vi: 'Thứ bậc anh/chị/em',
-                          en: 'Sibling order',
-                        ),
-                      ),
-                      child: Text(
-                        _siblingOrderLabel(l10n, _predictedSiblingOrder) ??
-                            l10n.pick(
-                              vi: 'Chọn cha/mẹ để hệ thống tự tính.',
-                              en: 'Choose parents for auto calculation.',
+                          decoration: InputDecoration(
+                            labelText: l10n.memberGenderLabel,
+                          ),
+                          items: [
+                            DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text(l10n.memberGenderUnspecified),
                             ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    InputDecorator(
-                      key: const Key('member-sibling-list-auto-input'),
-                      decoration: InputDecoration(
-                        labelText: l10n.pick(
-                          vi: 'Anh/chị/em ruột',
-                          en: 'Biological siblings',
+                            DropdownMenuItem<String?>(
+                              value: 'male',
+                              child: Text(l10n.memberGenderMale),
+                            ),
+                            DropdownMenuItem<String?>(
+                              value: 'female',
+                              child: Text(l10n.memberGenderFemale),
+                            ),
+                            DropdownMenuItem<String?>(
+                              value: 'other',
+                              child: Text(l10n.memberGenderOther),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _gender = value;
+                            });
+                          },
                         ),
-                      ),
-                      child: _siblingCandidates.isEmpty
-                          ? Text(
-                              l10n.pick(
-                                vi: 'Chưa có dữ liệu anh/chị/em ruột.',
-                                en: 'No biological siblings found.',
+                        if (!widget.isEditing) ...[
+                          const SizedBox(height: 14),
+                          InputDecorator(
+                            key: const Key('member-branch-auto-input'),
+                            decoration: InputDecoration(
+                              labelText: l10n.memberBranchLabel,
+                            ),
+                            child: Text(
+                              selectedParent == null
+                                  ? l10n.pick(
+                                      vi: 'Chưa chọn',
+                                      en: 'Not selected',
+                                    )
+                                  : selectedParentBranchName,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          if (widget.canAssignRoleManually)
+                            DropdownButtonFormField<String>(
+                              key: const Key('member-role-input'),
+                              isExpanded: true,
+                              initialValue: _selectedPrimaryRole,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w400,
                               ),
-                            )
-                          : Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                for (final sibling in _siblingCandidates)
-                                  _ChipPill(
-                                    icon: Icons.person_outline,
-                                    label: sibling.displayName,
-                                    compact: true,
+                              decoration: InputDecoration(
+                                labelText: l10n.pick(vi: 'Vai trò', en: 'Role'),
+                              ),
+                              items: [
+                                for (final role in widget.assignableRoles)
+                                  DropdownMenuItem<String>(
+                                    value: role,
+                                    child: Text(l10n.roleLabel(role)),
                                   ),
                               ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedPrimaryRole = value;
+                                });
+                              },
+                              validator: (value) {
+                                return value == null || value.trim().isEmpty
+                                    ? l10n.pick(
+                                        vi: 'Hãy chọn vai trò cho thành viên.',
+                                        en: 'Please choose a role for this member.',
+                                      )
+                                    : null;
+                              },
+                            )
+                          else
+                            InputDecorator(
+                              key: const Key('member-role-auto-input'),
+                              decoration: InputDecoration(
+                                labelText: l10n.pick(vi: 'Vai trò', en: 'Role'),
+                              ),
+                              child: Text(
+                                l10n.roleLabel(_autoResolvedRole),
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
                             ),
+                          const SizedBox(height: 14),
+                          InputDecorator(
+                            key: const Key('member-sibling-order-auto-input'),
+                            decoration: InputDecoration(
+                              labelText: l10n.pick(
+                                vi: 'Thứ bậc anh/chị/em',
+                                en: 'Sibling order',
+                              ),
+                            ),
+                            child: Text(
+                              _siblingOrderLabel(
+                                    l10n,
+                                    _predictedSiblingOrder,
+                                  ) ??
+                                  l10n.pick(vi: 'Chưa có', en: 'Not available'),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          InputDecorator(
+                            key: const Key('member-sibling-list-auto-input'),
+                            decoration: InputDecoration(
+                              labelText: l10n.pick(
+                                vi: 'Anh/chị/em ruột',
+                                en: 'Biological siblings',
+                              ),
+                            ),
+                            child: _siblingCandidates.isEmpty
+                                ? Text(
+                                    l10n.pick(vi: 'Chưa có', en: 'No data yet'),
+                                  )
+                                : Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      for (final sibling in _siblingCandidates)
+                                        _ChipPill(
+                                          icon: Icons.person_outline,
+                                          label: sibling.displayName,
+                                          compact: true,
+                                        ),
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                ],
+                  ),
                 if (_editorStep == 2) ...[
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    key: const Key('member-email-input'),
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: l10n.memberEmailLabel,
-                      hintText: l10n.pick(
-                        vi: 'member@befam.vn',
-                        en: 'member@befam.vn',
-                      ),
+                  _SectionCard(
+                    title: l10n.pick(vi: 'Liên hệ', en: 'Contact'),
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          key: const Key('member-email-input'),
+                          controller: _emailController,
+                          decoration: InputDecoration(
+                            labelText: l10n.memberEmailLabel,
+                            hintText: l10n.pick(
+                              vi: 'member@befam.vn',
+                              en: 'member@befam.vn',
+                            ),
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          key: const Key('member-job-title-input'),
+                          controller: _jobTitleController,
+                          decoration: InputDecoration(
+                            labelText: l10n.memberJobTitleLabel,
+                            hintText: l10n.memberJobTitleHint,
+                          ),
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 14),
+                        AddressAutocompleteField(
+                          key: const Key('member-address-input'),
+                          controller: _addressController,
+                          labelText: l10n.memberAddressLabel,
+                          hintText: l10n.memberAddressHint,
+                          textInputAction: TextInputAction.next,
+                          maxLines: 2,
+                        ),
+                      ],
                     ),
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
-                    key: const Key('member-job-title-input'),
-                    controller: _jobTitleController,
-                    decoration: InputDecoration(
-                      labelText: l10n.memberJobTitleLabel,
-                      hintText: l10n.memberJobTitleHint,
+                  _SectionCard(
+                    title: l10n.pick(
+                      vi: 'Mạng xã hội & tiểu sử',
+                      en: 'Social links & bio',
                     ),
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: 14),
-                  AddressAutocompleteField(
-                    key: const Key('member-address-input'),
-                    controller: _addressController,
-                    labelText: l10n.memberAddressLabel,
-                    hintText: l10n.memberAddressHint,
-                    textInputAction: TextInputAction.next,
-                    maxLines: 2,
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    l10n.pick(
-                      vi: 'Nhập tên tài khoản hoặc liên kết. Bấm biểu tượng bên phải để mở app/web và liên kết nhanh.',
-                      en: 'Enter a username or link. Tap the right icon to open app/web for quick linking.',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextFormField(
+                          key: const Key('member-facebook-input'),
+                          controller: _facebookController,
+                          decoration: InputDecoration(
+                            labelText: l10n.pick(
+                              vi: 'Facebook',
+                              en: 'Facebook',
+                            ),
+                            hintText: l10n.pick(
+                              vi: 'Tên tài khoản hoặc URL',
+                              en: 'Username or profile URL',
+                            ),
+                            prefixIcon: const Icon(Icons.facebook),
+                            suffixIcon: SocialLinkFieldConnectButton(
+                              platform: SocialPlatform.facebook,
+                              controller: _facebookController,
+                            ),
+                          ),
+                          keyboardType: TextInputType.url,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          key: const Key('member-zalo-input'),
+                          controller: _zaloController,
+                          decoration: InputDecoration(
+                            labelText: l10n.pick(vi: 'Zalo', en: 'Zalo'),
+                            hintText: l10n.pick(
+                              vi: 'Tên tài khoản hoặc URL',
+                              en: 'Username or profile URL',
+                            ),
+                            prefixIcon: const Icon(Icons.forum_outlined),
+                            suffixIcon: SocialLinkFieldConnectButton(
+                              platform: SocialPlatform.zalo,
+                              controller: _zaloController,
+                            ),
+                          ),
+                          keyboardType: TextInputType.url,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          key: const Key('member-linkedin-input'),
+                          controller: _linkedinController,
+                          decoration: InputDecoration(
+                            labelText: l10n.pick(
+                              vi: 'LinkedIn',
+                              en: 'LinkedIn',
+                            ),
+                            hintText: l10n.pick(
+                              vi: 'Tên tài khoản hoặc URL',
+                              en: 'Username or profile URL',
+                            ),
+                            prefixIcon: const Icon(Icons.work_outline),
+                            suffixIcon: SocialLinkFieldConnectButton(
+                              platform: SocialPlatform.linkedin,
+                              controller: _linkedinController,
+                            ),
+                          ),
+                          keyboardType: TextInputType.url,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          key: const Key('member-bio-input'),
+                          controller: _bioController,
+                          decoration: InputDecoration(
+                            labelText: l10n.memberBioLabel,
+                          ),
+                          minLines: 3,
+                          maxLines: 5,
+                        ),
+                      ],
                     ),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    key: const Key('member-facebook-input'),
-                    controller: _facebookController,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Facebook', en: 'Facebook'),
-                      hintText: l10n.pick(
-                        vi: 'Tên tài khoản hoặc URL',
-                        en: 'Username or profile URL',
-                      ),
-                      prefixIcon: const Icon(Icons.facebook),
-                      suffixIcon: SocialLinkFieldConnectButton(
-                        platform: SocialPlatform.facebook,
-                        controller: _facebookController,
-                      ),
-                    ),
-                    keyboardType: TextInputType.url,
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    key: const Key('member-zalo-input'),
-                    controller: _zaloController,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Zalo', en: 'Zalo'),
-                      hintText: l10n.pick(
-                        vi: 'Tên tài khoản hoặc URL',
-                        en: 'Username or profile URL',
-                      ),
-                      prefixIcon: const Icon(Icons.forum_outlined),
-                      suffixIcon: SocialLinkFieldConnectButton(
-                        platform: SocialPlatform.zalo,
-                        controller: _zaloController,
-                      ),
-                    ),
-                    keyboardType: TextInputType.url,
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    key: const Key('member-linkedin-input'),
-                    controller: _linkedinController,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'LinkedIn', en: 'LinkedIn'),
-                      hintText: l10n.pick(
-                        vi: 'Tên tài khoản hoặc URL',
-                        en: 'Username or profile URL',
-                      ),
-                      prefixIcon: const Icon(Icons.work_outline),
-                      suffixIcon: SocialLinkFieldConnectButton(
-                        platform: SocialPlatform.linkedin,
-                        controller: _linkedinController,
-                      ),
-                    ),
-                    keyboardType: TextInputType.url,
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    key: const Key('member-bio-input'),
-                    controller: _bioController,
-                    decoration: InputDecoration(labelText: l10n.memberBioLabel),
-                    minLines: 3,
-                    maxLines: 5,
                   ),
                 ],
                 const SizedBox(height: 22),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 520;
-                    final backButton = OutlinedButton.icon(
-                      onPressed: (_isSubmitting || widget.isSaving)
-                          ? null
-                          : () {
-                              setState(() {
-                                _editorStep = (_editorStep - 1).clamp(0, 2);
-                              });
-                            },
-                      icon: const Icon(Icons.arrow_back),
-                      label: Text(l10n.pick(vi: 'Quay lại', en: 'Back')),
-                    );
-                    final saveDraftButton = OutlinedButton.icon(
-                      onPressed: (_isSubmitting || widget.isSaving)
-                          ? null
-                          : () => Navigator.of(context).pop(false),
-                      icon: const Icon(Icons.save_as_outlined),
-                      label: Text(l10n.pick(vi: 'Lưu nháp', en: 'Save draft')),
-                    );
-                    final continueOrSaveButton = _editorStep < 2
-                        ? FilledButton.icon(
-                            onPressed: (_isSubmitting || widget.isSaving)
-                                ? null
-                                : () {
-                                    if (_editorStep == 0 &&
-                                        (_fullNameController.text
-                                            .trim()
-                                            .isEmpty)) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            l10n.pick(
-                                              vi: 'Thiếu thông tin: Cần nhập họ và tên.',
-                                              en: 'Missing info: Please enter full name.',
+                AppWorkspaceSurface(
+                  padding: const EdgeInsets.all(16),
+                  color: Colors.white.withValues(alpha: 0.76),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 520;
+                      final backButton = OutlinedButton.icon(
+                        onPressed: (_isSubmitting || widget.isSaving)
+                            ? null
+                            : () {
+                                setState(() {
+                                  _editorStep = (_editorStep - 1).clamp(0, 2);
+                                });
+                              },
+                        icon: const Icon(Icons.arrow_back),
+                        label: Text(l10n.pick(vi: 'Quay lại', en: 'Back')),
+                      );
+                      final saveDraftButton = OutlinedButton.icon(
+                        onPressed: (_isSubmitting || widget.isSaving)
+                            ? null
+                            : () => Navigator.of(context).pop(false),
+                        icon: const Icon(Icons.save_as_outlined),
+                        label: Text(
+                          l10n.pick(vi: 'Lưu nháp', en: 'Save draft'),
+                        ),
+                      );
+                      final continueOrSaveButton = _editorStep < 2
+                          ? FilledButton.icon(
+                              onPressed: (_isSubmitting || widget.isSaving)
+                                  ? null
+                                  : () {
+                                      if (_editorStep == 0 &&
+                                          _fullNameController.text
+                                              .trim()
+                                              .isEmpty) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              l10n.pick(
+                                                vi: 'Thiếu thông tin: Cần nhập họ và tên.',
+                                                en: 'Missing info: Please enter full name.',
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    setState(() {
-                                      _editorStep = (_editorStep + 1).clamp(
-                                        0,
-                                        2,
-                                      );
-                                    });
-                                  },
-                            icon: const Icon(Icons.arrow_forward),
-                            label: Text(
-                              l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                            ),
-                          )
-                        : FilledButton.icon(
-                            key: const Key('member-save-button'),
-                            onPressed: (_isSubmitting || widget.isSaving)
-                                ? null
-                                : _submit,
-                            icon: (_isSubmitting || widget.isSaving)
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.save_outlined),
-                            label: Text(l10n.memberSaveAction),
-                          );
+                                        );
+                                        return;
+                                      }
+                                      setState(() {
+                                        _editorStep = (_editorStep + 1).clamp(
+                                          0,
+                                          2,
+                                        );
+                                      });
+                                    },
+                              icon: const Icon(Icons.arrow_forward),
+                              label: Text(
+                                l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                              ),
+                            )
+                          : FilledButton.icon(
+                              key: const Key('member-save-button'),
+                              onPressed: (_isSubmitting || widget.isSaving)
+                                  ? null
+                                  : _submit,
+                              icon: (_isSubmitting || widget.isSaving)
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.save_outlined),
+                              label: Text(l10n.memberSaveAction),
+                            );
 
-                    if (compact) {
-                      return Column(
-                        children: [
-                          Row(
-                            children: [
-                              if (_editorStep > 0) ...[
-                                Expanded(child: backButton),
-                                const SizedBox(width: 10),
+                      if (compact) {
+                        return Column(
+                          children: [
+                            Row(
+                              children: [
+                                if (_editorStep > 0) ...[
+                                  Expanded(child: backButton),
+                                  const SizedBox(width: 10),
+                                ],
+                                Expanded(child: saveDraftButton),
                               ],
-                              Expanded(child: saveDraftButton),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            width: double.infinity,
-                            child: continueOrSaveButton,
-                          ),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              child: continueOrSaveButton,
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          if (_editorStep > 0) ...[
+                            Expanded(child: backButton),
+                            const SizedBox(width: 10),
+                          ],
+                          Expanded(child: saveDraftButton),
+                          const SizedBox(width: 10),
+                          Expanded(child: continueOrSaveButton),
                         ],
                       );
-                    }
-
-                    return Row(
-                      children: [
-                        if (_editorStep > 0) ...[
-                          Expanded(child: backButton),
-                          const SizedBox(width: 10),
-                        ],
-                        Expanded(child: saveDraftButton),
-                        const SizedBox(width: 10),
-                        Expanded(child: continueOrSaveButton),
-                      ],
-                    );
-                  },
+                    },
+                  ),
                 ),
               ],
             ),
@@ -3209,10 +3364,31 @@ class _FilterPanel extends StatelessWidget {
         searchController.text.trim().isNotEmpty ||
         filtersBranchId != null ||
         filtersGeneration != null;
+    final activeFilterLabels = <String>[
+      if (searchController.text.trim().isNotEmpty)
+        l10n.pick(vi: 'Tên', en: 'Name'),
+      if (filtersBranchId != null) l10n.pick(vi: 'Chi', en: 'Branch'),
+      if (filtersGeneration != null) l10n.pick(vi: 'Đời', en: 'Generation'),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (hasActiveFilters) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final label in activeFilterLabels)
+                _ChipPill(
+                  icon: Icons.tune_outlined,
+                  label: label,
+                  compact: true,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
         TextField(
           key: const Key('members-search-input'),
           controller: searchController,
@@ -3345,105 +3521,109 @@ class _MemberSummaryCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _AvatarBadge(member: member, radius: 22),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _HighlightedText(
-                      text: member.fullName,
-                      query: highlightQuery,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                      highlightStyle: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                    if (member.nickName.trim().isNotEmpty) ...[
-                      const SizedBox(height: 2),
+    return AppWorkspaceSurface(
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _AvatarBadge(member: member, radius: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       _HighlightedText(
-                        text: member.nickName,
+                        text: member.fullName,
                         query: highlightQuery,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        highlightStyle: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.primary,
+                        style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
+                        highlightStyle: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: colorScheme.primary,
+                        ),
                       ),
-                    ],
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _ChipPill(
-                          icon: Icons.account_tree_outlined,
-                          label: branchName,
-                          compact: true,
+                      if (member.nickName.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        _HighlightedText(
+                          text: member.nickName,
+                          query: highlightQuery,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          highlightStyle: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                        _ChipPill(
-                          icon: Icons.filter_5_outlined,
-                          label:
-                              '${l10n.memberGenerationLabel}: ${member.generation}',
-                          compact: true,
-                        ),
-                        if (showRoleBadge)
+                      ],
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
                           _ChipPill(
-                            icon: Icons.badge_outlined,
-                            label: roleLabel,
+                            icon: Icons.account_tree_outlined,
+                            label: branchName,
                             compact: true,
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: _HighlightedText(
-                            text: member.phoneE164 ?? l10n.memberPhoneMissing,
-                            query: highlightQuery,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
+                          _ChipPill(
+                            icon: Icons.filter_5_outlined,
+                            label:
+                                '${l10n.memberGenerationLabel}: ${member.generation}',
+                            compact: true,
+                          ),
+                          if (showRoleBadge)
+                            _ChipPill(
+                              icon: Icons.badge_outlined,
+                              label: roleLabel,
+                              compact: true,
                             ),
-                            highlightStyle: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.primary,
-                              fontWeight: FontWeight.w800,
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: _HighlightedText(
+                              text: member.phoneE164 ?? l10n.memberPhoneMissing,
+                              query: highlightQuery,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                              highlightStyle: theme.textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: colorScheme.primary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
                           ),
-                        ),
-                        if ((member.phoneE164 ?? '').trim().isNotEmpty)
-                          MemberPhoneActionIconButton(
-                            phoneNumber: member.phoneE164!,
-                            contactName: member.displayName,
-                            iconSize: 18,
-                            constraints: const BoxConstraints(
-                              minWidth: 28,
-                              minHeight: 28,
+                          if ((member.phoneE164 ?? '').trim().isNotEmpty)
+                            MemberPhoneActionIconButton(
+                              phoneNumber: member.phoneE164!,
+                              contactName: member.displayName,
+                              iconSize: 18,
+                              constraints: const BoxConstraints(
+                                minWidth: 28,
+                                minHeight: 28,
+                              ),
                             ),
-                          ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
-            ],
+                const SizedBox(width: 12),
+                Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+              ],
+            ),
           ),
         ),
       ),
@@ -3483,45 +3663,38 @@ class _AvatarBadge extends StatelessWidget {
 }
 
 class _WorkspaceHero extends StatelessWidget {
-  const _WorkspaceHero({required this.title, required this.description});
+  const _WorkspaceHero({required this.title, required this.badges});
 
   final String title;
-  final String description;
+  final List<_HeroBadgeData> badges;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Container(
+    return AppWorkspaceSurface(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colorScheme.primary, colorScheme.primaryContainer],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
-      ),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
             style: theme.textTheme.headlineSmall?.copyWith(
-              color: colorScheme.onPrimary,
+              color: colorScheme.onSurface,
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            description,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onPrimary.withValues(alpha: 0.92),
+          if (badges.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [for (final badge in badges) _HeroBadge(data: badge)],
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -3538,47 +3711,45 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 560;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (compact)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.all(20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 560;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (compact)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
                         title,
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                    ],
-                  )
-                else
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                const SizedBox(height: 16),
-                child,
-              ],
-            );
-          },
-        ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 16),
+              child,
+            ],
+          );
+        },
       ),
     );
   }
@@ -3589,49 +3760,85 @@ class _SearchStateCard extends StatelessWidget {
     super.key,
     required this.icon,
     required this.title,
-    required this.description,
+    this.description,
     this.trailing,
   });
 
   final IconData icon;
   final String title;
-  final String description;
+  final String? description;
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    return AppWorkspaceSurface(
+      color: theme.colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (description != null && description!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(description!, style: theme.textTheme.bodyMedium),
+                ],
+                if (trailing != null) ...[
+                  const SizedBox(height: 10),
+                  trailing!,
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroBadgeData {
+  const _HeroBadgeData({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+}
+
+class _HeroBadge extends StatelessWidget {
+  const _HeroBadge({required this.data});
+
+  final _HeroBadgeData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(description, style: theme.textTheme.bodyMedium),
-                  if (trailing != null) ...[
-                    const SizedBox(height: 10),
-                    trailing!,
-                  ],
-                ],
-              ),
+            Icon(data.icon, size: 16, color: colorScheme.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Text(
+              data.label,
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
           ],
         ),
@@ -3657,32 +3864,30 @@ class _MessageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
+    return AppWorkspaceSurface(
       color: tone,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
-                  const SizedBox(height: 6),
-                  Text(description, style: theme.textTheme.bodyMedium),
-                ],
-              ),
+                ),
+                const SizedBox(height: 6),
+                Text(description, style: theme.textTheme.bodyMedium),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -3734,35 +3939,33 @@ class _StatTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Card(
+    return AppWorkspaceSurface(
       color: colorScheme.secondaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            Icon(icon),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              maxLines: 1,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Icon(icon),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+              style: theme.textTheme.bodySmall,
             ),
-            const SizedBox(height: 4),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
