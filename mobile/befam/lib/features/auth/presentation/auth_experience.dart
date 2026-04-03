@@ -5,8 +5,11 @@ import 'package:flutter/services.dart';
 
 import '../../../app/bootstrap/firebase_setup_status.dart';
 import '../../../app/home/app_shell_page.dart';
+import '../../../app/theme/app_ui_tokens.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/app_locale_controller.dart';
+import '../../../core/widgets/app_compact_controls.dart';
+import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/l10n.dart';
 import '../../billing/services/billing_repository.dart';
 import '../../clan/services/clan_repository.dart';

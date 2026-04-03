@@ -19,82 +19,91 @@ class _AuthScaffold extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               colorScheme.surface,
-              colorScheme.secondary.withValues(alpha: 0.18),
+              colorScheme.secondaryContainer.withValues(alpha: 0.18),
+              colorScheme.surfaceContainerLowest.withValues(alpha: 0.92),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
         child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            children: [
-              const _AuthHero(),
-              const SizedBox(height: 20),
-              _AuthStepProgress(step: controller.step),
-              const SizedBox(height: 16),
-              if (controller.error case final issue?) ...[
-                _AuthMessageCard(
-                  title: l10n.authSignInNeedsAttention,
-                  message: l10n.authIssueMessage(issue),
-                  icon: Icons.error_outline,
-                  tone: colorScheme.errorContainer,
+          child: AppWorkspaceViewport(
+            child: ListView(
+              padding: appWorkspacePagePadding(context, top: 20, bottom: 32),
+              children: [
+                _AuthHero(
+                  step: controller.step,
+                  challenge: controller.pendingChallenge,
+                  resolution: controller.pendingPhoneResolution,
+                  verificationChallenge: controller.verificationChallenge,
                 ),
                 const SizedBox(height: 16),
+                _AuthStepProgress(step: controller.step),
+                const SizedBox(height: 16),
+                if (controller.error case final issue?) ...[
+                  _AuthMessageCard(
+                    title: l10n.authSignInNeedsAttention,
+                    message: l10n.authIssueMessage(issue),
+                    icon: Icons.error_outline,
+                    tone: colorScheme.errorContainer,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                switch (controller.step) {
+                  AuthStep.loginMethodSelection => _LoginMethodSelectionCard(
+                    isBusy: controller.isBusy,
+                    hasAcceptedPrivacyPolicy:
+                        controller.hasAcceptedPrivacyPolicy,
+                    onPhoneSelected: () {
+                      controller.selectLoginMethod(AuthEntryMethod.phone);
+                    },
+                    onChildSelected: () {
+                      controller.selectLoginMethod(AuthEntryMethod.child);
+                    },
+                    onPrivacyConsentChanged: (accepted) {
+                      unawaited(controller.setPrivacyPolicyAccepted(accepted));
+                    },
+                    onViewPrivacyPolicy: () => _showPrivacyPolicy(context),
+                  ),
+                  AuthStep.phoneNumber => _PhoneLoginCard(
+                    isBusy: controller.isBusy,
+                    onBack: controller.navigateBack,
+                    onSubmit: (value, countryIsoCode) {
+                      return controller.submitPhoneNumber(
+                        value,
+                        countryIsoCode: countryIsoCode,
+                      );
+                    },
+                  ),
+                  AuthStep.childIdentifier => _ChildIdentifierCard(
+                    isBusy: controller.isBusy,
+                    onBack: controller.navigateBack,
+                    onSubmit: controller.submitChildIdentifier,
+                  ),
+                  AuthStep.otp => _OtpVerificationCard(
+                    challenge: controller.pendingChallenge,
+                    isBusy: controller.isBusy,
+                    resendCooldownSeconds: controller.resendCooldownSeconds,
+                    onBack: controller.navigateBack,
+                    onVerify: controller.verifyOtp,
+                    onResend: controller.resendOtp,
+                  ),
+                  AuthStep.memberSelection => _MemberSelectionCard(
+                    resolution: controller.pendingPhoneResolution,
+                    isBusy: controller.isBusy,
+                    onBack: controller.navigateBack,
+                    onCreateNew: controller.chooseCreateNewIdentity,
+                    onSelectMember: controller.chooseMemberCandidate,
+                  ),
+                  AuthStep.memberVerification => _MemberVerificationCard(
+                    challenge: controller.verificationChallenge,
+                    isBusy: controller.isBusy,
+                    onBack: controller.navigateBack,
+                    onSubmitAnswers: controller.submitMemberVerificationAnswers,
+                  ),
+                },
               ],
-              switch (controller.step) {
-                AuthStep.loginMethodSelection => _LoginMethodSelectionCard(
-                  isBusy: controller.isBusy,
-                  hasAcceptedPrivacyPolicy: controller.hasAcceptedPrivacyPolicy,
-                  onPhoneSelected: () {
-                    controller.selectLoginMethod(AuthEntryMethod.phone);
-                  },
-                  onChildSelected: () {
-                    controller.selectLoginMethod(AuthEntryMethod.child);
-                  },
-                  onPrivacyConsentChanged: (accepted) {
-                    unawaited(controller.setPrivacyPolicyAccepted(accepted));
-                  },
-                  onViewPrivacyPolicy: () => _showPrivacyPolicy(context),
-                ),
-                AuthStep.phoneNumber => _PhoneLoginCard(
-                  isBusy: controller.isBusy,
-                  onBack: controller.navigateBack,
-                  onSubmit: (value, countryIsoCode) {
-                    return controller.submitPhoneNumber(
-                      value,
-                      countryIsoCode: countryIsoCode,
-                    );
-                  },
-                ),
-                AuthStep.childIdentifier => _ChildIdentifierCard(
-                  isBusy: controller.isBusy,
-                  onBack: controller.navigateBack,
-                  onSubmit: controller.submitChildIdentifier,
-                ),
-                AuthStep.otp => _OtpVerificationCard(
-                  challenge: controller.pendingChallenge,
-                  isBusy: controller.isBusy,
-                  resendCooldownSeconds: controller.resendCooldownSeconds,
-                  onBack: controller.navigateBack,
-                  onVerify: controller.verifyOtp,
-                  onResend: controller.resendOtp,
-                ),
-                AuthStep.memberSelection => _MemberSelectionCard(
-                  resolution: controller.pendingPhoneResolution,
-                  isBusy: controller.isBusy,
-                  onBack: controller.navigateBack,
-                  onCreateNew: controller.chooseCreateNewIdentity,
-                  onSelectMember: controller.chooseMemberCandidate,
-                ),
-                AuthStep.memberVerification => _MemberVerificationCard(
-                  challenge: controller.verificationChallenge,
-                  isBusy: controller.isBusy,
-                  onBack: controller.navigateBack,
-                  onSubmitAnswers: controller.submitMemberVerificationAnswers,
-                ),
-              },
-            ],
+            ),
           ),
         ),
       ),
@@ -113,13 +122,25 @@ class _AuthLoadingPage extends StatelessWidget {
     final l10n = context.l10n;
 
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Card(
-              child: Padding(
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              colorScheme.surface,
+              colorScheme.secondaryContainer.withValues(alpha: 0.16),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: AppWorkspaceSurface(
+                gradient: appWorkspaceHeroGradient(context),
+                showAccentOrbs: true,
                 padding: const EdgeInsets.all(28),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -158,6 +179,7 @@ class _AuthStepProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
     final totalSteps = switch (step) {
       AuthStep.memberSelection || AuthStep.memberVerification => 3,
       _ => 2,
@@ -170,76 +192,236 @@ class _AuthStepProgress extends StatelessWidget {
       AuthStep.memberVerification => 3,
     };
     final title = switch (step) {
-      AuthStep.otp => l10n.pick(
-        vi: 'Bước 2/2 · Xác thực OTP',
-        en: 'Step 2/2 · Verify OTP',
-      ),
+      AuthStep.otp => l10n.pick(vi: 'Nhập mã OTP', en: 'Enter OTP'),
       AuthStep.memberSelection => l10n.pick(
-        vi: 'Bước 2/3 · Chọn hồ sơ',
-        en: 'Step 2/3 · Choose profile',
+        vi: 'Chọn hồ sơ phù hợp',
+        en: 'Choose your profile',
       ),
       AuthStep.memberVerification => l10n.pick(
-        vi: 'Bước 3/3 · Xác minh danh tính',
-        en: 'Step 3/3 · Verify identity',
+        vi: 'Xác nhận danh tính',
+        en: 'Confirm your identity',
       ),
       _ => l10n.pick(
-        vi: 'Bước 1/2 · Chọn cách đăng nhập',
-        en: 'Step 1/2 · Choose sign-in method',
+        vi: 'Chọn cách vào BeFam',
+        en: 'Choose how to enter BeFam',
       ),
     };
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              minHeight: 6,
-              value: current / totalSteps,
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ],
-        ),
+    return AppWorkspaceSurface(
+      padding: EdgeInsets.fromLTRB(
+        tokens.spaceLg,
+        tokens.spaceMd,
+        tokens.spaceLg,
+        tokens.spaceMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              _AuthHeroChip(
+                icon: Icons.timeline,
+                label: l10n.pick(
+                  vi: 'Bước $current/$totalSteps',
+                  en: 'Step $current/$totalSteps',
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: tokens.spaceMd),
+          Row(
+            children: [
+              for (var index = 0; index < totalSteps; index++) ...[
+                Expanded(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: index < current
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                if (index < totalSteps - 1) SizedBox(width: tokens.spaceSm),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
 class _AuthHero extends StatelessWidget {
-  const _AuthHero();
+  const _AuthHero({
+    required this.step,
+    required this.challenge,
+    required this.resolution,
+    required this.verificationChallenge,
+  });
+
+  final AuthStep step;
+  final PendingOtpChallenge? challenge;
+  final PhoneIdentityResolution? resolution;
+  final MemberIdentityVerificationChallenge? verificationChallenge;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
+    final isCompact = step != AuthStep.loginMethodSelection;
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colorScheme.primary, colorScheme.primaryContainer],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
+    final title = switch (step) {
+      AuthStep.loginMethodSelection => l10n.pick(
+        vi: 'Vào BeFam để tiếp tục với gia đình của bạn',
+        en: 'Continue with your family on BeFam',
       ),
+      AuthStep.phoneNumber => l10n.pick(
+        vi: 'Nhập số điện thoại của bạn',
+        en: 'Enter your phone number',
+      ),
+      AuthStep.childIdentifier => l10n.pick(
+        vi: 'Nhập mã dành cho bé',
+        en: 'Enter the child access code',
+      ),
+      AuthStep.otp => l10n.pick(
+        vi: 'Nhập mã xác nhận',
+        en: 'Enter the verification code',
+      ),
+      AuthStep.memberSelection => l10n.pick(
+        vi: 'Đây có phải là hồ sơ của bạn?',
+        en: 'Is this your profile?',
+      ),
+      AuthStep.memberVerification => l10n.pick(
+        vi: 'Xác nhận một vài thông tin',
+        en: 'Confirm a few details',
+      ),
+    };
+    final subtitle = switch (step) {
+      AuthStep.loginMethodSelection => l10n.pick(
+        vi: 'Chọn cách đăng nhập phù hợp để xem cây gia phả, sự kiện và kết nối với người thân.',
+        en: 'Choose how you want to sign in to access your family tree, events, and relatives.',
+      ),
+      AuthStep.phoneNumber => l10n.pick(
+        vi: 'BeFam sẽ gửi mã OTP để xác nhận tài khoản của bạn.',
+        en: 'BeFam will send an OTP to confirm your account.',
+      ),
+      AuthStep.childIdentifier => l10n.pick(
+        vi: 'Dùng mã được người thân hoặc quản trị viên gửi cho tài khoản của bé.',
+        en: 'Use the code shared for the child account by a family member or admin.',
+      ),
+      AuthStep.otp => l10n.pick(
+        vi: 'Mã đã được gửi tới ${challenge?.maskedDestination ?? 'số điện thoại của bạn'}.',
+        en: 'We sent the code to ${challenge?.maskedDestination ?? 'your phone number'}.',
+      ),
+      AuthStep.memberSelection => l10n.pick(
+        vi: resolution?.candidates.isNotEmpty == true
+            ? 'Chọn hồ sơ khớp nhất với số ${resolution?.phoneE164 ?? ''}.'
+            : 'BeFam chưa tìm thấy hồ sơ trùng khớp. Bạn vẫn có thể tạo hồ sơ mới nếu được phép.',
+        en: resolution?.candidates.isNotEmpty == true
+            ? 'Choose the profile that best matches ${resolution?.phoneE164 ?? ''}.'
+            : 'No matching profile was found yet. You can still create a new one when allowed.',
+      ),
+      AuthStep.memberVerification => l10n.pick(
+        vi: 'Trả lời từng câu ngắn để chúng tôi xác nhận đúng hồ sơ của bạn.',
+        en: 'Answer a few short questions so we can confirm the correct profile.',
+      ),
+    };
+
+    final statusChip = switch (step) {
+      AuthStep.otp => _AuthHeroChip(
+        icon: Icons.sms_outlined,
+        label: challenge?.provider == AuthOtpProvider.firebase
+            ? l10n.pick(vi: 'Mã gửi qua SMS', en: 'SMS delivery')
+            : l10n.pick(vi: 'Mã xác nhận nhanh', en: 'Fast verification'),
+      ),
+      AuthStep.memberSelection => _AuthHeroChip(
+        icon: Icons.account_tree_outlined,
+        label: l10n.pick(
+          vi: '${resolution?.candidates.length ?? 0} hồ sơ phù hợp',
+          en: '${resolution?.candidates.length ?? 0} profile matches',
+        ),
+      ),
+      AuthStep.memberVerification => _AuthHeroChip(
+        icon: Icons.fact_check_outlined,
+        label: l10n.pick(
+          vi: 'Còn ${verificationChallenge?.remainingAttempts ?? 0}/${verificationChallenge?.maxAttempts ?? 0} lượt',
+          en: '${verificationChallenge?.remainingAttempts ?? 0}/${verificationChallenge?.maxAttempts ?? 0} attempts left',
+        ),
+      ),
+      _ => _AuthHeroChip(
+        icon: Icons.family_restroom_outlined,
+        label: l10n.pick(vi: 'Kết nối với gia đình', en: 'Stay connected'),
+      ),
+    };
+
+    return AppWorkspaceSurface(
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
+      padding: EdgeInsets.all(isCompact ? tokens.spaceLg : tokens.spaceXl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.authHeroTitle,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: colorScheme.onPrimary,
-              fontWeight: FontWeight.w800,
+          Container(
+            width: isCompact ? 42 : 48,
+            height: isCompact ? 42 : 48,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(tokens.radiusMd),
             ),
+            child: Icon(switch (step) {
+              AuthStep.loginMethodSelection => Icons.login_rounded,
+              AuthStep.phoneNumber => Icons.phone_iphone_rounded,
+              AuthStep.childIdentifier => Icons.child_care_rounded,
+              AuthStep.otp => Icons.password_rounded,
+              AuthStep.memberSelection => Icons.badge_outlined,
+              AuthStep.memberVerification => Icons.verified_user_outlined,
+            }, color: theme.colorScheme.primary),
+          ),
+          SizedBox(height: isCompact ? tokens.spaceMd : tokens.spaceLg),
+          Text(
+            title,
+            style:
+                (isCompact
+                        ? theme.textTheme.titleLarge
+                        : theme.textTheme.headlineSmall)
+                    ?.copyWith(fontWeight: FontWeight.w800, height: 1.12),
+          ),
+          SizedBox(height: tokens.spaceSm),
+          Text(
+            subtitle,
+            style: isCompact
+                ? theme.textTheme.bodyMedium
+                : theme.textTheme.bodyLarge,
+          ),
+          SizedBox(height: isCompact ? tokens.spaceMd : tokens.spaceLg),
+          Wrap(
+            spacing: tokens.spaceSm,
+            runSpacing: tokens.spaceSm,
+            children: [
+              if (!isCompact)
+                _AuthHeroChip(
+                  icon: Icons.shield_outlined,
+                  label: l10n.pick(
+                    vi: 'Riêng tư và an toàn',
+                    en: 'Private and secure',
+                  ),
+                ),
+              statusChip,
+            ],
           ),
         ],
       ),
@@ -313,49 +495,70 @@ class _LoginMethodSelectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
 
     return Column(
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.pick(
-                    vi: 'Chọn cách đăng nhập',
-                    en: 'Choose your sign-in method',
-                  ),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+        AppWorkspaceSurface(
+          showAccentOrbs: true,
+          padding: EdgeInsets.all(tokens.spaceLg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.pick(
+                  vi: 'Chọn cách đăng nhập',
+                  en: 'Choose your sign-in method',
                 ),
-                const SizedBox(height: 14),
-                _MethodActionButton(
-                  buttonKey: const Key('auth-method-phone-button'),
-                  title: l10n.authMethodPhoneButton,
-                  icon: Icons.phone_iphone,
-                  filled: true,
-                  onPressed: isBusy || !hasAcceptedPrivacyPolicy
-                      ? null
-                      : onPhoneSelected,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              SizedBox(height: tokens.spaceSm),
+              Text(
+                l10n.pick(
+                  vi: 'Bạn có thể vào bằng số điện thoại cá nhân hoặc mã riêng dành cho tài khoản của bé.',
+                  en: 'You can sign in with your phone number or a dedicated code for a child account.',
                 ),
-                const SizedBox(height: 10),
-                _MethodActionButton(
-                  buttonKey: const Key('auth-method-child-button'),
-                  title: l10n.authMethodChildButton,
-                  icon: Icons.child_care,
-                  filled: false,
-                  onPressed: isBusy || !hasAcceptedPrivacyPolicy
-                      ? null
-                      : onChildSelected,
+              ),
+              SizedBox(height: tokens.spaceLg),
+              _MethodActionButton(
+                buttonKey: const Key('auth-method-phone-button'),
+                title: l10n.pick(
+                  vi: 'Dùng số điện thoại',
+                  en: 'Use phone number',
                 ),
-              ],
-            ),
+                subtitle: l10n.pick(
+                  vi: 'Nhận mã OTP và tiếp tục trong vài giây',
+                  en: 'Get an OTP code and continue in seconds',
+                ),
+                icon: Icons.phone_iphone,
+                filled: true,
+                onPressed: isBusy || !hasAcceptedPrivacyPolicy
+                    ? null
+                    : onPhoneSelected,
+              ),
+              SizedBox(height: tokens.spaceSm),
+              _MethodActionButton(
+                buttonKey: const Key('auth-method-child-button'),
+                title: l10n.pick(
+                  vi: 'Dùng mã dành cho bé',
+                  en: 'Use child access code',
+                ),
+                subtitle: l10n.pick(
+                  vi: 'Phù hợp khi người lớn quản lý tài khoản cho bé',
+                  en: 'Best when an adult manages the child account',
+                ),
+                icon: Icons.child_care,
+                filled: false,
+                onPressed: isBusy || !hasAcceptedPrivacyPolicy
+                    ? null
+                    : onChildSelected,
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: tokens.spaceSm),
         _PrivacyPolicyConsentCard(
           isBusy: isBusy,
           hasAcceptedPrivacyPolicy: hasAcceptedPrivacyPolicy,
@@ -371,6 +574,7 @@ class _MethodActionButton extends StatelessWidget {
   const _MethodActionButton({
     required this.buttonKey,
     required this.title,
+    required this.subtitle,
     required this.icon,
     required this.filled,
     required this.onPressed,
@@ -378,24 +582,42 @@ class _MethodActionButton extends StatelessWidget {
 
   final Key buttonKey;
   final String title;
+  final String subtitle;
   final IconData icon;
   final bool filled;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.uiTokens;
+    final colorScheme = Theme.of(context).colorScheme;
+
     final buttonChild = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon),
-        const SizedBox(width: 12),
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: filled
+                ? colorScheme.onPrimary.withValues(alpha: 0.14)
+                : colorScheme.primaryContainer.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(tokens.radiusMd),
+          ),
+          child: Icon(icon),
+        ),
+        SizedBox(width: tokens.spaceMd),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              SizedBox(height: tokens.spaceXs),
+              Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
             ],
           ),
         ),
+        SizedBox(width: tokens.spaceSm),
         const Icon(Icons.arrow_forward),
       ],
     );
@@ -407,7 +629,13 @@ class _MethodActionButton extends StatelessWidget {
           key: buttonKey,
           onPressed: onPressed,
           style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: EdgeInsets.symmetric(
+              horizontal: tokens.spaceLg,
+              vertical: tokens.spaceMd,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(tokens.radiusMd),
+            ),
           ),
           child: buttonChild,
         ),
@@ -419,7 +647,13 @@ class _MethodActionButton extends StatelessWidget {
         key: buttonKey,
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: EdgeInsets.symmetric(
+            horizontal: tokens.spaceLg,
+            vertical: tokens.spaceMd,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(tokens.radiusMd),
+          ),
         ),
         child: buttonChild,
       ),
@@ -443,46 +677,53 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
 
-    return Card(
+    return AppWorkspaceSurface(
+      padding: EdgeInsets.symmetric(
+        horizontal: tokens.spaceMd,
+        vertical: tokens.spaceSm,
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(tokens.radiusMd),
         onTap: isBusy ? null : () => onChanged(!hasAcceptedPrivacyPolicy),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            children: [
-              Checkbox(
-                key: const Key('auth-privacy-checkbox'),
-                value: hasAcceptedPrivacyPolicy,
-                onChanged: isBusy ? null : (value) => onChanged(value ?? false),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.pick(
-                    vi: 'Tôi đồng ý chính sách quyền riêng tư.',
-                    en: 'I agree to the privacy policy.',
-                  ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(
+              key: const Key('auth-privacy-checkbox'),
+              value: hasAcceptedPrivacyPolicy,
+              onChanged: isBusy ? null : (value) => onChanged(value ?? false),
+            ),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(top: tokens.spaceSm),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.pick(
+                        vi: 'Tôi đồng ý với chính sách quyền riêng tư của BeFam.',
+                        en: 'I agree to BeFam’s privacy policy.',
+                      ),
+                    ),
+                    SizedBox(height: tokens.spaceXs),
+                    Text(
+                      l10n.pick(
+                        vi: 'Dữ liệu chỉ được dùng để xác minh và bảo vệ tài khoản của bạn.',
+                        en: 'Your data is only used to verify and protect your account.',
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               ),
-              Flexible(
-                child: TextButton(
-                  onPressed: onViewPrivacyPolicy,
-                  child: Text(
-                    l10n.pick(vi: 'Xem chính sách', en: 'View policy'),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-              Tooltip(
-                message: l10n.pick(
-                  vi: 'Chúng tôi chỉ dùng dữ liệu để xác thực tài khoản.',
-                  en: 'We only use account data for authentication.',
-                ),
-                child: const Icon(Icons.info_outline, size: 18),
-              ),
-            ],
-          ),
+            ),
+            AppCompactTextButton(
+              onPressed: onViewPrivacyPolicy,
+              child: Text(l10n.pick(vi: 'Xem chính sách', en: 'View policy')),
+            ),
+          ],
         ),
       ),
     );
@@ -556,7 +797,14 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
     );
 
     return _AuthFormCard(
-      title: l10n.authPhoneTitle,
+      title: l10n.pick(
+        vi: 'Nhập số điện thoại của bạn',
+        en: 'Enter your phone number',
+      ),
+      description: l10n.pick(
+        vi: 'Chúng tôi sẽ gửi mã OTP để xác nhận và đưa bạn vào đúng hồ sơ.',
+        en: 'We will send an OTP to confirm your account and match the right profile.',
+      ),
       isBusy: widget.isBusy,
       onBack: widget.onBack,
       child: Column(
@@ -608,6 +856,14 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          _AuthInlineInfo(
+            icon: Icons.sms_outlined,
+            text: l10n.pick(
+              vi: 'Mã xác nhận sẽ được gửi đến số bạn vừa nhập.',
+              en: 'The verification code will be sent to this number.',
+            ),
+          ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -625,7 +881,9 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
               child: _AuthBusyButtonChild(
                 isBusy: widget.isBusy,
                 idleIcon: Icons.send_outlined,
-                label: widget.isBusy ? l10n.authSendingOtp : l10n.authSendOtp,
+                label: widget.isBusy
+                    ? l10n.pick(vi: 'Đang gửi mã OTP...', en: 'Sending OTP...')
+                    : l10n.pick(vi: 'Nhận mã OTP', en: 'Get OTP code'),
               ),
             ),
           ),
@@ -670,7 +928,14 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
     final l10n = context.l10n;
 
     return _AuthFormCard(
-      title: l10n.authChildTitle,
+      title: l10n.pick(
+        vi: 'Nhập mã dành cho bé',
+        en: 'Enter the child access code',
+      ),
+      description: l10n.pick(
+        vi: 'Mã này thường được người thân hoặc quản trị viên gửi riêng cho tài khoản của bé.',
+        en: 'This code is usually shared by a family member or an admin for the child account.',
+      ),
       isBusy: widget.isBusy,
       onBack: widget.onBack,
       child: Column(
@@ -703,8 +968,11 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
                 isBusy: widget.isBusy,
                 idleIcon: Icons.arrow_forward,
                 label: widget.isBusy
-                    ? l10n.authResolvingParentPhone
-                    : l10n.authContinue,
+                    ? l10n.pick(
+                        vi: 'Đang kiểm tra mã...',
+                        en: 'Checking the code...',
+                      )
+                    : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
               ),
             ),
           ),
@@ -838,7 +1106,14 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
     }
 
     return _AuthFormCard(
-      title: l10n.authOtpTitle,
+      title: l10n.pick(
+        vi: 'Nhập mã xác nhận',
+        en: 'Enter the verification code',
+      ),
+      description: l10n.pick(
+        vi: 'Mã đã được gửi tới ${challenge.maskedDestination}.',
+        en: 'We sent the code to ${challenge.maskedDestination}.',
+      ),
       isBusy: widget.isBusy,
       onBack: widget.onBack,
       child: Column(
@@ -854,24 +1129,9 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
           if (challenge.loginMethod == AuthEntryMethod.child &&
               challenge.childIdentifier != null) ...[
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.child_care_outlined),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      l10n.authOtpChildIdentifier(challenge.childIdentifier!),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
+            _AuthInlineInfo(
+              icon: Icons.child_care_outlined,
+              text: l10n.authOtpChildIdentifier(challenge.childIdentifier!),
             ),
           ],
           const SizedBox(height: 20),
@@ -889,7 +1149,12 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
                     )
                   : const Icon(Icons.arrow_forward),
               label: Text(
-                widget.isBusy ? l10n.authVerifyingOtp : l10n.authContinueNow,
+                widget.isBusy
+                    ? l10n.pick(
+                        vi: 'Đang kiểm tra mã...',
+                        en: 'Checking code...',
+                      )
+                    : l10n.pick(vi: 'Xác nhận mã', en: 'Confirm code'),
               ),
             ),
           ),
@@ -903,8 +1168,11 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
               icon: const Icon(Icons.refresh),
               label: Text(
                 widget.resendCooldownSeconds > 0
-                    ? l10n.authResendIn(widget.resendCooldownSeconds)
-                    : l10n.authResendOtp,
+                    ? l10n.pick(
+                        vi: 'Gửi lại sau ${widget.resendCooldownSeconds}s',
+                        en: 'Resend in ${widget.resendCooldownSeconds}s',
+                      )
+                    : l10n.pick(vi: 'Gửi lại mã', en: 'Resend code'),
               ),
             ),
           ),
@@ -952,8 +1220,12 @@ class _MemberSelectionCard extends StatelessWidget {
     final candidates = currentResolution.candidates;
     return _AuthFormCard(
       title: l10n.pick(
-        vi: 'Chọn hồ sơ hoặc tạo mới',
-        en: 'Choose a profile or create a new one',
+        vi: 'Đây có phải là hồ sơ của bạn?',
+        en: 'Is this your profile?',
+      ),
+      description: l10n.pick(
+        vi: 'Chọn hồ sơ phù hợp nhất để BeFam liên kết tài khoản của bạn đúng cách.',
+        en: 'Choose the best matching profile so BeFam can link your account correctly.',
       ),
       isBusy: isBusy,
       onBack: onBack,
@@ -962,62 +1234,107 @@ class _MemberSelectionCard extends StatelessWidget {
         children: [
           if (candidates.isNotEmpty) ...[
             for (final candidate in candidates) ...[
-              Card(
-                color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        candidate.displayNameMasked,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 8),
-                      if (candidate.clanLabel != null)
-                        Text(
-                          l10n.pick(
-                            vi: 'Dòng tộc: ${candidate.clanLabel}',
-                            en: 'Clan: ${candidate.clanLabel}',
+              AppWorkspaceSurface(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerLowest.withValues(alpha: 0.96),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primaryContainer
+                                .withValues(alpha: 0.62),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(Icons.person_outline),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                candidate.displayNameMasked,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (candidate.clanLabel != null)
+                                    _AuthHeroChip(
+                                      icon: Icons.account_tree_outlined,
+                                      label: candidate.clanLabel!,
+                                    ),
+                                  if (candidate.roleLabel != null)
+                                    _AuthHeroChip(
+                                      icon: Icons.badge_outlined,
+                                      label: candidate.roleLabel!,
+                                    ),
+                                  if (candidate.birthHint != null)
+                                    _AuthHeroChip(
+                                      icon: Icons.cake_outlined,
+                                      label: candidate.birthHint!,
+                                    ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
+                      ],
+                    ),
+                    if (candidate.memberStatus != null) ...[
                       const SizedBox(height: 10),
-                      if (candidate.selectable)
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: isBusy
-                                ? null
-                                : () => onSelectMember(candidate.memberId),
-                            icon: isBusy
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.link),
-                            label: Text(
-                              l10n.pick(
-                                vi: 'Liên kết với hồ sơ này',
-                                en: 'Link this profile',
-                              ),
+                      Text(
+                        candidate.memberStatus!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    if (candidate.selectable)
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: isBusy
+                              ? null
+                              : () => onSelectMember(candidate.memberId),
+                          icon: isBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.check_circle_outline),
+                          label: Text(
+                            l10n.pick(
+                              vi: 'Đúng, đây là tôi',
+                              en: 'Yes, this is me',
                             ),
                           ),
-                        )
-                      else
-                        Text(
-                          _blockedReasonLabel(l10n, candidate.blockedReason),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.error,
-                                fontWeight: FontWeight.w700,
-                              ),
                         ),
-                    ],
-                  ),
+                      )
+                    else
+                      Text(
+                        _blockedReasonLabel(context, candidate.blockedReason),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: 10),
@@ -1047,10 +1364,7 @@ class _MemberSelectionCard extends StatelessWidget {
                       )
                     : const Icon(Icons.person_add_alt_1),
                 label: Text(
-                  l10n.pick(
-                    vi: 'Tạo mới hoàn toàn',
-                    en: 'Create as a new account',
-                  ),
+                  l10n.pick(vi: 'Tạo hồ sơ mới', en: 'Create a new profile'),
                 ),
               ),
             ),
@@ -1060,7 +1374,8 @@ class _MemberSelectionCard extends StatelessWidget {
     );
   }
 
-  String _blockedReasonLabel(dynamic l10n, String? reason) {
+  String _blockedReasonLabel(BuildContext context, String? reason) {
+    final l10n = context.l10n;
     switch (reason) {
       case 'member_linked_other_account':
         return l10n.pick(
@@ -1101,6 +1416,7 @@ class _MemberVerificationCard extends StatefulWidget {
 
 class _MemberVerificationCardState extends State<_MemberVerificationCard> {
   final Map<String, String> _answers = <String, String>{};
+  int _currentQuestionIndex = 0;
 
   @override
   void didUpdateWidget(covariant _MemberVerificationCard oldWidget) {
@@ -1108,6 +1424,7 @@ class _MemberVerificationCardState extends State<_MemberVerificationCard> {
     if (oldWidget.challenge?.verificationSessionId !=
         widget.challenge?.verificationSessionId) {
       _answers.clear();
+      _currentQuestionIndex = 0;
     }
   }
 
@@ -1131,102 +1448,180 @@ class _MemberVerificationCardState extends State<_MemberVerificationCard> {
       );
     }
 
+    if (challenge.questions.isEmpty) {
+      return _AuthFormCard(
+        title: l10n.pick(
+          vi: 'Chưa có câu hỏi xác minh',
+          en: 'No verification questions yet',
+        ),
+        description: l10n.pick(
+          vi: 'Bạn có thể quay lại và chọn hồ sơ khác hoặc thử lại sau.',
+          en: 'You can go back, choose another profile, or try again later.',
+        ),
+        isBusy: widget.isBusy,
+        onBack: widget.onBack,
+        child: const SizedBox.shrink(),
+      );
+    }
+
+    final question = challenge.questions[_currentQuestionIndex];
+    final currentAnswer = _answers[question.id];
+    final isLastQuestion =
+        _currentQuestionIndex == challenge.questions.length - 1;
     final allAnswered = challenge.questions.every(
-      (question) => (_answers[question.id] ?? '').isNotEmpty,
+      (item) => (_answers[item.id] ?? '').isNotEmpty,
     );
 
     return _AuthFormCard(
       title: l10n.pick(
-        vi: 'Xác minh trước khi liên kết',
-        en: 'Verify before linking',
+        vi: 'Xác nhận một vài thông tin',
+        en: 'Confirm a few details',
+      ),
+      description: l10n.pick(
+        vi: 'Mỗi bước chỉ có một câu hỏi ngắn để bảo vệ tài khoản của bạn.',
+        en: 'Each step shows one short question to keep your account safe.',
       ),
       isBusy: widget.isBusy,
       onBack: widget.onBack,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.pick(
-              vi: 'Số lần còn lại: ${challenge.remainingAttempts}/${challenge.maxAttempts}',
-              en: 'Attempts left: ${challenge.remainingAttempts}/${challenge.maxAttempts}',
-            ),
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          for (final question in challenge.questions) ...[
-            Card(
-              color: Theme.of(context).colorScheme.surfaceContainerLowest,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      question.prompt,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    RadioGroup<String>(
-                      groupValue: _answers[question.id],
-                      onChanged: (value) {
-                        if (widget.isBusy || value == null) {
-                          return;
-                        }
-                        setState(() {
-                          _answers[question.id] = value;
-                        });
-                      },
-                      child: Column(
-                        children: [
-                          for (final option in question.options)
-                            RadioListTile<String>(
-                              value: option.id,
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(option.label),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _AuthHeroChip(
+                icon: Icons.timeline,
+                label: l10n.pick(
+                  vi: 'Câu ${_currentQuestionIndex + 1}/${challenge.questions.length}',
+                  en: 'Question ${_currentQuestionIndex + 1}/${challenge.questions.length}',
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          const SizedBox(height: 6),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: widget.isBusy || !allAnswered
-                  ? null
-                  : () => widget.onSubmitAnswers(
-                      Map<String, String>.from(_answers),
-                    ),
-              icon: widget.isBusy
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.verified_user),
-              label: Text(
-                widget.isBusy
-                    ? l10n.pick(vi: 'Đang xác minh...', en: 'Verifying...')
-                    : l10n.pick(
-                        vi: 'Xác minh và liên kết',
-                        en: 'Verify and link',
-                      ),
+              _AuthHeroChip(
+                icon: Icons.fact_check_outlined,
+                label: l10n.pick(
+                  vi: 'Còn ${challenge.remainingAttempts}/${challenge.maxAttempts} lượt',
+                  en: '${challenge.remainingAttempts}/${challenge.maxAttempts} attempts left',
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          AppWorkspaceSurface(
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerLowest.withValues(alpha: 0.98),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _AuthHeroChip(
+                  icon: Icons.help_outline,
+                  label: _verificationCategoryLabel(context, question.category),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  question.prompt,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                for (final option in question.options) ...[
+                  _VerificationOptionTile(
+                    label: option.label,
+                    selected: currentAnswer == option.id,
+                    enabled: !widget.isBusy,
+                    onTap: () {
+                      setState(() {
+                        _answers[question.id] = option.id;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
             ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              if (_currentQuestionIndex > 0) ...[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: widget.isBusy
+                        ? null
+                        : () {
+                            setState(() {
+                              _currentQuestionIndex -= 1;
+                            });
+                          },
+                    icon: const Icon(Icons.arrow_back),
+                    label: Text(l10n.pick(vi: 'Câu trước', en: 'Previous')),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: widget.isBusy || currentAnswer == null
+                      ? null
+                      : () {
+                          if (isLastQuestion) {
+                            if (!allAnswered) {
+                              return;
+                            }
+                            widget.onSubmitAnswers(
+                              Map<String, String>.from(_answers),
+                            );
+                            return;
+                          }
+                          setState(() {
+                            _currentQuestionIndex += 1;
+                          });
+                        },
+                  icon: widget.isBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          isLastQuestion
+                              ? Icons.verified_user_outlined
+                              : Icons.arrow_forward,
+                        ),
+                  label: Text(
+                    widget.isBusy
+                        ? l10n.pick(vi: 'Đang xác minh...', en: 'Verifying...')
+                        : isLastQuestion
+                        ? l10n.pick(
+                            vi: 'Xác minh và tiếp tục',
+                            en: 'Verify and continue',
+                          )
+                        : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  String _verificationCategoryLabel(BuildContext context, String category) {
+    final l10n = context.l10n;
+    switch (category) {
+      case 'family':
+      case 'clan':
+        return l10n.pick(vi: 'Thông tin gia đình', en: 'Family details');
+      case 'contact':
+        return l10n.pick(vi: 'Thông tin liên hệ', en: 'Contact details');
+      default:
+        return l10n.pick(vi: 'Thông tin cá nhân', en: 'Personal details');
+    }
   }
 }
 
@@ -1425,43 +1820,52 @@ class _AuthFormCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final tokens = context.uiTokens;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            OverflowBar(
-              alignment: MainAxisAlignment.spaceBetween,
-              overflowAlignment: OverflowBarAlignment.end,
-              spacing: 12,
-              overflowSpacing: 8,
-              children: [
-                TextButton.icon(
-                  onPressed: isBusy ? null : onBack,
-                  icon: const Icon(Icons.arrow_back),
-                  label: Text(context.l10n.authBack),
+    return AppWorkspaceSurface(
+      showAccentOrbs: true,
+      padding: EdgeInsets.all(tokens.spaceXl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          OverflowBar(
+            alignment: MainAxisAlignment.spaceBetween,
+            overflowAlignment: OverflowBarAlignment.end,
+            spacing: 12,
+            overflowSpacing: 8,
+            children: [
+              AppCompactTextButton(
+                onPressed: isBusy ? null : onBack,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.arrow_back, size: 18),
+                    const SizedBox(width: 6),
+                    Text(context.l10n.authBack),
+                  ],
                 ),
-                Icon(Icons.lock_outline, color: colorScheme.primary),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
               ),
-            ),
-            if (description != null && description!.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(description!, style: theme.textTheme.bodyLarge),
+              _AuthHeroChip(
+                icon: Icons.lock_outline,
+                label: context.l10n.pick(vi: 'Bảo mật', en: 'Secure'),
+              ),
             ],
-            const SizedBox(height: 24),
-            child,
+          ),
+          SizedBox(height: tokens.spaceSm),
+          Text(
+            title,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              height: 1.14,
+            ),
+          ),
+          if (description != null && description!.trim().isNotEmpty) ...[
+            SizedBox(height: tokens.spaceSm),
+            Text(description!, style: theme.textTheme.bodyLarge),
           ],
-        ),
+          SizedBox(height: tokens.spaceXl),
+          child,
+        ],
       ),
     );
   }
@@ -1502,6 +1906,136 @@ class _AuthBusyButtonChild extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AuthHeroChip extends StatelessWidget {
+  const _AuthHeroChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: tokens.spaceMd,
+        vertical: tokens.spaceSm,
+      ),
+      decoration: BoxDecoration(
+        color: colorScheme.onSurface.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(tokens.radiusPill),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.88),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: colorScheme.primary),
+          SizedBox(width: tokens.spaceXs),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthInlineInfo extends StatelessWidget {
+  const _AuthInlineInfo({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
+
+    return Container(
+      padding: EdgeInsets.all(tokens.spaceMd),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(tokens.radiusMd),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: colorScheme.primary),
+          SizedBox(width: tokens.spaceSm),
+          Expanded(
+            child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VerificationOptionTile extends StatelessWidget {
+  const _VerificationOptionTile({
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(tokens.radiusMd),
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.all(tokens.spaceMd),
+        decoration: BoxDecoration(
+          color: selected
+              ? colorScheme.primaryContainer.withValues(alpha: 0.72)
+              : colorScheme.surface,
+          borderRadius: BorderRadius.circular(tokens.radiusMd),
+          border: Border.all(
+            color: selected
+                ? colorScheme.primary
+                : colorScheme.outlineVariant.withValues(alpha: 0.92),
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? colorScheme.primary : colorScheme.outline,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
