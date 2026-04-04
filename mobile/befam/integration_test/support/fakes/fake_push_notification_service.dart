@@ -31,20 +31,43 @@ class FakePushNotificationService implements PushNotificationService {
     String? messageId,
     String? title,
     String? body,
+    String? rawTarget,
+    Map<String, String>? dataPayload,
+    String? type,
   }) {
     final callback = _onDeepLink;
     if (callback == null) {
       return;
     }
+    final resolvedRawTarget = rawTarget ?? _rawTargetForType(targetType);
+    final resolvedPayload = <String, String>{
+      'target': resolvedRawTarget,
+      if (referenceId != null && referenceId.isNotEmpty) 'id': referenceId,
+      if (type != null && type.isNotEmpty) 'type': type,
+      ...?dataPayload,
+    };
     callback(
       NotificationDeepLink(
         targetType: targetType,
         referenceId: referenceId,
         messageId: messageId,
         origin: origin,
+        rawTarget: resolvedRawTarget,
+        dataPayload: resolvedPayload,
         title: title,
         body: body,
+        type: type,
       ),
     );
+  }
+
+  String _rawTargetForType(NotificationTargetType targetType) {
+    return switch (targetType) {
+      NotificationTargetType.event => 'event',
+      NotificationTargetType.scholarship => 'scholarship',
+      NotificationTargetType.billing => 'billing',
+      NotificationTargetType.authRefresh => 'auth_refresh',
+      NotificationTargetType.unknown => 'generic',
+    };
   }
 }

@@ -6,6 +6,7 @@ import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/billing/presentation/billing_workspace_page.dart';
 import 'package:befam/features/profile/presentation/profile_workspace_page.dart';
 import '../../support/features/clan/services/debug_clan_repository.dart';
+import '../../support/features/discovery/services/debug_genealogy_discovery_repository.dart';
 import '../../support/features/events/services/debug_event_repository.dart';
 import '../../support/features/member/services/debug_member_repository.dart';
 import '../../support/features/profile/services/debug_profile_notification_preferences_repository.dart';
@@ -59,6 +60,36 @@ void main() {
     );
   }
 
+  NotificationDeepLink buildDeepLink({
+    required NotificationTargetType targetType,
+    required String messageId,
+    NotificationMessageOrigin origin = NotificationMessageOrigin.openedApp,
+    String? referenceId,
+    String? title,
+    String? body,
+    String? rawTarget,
+    Map<String, String>? dataPayload,
+    String? type,
+  }) {
+    final resolvedRawTarget = rawTarget ?? _rawTargetForType(targetType);
+    return NotificationDeepLink(
+      targetType: targetType,
+      referenceId: referenceId,
+      messageId: messageId,
+      origin: origin,
+      rawTarget: resolvedRawTarget,
+      dataPayload: <String, String>{
+        'target': resolvedRawTarget,
+        if (referenceId != null && referenceId.isNotEmpty) 'id': referenceId,
+        if (type != null && type.isNotEmpty) 'type': type,
+        ...?dataPayload,
+      },
+      title: title,
+      body: body,
+      type: type,
+    );
+  }
+
   testWidgets('opens event destination page from opened-app deep link', (
     tester,
   ) async {
@@ -73,6 +104,8 @@ void main() {
           clanRepository: DebugClanRepository.seeded(),
           memberRepository: DebugMemberRepository.seeded(),
           eventRepository: DebugEventRepository.shared(),
+          genealogyDiscoveryRepository:
+              DebugGenealogyDiscoveryRepository.seeded(),
           scholarshipRepository: DebugScholarshipRepository.shared(),
           pushNotificationService: pushService,
         ),
@@ -81,7 +114,7 @@ void main() {
     await pumpUi(tester);
 
     pushService.emit(
-      const NotificationDeepLink(
+      buildDeepLink(
         targetType: NotificationTargetType.event,
         referenceId: 'event_demo_memorial_001',
         messageId: 'message_event_001',
@@ -113,6 +146,8 @@ void main() {
           clanRepository: DebugClanRepository.seeded(),
           memberRepository: DebugMemberRepository.seeded(),
           eventRepository: DebugEventRepository.shared(),
+          genealogyDiscoveryRepository:
+              DebugGenealogyDiscoveryRepository.seeded(),
           scholarshipRepository: DebugScholarshipRepository.shared(),
           pushNotificationService: pushService,
         ),
@@ -121,7 +156,7 @@ void main() {
     await pumpUi(tester);
 
     pushService.emit(
-      const NotificationDeepLink(
+      buildDeepLink(
         targetType: NotificationTargetType.scholarship,
         referenceId: 'sub_demo_001',
         messageId: 'message_scholarship_001',
@@ -154,6 +189,8 @@ void main() {
           clanRepository: DebugClanRepository.seeded(),
           memberRepository: DebugMemberRepository.seeded(),
           eventRepository: DebugEventRepository.shared(),
+          genealogyDiscoveryRepository:
+              DebugGenealogyDiscoveryRepository.seeded(),
           scholarshipRepository: DebugScholarshipRepository.shared(),
           pushNotificationService: pushService,
         ),
@@ -162,7 +199,7 @@ void main() {
     await pumpUi(tester);
 
     pushService.emit(
-      const NotificationDeepLink(
+      buildDeepLink(
         targetType: NotificationTargetType.billing,
         referenceId: 'txn_demo_001',
         messageId: 'message_billing_001',
@@ -176,6 +213,46 @@ void main() {
     expect(find.byType(BillingWorkspacePage), findsOneWidget);
     expect(find.byKey(const Key('notification-target-billing')), findsNothing);
   });
+
+  testWidgets(
+    'opens submitted join requests from generic join-request deep link',
+    (tester) async {
+      configureMobileViewport(tester);
+      final pushService = _ControllablePushNotificationService();
+
+      await tester.pumpWidget(
+        _ShellTestApp(
+          child: AppShellPage(
+            status: buildReadyStatus(),
+            session: buildSession(),
+            clanRepository: DebugClanRepository.seeded(),
+            memberRepository: DebugMemberRepository.seeded(),
+            eventRepository: DebugEventRepository.shared(),
+            genealogyDiscoveryRepository:
+                DebugGenealogyDiscoveryRepository.seeded(),
+            scholarshipRepository: DebugScholarshipRepository.shared(),
+            pushNotificationService: pushService,
+          ),
+        ),
+      );
+      await pumpUi(tester);
+
+      pushService.emit(
+        buildDeepLink(
+          targetType: NotificationTargetType.unknown,
+          referenceId: 'join_request_demo_001',
+          messageId: 'message_join_request_001',
+          title: 'Join request sent',
+          body: 'Open BeFam to review the request you just sent.',
+          rawTarget: 'join_request',
+          type: 'join_request_submitted',
+        ),
+      );
+      await pumpUi(tester, frames: 48);
+
+      expect(find.text('Your join requests'), findsOneWidget);
+    },
+  );
 
   testWidgets('renders notification settings toggles on profile workspace', (
     tester,
@@ -201,6 +278,16 @@ void main() {
     expect(find.text('Family updates'), findsOneWidget);
     expect(find.text('Quiet hours'), findsOneWidget);
   });
+}
+
+String _rawTargetForType(NotificationTargetType targetType) {
+  return switch (targetType) {
+    NotificationTargetType.event => 'event',
+    NotificationTargetType.scholarship => 'scholarship',
+    NotificationTargetType.billing => 'billing',
+    NotificationTargetType.authRefresh => 'auth_refresh',
+    NotificationTargetType.unknown => 'generic',
+  };
 }
 
 class _ControllablePushNotificationService implements PushNotificationService {
