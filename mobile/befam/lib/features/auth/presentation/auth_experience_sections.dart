@@ -326,34 +326,21 @@ class _AuthHero extends StatelessWidget {
         en: 'Use the code shared for the child account by a family member or admin.',
       ),
       AuthStep.otp => '',
-      AuthStep.memberSelection => l10n.pick(
-        vi: resolution?.candidates.isNotEmpty == true
-            ? 'Chọn hồ sơ khớp nhất với số ${resolution?.phoneE164 ?? ''}.'
-            : 'BeFam chưa tìm thấy hồ sơ trùng khớp. Bạn vẫn có thể tạo hồ sơ mới nếu được phép.',
-        en: resolution?.candidates.isNotEmpty == true
-            ? 'Choose the profile that best matches ${resolution?.phoneE164 ?? ''}.'
-            : 'No matching profile was found yet. You can still create a new one when allowed.',
-      ),
+      AuthStep.memberSelection => '',
       AuthStep.memberVerification => l10n.pick(
         vi: 'Trả lời từng câu ngắn để chúng tôi xác nhận đúng hồ sơ của bạn.',
         en: 'Answer a few short questions so we can confirm the correct profile.',
       ),
     };
 
-    final statusChip = switch (step) {
+    final Widget? statusChip = switch (step) {
       AuthStep.otp => _AuthHeroChip(
         icon: Icons.sms_outlined,
         label: challenge?.provider == AuthOtpProvider.firebase
             ? l10n.pick(vi: 'Mã gửi qua SMS', en: 'SMS delivery')
             : l10n.pick(vi: 'Mã xác nhận nhanh', en: 'Fast verification'),
       ),
-      AuthStep.memberSelection => _AuthHeroChip(
-        icon: Icons.account_tree_outlined,
-        label: l10n.pick(
-          vi: '${resolution?.candidates.length ?? 0} hồ sơ phù hợp',
-          en: '${resolution?.candidates.length ?? 0} profile matches',
-        ),
-      ),
+      AuthStep.memberSelection => null,
       AuthStep.memberVerification => _AuthHeroChip(
         icon: Icons.fact_check_outlined,
         label: l10n.pick(
@@ -410,7 +397,7 @@ class _AuthHero extends StatelessWidget {
                   : theme.textTheme.bodyLarge,
             ),
           ],
-          if (!isLoginMethodSelection) ...[
+          if (!isLoginMethodSelection && statusChip != null) ...[
             SizedBox(height: isCompact ? tokens.spaceMd : tokens.spaceLg),
             Wrap(
               spacing: tokens.spaceSm,
@@ -1264,10 +1251,6 @@ class _MemberSelectionCard extends StatelessWidget {
         vi: 'Đây có phải là hồ sơ của bạn?',
         en: 'Is this your profile?',
       ),
-      description: l10n.pick(
-        vi: 'Chọn hồ sơ phù hợp nhất để BeFam liên kết tài khoản của bạn đúng cách.',
-        en: 'Choose the best matching profile so BeFam can link your account correctly.',
-      ),
       isBusy: isBusy,
       onBack: onBack,
       child: Column(
@@ -1308,40 +1291,11 @@ class _MemberSelectionCard extends StatelessWidget {
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w800),
                               ),
-                              const SizedBox(height: 6),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  if (candidate.clanLabel != null)
-                                    _AuthHeroChip(
-                                      icon: Icons.account_tree_outlined,
-                                      label: candidate.clanLabel!,
-                                    ),
-                                  if (candidate.roleLabel != null)
-                                    _AuthHeroChip(
-                                      icon: Icons.badge_outlined,
-                                      label: candidate.roleLabel!,
-                                    ),
-                                  if (candidate.birthHint != null)
-                                    _AuthHeroChip(
-                                      icon: Icons.cake_outlined,
-                                      label: candidate.birthHint!,
-                                    ),
-                                ],
-                              ),
                             ],
                           ),
                         ),
                       ],
                     ),
-                    if (candidate.memberStatus != null) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        candidate.memberStatus!,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
                     const SizedBox(height: 14),
                     if (candidate.selectable)
                       SizedBox(
