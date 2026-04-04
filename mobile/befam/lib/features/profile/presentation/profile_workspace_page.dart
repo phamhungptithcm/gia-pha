@@ -26,7 +26,6 @@ import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
 import '../../notifications/services/notification_test_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/profile_notification_preferences.dart';
 import '../services/profile_notification_preferences_repository.dart';
 import '../models/profile_draft.dart';
 import 'profile_controller.dart';
@@ -618,46 +617,9 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                     l10n: l10n,
                   )
                 : null);
-        final socialLinkCount = [
-          displayProfile?.socialLinks.facebook,
-          displayProfile?.socialLinks.zalo,
-          displayProfile?.socialLinks.linkedin,
-        ].where((value) => (value ?? '').trim().isNotEmpty).length;
-        final phoneBadgeLabel = (displayProfile?.phoneE164 ?? '').trim();
-        final emailBadgeLabel = (displayProfile?.email ?? '').trim();
-        final settingsBadges = <_ProfileHeroBadgeData>[
-          _ProfileHeroBadgeData(
-            icon: Icons.language_outlined,
-            label: selectedLanguageCode == 'vi'
-                ? l10n.profileLanguageVietnamese
-                : l10n.profileLanguageEnglish,
-          ),
-        ];
-        final heroBadges = <_ProfileHeroBadgeData>[
-          _ProfileHeroBadgeData(
-            icon: Icons.call_outlined,
-            label: phoneBadgeLabel.isEmpty
-                ? l10n.pick(vi: 'Thêm số điện thoại', en: 'Add phone number')
-                : phoneBadgeLabel,
-          ),
-          _ProfileHeroBadgeData(
-            icon: Icons.mail_outline,
-            label: emailBadgeLabel.isEmpty
-                ? l10n.pick(vi: 'Thêm email', en: 'Add email')
-                : emailBadgeLabel,
-          ),
-          _ProfileHeroBadgeData(
-            icon: Icons.share_outlined,
-            label: l10n.pick(
-              vi: socialLinkCount == 0
-                  ? 'Chưa có liên kết liên hệ'
-                  : '$socialLinkCount liên kết liên hệ',
-              en: socialLinkCount == 0
-                  ? 'No contact links yet'
-                  : '$socialLinkCount contact links',
-            ),
-          ),
-        ];
+        final languageLabel = selectedLanguageCode == 'vi'
+            ? l10n.profileLanguageVietnamese
+            : l10n.profileLanguageEnglish;
 
         return Scaffold(
           appBar: widget.showAppBar
@@ -707,10 +669,6 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                         children: [
                           _ProfileHeroCard(
                             profile: displayProfile,
-                            roleLabel: l10n.roleLabel(
-                              displayProfile.primaryRole,
-                            ),
-                            badges: heroBadges,
                             onEditProfile: usesFallbackProfile
                                 ? _openUnlinkedEditor
                                 : () => _openEditor(displayProfile),
@@ -746,22 +704,6 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                             ),
                             const SizedBox(height: 16),
                           ],
-                          _ProfileControlCard(
-                            badges: const [],
-                            primaryActionLabel: l10n.pick(
-                              vi: 'Chỉnh sửa hồ sơ',
-                              en: 'Edit profile',
-                            ),
-                            onPrimaryAction: usesFallbackProfile
-                                ? _openUnlinkedEditor
-                                : () => _openEditor(displayProfile),
-                            secondaryActionLabel: l10n.pick(
-                              vi: 'Mở cài đặt',
-                              en: 'Open settings',
-                            ),
-                            onSecondaryAction: _openSettings,
-                          ),
-                          const SizedBox(height: 16),
                           _ProfileSectionCard(
                             title: l10n.pick(
                               vi: 'Thông tin chính',
@@ -867,36 +809,18 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                           ),
                           const SizedBox(height: 16),
                           _ProfileSectionCard(
-                            title: l10n.pick(
-                              vi: 'Cài đặt & tùy chọn',
-                              en: 'Settings',
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    for (final badge in settingsBadges)
-                                      _ProfileHeroBadge(data: badge),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: FilledButton.tonalIcon(
-                                    onPressed: _openSettings,
-                                    icon: const Icon(Icons.settings_outlined),
-                                    label: Text(
-                                      l10n.pick(
-                                        vi: 'Mở cài đặt',
-                                        en: 'Open settings',
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            title: l10n.pick(vi: 'Tùy chọn', en: 'Preferences'),
+                            child: _ProfileCompactMenuTile(
+                              icon: Icons.tune_rounded,
+                              title: l10n.pick(
+                                vi: 'Mở cài đặt',
+                                en: 'Open settings',
+                              ),
+                              subtitle: l10n.pick(
+                                vi: 'Ngôn ngữ: $languageLabel',
+                                en: 'Language: $languageLabel',
+                              ),
+                              onTap: _openSettings,
                             ),
                           ),
                         ],
@@ -1259,29 +1183,6 @@ class _NotificationSettingsHeroCard extends StatelessWidget {
     final theme = Theme.of(context);
     final prefs = controller.notificationPreferences;
     final l10n = context.l10n;
-    final enabledCount = _countEnabledNotificationPreferences(prefs);
-    final statusBadges = <_ProfileHeroBadgeData>[
-      _ProfileHeroBadgeData(
-        icon: prefs.pushEnabled
-            ? Icons.notifications_active_outlined
-            : Icons.notifications_off_outlined,
-        label: prefs.pushEnabled
-            ? l10n.notificationSettingsPushStatusEnabled
-            : l10n.notificationSettingsPushStatusDisabled,
-      ),
-      _ProfileHeroBadgeData(
-        icon: Icons.tune_rounded,
-        label: l10n.pick(
-          vi: '$enabledCount mục đang theo dõi',
-          en: '$enabledCount preferences on',
-        ),
-      ),
-      if (controller.isSavingNotificationPreferences)
-        _ProfileHeroBadgeData(
-          icon: Icons.sync_rounded,
-          label: l10n.notificationSettingsSavingBadge,
-        ),
-    ];
 
     return AppWorkspaceSurface(
       padding: const EdgeInsets.all(20),
@@ -1290,24 +1191,11 @@ class _NotificationSettingsHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final badge in statusBadges) _ProfileHeroBadge(data: badge),
-            ],
-          ),
-          const SizedBox(height: 16),
           Text(
-            l10n.notificationSettingsHeroTitle,
+            l10n.pick(vi: 'Thông báo gia đình', en: 'Family notifications'),
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.notificationSettingsHeroDescription,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
           ),
           const SizedBox(height: 16),
           AppWorkspaceSurface(
@@ -1345,7 +1233,10 @@ class _NotificationSettingsHeroCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        l10n.notificationSettingsPushChannelHint,
+                        l10n.pick(
+                          vi: 'Nhận nhắc việc và cập nhật ngay trên điện thoại.',
+                          en: 'Receive reminders and key updates on this phone.',
+                        ),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                           height: 1.35,
@@ -1597,11 +1488,81 @@ class _InlineStatusBadge extends StatelessWidget {
   }
 }
 
+class _ProfileCompactMenuTile extends StatelessWidget {
+  const _ProfileCompactMenuTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: AppWorkspaceSurface(
+          color: Colors.white.withValues(alpha: 0.76),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: colorScheme.onPrimaryContainer),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ProfileHeroCard extends StatelessWidget {
   const _ProfileHeroCard({
     required this.profile,
-    required this.roleLabel,
-    required this.badges,
     required this.onEditProfile,
     this.onAvatarTap,
     this.isUploadingAvatar = false,
@@ -1609,8 +1570,6 @@ class _ProfileHeroCard extends StatelessWidget {
   });
 
   final MemberProfile profile;
-  final String roleLabel;
-  final List<_ProfileHeroBadgeData> badges;
   final VoidCallback onEditProfile;
   final VoidCallback? onAvatarTap;
   final bool isUploadingAvatar;
@@ -1627,10 +1586,7 @@ class _ProfileHeroCard extends StatelessWidget {
         ? bio
         : jobTitle.isNotEmpty
         ? jobTitle
-        : l10n.pick(
-            vi: 'Giữ hồ sơ luôn đầy đủ để người thân dễ kết nối với bạn hơn.',
-            en: 'Keep your profile complete so relatives can connect with you more easily.',
-          );
+        : '';
 
     return AppWorkspaceSurface(
       padding: const EdgeInsets.all(24),
@@ -1729,123 +1685,19 @@ class _ProfileHeroCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  roleLabel,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                Text(
-                  resolvedSubtitle,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (badges.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final badge in badges)
-                        _ProfileHeroBadge(data: badge),
-                    ],
+                if (resolvedSubtitle.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    resolvedSubtitle,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileControlCard extends StatelessWidget {
-  const _ProfileControlCard({
-    required this.badges,
-    required this.primaryActionLabel,
-    required this.onPrimaryAction,
-    required this.secondaryActionLabel,
-    required this.onSecondaryAction,
-  });
-
-  final List<_ProfileHeroBadgeData> badges;
-  final String primaryActionLabel;
-  final VoidCallback onPrimaryAction;
-  final String secondaryActionLabel;
-  final VoidCallback onSecondaryAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return AppWorkspaceSurface(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            context.l10n.pick(vi: 'Thao tác nhanh', en: 'Quick access'),
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          if (badges.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final badge in badges) _ProfileHeroBadge(data: badge),
-              ],
-            ),
-          ],
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stackActions = constraints.maxWidth < 420;
-              if (stackActions) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: onPrimaryAction,
-                      icon: const Icon(Icons.edit_outlined),
-                      label: Text(primaryActionLabel),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: onSecondaryAction,
-                      icon: const Icon(Icons.settings_outlined),
-                      label: Text(secondaryActionLabel),
-                    ),
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: onPrimaryAction,
-                      icon: const Icon(Icons.edit_outlined),
-                      label: Text(primaryActionLabel),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: onSecondaryAction,
-                      icon: const Icon(Icons.settings_outlined),
-                      label: Text(secondaryActionLabel),
-                    ),
-                  ),
-                ],
-              );
-            },
           ),
         ],
       ),
@@ -2457,66 +2309,6 @@ class _ProfileInfoCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ProfileHeroBadgeData {
-  const _ProfileHeroBadgeData({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-}
-
-class _ProfileHeroBadge extends StatelessWidget {
-  const _ProfileHeroBadge({required this.data});
-
-  final _ProfileHeroBadgeData data;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.92),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(data.icon, size: 16, color: colorScheme.primary),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                data.label,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-int _countEnabledNotificationPreferences(ProfileNotificationPreferences prefs) {
-  return [
-    prefs.pushEnabled,
-    prefs.emailEnabled,
-    prefs.eventReminders,
-    prefs.scholarshipUpdates,
-    prefs.fundTransactions,
-    prefs.systemNotices,
-    prefs.quietHoursEnabled,
-  ].where((value) => value).length;
 }
 
 class _EditorSectionCard extends StatelessWidget {

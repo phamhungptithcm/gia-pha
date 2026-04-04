@@ -237,6 +237,24 @@ class AuthController extends ChangeNotifier {
             AuthIssue(AuthIssueKey.preparationFailed),
           );
         }
+        final shouldCreateUnlinkedIdentity =
+            resolution.allowCreateNew &&
+            (resolution.status == PhoneIdentityResolutionStatus.createNewOnly ||
+                !resolution.candidates.any(
+                  (candidate) => candidate.selectable,
+                ));
+        if (shouldCreateUnlinkedIdentity) {
+          pendingChallenge = null;
+          pendingPhoneResolution = resolution;
+          verificationChallenge = null;
+          step = AuthStep.memberSelection;
+          _stopCooldown();
+          _emit();
+          final createdSession = await _authGateway
+              .createUnlinkedPhoneIdentity();
+          await _completeSignIn(createdSession);
+          return;
+        }
         pendingChallenge = null;
         pendingPhoneResolution = resolution;
         verificationChallenge = null;

@@ -317,10 +317,7 @@ class _AuthHero extends StatelessWidget {
         vi: 'Xem gia phả, lịch họ và cập nhật từ người thân ở cùng một nơi.',
         en: 'See your family tree, family events, and updates from loved ones in one place.',
       ),
-      AuthStep.phoneNumber => l10n.pick(
-        vi: 'BeFam sẽ gửi mã OTP để xác nhận tài khoản của bạn.',
-        en: 'BeFam will send an OTP to confirm your account.',
-      ),
+      AuthStep.phoneNumber => l10n.pick(vi: '', en: ''),
       AuthStep.childIdentifier => l10n.pick(
         vi: 'Dùng mã được người thân hoặc quản trị viên gửi cho tài khoản của bé.',
         en: 'Use the code shared for the child account by a family member or admin.',
@@ -334,12 +331,8 @@ class _AuthHero extends StatelessWidget {
     };
 
     final Widget? statusChip = switch (step) {
-      AuthStep.otp => _AuthHeroChip(
-        icon: Icons.sms_outlined,
-        label: challenge?.provider == AuthOtpProvider.firebase
-            ? l10n.pick(vi: 'Mã gửi qua SMS', en: 'SMS delivery')
-            : l10n.pick(vi: 'Mã xác nhận nhanh', en: 'Fast verification'),
-      ),
+      AuthStep.phoneNumber => null,
+      AuthStep.otp => null,
       AuthStep.memberSelection => null,
       AuthStep.memberVerification => _AuthHeroChip(
         icon: Icons.fact_check_outlined,

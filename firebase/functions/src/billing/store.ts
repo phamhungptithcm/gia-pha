@@ -2,7 +2,7 @@ import {
   FieldValue,
   Timestamp,
   type QueryDocumentSnapshot,
-} from 'firebase-admin/firestore';
+} from "firebase-admin/firestore";
 
 import {
   buildEntitlement,
@@ -10,7 +10,7 @@ import {
   normalizeSubscriptionStatus,
   type BillingEntitlement,
   type BillingSubscriptionRecord,
-} from './subscription-lifecycle';
+} from "./subscription-lifecycle";
 import {
   computeRenewalWindow,
   rankPlanCode,
@@ -23,9 +23,9 @@ import {
   type PaymentMode,
   type PaymentStatus,
   type SubscriptionStatus,
-} from './pricing';
-import { db } from '../shared/firestore';
-import { logWarn } from '../shared/logger';
+} from "./pricing";
+import { db } from "../shared/firestore";
+import { logWarn } from "../shared/logger";
 
 type NullableDate = Date | null;
 
@@ -69,7 +69,7 @@ export type BillingInvoiceRecord = {
   amountVnd: number;
   vatIncluded: boolean;
   currency: string;
-  status: 'issued' | 'paid' | 'failed' | 'void';
+  status: "issued" | "paid" | "failed" | "void";
   periodStart: NullableDate;
   periodEnd: NullableDate;
   issuedAt: NullableDate;
@@ -104,15 +104,16 @@ export type OwnerBillingPolicySummary = {
   hasSufficientActivePlan: boolean;
 };
 
-const membersCollection = db.collection('members');
-const clansCollection = db.collection('clans');
-const subscriptionsCollection = db.collection('subscriptions');
-const billingSettingsCollection = db.collection('billingSettings');
-const transactionsCollection = db.collection('paymentTransactions');
-const invoicesCollection = db.collection('subscriptionInvoices');
-const webhookEventsCollection = db.collection('paymentWebhookEvents');
-const billingAuditLogsCollection = db.collection('billingAuditLogs');
-const WEBHOOK_PAYLOAD_BLOCKLIST_KEY_PATTERN = /(token|secret|signature|password|authorization|hash)/i;
+const membersCollection = db.collection("members");
+const clansCollection = db.collection("clans");
+const subscriptionsCollection = db.collection("subscriptions");
+const billingSettingsCollection = db.collection("billingSettings");
+const transactionsCollection = db.collection("paymentTransactions");
+const invoicesCollection = db.collection("subscriptionInvoices");
+const webhookEventsCollection = db.collection("paymentWebhookEvents");
+const billingAuditLogsCollection = db.collection("billingAuditLogs");
+const WEBHOOK_PAYLOAD_BLOCKLIST_KEY_PATTERN =
+  /(token|secret|signature|password|authorization|hash)/i;
 const WEBHOOK_PAYLOAD_MAX_KEYS = 60;
 const WEBHOOK_PAYLOAD_MAX_DEPTH = 2;
 const WEBHOOK_PAYLOAD_MAX_ARRAY_ITEMS = 20;
@@ -138,24 +139,29 @@ function ownerBillingDocId(ownerUid: string): string {
 }
 
 export async function countClanMembers(clanId: string): Promise<number> {
-  const snapshot = await membersCollection.where('clanId', '==', clanId).count().get();
+  const snapshot = await membersCollection
+    .where("clanId", "==", clanId)
+    .count()
+    .get();
   return Number(snapshot.data().count ?? 0);
 }
 
-export async function listOwnerClansForBilling(ownerUid: string): Promise<Array<BillingOwnerClanSummary>> {
+export async function listOwnerClansForBilling(
+  ownerUid: string,
+): Promise<Array<BillingOwnerClanSummary>> {
   const normalizedOwnerUid = ownerUid.trim();
   if (normalizedOwnerUid.length === 0) {
     return [];
   }
 
   const ownerSnapshot = await clansCollection
-    .where('ownerUid', '==', normalizedOwnerUid)
+    .where("ownerUid", "==", normalizedOwnerUid)
     .limit(400)
     .get();
   const clanById = new Map<string, BillingOwnerClanSummary>();
   for (const snapshot of ownerSnapshot.docs) {
     const data = snapshot.data() ?? {};
-    const resolvedOwnerUid = readString(data.ownerUid, '');
+    const resolvedOwnerUid = readString(data.ownerUid, "");
     if (resolvedOwnerUid !== normalizedOwnerUid) {
       continue;
     }
@@ -168,7 +174,9 @@ export async function listOwnerClansForBilling(ownerUid: string): Promise<Array<
       ownerDisplayName: nullableString(data.founderName),
     });
   }
-  return [...clanById.values()].sort((left, right) => left.clanId.localeCompare(right.clanId));
+  return [...clanById.values()].sort((left, right) =>
+    left.clanId.localeCompare(right.clanId),
+  );
 }
 
 export async function resolveOwnerBillingPolicy({
@@ -180,9 +188,9 @@ export async function resolveOwnerBillingPolicy({
 }): Promise<OwnerBillingPolicySummary> {
   const normalizedOwnerUid = ownerUid.trim();
   if (normalizedOwnerUid.length === 0) {
-    const freeTier = resolveTierByPlanCode('FREE');
+    const freeTier = resolveTierByPlanCode("FREE");
     return {
-      ownerUid: '',
+      ownerUid: "",
       clans: [],
       totalMemberCount: 0,
       minimumTier: freeTier,
@@ -194,7 +202,7 @@ export async function resolveOwnerBillingPolicy({
 
   const clans = await listOwnerClansForBilling(normalizedOwnerUid);
   if (clans.length === 0) {
-    const freeTier = resolveTierByPlanCode('FREE');
+    const freeTier = resolveTierByPlanCode("FREE");
     return {
       ownerUid: normalizedOwnerUid,
       clans: [],
@@ -219,12 +227,18 @@ export async function resolveOwnerBillingPolicy({
     ...clan,
     memberCount: Math.max(0, authoritativeCounts[index] ?? clan.memberCount),
   }));
-  const totalMemberCount = clansWithCounts.reduce((sum, clan) => sum + clan.memberCount, 0);
+  const totalMemberCount = clansWithCounts.reduce(
+    (sum, clan) => sum + clan.memberCount,
+    0,
+  );
   const minimumTier = resolvePlanByMemberCount(totalMemberCount);
 
-  const subscriptionsById = new Map<string, FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>>();
+  const subscriptionsById = new Map<
+    string,
+    FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>
+  >();
   const ownerSubscriptions = await subscriptionsCollection
-    .where('ownerUid', '==', normalizedOwnerUid)
+    .where("ownerUid", "==", normalizedOwnerUid)
     .limit(400)
     .get();
   for (const doc of ownerSubscriptions.docs) {
@@ -235,10 +249,14 @@ export async function resolveOwnerBillingPolicy({
   const fallbackSnapshots = await Promise.all([
     subscriptionsCollection.doc(ownerScopedSubscriptionId).get(),
     ...clansWithCounts.flatMap((clan) => [
-      subscriptionsCollection.doc(scopedBillingDocId({
-        clanId: clan.clanId,
-        ownerUid: normalizedOwnerUid,
-      })).get(),
+      subscriptionsCollection
+        .doc(
+          scopedBillingDocId({
+            clanId: clan.clanId,
+            ownerUid: normalizedOwnerUid,
+          }),
+        )
+        .get(),
       subscriptionsCollection.doc(clan.clanId).get(),
     ]),
   ]);
@@ -249,7 +267,7 @@ export async function resolveOwnerBillingPolicy({
     subscriptionsById.set(snapshot.id, snapshot);
   }
 
-  let highestActiveTier = resolveTierByPlanCode('FREE');
+  let highestActiveTier = resolveTierByPlanCode("FREE");
   for (const clan of clansWithCounts) {
     const ownerScopedId = ownerScopedSubscriptionId;
     const scopedId = scopedBillingDocId({
@@ -273,11 +291,14 @@ export async function resolveOwnerBillingPolicy({
       graceEndsAt: subscription.graceEndsAt,
       now,
     });
-    if (normalizedStatus !== 'active' && normalizedStatus !== 'grace_period') {
+    if (normalizedStatus !== "active" && normalizedStatus !== "grace_period") {
       continue;
     }
     const candidateTier = resolveTierByPlanCode(subscription.planCode);
-    if (rankPlanCode(candidateTier.planCode) > rankPlanCode(highestActiveTier.planCode)) {
+    if (
+      rankPlanCode(candidateTier.planCode) >
+      rankPlanCode(highestActiveTier.planCode)
+    ) {
       highestActiveTier = candidateTier;
     }
   }
@@ -290,7 +311,8 @@ export async function resolveOwnerBillingPolicy({
     highestActiveTier,
     highestActivePlanCode: highestActiveTier.planCode,
     hasSufficientActivePlan:
-      rankPlanCode(highestActiveTier.planCode) >= rankPlanCode(minimumTier.planCode),
+      rankPlanCode(highestActiveTier.planCode) >=
+      rankPlanCode(minimumTier.planCode),
   };
 }
 
@@ -300,11 +322,12 @@ export async function loadBillingSettings(
 ): Promise<BillingSettingsRecord> {
   const ownerScopedId = ownerBillingDocId(ownerUid);
   const scopedId = scopedBillingDocId({ clanId, ownerUid });
-  const [ownerScopedSnapshot, scopedSnapshot, legacySnapshot] = await Promise.all([
-    billingSettingsCollection.doc(ownerScopedId).get(),
-    billingSettingsCollection.doc(scopedId).get(),
-    billingSettingsCollection.doc(clanId).get(),
-  ]);
+  const [ownerScopedSnapshot, scopedSnapshot, legacySnapshot] =
+    await Promise.all([
+      billingSettingsCollection.doc(ownerScopedId).get(),
+      billingSettingsCollection.doc(scopedId).get(),
+      billingSettingsCollection.doc(clanId).get(),
+    ]);
   const snapshot = ownerScopedSnapshot.exists
     ? ownerScopedSnapshot
     : scopedSnapshot.exists
@@ -315,9 +338,9 @@ export async function loadBillingSettings(
       id: ownerScopedId,
       clanId: personalBillingScopeId(ownerUid),
       ownerUid,
-      paymentMode: 'manual',
+      paymentMode: "manual",
       autoRenew: false,
-      reminderDaysBefore: [30, 14, 7, 3, 1],
+      reminderDaysBefore: [5, 4, 3, 2, 1],
       updatedAt: null,
     };
   }
@@ -377,11 +400,12 @@ export async function loadSubscription({
 }): Promise<BillingSubscriptionRecord | null> {
   const ownerScopedId = ownerBillingDocId(ownerUid);
   const scopedId = scopedBillingDocId({ clanId, ownerUid });
-  const [ownerScopedSnapshot, scopedSnapshot, legacySnapshot] = await Promise.all([
-    subscriptionsCollection.doc(ownerScopedId).get(),
-    subscriptionsCollection.doc(scopedId).get(),
-    subscriptionsCollection.doc(clanId).get(),
-  ]);
+  const [ownerScopedSnapshot, scopedSnapshot, legacySnapshot] =
+    await Promise.all([
+      subscriptionsCollection.doc(ownerScopedId).get(),
+      subscriptionsCollection.doc(scopedId).get(),
+      subscriptionsCollection.doc(clanId).get(),
+    ]);
   const snapshot = ownerScopedSnapshot.exists
     ? ownerScopedSnapshot
     : scopedSnapshot.exists
@@ -443,8 +467,8 @@ export async function ensureSubscriptionForClan({
     await writeBillingAuditLog({
       clanId,
       actorUid,
-      action: 'subscription_bootstrapped',
-      entityType: 'subscription',
+      action: "subscription_bootstrapped",
+      entityType: "subscription",
       entityId: scopedSubscriptionId,
       after: {
         planCode: seeded.planCode,
@@ -536,10 +560,10 @@ export async function createPendingCheckout({
     now,
   });
   const { memberCount, subscription } = ensured;
-  const effectiveMemberCountForPolicy = typeof policyMemberCount === 'number' &&
-      Number.isFinite(policyMemberCount)
-    ? Math.max(memberCount, Math.trunc(policyMemberCount))
-    : memberCount;
+  const effectiveMemberCountForPolicy =
+    typeof policyMemberCount === "number" && Number.isFinite(policyMemberCount)
+      ? Math.max(memberCount, Math.trunc(policyMemberCount))
+      : memberCount;
   const effectivePlanCode = resolveEffectivePlanCode({
     memberCount: effectiveMemberCountForPolicy,
     currentPlanCode: ensured.tier.planCode,
@@ -548,10 +572,11 @@ export async function createPendingCheckout({
   const tier = resolveTierByPlanCode(effectivePlanCode);
   const selectedRank = rankPlanCode(tier.planCode);
   const canRenewCurrent = canRenewCurrentPlan(subscription, now);
-  if (selectedRank === rankPlanCode(subscription.planCode) && !canRenewCurrent) {
-    throw new Error(
-      'Current subscription is not in renewal window yet.',
-    );
+  if (
+    selectedRank === rankPlanCode(subscription.planCode) &&
+    !canRenewCurrent
+  ) {
+    throw new Error("Current subscription is not in renewal window yet.");
   }
 
   const transactionRef = transactionsCollection.doc();
@@ -565,16 +590,16 @@ export async function createPendingCheckout({
     subscriptionId: subscription.id,
     invoiceId: invoiceRef.id,
     paymentMethod,
-    paymentStatus: tier.planCode === 'FREE' ? 'succeeded' : 'pending',
+    paymentStatus: tier.planCode === "FREE" ? "succeeded" : "pending",
     planCode: tier.planCode,
     memberCount,
     amountVnd: tier.priceVndYear,
     vatIncluded: tier.vatIncluded,
-    currency: 'VND',
+    currency: "VND",
     gatewayReference,
     gatewayPayloadHash: null,
     createdAt: now,
-    paidAt: tier.planCode === 'FREE' ? now : null,
+    paidAt: tier.planCode === "FREE" ? now : null,
     failedAt: null,
   };
 
@@ -587,12 +612,12 @@ export async function createPendingCheckout({
     planCode: tier.planCode,
     amountVnd: tier.priceVndYear,
     vatIncluded: tier.vatIncluded,
-    currency: 'VND',
-    status: tier.planCode === 'FREE' ? 'paid' : 'issued',
+    currency: "VND",
+    status: tier.planCode === "FREE" ? "paid" : "issued",
     periodStart: subscription.startsAt,
     periodEnd: subscription.expiresAt,
     issuedAt: now,
-    paidAt: tier.planCode === 'FREE' ? now : null,
+    paidAt: tier.planCode === "FREE" ? now : null,
   };
 
   const batch = db.batch();
@@ -611,14 +636,16 @@ export async function createPendingCheckout({
     createdBy: actorUid,
     updatedBy: actorUid,
   });
-  const keepCurrentPlanUntilPaid = tier.planCode !== 'FREE';
+  const keepCurrentPlanUntilPaid = tier.planCode !== "FREE";
   batch.set(
     subscriptionsCollection.doc(subscription.id),
     {
       id: subscription.id,
       clanId,
       ownerUid,
-      planCode: keepCurrentPlanUntilPaid ? subscription.planCode : tier.planCode,
+      planCode: keepCurrentPlanUntilPaid
+        ? subscription.planCode
+        : tier.planCode,
       memberCount,
       amountVndYear: keepCurrentPlanUntilPaid
         ? subscription.amountVndYear
@@ -626,7 +653,7 @@ export async function createPendingCheckout({
       vatIncluded: keepCurrentPlanUntilPaid
         ? subscription.vatIncluded
         : tier.vatIncluded,
-      status: keepCurrentPlanUntilPaid ? subscription.status : 'active',
+      status: keepCurrentPlanUntilPaid ? subscription.status : "active",
       lastTransactionId: transaction.id,
       lastInvoiceId: invoice.id,
       lastPaymentMethod: paymentMethod,
@@ -640,8 +667,8 @@ export async function createPendingCheckout({
   await writeBillingAuditLog({
     clanId,
     actorUid,
-    action: 'checkout_created',
-    entityType: 'paymentTransaction',
+    action: "checkout_created",
+    entityType: "paymentTransaction",
     entityId: transaction.id,
     after: {
       planCode: transaction.planCode,
@@ -661,13 +688,19 @@ export async function createPendingCheckout({
     vatIncluded: keepCurrentPlanUntilPaid
       ? subscription.vatIncluded
       : tier.vatIncluded,
-    status: keepCurrentPlanUntilPaid ? subscription.status : 'active',
+    status: keepCurrentPlanUntilPaid ? subscription.status : "active",
     lastPaymentMethod: paymentMethod,
     lastTransactionId: transaction.id,
     updatedAt: now,
   };
 
-  return { tier, memberCount, subscription: checkoutSubscription, transaction, invoice };
+  return {
+    tier,
+    memberCount,
+    subscription: checkoutSubscription,
+    transaction,
+    invoice,
+  };
 }
 
 export async function cancelStalePendingTransactionsRun({
@@ -691,10 +724,13 @@ export async function cancelStalePendingTransactionsRun({
   skippedScopeMismatch: number;
   failed: number;
 }> {
-  const safeTimeoutMinutes = Math.max(1, Math.min(180, Math.trunc(timeoutMinutes)));
+  const safeTimeoutMinutes = Math.max(
+    1,
+    Math.min(180, Math.trunc(timeoutMinutes)),
+  );
   const timeoutMs = safeTimeoutMinutes * 60 * 1000;
-  const scopeClanId = (clanId ?? '').trim();
-  const scopeOwnerUid = (ownerUid ?? '').trim();
+  const scopeClanId = (clanId ?? "").trim();
+  const scopeOwnerUid = (ownerUid ?? "").trim();
   const safeLimit = Math.max(1, Math.min(1000, Math.trunc(limit)));
   const pageSize = Math.min(250, safeLimit);
 
@@ -708,8 +744,8 @@ export async function cancelStalePendingTransactionsRun({
   while (scanned < safeLimit) {
     const remaining = safeLimit - scanned;
     let query = transactionsCollection
-      .where('paymentStatus', 'in', ['pending', 'created'])
-      .orderBy('createdAt', 'asc')
+      .where("paymentStatus", "in", ["pending", "created"])
+      .orderBy("createdAt", "asc")
       .limit(Math.max(1, Math.min(pageSize, remaining)));
     if (cursor != null) {
       query = query.startAfter(cursor);
@@ -746,9 +782,9 @@ export async function cancelStalePendingTransactionsRun({
       try {
         await applyPaymentResult({
           transactionId: tx.id,
-          provider: 'system_timeout',
+          provider: "system_timeout",
           gatewayReference: `TIMEOUT-${safeTimeoutMinutes}M-${tx.id.slice(0, 8)}`,
-          paymentStatus: 'canceled',
+          paymentStatus: "canceled",
           payloadHash: `timeout:${tx.id}:${now.toISOString()}`,
           actorUid: source,
           now,
@@ -756,7 +792,7 @@ export async function cancelStalePendingTransactionsRun({
         canceled += 1;
       } catch (error) {
         failed += 1;
-        logWarn('cancelStalePendingTransactionsRun failed for transaction', {
+        logWarn("cancelStalePendingTransactionsRun failed for transaction", {
           transactionId: tx.id,
           error: `${error}`,
         });
@@ -812,7 +848,11 @@ export async function recordPaymentWebhookEvent({
   } catch (error) {
     const code = (error as { code?: unknown }).code;
     const message = `${error}`.toLowerCase();
-    if (code === 6 || code === 'already-exists' || message.includes('already exists')) {
+    if (
+      code === 6 ||
+      code === "already-exists" ||
+      message.includes("already exists")
+    ) {
       return { id: key, alreadyProcessed: true };
     }
     throw error;
@@ -831,7 +871,7 @@ export async function applyPaymentResult({
   transactionId: string;
   provider: string;
   gatewayReference: string;
-  paymentStatus: Extract<PaymentStatus, 'succeeded' | 'failed' | 'canceled'>;
+  paymentStatus: Extract<PaymentStatus, "succeeded" | "failed" | "canceled">;
   payloadHash: string;
   actorUid: string;
   now?: Date;
@@ -847,15 +887,18 @@ export async function applyPaymentResult({
     throw new Error(`payment transaction ${transactionId} not found`);
   }
 
-  const transactionData = mapTransaction(transactionId, txnSnapshot.data() ?? {});
+  const transactionData = mapTransaction(
+    transactionId,
+    txnSnapshot.data() ?? {},
+  );
   if (
-    transactionData.paymentStatus == 'succeeded' ||
-    transactionData.paymentStatus == 'failed' ||
-    transactionData.paymentStatus == 'canceled'
+    transactionData.paymentStatus == "succeeded" ||
+    transactionData.paymentStatus == "failed" ||
+    transactionData.paymentStatus == "canceled"
   ) {
     if (
-      transactionData.paymentStatus == 'canceled' &&
-      paymentStatus == 'succeeded'
+      transactionData.paymentStatus == "canceled" &&
+      paymentStatus == "succeeded"
     ) {
       throw new Error(
         `payment transaction ${transactionId} was canceled and cannot be marked as succeeded`,
@@ -874,21 +917,28 @@ export async function applyPaymentResult({
     };
   }
   const invoiceRef = invoicesCollection.doc(transactionData.invoiceId);
-  const subscriptionRef = subscriptionsCollection.doc(transactionData.subscriptionId);
+  const subscriptionRef = subscriptionsCollection.doc(
+    transactionData.subscriptionId,
+  );
   const clanRef = clansCollection.doc(transactionData.clanId);
 
   await db.runTransaction(async (tx) => {
-    const [invoiceSnapshot, subscriptionSnapshot, clanSnapshot] = await Promise.all([
-      tx.get(invoiceRef),
-      tx.get(subscriptionRef),
-      tx.get(clanRef),
-    ]);
+    const [invoiceSnapshot, subscriptionSnapshot, clanSnapshot] =
+      await Promise.all([
+        tx.get(invoiceRef),
+        tx.get(subscriptionRef),
+        tx.get(clanRef),
+      ]);
 
     const existingSubscription = subscriptionSnapshot.exists
-      ? mapSubscription(subscriptionSnapshot.id, subscriptionSnapshot.data() ?? {}, {
-        fallbackClanId: transactionData.clanId,
-        fallbackOwnerUid: transactionData.subscriptionOwnerUid,
-      })
+      ? mapSubscription(
+          subscriptionSnapshot.id,
+          subscriptionSnapshot.data() ?? {},
+          {
+            fallbackClanId: transactionData.clanId,
+            fallbackOwnerUid: transactionData.subscriptionOwnerUid,
+          },
+        )
       : null;
 
     const transactionWrite: Record<string, unknown> = {
@@ -899,7 +949,7 @@ export async function applyPaymentResult({
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: actorUid,
     };
-    if (paymentStatus === 'succeeded') {
+    if (paymentStatus === "succeeded") {
       transactionWrite.paidAt = FieldValue.serverTimestamp();
       transactionWrite.failedAt = null;
     } else {
@@ -911,8 +961,9 @@ export async function applyPaymentResult({
       tx.set(
         invoiceRef,
         {
-          status: paymentStatus === 'succeeded' ? 'paid' : 'failed',
-          paidAt: paymentStatus === 'succeeded' ? FieldValue.serverTimestamp() : null,
+          status: paymentStatus === "succeeded" ? "paid" : "failed",
+          paidAt:
+            paymentStatus === "succeeded" ? FieldValue.serverTimestamp() : null,
           updatedAt: FieldValue.serverTimestamp(),
           updatedBy: actorUid,
         },
@@ -920,17 +971,18 @@ export async function applyPaymentResult({
       );
     }
 
-    if (paymentStatus === 'succeeded') {
+    if (paymentStatus === "succeeded") {
       const tier = resolveTierByPlanCode(transactionData.planCode);
-      const anchorStart = existingSubscription?.expiresAt != null &&
-          existingSubscription.expiresAt.getTime() > now.getTime()
-        ? existingSubscription.expiresAt
-        : now;
+      const anchorStart =
+        existingSubscription?.expiresAt != null &&
+        existingSubscription.expiresAt.getTime() > now.getTime()
+          ? existingSubscription.expiresAt
+          : now;
       const { startsAt, expiresAt } = computeRenewalWindow({
         now: anchorStart,
         years: 1,
       });
-      const paymentMode = existingSubscription?.paymentMode ?? 'manual';
+      const paymentMode = existingSubscription?.paymentMode ?? "manual";
       const autoRenew = existingSubscription?.autoRenew ?? false;
 
       tx.set(
@@ -940,7 +992,7 @@ export async function applyPaymentResult({
           clanId: transactionData.clanId,
           ownerUid: transactionData.subscriptionOwnerUid,
           planCode: tier.planCode,
-          status: 'active',
+          status: "active",
           memberCount: transactionData.memberCount,
           amountVndYear: tier.priceVndYear,
           vatIncluded: tier.vatIncluded,
@@ -965,14 +1017,15 @@ export async function applyPaymentResult({
       if (clanSnapshot.exists) {
         const clanData = clanSnapshot.data() ?? {};
         const currentClanStatus = normalizeClanStatus(clanData.status);
-        const billingLockReason = readString(clanData.billingLockReason, '');
-        const shouldReactivateClan = currentClanStatus === 'inactive' &&
-          billingLockReason === 'subscription_overdue';
+        const billingLockReason = readString(clanData.billingLockReason, "");
+        const shouldReactivateClan =
+          currentClanStatus === "inactive" &&
+          billingLockReason === "subscription_overdue";
         if (shouldReactivateClan) {
           tx.set(
             clanRef,
             {
-              status: 'active',
+              status: "active",
               billingLockReason: null,
               billingLockedAt: null,
               billingGraceEndsAt: null,
@@ -986,11 +1039,12 @@ export async function applyPaymentResult({
         }
       }
     } else {
-      const keepCurrentEntitlement = existingSubscription != null &&
+      const keepCurrentEntitlement =
+        existingSubscription != null &&
         isSubscriptionValidForUpgradeOnly(existingSubscription, now);
       const nextStatus = keepCurrentEntitlement
         ? existingSubscription!.status
-        : 'expired';
+        : "expired";
       tx.set(
         subscriptionRef,
         {
@@ -1007,8 +1061,9 @@ export async function applyPaymentResult({
       id: auditRef.id,
       clanId: transactionData.clanId,
       actorUid,
-      action: paymentStatus === 'succeeded' ? 'payment_succeeded' : 'payment_failed',
-      entityType: 'paymentTransaction',
+      action:
+        paymentStatus === "succeeded" ? "payment_succeeded" : "payment_failed",
+      entityType: "paymentTransaction",
       entityId: transactionData.id,
       before: {
         status: transactionData.paymentStatus,
@@ -1022,36 +1077,46 @@ export async function applyPaymentResult({
     });
   });
 
-  const [refreshedTransaction, refreshedSubscription, refreshedInvoice] = await Promise.all([
-    transactionsCollection.doc(transactionId).get(),
-    subscriptionsCollection.doc(transactionData.subscriptionId).get(),
-    invoicesCollection.doc(transactionData.invoiceId).get(),
-  ]);
+  const [refreshedTransaction, refreshedSubscription, refreshedInvoice] =
+    await Promise.all([
+      transactionsCollection.doc(transactionId).get(),
+      subscriptionsCollection.doc(transactionData.subscriptionId).get(),
+      invoicesCollection.doc(transactionData.invoiceId).get(),
+    ]);
 
   return {
     clanId: transactionData.clanId,
-    transaction: mapTransaction(transactionId, refreshedTransaction.data() ?? {}),
+    transaction: mapTransaction(
+      transactionId,
+      refreshedTransaction.data() ?? {},
+    ),
     invoice: refreshedInvoice.exists
       ? mapInvoice(refreshedInvoice.id, refreshedInvoice.data() ?? {})
       : null,
     subscription: refreshedSubscription.exists
-      ? mapSubscription(refreshedSubscription.id, refreshedSubscription.data() ?? {}, {
-        fallbackClanId: transactionData.clanId,
-        fallbackOwnerUid: transactionData.subscriptionOwnerUid,
-      })
+      ? mapSubscription(
+          refreshedSubscription.id,
+          refreshedSubscription.data() ?? {},
+          {
+            fallbackClanId: transactionData.clanId,
+            fallbackOwnerUid: transactionData.subscriptionOwnerUid,
+          },
+        )
       : null,
   };
 }
 
-export async function resolveBillingAudienceMemberIds(clanId: string): Promise<Array<string>> {
+export async function resolveBillingAudienceMemberIds(
+  clanId: string,
+): Promise<Array<string>> {
   const adminRoles = new Set([
-    'SUPER_ADMIN',
-    'CLAN_ADMIN',
-    'BRANCH_ADMIN',
-    'CLAN_OWNER',
-    'CLAN_LEADER',
-    'VICE_LEADER',
-    'SUPPORTER_OF_LEADER',
+    "SUPER_ADMIN",
+    "CLAN_ADMIN",
+    "BRANCH_ADMIN",
+    "CLAN_OWNER",
+    "CLAN_LEADER",
+    "VICE_LEADER",
+    "SUPPORTER_OF_LEADER",
   ]);
   const audienceMemberIds = new Set<string>();
   const queryPageSize = 500;
@@ -1060,7 +1125,7 @@ export async function resolveBillingAudienceMemberIds(clanId: string): Promise<A
 
   while (audienceMemberIds.size < maxAudience) {
     let query = membersCollection
-      .where('clanId', '==', clanId)
+      .where("clanId", "==", clanId)
       .limit(Math.min(queryPageSize, maxAudience - audienceMemberIds.size));
     if (cursor != null) {
       query = query.startAfter(cursor);
@@ -1072,7 +1137,7 @@ export async function resolveBillingAudienceMemberIds(clanId: string): Promise<A
     cursor = snapshot.docs[snapshot.docs.length - 1];
 
     for (const doc of snapshot.docs) {
-      const role = readString(doc.data().primaryRole, '').toUpperCase();
+      const role = readString(doc.data().primaryRole, "").toUpperCase();
       if (adminRoles.has(role)) {
         audienceMemberIds.add(doc.id);
       }
@@ -1086,7 +1151,7 @@ export async function resolveBillingAudienceMemberIds(clanId: string): Promise<A
   }
 
   if (audienceMemberIds.size >= maxAudience) {
-    logWarn('billing audience truncated to configured max', {
+    logWarn("billing audience truncated to configured max", {
       clanId,
       maxAudience,
     });
@@ -1142,7 +1207,9 @@ export function buildEntitlementFromSubscription(
   });
 }
 
-export function resolveTierByPlanCode(planCode: BillingPlanCode): BillingTierPricing {
+export function resolveTierByPlanCode(
+  planCode: BillingPlanCode,
+): BillingTierPricing {
   return resolveTierByPlanCodeFromPricing(planCode);
 }
 
@@ -1153,29 +1220,29 @@ function normalizeStatusForPlan({
   planCode: BillingPlanCode;
   currentStatus: SubscriptionStatus;
 }): SubscriptionStatus {
-  if (planCode === 'FREE') {
-    return 'active';
+  if (planCode === "FREE") {
+    return "active";
   }
-  if (currentStatus === 'active' || currentStatus === 'grace_period') {
+  if (currentStatus === "active" || currentStatus === "grace_period") {
     return currentStatus;
   }
-  if (currentStatus === 'pending_payment') {
+  if (currentStatus === "pending_payment") {
     return currentStatus;
   }
-  return 'expired';
+  return "expired";
 }
 
 function isSubscriptionValidForUpgradeOnly(
   subscription: BillingSubscriptionRecord,
   now: Date,
 ): boolean {
-  if (subscription.status === 'active') {
+  if (subscription.status === "active") {
     if (subscription.expiresAt == null) {
       return true;
     }
     return subscription.expiresAt.getTime() > now.getTime();
   }
-  if (subscription.status === 'grace_period') {
+  if (subscription.status === "grace_period") {
     if (subscription.graceEndsAt != null) {
       return subscription.graceEndsAt.getTime() > now.getTime();
     }
@@ -1191,24 +1258,28 @@ function canRenewCurrentPlan(
   subscription: BillingSubscriptionRecord,
   now: Date,
 ): boolean {
-  if (subscription.planCode === 'FREE') {
+  if (subscription.planCode === "FREE") {
     return false;
   }
-  if (subscription.status === 'expired' || subscription.status === 'grace_period') {
+  if (
+    subscription.status === "expired" ||
+    subscription.status === "grace_period"
+  ) {
     return true;
   }
-  if (subscription.status !== 'active') {
+  if (subscription.status !== "active") {
     return false;
   }
   if (subscription.expiresAt == null) {
     return false;
   }
-  const daysToExpire = (subscription.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  const daysToExpire =
+    (subscription.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
   return daysToExpire <= 30;
 }
 
 function isPendingPaymentStatus(status: PaymentStatus): boolean {
-  return status === 'pending' || status === 'created';
+  return status === "pending" || status === "created";
 }
 
 function seedSubscription({
@@ -1226,7 +1297,7 @@ function seedSubscription({
   settings: BillingSettingsRecord;
   now: Date;
 }): BillingSubscriptionRecord {
-  if (tier.planCode === 'FREE') {
+  if (tier.planCode === "FREE") {
     return createSubscriptionDraft({
       clanId,
       ownerUid,
@@ -1236,7 +1307,7 @@ function seedSubscription({
       autoRenew: settings.autoRenew,
       startsAt: now,
       expiresAt: null,
-      status: 'active',
+      status: "active",
       now,
     });
   }
@@ -1250,12 +1321,14 @@ function seedSubscription({
     autoRenew: settings.autoRenew,
     startsAt: null,
     expiresAt: now,
-    status: 'expired',
+    status: "expired",
     now,
   });
 }
 
-function toSubscriptionWriteMap(record: BillingSubscriptionRecord): Record<string, unknown> {
+function toSubscriptionWriteMap(
+  record: BillingSubscriptionRecord,
+): Record<string, unknown> {
   return {
     id: record.id,
     clanId: record.clanId,
@@ -1278,7 +1351,9 @@ function toSubscriptionWriteMap(record: BillingSubscriptionRecord): Record<strin
   };
 }
 
-function toTransactionWriteMap(record: BillingTransactionRecord): Record<string, unknown> {
+function toTransactionWriteMap(
+  record: BillingTransactionRecord,
+): Record<string, unknown> {
   return {
     id: record.id,
     clanId: record.clanId,
@@ -1299,7 +1374,9 @@ function toTransactionWriteMap(record: BillingTransactionRecord): Record<string,
   };
 }
 
-function toInvoiceWriteMap(record: BillingInvoiceRecord): Record<string, unknown> {
+function toInvoiceWriteMap(
+  record: BillingInvoiceRecord,
+): Record<string, unknown> {
   return {
     id: record.id,
     clanId: record.clanId,
@@ -1346,20 +1423,23 @@ function mapSubscription(
   };
 }
 
-function mapTransaction(id: string, data: Record<string, unknown>): BillingTransactionRecord {
+function mapTransaction(
+  id: string,
+  data: Record<string, unknown>,
+): BillingTransactionRecord {
   return {
     id,
-    clanId: readString(data.clanId, ''),
-    subscriptionOwnerUid: readString(data.subscriptionOwnerUid, ''),
-    subscriptionId: readString(data.subscriptionId, ''),
-    invoiceId: readString(data.invoiceId, ''),
+    clanId: readString(data.clanId, ""),
+    subscriptionOwnerUid: readString(data.subscriptionOwnerUid, ""),
+    subscriptionId: readString(data.subscriptionId, ""),
+    invoiceId: readString(data.invoiceId, ""),
     paymentMethod: normalizePaymentMethod(data.paymentMethod),
     paymentStatus: normalizePaymentStatus(data.paymentStatus),
     planCode: normalizePlanCode(data.planCode),
     memberCount: readNumber(data.memberCount, 0),
     amountVnd: readNumber(data.amountVnd, 0),
     vatIncluded: readBool(data.vatIncluded, true),
-    currency: readString(data.currency, 'VND'),
+    currency: readString(data.currency, "VND"),
     gatewayReference: nullableString(data.gatewayReference),
     gatewayPayloadHash: nullableString(data.gatewayPayloadHash),
     createdAt: readDate(data.createdAt),
@@ -1368,17 +1448,20 @@ function mapTransaction(id: string, data: Record<string, unknown>): BillingTrans
   };
 }
 
-function mapInvoice(id: string, data: Record<string, unknown>): BillingInvoiceRecord {
+function mapInvoice(
+  id: string,
+  data: Record<string, unknown>,
+): BillingInvoiceRecord {
   return {
     id,
-    clanId: readString(data.clanId, ''),
-    subscriptionOwnerUid: readString(data.subscriptionOwnerUid, ''),
-    subscriptionId: readString(data.subscriptionId, ''),
-    transactionId: readString(data.transactionId, ''),
+    clanId: readString(data.clanId, ""),
+    subscriptionOwnerUid: readString(data.subscriptionOwnerUid, ""),
+    subscriptionId: readString(data.subscriptionId, ""),
+    transactionId: readString(data.transactionId, ""),
     planCode: normalizePlanCode(data.planCode),
     amountVnd: readNumber(data.amountVnd, 0),
     vatIncluded: readBool(data.vatIncluded, true),
-    currency: readString(data.currency, 'VND'),
+    currency: readString(data.currency, "VND"),
     status: normalizeInvoiceStatus(data.status),
     periodStart: readDate(data.periodStart),
     periodEnd: readDate(data.periodEnd),
@@ -1387,7 +1470,9 @@ function mapInvoice(id: string, data: Record<string, unknown>): BillingInvoiceRe
   };
 }
 
-async function loadInvoice(invoiceId: string): Promise<BillingInvoiceRecord | null> {
+async function loadInvoice(
+  invoiceId: string,
+): Promise<BillingInvoiceRecord | null> {
   if (invoiceId.trim().length === 0) {
     return null;
   }
@@ -1399,97 +1484,94 @@ async function loadInvoice(invoiceId: string): Promise<BillingInvoiceRecord | nu
 }
 
 function normalizePlanCode(value: unknown): BillingPlanCode {
-  const normalized = readString(value, 'FREE').toUpperCase();
-  if (normalized === 'BASE' || normalized === 'PLUS' || normalized === 'PRO') {
+  const normalized = readString(value, "FREE").toUpperCase();
+  if (normalized === "BASE" || normalized === "PLUS" || normalized === "PRO") {
     return normalized;
   }
-  return 'FREE';
+  return "FREE";
 }
 
 function normalizeClanStatus(value: unknown): string {
-  const normalized = readString(value, 'active').toLowerCase();
+  const normalized = readString(value, "active").toLowerCase();
   if (normalized.length === 0) {
-    return 'active';
+    return "active";
   }
   return normalized;
 }
 
 function normalizeSubscriptionStatusCode(value: unknown): SubscriptionStatus {
-  const normalized = readString(value, 'expired').toLowerCase();
+  const normalized = readString(value, "expired").toLowerCase();
   switch (normalized) {
-    case 'active':
-      return 'active';
-    case 'grace_period':
-      return 'grace_period';
-    case 'pending_payment':
-      return 'pending_payment';
-    case 'canceled':
-      return 'canceled';
+    case "active":
+      return "active";
+    case "grace_period":
+      return "grace_period";
+    case "pending_payment":
+      return "pending_payment";
+    case "canceled":
+      return "canceled";
     default:
-      return 'expired';
+      return "expired";
   }
 }
 
 function normalizePaymentMode(value: unknown): PaymentMode {
-  return readString(value, 'manual').toLowerCase() === 'auto_renew'
-    ? 'auto_renew'
-    : 'manual';
+  return readString(value, "manual").toLowerCase() === "auto_renew"
+    ? "auto_renew"
+    : "manual";
 }
 
 function normalizePaymentMethod(value: unknown): PaymentMethod {
-  const normalized = readString(value, 'card').toLowerCase();
-  if (normalized === 'apple_iap') {
-    return 'apple_iap';
+  const normalized = readString(value, "card").toLowerCase();
+  if (normalized === "apple_iap") {
+    return "apple_iap";
   }
-  if (normalized === 'google_play') {
-    return 'google_play';
+  if (normalized === "google_play") {
+    return "google_play";
   }
-  return 'card';
+  return "card";
 }
 
 function normalizePaymentStatus(value: unknown): PaymentStatus {
-  const normalized = readString(value, 'created').toLowerCase();
+  const normalized = readString(value, "created").toLowerCase();
   switch (normalized) {
-    case 'pending':
-      return 'pending';
-    case 'succeeded':
-      return 'succeeded';
-    case 'failed':
-      return 'failed';
-    case 'canceled':
-      return 'canceled';
+    case "pending":
+      return "pending";
+    case "succeeded":
+      return "succeeded";
+    case "failed":
+      return "failed";
+    case "canceled":
+      return "canceled";
     default:
-      return 'created';
+      return "created";
   }
 }
 
 function normalizeInvoiceStatus(
   value: unknown,
-): BillingInvoiceRecord['status'] {
-  const normalized = readString(value, 'issued').toLowerCase();
+): BillingInvoiceRecord["status"] {
+  const normalized = readString(value, "issued").toLowerCase();
   switch (normalized) {
-    case 'paid':
-      return 'paid';
-    case 'failed':
-      return 'failed';
-    case 'void':
-      return 'void';
+    case "paid":
+      return "paid";
+    case "failed":
+      return "failed";
+    case "void":
+      return "void";
     default:
-      return 'issued';
+      return "issued";
   }
 }
 
 function normalizeReminderDays(value: unknown): Array<number> {
-  const fallback = [30, 14, 7, 3, 1];
+  const fallback = [5, 4, 3, 2, 1];
   if (!Array.isArray(value)) {
     return fallback;
   }
   const values = value
-    .map((item) => (typeof item === 'number' ? Math.trunc(item) : Number.NaN))
+    .map((item) => (typeof item === "number" ? Math.trunc(item) : Number.NaN))
     .filter((item) => Number.isFinite(item) && item > 0 && item <= 60);
-  if (values.length === 0) {
-    return fallback;
-  }
   return [...new Set(values)].sort((left, right) => right - left);
 }
 
@@ -1504,10 +1586,10 @@ function readDate(value: unknown): NullableDate {
     return value;
   }
   if (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value != null &&
-    'toDate' in value &&
-    typeof (value as { toDate?: unknown }).toDate === 'function'
+    "toDate" in value &&
+    typeof (value as { toDate?: unknown }).toDate === "function"
   ) {
     try {
       return (value as { toDate: () => Date }).toDate();
@@ -1515,7 +1597,7 @@ function readDate(value: unknown): NullableDate {
       return null;
     }
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) {
       return parsed;
@@ -1525,13 +1607,13 @@ function readDate(value: unknown): NullableDate {
 }
 
 function readString(value: unknown, fallback: string): string {
-  return typeof value === 'string' && value.trim().length > 0
+  return typeof value === "string" && value.trim().length > 0
     ? value.trim()
     : fallback;
 }
 
 function nullableString(value: unknown): string | null {
-  if (typeof value !== 'string') {
+  if (typeof value !== "string") {
     return null;
   }
   const trimmed = value.trim();
@@ -1539,10 +1621,10 @@ function nullableString(value: unknown): string | null {
 }
 
 function readNumber(value: unknown, fallback: number): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isFinite(value)) {
     return Math.trunc(value);
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) {
       return Math.trunc(parsed);
@@ -1552,7 +1634,7 @@ function readNumber(value: unknown, fallback: number): number {
 }
 
 function readBool(value: unknown, fallback: boolean): boolean {
-  return typeof value === 'boolean' ? value : fallback;
+  return typeof value === "boolean" ? value : fallback;
 }
 
 function sanitizeWebhookPayload(
@@ -1570,7 +1652,11 @@ function sanitizeWebhookPayload(
 }
 
 function sanitizeWebhookPayloadValue(value: unknown, depth: number): unknown {
-  if (value == null || typeof value === 'number' || typeof value === 'boolean') {
+  if (
+    value == null ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
     return value;
   }
   if (value instanceof Date) {
@@ -1579,22 +1665,23 @@ function sanitizeWebhookPayloadValue(value: unknown, depth: number): unknown {
   if (value instanceof Timestamp) {
     return value.toDate().toISOString();
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     return value.length <= WEBHOOK_PAYLOAD_MAX_STRING_LENGTH
       ? value
       : `${value.slice(0, WEBHOOK_PAYLOAD_MAX_STRING_LENGTH)}...`;
   }
   if (depth >= WEBHOOK_PAYLOAD_MAX_DEPTH) {
-    return '[redacted-depth]';
+    return "[redacted-depth]";
   }
   if (Array.isArray(value)) {
     return value
       .slice(0, WEBHOOK_PAYLOAD_MAX_ARRAY_ITEMS)
       .map((item) => sanitizeWebhookPayloadValue(item, depth + 1));
   }
-  if (typeof value === 'object') {
-    const nestedEntries = Object.entries(value as Record<string, unknown>)
-      .slice(0, WEBHOOK_PAYLOAD_MAX_KEYS);
+  if (typeof value === "object") {
+    const nestedEntries = Object.entries(
+      value as Record<string, unknown>,
+    ).slice(0, WEBHOOK_PAYLOAD_MAX_KEYS);
     const nested: Record<string, unknown> = {};
     for (const [nestedKey, nestedValue] of nestedEntries) {
       if (WEBHOOK_PAYLOAD_BLOCKLIST_KEY_PATTERN.test(nestedKey)) {

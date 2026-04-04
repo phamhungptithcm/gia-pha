@@ -1,12 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
-import {
-  APP_REGION,
-  CALLABLE_ENFORCE_APP_CHECK,
-} from "../config/runtime";
-import {
-  loadBillingRuntimeConfig,
-} from "../config/runtime-overrides";
+import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from "../config/runtime";
+import { loadBillingRuntimeConfig } from "../config/runtime-overrides";
 import {
   applyPaymentResult,
   cancelStalePendingTransactionsRun,
@@ -213,10 +208,7 @@ async function resolveClanBillingScopeMetadata(
   const data = snapshot.data() ?? {};
   const ownerUid = normalizeString(data.ownerUid);
   if (ownerUid.length == 0) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Clan owner is missing.",
-    );
+    throw new HttpsError("failed-precondition", "Clan owner is missing.");
   }
 
   let ownerDisplayName = normalizeString(data.founderName);
@@ -390,17 +382,15 @@ export const updateBillingPreferences = onCall(
       actorUid: auth.uid,
     });
 
-    await subscriptionsCollection
-      .doc(ownerBillingDocId(scope.ownerUid))
-      .set(
-        {
-          paymentMode: settings.paymentMode,
-          autoRenew: settings.autoRenew,
-          updatedAt: new Date(),
-          updatedBy: auth.uid,
-        },
-        { merge: true },
-      );
+    await subscriptionsCollection.doc(ownerBillingDocId(scope.ownerUid)).set(
+      {
+        paymentMode: settings.paymentMode,
+        autoRenew: settings.autoRenew,
+        updatedAt: new Date(),
+        updatedBy: auth.uid,
+      },
+      { merge: true },
+    );
 
     await writeBillingAuditLog({
       clanId: scope.clanId,
@@ -432,9 +422,7 @@ export const verifyInAppPurchase = onCall(
       requireManageRole: true,
     });
 
-    const platform = normalizeIapPlatform(
-      readString(request.data, "platform"),
-    );
+    const platform = normalizeIapPlatform(readString(request.data, "platform"));
     const payload = readRecord(request.data, "payload");
     if (payload == null) {
       throw new HttpsError(
@@ -458,10 +446,7 @@ export const verifyInAppPurchase = onCall(
     const productPlanCode =
       resolvePlanCodeForIapProductId(verifiedPurchase.productId, platform) ??
       verifiedPurchase.planCode;
-    if (
-      requestedPlanCode != null &&
-      requestedPlanCode !== productPlanCode
-    ) {
+    if (requestedPlanCode != null && requestedPlanCode !== productPlanCode) {
       throw new HttpsError(
         "invalid-argument",
         `Requested plan ${requestedPlanCode} does not match purchased product ${verifiedPurchase.productId}.`,
@@ -751,7 +736,8 @@ async function upsertUserIapEntitlementSnapshot({
 }): Promise<void> {
   const tier = resolveTierByPlanCode(planCode);
   const maxClanMembers = tier.maxMembers ?? 999999;
-  const adFree = readTruthy(entitlement.adFree) || !readTruthy(entitlement.showAds);
+  const adFree =
+    readTruthy(entitlement.adFree) || !readTruthy(entitlement.showAds);
   await usersCollection.doc(uid).set(
     {
       subscription: {
@@ -818,9 +804,6 @@ function readReminderDays(data: unknown): Array<number> | undefined {
       typeof value === "number" ? Math.trunc(value) : Number.NaN,
     )
     .filter((value) => Number.isFinite(value) && value > 0 && value <= 60);
-  if (normalized.length === 0) {
-    return undefined;
-  }
   return [...new Set(normalized)].sort((left, right) => right - left);
 }
 
@@ -881,7 +864,9 @@ function normalizeStoreProcessingErrorCode(error: unknown): string {
 
 function normalizeStoreProcessingErrorMessage(error: unknown): string {
   if (error instanceof HttpsError) {
-    return normalizeString(error.message) || "Store transaction processing failed.";
+    return (
+      normalizeString(error.message) || "Store transaction processing failed."
+    );
   }
   return "Store transaction processing failed.";
 }
@@ -980,7 +965,9 @@ function buildCheckoutFlowConfig(): Record<string, unknown> {
     Record<string, string>
   > = {};
   const configuredStoreProducts = resolveStoreProductIdsByPlan();
-  for (const [planCode, platformProducts] of Object.entries(configuredStoreProducts)) {
+  for (const [planCode, platformProducts] of Object.entries(
+    configuredStoreProducts,
+  )) {
     const normalizedPlanCode = normalizeString(planCode).toUpperCase();
     if (
       normalizedPlanCode.length === 0 ||

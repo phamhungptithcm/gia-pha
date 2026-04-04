@@ -40,12 +40,15 @@ class BillingWorkspacePage extends StatefulWidget {
 }
 
 class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
+  static const List<int> _defaultRenewalReminderDays = [5, 4, 3, 2, 1];
+
   late final BillingController _controller;
   late final StoreIapGateway _storeIapGateway;
   String? _paymentModeDraft;
   String? _selectedPlanCodeDraft;
   bool _autoRenewDraft = false;
-  Set<int> _reminderDaysDraft = {30, 14, 7, 3, 1};
+  bool _renewalReminderEnabledDraft = true;
+  Set<int> _reminderDaysDraft = _defaultRenewalReminderDays.toSet();
   String? _draftSeedKey;
   bool _showPreferencesSavedInline = false;
   String _pricingTierCacheKey = '';
@@ -286,15 +289,19 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
   Future<void> _savePreferences() async {
     final mode =
         _paymentModeDraft ?? (_autoRenewDraft ? 'auto_renew' : 'manual');
+    final reminderDaysBefore = _renewalReminderEnabledDraft
+        ? _defaultRenewalReminderDays
+        : const <int>[];
     await _controller.updatePreferences(
       paymentMode: mode,
       autoRenew: _autoRenewDraft,
-      reminderDaysBefore: _reminderDaysDraft.toList(growable: false),
+      reminderDaysBefore: reminderDaysBefore,
     );
     if (!mounted || _controller.errorMessage != null) {
       return;
     }
     setState(() {
+      _reminderDaysDraft = reminderDaysBefore.toSet();
       _showPreferencesSavedInline = true;
     });
   }
@@ -495,7 +502,10 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     _paymentModeDraft = settings.paymentMode;
     _selectedPlanCodeDraft = defaultPlanCode;
     _autoRenewDraft = settings.autoRenew;
-    _reminderDaysDraft = settings.reminderDaysBefore.toSet();
+    _renewalReminderEnabledDraft = settings.reminderDaysBefore.isNotEmpty;
+    _reminderDaysDraft = _renewalReminderEnabledDraft
+        ? _defaultRenewalReminderDays.toSet()
+        : <int>{};
   }
 
   @override
@@ -658,9 +668,9 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     final checkoutActionIcon = useStoreCheckout
         ? Icons.shopping_bag_outlined
         : Icons.account_balance_wallet_outlined;
-    final renewalAutomationDescription = l10n.pick(
-      vi: 'BeFam sẽ nhắc trước hạn và mở nhanh luồng gia hạn khi cần.',
-      en: 'BeFam reminds you before expiry and opens the renewal flow when needed.',
+    final renewalReminderDescription = l10n.pick(
+      vi: 'Bật lên để BeFam gửi push mỗi ngày trong 5 ngày cuối trước khi gói hết hạn.',
+      en: 'Turn this on so BeFam sends a push each day during the final 5 days before your plan expires.',
     );
 
     return RefreshIndicator(
@@ -1029,53 +1039,68 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: l10n.pick(
-                vi: 'Gia hạn & nhắc hạn',
-                en: 'Renewal & reminders',
-              ),
+              title: l10n.pick(vi: 'Nhắc gia hạn', en: 'Renewal reminders'),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Semantics(
                     container: true,
                     label: l10n.pick(
-                      vi: 'Công tắc bật tự động gia hạn',
-                      en: 'Auto-renew switch',
+                      vi: 'Công tắc bật tự động nhắc gia hạn',
+                      en: 'Renewal reminder switch',
                     ),
-                    hint: renewalAutomationDescription,
-                    toggled: _autoRenewDraft,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 4),
+                    hint: renewalReminderDescription,
+                    toggled: _renewalReminderEnabledDraft,
+                    child: AppWorkspaceSurface(
+                      color: colorScheme.surfaceContainerLowest.withValues(
+                        alpha: 0.82,
+                      ),
+                      padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: colorScheme.secondaryContainer.withValues(
+                                alpha: 0.88,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.notifications_active_outlined,
+                              color: colorScheme.onSecondaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   l10n.pick(
-                                    vi: 'Tự động gia hạn',
-                                    en: 'Auto-renew',
+                                    vi: 'Tự động nhắc gia hạn',
+                                    en: 'Automatic renewal reminders',
                                   ),
                                   style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w800,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  renewalAutomationDescription,
-                                  style: theme.textTheme.bodySmall,
+                                  renewalReminderDescription,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                    height: 1.35,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          height: 48,
-                          child: Switch.adaptive(
-                            value: _autoRenewDraft,
+                          const SizedBox(width: 10),
+                          Switch.adaptive(
+                            value: _renewalReminderEnabledDraft,
                             activeThumbColor: colorScheme.onPrimaryContainer,
                             activeTrackColor: colorScheme.primaryContainer,
                             inactiveThumbColor: colorScheme.onSurface,
@@ -1084,98 +1109,34 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                             onChanged: canManage
                                 ? (value) {
                                     setState(() {
-                                      _autoRenewDraft = value;
-                                      _paymentModeDraft = value
-                                          ? 'auto_renew'
-                                          : 'manual';
+                                      _renewalReminderEnabledDraft = value;
+                                      _reminderDaysDraft = value
+                                          ? _defaultRenewalReminderDays.toSet()
+                                          : <int>{};
                                       _showPreferencesSavedInline = false;
                                     });
                                   }
                                 : null,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    l10n.pick(vi: 'Nhắc trước hạn', en: 'Reminder schedule'),
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+                    _renewalReminderEnabledDraft
+                        ? l10n.pick(
+                            vi: 'BeFam sẽ gửi push nhắc gia hạn mỗi ngày từ 5 ngày trước khi hết hạn.',
+                            en: 'BeFam will send a renewal push every day starting 5 days before expiry.',
+                          )
+                        : l10n.pick(
+                            vi: 'Tắt để dừng toàn bộ push nhắc gia hạn tự động.',
+                            en: 'Turn this off to stop automatic renewal reminder pushes.',
+                          ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      height: 1.35,
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (!_autoRenewDraft)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Text(
-                        l10n.pick(
-                          vi: 'Bạn vẫn nhận nhắc để gia hạn thủ công.',
-                          en: 'You will still receive reminders for manual renewal.',
-                        ),
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final day in const [1, 3, 7, 14, 30])
-                        Builder(
-                          builder: (context) {
-                            final isSelected = _reminderDaysDraft.contains(day);
-                            return Semantics(
-                              button: true,
-                              selected: isSelected,
-                              label: l10n.pick(
-                                vi: 'Nhắc trước hạn $day ngày',
-                                en: '$day-day reminder',
-                              ),
-                              child: FilterChip(
-                                key: Key('billing-reminder-chip-$day'),
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.padded,
-                                showCheckmark: isSelected,
-                                checkmarkColor:
-                                    colorScheme.onSecondaryContainer,
-                                side: BorderSide(
-                                  color: isSelected
-                                      ? colorScheme.secondaryContainer
-                                      : colorScheme.outline,
-                                ),
-                                backgroundColor: colorScheme.surface,
-                                selectedColor: colorScheme.secondaryContainer,
-                                labelStyle: theme.textTheme.titleSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w700,
-                                      color: isSelected
-                                          ? colorScheme.onSecondaryContainer
-                                          : colorScheme.onSurface,
-                                    ),
-                                label: Text(
-                                  l10n.pick(vi: '$day ngày', en: '$day days'),
-                                ),
-                                selected: isSelected,
-                                onSelected: canManage
-                                    ? (selected) {
-                                        setState(() {
-                                          if (selected) {
-                                            _reminderDaysDraft.add(day);
-                                          } else {
-                                            _reminderDaysDraft.remove(day);
-                                          }
-                                          if (_reminderDaysDraft.isEmpty) {
-                                            _reminderDaysDraft = {7, 1};
-                                          }
-                                          _showPreferencesSavedInline = false;
-                                        });
-                                      }
-                                    : null,
-                              ),
-                            );
-                          },
-                        ),
-                    ],
                   ),
                   const SizedBox(height: 12),
                   Semantics(

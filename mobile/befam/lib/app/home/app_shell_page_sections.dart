@@ -3226,11 +3226,28 @@ class _NearbySpotlightCard extends StatelessWidget {
                 SizedBox(width: tokens.spaceSm),
               ],
               Expanded(
-                child: FilledButton.icon(
+                child: FilledButton(
                   onPressed: onOpenList,
-                  icon: const Icon(Icons.radar_outlined),
-                  label: Text(
-                    context.l10n.pick(vi: 'Xem quanh bạn', en: 'View nearby'),
+                  style: FilledButton.styleFrom(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: tokens.spaceSm,
+                      vertical: 0,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.radar_outlined, size: 18),
+                      SizedBox(width: tokens.spaceXs),
+                      Flexible(
+                        child: Text(
+                          context.l10n.pick(vi: 'Xem quanh', en: 'View nearby'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
