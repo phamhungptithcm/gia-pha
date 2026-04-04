@@ -504,7 +504,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     _autoRenewDraft = settings.autoRenew;
     _renewalReminderEnabledDraft = settings.reminderDaysBefore.isNotEmpty;
     _reminderDaysDraft = _renewalReminderEnabledDraft
-        ? _defaultRenewalReminderDays.toSet()
+        ? settings.reminderDaysBefore.toSet()
         : <int>{};
   }
 

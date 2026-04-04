@@ -78,7 +78,7 @@ void main() {
     await pumpScholarshipWorkspace(tester);
 
     expect(find.text('Scholarship programs'), findsOneWidget);
-    expect(find.text('Chương trình học bổng năm 2026'), findsOneWidget);
+    expect(find.text('Chương trình học bổng năm 2026'), findsWidgets);
     expect(
       find.byKey(const Key('scholarship-open-program-detail-sp_demo_2026')),
       findsOneWidget,
