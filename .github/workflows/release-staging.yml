@@ -229,6 +229,10 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ env.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          android_test_admob_app_id="ca-app-pub-3940256099942544~3347511713"
+          android_test_banner_unit_id="ca-app-pub-3940256099942544/6300978111"
+          android_test_interstitial_unit_id="ca-app-pub-3940256099942544/1033173712"
+          android_test_rewarded_unit_id="ca-app-pub-3940256099942544/5224354917"
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
@@ -243,6 +247,8 @@ jobs:
             echo "::error::Staging release builds must use BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
             exit 1
           fi
+          export ANDROID_ADMOB_APPLICATION_ID="$android_test_admob_app_id"
+          export ALLOW_TEST_ADMOB_APP_IDS="true"
           required_android_keys=(
             BEFAM_FIREBASE_PROJECT_ID
             BEFAM_FIREBASE_ANDROID_API_KEY
@@ -274,7 +280,19 @@ jobs:
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
             BEFAM_IOS_APP_STORE_URL
             BEFAM_ANDROID_PLAY_STORE_URL
+            BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID
+            BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID
+            BEFAM_ADMOB_IOS_BANNER_UNIT_ID
+            BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
           )
+          : "${BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID:=$android_test_banner_unit_id}"
+          : "${BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID:=$android_test_interstitial_unit_id}"
+          : "${BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID:=$android_test_rewarded_unit_id}"
+          : "${BEFAM_ADMOB_IOS_BANNER_UNIT_ID:=ca-app-pub-3940256099942544/2934735716}"
+          : "${BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID:=ca-app-pub-3940256099942544/4411468910}"
+          : "${BEFAM_ADMOB_IOS_REWARDED_UNIT_ID:=ca-app-pub-3940256099942544/1712485313}"
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
             value="${!key:-}"
@@ -454,6 +472,7 @@ jobs:
           IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
           set -euo pipefail
+          ios_test_admob_app_id="ca-app-pub-3940256099942544~1458002511"
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
@@ -468,6 +487,7 @@ jobs:
             echo "::error::Staging release builds must use BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
             exit 1
           fi
+          export ADMOB_APPLICATION_ID="$ios_test_admob_app_id"
           required_ios_keys=(
             BEFAM_FIREBASE_PROJECT_ID
             BEFAM_FIREBASE_IOS_API_KEY
@@ -500,7 +520,19 @@ jobs:
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
             BEFAM_IOS_APP_STORE_URL
             BEFAM_ANDROID_PLAY_STORE_URL
+            BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID
+            BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID
+            BEFAM_ADMOB_IOS_BANNER_UNIT_ID
+            BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
           )
+          : "${BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID:=ca-app-pub-3940256099942544/6300978111}"
+          : "${BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID:=ca-app-pub-3940256099942544/1033173712}"
+          : "${BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID:=ca-app-pub-3940256099942544/5224354917}"
+          : "${BEFAM_ADMOB_IOS_BANNER_UNIT_ID:=ca-app-pub-3940256099942544/2934735716}"
+          : "${BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID:=ca-app-pub-3940256099942544/4411468910}"
+          : "${BEFAM_ADMOB_IOS_REWARDED_UNIT_ID:=ca-app-pub-3940256099942544/1712485313}"
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
             value="${!key:-}"

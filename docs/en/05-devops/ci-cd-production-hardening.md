@@ -5,7 +5,7 @@ This document describes the production-safe CI/CD model used by BeFam.
 ## Release Branch Model
 
 - `staging`: integration branch, used for pre-production validation.
-- `main`: production release branch.
+- `main`: release-ready branch used to produce the candidate that can be promoted to production.
 - Promotion path: `staging -> main` via pull request only.
 
 ## Required Protection Policies
@@ -60,11 +60,11 @@ For both `staging` and `main` rulesets:
 
 ### 3) Production Deployment
 
-1. `CD - Deploy Firebase (Production)` runs after successful `CD - Release Main`.
-2. `CD - Deploy Web Hosting (Production)` runs after successful
-   `CD - Deploy Firebase (Production)`.
+1. `CD - Release Main` publishes the immutable release tag and assets.
+2. `CD - Deploy Firebase (Production)` is triggered manually with the selected `release_tag`.
+3. `CD - Deploy Web Hosting (Production)` is triggered manually with the same `release_tag` after Firebase deploy is verified.
 
-This ensures ordered, non-fragmented deployment.
+This keeps release creation and production promotion decoupled, reviewable, and rollback-friendly.
 
 ## Rollback
 

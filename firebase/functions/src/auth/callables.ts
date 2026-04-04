@@ -219,6 +219,8 @@ type UserSessionProfileRecord = {
   accessMode?: string | null;
   linkedAuthUid?: boolean | null;
   normalizedPhone?: string | null;
+  phoneE164?: string | null;
+  displayName?: string | null;
 };
 
 type TrustedDeviceRecord = {
@@ -261,6 +263,9 @@ const invitesCollection = db.collection("invites");
 const auditLogsCollection = db.collection("auditLogs");
 const authEventLogsCollection = db.collection("authEventLogs");
 const usersCollection = db.collection("users");
+const accountDeletionRequestsCollection = db.collection(
+  "accountDeletionRequests",
+);
 const genealogyDiscoveryCollection = db.collection("genealogyDiscoveryIndex");
 const authRateLimitsCollection = db.collection("authRateLimits");
 const trustedDevicesCollection = db.collection("trustedDevices");
@@ -2321,6 +2326,121 @@ export const sendSelfTestEventReminder = onCall(
       sentCount: dispatchStatus === "sent" ? 1 : 0,
       dispatchStatus,
       remindersSent: reminderRun.remindersSent,
+    };
+  },
+);
+
+export const getAccountDeletionRequestStatus = onCall(
+  APP_CHECK_CALLABLE_OPTIONS,
+  async (request) => {
+    const auth = requireAuth(request);
+    const snapshot = await accountDeletionRequestsCollection.doc(auth.uid).get();
+    return serializeAccountDeletionRequestStatus(snapshot);
+  },
+);
+
+export const submitAccountDeletionRequest = onCall(
+  APP_CHECK_CALLABLE_OPTIONS,
+  async (request) => {
+    const auth = requireAuth(request);
+    const requestRef = accountDeletionRequestsCollection.doc(auth.uid);
+    const existingSnapshot = await requestRef.get();
+    const existingStatus = normalizeAccountDeletionRequestStatus(
+      optionalString(existingSnapshot.data(), "status"),
+    );
+
+    if (
+      existingStatus === "pending" ||
+      existingStatus === "processing" ||
+      existingStatus === "completed"
+    ) {
+      return serializeAccountDeletionRequestStatus(existingSnapshot);
+    }
+
+    const authUser = await getAuth()
+      .getUser(auth.uid)
+      .catch(() => null);
+    const authToken = auth.token as Record<string, unknown>;
+    const userSnapshot = await usersCollection.doc(auth.uid).get();
+    const userData = userSnapshot.data() as UserSessionProfileRecord | undefined;
+    const memberId =
+      optionalString(authToken, "memberId")?.trim() ??
+      optionalTrimmedRecordString(userData?.memberId) ??
+      null;
+    const clanId =
+      optionalString(authToken, "clanId")?.trim() ??
+      optionalTrimmedRecordString(userData?.clanId) ??
+      null;
+    const branchId =
+      optionalString(authToken, "branchId")?.trim() ??
+      optionalTrimmedRecordString(userData?.branchId) ??
+      null;
+    const note = sanitizeAccountDeletionRequestNote(
+      optionalString(request.data, "note"),
+    );
+    const requestedAtIso = new Date().toISOString();
+
+    await requestRef.set(
+      {
+        uid: auth.uid,
+        status: "pending",
+        phoneE164:
+          authUser?.phoneNumber ??
+          optionalTrimmedRecordString(userData?.phoneE164) ??
+          optionalTrimmedRecordString(userData?.normalizedPhone) ??
+          null,
+        displayName:
+          authUser?.displayName ??
+          optionalTrimmedRecordString(userData?.displayName) ??
+          optionalString(authToken, "name")?.trim() ??
+          null,
+        memberId,
+        clanId,
+        branchId,
+        requestedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        source: "mobile_in_app",
+        appId: request.app?.appId ?? null,
+        note,
+      },
+      { merge: true },
+    );
+
+    await usersCollection.doc(auth.uid).set(
+      {
+        accountDeletionStatus: "pending",
+        accountDeletionRequestedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    await writeAuditLog({
+      uid: auth.uid,
+      memberId,
+      clanId,
+      action: "account_deletion_requested",
+      entityType: "user",
+      entityId: auth.uid,
+      after: {
+        status: "pending",
+        source: "mobile_in_app",
+        requestedAtIso,
+      },
+    });
+
+    logInfo("submitAccountDeletionRequest completed", {
+      uid: auth.uid,
+      memberId,
+      clanId,
+      branchId,
+      requestedAtIso,
+      appId: request.app?.appId ?? null,
+    });
+
+    return {
+      status: "pending",
+      requestedAtIso,
     };
   },
 );
@@ -5321,6 +5441,67 @@ function sanitizeSelfTestText(
     return normalized;
   }
   return normalized.substring(0, maxLength).trimEnd();
+}
+
+function sanitizeAccountDeletionRequestNote(
+  value: string | null | undefined,
+): string | null {
+  const normalized = value?.replace(/\s+/g, " ").trim() ?? "";
+  if (normalized.length === 0) {
+    return null;
+  }
+  if (normalized.length <= 320) {
+    return normalized;
+  }
+  return normalized.substring(0, 320).trimEnd();
+}
+
+function serializeAccountDeletionRequestStatus(
+  snapshot: DocumentSnapshot,
+): {
+  status: "not_requested" | "pending" | "processing" | "completed";
+  requestedAtIso: string | null;
+} {
+  if (!snapshot.exists) {
+    return {
+      status: "not_requested",
+      requestedAtIso: null,
+    };
+  }
+
+  const data = snapshot.data() as Record<string, unknown> | undefined;
+  return {
+    status: normalizeAccountDeletionRequestStatus(optionalString(data, "status")),
+    requestedAtIso: timestampToIso(optionalTimestamp(data, "requestedAt")),
+  };
+}
+
+function normalizeAccountDeletionRequestStatus(
+  value: string | null | undefined,
+): "not_requested" | "pending" | "processing" | "completed" {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  switch (normalized) {
+    case "pending":
+      return "pending";
+    case "processing":
+      return "processing";
+    case "completed":
+      return "completed";
+    default:
+      return "not_requested";
+  }
+}
+
+function optionalTimestamp(
+  record: Record<string, unknown> | undefined,
+  key: string,
+): Timestamp | null {
+  const value = record?.[key];
+  return value instanceof Timestamp ? value : null;
+}
+
+function timestampToIso(value: Timestamp | null | undefined): string | null {
+  return value == null ? null : value.toDate().toISOString();
 }
 
 function buildSelfTestEventReminderDispatchId(input: {

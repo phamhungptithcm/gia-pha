@@ -16,6 +16,21 @@
     <priority>0.9</priority>
   </url>
   <url>
+    <loc>__BEFAM_WEB_BASE_URL__/privacy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>__BEFAM_WEB_BASE_URL__/terms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>__BEFAM_WEB_BASE_URL__/account-deletion</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>__BEFAM_WEB_BASE_URL__/app</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

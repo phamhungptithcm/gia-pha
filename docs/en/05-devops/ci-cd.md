@@ -11,7 +11,7 @@ BeFam uses a protected promotion model:
 
 ### `branch-ci.yml` (`CI - Branch Quality Gates`)
 Runs on:
-- pushes to `staging` and `main`
+- pushes to every branch
 
 Checks:
 - docs build and rules-doc validation
@@ -21,7 +21,7 @@ Checks:
 - dependency review + Trivy + gitleaks + image vulnerability scanning
 
 ### `mobile-e2e.yml` + `mobile-e2e-ios.yml`
-Run Android/iOS smoke E2E on pushes to `staging` and `main`, plus manual dispatch.
+Run Android/iOS smoke E2E on pushes to every branch, plus manual dispatch.
 The jobs self-skip when the push does not touch mobile or E2E-related files.
 
 ### `mobile-e2e-deep.yml` (`CI - Mobile E2E Deep`)
@@ -42,17 +42,17 @@ Manual `workflow_dispatch` to build signed staging mobile artifacts for store te
 This workflow does not create a release tag and does not publish a GitHub Release.
 
 ### `release-main.yml` (`CD - Release Main`)
-Builds release artifacts, signs mobile binaries, publishes immutable release assets, checksums, and release manifest.
+Builds release-ready artifacts, signs mobile binaries, publishes immutable release assets, checksums, and the release manifest.
 Branch guard: main only.
 
 ### `deploy-firebase.yml` (`CD - Deploy Firebase (Production)`)
-Builds/deploys Firestore rules, indexes, storage rules, and Functions.
+Manual `workflow_dispatch` that promotes a selected `release-main` tag to production Firestore rules, indexes, Storage rules, and Functions.
 Also writes runtime `.env.<projectId>` and syncs non-secret runtime overrides.
-Branch guard: main only.
+Input guard: `release_tag` must point to a GitHub Release produced from `main`.
 
 ### `deploy-web-hosting.yml` (`CD - Deploy Web Hosting (Production)`)
-Deploys production hosting from the immutable web bundle attached to the release.
-Branch guard: main only.
+Manual `workflow_dispatch` that promotes the immutable web bundle attached to a selected `release-main` tag.
+Input guard: `release_tag` must point to a GitHub Release produced from `main`.
 
 ### `rollback-production.yml` (`CD - Rollback Production`)
 Restores production Firebase/Hosting to a selected release tag.
@@ -69,6 +69,14 @@ Required vars:
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_FUNCTIONS_REGION`
 - `APP_TIMEZONE`
+- `BEFAM_ADMOB_ANDROID_APP_ID`
+- `BEFAM_ADMOB_IOS_APP_ID`
+- `BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID`
+- `BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID`
+- `BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID`
+- `BEFAM_ADMOB_IOS_BANNER_UNIT_ID`
+- `BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID`
+- `BEFAM_ADMOB_IOS_REWARDED_UNIT_ID`
 
 Required production secrets:
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`

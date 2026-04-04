@@ -150,7 +150,9 @@ Interactive wizard example:
 
 - Web deployment workflow: `.github/workflows/deploy-web-hosting.yml`
   - `staging` pushes deploy to Firebase Hosting preview channel (default: `staging`)
-  - `main` pushes deploy to Firebase Hosting production
+  - production hosting deploy is a manual promote from a `release-main` tag
+- Firebase production workflow: `.github/workflows/deploy-firebase.yml`
+  - production Firebase deploy is a manual promote from a `release-main` tag
 - Monitoring workflow: `.github/workflows/monitoring-healthcheck.yml`
   - Runs every 15 minutes
   - Verifies web routes (`/`, `/app`) and Functions health endpoint (`appHealthCheck`)

@@ -6,6 +6,8 @@ Use this checklist before enabling production traffic for AdMob in BeFam.
 
 - [ ] App is added in `AdMob > Apps` and linked to the correct store listing.
 - [ ] Android package name and iOS bundle ID match the production app.
+- [ ] [`mobile/befam/web/app-ads.txt`](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/web/app-ads.txt) is filled with the real publisher ID.
+- [ ] `./scripts/verify_app_ads_txt.sh mobile/befam/web/app-ads.txt` passes locally.
 - [ ] `app-ads.txt` is published on the app website domain.
 - [ ] AdMob shows the app as verified with `app-ads.txt`.
 - [ ] `banner_home`, `banner_tree`, `banner_events` ad units are created.
@@ -17,11 +19,13 @@ Use this checklist before enabling production traffic for AdMob in BeFam.
 - [ ] `Privacy & messaging` has a published `European regulations` message.
 - [ ] `Privacy & messaging` has a published `US state regulations` message.
 - [ ] Ad partners in the consent message match the mediation partners actually used.
-- [ ] The app has a visible `Privacy choices` or consent revocation entry point.
+- [ ] The app has a visible `Privacy choices` or consent revocation entry point at `Hồ sơ > Mở cài đặt > Quyền riêng tư và dữ liệu`.
 - [ ] Policy center has no blocking issue for the app.
 
 ## 3. App Configuration
 
+- [ ] `BEFAM_ADMOB_ANDROID_APP_ID` is set for production builds.
+- [ ] `BEFAM_ADMOB_IOS_APP_ID` is set for production builds.
 - [ ] `BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID` is set for production builds.
 - [ ] `BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID` is set for production builds.
 - [ ] `BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID` is set for production builds.

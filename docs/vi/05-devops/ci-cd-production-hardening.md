@@ -5,7 +5,7 @@ Tài liệu này mô tả mô hình CI/CD an toàn cho production của BeFam.
 ## Mô Hình Nhánh Release
 
 - `staging`: nhánh tích hợp trước production.
-- `main`: nhánh phát hành production.
+- `main`: nhánh release-ready để tạo bản có thể promote lên production.
 - Luồng phát hành: `staging -> main` qua pull request.
 
 ## Chính Sách Bảo Vệ Bắt Buộc
@@ -60,11 +60,11 @@ Workflow `CD - Release Main` chạy theo thứ tự:
 
 ### 3) Deploy Production
 
-1. `CD - Deploy Firebase (Production)` chạy sau khi `CD - Release Main` thành công.
-2. `CD - Deploy Web Hosting (Production)` chạy sau khi
-   `CD - Deploy Firebase (Production)` thành công.
+1. `CD - Release Main` tạo release tag và artifact bất biến.
+2. `CD - Deploy Firebase (Production)` được chạy tay với `release_tag` đã chọn.
+3. `CD - Deploy Web Hosting (Production)` được chạy tay với cùng `release_tag` sau khi xác nhận Firebase deploy ổn.
 
-Luồng này giúp deploy đúng thứ tự, không rời rạc.
+Luồng này giúp tách bạch giữa build release và promote production, dễ review và dễ rollback hơn.
 
 ## Rollback
 

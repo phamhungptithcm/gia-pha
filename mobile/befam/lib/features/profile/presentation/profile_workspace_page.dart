@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../../core/services/app_locale_controller.dart';
 import '../../../core/widgets/app_async_action.dart';
@@ -14,6 +15,7 @@ import '../../../core/widgets/member_phone_action.dart';
 import '../../../core/widgets/social_link_actions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
+import '../../ads/services/ad_consent_service.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/services/auth_session_store.dart';
 import '../../auth/services/phone_number_formatter.dart';
@@ -26,8 +28,9 @@ import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
 import '../../notifications/services/notification_test_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/profile_notification_preferences_repository.dart';
 import '../models/profile_draft.dart';
+import '../services/account_deletion_request_service.dart';
+import '../services/profile_notification_preferences_repository.dart';
 import 'profile_controller.dart';
 
 class ProfileWorkspacePage extends StatefulWidget {
@@ -42,6 +45,8 @@ class ProfileWorkspacePage extends StatefulWidget {
     this.onBillingStateChanged,
     this.onLogoutRequested,
     this.onSessionUpdated,
+    this.accountDeletionRequestService,
+    this.adConsentService,
     this.showAppBar = false,
   });
 
@@ -55,6 +60,8 @@ class ProfileWorkspacePage extends StatefulWidget {
   final VoidCallback? onBillingStateChanged;
   final Future<void> Function()? onLogoutRequested;
   final ValueChanged<AuthSession>? onSessionUpdated;
+  final AccountDeletionRequestService? accountDeletionRequestService;
+  final AdConsentService? adConsentService;
   final bool showAppBar;
 
   @override
@@ -68,11 +75,18 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
   late final SharedPrefsAuthSessionStore _sessionStore;
   late final _UnlinkedProfileDraftStore _unlinkedProfileStore;
   late final NotificationTestService _notificationTestService;
+  late final AccountDeletionRequestService _accountDeletionRequestService;
+  late final AdConsentService _adConsentService;
   late final bool _ownsLocaleController;
   ProfileDraft? _unlinkedDraft;
   bool _isSavingUnlinkedProfile = false;
   bool _isSendingTestNotification = false;
   bool _isSendingEventReminderTest = false;
+  bool _isLoadingAccountDeletionStatus = false;
+  bool _isSubmittingAccountDeletionRequest = false;
+  bool _isOpeningPrivacyChoices = false;
+  AccountDeletionRequestState _accountDeletionRequestState =
+      const AccountDeletionRequestState.notRequested();
 
   @override
   void initState() {
@@ -90,17 +104,26 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     _notificationTestService = createDefaultNotificationTestService(
       session: widget.session,
     );
+    _accountDeletionRequestService =
+        widget.accountDeletionRequestService ??
+        createDefaultAccountDeletionRequestService();
+    _adConsentService =
+        widget.adConsentService ?? createDefaultAdConsentService();
     _ownsLocaleController = widget.localeController == null;
     unawaited(_localeController.load());
     unawaited(_controller.initialize());
     unawaited(_loadUnlinkedDraft());
+    unawaited(_loadAccountDeletionRequestStatus());
   }
 
   @override
   void didUpdateWidget(covariant ProfileWorkspacePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session.uid != widget.session.uid) {
+      _accountDeletionRequestState =
+          const AccountDeletionRequestState.notRequested();
       unawaited(_loadUnlinkedDraft());
+      unawaited(_loadAccountDeletionRequestStatus());
     }
   }
 
@@ -290,6 +313,217 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         _isSendingEventReminderTest = false;
       }
     }
+  }
+
+  Future<void> _loadAccountDeletionRequestStatus() async {
+    if (_isLoadingAccountDeletionStatus) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingAccountDeletionStatus = true;
+    });
+
+    try {
+      final status = await _accountDeletionRequestService.loadStatus();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _accountDeletionRequestState = status;
+      });
+    } on AccountDeletionRequestServiceException {
+      // Keep the section usable even if the status endpoint is unavailable.
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingAccountDeletionStatus = false;
+        });
+      } else {
+        _isLoadingAccountDeletionStatus = false;
+      }
+    }
+  }
+
+  Future<void> _openPrivacyChoices() async {
+    if (_isOpeningPrivacyChoices) {
+      return;
+    }
+
+    final l10n = context.l10n;
+    setState(() {
+      _isOpeningPrivacyChoices = true;
+    });
+
+    try {
+      final result = await _adConsentService.showPrivacyOptions();
+      if (!mounted) {
+        return;
+      }
+      final message =
+          result.privacyOptionsRequirementStatus ==
+              PrivacyOptionsRequirementStatus.required
+          ? l10n.pick(
+              vi: 'BeFam đã mở lại phần lựa chọn quyền riêng tư trên thiết bị này.',
+              en: 'BeFam reopened the privacy choices form on this device.',
+            )
+          : l10n.pick(
+              vi: 'Hiện chưa có lựa chọn quyền riêng tư nào cần cập nhật trên thiết bị này.',
+              en: 'There are no privacy choices to update on this device right now.',
+            );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'Chưa thể mở phần lựa chọn quyền riêng tư lúc này.',
+              en: 'Unable to open privacy choices right now.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOpeningPrivacyChoices = false;
+        });
+      } else {
+        _isOpeningPrivacyChoices = false;
+      }
+    }
+  }
+
+  Future<void> _confirmAccountDeletionRequest() async {
+    if (_isSubmittingAccountDeletionRequest ||
+        _accountDeletionRequestState.hasPendingRequest) {
+      return;
+    }
+
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            l10n.pick(
+              vi: 'Gửi yêu cầu xóa tài khoản?',
+              en: 'Send an account deletion request?',
+            ),
+          ),
+          content: Text(
+            l10n.pick(
+              vi: 'BeFam sẽ ghi nhận yêu cầu, xác minh thông tin cần thiết và xử lý việc xóa tài khoản của bạn theo chính sách hiện hành.',
+              en: 'BeFam will record the request, verify the necessary details, and process your account deletion under the current policy.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.pick(vi: 'Để sau', en: 'Not now')),
+            ),
+            FilledButton.tonal(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                l10n.pick(vi: 'Gửi yêu cầu xóa', en: 'Send deletion request'),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    setState(() {
+      _isSubmittingAccountDeletionRequest = true;
+    });
+
+    try {
+      final status = await _accountDeletionRequestService.submitRequest();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _accountDeletionRequestState = status;
+      });
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'BeFam đã nhận yêu cầu xóa tài khoản của bạn.',
+              en: 'BeFam received your account deletion request.',
+            ),
+          ),
+        ),
+      );
+    } on AccountDeletionRequestServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(_accountDeletionRequestErrorMessage(l10n, error)),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingAccountDeletionRequest = false;
+        });
+      } else {
+        _isSubmittingAccountDeletionRequest = false;
+      }
+    }
+  }
+
+  String _accountDeletionRequestErrorMessage(
+    AppLocalizations l10n,
+    AccountDeletionRequestServiceException error,
+  ) {
+    return switch (error.code) {
+      AccountDeletionRequestServiceErrorCode.unauthenticated => l10n.pick(
+        vi: 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại rồi thử tiếp.',
+        en: 'This session expired. Sign in again and try once more.',
+      ),
+      AccountDeletionRequestServiceErrorCode.permissionDenied => l10n.pick(
+        vi: 'Phiên này chưa được phép gửi yêu cầu xóa tài khoản.',
+        en: 'This session is not allowed to request account deletion.',
+      ),
+      AccountDeletionRequestServiceErrorCode.failedPrecondition => l10n.pick(
+        vi: 'Tài khoản này chưa sẵn sàng cho thao tác xóa. Hãy thử lại sau ít phút.',
+        en: 'This account is not ready for deletion yet. Please try again shortly.',
+      ),
+      AccountDeletionRequestServiceErrorCode.unavailable => l10n.pick(
+        vi: 'Máy chủ tạm thời chưa phản hồi. Hãy thử lại sau ít phút.',
+        en: 'The server is temporarily unavailable. Please try again shortly.',
+      ),
+      AccountDeletionRequestServiceErrorCode.unknown => l10n.pick(
+        vi: 'Chưa thể gửi yêu cầu xóa tài khoản lúc này.',
+        en: 'Unable to submit the account deletion request right now.',
+      ),
+    };
+  }
+
+  String _formatInlineTimestamp(String isoString) {
+    final parsed = DateTime.tryParse(isoString)?.toLocal();
+    if (parsed == null) {
+      return isoString;
+    }
+    final day = parsed.day.toString().padLeft(2, '0');
+    final month = parsed.month.toString().padLeft(2, '0');
+    final year = parsed.year.toString();
+    final hour = parsed.hour.toString().padLeft(2, '0');
+    final minute = parsed.minute.toString().padLeft(2, '0');
+    return '$day/$month/$year $hour:$minute';
   }
 
   String _notificationTestErrorMessage(
@@ -587,8 +821,16 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
             showTestAction: !kReleaseMode,
             isSendingTestNotification: _isSendingTestNotification,
             isSendingEventReminderTest: _isSendingEventReminderTest,
+            accountDeletionRequestState: _accountDeletionRequestState,
+            isLoadingAccountDeletionStatus: _isLoadingAccountDeletionStatus,
+            isSubmittingAccountDeletionRequest:
+                _isSubmittingAccountDeletionRequest,
+            isOpeningPrivacyChoices: _isOpeningPrivacyChoices,
             onSendTestNotification: _sendTestNotification,
             onSendEventReminderTest: _sendEventReminderTest,
+            onOpenPrivacyChoices: _openPrivacyChoices,
+            onRequestAccountDeletion: _confirmAccountDeletionRequest,
+            formatInlineTimestamp: _formatInlineTimestamp,
           );
         },
       ),
@@ -842,11 +1084,18 @@ class _SettingsScreenShell extends StatelessWidget {
     required this.showTestAction,
     required this.isSendingTestNotification,
     required this.isSendingEventReminderTest,
+    required this.accountDeletionRequestState,
+    required this.isLoadingAccountDeletionStatus,
+    required this.isSubmittingAccountDeletionRequest,
+    required this.isOpeningPrivacyChoices,
     this.billingRepository,
     this.onBillingStateChanged,
     required this.onLogoutRequested,
     this.onSendTestNotification,
     this.onSendEventReminderTest,
+    this.onOpenPrivacyChoices,
+    this.onRequestAccountDeletion,
+    required this.formatInlineTimestamp,
   });
 
   final ProfileController controller;
@@ -855,11 +1104,18 @@ class _SettingsScreenShell extends StatelessWidget {
   final bool showTestAction;
   final bool isSendingTestNotification;
   final bool isSendingEventReminderTest;
+  final AccountDeletionRequestState accountDeletionRequestState;
+  final bool isLoadingAccountDeletionStatus;
+  final bool isSubmittingAccountDeletionRequest;
+  final bool isOpeningPrivacyChoices;
   final BillingRepository? billingRepository;
   final VoidCallback? onBillingStateChanged;
   final Future<void> Function()? onLogoutRequested;
   final Future<void> Function()? onSendTestNotification;
   final Future<void> Function()? onSendEventReminderTest;
+  final Future<void> Function()? onOpenPrivacyChoices;
+  final Future<void> Function()? onRequestAccountDeletion;
+  final String Function(String isoString) formatInlineTimestamp;
 
   Future<void> _confirmLogout(BuildContext context) async {
     if (onLogoutRequested == null) {
@@ -1000,6 +1256,108 @@ class _SettingsScreenShell extends StatelessWidget {
                           );
                         },
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _ProfileSectionCard(
+                    title: l10n.pick(
+                      vi: 'Quyền riêng tư và dữ liệu',
+                      en: 'Privacy & data',
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (accountDeletionRequestState.hasPendingRequest)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _InlineStatusBadge(
+                              icon: Icons.verified_user_outlined,
+                              label: l10n.pick(
+                                vi: 'Đã nhận yêu cầu xóa tài khoản',
+                                en: 'Account deletion request received',
+                              ),
+                            ),
+                          )
+                        else if (isLoadingAccountDeletionStatus)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _InlineStatusBadge(
+                              icon: Icons.sync_rounded,
+                              label: l10n.pick(
+                                vi: 'Đang kiểm tra trạng thái tài khoản',
+                                en: 'Checking account status',
+                              ),
+                            ),
+                          ),
+                        Text(
+                          l10n.pick(
+                            vi: 'Bạn có thể xem lại lựa chọn quyền riêng tư cho quảng cáo và gửi yêu cầu xóa tài khoản ngay trong app.',
+                            en: 'You can revisit ad privacy choices and request account deletion directly in the app.',
+                          ),
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        if (accountDeletionRequestState.requestedAtIso != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              l10n.pick(
+                                vi: 'Yêu cầu gần nhất: ${formatInlineTimestamp(accountDeletionRequestState.requestedAtIso!)}',
+                                en: 'Latest request: ${formatInlineTimestamp(accountDeletionRequestState.requestedAtIso!)}',
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: isOpeningPrivacyChoices
+                                ? null
+                                : onOpenPrivacyChoices,
+                            icon: const Icon(Icons.privacy_tip_outlined),
+                            label: AppStableLoadingChild(
+                              isLoading: isOpeningPrivacyChoices,
+                              child: Text(
+                                l10n.pick(
+                                  vi: 'Cập nhật lựa chọn quyền riêng tư',
+                                  en: 'Update privacy choices',
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed:
+                                accountDeletionRequestState.hasPendingRequest ||
+                                    isSubmittingAccountDeletionRequest
+                                ? null
+                                : onRequestAccountDeletion,
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: theme.colorScheme.error,
+                            ),
+                            label: AppStableLoadingChild(
+                              isLoading: isSubmittingAccountDeletionRequest,
+                              child: Text(
+                                accountDeletionRequestState.hasPendingRequest
+                                    ? l10n.pick(
+                                        vi: 'Đã gửi yêu cầu xóa',
+                                        en: 'Deletion request sent',
+                                      )
+                                    : l10n.pick(
+                                        vi: 'Yêu cầu xóa tài khoản',
+                                        en: 'Request account deletion',
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   if (onLogoutRequested != null) ...[
