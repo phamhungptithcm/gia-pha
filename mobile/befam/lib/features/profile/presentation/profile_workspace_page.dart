@@ -106,7 +106,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     );
     _accountDeletionRequestService =
         widget.accountDeletionRequestService ??
-        createDefaultAccountDeletionRequestService();
+        createDefaultAccountDeletionRequestService(session: widget.session);
     _adConsentService =
         widget.adConsentService ?? createDefaultAdConsentService();
     _ownsLocaleController = widget.localeController == null;
@@ -818,7 +818,8 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
             billingRepository: widget.billingRepository,
             onBillingStateChanged: widget.onBillingStateChanged,
             onLogoutRequested: widget.onLogoutRequested,
-            showTestAction: !kReleaseMode,
+            showTestAction:
+                !kReleaseMode && !_notificationTestService.isSandbox,
             isSendingTestNotification: _isSendingTestNotification,
             isSendingEventReminderTest: _isSendingEventReminderTest,
             accountDeletionRequestState: _accountDeletionRequestState,

@@ -1,6 +1,8 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../../../core/services/firebase_services.dart';
+import '../../auth/models/auth_session.dart';
 
 enum AccountDeletionRequestStateStatus {
   notRequested,
@@ -135,8 +137,30 @@ class FirebaseAccountDeletionRequestService
   }
 }
 
-AccountDeletionRequestService createDefaultAccountDeletionRequestService() {
+AccountDeletionRequestService createDefaultAccountDeletionRequestService({
+  AuthSession? session,
+}) {
+  if ((session?.isSandbox ?? false) || Firebase.apps.isEmpty) {
+    return const _SandboxAccountDeletionRequestService();
+  }
   return FirebaseAccountDeletionRequestService();
+}
+
+class _SandboxAccountDeletionRequestService
+    implements AccountDeletionRequestService {
+  const _SandboxAccountDeletionRequestService();
+
+  @override
+  Future<AccountDeletionRequestState> loadStatus() async {
+    return const AccountDeletionRequestState.notRequested();
+  }
+
+  @override
+  Future<AccountDeletionRequestState> submitRequest({String? note}) async {
+    throw const AccountDeletionRequestServiceException(
+      AccountDeletionRequestServiceErrorCode.failedPrecondition,
+    );
+  }
 }
 
 String? _readString(Object? value) {

@@ -1,0 +1,85 @@
+import 'package:befam/features/auth/models/auth_entry_method.dart';
+import 'package:befam/features/auth/models/auth_member_access_mode.dart';
+import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/profile/presentation/profile_workspace_page.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/features/member/services/debug_member_repository.dart';
+import '../../support/features/profile/services/debug_profile_notification_preferences_repository.dart';
+import 'package:befam/l10n/generated/app_localizations.dart';
+
+void main() {
+  void configureMobileViewport(WidgetTester tester) {
+    const logicalSize = Size(430, 932);
+    final dpr = tester.view.devicePixelRatio;
+    tester.view.physicalSize = Size(
+      logicalSize.width * dpr,
+      logicalSize.height * dpr,
+    );
+    addTearDown(tester.view.resetPhysicalSize);
+  }
+
+  Future<void> pumpUi(WidgetTester tester, {int frames = 24}) async {
+    for (var index = 0; index < frames; index += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+  }
+
+  AuthSession buildSession() {
+    return AuthSession(
+      uid: 'debug:+84901234567',
+      loginMethod: AuthEntryMethod.phone,
+      phoneE164: '+84901234567',
+      displayName: 'Nguyen Minh',
+      memberId: 'member_demo_parent_001',
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_001',
+      primaryRole: 'CLAN_ADMIN',
+      accessMode: AuthMemberAccessMode.claimed,
+      linkedAuthUid: true,
+      isSandbox: true,
+      signedInAtIso: DateTime(2026, 4, 4).toIso8601String(),
+    );
+  }
+
+  testWidgets('renders profile settings with sandbox fallback services', (
+    tester,
+  ) async {
+    configureMobileViewport(tester);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: ProfileWorkspacePage(
+          session: buildSession(),
+          memberRepository: DebugMemberRepository.seeded(),
+          notificationPreferencesRepository:
+              DebugProfileNotificationPreferencesRepository.shared(),
+          showAppBar: true,
+        ),
+      ),
+    );
+    await pumpUi(tester, frames: 120);
+
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byTooltip('Open settings'));
+    await pumpUi(tester, frames: 36);
+
+    expect(find.text('Memorials and events'), findsOneWidget);
+    expect(find.text('Scholarships'), findsOneWidget);
+    expect(find.text('Family updates'), findsOneWidget);
+    expect(find.text('Quiet hours'), findsOneWidget);
+    expect(find.text('Test on this device'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+}

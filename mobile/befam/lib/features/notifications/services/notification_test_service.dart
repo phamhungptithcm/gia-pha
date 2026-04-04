@@ -1,3 +1,5 @@
+import 'package:firebase_core/firebase_core.dart';
+
 import '../../auth/models/auth_session.dart';
 import 'firebase_notification_test_service.dart';
 
@@ -56,5 +58,39 @@ abstract interface class NotificationTestService {
 NotificationTestService createDefaultNotificationTestService({
   AuthSession? session,
 }) {
+  if ((session?.isSandbox ?? false) || Firebase.apps.isEmpty) {
+    return const _SandboxNotificationTestService();
+  }
   return FirebaseNotificationTestService();
+}
+
+class _SandboxNotificationTestService implements NotificationTestService {
+  const _SandboxNotificationTestService();
+
+  @override
+  bool get isSandbox => true;
+
+  @override
+  Future<NotificationTestResult> sendSelfTest({
+    required AuthSession session,
+    required String title,
+    required String body,
+    int delaySeconds = 8,
+  }) async {
+    throw const NotificationTestServiceException(
+      NotificationTestServiceErrorCode.failedPrecondition,
+    );
+  }
+
+  @override
+  Future<NotificationTestResult> sendEventReminderSelfTest({
+    required AuthSession session,
+    required String title,
+    required String body,
+    int delaySeconds = 8,
+  }) async {
+    throw const NotificationTestServiceException(
+      NotificationTestServiceErrorCode.failedPrecondition,
+    );
+  }
 }
