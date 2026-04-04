@@ -284,6 +284,7 @@ class _AuthHero extends StatelessWidget {
     final tokens = context.uiTokens;
     final isLoginMethodSelection = step == AuthStep.loginMethodSelection;
     final isCompact = !isLoginMethodSelection;
+    final showHeroIcon = !isLoginMethodSelection && step != AuthStep.otp;
 
     final title = switch (step) {
       AuthStep.loginMethodSelection => l10n.pick(
@@ -324,10 +325,7 @@ class _AuthHero extends StatelessWidget {
         vi: 'Dùng mã được người thân hoặc quản trị viên gửi cho tài khoản của bé.',
         en: 'Use the code shared for the child account by a family member or admin.',
       ),
-      AuthStep.otp => l10n.pick(
-        vi: 'Mã đã được gửi tới ${challenge?.maskedDestination ?? 'số điện thoại của bạn'}.',
-        en: 'We sent the code to ${challenge?.maskedDestination ?? 'your phone number'}.',
-      ),
+      AuthStep.otp => '',
       AuthStep.memberSelection => l10n.pick(
         vi: resolution?.candidates.isNotEmpty == true
             ? 'Chọn hồ sơ khớp nhất với số ${resolution?.phoneE164 ?? ''}.'
@@ -376,7 +374,7 @@ class _AuthHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isLoginMethodSelection) ...[
+          if (showHeroIcon) ...[
             Container(
               width: isCompact ? 42 : 48,
               height: isCompact ? 42 : 48,
@@ -403,13 +401,15 @@ class _AuthHero extends StatelessWidget {
                         : theme.textTheme.headlineSmall)
                     ?.copyWith(fontWeight: FontWeight.w800, height: 1.12),
           ),
-          SizedBox(height: tokens.spaceSm),
-          Text(
-            subtitle,
-            style: isCompact
-                ? theme.textTheme.bodyMedium
-                : theme.textTheme.bodyLarge,
-          ),
+          if (subtitle.trim().isNotEmpty) ...[
+            SizedBox(height: tokens.spaceSm),
+            Text(
+              subtitle,
+              style: isCompact
+                  ? theme.textTheme.bodyMedium
+                  : theme.textTheme.bodyLarge,
+            ),
+          ],
           if (!isLoginMethodSelection) ...[
             SizedBox(height: isCompact ? tokens.spaceMd : tokens.spaceLg),
             Wrap(
@@ -850,10 +850,6 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
         vi: 'Nhập số điện thoại của bạn',
         en: 'Enter your phone number',
       ),
-      description: l10n.pick(
-        vi: 'Chúng tôi sẽ gửi mã OTP để xác nhận và đưa bạn vào đúng hồ sơ.',
-        en: 'We will send an OTP to confirm your account and match the right profile.',
-      ),
       isBusy: widget.isBusy,
       onBack: widget.onBack,
       child: Column(
@@ -1158,10 +1154,6 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
       title: l10n.pick(
         vi: 'Nhập mã xác nhận',
         en: 'Enter the verification code',
-      ),
-      description: l10n.pick(
-        vi: 'Mã đã được gửi tới ${challenge.maskedDestination}.',
-        en: 'We sent the code to ${challenge.maskedDestination}.',
       ),
       isBusy: widget.isBusy,
       onBack: widget.onBack,
