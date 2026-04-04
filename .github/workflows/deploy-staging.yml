@@ -15,6 +15,10 @@ on:
       - "mobile/befam/assets/**"
       - "mobile/befam/pubspec.yaml"
       - "mobile/befam/pubspec.lock"
+      - ".github/workflows/branch-ci.yml"
+      - ".github/workflows/mobile-e2e.yml"
+      - ".github/workflows/mobile-e2e-ios.yml"
+      - ".github/workflows/mobile-e2e-deep.yml"
       - ".github/workflows/deploy-staging.yml"
 
 permissions:
