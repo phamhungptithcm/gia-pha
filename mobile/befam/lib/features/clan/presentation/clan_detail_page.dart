@@ -68,11 +68,7 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
     unawaited(_initializeWorkspace());
     if (widget.autoOpenClanEditorOnOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _hasTriggeredAutoOpenClanEditor) {
-          return;
-        }
-        _hasTriggeredAutoOpenClanEditor = true;
-        unawaited(_openClanEditor());
+        unawaited(_scheduleAutoOpenClanEditor());
       });
     }
   }
@@ -106,6 +102,34 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
     _onboardingCoordinator.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _scheduleAutoOpenClanEditor() async {
+    if (!widget.autoOpenClanEditorOnOpen || _hasTriggeredAutoOpenClanEditor) {
+      return;
+    }
+    for (var attempt = 0; attempt < 4; attempt++) {
+      if (!mounted) {
+        return;
+      }
+      final route = ModalRoute.of(context);
+      if (route?.isCurrent ?? true) {
+        await Future<void>.delayed(
+          Duration(milliseconds: attempt == 0 ? 220 : 140),
+        );
+        if (!mounted) {
+          return;
+        }
+        final activeRoute = ModalRoute.of(context);
+        if (!(activeRoute?.isCurrent ?? true)) {
+          continue;
+        }
+        _hasTriggeredAutoOpenClanEditor = true;
+        await _openClanEditor();
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
   }
 
   Future<void> _openClanEditor() async {
@@ -744,6 +768,106 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
+class _EditorSheetScaffold extends StatelessWidget {
+  const _EditorSheetScaffold({
+    required this.formKey,
+    required this.bottomInset,
+    required this.scrollChild,
+    required this.footer,
+  });
+
+  final GlobalKey<FormState> formKey;
+  final double bottomInset;
+  final Widget scrollChild;
+  final Widget footer;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.shadow.withValues(alpha: 0.14),
+              blurRadius: 32,
+              offset: const Offset(0, -10),
+            ),
+          ],
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+                    child: scrollChild,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  child: footer,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactEditorHeader extends StatelessWidget {
+  const _CompactEditorHeader({
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _InfoCard extends StatelessWidget {
   const _InfoCard({
     required this.icon,
@@ -1339,6 +1463,7 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
   late final TextEditingController _countryController;
   late final TextEditingController _founderController;
   late final TextEditingController _logoUrlController;
+  int _editorStep = 0;
   bool _isSubmitting = false;
 
   @override
@@ -1372,6 +1497,9 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
   }
 
   Future<void> _submit() async {
+    if (!_validateCurrentStep()) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -1413,237 +1541,281 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
     return _slugify(_nameController.text.trim());
   }
 
+  bool _validateCurrentStep() {
+    if (_editorStep != 0) {
+      return true;
+    }
+    final l10n = context.l10n;
+    final error = switch ((
+      _nameController.text.trim().isEmpty,
+      _countryController.text.trim().length < 2,
+    )) {
+      (true, _) => l10n.pick(
+        vi: 'Thiếu thông tin: Hãy nhập tên gia phả trước khi tiếp tục.',
+        en: 'Missing info: Please enter the genealogy name before continuing.',
+      ),
+      (_, true) => l10n.pick(
+        vi: 'Thiếu thông tin: Hãy chọn quốc gia trước khi tiếp tục.',
+        en: 'Missing info: Please choose the country before continuing.',
+      ),
+      _ => null,
+    };
+    if (error == null) {
+      return true;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    return false;
+  }
+
+  void _goToStep(int nextStep) {
+    if (nextStep > _editorStep && !_validateCurrentStep()) {
+      return;
+    }
+    setState(() => _editorStep = nextStep);
+  }
+
   @override
   Widget build(BuildContext context) {
     final insets = MediaQuery.viewInsetsOf(context);
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
     final isEditing = widget.initialDraft.name.trim().isNotEmpty;
     final editorTitle = isEditing
-        ? l10n.pick(vi: 'Cập nhật họ tộc', en: 'Update clan')
-        : l10n.pick(vi: 'Tạo họ tộc mới', en: 'Create clan');
+        ? l10n.pick(vi: 'Cập nhật gia phả', en: 'Update genealogy')
+        : l10n.pick(vi: 'Tạo gia phả', en: 'Create genealogy');
     final editorDescription = l10n.pick(
-      vi: 'Giữ thông tin cốt lõi ngắn gọn và rõ ràng để màn quản lý họ tộc hiển thị tự nhiên hơn.',
-      en: 'Keep the core details concise so the clan workspace feels more natural and polished.',
+      vi: 'Điền vài thông tin cơ bản để bắt đầu gia phả của gia đình.',
+      en: 'Add a few essentials to start the family genealogy.',
     );
-    final heroHighlights = <_HeroHighlight>[
-      _HeroHighlight(
-        icon: Icons.account_tree_outlined,
-        label: isEditing
-            ? l10n.pick(vi: 'Đang cập nhật hồ sơ', en: 'Updating profile')
-            : l10n.pick(vi: 'Khởi tạo hồ sơ', en: 'Creating profile'),
-      ),
-      _HeroHighlight(
-        icon: Icons.public_outlined,
-        label:
-            (_countryController.text.trim().isEmpty
-                    ? 'VN'
-                    : _countryController.text.trim())
-                .toUpperCase(),
-      ),
-      _HeroHighlight(
-        icon: Icons.link_outlined,
-        label: _resolvedSlug.isEmpty
-            ? l10n.pick(vi: 'Tự tạo liên kết', en: 'Auto link')
-            : '/$_resolvedSlug',
-      ),
-    ];
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: insets.bottom),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          boxShadow: [
-            BoxShadow(
-              color: colorScheme.shadow.withValues(alpha: 0.14),
-              blurRadius: 32,
-              offset: const Offset(0, -10),
-            ),
-          ],
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                AppWorkspaceSurface(
-                  padding: const EdgeInsets.all(20),
-                  gradient: appWorkspaceHeroGradient(context),
-                  showAccentOrbs: true,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        editorTitle,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        editorDescription,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final highlight in heroHighlights)
-                            _HeroHighlightChip(highlight: highlight),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _SectionCard(
-                  title: l10n.pick(vi: 'Nhận diện họ tộc', en: 'Clan identity'),
-                  description: l10n.pick(
-                    vi: 'Tên, slug, quốc gia và người sáng lập nên được chốt gọn ở một cụm để dễ kiểm tra trước khi lưu.',
-                    en: 'Name, slug, country, and founder are grouped together so they can be reviewed quickly before saving.',
-                  ),
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        key: const Key('clan-name-input'),
-                        controller: _nameController,
-                        decoration: InputDecoration(
-                          labelText: l10n.clanFieldName,
-                          hintText: l10n.clanFieldNameHint,
-                        ),
-                        textInputAction: TextInputAction.next,
-                        validator: (value) {
-                          return value == null || value.trim().isEmpty
-                              ? l10n.clanValidationNameRequired
-                              : null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        key: const Key('clan-slug-input'),
-                        controller: _slugController,
-                        decoration: InputDecoration(
-                          labelText: l10n.pick(
-                            vi: 'Đường dẫn chia sẻ',
-                            en: 'Share link',
-                          ),
-                          hintText: l10n.pick(
-                            vi: 'vi-du-ho-nguyen-van',
-                            en: 'example-clan-link',
-                          ),
-                          helperText: l10n.pick(
-                            vi: 'Để trống để hệ thống tự tạo từ tên họ tộc.',
-                            en: 'Leave blank to generate it from the clan name.',
-                          ),
-                        ),
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        key: const Key('clan-country-input'),
-                        controller: _countryController,
-                        decoration: InputDecoration(
-                          labelText: l10n.clanFieldCountry,
-                          hintText: l10n.pick(vi: 'VN', en: 'VN'),
-                        ),
-                        textCapitalization: TextCapitalization.characters,
-                        textInputAction: TextInputAction.next,
-                        validator: (value) {
-                          return value == null || value.trim().length < 2
-                              ? l10n.clanValidationCountryRequired
-                              : null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        key: const Key('clan-founder-input'),
-                        controller: _founderController,
-                        decoration: InputDecoration(
-                          labelText: l10n.clanFieldFounder,
-                          hintText: l10n.clanFieldFounderHint,
-                        ),
-                        textInputAction: TextInputAction.next,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _SectionCard(
-                  title: l10n.pick(vi: 'Mô tả & hình ảnh', en: 'Story & media'),
-                  description: l10n.pick(
-                    vi: 'Phần mô tả và hình đại diện nên ngắn gọn, đủ để tạo cảm giác về không gian họ tộc trên màn chính.',
-                    en: 'Description and logo should stay compact while still giving the clan workspace a clear identity.',
-                  ),
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        key: const Key('clan-logo-url-input'),
-                        controller: _logoUrlController,
-                        decoration: InputDecoration(
-                          labelText: l10n.clanFieldLogoUrl,
-                          hintText: l10n.pick(
-                            vi: 'https://...',
-                            en: 'https://...',
-                          ),
-                        ),
-                        keyboardType: TextInputType.url,
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        key: const Key('clan-description-input'),
-                        controller: _descriptionController,
-                        decoration: InputDecoration(
-                          labelText: l10n.clanFieldDescription,
-                          hintText: l10n.clanFieldDescriptionHint,
-                        ),
-                        maxLines: 4,
-                        minLines: 3,
-                        textInputAction: TextInputAction.newline,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 22),
-                AppWorkspaceSurface(
-                  padding: const EdgeInsets.all(16),
-                  color: Colors.white.withValues(alpha: 0.76),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      key: const Key('clan-save-button'),
-                      onPressed: _isSubmitting ? null : _submit,
-                      icon: _isSubmitting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.save_outlined),
-                      label: Text(l10n.clanSaveAction),
-                    ),
-                  ),
-                ),
-              ],
+    return _EditorSheetScaffold(
+      formKey: _formKey,
+      bottomInset: insets.bottom,
+      scrollChild: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(999),
+              ),
             ),
           ),
+          const SizedBox(height: 14),
+          _CompactEditorHeader(
+            title: editorTitle,
+            subtitle: editorDescription,
+          ),
+          const SizedBox(height: 12),
+          AppWorkspaceSurface(
+            padding: const EdgeInsets.all(16),
+            color: Colors.white.withValues(alpha: 0.76),
+            child: _BranchEditorStepIndicator(
+              currentStep: _editorStep,
+              labels: [
+                l10n.pick(vi: 'Thông tin', en: 'Info'),
+                l10n.pick(vi: 'Giới thiệu', en: 'Story'),
+              ],
+              onStepSelected: _goToStep,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_editorStep == 0)
+            _SectionCard(
+              title: l10n.pick(
+                vi: 'Thông tin chính',
+                en: 'Core details',
+              ),
+              description: l10n.pick(
+                vi: 'Tên gia phả, quốc gia và người đại diện là phần quan trọng nhất để bắt đầu gọn và dễ hiểu.',
+                en: 'Genealogy name, country, and representative are the key details to start clearly.',
+              ),
+              child: Column(
+                children: [
+                  TextFormField(
+                    key: const Key('clan-name-input'),
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: l10n.clanFieldName,
+                      hintText: l10n.clanFieldNameHint,
+                    ),
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      return value == null || value.trim().isEmpty
+                          ? l10n.clanValidationNameRequired
+                          : null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('clan-country-input'),
+                    controller: _countryController,
+                    decoration: InputDecoration(
+                      labelText: l10n.clanFieldCountry,
+                      hintText: l10n.pick(vi: 'VN', en: 'VN'),
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      return value == null || value.trim().length < 2
+                          ? l10n.clanValidationCountryRequired
+                          : null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('clan-founder-input'),
+                    controller: _founderController,
+                    decoration: InputDecoration(
+                      labelText: l10n.clanFieldFounder,
+                      hintText: l10n.clanFieldFounderHint,
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
+                ],
+              ),
+            ),
+          if (_editorStep == 1)
+            _SectionCard(
+              title: l10n.pick(
+                vi: 'Giới thiệu & chia sẻ',
+                en: 'Story & sharing',
+              ),
+              description: l10n.pick(
+                vi: 'Thêm liên kết chia sẻ, ảnh đại diện và vài dòng giới thiệu để gia phả trông hoàn chỉnh hơn.',
+                en: 'Add a share link, avatar, and a short intro so the genealogy feels complete.',
+              ),
+              child: Column(
+                children: [
+                  TextFormField(
+                    key: const Key('clan-slug-input'),
+                    controller: _slugController,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Đường dẫn chia sẻ',
+                        en: 'Share link',
+                      ),
+                      hintText: l10n.pick(
+                        vi: 'vi-du-ho-nguyen-van',
+                        en: 'example-clan-link',
+                      ),
+                      helperText: l10n.pick(
+                        vi: 'Để trống để hệ thống tự tạo từ tên gia phả.',
+                        en: 'Leave blank to generate it from the genealogy name.',
+                      ),
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('clan-logo-url-input'),
+                    controller: _logoUrlController,
+                    decoration: InputDecoration(
+                      labelText: l10n.clanFieldLogoUrl,
+                      hintText: l10n.pick(
+                        vi: 'https://...',
+                        en: 'https://...',
+                      ),
+                    ),
+                    keyboardType: TextInputType.url,
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('clan-description-input'),
+                    controller: _descriptionController,
+                    decoration: InputDecoration(
+                      labelText: l10n.clanFieldDescription,
+                      hintText: l10n.clanFieldDescriptionHint,
+                    ),
+                    maxLines: 4,
+                    minLines: 3,
+                    textInputAction: TextInputAction.newline,
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      footer: AppWorkspaceSurface(
+        padding: const EdgeInsets.all(16),
+        color: Colors.white.withValues(alpha: 0.76),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 520;
+            final secondaryButton = OutlinedButton.icon(
+              onPressed: _isSubmitting
+                  ? null
+                  : () {
+                      if (_editorStep == 0) {
+                        Navigator.of(context).pop(false);
+                        return;
+                      }
+                      setState(() => _editorStep = 0);
+                    },
+              icon: Icon(
+                _editorStep == 0 ? Icons.close_outlined : Icons.arrow_back,
+              ),
+              label: Text(
+                _editorStep == 0
+                    ? l10n.pick(vi: 'Hủy', en: 'Cancel')
+                    : l10n.pick(vi: 'Quay lại', en: 'Back'),
+              ),
+            );
+            final primaryButton = _editorStep == 0
+                ? FilledButton.icon(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () {
+                            if (!_validateCurrentStep()) {
+                              return;
+                            }
+                            setState(() => _editorStep = 1);
+                          },
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(
+                      l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                    ),
+                  )
+                : FilledButton.icon(
+                    key: const Key('clan-save-button'),
+                    onPressed: _isSubmitting ? null : _submit,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: Text(
+                      isEditing
+                          ? l10n.clanSaveAction
+                          : l10n.pick(
+                              vi: 'Tạo gia phả',
+                              en: 'Create genealogy',
+                            ),
+                    ),
+                  );
+
+            if (compact) {
+              return Column(
+                children: [
+                  SizedBox(width: double.infinity, child: secondaryButton),
+                  const SizedBox(height: 10),
+                  SizedBox(width: double.infinity, child: primaryButton),
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: secondaryButton),
+                const SizedBox(width: 10),
+                Expanded(child: primaryButton),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1789,8 +1961,6 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
   @override
   Widget build(BuildContext context) {
     final insets = MediaQuery.viewInsetsOf(context);
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
     final members = widget.members;
     final isEditing =
@@ -1800,342 +1970,259 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
         ? l10n.pick(vi: 'Cập nhật chi', en: 'Update branch')
         : l10n.pick(vi: 'Thêm chi mới', en: 'Create branch');
     final editorDescription = l10n.pick(
-      vi: 'Thiết lập chi theo từng bước để tên gọi, người phụ trách và đời bắt đầu luôn nhất quán.',
-      en: 'Set up the branch step by step so naming, leadership, and generation stay consistent.',
+      vi: 'Điền tên chi và người phụ trách để gia phả của gia đình rõ ràng hơn.',
+      en: 'Add the branch name and leads so the family tree stays clear.',
     );
-    final stepLabel = _editorStep == 0
-        ? l10n.pick(vi: 'Bước 1: Nhận diện', en: 'Step 1: Identity')
-        : l10n.pick(vi: 'Bước 2: Điều hành', en: 'Step 2: Leadership');
-    final assignedLeadershipCount = [
-      if (_leaderMemberId != null) true,
-      if (_viceLeaderMemberId != null) true,
-    ].length;
-    final heroHighlights = <_HeroHighlight>[
-      _HeroHighlight(
-        icon: isEditing ? Icons.edit_outlined : Icons.add_outlined,
-        label: isEditing
-            ? l10n.pick(vi: 'Đang cập nhật chi', en: 'Updating branch')
-            : l10n.pick(vi: 'Đang tạo chi', en: 'Creating branch'),
-      ),
-      _HeroHighlight(icon: Icons.alt_route_outlined, label: stepLabel),
-      _HeroHighlight(
-        icon: Icons.badge_outlined,
-        label: assignedLeadershipCount > 0
-            ? l10n.pick(
-                vi: '$assignedLeadershipCount vai trò đã gán',
-                en: '$assignedLeadershipCount roles assigned',
-              )
-            : l10n.pick(
-                vi: '${members.length} thành viên khả dụng',
-                en: '${members.length} members available',
+
+    return _EditorSheetScaffold(
+      formKey: _formKey,
+      bottomInset: insets.bottom,
+      scrollChild: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(999),
               ),
-      ),
-    ];
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: insets.bottom),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          boxShadow: [
-            BoxShadow(
-              color: colorScheme.shadow.withValues(alpha: 0.14),
-              blurRadius: 32,
-              offset: const Offset(0, -10),
-            ),
-          ],
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                AppWorkspaceSurface(
-                  padding: const EdgeInsets.all(20),
-                  gradient: appWorkspaceHeroGradient(context),
-                  showAccentOrbs: true,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        editorTitle,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        editorDescription,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final highlight in heroHighlights)
-                            _HeroHighlightChip(highlight: highlight),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                AppWorkspaceSurface(
-                  padding: const EdgeInsets.all(16),
-                  color: Colors.white.withValues(alpha: 0.76),
-                  child: _BranchEditorStepIndicator(
-                    currentStep: _editorStep,
-                    labels: [
-                      l10n.pick(vi: 'Nhận diện', en: 'Identity'),
-                      l10n.pick(vi: 'Điều hành', en: 'Leadership'),
-                    ],
-                    onStepSelected: _goToStep,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (_editorStep == 0)
-                  _SectionCard(
-                    title: l10n.pick(
-                      vi: 'Nhận diện chi',
-                      en: 'Branch identity',
-                    ),
-                    description: l10n.pick(
-                      vi: 'Tên chi, mã chi và đời bắt đầu nên được chốt ở bước đầu để phần còn lại nhất quán hơn.',
-                      en: 'Keep branch name, code, and starting generation together in the first step so the rest stays consistent.',
-                    ),
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          key: const Key('branch-name-input'),
-                          controller: _nameController,
-                          decoration: InputDecoration(
-                            labelText: l10n.clanBranchNameLabel,
-                            hintText: l10n.clanBranchNameHint,
-                          ),
-                          textInputAction: TextInputAction.next,
-                          validator: (value) {
-                            return value == null || value.trim().isEmpty
-                                ? l10n.clanValidationBranchNameRequired
-                                : null;
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        TextFormField(
-                          key: const Key('branch-code-input'),
-                          controller: _codeController,
-                          decoration: InputDecoration(
-                            labelText: l10n.clanBranchCodeLabel,
-                            hintText: l10n.clanBranchCodeHint,
-                          ),
-                          textCapitalization: TextCapitalization.characters,
-                          textInputAction: TextInputAction.next,
-                          validator: (value) {
-                            return value == null || value.trim().isEmpty
-                                ? l10n.clanValidationBranchCodeRequired
-                                : null;
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        TextFormField(
-                          key: const Key('branch-generation-input'),
-                          controller: _generationController,
-                          decoration: InputDecoration(
-                            labelText: l10n.pick(
-                              vi: 'Đời bắt đầu',
-                              en: 'Starting generation',
-                            ),
-                          ),
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.next,
-                          validator: (value) {
-                            final parsed = int.tryParse(value ?? '');
-                            return parsed == null || parsed <= 0
-                                ? l10n.clanValidationGenerationRequired
-                                : null;
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                if (_editorStep == 1)
-                  _SectionCard(
-                    title: l10n.pick(
-                      vi: 'Điều hành chi',
-                      en: 'Branch leadership',
-                    ),
-                    description: l10n.pick(
-                      vi: 'Chọn trưởng chi và phó chi để sơ đồ điều hành rõ ràng hơn ngay khi tạo mới.',
-                      en: 'Assign the branch leader and vice leader so the leadership structure is clear from the start.',
-                    ),
-                    child: Column(
-                      children: [
-                        DropdownButtonFormField<String?>(
-                          key: const Key('branch-leader-input'),
-                          initialValue: _leaderMemberId,
-                          isExpanded: true,
-                          decoration: InputDecoration(
-                            labelText: l10n.clanLeaderLabel,
-                          ),
-                          items: [
-                            DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text(l10n.clanNoLeaderOption),
-                            ),
-                            for (final member in members)
-                              DropdownMenuItem<String?>(
-                                value: member.id,
-                                child: Text(
-                                  _memberOptionLabel(member, l10n),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _leaderMemberId = value;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        DropdownButtonFormField<String?>(
-                          key: const Key('branch-vice-input'),
-                          initialValue: _viceLeaderMemberId,
-                          isExpanded: true,
-                          decoration: InputDecoration(
-                            labelText: l10n.clanViceLeaderLabel,
-                          ),
-                          items: [
-                            DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text(l10n.clanNoViceLeaderOption),
-                            ),
-                            for (final member in members)
-                              DropdownMenuItem<String?>(
-                                value: member.id,
-                                child: Text(
-                                  _memberOptionLabel(member, l10n),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _viceLeaderMemberId = value;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 22),
-                AppWorkspaceSurface(
-                  padding: const EdgeInsets.all(16),
-                  color: Colors.white.withValues(alpha: 0.76),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final compact = constraints.maxWidth < 520;
-                      final secondaryButton = OutlinedButton.icon(
-                        onPressed: _isSubmitting
-                            ? null
-                            : () {
-                                if (_editorStep == 0) {
-                                  Navigator.of(context).pop(false);
-                                  return;
-                                }
-                                setState(() => _editorStep = 0);
-                              },
-                        icon: Icon(
-                          _editorStep == 0
-                              ? Icons.close_outlined
-                              : Icons.arrow_back,
-                        ),
-                        label: Text(
-                          _editorStep == 0
-                              ? l10n.pick(vi: 'Hủy', en: 'Cancel')
-                              : l10n.pick(vi: 'Quay lại', en: 'Back'),
-                        ),
-                      );
-                      final primaryButton = _editorStep == 0
-                          ? FilledButton.icon(
-                              onPressed: _isSubmitting
-                                  ? null
-                                  : () {
-                                      if (!_validateCurrentStep()) {
-                                        return;
-                                      }
-                                      setState(() => _editorStep = 1);
-                                    },
-                              icon: const Icon(Icons.arrow_forward),
-                              label: Text(
-                                l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                              ),
-                            )
-                          : FilledButton.icon(
-                              key: const Key('branch-save-button'),
-                              onPressed: _isSubmitting ? null : _submit,
-                              icon: _isSubmitting
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.save_outlined),
-                              label: Text(
-                                l10n.pick(
-                                  vi: 'Lưu thay đổi',
-                                  en: 'Save changes',
-                                ),
-                              ),
-                            );
-
-                      if (compact) {
-                        return Column(
-                          children: [
-                            SizedBox(
-                              width: double.infinity,
-                              child: secondaryButton,
-                            ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: primaryButton,
-                            ),
-                          ],
-                        );
-                      }
-
-                      return Row(
-                        children: [
-                          Expanded(child: secondaryButton),
-                          const SizedBox(width: 10),
-                          Expanded(child: primaryButton),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ],
             ),
           ),
+          const SizedBox(height: 14),
+          _CompactEditorHeader(
+            title: editorTitle,
+            subtitle: editorDescription,
+          ),
+          const SizedBox(height: 12),
+          AppWorkspaceSurface(
+            padding: const EdgeInsets.all(16),
+            color: Colors.white.withValues(alpha: 0.76),
+            child: _BranchEditorStepIndicator(
+              currentStep: _editorStep,
+              labels: [
+                l10n.pick(vi: 'Nhận diện', en: 'Identity'),
+                l10n.pick(vi: 'Điều hành', en: 'Leadership'),
+              ],
+              onStepSelected: _goToStep,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_editorStep == 0)
+            _SectionCard(
+              title: l10n.pick(
+                vi: 'Nhận diện chi',
+                en: 'Branch identity',
+              ),
+              description: l10n.pick(
+                vi: 'Tên chi, mã chi và đời bắt đầu nên được chốt ở bước đầu để phần còn lại nhất quán hơn.',
+                en: 'Keep branch name, code, and starting generation together in the first step so the rest stays consistent.',
+              ),
+              child: Column(
+                children: [
+                  TextFormField(
+                    key: const Key('branch-name-input'),
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: l10n.clanBranchNameLabel,
+                      hintText: l10n.clanBranchNameHint,
+                    ),
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      return value == null || value.trim().isEmpty
+                          ? l10n.clanValidationBranchNameRequired
+                          : null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('branch-code-input'),
+                    controller: _codeController,
+                    decoration: InputDecoration(
+                      labelText: l10n.clanBranchCodeLabel,
+                      hintText: l10n.clanBranchCodeHint,
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      return value == null || value.trim().isEmpty
+                          ? l10n.clanValidationBranchCodeRequired
+                          : null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('branch-generation-input'),
+                    controller: _generationController,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Đời bắt đầu',
+                        en: 'Starting generation',
+                      ),
+                    ),
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      final parsed = int.tryParse(value ?? '');
+                      return parsed == null || parsed <= 0
+                          ? l10n.clanValidationGenerationRequired
+                          : null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+          if (_editorStep == 1)
+            _SectionCard(
+              title: l10n.pick(
+                vi: 'Điều hành chi',
+                en: 'Branch leadership',
+              ),
+              description: l10n.pick(
+                vi: 'Chọn trưởng chi và phó chi để sơ đồ điều hành rõ ràng hơn ngay khi tạo mới.',
+                en: 'Assign the branch leader and vice leader so the leadership structure is clear from the start.',
+              ),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<String?>(
+                    key: const Key('branch-leader-input'),
+                    initialValue: _leaderMemberId,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: l10n.clanLeaderLabel,
+                    ),
+                    items: [
+                      DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text(l10n.clanNoLeaderOption),
+                      ),
+                      for (final member in members)
+                        DropdownMenuItem<String?>(
+                          value: member.id,
+                          child: Text(
+                            _memberOptionLabel(member, l10n),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _leaderMemberId = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String?>(
+                    key: const Key('branch-vice-input'),
+                    initialValue: _viceLeaderMemberId,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: l10n.clanViceLeaderLabel,
+                    ),
+                    items: [
+                      DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text(l10n.clanNoViceLeaderOption),
+                      ),
+                      for (final member in members)
+                        DropdownMenuItem<String?>(
+                          value: member.id,
+                          child: Text(
+                            _memberOptionLabel(member, l10n),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _viceLeaderMemberId = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      footer: AppWorkspaceSurface(
+        padding: const EdgeInsets.all(16),
+        color: Colors.white.withValues(alpha: 0.76),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 520;
+            final secondaryButton = OutlinedButton.icon(
+              onPressed: _isSubmitting
+                  ? null
+                  : () {
+                      if (_editorStep == 0) {
+                        Navigator.of(context).pop(false);
+                        return;
+                      }
+                      setState(() => _editorStep = 0);
+                    },
+              icon: Icon(
+                _editorStep == 0 ? Icons.close_outlined : Icons.arrow_back,
+              ),
+              label: Text(
+                _editorStep == 0
+                    ? l10n.pick(vi: 'Hủy', en: 'Cancel')
+                    : l10n.pick(vi: 'Quay lại', en: 'Back'),
+              ),
+            );
+            final primaryButton = _editorStep == 0
+                ? FilledButton.icon(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () {
+                            if (!_validateCurrentStep()) {
+                              return;
+                            }
+                            setState(() => _editorStep = 1);
+                          },
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(
+                      l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                    ),
+                  )
+                : FilledButton.icon(
+                    key: const Key('branch-save-button'),
+                    onPressed: _isSubmitting ? null : _submit,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: Text(
+                      l10n.pick(
+                        vi: 'Lưu thay đổi',
+                        en: 'Save changes',
+                      ),
+                    ),
+                  );
+
+            if (compact) {
+              return Column(
+                children: [
+                  SizedBox(width: double.infinity, child: secondaryButton),
+                  const SizedBox(height: 10),
+                  SizedBox(width: double.infinity, child: primaryButton),
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: secondaryButton),
+                const SizedBox(width: 10),
+                Expanded(child: primaryButton),
+              ],
+            );
+          },
         ),
       ),
     );

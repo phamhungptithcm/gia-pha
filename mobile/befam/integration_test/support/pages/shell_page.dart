@@ -109,7 +109,7 @@ class ShellPageObject {
     emit,
   }) async {
     emit(
-      referenceId: 'event_demo_001',
+      referenceId: 'event_demo_memorial_001',
       messageId: 'notif_e2e_001',
       title: 'Nhắc sự kiện',
       body: 'Sự kiện giỗ kỵ sắp tới',

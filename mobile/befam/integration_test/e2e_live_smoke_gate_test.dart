@@ -60,8 +60,12 @@ void main() {
       await waitFor(
         tester,
         condition: () =>
-            find.byKey(const Key('genealogy-landing-card')).evaluate().isNotEmpty ||
-            find.byKey(const ValueKey<String>('tree-discovery'))
+            find
+                .byKey(const Key('genealogy-landing-card'))
+                .evaluate()
+                .isNotEmpty ||
+            find
+                .byKey(const ValueKey<String>('tree-discovery'))
                 .evaluate()
                 .isNotEmpty,
         reason: 'Tree workspace did not render landing/discovery content.',
@@ -71,11 +75,16 @@ void main() {
       await waitFor(
         tester,
         condition: () =>
-            find.byKey(const Key('billing-plan-selector')).evaluate().isNotEmpty ||
-            find.byKey(const Key('billing-open-checkout-button'))
+            find
+                .byKey(const Key('billing-plan-selector'))
                 .evaluate()
                 .isNotEmpty ||
-            find.byKey(const Key('billing-payment-history-section'))
+            find
+                .byKey(const Key('billing-open-checkout-button'))
+                .evaluate()
+                .isNotEmpty ||
+            find
+                .byKey(const Key('billing-payment-history-section'))
                 .evaluate()
                 .isNotEmpty,
         reason: 'Billing workspace did not load expected key elements.',

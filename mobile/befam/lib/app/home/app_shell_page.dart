@@ -34,7 +34,6 @@ import '../../features/discovery/services/genealogy_discovery_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/models/member_profile.dart';
 import '../../features/member/services/member_repository.dart';
-import '../../features/notifications/presentation/notification_target_page.dart';
 import '../../features/notifications/services/push_notification_service.dart';
 import '../../features/onboarding/models/onboarding_models.dart';
 import '../../features/onboarding/presentation/onboarding_coordinator.dart';
@@ -86,6 +85,7 @@ class AppShellPage extends StatefulWidget {
     this.genealogyRepository,
     this.genealogyDiscoveryRepository,
     this.billingRepository,
+    this.scholarshipRepository,
     this.pushNotificationService,
     this.clanContextService,
     this.profileNotificationPreferencesRepository,
@@ -102,6 +102,7 @@ class AppShellPage extends StatefulWidget {
   final GenealogyReadRepository? genealogyRepository;
   final GenealogyDiscoveryRepository? genealogyDiscoveryRepository;
   final BillingRepository? billingRepository;
+  final ScholarshipRepository? scholarshipRepository;
   final PushNotificationService? pushNotificationService;
   final ClanContextService? clanContextService;
   final ProfileNotificationPreferencesRepository?
@@ -123,6 +124,7 @@ class _AppShellPageState extends State<AppShellPage>
   late final EventRepository _eventRepository;
   late final FundRepository _fundRepository;
   late final BillingRepository _billingRepository;
+  late final ScholarshipRepository _scholarshipRepository;
   late final AdController _adController;
   late final PushNotificationService _pushNotificationService;
   late final ClanContextService _clanContextService;
@@ -217,6 +219,9 @@ class _AppShellPageState extends State<AppShellPage>
     _billingRepository =
         widget.billingRepository ??
         createDefaultBillingRepository(session: _session);
+    _scholarshipRepository =
+        widget.scholarshipRepository ??
+        createDefaultScholarshipRepository(session: _session);
     _adController = AdController(onStateChanged: _handleAdStateChanged);
     unawaited(
       _adController.initialize(
@@ -325,30 +330,8 @@ class _AppShellPageState extends State<AppShellPage>
       return;
     }
 
-    final destinationIndex = _destinationIndexForNotificationTarget(
-      deepLink.targetType,
-    );
-    final shouldOpenTargetDestination =
-        deepLink.openedFromSystemNotification && destinationIndex != null;
-    if (shouldOpenTargetDestination) {
-      final previousIndex = _selectedIndex;
-      setState(() {
-        _selectedIndex = destinationIndex;
-        _visitedDestinationIndexes.add(destinationIndex);
-      });
-      _adController.recordNavigationTransition(
-        fromScreenId: _screenIdForIndex(previousIndex),
-        toScreenId: _screenIdForIndex(destinationIndex),
-      );
-      if (deepLink.targetType != NotificationTargetType.billing) {
-        _openNotificationTargetPage(
-          targetType: deepLink.targetType,
-          referenceId: deepLink.referenceId,
-          sourceTitle: deepLink.title,
-          sourceBody: deepLink.body,
-          messageId: deepLink.messageId,
-        );
-      }
+    if (deepLink.openedFromSystemNotification) {
+      _openNotificationDestination(deepLink);
     }
 
     final defaultMessage = _defaultNotificationMessage(
@@ -368,21 +351,36 @@ class _AppShellPageState extends State<AppShellPage>
     ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
   }
 
-  void _openNotificationTargetPage({
-    required NotificationTargetType targetType,
-    required String? referenceId,
-    required String? sourceTitle,
-    required String? sourceBody,
-    String? messageId,
-  }) {
-    if (targetType == NotificationTargetType.unknown ||
-        targetType == NotificationTargetType.billing) {
-      return;
+  void _openNotificationDestination(NotificationDeepLink deepLink) {
+    switch (deepLink.targetType) {
+      case NotificationTargetType.event:
+        _selectDestination(2);
+        _openEventNotificationDestination(
+          eventId: deepLink.referenceId,
+          messageId: deepLink.messageId,
+        );
+      case NotificationTargetType.scholarship:
+        _openScholarshipNotificationDestination(
+          referenceId: deepLink.referenceId,
+          messageId: deepLink.messageId,
+        );
+      case NotificationTargetType.billing:
+        _selectDestination(3);
+      case NotificationTargetType.authRefresh:
+      case NotificationTargetType.unknown:
+        break;
     }
+  }
+
+  void _openEventNotificationDestination({
+    required String? eventId,
+    required String? messageId,
+  }) {
     if (!_shouldOpenNotificationMessage(messageId)) {
       return;
     }
 
+    final normalizedEventId = _normalizeNotificationReferenceId(eventId);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -391,16 +389,58 @@ class _AppShellPageState extends State<AppShellPage>
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) {
-            return NotificationTargetPage(
-              targetType: targetType,
-              referenceId: referenceId,
-              sourceTitle: sourceTitle,
-              sourceBody: sourceBody,
+            return EventWorkspacePage(
+              session: _session,
+              repository: _eventRepository,
+              availableClanContexts: _clanContexts,
+              onSwitchClanContext: _switchClanContext,
+              initialEventId: normalizedEventId,
             );
           },
         ),
       );
     });
+  }
+
+  void _openScholarshipNotificationDestination({
+    required String? referenceId,
+    required String? messageId,
+  }) {
+    if (!_shouldOpenNotificationMessage(messageId)) {
+      return;
+    }
+
+    final normalizedReferenceId = _normalizeNotificationReferenceId(
+      referenceId,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) {
+            return ScholarshipWorkspacePage(
+              session: _session,
+              repository: _scholarshipRepository,
+              availableClanContexts: _clanContexts,
+              onSwitchClanContext: _switchClanContext,
+              initialProgramId: normalizedReferenceId,
+              initialSubmissionId: normalizedReferenceId,
+            );
+          },
+        ),
+      );
+    });
+  }
+
+  String? _normalizeNotificationReferenceId(String? value) {
+    final normalized = value?.trim() ?? '';
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
   }
 
   bool _shouldOpenNotificationMessage(String? messageId) {
@@ -441,17 +481,6 @@ class _AppShellPageState extends State<AppShellPage>
       NotificationTargetType.billing => l10n.notificationForegroundGeneral,
       NotificationTargetType.authRefresh => l10n.notificationForegroundGeneral,
       NotificationTargetType.unknown => l10n.notificationForegroundGeneral,
-    };
-  }
-
-  int? _destinationIndexForNotificationTarget(
-    NotificationTargetType targetType,
-  ) {
-    return switch (targetType) {
-      NotificationTargetType.event || NotificationTargetType.scholarship => 2,
-      NotificationTargetType.billing => 3,
-      NotificationTargetType.authRefresh => null,
-      NotificationTargetType.unknown => null,
     };
   }
 
@@ -846,6 +875,7 @@ class _AppShellPageState extends State<AppShellPage>
         memberRepository: widget.memberRepository,
         eventRepository: _eventRepository,
         fundRepository: _fundRepository,
+        scholarshipRepository: _scholarshipRepository,
         discoveryRepository: _genealogyDiscoveryRepository,
         activeClanName: _activeClanDisplayName(),
         availableClanContexts: _clanContexts,
@@ -933,10 +963,7 @@ class _AppShellPageState extends State<AppShellPage>
 
     final appBar = AppBar(
       title: Text(_activeClanAppBarTitle(l10n)),
-      actions: _buildAppBarActions(
-        l10n: l10n,
-        sessionTooltip: sessionTooltip,
-      ),
+      actions: _buildAppBarActions(l10n: l10n, sessionTooltip: sessionTooltip),
     );
 
     Widget contentStack = IndexedStack(index: _selectedIndex, children: pages);

@@ -32,6 +32,7 @@ class ProfileController extends ChangeNotifier {
   bool _isSavingProfile = false;
   bool _isUploadingAvatar = false;
   bool _isSavingNotificationPreferences = false;
+  bool _isDisposed = false;
   String? _errorMessage;
   MemberProfile? _profile;
   ProfileNotificationPreferences _notificationPreferences =
@@ -59,14 +60,14 @@ class ProfileController extends ChangeNotifier {
   Future<void> refresh() async {
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
 
     if (!hasMemberContext) {
       _notificationPreferences = const ProfileNotificationPreferences();
       _profile = null;
       _errorMessage = null;
       _isLoading = false;
-      notifyListeners();
+      _notifyIfActive();
       return;
     }
 
@@ -97,7 +98,7 @@ class ProfileController extends ChangeNotifier {
     } finally {
       _errorMessage = failureMessage;
       _isLoading = false;
-      notifyListeners();
+      _notifyIfActive();
     }
   }
 
@@ -109,7 +110,7 @@ class ProfileController extends ChangeNotifier {
 
     _isSavingProfile = true;
     _errorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
 
     final payload = MemberDraft.fromProfile(existing).copyWith(
       fullName: draft.fullName.trim(),
@@ -139,7 +140,7 @@ class ProfileController extends ChangeNotifier {
       return error.code;
     } finally {
       _isSavingProfile = false;
-      notifyListeners();
+      _notifyIfActive();
     }
   }
 
@@ -155,7 +156,7 @@ class ProfileController extends ChangeNotifier {
 
     _isUploadingAvatar = true;
     _errorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
 
     try {
       final updated = await _memberRepository.uploadAvatar(
@@ -172,7 +173,7 @@ class ProfileController extends ChangeNotifier {
       return error.code;
     } finally {
       _isUploadingAvatar = false;
-      notifyListeners();
+      _notifyIfActive();
     }
   }
 
@@ -229,7 +230,7 @@ class ProfileController extends ChangeNotifier {
     _notificationPreferences = next;
     _isSavingNotificationPreferences = true;
     _errorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
 
     try {
       _notificationPreferences = await _notificationPreferencesRepository.save(
@@ -241,8 +242,21 @@ class ProfileController extends ChangeNotifier {
       _errorMessage = error.toString();
     } finally {
       _isSavingNotificationPreferences = false;
-      notifyListeners();
+      _notifyIfActive();
     }
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  void _notifyIfActive() {
+    if (_isDisposed) {
+      return;
+    }
+    notifyListeners();
   }
 }
 

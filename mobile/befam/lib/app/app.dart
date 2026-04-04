@@ -21,6 +21,7 @@ import '../features/genealogy/services/genealogy_read_repository.dart';
 import '../features/member/services/member_repository.dart';
 import '../features/notifications/services/push_notification_service.dart';
 import '../features/profile/services/profile_notification_preferences_repository.dart';
+import '../features/scholarship/services/scholarship_repository.dart';
 import '../l10n/generated/app_localizations.dart';
 import 'bootstrap/firebase_setup_status.dart';
 import 'theme/app_theme.dart';
@@ -43,6 +44,7 @@ class BeFamApp extends StatefulWidget {
     this.genealogyRepository,
     this.genealogyDiscoveryRepository,
     this.billingRepository,
+    this.scholarshipRepository,
     this.pushNotificationService,
     this.profileNotificationPreferencesRepository,
     this.locale,
@@ -62,6 +64,7 @@ class BeFamApp extends StatefulWidget {
   final GenealogyReadRepository? genealogyRepository;
   final GenealogyDiscoveryRepository? genealogyDiscoveryRepository;
   final BillingRepository? billingRepository;
+  final ScholarshipRepository? scholarshipRepository;
   final PushNotificationService? pushNotificationService;
   final ProfileNotificationPreferencesRepository?
   profileNotificationPreferencesRepository;
@@ -182,6 +185,7 @@ class _BeFamAppState extends State<BeFamApp> {
       genealogyRepository: widget.genealogyRepository,
       genealogyDiscoveryRepository: widget.genealogyDiscoveryRepository,
       billingRepository: widget.billingRepository,
+      scholarshipRepository: widget.scholarshipRepository,
       pushNotificationService: widget.pushNotificationService,
       profileNotificationPreferencesRepository:
           widget.profileNotificationPreferencesRepository,

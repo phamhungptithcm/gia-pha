@@ -24,6 +24,7 @@ import '../../member/models/member_social_links.dart';
 import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/profile_notification_preferences.dart';
 import '../services/profile_notification_preferences_repository.dart';
 import '../models/profile_draft.dart';
 import 'profile_controller.dart';
@@ -820,14 +821,6 @@ class _SettingsScreenShell extends StatelessWidget {
       animation: Listenable.merge([controller, localeController]),
       builder: (context, _) {
         final selectedLanguageCode = localeController.locale.languageCode;
-        final heroBadges = <_ProfileHeroBadgeData>[
-          _ProfileHeroBadgeData(
-            icon: Icons.language_outlined,
-            label: selectedLanguageCode == 'vi'
-                ? l10n.pick(vi: 'Tiếng Việt', en: 'Vietnamese')
-                : l10n.pick(vi: 'English', en: 'English'),
-          ),
-        ];
         return Scaffold(
           appBar: AppBar(title: Text(l10n.profileSettingsTitle)),
           body: SafeArea(
@@ -835,17 +828,11 @@ class _SettingsScreenShell extends StatelessWidget {
               child: ListView(
                 padding: appWorkspacePagePadding(context, top: 16, bottom: 32),
                 children: [
-                  _SettingsHeroCard(
-                    title: l10n.profileSettingsTitle,
-                    badges: heroBadges,
-                  ),
+                  _NotificationSettingsHeroCard(controller: controller),
                   const SizedBox(height: 16),
                   _ProfileSectionCard(
                     title: l10n.notificationSettingsTitle,
-                    child: _NotificationSettingsPanel(
-                      controller: controller,
-                      showDescription: false,
-                    ),
+                    child: _NotificationSettingsPanel(controller: controller),
                   ),
                   const SizedBox(height: 16),
                   _ProfileSectionCard(
@@ -964,120 +951,163 @@ class _SettingsScreenShell extends StatelessWidget {
 }
 
 class _NotificationSettingsPanel extends StatelessWidget {
-  const _NotificationSettingsPanel({
-    required this.controller,
-    this.showDescription = true,
-  });
+  const _NotificationSettingsPanel({required this.controller});
 
   final ProfileController controller;
-  final bool showDescription;
 
   @override
   Widget build(BuildContext context) {
     final prefs = controller.notificationPreferences;
-    final theme = Theme.of(context);
     final l10n = context.l10n;
     final isSaving = controller.isSavingNotificationPreferences;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (showDescription)
-          Text(
-            l10n.notificationSettingsDescription,
-            style: theme.textTheme.bodyMedium,
+        if (isSaving)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _InlineStatusBadge(
+              icon: Icons.sync_rounded,
+              label: l10n.notificationSettingsSavingBadge,
+            ),
           ),
-        if (isSaving) ...[
-          const SizedBox(height: 10),
-          const LinearProgressIndicator(minHeight: 2),
-        ],
-        SizedBox(height: showDescription ? 8 : 2),
-        _NotificationPreferenceTile(
-          title: l10n.notificationSettingsPushChannel,
-          value: prefs.pushEnabled,
-          isLast: false,
-          onChanged: isSaving
-              ? null
-              : (value) {
-                  unawaited(controller.updatePushEnabledPreference(value));
-                },
+        _NotificationPreferenceGroup(
+          title: l10n.notificationSettingsChannelsSectionTitle,
+          child: Column(
+            children: [
+              _NotificationPreferenceTile(
+                icon: Icons.mark_email_unread_outlined,
+                title: l10n.notificationSettingsEmailChannel,
+                subtitle: l10n.notificationSettingsEmailChannelHint,
+                value: prefs.emailEnabled,
+                isLast: false,
+                onChanged: isSaving
+                    ? null
+                    : (value) {
+                        unawaited(
+                          controller.updateEmailEnabledPreference(value),
+                        );
+                      },
+              ),
+              _NotificationPreferenceTile(
+                icon: Icons.bedtime_outlined,
+                title: l10n.notificationSettingsQuietHours,
+                subtitle: l10n.notificationSettingsQuietHoursHint,
+                value: prefs.quietHoursEnabled,
+                isLast: true,
+                onChanged: isSaving
+                    ? null
+                    : (value) {
+                        unawaited(controller.updateQuietHoursPreference(value));
+                      },
+              ),
+            ],
+          ),
         ),
-        _NotificationPreferenceTile(
-          title: l10n.notificationSettingsEmailChannel,
-          value: prefs.emailEnabled,
-          isLast: false,
-          onChanged: isSaving
-              ? null
-              : (value) {
-                  unawaited(controller.updateEmailEnabledPreference(value));
-                },
-        ),
-        _NotificationPreferenceTile(
-          title: l10n.notificationSettingsEventUpdates,
-          value: prefs.eventReminders,
-          isLast: false,
-          onChanged: isSaving
-              ? null
-              : (value) {
-                  unawaited(controller.updateEventRemindersPreference(value));
-                },
-        ),
-        _NotificationPreferenceTile(
-          title: l10n.notificationSettingsScholarshipUpdates,
-          value: prefs.scholarshipUpdates,
-          isLast: false,
-          onChanged: isSaving
-              ? null
-              : (value) {
-                  unawaited(
-                    controller.updateScholarshipUpdatesPreference(value),
-                  );
-                },
-        ),
-        _NotificationPreferenceTile(
-          title: l10n.profileNotificationFundAlerts,
-          value: prefs.fundTransactions,
-          isLast: false,
-          onChanged: isSaving
-              ? null
-              : (value) {
-                  unawaited(controller.updateFundTransactionsPreference(value));
-                },
-        ),
-        _NotificationPreferenceTile(
-          title: l10n.notificationSettingsGeneralUpdates,
-          value: prefs.systemNotices,
-          isLast: false,
-          onChanged: isSaving
-              ? null
-              : (value) {
-                  unawaited(controller.updateSystemNoticesPreference(value));
-                },
-        ),
-        _NotificationPreferenceTile(
-          title: l10n.notificationSettingsQuietHours,
-          value: prefs.quietHoursEnabled,
-          isLast: true,
-          onChanged: isSaving
-              ? null
-              : (value) {
-                  unawaited(controller.updateQuietHoursPreference(value));
-                },
+        const SizedBox(height: 12),
+        _NotificationPreferenceGroup(
+          title: l10n.notificationSettingsTopicsSectionTitle,
+          child: Column(
+            children: [
+              _NotificationPreferenceTile(
+                icon: Icons.event_note_outlined,
+                title: l10n.notificationSettingsEventUpdates,
+                subtitle: l10n.notificationSettingsEventUpdatesHint,
+                value: prefs.eventReminders,
+                isLast: false,
+                onChanged: isSaving
+                    ? null
+                    : (value) {
+                        unawaited(
+                          controller.updateEventRemindersPreference(value),
+                        );
+                      },
+              ),
+              _NotificationPreferenceTile(
+                icon: Icons.school_outlined,
+                title: l10n.notificationSettingsScholarshipUpdates,
+                subtitle: l10n.notificationSettingsScholarshipUpdatesHint,
+                value: prefs.scholarshipUpdates,
+                isLast: false,
+                onChanged: isSaving
+                    ? null
+                    : (value) {
+                        unawaited(
+                          controller.updateScholarshipUpdatesPreference(value),
+                        );
+                      },
+              ),
+              _NotificationPreferenceTile(
+                icon: Icons.account_balance_wallet_outlined,
+                title: l10n.profileNotificationFundAlerts,
+                subtitle: l10n.profileNotificationFundAlertsHint,
+                value: prefs.fundTransactions,
+                isLast: false,
+                onChanged: isSaving
+                    ? null
+                    : (value) {
+                        unawaited(
+                          controller.updateFundTransactionsPreference(value),
+                        );
+                      },
+              ),
+              _NotificationPreferenceTile(
+                icon: Icons.groups_2_outlined,
+                title: l10n.notificationSettingsGeneralUpdates,
+                subtitle: l10n.notificationSettingsGeneralUpdatesHint,
+                value: prefs.systemNotices,
+                isLast: true,
+                onChanged: isSaving
+                    ? null
+                    : (value) {
+                        unawaited(
+                          controller.updateSystemNoticesPreference(value),
+                        );
+                      },
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 }
 
-class _SettingsHeroCard extends StatelessWidget {
-  const _SettingsHeroCard({required this.title, required this.badges});
+class _NotificationSettingsHeroCard extends StatelessWidget {
+  const _NotificationSettingsHeroCard({required this.controller});
 
-  final String title;
-  final List<_ProfileHeroBadgeData> badges;
+  final ProfileController controller;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final prefs = controller.notificationPreferences;
+    final l10n = context.l10n;
+    final enabledCount = _countEnabledNotificationPreferences(prefs);
+    final statusBadges = <_ProfileHeroBadgeData>[
+      _ProfileHeroBadgeData(
+        icon: prefs.pushEnabled
+            ? Icons.notifications_active_outlined
+            : Icons.notifications_off_outlined,
+        label: prefs.pushEnabled
+            ? l10n.notificationSettingsPushStatusEnabled
+            : l10n.notificationSettingsPushStatusDisabled,
+      ),
+      _ProfileHeroBadgeData(
+        icon: Icons.tune_rounded,
+        label: l10n.pick(
+          vi: '$enabledCount mục đang theo dõi',
+          en: '$enabledCount preferences on',
+        ),
+      ),
+      if (controller.isSavingNotificationPreferences)
+        _ProfileHeroBadgeData(
+          icon: Icons.sync_rounded,
+          label: l10n.notificationSettingsSavingBadge,
+        ),
+    ];
+
     return AppWorkspaceSurface(
       padding: const EdgeInsets.all(20),
       gradient: appWorkspaceHeroGradient(context),
@@ -1085,22 +1115,119 @@ class _SettingsHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final badge in statusBadges) _ProfileHeroBadge(data: badge),
+            ],
+          ),
+          const SizedBox(height: 16),
           Text(
-            title,
+            l10n.notificationSettingsHeroTitle,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
             ),
           ),
-          if (badges.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+          const SizedBox(height: 8),
+          Text(
+            l10n.notificationSettingsHeroDescription,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+          ),
+          const SizedBox(height: 16),
+          AppWorkspaceSurface(
+            color: Colors.white.withValues(alpha: 0.82),
+            padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                for (final badge in badges) _ProfileHeroBadge(data: badge),
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer.withValues(
+                      alpha: 0.92,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    prefs.pushEnabled
+                        ? Icons.notifications_active_outlined
+                        : Icons.notifications_off_outlined,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.notificationSettingsPushChannel,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.notificationSettingsPushChannelHint,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Switch.adaptive(
+                  value: prefs.pushEnabled,
+                  onChanged: controller.isSavingNotificationPreferences
+                      ? null
+                      : (value) {
+                          unawaited(
+                            controller.updatePushEnabledPreference(value),
+                          );
+                        },
+                ),
               ],
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationPreferenceGroup extends StatelessWidget {
+  const _NotificationPreferenceGroup({
+    required this.title,
+    required this.child,
+  });
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AppWorkspaceSurface(
+      color: Colors.white.withValues(alpha: 0.74),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: theme.colorScheme.onSurfaceVariant,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          child,
         ],
       ),
     );
@@ -1109,13 +1236,17 @@ class _SettingsHeroCard extends StatelessWidget {
 
 class _NotificationPreferenceTile extends StatelessWidget {
   const _NotificationPreferenceTile({
+    required this.icon,
     required this.title,
+    required this.subtitle,
     required this.value,
     required this.onChanged,
     required this.isLast,
   });
 
+  final IconData icon;
   final String title;
+  final String subtitle;
   final bool value;
   final ValueChanged<bool>? onChanged;
   final bool isLast;
@@ -1127,10 +1258,26 @@ class _NotificationPreferenceTile extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.7,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1141,14 +1288,19 @@ class _NotificationPreferenceTile extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(width: 12),
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Switch.adaptive(value: value, onChanged: onChanged),
-              ),
+              Switch.adaptive(value: value, onChanged: onChanged),
             ],
           ),
         ),
@@ -1156,9 +1308,47 @@ class _NotificationPreferenceTile extends StatelessWidget {
           Divider(
             height: 1,
             thickness: 1,
-            color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+            color: colorScheme.outlineVariant.withValues(alpha: 0.45),
           ),
       ],
+    );
+  }
+}
+
+class _InlineStatusBadge extends StatelessWidget {
+  const _InlineStatusBadge({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -2056,10 +2246,14 @@ class _ProfileHeroBadge extends StatelessWidget {
           children: [
             Icon(data.icon, size: 16, color: colorScheme.primary),
             const SizedBox(width: 6),
-            Text(
-              data.label,
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
+            Flexible(
+              child: Text(
+                data.label,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -2067,6 +2261,18 @@ class _ProfileHeroBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+int _countEnabledNotificationPreferences(ProfileNotificationPreferences prefs) {
+  return [
+    prefs.pushEnabled,
+    prefs.emailEnabled,
+    prefs.eventReminders,
+    prefs.scholarshipUpdates,
+    prefs.fundTransactions,
+    prefs.systemNotices,
+    prefs.quietHoursEnabled,
+  ].where((value) => value).length;
 }
 
 class _EditorSectionCard extends StatelessWidget {

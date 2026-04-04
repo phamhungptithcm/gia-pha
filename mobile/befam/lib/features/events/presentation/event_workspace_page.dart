@@ -933,6 +933,7 @@ class _EventDetailPage extends StatelessWidget {
     final l10n = context.l10n;
 
     return Scaffold(
+      key: Key('event-detail-page-$eventId'),
       appBar: AppBar(
         title: Text(l10n.eventDetailTitle),
         actions: [

@@ -282,12 +282,13 @@ class _AuthHero extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = context.l10n;
     final tokens = context.uiTokens;
-    final isCompact = step != AuthStep.loginMethodSelection;
+    final isLoginMethodSelection = step == AuthStep.loginMethodSelection;
+    final isCompact = !isLoginMethodSelection;
 
     final title = switch (step) {
       AuthStep.loginMethodSelection => l10n.pick(
-        vi: 'Vào BeFam để tiếp tục với gia đình của bạn',
-        en: 'Continue with your family on BeFam',
+        vi: 'Vào BeFam để tiếp tục với gia đình bạn',
+        en: 'Enter BeFam to stay close to your family',
       ),
       AuthStep.phoneNumber => l10n.pick(
         vi: 'Nhập số điện thoại của bạn',
@@ -312,8 +313,8 @@ class _AuthHero extends StatelessWidget {
     };
     final subtitle = switch (step) {
       AuthStep.loginMethodSelection => l10n.pick(
-        vi: 'Chọn cách đăng nhập phù hợp để xem cây gia phả, sự kiện và kết nối với người thân.',
-        en: 'Choose how you want to sign in to access your family tree, events, and relatives.',
+        vi: 'Xem gia phả, lịch họ và cập nhật từ người thân ở cùng một nơi.',
+        en: 'See your family tree, family events, and updates from loved ones in one place.',
       ),
       AuthStep.phoneNumber => l10n.pick(
         vi: 'BeFam sẽ gửi mã OTP để xác nhận tài khoản của bạn.',
@@ -363,35 +364,37 @@ class _AuthHero extends StatelessWidget {
         ),
       ),
       _ => _AuthHeroChip(
-        icon: Icons.family_restroom_outlined,
-        label: l10n.pick(vi: 'Kết nối với gia đình', en: 'Stay connected'),
+        icon: Icons.shield_outlined,
+        label: l10n.pick(vi: 'Đăng nhập an toàn', en: 'Secure sign-in'),
       ),
     };
 
     return AppWorkspaceSurface(
       gradient: appWorkspaceHeroGradient(context),
       showAccentOrbs: true,
-      padding: EdgeInsets.all(isCompact ? tokens.spaceLg : tokens.spaceXl),
+      padding: EdgeInsets.all(tokens.spaceLg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: isCompact ? 42 : 48,
-            height: isCompact ? 42 : 48,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(tokens.radiusMd),
+          if (!isLoginMethodSelection) ...[
+            Container(
+              width: isCompact ? 42 : 48,
+              height: isCompact ? 42 : 48,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(tokens.radiusMd),
+              ),
+              child: Icon(switch (step) {
+                AuthStep.loginMethodSelection => Icons.login_rounded,
+                AuthStep.phoneNumber => Icons.phone_iphone_rounded,
+                AuthStep.childIdentifier => Icons.child_care_rounded,
+                AuthStep.otp => Icons.password_rounded,
+                AuthStep.memberSelection => Icons.badge_outlined,
+                AuthStep.memberVerification => Icons.verified_user_outlined,
+              }, color: theme.colorScheme.primary),
             ),
-            child: Icon(switch (step) {
-              AuthStep.loginMethodSelection => Icons.login_rounded,
-              AuthStep.phoneNumber => Icons.phone_iphone_rounded,
-              AuthStep.childIdentifier => Icons.child_care_rounded,
-              AuthStep.otp => Icons.password_rounded,
-              AuthStep.memberSelection => Icons.badge_outlined,
-              AuthStep.memberVerification => Icons.verified_user_outlined,
-            }, color: theme.colorScheme.primary),
-          ),
-          SizedBox(height: isCompact ? tokens.spaceMd : tokens.spaceLg),
+            SizedBox(height: isCompact ? tokens.spaceMd : tokens.spaceLg),
+          ],
           Text(
             title,
             style:
@@ -407,22 +410,14 @@ class _AuthHero extends StatelessWidget {
                 ? theme.textTheme.bodyMedium
                 : theme.textTheme.bodyLarge,
           ),
-          SizedBox(height: isCompact ? tokens.spaceMd : tokens.spaceLg),
-          Wrap(
-            spacing: tokens.spaceSm,
-            runSpacing: tokens.spaceSm,
-            children: [
-              if (!isCompact)
-                _AuthHeroChip(
-                  icon: Icons.shield_outlined,
-                  label: l10n.pick(
-                    vi: 'Riêng tư và an toàn',
-                    en: 'Private and secure',
-                  ),
-                ),
-              statusChip,
-            ],
-          ),
+          if (!isLoginMethodSelection) ...[
+            SizedBox(height: isCompact ? tokens.spaceMd : tokens.spaceLg),
+            Wrap(
+              spacing: tokens.spaceSm,
+              runSpacing: tokens.spaceSm,
+              children: [statusChip],
+            ),
+          ],
         ],
       ),
     );
@@ -500,7 +495,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
     return Column(
       children: [
         AppWorkspaceSurface(
-          showAccentOrbs: true,
+          showAccentOrbs: false,
           padding: EdgeInsets.all(tokens.spaceLg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,8 +512,8 @@ class _LoginMethodSelectionCard extends StatelessWidget {
               SizedBox(height: tokens.spaceSm),
               Text(
                 l10n.pick(
-                  vi: 'Bạn có thể vào bằng số điện thoại cá nhân hoặc mã riêng dành cho tài khoản của bé.',
-                  en: 'You can sign in with your phone number or a dedicated code for a child account.',
+                  vi: 'Bạn có thể tiếp tục bằng số điện thoại của mình hoặc mã dành cho bé.',
+                  en: 'You can continue with your phone number or a child access code.',
                 ),
               ),
               SizedBox(height: tokens.spaceLg),
@@ -529,8 +524,8 @@ class _LoginMethodSelectionCard extends StatelessWidget {
                   en: 'Use phone number',
                 ),
                 subtitle: l10n.pick(
-                  vi: 'Nhận mã OTP và tiếp tục trong vài giây',
-                  en: 'Get an OTP code and continue in seconds',
+                  vi: 'Nhận mã OTP để tiếp tục nhanh',
+                  en: 'Get an OTP code and continue quickly',
                 ),
                 icon: Icons.phone_iphone,
                 filled: true,
@@ -546,8 +541,8 @@ class _LoginMethodSelectionCard extends StatelessWidget {
                   en: 'Use child access code',
                 ),
                 subtitle: l10n.pick(
-                  vi: 'Phù hợp khi người lớn quản lý tài khoản cho bé',
-                  en: 'Best when an adult manages the child account',
+                  vi: 'Phù hợp khi bạn đăng nhập cho bé',
+                  en: 'Use this when signing in for a child',
                 ),
                 icon: Icons.child_care,
                 filled: false,
@@ -596,8 +591,8 @@ class _MethodActionButton extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 42,
-          height: 42,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
             color: filled
                 ? colorScheme.onPrimary.withValues(alpha: 0.14)
@@ -631,7 +626,7 @@ class _MethodActionButton extends StatelessWidget {
           style: FilledButton.styleFrom(
             padding: EdgeInsets.symmetric(
               horizontal: tokens.spaceLg,
-              vertical: tokens.spaceMd,
+              vertical: tokens.spaceSm + 2,
             ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(tokens.radiusMd),
@@ -649,7 +644,7 @@ class _MethodActionButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           padding: EdgeInsets.symmetric(
             horizontal: tokens.spaceLg,
-            vertical: tokens.spaceMd,
+            vertical: tokens.spaceSm + 2,
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(tokens.radiusMd),
@@ -678,53 +673,128 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final tokens = context.uiTokens;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isAccepted = hasAcceptedPrivacyPolicy;
 
     return AppWorkspaceSurface(
-      padding: EdgeInsets.symmetric(
-        horizontal: tokens.spaceMd,
-        vertical: tokens.spaceSm,
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(tokens.radiusMd),
-        onTap: isBusy ? null : () => onChanged(!hasAcceptedPrivacyPolicy),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Checkbox(
-              key: const Key('auth-privacy-checkbox'),
-              value: hasAcceptedPrivacyPolicy,
-              onChanged: isBusy ? null : (value) => onChanged(value ?? false),
-            ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(top: tokens.spaceSm),
+      color: colorScheme.surface.withValues(alpha: 0.94),
+      padding: EdgeInsets.all(tokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(tokens.radiusMd),
+                ),
+                child: Icon(
+                  Icons.shield_outlined,
+                  color: colorScheme.primary,
+                  size: 18,
+                ),
+              ),
+              SizedBox(width: tokens.spaceSm),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       l10n.pick(
-                        vi: 'Tôi đồng ý với chính sách quyền riêng tư của BeFam.',
-                        en: 'I agree to BeFam’s privacy policy.',
+                        vi: 'Bảo vệ tài khoản của bạn',
+                        en: 'Protect your account',
+                      ),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     SizedBox(height: tokens.spaceXs),
                     Text(
                       l10n.pick(
-                        vi: 'Dữ liệu chỉ được dùng để xác minh và bảo vệ tài khoản của bạn.',
-                        en: 'Your data is only used to verify and protect your account.',
+                        vi: 'BeFam chỉ dùng thông tin này để xác minh và giữ an toàn cho tài khoản.',
+                        en: 'BeFam only uses this information to verify and keep your account secure.',
                       ),
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: theme.textTheme.bodySmall,
                     ),
                   ],
                 ),
               ),
+              AppCompactTextButton(
+                onPressed: onViewPrivacyPolicy,
+                child: Text(l10n.pick(vi: 'Xem chính sách', en: 'View policy')),
+              ),
+            ],
+          ),
+          SizedBox(height: tokens.spaceMd),
+          InkWell(
+            borderRadius: BorderRadius.circular(tokens.radiusMd),
+            onTap: isBusy ? null : () => onChanged(!isAccepted),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.symmetric(
+                horizontal: tokens.spaceMd,
+                vertical: tokens.spaceSm,
+              ),
+              decoration: BoxDecoration(
+                color: isAccepted
+                    ? colorScheme.primaryContainer.withValues(alpha: 0.5)
+                    : colorScheme.surfaceContainerLowest.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(tokens.radiusMd),
+                border: Border.all(
+                  color: isAccepted
+                      ? colorScheme.primary.withValues(alpha: 0.32)
+                      : colorScheme.outlineVariant,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Checkbox(
+                    key: const Key('auth-privacy-checkbox'),
+                    value: isAccepted,
+                    onChanged: isBusy
+                        ? null
+                        : (value) => onChanged(value ?? false),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  SizedBox(width: tokens.spaceXs),
+                  Expanded(
+                    child: Text(
+                      isAccepted
+                          ? l10n.pick(
+                              vi: 'Bạn đã đồng ý với chính sách riêng tư.',
+                              en: 'You agreed to the Privacy Policy.',
+                            )
+                          : l10n.pick(
+                              vi: 'Tôi đồng ý với chính sách riêng tư của BeFam.',
+                              en: 'I agree to BeFam’s Privacy Policy.',
+                            ),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (isAccepted)
+                    Icon(
+                      Icons.check_circle_rounded,
+                      color: colorScheme.primary,
+                      size: 18,
+                    ),
+                ],
+              ),
             ),
-            AppCompactTextButton(
-              onPressed: onViewPrivacyPolicy,
-              child: Text(l10n.pick(vi: 'Xem chính sách', en: 'View policy')),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

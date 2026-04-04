@@ -188,6 +188,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.memberRepository,
     required this.eventRepository,
     required this.fundRepository,
+    required this.scholarshipRepository,
     required this.discoveryRepository,
     required this.activeClanName,
     required this.availableClanContexts,
@@ -206,6 +207,7 @@ class _HomeDashboard extends StatelessWidget {
   final MemberRepository memberRepository;
   final EventRepository eventRepository;
   final FundRepository fundRepository;
+  final ScholarshipRepository scholarshipRepository;
   final GenealogyDiscoveryRepository discoveryRepository;
   final String? activeClanName;
   final List<ClanContextOption> availableClanContexts;
@@ -261,7 +263,7 @@ class _HomeDashboard extends StatelessWidget {
       desktop: 4,
     );
     final shortcutAspectRatio = switch (layout.viewport) {
-      AppViewport.mobile => layout.width < 390 ? 1.08 : 1.16,
+      AppViewport.mobile => layout.width < 390 ? 1.14 : 1.22,
       AppViewport.tablet => 1.28,
       AppViewport.desktop => 1.34,
     };
@@ -269,7 +271,7 @@ class _HomeDashboard extends StatelessWidget {
     return ListView(
       padding: EdgeInsets.fromLTRB(
         layout.horizontalPadding,
-        tokens.spaceLg,
+        tokens.spaceMd,
         layout.horizontalPadding,
         tokens.space2xl + tokens.spaceSm,
       ),
@@ -281,13 +283,16 @@ class _HomeDashboard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  l10n.pick(vi: 'Dòng họ hôm nay', en: 'Family today'),
+                  l10n.pick(
+                    vi: 'Hôm nay trong gia đình',
+                    en: 'Today with your family',
+                  ),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 SizedBox(
-                  height: layout.isMobile ? tokens.spaceMd : tokens.spaceLg,
+                  height: layout.isMobile ? tokens.spaceSm : tokens.spaceLg,
                 ),
                 _UpcomingEventSection(
                   session: session,
@@ -298,7 +303,7 @@ class _HomeDashboard extends StatelessWidget {
                       onOpenUpcomingEventDetailRequested,
                 ),
                 SizedBox(
-                  height: layout.isMobile ? tokens.spaceMd : tokens.spaceLg,
+                  height: layout.isMobile ? tokens.spaceSm : tokens.spaceLg,
                 ),
                 _DashboardSectionShell(
                   padding: EdgeInsets.all(tokens.spaceLg),
@@ -309,10 +314,7 @@ class _HomeDashboard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              l10n.pick(
-                                vi: 'Truy cập nhanh',
-                                en: 'Quick access',
-                              ),
+                              l10n.pick(vi: 'Lối tắt', en: 'Shortcuts'),
                               style: theme.textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.w800,
                               ),
@@ -320,9 +322,7 @@ class _HomeDashboard extends StatelessWidget {
                           ),
                           AppCompactTextButton(
                             onPressed: () => _openAllShortcutsSheet(context),
-                            child: Text(
-                              l10n.pick(vi: 'Xem tất cả', en: 'View all'),
-                            ),
+                            child: Text(l10n.pick(vi: 'Tất cả', en: 'All')),
                           ),
                         ],
                       ),
@@ -353,7 +353,7 @@ class _HomeDashboard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(
-                  height: layout.isMobile ? tokens.spaceMd : tokens.spaceLg,
+                  height: layout.isMobile ? tokens.spaceSm : tokens.spaceLg,
                 ),
                 if (layout.isMobile) ...[
                   _TodoSection(
@@ -420,7 +420,7 @@ class _HomeDashboard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
           children: [
             Text(
-              l10n.pick(vi: 'Tất cả truy cập nhanh', en: 'All quick access'),
+              l10n.pick(vi: 'Tất cả lối tắt', en: 'All shortcuts'),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
@@ -511,9 +511,7 @@ class _HomeDashboard extends StatelessWidget {
             builder: (context) {
               return ScholarshipWorkspacePage(
                 session: session,
-                repository: createDefaultScholarshipRepository(
-                  session: session,
-                ),
+                repository: scholarshipRepository,
                 availableClanContexts: availableClanContexts,
                 onSwitchClanContext: onSwitchClanContext,
               );
@@ -634,35 +632,47 @@ class _DashboardMetaChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.uiTokens;
+    final layout = ResponsiveLayout.of(context);
     final resolvedForeground = foregroundColor ?? theme.colorScheme.onSurface;
     final resolvedBackground =
         backgroundColor ?? Colors.white.withValues(alpha: 0.56);
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final maxChipWidth = layout.isMobile
+        ? math.min(viewportWidth * 0.62, 224.0)
+        : 320.0;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: resolvedBackground,
-        borderRadius: BorderRadius.circular(tokens.radiusPill),
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: tokens.spaceMd,
-          vertical: tokens.spaceSm,
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxChipWidth),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: resolvedBackground,
+          borderRadius: BorderRadius.circular(tokens.radiusPill),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16, color: resolvedForeground),
-              SizedBox(width: tokens.spaceSm),
-            ],
-            Text(
-              label,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: resolvedForeground,
-                fontWeight: FontWeight.w700,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: tokens.spaceMd,
+            vertical: tokens.spaceSm,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 16, color: resolvedForeground),
+                SizedBox(width: tokens.spaceSm),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: resolvedForeground,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -683,12 +693,16 @@ class _ShortcutCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
     final isEnabled = onTap != null;
+    final compactTile = layout.isMobile;
     final statusColor = switch (shortcut.status) {
       AppShortcutStatus.live => colorScheme.primaryContainer,
       AppShortcutStatus.bootstrap => colorScheme.secondaryContainer,
       AppShortcutStatus.planned => colorScheme.surfaceContainerHighest,
     };
-    final showDescription = !layout.isMobile;
+    final showDescription = !compactTile;
+    final tilePadding = compactTile ? tokens.spaceMd : tokens.spaceLg;
+    final avatarRadius = compactTile ? 17.0 : 19.0;
+    final titleFontSize = compactTile ? 16.0 : 17.0;
 
     return Material(
       color: Colors.white.withValues(alpha: isEnabled ? 0.92 : 0.72),
@@ -701,34 +715,38 @@ class _ShortcutCard extends StatelessWidget {
         child: Opacity(
           opacity: isEnabled ? 1 : 0.62,
           child: Padding(
-            padding: EdgeInsets.all(tokens.spaceLg),
+            padding: EdgeInsets.all(tilePadding),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     CircleAvatar(
-                      radius: 19,
+                      radius: avatarRadius,
                       backgroundColor: statusColor,
                       foregroundColor: colorScheme.onSurface,
-                      child: Icon(_iconFor(shortcut.iconKey), size: 18),
+                      child: Icon(
+                        _iconFor(shortcut.iconKey),
+                        size: compactTile ? 16 : 18,
+                      ),
                     ),
                     const Spacer(),
                     Icon(
                       isEnabled
                           ? Icons.north_east_rounded
                           : Icons.lock_outline_rounded,
-                      size: 18,
+                      size: compactTile ? 16 : 18,
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ],
                 ),
-                const Spacer(),
+                SizedBox(height: compactTile ? tokens.spaceSm : tokens.spaceMd),
                 Text(
                   l10n.shortcutTitle(shortcut.id),
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    fontSize: layout.isMobile ? 18 : 17,
+                    fontSize: titleFontSize,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -757,32 +775,32 @@ String _productionShortcutDescription(BuildContext context, String shortcutId) {
   final l10n = context.l10n;
   return switch (shortcutId) {
     'clan' => l10n.pick(
-      vi: 'Quản lý thông tin họ tộc và cấu trúc chi nhánh.',
-      en: 'Manage clan profile and branch structure.',
+      vi: 'Xem thông tin họ tộc và các nhánh trong gia đình.',
+      en: 'View clan details and family branches.',
     ),
     'tree' => l10n.pick(
-      vi: 'Theo dõi cây gia phả và các mối quan hệ thành viên.',
-      en: 'Explore family tree and member relationships.',
+      vi: 'Xem cây gia phả và các mối quan hệ trong họ.',
+      en: 'Explore the family tree and member relationships.',
     ),
     'members' => l10n.pick(
-      vi: 'Tra cứu và cập nhật hồ sơ thành viên nhanh chóng.',
-      en: 'Search and update member profiles quickly.',
+      vi: 'Tìm và cập nhật hồ sơ thành viên.',
+      en: 'Search and update member profiles.',
     ),
     'events' => l10n.pick(
-      vi: 'Xem lịch sự kiện, giỗ và lời nhắc quan trọng.',
-      en: 'Track events, memorial dates, and reminders.',
+      vi: 'Theo dõi lịch họ, giỗ và lời nhắc quan trọng.',
+      en: 'Follow family events, memorial dates, and reminders.',
     ),
     'funds' => l10n.pick(
-      vi: 'Theo dõi thu chi và số dư quỹ dòng họ.',
-      en: 'Track fund transactions and balances.',
+      vi: 'Theo dõi đóng góp, thu chi và số dư quỹ.',
+      en: 'Track contributions, spending, and fund balance.',
     ),
     'scholarship' => l10n.pick(
-      vi: 'Quản lý chương trình học bổng của dòng họ.',
-      en: 'Manage clan scholarship programs.',
+      vi: 'Theo dõi hồ sơ khuyến học của gia đình.',
+      en: 'Review scholarship requests and student support.',
     ),
     'profile' => l10n.pick(
-      vi: 'Cập nhật thông tin cá nhân và thiết lập tài khoản.',
-      en: 'Update personal profile and account settings.',
+      vi: 'Cập nhật hồ sơ và thiết lập tài khoản.',
+      en: 'Update your profile and account settings.',
     ),
     _ => l10n.shortcutDescription(shortcutId),
   };
@@ -1169,7 +1187,7 @@ class _UpcomingEventEmptyState extends StatelessWidget {
           children: [
             _DashboardMetaChip(
               icon: Icons.auto_awesome_rounded,
-              label: l10n.pick(vi: 'Điểm nổi bật', en: 'Today highlight'),
+              label: l10n.pick(vi: 'Sắp tới', en: 'Coming up'),
               backgroundColor: Colors.white.withValues(alpha: 0.56),
               foregroundColor: theme.colorScheme.onSurface,
             ),
@@ -1193,8 +1211,8 @@ class _UpcomingEventEmptyState extends StatelessWidget {
         SizedBox(height: tokens.spaceLg),
         Text(
           l10n.pick(
-            vi: 'Chưa có sự kiện nổi bật trong thời gian tới.',
-            en: 'No upcoming highlight at the moment.',
+            vi: 'Chưa có sự kiện sắp tới.',
+            en: 'No upcoming events yet.',
           ),
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w800,
@@ -1207,9 +1225,7 @@ class _UpcomingEventEmptyState extends StatelessWidget {
           children: [
             FilledButton(
               onPressed: onOpenEventsRequested,
-              child: Text(
-                l10n.pick(vi: 'Mở lịch sự kiện', en: 'Open calendar'),
-              ),
+              child: Text(l10n.pick(vi: 'Mở lịch', en: 'Open calendar')),
             ),
           ],
         ),
@@ -1254,7 +1270,7 @@ class _UpcomingEventResolvedState extends StatelessWidget {
           children: [
             _DashboardMetaChip(
               icon: Icons.auto_awesome_rounded,
-              label: l10n.pick(vi: 'Điểm nổi bật', en: 'Today highlight'),
+              label: l10n.pick(vi: 'Sắp tới', en: 'Coming up'),
               backgroundColor: Colors.white.withValues(alpha: 0.56),
               foregroundColor: colorScheme.onSurface,
             ),
@@ -1300,7 +1316,7 @@ class _UpcomingEventResolvedState extends StatelessWidget {
             _DashboardMetaChip(
               icon: Icons.account_tree_outlined,
               label: l10n.pick(
-                vi: 'Nhà/chi: $hostLabel',
+                vi: 'Chi/nhà: $hostLabel',
                 en: 'Household: $hostLabel',
               ),
             ),
@@ -1308,7 +1324,7 @@ class _UpcomingEventResolvedState extends StatelessWidget {
               _DashboardMetaChip(
                 icon: Icons.people_outline_rounded,
                 label: l10n.pick(
-                  vi: 'Họ tộc: $clanLabel',
+                  vi: 'Dòng tộc: $clanLabel',
                   en: 'Clan: $clanLabel',
                 ),
               ),
@@ -1352,13 +1368,11 @@ class _UpcomingEventResolvedState extends StatelessWidget {
               onPressed: () {
                 onOpenEventDetailRequested(event);
               },
-              child: Text(l10n.pick(vi: 'Xem chi tiết', en: 'View details')),
+              child: Text(l10n.pick(vi: 'Xem sự kiện', en: 'View details')),
             ),
             OutlinedButton(
               onPressed: onOpenEventsRequested,
-              child: Text(
-                l10n.pick(vi: 'Mở lịch sự kiện', en: 'Open calendar'),
-              ),
+              child: Text(l10n.pick(vi: 'Mở lịch', en: 'Open calendar')),
             ),
           ],
         ),
@@ -1506,27 +1520,18 @@ class _TodoSectionState extends State<_TodoSection> {
     final tasks = <({IconData icon, String title, VoidCallback onTap})>[
       (
         icon: Icons.event_available_outlined,
-        title: l10n.pick(
-          vi: 'Kiểm tra sự kiện trong tuần',
-          en: 'Review this week events',
-        ),
+        title: l10n.pick(vi: 'Xem lịch tuần này', en: 'This week schedule'),
         onTap: widget.onOpenEventsRequested,
       ),
       (
         icon: Icons.history_edu_outlined,
-        title: l10n.pick(
-          vi: 'Xem danh sách giỗ kỵ',
-          en: 'View memorial checklist',
-        ),
+        title: l10n.pick(vi: 'Xem danh sách giỗ', en: 'Memorial list'),
         onTap: widget.onOpenMemorialChecklistRequested,
       ),
       if (!_isProfileLikelyComplete)
         (
           icon: Icons.person_outline,
-          title: l10n.pick(
-            vi: 'Cập nhật hồ sơ của bạn',
-            en: 'Update your profile',
-          ),
+          title: l10n.pick(vi: 'Hoàn thiện hồ sơ', en: 'Complete your profile'),
           onTap: widget.onOpenProfileRequested,
         ),
       if (!_isLoadingJoinRequestSignals && shouldShowJoinRequestsTask)
@@ -1534,11 +1539,11 @@ class _TodoSectionState extends State<_TodoSection> {
           icon: Icons.fact_check_outlined,
           title: _hasPendingJoinRequestsToReview
               ? l10n.pick(
-                  vi: 'Xem yêu cầu gia nhập gia phả',
+                  vi: 'Xem yêu cầu gia nhập',
                   en: 'Review join requests',
                 )
               : l10n.pick(
-                  vi: 'Xem yêu cầu bạn đã gửi',
+                  vi: 'Xem yêu cầu đã gửi',
                   en: 'View your submitted requests',
                 ),
           onTap: widget.onOpenJoinRequestsRequested,
@@ -1546,10 +1551,7 @@ class _TodoSectionState extends State<_TodoSection> {
       if (widget.session.accessMode == AuthMemberAccessMode.unlinked)
         (
           icon: Icons.travel_explore_outlined,
-          title: l10n.pick(
-            vi: 'Tìm gia phả để tham gia',
-            en: 'Discover genealogies to join',
-          ),
+          title: l10n.pick(vi: 'Tìm gia phả phù hợp', en: 'Find a genealogy'),
           onTap: widget.onOpenTreeRequested,
         ),
     ];
@@ -1562,7 +1564,7 @@ class _TodoSectionState extends State<_TodoSection> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            l10n.pick(vi: 'Việc cần làm', en: 'To-do'),
+            l10n.pick(vi: 'Cần xem', en: 'Up next'),
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
             ),
@@ -1580,7 +1582,7 @@ class _TodoSectionState extends State<_TodoSection> {
                   child: Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: tokens.spaceMd,
-                      vertical: tokens.spaceMd,
+                      vertical: tokens.spaceSm + 4,
                     ),
                     child: Row(
                       children: [
@@ -2268,7 +2270,6 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = context.l10n;
     final tokens = context.uiTokens;
     final layout = ResponsiveLayout.of(context);
@@ -2325,14 +2326,20 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
               .toList(growable: false);
           final spotlight = result.items.first;
           final remainingCount = result.items.length - previewItems.length - 1;
+          final nearbyCountLabel = result.items.length == 1
+              ? l10n.pick(vi: '1 người gần bạn', en: '1 nearby')
+              : l10n.pick(
+                  vi: '${result.items.length} người gần bạn',
+                  en: '${result.items.length} nearby',
+                );
           final summaryText = result.items.length == 1
               ? l10n.pick(
-                  vi: 'Bạn đang có 1 người thân ở gần để liên hệ nhanh.',
-                  en: 'You currently have 1 nearby relative you can contact quickly.',
+                  vi: 'Có 1 người thân đang ở gần bạn lúc này.',
+                  en: '1 relative is currently nearby.',
                 )
               : l10n.pick(
-                  vi: 'Đã thấy ${result.items.length} người thân đang ở quanh bạn để gọi, nhắn hoặc hẹn gặp nhanh.',
-                  en: 'Found ${result.items.length} nearby relatives you can call or message quickly.',
+                  vi: '${result.items.length} người thân đang ở gần bạn lúc này.',
+                  en: '${result.items.length} relatives are currently nearby.',
                 );
           final content = Column(
             key: ValueKey<String>(
@@ -2340,85 +2347,23 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
             ),
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Text(
-                    l10n.pick(
-                      vi: 'Người thân quanh bạn',
-                      en: 'Relatives nearby',
-                    ),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (_isRefreshing)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 6),
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                  AppCompactIconButton(
-                    tooltip: l10n.pick(vi: 'Làm mới', en: 'Refresh'),
-                    onPressed: _reload,
-                    icon: const Icon(Icons.radar),
-                  ),
-                ],
-              ),
-              SizedBox(height: tokens.spaceXs),
-              Text(
-                l10n.pick(
-                  vi: 'Biết ai trong gia đình đang ở gần để liên hệ, gặp mặt hoặc hỗ trợ nhau nhanh hơn.',
-                  en: 'See which relatives are nearby so you can reach out or meet up faster.',
+              _NearbySectionHeader(
+                title: l10n.pick(
+                  vi: 'Người thân ở gần',
+                  en: 'Relatives nearby',
                 ),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+                badgeLabel: nearbyCountLabel,
+                isRefreshing: _isRefreshing,
+                onRefresh: _reload,
               ),
               SizedBox(height: tokens.spaceMd),
               _NearbySpotlightCard(
                 item: spotlight,
                 totalCount: result.items.length,
                 summaryText: summaryText,
+                previewItems: previewItems,
+                remainingCount: remainingCount,
                 onOpenList: () => _openNearbySheet(result.items),
-              ),
-              if (previewItems.isNotEmpty) ...[
-                SizedBox(height: tokens.spaceMd),
-                for (final item in previewItems)
-                  Padding(
-                    padding: EdgeInsets.only(bottom: tokens.spaceSm),
-                    child: _NearbyRelativeMiniCard(item: item),
-                  ),
-                if (remainingCount > 0)
-                  Text(
-                    l10n.pick(
-                      vi: '+$remainingCount người thân khác đang ở quanh bạn',
-                      en: '+$remainingCount more nearby relatives',
-                    ),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-              ],
-              SizedBox(height: tokens.spaceSm),
-              Wrap(
-                spacing: tokens.spaceSm,
-                runSpacing: tokens.spaceSm,
-                children: [
-                  FilledButton.tonalIcon(
-                    onPressed: () => _openNearbySheet(result.items),
-                    icon: const Icon(Icons.radar_outlined),
-                    label: Text(l10n.pick(vi: 'Xem tất cả', en: 'View all')),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _reload,
-                    icon: const Icon(Icons.refresh),
-                    label: Text(l10n.pick(vi: 'Làm mới', en: 'Refresh')),
-                  ),
-                ],
               ),
             ],
           );
@@ -2452,6 +2397,79 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _NearbySectionHeader extends StatelessWidget {
+  const _NearbySectionHeader({
+    required this.title,
+    required this.onRefresh,
+    this.badgeLabel,
+    this.isRefreshing = false,
+  });
+
+  final String title;
+  final String? badgeLabel;
+  final bool isRefreshing;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.uiTokens;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (badgeLabel != null) ...[
+          SizedBox(width: tokens.spaceSm),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withValues(alpha: 0.78),
+              borderRadius: BorderRadius.circular(tokens.radiusPill),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.48),
+              ),
+            ),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: tokens.spaceMd,
+                vertical: tokens.spaceSm - 1,
+              ),
+              child: Text(
+                badgeLabel!,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        ],
+        SizedBox(width: tokens.spaceSm),
+        AppCompactIconButton(
+          tooltip: context.l10n.pick(vi: 'Làm mới', en: 'Refresh'),
+          onPressed: isRefreshing ? null : onRefresh,
+          icon: isRefreshing
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.radar_rounded),
+        ),
+      ],
     );
   }
 }
@@ -2547,6 +2565,8 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final visibleItems = _visibleItems();
+    final theme = Theme.of(context);
+    final tokens = context.uiTokens;
 
     return FractionallySizedBox(
       heightFactor: 0.92,
@@ -2558,10 +2578,13 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  l10n.pick(vi: 'Người thân quanh bạn', en: 'Relatives nearby'),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                  l10n.pick(
+                    vi: 'Người thân ở gần bạn',
+                    en: 'Relatives near you',
+                  ),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -2569,8 +2592,8 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.search),
                     hintText: l10n.pick(
-                      vi: 'Tìm theo tên, số điện thoại hoặc quan hệ',
-                      en: 'Search by name, phone number, or relationship',
+                      vi: 'Tìm theo tên hoặc quan hệ',
+                      en: 'Search by name or relationship',
                     ),
                     suffixIcon: _query.isEmpty
                         ? null
@@ -2621,38 +2644,103 @@ class _NearbyRelativesSheetState extends State<_NearbyRelativesSheet> {
                     itemCount: visibleItems.length,
                     itemBuilder: (context, index) {
                       final item = visibleItems[index];
-                      return Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.people_alt_outlined),
-                          title: Text(item.member.displayName),
-                          subtitle: item.relationHint.trim().isEmpty
-                              ? null
-                              : Text(
-                                  item.relationHint,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                          trailing: SizedBox(
-                            width: 116,
+                      return Padding(
+                        padding: EdgeInsets.only(bottom: tokens.spaceSm),
+                        child: Material(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(
+                            tokens.radiusMd + 2,
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.all(tokens.spaceMd),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Flexible(
-                                  child: Text(
-                                    _formatDistanceLabel(item.distanceKm),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.labelLarge,
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor:
+                                      theme.colorScheme.primaryContainer,
+                                  foregroundColor:
+                                      theme.colorScheme.onPrimaryContainer,
+                                  child: const Icon(
+                                    Icons.people_alt_outlined,
+                                    size: 18,
                                   ),
                                 ),
-                                const SizedBox(width: 4),
-                                MemberPhoneActionIconButton(
-                                  phoneNumber: item.member.phoneE164 ?? '',
-                                  contactName: item.member.displayName,
-                                  iconSize: 18,
+                                SizedBox(width: tokens.spaceMd),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.member.displayName,
+                                        style: theme.textTheme.titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                      if (item.relationHint.trim().isNotEmpty)
+                                        Padding(
+                                          padding: EdgeInsets.only(
+                                            top: tokens.spaceXs,
+                                          ),
+                                          child: Text(
+                                            item.relationHint,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(width: tokens.spaceSm),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    _DashboardMetaChip(
+                                      label: _formatDistanceLabel(
+                                        item.distanceKm,
+                                      ),
+                                      icon: Icons.near_me_rounded,
+                                      backgroundColor: theme.colorScheme.primary
+                                          .withValues(alpha: 0.10),
+                                    ),
+                                    if ((item.member.phoneE164 ?? '')
+                                        .trim()
+                                        .isNotEmpty)
+                                      Padding(
+                                        padding: EdgeInsets.only(
+                                          top: tokens.spaceSm,
+                                        ),
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            color: theme
+                                                .colorScheme
+                                                .secondaryContainer
+                                                .withValues(alpha: 0.82),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: MemberPhoneActionIconButton(
+                                            phoneNumber:
+                                                item.member.phoneE164 ?? '',
+                                            contactName:
+                                                item.member.displayName,
+                                            iconSize: 18,
+                                            constraints: const BoxConstraints(
+                                              minWidth: 38,
+                                              minHeight: 38,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -2716,6 +2804,44 @@ class _NearbyRelativesEmpty extends StatelessWidget {
     final tokens = context.uiTokens;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final leadLabel = switch (emptyStateType) {
+      _NearbyEmptyStateType.joinGenealogy => l10n.pick(
+        vi: 'Kết nối gần hơn',
+        en: 'Stay close',
+      ),
+      _NearbyEmptyStateType.enableLocationService ||
+      _NearbyEmptyStateType.requestLocationPermission ||
+      _NearbyEmptyStateType.openAppPermission => l10n.pick(
+        vi: 'Chỉ khi bạn cho phép',
+        en: 'Only with permission',
+      ),
+      _NearbyEmptyStateType.locateCurrentUser => l10n.pick(
+        vi: 'Đang chờ vị trí',
+        en: 'Waiting for location',
+      ),
+      _NearbyEmptyStateType.noSharedMembers => l10n.pick(
+        vi: 'Sẽ hiện ở đây',
+        en: 'Will appear here',
+      ),
+      _NearbyEmptyStateType.loadFailed => l10n.pick(
+        vi: 'Thử lại sau',
+        en: 'Try again later',
+      ),
+    };
+    final supportLabels = switch (emptyStateType) {
+      _NearbyEmptyStateType.joinGenealogy => <String>[
+        l10n.pick(vi: 'Chỉ người trong gia đình', en: 'Family only'),
+      ],
+      _NearbyEmptyStateType.enableLocationService ||
+      _NearbyEmptyStateType.requestLocationPermission ||
+      _NearbyEmptyStateType.openAppPermission => <String>[
+        l10n.pick(vi: 'Dùng để tính khoảng cách', en: 'Used for distance only'),
+        l10n.pick(vi: 'Không chia sẻ công khai', en: 'Not public'),
+      ],
+      _NearbyEmptyStateType.locateCurrentUser ||
+      _NearbyEmptyStateType.noSharedMembers ||
+      _NearbyEmptyStateType.loadFailed => const <String>[],
+    };
     final primaryLabel = switch (emptyStateType) {
       _NearbyEmptyStateType.enableLocationService => l10n.pick(
         vi: 'Bật vị trí',
@@ -2754,15 +2880,15 @@ class _NearbyRelativesEmpty extends StatelessWidget {
     };
     final heroTitle = switch (emptyStateType) {
       _NearbyEmptyStateType.joinGenealogy => l10n.pick(
-        vi: 'Khi vào gia phả, bạn sẽ biết ai đang ở gần mình',
+        vi: 'Tham gia gia phả để xem người thân ở gần',
         en: 'Join a genealogy to see which relatives are near you',
       ),
       _NearbyEmptyStateType.enableLocationService => l10n.pick(
-        vi: 'Bật vị trí để mở tính năng này',
+        vi: 'Bật vị trí để dùng tính năng này',
         en: 'Turn on location to unlock this feature',
       ),
       _NearbyEmptyStateType.requestLocationPermission => l10n.pick(
-        vi: 'Cho phép vị trí để thấy người thân quanh bạn',
+        vi: 'Cho phép vị trí để tìm người thân ở gần',
         en: 'Allow location to see nearby relatives',
       ),
       _NearbyEmptyStateType.openAppPermission => l10n.pick(
@@ -2770,11 +2896,11 @@ class _NearbyRelativesEmpty extends StatelessWidget {
         en: 'Re-enable location access for BeFam',
       ),
       _NearbyEmptyStateType.locateCurrentUser => l10n.pick(
-        vi: 'BeFam cần vị trí của bạn để tính khoảng cách',
+        vi: 'BeFam chưa lấy được vị trí của bạn',
         en: 'BeFam needs your location to calculate distance',
       ),
       _NearbyEmptyStateType.noSharedMembers => l10n.pick(
-        vi: 'Khi người thân mở vị trí, bạn sẽ thấy ngay tại đây',
+        vi: 'Chưa có người thân nào chia sẻ vị trí',
         en: 'When relatives share location, they will appear here',
       ),
       _NearbyEmptyStateType.loadFailed => l10n.pick(
@@ -2784,7 +2910,7 @@ class _NearbyRelativesEmpty extends StatelessWidget {
     };
     final heroDescription = switch (emptyStateType) {
       _NearbyEmptyStateType.joinGenealogy => l10n.pick(
-        vi: 'Tính năng này giúp bạn biết ai trong gia đình đang ở gần để gọi, nhắn hoặc hẹn gặp nhanh hơn.',
+        vi: 'Khi tham gia gia phả, bạn sẽ thấy ai trong gia đình đang ở gần.',
         en: 'This feature helps you see which relatives are nearby so you can call or meet up faster.',
       ),
       _NearbyEmptyStateType.enableLocationService ||
@@ -2800,29 +2926,18 @@ class _NearbyRelativesEmpty extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              l10n.pick(vi: 'Người thân quanh bạn', en: 'Relatives nearby'),
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const Spacer(),
-            AppCompactIconButton(
-              tooltip: l10n.pick(vi: 'Làm mới', en: 'Refresh'),
-              onPressed: onRadarScan,
-              icon: const Icon(Icons.radar),
-            ),
-          ],
+        _NearbySectionHeader(
+          title: l10n.pick(vi: 'Người thân ở gần', en: 'Relatives nearby'),
+          onRefresh: onRadarScan,
         ),
         SizedBox(height: tokens.spaceMd),
         _DashboardSectionShell(
           padding: EdgeInsets.all(tokens.spaceLg),
           gradient: LinearGradient(
             colors: [
-              Colors.white.withValues(alpha: 0.94),
-              colorScheme.primaryContainer.withValues(alpha: 0.42),
+              Colors.white.withValues(alpha: 0.96),
+              colorScheme.primaryContainer.withValues(alpha: 0.48),
+              colorScheme.secondaryContainer.withValues(alpha: 0.34),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -2838,10 +2953,19 @@ class _NearbyRelativesEmpty extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        _DashboardMetaChip(
+                          label: leadLabel,
+                          icon: Icons.favorite_outline_rounded,
+                          backgroundColor: colorScheme.secondaryContainer
+                              .withValues(alpha: 0.72),
+                          foregroundColor: colorScheme.onSecondaryContainer,
+                        ),
+                        SizedBox(height: tokens.spaceSm),
                         Text(
                           heroTitle,
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w800,
+                            height: 1.15,
                           ),
                         ),
                         SizedBox(height: tokens.spaceSm),
@@ -2851,11 +2975,27 @@ class _NearbyRelativesEmpty extends StatelessWidget {
                             color: colorScheme.onSurfaceVariant,
                           ),
                         ),
+                        if (supportLabels.isNotEmpty) ...[
+                          SizedBox(height: tokens.spaceMd),
+                          Wrap(
+                            spacing: tokens.spaceSm,
+                            runSpacing: tokens.spaceSm,
+                            children: [
+                              for (final label in supportLabels)
+                                _DashboardMetaChip(
+                                  label: label,
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.72,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
                   SizedBox(width: tokens.spaceMd),
-                  const _NearbyRadarGlyph(size: 86),
+                  const _NearbyRadarGlyph(size: 76),
                 ],
               ),
               SizedBox(height: tokens.spaceMd),
@@ -2903,24 +3043,31 @@ class _NearbySpotlightCard extends StatelessWidget {
     required this.item,
     required this.totalCount,
     required this.summaryText,
+    required this.previewItems,
+    required this.remainingCount,
     required this.onOpenList,
   });
 
   final _NearbyRelative item;
   final int totalCount;
   final String summaryText;
+  final List<_NearbyRelative> previewItems;
+  final int remainingCount;
   final VoidCallback onOpenList;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.uiTokens;
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final hasPhone = (item.member.phoneE164 ?? '').trim().isNotEmpty;
     return _DashboardSectionShell(
       padding: EdgeInsets.all(tokens.spaceLg),
       gradient: LinearGradient(
         colors: [
-          Colors.white.withValues(alpha: 0.94),
-          theme.colorScheme.primaryContainer.withValues(alpha: 0.42),
+          Colors.white.withValues(alpha: 0.96),
+          colorScheme.primaryContainer.withValues(alpha: 0.50),
+          colorScheme.secondaryContainer.withValues(alpha: 0.32),
         ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -2936,27 +3083,29 @@ class _NearbySpotlightCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      context.l10n.pick(
-                        vi: 'Người đang ở gần nhất',
+                    _DashboardMetaChip(
+                      label: context.l10n.pick(
+                        vi: 'Ở gần nhất lúc này',
                         en: 'Closest right now',
                       ),
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      icon: Icons.near_me_rounded,
+                      backgroundColor: colorScheme.secondaryContainer
+                          .withValues(alpha: 0.72),
+                      foregroundColor: colorScheme.onSecondaryContainer,
                     ),
                     SizedBox(height: tokens.spaceSm),
                     Text(
                       summaryText,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
                       ),
                     ),
                   ],
                 ),
               ),
               SizedBox(width: tokens.spaceMd),
-              const _NearbyRadarGlyph(size: 72),
+              const _NearbyRadarGlyph(size: 68),
             ],
           ),
           SizedBox(height: tokens.spaceMd),
@@ -2991,49 +3140,101 @@ class _NearbySpotlightCard extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: colorScheme.onSurfaceVariant,
                           ),
-                        ),
-                        SizedBox(height: tokens.spaceSm),
-                        Wrap(
-                          spacing: tokens.spaceSm,
-                          runSpacing: tokens.spaceSm,
-                          children: [
-                            _DashboardMetaChip(
-                              label: _formatDistanceLabel(item.distanceKm),
-                              icon: Icons.near_me_outlined,
-                              backgroundColor: theme.colorScheme.primary
-                                  .withValues(alpha: 0.12),
-                            ),
-                            _DashboardMetaChip(
-                              label: context.l10n.pick(
-                                vi: '$totalCount người đang chia sẻ',
-                                en: '$totalCount sharing now',
-                              ),
-                              icon: Icons.radar_outlined,
-                            ),
-                          ],
                         ),
                       ],
                     ),
                   ),
-                  SizedBox(width: tokens.spaceSm),
-                  MemberPhoneActionIconButton(
-                    phoneNumber: item.member.phoneE164 ?? '',
-                    contactName: item.member.displayName,
-                    iconSize: 20,
+                  SizedBox(width: tokens.spaceMd),
+                  _DashboardMetaChip(
+                    label: _formatDistanceLabel(item.distanceKm),
+                    icon: Icons.near_me_rounded,
+                    backgroundColor: colorScheme.primary.withValues(
+                      alpha: 0.10,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
           SizedBox(height: tokens.spaceMd),
-          FilledButton.tonalIcon(
-            onPressed: onOpenList,
-            icon: const Icon(Icons.list_alt_outlined),
-            label: Text(
-              context.l10n.pick(vi: 'Xem danh sách', en: 'View list'),
+          Wrap(
+            spacing: tokens.spaceSm,
+            runSpacing: tokens.spaceSm,
+            children: [
+              _DashboardMetaChip(
+                label: context.l10n.pick(
+                  vi: '$totalCount người đang chia sẻ',
+                  en: '$totalCount sharing now',
+                ),
+                icon: Icons.radar_outlined,
+                backgroundColor: Colors.white.withValues(alpha: 0.72),
+              ),
+              if (previewItems.isNotEmpty)
+                _DashboardMetaChip(
+                  label: context.l10n.pick(
+                    vi: '${previewItems.length} gợi ý nhanh',
+                    en: '${previewItems.length} quick picks',
+                  ),
+                  icon: Icons.people_outline_rounded,
+                  backgroundColor: Colors.white.withValues(alpha: 0.72),
+                ),
+            ],
+          ),
+          if (previewItems.isNotEmpty || remainingCount > 0) ...[
+            SizedBox(height: tokens.spaceMd),
+            Wrap(
+              spacing: tokens.spaceSm,
+              runSpacing: tokens.spaceSm,
+              children: [
+                for (final preview in previewItems)
+                  _NearbyRelativeMiniCard(item: preview),
+                if (remainingCount > 0)
+                  _DashboardMetaChip(
+                    label: context.l10n.pick(
+                      vi: '+$remainingCount người nữa',
+                      en: '+$remainingCount more',
+                    ),
+                    icon: Icons.add_rounded,
+                    backgroundColor: Colors.white.withValues(alpha: 0.72),
+                  ),
+              ],
             ),
+          ],
+          SizedBox(height: tokens.spaceMd),
+          Row(
+            children: [
+              if (hasPhone) ...[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      unawaited(
+                        showMemberPhoneActionSheet(
+                          context,
+                          phoneNumber: item.member.phoneE164 ?? '',
+                          contactName: item.member.displayName,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.phone_outlined),
+                    label: Text(
+                      context.l10n.pick(vi: 'Liên hệ', en: 'Contact'),
+                    ),
+                  ),
+                ),
+                SizedBox(width: tokens.spaceSm),
+              ],
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onOpenList,
+                  icon: const Icon(Icons.radar_outlined),
+                  label: Text(
+                    context.l10n.pick(vi: 'Xem quanh bạn', en: 'View nearby'),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -3051,47 +3252,48 @@ class _NearbyRelativeMiniCard extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = context.uiTokens;
     return Material(
-      color: theme.colorScheme.surface.withValues(alpha: 0.80),
-      borderRadius: BorderRadius.circular(tokens.radiusMd),
+      color: Colors.white.withValues(alpha: 0.76),
+      borderRadius: BorderRadius.circular(tokens.radiusPill),
       child: Padding(
-        padding: EdgeInsets.all(tokens.spaceMd),
+        padding: EdgeInsets.symmetric(
+          horizontal: tokens.spaceMd,
+          vertical: tokens.spaceSm,
+        ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: theme.colorScheme.primaryContainer,
-              foregroundColor: theme.colorScheme.onPrimaryContainer,
-              child: const Icon(Icons.people_alt_outlined, size: 18),
-            ),
-            SizedBox(width: tokens.spaceMd),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.member.displayName,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  SizedBox(height: tokens.spaceXs),
-                  Text(
-                    item.relationHint,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.person_outline_rounded,
+                size: 15,
+                color: theme.colorScheme.onPrimaryContainer,
               ),
             ),
             SizedBox(width: tokens.spaceSm),
-            _DashboardMetaChip(
-              label: _formatDistanceLabel(item.distanceKm),
-              backgroundColor: theme.colorScheme.primary.withValues(
-                alpha: 0.10,
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 112),
+              child: Text(
+                item.member.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            SizedBox(width: tokens.spaceSm),
+            Text(
+              _formatDistanceLabel(item.distanceKm),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -3119,35 +3321,82 @@ class _NearbyRadarGlyph extends StatelessWidget {
             width: size,
             height: size,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: colorScheme.primary.withValues(alpha: 0.08),
-              border: Border.all(
-                color: colorScheme.primary.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(size * 0.32),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: 0.96),
+                  colorScheme.primaryContainer.withValues(alpha: 0.92),
+                  colorScheme.secondaryContainer.withValues(alpha: 0.74),
+                ],
               ),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.48),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: colorScheme.shadow.withValues(alpha: 0.08),
+                  blurRadius: 18,
+                  offset: const Offset(0, 12),
+                ),
+              ],
             ),
           ),
-          Container(
-            width: size * 0.72,
-            height: size * 0.72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: colorScheme.secondary.withValues(alpha: 0.10),
-              border: Border.all(
+          Positioned(
+            top: size * 0.16,
+            right: size * 0.14,
+            child: Container(
+              width: size * 0.20,
+              height: size * 0.20,
+              decoration: BoxDecoration(
                 color: colorScheme.secondary.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: size * 0.18,
+            left: size * 0.16,
+            child: Container(
+              width: size * 0.16,
+              height: size * 0.16,
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
               ),
             ),
           ),
           Container(
-            width: size * 0.42,
-            height: size * 0.42,
+            width: size * 0.52,
+            height: size * 0.52,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: colorScheme.primaryContainer,
+              color: Colors.white.withValues(alpha: 0.82),
             ),
+            alignment: Alignment.center,
             child: Icon(
-              Icons.radar_outlined,
+              Icons.diversity_3_rounded,
               color: colorScheme.onPrimaryContainer,
-              size: size * 0.22,
+              size: size * 0.24,
+            ),
+          ),
+          Positioned(
+            bottom: size * 0.14,
+            right: size * 0.14,
+            child: Container(
+              width: size * 0.24,
+              height: size * 0.24,
+              decoration: BoxDecoration(
+                color: colorScheme.primary,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.near_me_rounded,
+                color: colorScheme.onPrimary,
+                size: size * 0.11,
+              ),
             ),
           ),
         ],

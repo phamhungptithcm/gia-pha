@@ -450,7 +450,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileSessionSectionTitle => 'Session';
 
   @override
-  String get profileNotificationFundAlerts => 'Fund transaction alerts';
+  String get profileNotificationFundAlerts => 'Family fund';
+
+  @override
+  String get profileNotificationFundAlertsHint =>
+      'Income, expense, confirmation, and balance changes';
 
   @override
   String get profileEditSheetTitle => 'Edit profile';
@@ -1406,36 +1410,81 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationTargetUnknownReference => 'Unavailable';
 
   @override
-  String get notificationSettingsTitle => 'Notification settings';
+  String get notificationSettingsTitle => 'Notifications';
 
   @override
   String get notificationSettingsDescription =>
-      'Manage which reminders and updates you want to receive on this device.';
+      'Choose how you want to receive family reminders, fund updates, and new announcements on this device.';
 
   @override
-  String get notificationSettingsPushChannel =>
-      'Push notifications (recommended)';
+  String get notificationSettingsHeroTitle => 'Stay on top of what matters';
 
   @override
-  String get notificationSettingsEmailChannel => 'Email notifications';
+  String get notificationSettingsHeroDescription =>
+      'Keep memorial schedules, family fund updates, and new announcements easy to follow without feeling noisy.';
+
+  @override
+  String get notificationSettingsPushChannel => 'Phone notifications';
+
+  @override
+  String get notificationSettingsPushChannelHint =>
+      'The fastest way to stay on top of important updates';
+
+  @override
+  String get notificationSettingsPushStatusEnabled => 'On for this phone';
+
+  @override
+  String get notificationSettingsPushStatusDisabled => 'Off on this phone';
+
+  @override
+  String get notificationSettingsEmailChannel => 'Email';
+
+  @override
+  String get notificationSettingsEmailChannelHint =>
+      'Receive summaries and important updates by email';
 
   @override
   String get notificationSettingsSmsOtpOnlyNote =>
       'SMS is reserved for OTP verification only.';
 
   @override
-  String get notificationSettingsEventUpdates => 'Event reminders and updates';
+  String get notificationSettingsEventUpdates => 'Memorials and events';
 
   @override
-  String get notificationSettingsScholarshipUpdates =>
-      'Scholarship decisions and review updates';
+  String get notificationSettingsEventUpdatesHint =>
+      'Invites, schedule changes, and important reminders';
 
   @override
-  String get notificationSettingsGeneralUpdates =>
-      'General family announcements';
+  String get notificationSettingsScholarshipUpdates => 'Scholarships';
 
   @override
-  String get notificationSettingsQuietHours => 'Quiet hours mode';
+  String get notificationSettingsScholarshipUpdatesHint =>
+      'Decisions and updates for scholarship applications';
+
+  @override
+  String get notificationSettingsGeneralUpdates => 'Family updates';
+
+  @override
+  String get notificationSettingsGeneralUpdatesHint =>
+      'News, reminders, and general announcements';
+
+  @override
+  String get notificationSettingsQuietHours => 'Quiet hours';
+
+  @override
+  String get notificationSettingsQuietHoursHint =>
+      'Reduce interruptions during the hours you want to rest';
+
+  @override
+  String get notificationSettingsChannelsSectionTitle =>
+      'How you receive updates';
+
+  @override
+  String get notificationSettingsTopicsSectionTitle =>
+      'What you want to receive';
+
+  @override
+  String get notificationSettingsSavingBadge => 'Saving';
 
   @override
   String get notificationSettingsPlaceholderNote =>

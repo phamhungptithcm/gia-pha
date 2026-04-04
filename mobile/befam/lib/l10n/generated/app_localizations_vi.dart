@@ -450,7 +450,11 @@ class AppLocalizationsVi extends AppLocalizations {
   String get profileSessionSectionTitle => 'Phiên đăng nhập';
 
   @override
-  String get profileNotificationFundAlerts => 'Thông báo giao dịch quỹ';
+  String get profileNotificationFundAlerts => 'Quỹ họ';
+
+  @override
+  String get profileNotificationFundAlertsHint =>
+      'Thu chi, xác nhận và thay đổi số dư';
 
   @override
   String get profileEditSheetTitle => 'Chỉnh sửa hồ sơ';
@@ -1400,35 +1404,81 @@ class AppLocalizationsVi extends AppLocalizations {
   String get notificationTargetUnknownReference => 'Không có';
 
   @override
-  String get notificationSettingsTitle => 'Cài đặt thông báo';
+  String get notificationSettingsTitle => 'Thông báo';
 
   @override
   String get notificationSettingsDescription =>
-      'Quản lý lời nhắc và loại thông báo bạn muốn nhận trên thiết bị này.';
+      'Chọn cách nhận lịch họ, quỹ họ và tin mới trên thiết bị này.';
 
   @override
-  String get notificationSettingsPushChannel => 'Thông báo đẩy (khuyên dùng)';
+  String get notificationSettingsHeroTitle => 'Nhận tin quan trọng từ họ tộc';
 
   @override
-  String get notificationSettingsEmailChannel => 'Thông báo qua email';
+  String get notificationSettingsHeroDescription =>
+      'Nhắc lịch giỗ, quỹ họ và cập nhật mới theo cách bạn muốn, gọn hơn và dễ kiểm soát hơn.';
+
+  @override
+  String get notificationSettingsPushChannel => 'Thông báo trên điện thoại';
+
+  @override
+  String get notificationSettingsPushChannelHint =>
+      'Cách nhanh nhất để không bỏ lỡ việc quan trọng';
+
+  @override
+  String get notificationSettingsPushStatusEnabled =>
+      'Đang bật trên điện thoại';
+
+  @override
+  String get notificationSettingsPushStatusDisabled =>
+      'Đang tắt trên điện thoại';
+
+  @override
+  String get notificationSettingsEmailChannel => 'Email';
+
+  @override
+  String get notificationSettingsEmailChannelHint =>
+      'Nhận bản tổng hợp và cập nhật quan trọng';
 
   @override
   String get notificationSettingsSmsOtpOnlyNote =>
       'SMS chỉ dùng cho xác minh OTP.';
 
   @override
-  String get notificationSettingsEventUpdates =>
-      'Nhắc lịch và cập nhật sự kiện';
+  String get notificationSettingsEventUpdates => 'Lịch giỗ và sự kiện';
 
   @override
-  String get notificationSettingsScholarshipUpdates =>
-      'Kết quả và cập nhật duyệt khuyến học';
+  String get notificationSettingsEventUpdatesHint =>
+      'Lời mời, thay đổi giờ và nhắc lịch quan trọng';
 
   @override
-  String get notificationSettingsGeneralUpdates => 'Thông báo chung của họ tộc';
+  String get notificationSettingsScholarshipUpdates => 'Khuyến học';
 
   @override
-  String get notificationSettingsQuietHours => 'Chế độ giờ yên lặng';
+  String get notificationSettingsScholarshipUpdatesHint =>
+      'Kết quả và cập nhật hồ sơ khuyến học';
+
+  @override
+  String get notificationSettingsGeneralUpdates => 'Tin từ họ tộc';
+
+  @override
+  String get notificationSettingsGeneralUpdatesHint =>
+      'Tin mới, nhắc việc và thông báo chung';
+
+  @override
+  String get notificationSettingsQuietHours => 'Giờ yên lặng';
+
+  @override
+  String get notificationSettingsQuietHoursHint =>
+      'Tạm giảm thông báo vào những lúc cần nghỉ ngơi';
+
+  @override
+  String get notificationSettingsChannelsSectionTitle => 'Cách bạn nhận tin';
+
+  @override
+  String get notificationSettingsTopicsSectionTitle => 'Bạn muốn nhận gì';
+
+  @override
+  String get notificationSettingsSavingBadge => 'Đang lưu';
 
   @override
   String get notificationSettingsPlaceholderNote =>

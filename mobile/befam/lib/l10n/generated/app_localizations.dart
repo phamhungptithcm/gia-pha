@@ -893,8 +893,14 @@ abstract class AppLocalizations {
   /// No description provided for @profileNotificationFundAlerts.
   ///
   /// In vi, this message translates to:
-  /// **'Thông báo giao dịch quỹ'**
+  /// **'Quỹ họ'**
   String get profileNotificationFundAlerts;
+
+  /// No description provided for @profileNotificationFundAlertsHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thu chi, xác nhận và thay đổi số dư'**
+  String get profileNotificationFundAlertsHint;
 
   /// No description provided for @profileEditSheetTitle.
   ///
@@ -2651,26 +2657,62 @@ abstract class AppLocalizations {
   /// No description provided for @notificationSettingsTitle.
   ///
   /// In vi, this message translates to:
-  /// **'Cài đặt thông báo'**
+  /// **'Thông báo'**
   String get notificationSettingsTitle;
 
   /// No description provided for @notificationSettingsDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Quản lý lời nhắc và loại thông báo bạn muốn nhận trên thiết bị này.'**
+  /// **'Chọn cách nhận lịch họ, quỹ họ và tin mới trên thiết bị này.'**
   String get notificationSettingsDescription;
+
+  /// No description provided for @notificationSettingsHeroTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhận tin quan trọng từ họ tộc'**
+  String get notificationSettingsHeroTitle;
+
+  /// No description provided for @notificationSettingsHeroDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhắc lịch giỗ, quỹ họ và cập nhật mới theo cách bạn muốn, gọn hơn và dễ kiểm soát hơn.'**
+  String get notificationSettingsHeroDescription;
 
   /// No description provided for @notificationSettingsPushChannel.
   ///
   /// In vi, this message translates to:
-  /// **'Thông báo đẩy (khuyên dùng)'**
+  /// **'Thông báo trên điện thoại'**
   String get notificationSettingsPushChannel;
+
+  /// No description provided for @notificationSettingsPushChannelHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cách nhanh nhất để không bỏ lỡ việc quan trọng'**
+  String get notificationSettingsPushChannelHint;
+
+  /// No description provided for @notificationSettingsPushStatusEnabled.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đang bật trên điện thoại'**
+  String get notificationSettingsPushStatusEnabled;
+
+  /// No description provided for @notificationSettingsPushStatusDisabled.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đang tắt trên điện thoại'**
+  String get notificationSettingsPushStatusDisabled;
 
   /// No description provided for @notificationSettingsEmailChannel.
   ///
   /// In vi, this message translates to:
-  /// **'Thông báo qua email'**
+  /// **'Email'**
   String get notificationSettingsEmailChannel;
+
+  /// No description provided for @notificationSettingsEmailChannelHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhận bản tổng hợp và cập nhật quan trọng'**
+  String get notificationSettingsEmailChannelHint;
 
   /// No description provided for @notificationSettingsSmsOtpOnlyNote.
   ///
@@ -2681,26 +2723,68 @@ abstract class AppLocalizations {
   /// No description provided for @notificationSettingsEventUpdates.
   ///
   /// In vi, this message translates to:
-  /// **'Nhắc lịch và cập nhật sự kiện'**
+  /// **'Lịch giỗ và sự kiện'**
   String get notificationSettingsEventUpdates;
+
+  /// No description provided for @notificationSettingsEventUpdatesHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lời mời, thay đổi giờ và nhắc lịch quan trọng'**
+  String get notificationSettingsEventUpdatesHint;
 
   /// No description provided for @notificationSettingsScholarshipUpdates.
   ///
   /// In vi, this message translates to:
-  /// **'Kết quả và cập nhật duyệt khuyến học'**
+  /// **'Khuyến học'**
   String get notificationSettingsScholarshipUpdates;
+
+  /// No description provided for @notificationSettingsScholarshipUpdatesHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Kết quả và cập nhật hồ sơ khuyến học'**
+  String get notificationSettingsScholarshipUpdatesHint;
 
   /// No description provided for @notificationSettingsGeneralUpdates.
   ///
   /// In vi, this message translates to:
-  /// **'Thông báo chung của họ tộc'**
+  /// **'Tin từ họ tộc'**
   String get notificationSettingsGeneralUpdates;
+
+  /// No description provided for @notificationSettingsGeneralUpdatesHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tin mới, nhắc việc và thông báo chung'**
+  String get notificationSettingsGeneralUpdatesHint;
 
   /// No description provided for @notificationSettingsQuietHours.
   ///
   /// In vi, this message translates to:
-  /// **'Chế độ giờ yên lặng'**
+  /// **'Giờ yên lặng'**
   String get notificationSettingsQuietHours;
+
+  /// No description provided for @notificationSettingsQuietHoursHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tạm giảm thông báo vào những lúc cần nghỉ ngơi'**
+  String get notificationSettingsQuietHoursHint;
+
+  /// No description provided for @notificationSettingsChannelsSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cách bạn nhận tin'**
+  String get notificationSettingsChannelsSectionTitle;
+
+  /// No description provided for @notificationSettingsTopicsSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bạn muốn nhận gì'**
+  String get notificationSettingsTopicsSectionTitle;
+
+  /// No description provided for @notificationSettingsSavingBadge.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đang lưu'**
+  String get notificationSettingsSavingBadge;
 
   /// No description provided for @notificationSettingsPlaceholderNote.
   ///

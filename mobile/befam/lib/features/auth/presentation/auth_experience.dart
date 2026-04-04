@@ -20,6 +20,7 @@ import '../../genealogy/services/genealogy_read_repository.dart';
 import '../../member/services/member_repository.dart';
 import '../../notifications/services/push_notification_service.dart';
 import '../../profile/services/profile_notification_preferences_repository.dart';
+import '../../scholarship/services/scholarship_repository.dart';
 import '../models/auth_entry_method.dart';
 import '../models/member_identity_verification.dart';
 import '../models/pending_otp_challenge.dart';
@@ -50,6 +51,7 @@ class AuthExperience extends StatefulWidget {
     this.genealogyRepository,
     this.genealogyDiscoveryRepository,
     this.billingRepository,
+    this.scholarshipRepository,
     this.pushNotificationService,
     this.profileNotificationPreferencesRepository,
     this.localeController,
@@ -67,6 +69,7 @@ class AuthExperience extends StatefulWidget {
   final GenealogyReadRepository? genealogyRepository;
   final GenealogyDiscoveryRepository? genealogyDiscoveryRepository;
   final BillingRepository? billingRepository;
+  final ScholarshipRepository? scholarshipRepository;
   final PushNotificationService? pushNotificationService;
   final ProfileNotificationPreferencesRepository?
   profileNotificationPreferencesRepository;
@@ -123,6 +126,7 @@ class _AuthExperienceState extends State<AuthExperience> {
             genealogyRepository: widget.genealogyRepository,
             genealogyDiscoveryRepository: widget.genealogyDiscoveryRepository,
             billingRepository: widget.billingRepository,
+            scholarshipRepository: widget.scholarshipRepository,
             pushNotificationService: widget.pushNotificationService,
             profileNotificationPreferencesRepository:
                 widget.profileNotificationPreferencesRepository,

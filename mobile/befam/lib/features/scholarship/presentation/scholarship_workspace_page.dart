@@ -29,12 +29,16 @@ class ScholarshipWorkspacePage extends StatefulWidget {
     required this.repository,
     this.availableClanContexts = const [],
     this.onSwitchClanContext,
+    this.initialProgramId,
+    this.initialSubmissionId,
   });
 
   final AuthSession session;
   final ScholarshipRepository repository;
   final List<ClanContextOption> availableClanContexts;
   final Future<AuthSession?> Function(String clanId)? onSwitchClanContext;
+  final String? initialProgramId;
+  final String? initialSubmissionId;
 
   @override
   State<ScholarshipWorkspacePage> createState() =>
@@ -53,6 +57,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
   int _visibleProgramCount = 0;
   int _visibleSubmissionCount = 0;
   String? _lazySubmissionProgramId;
+  String? _pendingInitialProgramId;
+  String? _pendingInitialSubmissionId;
 
   AuthSession get _session => _activeSession;
 
@@ -64,15 +70,29 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
       repository: widget.repository,
       session: _session,
     );
+    _pendingInitialProgramId = _normalizeInitialId(widget.initialProgramId);
+    _pendingInitialSubmissionId = _normalizeInitialId(
+      widget.initialSubmissionId,
+    );
     _workspaceScrollController.addListener(_handleWorkspaceScroll);
-    unawaited(_controller.initialize());
+    unawaited(
+      _controller.initialize().then((_) => _tryOpenInitialDestination()),
+    );
   }
 
   @override
   void didUpdateWidget(covariant ScholarshipWorkspacePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.session == widget.session &&
-        oldWidget.repository == widget.repository) {
+    final sessionChanged = oldWidget.session != widget.session;
+    final repositoryChanged = oldWidget.repository != widget.repository;
+    final initialProgramChanged =
+        oldWidget.initialProgramId != widget.initialProgramId;
+    final initialSubmissionChanged =
+        oldWidget.initialSubmissionId != widget.initialSubmissionId;
+    if (!sessionChanged &&
+        !repositoryChanged &&
+        !initialProgramChanged &&
+        !initialSubmissionChanged) {
       return;
     }
     _activeSession = widget.session;
@@ -81,7 +101,13 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
       repository: widget.repository,
       session: _session,
     );
-    unawaited(_controller.initialize());
+    _pendingInitialProgramId = _normalizeInitialId(widget.initialProgramId);
+    _pendingInitialSubmissionId = _normalizeInitialId(
+      widget.initialSubmissionId,
+    );
+    unawaited(
+      _controller.initialize().then((_) => _tryOpenInitialDestination()),
+    );
   }
 
   @override
@@ -163,6 +189,60 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
     }
     final expanded = current + _lazyPageSize;
     return expanded >= total ? total : expanded;
+  }
+
+  String? _normalizeInitialId(String? value) {
+    final normalized = value?.trim() ?? '';
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
+  void _tryOpenInitialDestination() {
+    final pendingSubmissionId = _pendingInitialSubmissionId;
+    if (pendingSubmissionId != null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        final submission = _controller.submissionById(pendingSubmissionId);
+        if (submission == null) {
+          return;
+        }
+        _pendingInitialSubmissionId = null;
+        _pendingInitialProgramId = null;
+        _controller.selectProgram(submission.programId);
+        setState(() {
+          _activeTab = submission.isPending
+              ? _ScholarshipWorkspaceTab.review
+              : _ScholarshipWorkspaceTab.submissions;
+          _showAddFabMenu = false;
+        });
+        unawaited(_openProgramDetail(submission.programId));
+      });
+      return;
+    }
+
+    final pendingProgramId = _pendingInitialProgramId;
+    if (pendingProgramId != null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        final program = _controller.programById(pendingProgramId);
+        if (program == null) {
+          return;
+        }
+        _pendingInitialProgramId = null;
+        _controller.selectProgram(program.id);
+        setState(() {
+          _activeTab = _ScholarshipWorkspaceTab.programs;
+          _showAddFabMenu = false;
+        });
+        unawaited(_openProgramDetail(program.id));
+      });
+    }
   }
 
   void _syncLazyState({
@@ -790,34 +870,29 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
             .length;
         final pendingSubmissionCount = _controller.submissions
             .where(
-              (submission) => submission.status.trim().toLowerCase() == 'pending',
+              (submission) =>
+                  submission.status.trim().toLowerCase() == 'pending',
             )
             .length;
         final councilStatusLabel = _controller.isCouncilVotingConfigured
             ? l10n.pick(vi: 'Hội đồng đã sẵn sàng', en: 'Council ready')
             : l10n.pick(
-                vi:
-                    'Hội đồng ${_controller.councilHeadMemberIds.length}/3 đang hoạt động',
-                en:
-                    'Council ${_controller.councilHeadMemberIds.length}/3 active',
+                vi: 'Hội đồng ${_controller.councilHeadMemberIds.length}/3 đang hoạt động',
+                en: 'Council ${_controller.councilHeadMemberIds.length}/3 active',
               );
         final heroHighlights = <_WorkspaceHeroHighlight>[
           _WorkspaceHeroHighlight(
             icon: Icons.school_outlined,
             label: l10n.pick(
-              vi:
-                  '$openProgramCount ${openProgramCount == 1 ? 'chương trình mở' : 'chương trình đang mở'}',
-              en:
-                  '$openProgramCount ${openProgramCount == 1 ? 'open program' : 'open programs'}',
+              vi: '$openProgramCount ${openProgramCount == 1 ? 'chương trình mở' : 'chương trình đang mở'}',
+              en: '$openProgramCount ${openProgramCount == 1 ? 'open program' : 'open programs'}',
             ),
           ),
           _WorkspaceHeroHighlight(
             icon: Icons.description_outlined,
             label: l10n.pick(
-              vi:
-                  '$pendingSubmissionCount ${pendingSubmissionCount == 1 ? 'hồ sơ chờ' : 'hồ sơ chờ duyệt'}',
-              en:
-                  '$pendingSubmissionCount ${pendingSubmissionCount == 1 ? 'pending submission' : 'pending submissions'}',
+              vi: '$pendingSubmissionCount ${pendingSubmissionCount == 1 ? 'hồ sơ chờ' : 'hồ sơ chờ duyệt'}',
+              en: '$pendingSubmissionCount ${pendingSubmissionCount == 1 ? 'pending submission' : 'pending submissions'}',
             ),
             tone: colorScheme.secondaryContainer,
           ),
@@ -881,10 +956,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                           en: 'No active clan context',
                         ),
                         message: l10n.pick(
-                          vi:
-                              'Khuyến học chỉ hoạt động khi phiên hiện tại đang gắn với một gia phả cụ thể.',
-                          en:
-                              'Scholarship only works when the current session is linked to an active clan.',
+                          vi: 'Khuyến học chỉ hoạt động khi phiên hiện tại đang gắn với một gia phả cụ thể.',
+                          en: 'Scholarship only works when the current session is linked to an active clan.',
                         ),
                         tone: colorScheme.surfaceContainerHighest,
                       ),
@@ -910,10 +983,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                               en: 'Family scholarships',
                             ),
                             description: l10n.pick(
-                              vi:
-                                  'Theo dõi chương trình, hồ sơ và xét duyệt trong một màn hình rõ ràng, gọn gàng hơn.',
-                              en:
-                                  'Keep programs, submissions, and approvals in one clear, easy-to-follow view.',
+                              vi: 'Theo dõi chương trình, hồ sơ và xét duyệt trong một màn hình rõ ràng, gọn gàng hơn.',
+                              en: 'Keep programs, submissions, and approvals in one clear, easy-to-follow view.',
                             ),
                             highlights: heroHighlights,
                             primaryActionLabel: canCreateProgramAction
@@ -953,10 +1024,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                 en: 'View-only mode',
                               ),
                               message: l10n.pick(
-                                vi:
-                                    'Bạn vẫn xem được chương trình và hồ sơ, nhưng chưa thể tạo mới hoặc xét duyệt trong phiên này.',
-                                en:
-                                    'You can view programs and submissions, but cannot create or review in this session.',
+                                vi: 'Bạn vẫn xem được chương trình và hồ sơ, nhưng chưa thể tạo mới hoặc xét duyệt trong phiên này.',
+                                en: 'You can view programs and submissions, but cannot create or review in this session.',
                               ),
                               tone: colorScheme.secondaryContainer,
                             ),
@@ -972,36 +1041,36 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                             },
                           ),
                           const SizedBox(height: 16),
-                          if (_activeTab == _ScholarshipWorkspaceTab.programs) ...[
+                          if (_activeTab ==
+                              _ScholarshipWorkspaceTab.programs) ...[
                             _SectionCard(
                               title: l10n.pick(
                                 vi: 'Danh sách chương trình',
                                 en: 'Programs',
                               ),
                               description: l10n.pick(
-                                vi:
-                                    'Xem nhanh trạng thái, năm học và chương trình bạn đang theo dõi.',
-                                en:
-                                    'A compact list of programs so status, school year, and your current selection are easy to scan.',
+                                vi: 'Xem nhanh trạng thái, năm học và chương trình bạn đang theo dõi.',
+                                en: 'A compact list of programs so status, school year, and your current selection are easy to scan.',
                               ),
                               child: _controller.programs.isEmpty
                                   ? _InlineEmpty(
                                       message: l10n.pick(
-                                        vi:
-                                            'Chưa có chương trình nào. Hãy tạo chương trình đầu tiên để bắt đầu hoạt động khuyến học.',
-                                        en:
-                                            'No programs yet. Create the first one to get started.',
+                                        vi: 'Chưa có chương trình nào. Hãy tạo chương trình đầu tiên để bắt đầu hoạt động khuyến học.',
+                                        en: 'No programs yet. Create the first one to get started.',
                                       ),
                                     )
                                   : Column(
                                       children: [
-                                        for (var i = 0;
-                                            i < visiblePrograms.length;
-                                            i++)
+                                        for (
+                                          var i = 0;
+                                          i < visiblePrograms.length;
+                                          i++
+                                        )
                                           Padding(
                                             padding: EdgeInsets.only(
                                               bottom:
-                                                  i == visiblePrograms.length - 1
+                                                  i ==
+                                                      visiblePrograms.length - 1
                                                   ? 0
                                                   : 12,
                                             ),
@@ -1011,7 +1080,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                   '${visiblePrograms[i].year} • ${_programStatusLabel(context, visiblePrograms[i].status)}',
                                               leadingIcon:
                                                   Icons.school_outlined,
-                                              badge: visiblePrograms[i].id ==
+                                              badge:
+                                                  visiblePrograms[i].id ==
                                                       selectedProgram?.id
                                                   ? _StatusBadge(
                                                       label: l10n.pick(
@@ -1061,10 +1131,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                           const SizedBox(height: 2),
                                           _InlineEmpty(
                                             message: l10n.pick(
-                                              vi:
-                                                  'Đang hiển thị ${visiblePrograms.length}/${_controller.programs.length} chương trình. Kéo xuống để tải thêm.',
-                                              en:
-                                                  'Showing ${visiblePrograms.length}/${_controller.programs.length} programs. Scroll to load more.',
+                                              vi: 'Đang hiển thị ${visiblePrograms.length}/${_controller.programs.length} chương trình. Kéo xuống để tải thêm.',
+                                              en: 'Showing ${visiblePrograms.length}/${_controller.programs.length} programs. Scroll to load more.',
                                             ),
                                           ),
                                         ],
@@ -1078,10 +1146,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                 en: 'Program details',
                               ),
                               description: l10n.pick(
-                                vi:
-                                    'Tóm tắt chương trình và các mức thưởng được gom vào cùng một chỗ để theo dõi dễ hơn.',
-                                en:
-                                    'Program details and award levels stay together for easier review.',
+                                vi: 'Tóm tắt chương trình và các mức thưởng được gom vào cùng một chỗ để theo dõi dễ hơn.',
+                                en: 'Program details and award levels stay together for easier review.',
                               ),
                               actionLabel: selectedProgram != null
                                   ? l10n.pick(
@@ -1097,10 +1163,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                               child: selectedProgram == null
                                   ? _InlineEmpty(
                                       message: l10n.pick(
-                                        vi:
-                                            'Chọn một chương trình để xem mô tả, trạng thái và các mức thưởng.',
-                                        en:
-                                            'Select a program to view its details and award levels.',
+                                        vi: 'Chọn một chương trình để xem mô tả, trạng thái và các mức thưởng.',
+                                        en: 'Select a program to view its details and award levels.',
                                       ),
                                     )
                                   : Column(
@@ -1121,10 +1185,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                           children: [
                                             _StatusBadge(
                                               label: l10n.pick(
-                                                vi:
-                                                    'Trạng thái: ${_programStatusLabel(context, selectedProgram.status)}',
-                                                en:
-                                                    'Status: ${_programStatusLabel(context, selectedProgram.status)}',
+                                                vi: 'Trạng thái: ${_programStatusLabel(context, selectedProgram.status)}',
+                                                en: 'Status: ${_programStatusLabel(context, selectedProgram.status)}',
                                               ),
                                             ),
                                             _StatusBadge(
@@ -1135,16 +1197,13 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                             ),
                                             _StatusBadge(
                                               label: l10n.pick(
-                                                vi:
-                                                    '${selectedProgramAwardLevels.length} mức thưởng',
-                                                en:
-                                                    '${selectedProgramAwardLevels.length} award levels',
+                                                vi: '${selectedProgramAwardLevels.length} mức thưởng',
+                                                en: '${selectedProgramAwardLevels.length} award levels',
                                               ),
                                             ),
                                           ],
                                         ),
-                                        if (selectedProgram
-                                            .description
+                                        if (selectedProgram.description
                                             .trim()
                                             .isNotEmpty) ...[
                                           const SizedBox(height: 12),
@@ -1158,20 +1217,20 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                         if (selectedProgramAwardLevels.isEmpty)
                                           _InlineEmpty(
                                             message: l10n.pick(
-                                              vi:
-                                                  'Chưa có mức thưởng. Hãy thêm ít nhất một mức để chương trình đầy đủ hơn.',
-                                              en:
-                                                  'No award levels yet. Add at least one to complete the program.',
+                                              vi: 'Chưa có mức thưởng. Hãy thêm ít nhất một mức để chương trình đầy đủ hơn.',
+                                              en: 'No award levels yet. Add at least one to complete the program.',
                                             ),
                                           )
                                         else
                                           Column(
                                             children: [
-                                              for (var i = 0;
-                                                  i <
-                                                      selectedProgramAwardLevels
-                                                          .length;
-                                                  i++)
+                                              for (
+                                                var i = 0;
+                                                i <
+                                                    selectedProgramAwardLevels
+                                                        .length;
+                                                i++
+                                              )
                                                 Padding(
                                                   padding: EdgeInsets.only(
                                                     bottom:
@@ -1202,55 +1261,54 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                     ),
                             ),
                           ],
-                          if (_activeTab == _ScholarshipWorkspaceTab.submissions) ...[
+                          if (_activeTab ==
+                              _ScholarshipWorkspaceTab.submissions) ...[
                             _SectionCard(
                               title: l10n.pick(
                                 vi: 'Hồ sơ trong chương trình',
                                 en: 'Program submissions',
                               ),
                               description: l10n.pick(
-                                vi:
-                                    'Khi đã chọn chương trình, mọi hồ sơ liên quan sẽ được gom lại để dễ theo dõi và chi hỗ trợ.',
-                                en:
-                                    'Once you pick a program, every related submission appears here for easier review and payout.',
+                                vi: 'Khi đã chọn chương trình, mọi hồ sơ liên quan sẽ được gom lại để dễ theo dõi và chi hỗ trợ.',
+                                en: 'Once you pick a program, every related submission appears here for easier review and payout.',
                               ),
                               child: selectedProgram == null
                                   ? _InlineEmpty(
                                       message: l10n.pick(
-                                        vi:
-                                            'Chọn một chương trình ở tab Chương trình trước khi xem hồ sơ.',
-                                        en:
-                                            'Select a program in the Programs tab before viewing submissions.',
+                                        vi: 'Chọn một chương trình ở tab Chương trình trước khi xem hồ sơ.',
+                                        en: 'Select a program in the Programs tab before viewing submissions.',
                                       ),
                                     )
                                   : visibleSubmissions.isEmpty
                                   ? _InlineEmpty(
                                       message: l10n.pick(
-                                        vi:
-                                            'Chưa có hồ sơ nào trong chương trình này.',
-                                        en:
-                                            'No submissions in this program yet.',
+                                        vi: 'Chưa có hồ sơ nào trong chương trình này.',
+                                        en: 'No submissions in this program yet.',
                                       ),
                                     )
                                   : Column(
                                       children: [
-                                        for (var i = 0;
-                                            i < visibleSubmissions.length;
-                                            i++)
+                                        for (
+                                          var i = 0;
+                                          i < visibleSubmissions.length;
+                                          i++
+                                        )
                                           Padding(
                                             padding: EdgeInsets.only(
                                               bottom:
-                                                  i == visibleSubmissions.length - 1
+                                                  i ==
+                                                      visibleSubmissions
+                                                              .length -
+                                                          1
                                                   ? 0
                                                   : 12,
                                             ),
                                             child: _EntityCard(
-                                              title: visibleSubmissions[i].title,
+                                              title:
+                                                  visibleSubmissions[i].title,
                                               subtitle: l10n.pick(
-                                                vi:
-                                                    '${visibleSubmissions[i].studentNameSnapshot} • ${visibleSubmissions[i].evidenceUrls.length} minh chứng',
-                                                en:
-                                                    '${visibleSubmissions[i].studentNameSnapshot} • ${visibleSubmissions[i].evidenceUrls.length} evidences',
+                                                vi: '${visibleSubmissions[i].studentNameSnapshot} • ${visibleSubmissions[i].evidenceUrls.length} minh chứng',
+                                                en: '${visibleSubmissions[i].studentNameSnapshot} • ${visibleSubmissions[i].evidenceUrls.length} evidences',
                                               ),
                                               leadingIcon:
                                                   Icons.description_outlined,
@@ -1263,19 +1321,16 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                     runSpacing: 8,
                                                     children: [
                                                       _StatusBadge(
-                                                        label:
-                                                            _submissionStatusLabel(
-                                                              context,
-                                                              visibleSubmissions[i]
-                                                                  .status,
-                                                            ),
+                                                        label: _submissionStatusLabel(
+                                                          context,
+                                                          visibleSubmissions[i]
+                                                              .status,
+                                                        ),
                                                       ),
                                                       _StatusBadge(
                                                         label: l10n.pick(
-                                                          vi:
-                                                              '${visibleSubmissions[i].approvalCount} thuận • ${visibleSubmissions[i].rejectionCount} chống',
-                                                          en:
-                                                              '${visibleSubmissions[i].approvalCount} approve • ${visibleSubmissions[i].rejectionCount} reject',
+                                                          vi: '${visibleSubmissions[i].approvalCount} thuận • ${visibleSubmissions[i].rejectionCount} chống',
+                                                          en: '${visibleSubmissions[i].approvalCount} approve • ${visibleSubmissions[i].rejectionCount} reject',
                                                         ),
                                                       ),
                                                     ],
@@ -1285,12 +1340,11 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                     const SizedBox(height: 8),
                                                     Text(
                                                       l10n.pick(
-                                                        vi:
-                                                            'Giải ngân: ${_disbursementStatusLabel(context, visibleSubmissions[i])}',
-                                                        en:
-                                                            'Disbursement: ${_disbursementStatusLabel(context, visibleSubmissions[i])}',
+                                                        vi: 'Giải ngân: ${_disbursementStatusLabel(context, visibleSubmissions[i])}',
+                                                        en: 'Disbursement: ${_disbursementStatusLabel(context, visibleSubmissions[i])}',
                                                       ),
-                                                      style: theme.textTheme
+                                                      style: theme
+                                                          .textTheme
                                                           .bodySmall,
                                                     ),
                                                   ],
@@ -1300,53 +1354,52 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                           .isPendingDisbursement) ...[
                                                     const SizedBox(height: 10),
                                                     AppAsyncAction(
-                                                      enabled:
-                                                          !_controller
-                                                              .isDisbursing,
+                                                      enabled: !_controller
+                                                          .isDisbursing,
                                                       onPressed: () async {
                                                         await _disburseSubmission(
                                                           submission:
                                                               visibleSubmissions[i],
                                                         );
                                                       },
-                                                      builder: (
-                                                        context,
-                                                        onPressed,
-                                                        isLoading,
-                                                      ) {
-                                                        return FilledButton.icon(
-                                                          key: Key(
-                                                            'scholarship-disburse-${visibleSubmissions[i].id}',
-                                                          ),
-                                                          onPressed:
-                                                              onPressed,
-                                                          icon: AppStableLoadingChild(
-                                                            isLoading:
-                                                                isLoading ||
-                                                                _controller
-                                                                    .isDisbursing,
-                                                            indicatorSize: 16,
-                                                            child: const Icon(
-                                                              Icons
-                                                                  .account_balance_wallet_outlined,
-                                                            ),
-                                                          ),
-                                                          label: AppStableLoadingChild(
-                                                            isLoading:
-                                                                isLoading ||
-                                                                _controller
-                                                                    .isDisbursing,
-                                                            child: Text(
-                                                              l10n.pick(
-                                                                vi:
-                                                                    'Chi từ quỹ',
-                                                                en:
-                                                                    'Disburse from fund',
+                                                      builder:
+                                                          (
+                                                            context,
+                                                            onPressed,
+                                                            isLoading,
+                                                          ) {
+                                                            return FilledButton.icon(
+                                                              key: Key(
+                                                                'scholarship-disburse-${visibleSubmissions[i].id}',
                                                               ),
-                                                            ),
-                                                          ),
-                                                        );
-                                                      },
+                                                              onPressed:
+                                                                  onPressed,
+                                                              icon: AppStableLoadingChild(
+                                                                isLoading:
+                                                                    isLoading ||
+                                                                    _controller
+                                                                        .isDisbursing,
+                                                                indicatorSize:
+                                                                    16,
+                                                                child: const Icon(
+                                                                  Icons
+                                                                      .account_balance_wallet_outlined,
+                                                                ),
+                                                              ),
+                                                              label: AppStableLoadingChild(
+                                                                isLoading:
+                                                                    isLoading ||
+                                                                    _controller
+                                                                        .isDisbursing,
+                                                                child: Text(
+                                                                  l10n.pick(
+                                                                    vi: 'Chi từ quỹ',
+                                                                    en: 'Disburse from fund',
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
                                                     ),
                                                   ],
                                                   if (visibleSubmissions[i]
@@ -1357,12 +1410,11 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                     const SizedBox(height: 8),
                                                     Text(
                                                       l10n.pick(
-                                                        vi:
-                                                            'Ghi chú: ${visibleSubmissions[i].reviewNote}',
-                                                        en:
-                                                            'Note: ${visibleSubmissions[i].reviewNote}',
+                                                        vi: 'Ghi chú: ${visibleSubmissions[i].reviewNote}',
+                                                        en: 'Note: ${visibleSubmissions[i].reviewNote}',
                                                       ),
-                                                      style: theme.textTheme
+                                                      style: theme
+                                                          .textTheme
                                                           .bodySmall,
                                                     ),
                                                   ],
@@ -1374,12 +1426,11 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                     const SizedBox(height: 4),
                                                     Text(
                                                       l10n.pick(
-                                                        vi:
-                                                            'Kết luận: ${visibleSubmissions[i].finalDecisionReason}',
-                                                        en:
-                                                            'Final reason: ${visibleSubmissions[i].finalDecisionReason}',
+                                                        vi: 'Kết luận: ${visibleSubmissions[i].finalDecisionReason}',
+                                                        en: 'Final reason: ${visibleSubmissions[i].finalDecisionReason}',
                                                       ),
-                                                      style: theme.textTheme
+                                                      style: theme
+                                                          .textTheme
                                                           .bodySmall,
                                                     ),
                                                   ],
@@ -1388,14 +1439,13 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                             ),
                                           ),
                                         if (_visibleSubmissionCount <
-                                            selectedProgramSubmissions.length) ...[
+                                            selectedProgramSubmissions
+                                                .length) ...[
                                           const SizedBox(height: 2),
                                           _InlineEmpty(
                                             message: l10n.pick(
-                                              vi:
-                                                  'Đang hiển thị ${visibleSubmissions.length}/${selectedProgramSubmissions.length} hồ sơ. Kéo xuống để tải thêm.',
-                                              en:
-                                                  'Showing ${visibleSubmissions.length}/${selectedProgramSubmissions.length} submissions. Scroll to load more.',
+                                              vi: 'Đang hiển thị ${visibleSubmissions.length}/${selectedProgramSubmissions.length} hồ sơ. Kéo xuống để tải thêm.',
+                                              en: 'Showing ${visibleSubmissions.length}/${selectedProgramSubmissions.length} submissions. Scroll to load more.',
                                             ),
                                           ),
                                         ],
@@ -1403,17 +1453,16 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                     ),
                             ),
                           ],
-                          if (_activeTab == _ScholarshipWorkspaceTab.review) ...[
+                          if (_activeTab ==
+                              _ScholarshipWorkspaceTab.review) ...[
                             _SectionCard(
                               title: l10n.pick(
                                 vi: 'Tình hình hội đồng',
                                 en: 'Council overview',
                               ),
                               description: l10n.pick(
-                                vi:
-                                    'Việc xét duyệt dùng quy tắc 2/3 và cần đủ 3 trưởng hội đồng đang hoạt động.',
-                                en:
-                                    'Reviews use a 2-of-3 rule and need 3 active council heads.',
+                                vi: 'Việc xét duyệt dùng quy tắc 2/3 và cần đủ 3 trưởng hội đồng đang hoạt động.',
+                                en: 'Reviews use a 2-of-3 rule and need 3 active council heads.',
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1425,10 +1474,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                       _StatusBadge(label: councilStatusLabel),
                                       _StatusBadge(
                                         label: l10n.pick(
-                                          vi:
-                                              '${reviewQueue.length} hồ sơ đang chờ',
-                                          en:
-                                              '${reviewQueue.length} waiting',
+                                          vi: '${reviewQueue.length} hồ sơ đang chờ',
+                                          en: '${reviewQueue.length} waiting',
                                         ),
                                       ),
                                     ],
@@ -1436,21 +1483,18 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                   const SizedBox(height: 12),
                                   Text(
                                     l10n.pick(
-                                      vi:
-                                          'Hồ sơ sẽ tự chốt khi đạt 2 phiếu duyệt hoặc 2 phiếu từ chối.',
-                                      en:
-                                          'A submission auto-finalizes at 2 approvals or 2 rejections.',
+                                      vi: 'Hồ sơ sẽ tự chốt khi đạt 2 phiếu duyệt hoặc 2 phiếu từ chối.',
+                                      en: 'A submission auto-finalizes at 2 approvals or 2 rejections.',
                                     ),
                                     style: theme.textTheme.bodyMedium,
                                   ),
-                                  if (!_controller.isCouncilVotingConfigured) ...[
+                                  if (!_controller
+                                      .isCouncilVotingConfigured) ...[
                                     const SizedBox(height: 8),
                                     Text(
                                       l10n.pick(
-                                        vi:
-                                            'Cần đủ 3 trưởng hội đồng đang hoạt động trước khi bắt đầu bỏ phiếu.',
-                                        en:
-                                            'Three active council heads are required before voting starts.',
+                                        vi: 'Cần đủ 3 trưởng hội đồng đang hoạt động trước khi bắt đầu bỏ phiếu.',
+                                        en: 'Three active council heads are required before voting starts.',
                                       ),
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(color: colorScheme.error),
@@ -1466,43 +1510,37 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                 en: 'Submissions to review',
                               ),
                               description: l10n.pick(
-                                vi:
-                                    'Chỉ những hồ sơ chờ xử lý mới xuất hiện ở đây để bạn tập trung vào quyết định tiếp theo.',
-                                en:
-                                    'Only pending submissions appear here so the next decision is easy to spot.',
+                                vi: 'Chỉ những hồ sơ chờ xử lý mới xuất hiện ở đây để bạn tập trung vào quyết định tiếp theo.',
+                                en: 'Only pending submissions appear here so the next decision is easy to spot.',
                               ),
                               child: !_controller.canReviewSubmissions
                                   ? _InlineEmpty(
                                       message: l10n.pick(
-                                        vi:
-                                            'Vai trò hiện tại chưa có quyền xét duyệt hồ sơ.',
-                                        en:
-                                            'Your session cannot review scholarship submissions.',
+                                        vi: 'Vai trò hiện tại chưa có quyền xét duyệt hồ sơ.',
+                                        en: 'Your session cannot review scholarship submissions.',
                                       ),
                                     )
                                   : !_controller.isCouncilVotingConfigured
                                   ? _InlineEmpty(
                                       message: l10n.pick(
-                                        vi:
-                                            'Hội đồng học bổng phải có đúng 3 trưởng hội đồng đang hoạt động trước khi bỏ phiếu.',
-                                        en:
-                                            'Scholarship council must have exactly 3 active heads before voting.',
+                                        vi: 'Hội đồng học bổng phải có đúng 3 trưởng hội đồng đang hoạt động trước khi bỏ phiếu.',
+                                        en: 'Scholarship council must have exactly 3 active heads before voting.',
                                       ),
                                     )
                                   : reviewQueue.isEmpty
                                   ? _InlineEmpty(
                                       message: l10n.pick(
-                                        vi:
-                                            'Hiện không có hồ sơ nào chờ xét duyệt.',
-                                        en:
-                                            'There are no submissions waiting for review.',
+                                        vi: 'Hiện không có hồ sơ nào chờ xét duyệt.',
+                                        en: 'There are no submissions waiting for review.',
                                       ),
                                     )
                                   : Column(
                                       children: [
-                                        for (var i = 0;
-                                            i < reviewQueue.length;
-                                            i++)
+                                        for (
+                                          var i = 0;
+                                          i < reviewQueue.length;
+                                          i++
+                                        )
                                           Padding(
                                             padding: EdgeInsets.only(
                                               bottom:
@@ -1518,7 +1556,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                 children: [
                                                   Text(
                                                     reviewQueue[i].title,
-                                                    style: theme.textTheme
+                                                    style: theme
+                                                        .textTheme
                                                         .titleMedium
                                                         ?.copyWith(
                                                           fontWeight:
@@ -1528,33 +1567,30 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                   const SizedBox(height: 6),
                                                   Text(
                                                     l10n.pick(
-                                                      vi:
-                                                          'Thành viên: ${_controller.memberName(reviewQueue[i].memberId)}',
-                                                      en:
-                                                          'Member: ${_controller.memberName(reviewQueue[i].memberId)}',
+                                                      vi: 'Thành viên: ${_controller.memberName(reviewQueue[i].memberId)}',
+                                                      en: 'Member: ${_controller.memberName(reviewQueue[i].memberId)}',
                                                     ),
                                                   ),
                                                   const SizedBox(height: 4),
                                                   Text(
                                                     l10n.pick(
-                                                      vi:
-                                                          'Đã có ${reviewQueue[i].approvalCount}/2 phiếu duyệt',
-                                                      en:
-                                                          '${reviewQueue[i].approvalCount}/2 approvals received',
+                                                      vi: 'Đã có ${reviewQueue[i].approvalCount}/2 phiếu duyệt',
+                                                      en: '${reviewQueue[i].approvalCount}/2 approvals received',
                                                     ),
-                                                    style: theme.textTheme
+                                                    style: theme
+                                                        .textTheme
                                                         .bodySmall,
                                                   ),
                                                   const SizedBox(height: 12),
                                                   Row(
                                                     children: [
                                                       Expanded(
-                                                        child:
-                                                            OutlinedButton.icon(
+                                                        child: OutlinedButton.icon(
                                                           key: Key(
                                                             'scholarship-approve-${reviewQueue[i].id}',
                                                           ),
-                                                          onPressed: _controller
+                                                          onPressed:
+                                                              _controller
                                                                       .isReviewing ||
                                                                   !_controller
                                                                       .isCouncilVotingConfigured ||
@@ -1584,12 +1620,12 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                       ),
                                                       const SizedBox(width: 10),
                                                       Expanded(
-                                                        child:
-                                                            FilledButton.tonalIcon(
+                                                        child: FilledButton.tonalIcon(
                                                           key: Key(
                                                             'scholarship-reject-${reviewQueue[i].id}',
                                                           ),
-                                                          onPressed: _controller
+                                                          onPressed:
+                                                              _controller
                                                                       .isReviewing ||
                                                                   !_controller
                                                                       .isCouncilVotingConfigured ||
@@ -1634,29 +1670,30 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                   en: 'Recent review activity',
                                 ),
                                 description: l10n.pick(
-                                  vi:
-                                      'Hiển thị 25 hoạt động gần nhất để mọi người dễ theo dõi mà màn hình vẫn gọn.',
-                                  en:
-                                      'Shows the 25 most recent review actions so everyone stays informed without clutter.',
+                                  vi: 'Hiển thị 25 hoạt động gần nhất để mọi người dễ theo dõi mà màn hình vẫn gọn.',
+                                  en: 'Shows the 25 most recent review actions so everyone stays informed without clutter.',
                                 ),
                                 child: approvalLogItems.isEmpty
                                     ? _InlineEmpty(
                                         message: l10n.pick(
-                                          vi:
-                                              'Chưa có hoạt động xét duyệt nào gần đây.',
-                                          en:
-                                              'No recent review activity yet.',
+                                          vi: 'Chưa có hoạt động xét duyệt nào gần đây.',
+                                          en: 'No recent review activity yet.',
                                         ),
                                       )
                                     : Column(
                                         children: [
-                                          for (var i = 0;
-                                              i < approvalLogItems.length;
-                                              i++)
+                                          for (
+                                            var i = 0;
+                                            i < approvalLogItems.length;
+                                            i++
+                                          )
                                             Padding(
                                               padding: EdgeInsets.only(
                                                 bottom:
-                                                    i == approvalLogItems.length - 1
+                                                    i ==
+                                                        approvalLogItems
+                                                                .length -
+                                                            1
                                                     ? 0
                                                     : 12,
                                               ),
@@ -1671,14 +1708,12 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                   final submissionLabel =
                                                       submission == null
                                                       ? l10n.pick(
-                                                          vi:
-                                                              'Một hồ sơ khuyến học',
-                                                          en:
-                                                              'A scholarship submission',
+                                                          vi: 'Một hồ sơ khuyến học',
+                                                          en: 'A scholarship submission',
                                                         )
                                                       : submission.title
-                                                                .trim()
-                                                                .isNotEmpty
+                                                            .trim()
+                                                            .isNotEmpty
                                                       ? submission.title.trim()
                                                       : submission
                                                             .studentNameSnapshot
@@ -1688,10 +1723,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                             .studentNameSnapshot
                                                             .trim()
                                                       : l10n.pick(
-                                                          vi:
-                                                              'Một hồ sơ khuyến học',
-                                                          en:
-                                                              'A scholarship submission',
+                                                          vi: 'Một hồ sơ khuyến học',
+                                                          en: 'A scholarship submission',
                                                         );
                                                   return _EntityCard(
                                                     title:
@@ -1707,10 +1740,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                                                               .isNotEmpty ==
                                                           true)
                                                         l10n.pick(
-                                                          vi:
-                                                              'Ghi chú: ${entry.note}',
-                                                          en:
-                                                              'Note: ${entry.note}',
+                                                          vi: 'Ghi chú: ${entry.note}',
+                                                          en: 'Note: ${entry.note}',
                                                         ),
                                                     ].join('\n'),
                                                     leadingIcon:
@@ -1778,6 +1809,7 @@ class ScholarshipProgramDetailPage extends StatelessWidget {
             .toList(growable: false);
 
         return Scaffold(
+          key: Key('scholarship-program-detail-page-$programId'),
           appBar: AppBar(
             title: Text(
               l10n.pick(vi: 'Chi tiết chương trình', en: 'Program detail'),
@@ -3676,7 +3708,8 @@ class _SectionCard extends StatelessWidget {
                         letterSpacing: -0.3,
                       ),
                     ),
-                    if (description != null && description!.trim().isNotEmpty) ...[
+                    if (description != null &&
+                        description!.trim().isNotEmpty) ...[
                       SizedBox(height: tokens.spaceXs + 2),
                       Text(
                         description!,
@@ -3727,9 +3760,9 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w700,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -3894,9 +3927,9 @@ class _WorkspaceHeroHighlightChip extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -3933,16 +3966,16 @@ class _InlineStatusBanner extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   message,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    height: 1.35,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(height: 1.35),
                 ),
               ],
             ),
@@ -3954,10 +3987,7 @@ class _InlineStatusBanner extends StatelessWidget {
 }
 
 class _WorkspaceTabStrip extends StatelessWidget {
-  const _WorkspaceTabStrip({
-    required this.value,
-    required this.onChanged,
-  });
+  const _WorkspaceTabStrip({required this.value, required this.onChanged});
 
   final _ScholarshipWorkspaceTab value;
   final ValueChanged<_ScholarshipWorkspaceTab> onChanged;
@@ -4059,10 +4089,7 @@ class _EntityCard extends StatelessWidget {
                         height: 1.35,
                       ),
                     ),
-                    if (badge != null) ...[
-                      const SizedBox(height: 10),
-                      badge!,
-                    ],
+                    if (badge != null) ...[const SizedBox(height: 10), badge!],
                   ],
                 ),
               ),
