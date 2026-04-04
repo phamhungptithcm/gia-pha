@@ -3,8 +3,7 @@ name: CI - Mobile E2E iOS
 on:
   push:
     branches:
-      - staging
-      - main
+      - "**"
   workflow_dispatch:
 
 permissions:
