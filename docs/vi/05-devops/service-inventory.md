@@ -79,6 +79,79 @@ Legend:
 | `CALLABLE_ENFORCE_APP_CHECK` | tùy môi trường test | `true` |
 | `OTP_PROVIDER` | `firebase` hoặc `twilio` tùy setup | `twilio` hoặc `firebase` theo mô hình vận hành |
 
+## Baseline chi phí production (ước tính hiện tại)
+
+_Rà soát ngày: 04/04/2026_
+
+### Giả định tính toán
+
+- Domain production là `befam.co`.
+- Giá domain do chủ dự án cung cấp:
+  - năm đầu: `$17.99`
+  - từ năm thứ 2 trở đi: `$53.39/năm`
+- Apple phát hành app qua Apple Developer Program: `$99/năm`.
+- Google Play cần phí đăng ký developer: `$25` một lần, không phải phí lặp lại hàng năm.
+- Code hiện tại có 6 scheduled jobs dùng `onSchedule`, tương ứng 6 Cloud Scheduler jobs:
+  - 5 jobs trong [`firebase/functions/src/scheduled/jobs.ts`](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/firebase/functions/src/scheduled/jobs.ts)
+  - 1 job trong [`firebase/functions/src/events/event-triggers.ts`](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/firebase/functions/src/events/event-triggers.ts)
+- Cloud Scheduler tính `$0.10/job/tháng`, miễn phí 3 jobs đầu mỗi billing account.
+- Baseline dưới đây giả định billing account chưa dùng mất free tier 3 jobs ở project khác, nên chỉ còn 3 jobs phải trả phí cho BeFam.
+
+### Chi phí cố định / gần-cố định
+
+| Khoản | Cách tính | Năm 1 | Từ năm 2 |
+|---|---|---:|---:|
+| Domain `befam.co` | Giá user cung cấp | $17.99 | $53.39 |
+| Apple Developer Program | Hàng năm | $99.00 | $99.00 |
+| Google Play developer account | Một lần | $25.00 | $0.00 |
+| Cloud Scheduler cho 6 scheduled jobs | `(6 - 3 free) x $0.10 x 12 tháng` | $3.60 | $3.60 |
+| **Tổng fixed baseline** |  | **$145.59** | **$155.99** |
+
+### Ghi chú về tổng fixed baseline
+
+- Nếu team đã có sẵn tài khoản Google Play developer từ trước, có thể bỏ dòng `$25.00` one-time ở năm 1.
+- Nếu 3 free Cloud Scheduler jobs đã bị dùng bởi project khác trong cùng billing account, chi phí Cloud Scheduler của BeFam có thể tăng tối đa lên:
+  - `6 x $0.10 x 12 = $7.20/năm`
+- Khi đó tổng fixed baseline sẽ là:
+  - năm 1: `$149.19`
+  - từ năm 2: `$159.59`
+
+### Chi phí biến đổi theo usage
+
+Các khoản dưới đây đã được codebase xác nhận là có thể phát sinh, nhưng không thể chốt số USD/năm nếu chưa có traffic production thật:
+
+| Nhóm | Dịch vụ | Cách phát sinh chi phí |
+|---|---|---|
+| Auth/OTP | Firebase Authentication Phone Auth | tăng theo số lượt xác thực, đặc biệt OTP/SMS |
+| OTP ngoài Firebase | Twilio Verify API | tăng theo số OTP/SMS gửi thật |
+| Database | Cloud Firestore | tăng theo đọc/ghi/lưu trữ |
+| Backend | Cloud Functions for Firebase Gen2 | tăng theo invocations/CPU/network |
+| Storage | Firebase Storage | tăng theo lưu trữ và băng thông |
+| Web | Firebase Hosting | tăng theo request và băng thông vượt quota |
+| Billing webhook | Google Cloud Pub/Sub (RTDN) | tăng theo số message vượt free tier |
+| CI/CD | GitHub Actions | tăng nếu vượt quota runner phút của plan |
+| Artifact | GitHub Releases | tăng nếu artifact/storage/bandwidth vượt quota |
+| Store revenue share | Apple / Google Play | phát sinh theo doanh thu IAP thực tế, không phải phí vận hành cố định |
+
+### Khoản thường miễn phí hoặc chưa cần cộng vào baseline
+
+- Firebase Cloud Messaging (FCM)
+- Firebase App Check
+- Firebase Analytics
+- Firebase Crashlytics
+- Firebase Emulator Suite
+- GitHub Pages + MkDocs
+- Slack Incoming Webhook nếu đang dùng free workspace
+- Trivy, Gitleaks, Dependency Review, Docker tooling nếu vẫn nằm trong quota CI hiện có
+
+### Nguồn giá tham chiếu
+
+- Apple Developer Program: [developer.apple.com/support/compare-memberships](https://developer.apple.com/support/compare-memberships/)
+- Apple membership fee details: [developer.apple.com/help/account/membership/program-enrollment](https://developer.apple.com/help/account/membership/program-enrollment)
+- Cloud Scheduler pricing: [cloud.google.com/scheduler/pricing](https://cloud.google.com/scheduler/pricing)
+- Firebase scheduled functions: [firebase.google.com/docs/functions/schedule-functions](https://firebase.google.com/docs/functions/schedule-functions)
+- Android developer verification / registration fee reference: [developer.android.com/developer-verification/guides/early-access](https://developer.android.com/developer-verification/guides/early-access)
+
 ## Ghi chú quan trọng
 
 - Tài liệu sản phẩm cũ còn nhắc `VNPay/Card`, nhưng code runtime hiện tại đang ưu tiên Store IAP (Apple/Google) cho payment flow.
