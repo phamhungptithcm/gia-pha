@@ -856,6 +856,15 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
             .take(_visibleSubmissionCount)
             .toList(growable: false);
         final reviewQueue = _controller.reviewQueue;
+        final councilStatusLabel = _controller.isCouncilVotingConfigured
+            ? l10n.pick(
+                vi: 'Hội đồng đã sẵn sàng',
+                en: 'Council ready',
+              )
+            : l10n.pick(
+                vi: 'Cần đủ 3 trưởng hội đồng',
+                en: '3 council heads needed',
+              );
         final canCreateProgramAction = _controller.canCreatePrograms;
         final canCreateAwardAction =
             _controller.canCreateAwardLevels && selectedProgram != null;
@@ -865,42 +874,6 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
             canCreateProgramAction ||
             canCreateAwardAction ||
             canCreateSubmissionAction;
-        final openProgramCount = _controller.programs
-            .where((program) => program.status.trim().toLowerCase() == 'open')
-            .length;
-        final pendingSubmissionCount = _controller.submissions
-            .where(
-              (submission) =>
-                  submission.status.trim().toLowerCase() == 'pending',
-            )
-            .length;
-        final councilStatusLabel = _controller.isCouncilVotingConfigured
-            ? l10n.pick(vi: 'Hội đồng đã sẵn sàng', en: 'Council ready')
-            : l10n.pick(
-                vi: 'Hội đồng ${_controller.councilHeadMemberIds.length}/3 đang hoạt động',
-                en: 'Council ${_controller.councilHeadMemberIds.length}/3 active',
-              );
-        final heroHighlights = <_WorkspaceHeroHighlight>[
-          _WorkspaceHeroHighlight(
-            icon: Icons.school_outlined,
-            label: l10n.pick(
-              vi: '$openProgramCount ${openProgramCount == 1 ? 'chương trình mở' : 'chương trình đang mở'}',
-              en: '$openProgramCount ${openProgramCount == 1 ? 'open program' : 'open programs'}',
-            ),
-          ),
-          _WorkspaceHeroHighlight(
-            icon: Icons.description_outlined,
-            label: l10n.pick(
-              vi: '$pendingSubmissionCount ${pendingSubmissionCount == 1 ? 'hồ sơ chờ' : 'hồ sơ chờ duyệt'}',
-              en: '$pendingSubmissionCount ${pendingSubmissionCount == 1 ? 'pending submission' : 'pending submissions'}',
-            ),
-            tone: colorScheme.secondaryContainer,
-          ),
-          _WorkspaceHeroHighlight(
-            icon: Icons.how_to_vote_outlined,
-            label: councilStatusLabel,
-          ),
-        ];
         final approvalLogItems = _controller.approvalLogs
             .take(25)
             .toList(growable: false);
@@ -982,38 +955,8 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
                               vi: 'Khuyến học gia tộc',
                               en: 'Family scholarships',
                             ),
-                            description: l10n.pick(
-                              vi: 'Theo dõi chương trình, hồ sơ và xét duyệt trong một màn hình rõ ràng, gọn gàng hơn.',
-                              en: 'Keep programs, submissions, and approvals in one clear, easy-to-follow view.',
-                            ),
-                            highlights: heroHighlights,
-                            primaryActionLabel: canCreateProgramAction
-                                ? l10n.pick(
-                                    vi: 'Tạo chương trình',
-                                    en: 'Create program',
-                                  )
-                                : canCreateSubmissionAction
-                                ? l10n.pick(
-                                    vi: 'Tạo hồ sơ đề cử',
-                                    en: 'Create submission',
-                                  )
-                                : null,
-                            onPrimaryAction: canCreateProgramAction
-                                ? _openProgramFormFromFab
-                                : canCreateSubmissionAction
-                                ? _openSubmissionFormFromFab
-                                : null,
-                            secondaryActionLabel: selectedProgram != null
-                                ? l10n.pick(
-                                    vi: 'Mở chương trình',
-                                    en: 'Open program',
-                                  )
-                                : null,
-                            onSecondaryAction: selectedProgram != null
-                                ? () => unawaited(
-                                    _openProgramDetail(selectedProgram.id),
-                                  )
-                                : null,
+                            description: null,
+                            highlights: const [],
                           ),
                           if (_controller.permissions.isReadOnly) ...[
                             const SizedBox(height: 14),
@@ -3797,32 +3740,26 @@ class _InlineEmpty extends StatelessWidget {
 class _WorkspaceHero extends StatelessWidget {
   const _WorkspaceHero({
     required this.title,
-    required this.description,
+    this.description,
     required this.highlights,
-    this.primaryActionLabel,
-    this.onPrimaryAction,
-    this.secondaryActionLabel,
-    this.onSecondaryAction,
   });
 
   final String title;
-  final String description;
+  final String? description;
   final List<_WorkspaceHeroHighlight> highlights;
-  final String? primaryActionLabel;
-  final VoidCallback? onPrimaryAction;
-  final String? secondaryActionLabel;
-  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final tokens = context.uiTokens;
+    final hasDescription = (description?.trim().isNotEmpty ?? false);
+    final isMinimal = !hasDescription && highlights.isEmpty;
 
     return AppWorkspaceSurface(
       gradient: appWorkspaceHeroGradient(context),
       showAccentOrbs: true,
-      padding: EdgeInsets.all(tokens.spaceXl),
+      padding: EdgeInsets.all(isMinimal ? tokens.spaceLg : tokens.spaceXl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3833,14 +3770,16 @@ class _WorkspaceHero extends StatelessWidget {
               letterSpacing: -0.4,
             ),
           ),
-          SizedBox(height: tokens.spaceSm + 2),
-          Text(
-            description,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              height: 1.35,
+          if (hasDescription) ...[
+            SizedBox(height: tokens.spaceSm + 2),
+            Text(
+              description!,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                height: 1.35,
+              ),
             ),
-          ),
+          ],
           if (highlights.isNotEmpty) ...[
             SizedBox(height: tokens.spaceLg),
             Wrap(
@@ -3851,31 +3790,9 @@ class _WorkspaceHero extends StatelessWidget {
                     (highlight) => _WorkspaceHeroHighlightChip(
                       icon: highlight.icon,
                       label: highlight.label,
-                      tone: highlight.tone,
                     ),
                   )
                   .toList(growable: false),
-            ),
-          ],
-          if (primaryActionLabel != null || secondaryActionLabel != null) ...[
-            SizedBox(height: tokens.spaceLg),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                if (primaryActionLabel != null && onPrimaryAction != null)
-                  FilledButton.icon(
-                    onPressed: onPrimaryAction,
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: Text(primaryActionLabel!),
-                  ),
-                if (secondaryActionLabel != null && onSecondaryAction != null)
-                  OutlinedButton.icon(
-                    onPressed: onSecondaryAction,
-                    icon: const Icon(Icons.visibility_outlined),
-                    label: Text(secondaryActionLabel!),
-                  ),
-              ],
             ),
           ],
         ],
@@ -3885,27 +3802,20 @@ class _WorkspaceHero extends StatelessWidget {
 }
 
 class _WorkspaceHeroHighlight {
-  const _WorkspaceHeroHighlight({
-    required this.icon,
-    required this.label,
-    this.tone,
-  });
+  const _WorkspaceHeroHighlight({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
-  final Color? tone;
 }
 
 class _WorkspaceHeroHighlightChip extends StatelessWidget {
   const _WorkspaceHeroHighlightChip({
     required this.icon,
     required this.label,
-    this.tone,
   });
 
   final IconData icon;
   final String label;
-  final Color? tone;
 
   @override
   Widget build(BuildContext context) {
@@ -3914,7 +3824,7 @@ class _WorkspaceHeroHighlightChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: tone ?? colorScheme.surface.withValues(alpha: 0.84),
+        color: colorScheme.surface.withValues(alpha: 0.84),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: colorScheme.outlineVariant.withValues(alpha: 0.92),

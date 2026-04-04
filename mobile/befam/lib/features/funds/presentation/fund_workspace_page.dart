@@ -263,45 +263,6 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     );
   }
 
-  Future<void> _openTransactionEditor(
-    FundProfile fund,
-    FundTransactionType type,
-  ) async {
-    final l10n = context.l10n;
-    final didSave = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return _TransactionEditorSheet(
-          title: type == FundTransactionType.donation
-              ? l10n.pick(vi: 'Ghi nhận đóng góp', en: 'Record donation')
-              : l10n.pick(vi: 'Ghi nhận chi tiêu', en: 'Record expense'),
-          initialDraft: FundTransactionDraft.empty(
-            fundId: fund.id,
-            currency: fund.currency,
-            transactionType: type,
-          ),
-          isSaving: _controller.isSavingTransaction,
-          onSubmit: (draft) => _controller.recordTransaction(draft: draft),
-        );
-      },
-    );
-
-    if (didSave == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            type == FundTransactionType.donation
-                ? l10n.pick(vi: 'Đã lưu đóng góp.', en: 'Donation saved.')
-                : l10n.pick(vi: 'Đã lưu chi tiêu.', en: 'Expense saved.'),
-          ),
-        ),
-      );
-    }
-  }
-
   Future<void> _refreshWorkspace() async {
     await _controller.refresh();
     await _refreshTreasurerRoster(force: true);
@@ -410,48 +371,6 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         final selectedFundMemberLabel = currentFund == null
             ? ''
             : (_memberCountLabelForFund(context, currentFund) ?? '').trim();
-        final heroHighlights = <_WorkspaceHeroHighlight>[
-          _WorkspaceHeroHighlight(
-            icon: Icons.account_balance_wallet_outlined,
-            label: _formatMoney(
-              context,
-              amountMinor: _totalBalanceMinor(),
-              currency: displayCurrency,
-            ),
-          ),
-          _WorkspaceHeroHighlight(
-            icon: Icons.inventory_2_outlined,
-            label: l10n.pick(
-              vi: '${_controller.funds.length} ${_controller.funds.length == 1 ? 'quỹ hoạt động' : 'quỹ đang hoạt động'}',
-              en: '${_controller.funds.length} ${_controller.funds.length == 1 ? 'active fund' : 'active funds'}',
-            ),
-            tone: Theme.of(context).colorScheme.secondaryContainer,
-          ),
-          if (currentFund != null)
-            _WorkspaceHeroHighlight(
-              icon: Icons.person_outline,
-              label: currentTreasurerLabel.isNotEmpty
-                  ? currentTreasurerLabel
-                  : _fundTypeLabel(context, currentFund.fundType),
-            ),
-        ];
-        final heroPrimaryActionLabel = !hasFunds && _controller.canManageFunds
-            ? l10n.pick(vi: 'Tạo quỹ đầu tiên', en: 'Create first fund')
-            : currentFund != null
-            ? l10n.pick(vi: 'Mở quỹ đang chọn', en: 'Open selected fund')
-            : null;
-        final heroPrimaryAction = !hasFunds && _controller.canManageFunds
-            ? () => _openFundEditor()
-            : currentFund != null
-            ? () => _openFundDetail(currentFund)
-            : null;
-        final heroSecondaryActionLabel = hasFunds && _controller.canManageFunds
-            ? l10n.pick(vi: 'Tạo quỹ', en: 'Create fund')
-            : null;
-        final heroSecondaryAction = hasFunds && _controller.canManageFunds
-            ? () => _openFundEditor()
-            : null;
-
         return Scaffold(
           appBar: AppBar(
             title: Text(l10n.pick(vi: 'Quỹ', en: 'Funds')),
@@ -496,11 +415,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                               vi: 'Sổ quỹ gia tộc',
                               en: 'Family funds',
                             ),
-                            highlights: heroHighlights,
-                            primaryActionLabel: heroPrimaryActionLabel,
-                            onPrimaryAction: heroPrimaryAction,
-                            secondaryActionLabel: heroSecondaryActionLabel,
-                            onSecondaryAction: heroSecondaryAction,
+                            highlights: const [],
                           ),
                           if (workspaceError != null) ...[
                             const SizedBox(height: 14),
@@ -590,19 +505,6 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                               fund: currentFund,
                               memberCountLabel: selectedFundMemberLabel,
                               treasurerLabel: currentTreasurerLabel,
-                              onOpenDetail: () => _openFundDetail(currentFund),
-                              onRecordDonation: _controller.canManageFunds
-                                  ? () => _openTransactionEditor(
-                                      currentFund,
-                                      FundTransactionType.donation,
-                                    )
-                                  : null,
-                              onRecordExpense: _controller.canManageFunds
-                                  ? () => _openTransactionEditor(
-                                      currentFund,
-                                      FundTransactionType.expense,
-                                    )
-                                  : null,
                             ),
                           ],
                           if (currentFund != null &&
@@ -3190,122 +3092,111 @@ class _FundSummaryCard extends StatelessWidget {
 class _SelectedFundSpotlight extends StatelessWidget {
   const _SelectedFundSpotlight({
     required this.fund,
-    required this.onOpenDetail,
     this.memberCountLabel,
     this.treasurerLabel,
-    this.onRecordDonation,
-    this.onRecordExpense,
   });
 
   final FundProfile fund;
   final String? memberCountLabel;
   final String? treasurerLabel;
-  final VoidCallback onOpenDetail;
-  final VoidCallback? onRecordDonation;
-  final VoidCallback? onRecordExpense;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final tokens = context.uiTokens;
+    final infoLines = <String>[
+      if (memberCountLabel != null && memberCountLabel!.trim().isNotEmpty)
+        memberCountLabel!.replaceFirst('Áp dụng:', 'Áp dụng cho').trim(),
+      if (treasurerLabel != null && treasurerLabel!.trim().isNotEmpty)
+        context.l10n.pick(
+          vi: 'Phụ trách: ${treasurerLabel!.trim()}',
+          en: 'Managed by ${treasurerLabel!.trim()}',
+        ),
+    ];
 
     return AppWorkspaceSurface(
       gradient: appWorkspaceHeroGradient(context),
       showAccentOrbs: true,
       padding: EdgeInsets.all(tokens.spaceLg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            context.l10n.pick(vi: 'Quỹ đang chọn', en: 'Selected fund'),
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          SizedBox(height: tokens.spaceSm + 2),
-          Text(
-            fund.name,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.4,
-            ),
-          ),
-          SizedBox(height: tokens.spaceSm),
-          Text(
-            fund.description.trim().isEmpty
-                ? context.l10n.pick(
-                    vi: 'Xem nhanh số dư, người phụ trách và các giao dịch chính của quỹ này.',
-                    en: 'Quickly review this fund\'s balance, owner, and key transactions.',
-                  )
-                : fund.description,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              height: 1.35,
-            ),
-          ),
-          SizedBox(height: tokens.spaceMd),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 320;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _WorkspaceHeroHighlightChip(
-                icon: Icons.account_balance_outlined,
-                label: _fundTypeLabel(context, fund.fundType),
-              ),
-              _WorkspaceHeroHighlightChip(
-                icon: Icons.account_balance_wallet_outlined,
-                label: _formatMoneyText(
-                  context,
-                  amountMinor: fund.balanceMinor,
-                  currency: fund.currency,
+              Text(
+                context.l10n.pick(vi: 'Quỹ đang chọn', en: 'Selected fund'),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              if (treasurerLabel != null && treasurerLabel!.trim().isNotEmpty)
-                _WorkspaceHeroHighlightChip(
-                  icon: Icons.badge_outlined,
-                  label: treasurerLabel!,
-                ),
-              if (memberCountLabel != null &&
-                  memberCountLabel!.trim().isNotEmpty)
-                _WorkspaceHeroHighlightChip(
-                  icon: Icons.groups_2_outlined,
-                  label: memberCountLabel!,
-                ),
-            ],
-          ),
-          SizedBox(height: tokens.spaceLg),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              FilledButton.icon(
-                onPressed: onOpenDetail,
-                icon: const Icon(Icons.visibility_outlined),
-                label: Text(
-                  context.l10n.pick(vi: 'Xem chi tiết', en: 'View details'),
-                ),
-              ),
-              if (onRecordDonation != null)
-                OutlinedButton.icon(
-                  onPressed: onRecordDonation,
-                  icon: const Icon(Icons.south_west_rounded),
-                  label: Text(
-                    context.l10n.pick(vi: 'Ghi nhận thu', en: 'Record income'),
+              SizedBox(height: tokens.spaceSm + 2),
+              if (isCompact) ...[
+                Text(
+                  fund.name,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.4,
                   ),
                 ),
-              if (onRecordExpense != null)
-                OutlinedButton.icon(
-                  onPressed: onRecordExpense,
-                  icon: const Icon(Icons.north_east_rounded),
-                  label: Text(
-                    context.l10n.pick(vi: 'Ghi nhận chi', en: 'Record expense'),
+                SizedBox(height: tokens.spaceXs + 2),
+                Text(
+                  _formatMoneyText(
+                    context,
+                    amountMinor: fund.balanceMinor,
+                    currency: fund.currency,
+                  ),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
+              ] else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        fund.name,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: tokens.spaceMd),
+                    Text(
+                      _formatMoneyText(
+                        context,
+                        amountMinor: fund.balanceMinor,
+                        currency: fund.currency,
+                      ),
+                      textAlign: TextAlign.right,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              if (infoLines.isNotEmpty) ...[
+                SizedBox(height: tokens.spaceSm),
+                Text(
+                  infoLines.join(' • '),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -3709,28 +3600,21 @@ class _WorkspaceHero extends StatelessWidget {
   const _WorkspaceHero({
     required this.title,
     required this.highlights,
-    this.primaryActionLabel,
-    this.onPrimaryAction,
-    this.secondaryActionLabel,
-    this.onSecondaryAction,
   });
 
   final String title;
   final List<_WorkspaceHeroHighlight> highlights;
-  final String? primaryActionLabel;
-  final VoidCallback? onPrimaryAction;
-  final String? secondaryActionLabel;
-  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.uiTokens;
+    final isMinimal = highlights.isEmpty;
 
     return AppWorkspaceSurface(
       gradient: appWorkspaceHeroGradient(context),
       showAccentOrbs: true,
-      padding: EdgeInsets.all(tokens.spaceXl),
+      padding: EdgeInsets.all(isMinimal ? tokens.spaceLg : tokens.spaceXl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3751,31 +3635,9 @@ class _WorkspaceHero extends StatelessWidget {
                     (highlight) => _WorkspaceHeroHighlightChip(
                       icon: highlight.icon,
                       label: highlight.label,
-                      tone: highlight.tone,
                     ),
                   )
                   .toList(growable: false),
-            ),
-          ],
-          if (primaryActionLabel != null || secondaryActionLabel != null) ...[
-            SizedBox(height: tokens.spaceLg),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                if (primaryActionLabel != null && onPrimaryAction != null)
-                  FilledButton.icon(
-                    onPressed: onPrimaryAction,
-                    icon: const Icon(Icons.visibility_outlined),
-                    label: Text(primaryActionLabel!),
-                  ),
-                if (secondaryActionLabel != null && onSecondaryAction != null)
-                  OutlinedButton.icon(
-                    onPressed: onSecondaryAction,
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: Text(secondaryActionLabel!),
-                  ),
-              ],
             ),
           ],
         ],
@@ -3785,15 +3647,10 @@ class _WorkspaceHero extends StatelessWidget {
 }
 
 class _WorkspaceHeroHighlight {
-  const _WorkspaceHeroHighlight({
-    required this.icon,
-    required this.label,
-    this.tone,
-  });
+  const _WorkspaceHeroHighlight({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
-  final Color? tone;
 }
 
 class _WorkspaceHeroHighlightChip extends StatelessWidget {

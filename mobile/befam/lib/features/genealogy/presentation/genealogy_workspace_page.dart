@@ -4412,16 +4412,6 @@ class _LandingCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: tokens.spaceSm),
-          Text(
-            l10n.pick(
-              vi: 'Theo dõi các nhánh, thế hệ và mối liên kết trong gia đình trong một sơ đồ gọn, rõ và dễ khám phá hơn trên điện thoại.',
-              en: 'Explore branches, generations, and family relationships in a clearer mobile-friendly tree.',
-            ),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
           SizedBox(height: tokens.spaceMd),
           Wrap(
             spacing: tokens.spaceMd - 2,
@@ -4444,19 +4434,28 @@ class _LandingCard extends StatelessWidget {
             ],
           ),
           SizedBox(height: tokens.spaceLg),
-          Wrap(
-            spacing: tokens.spaceSm,
-            runSpacing: tokens.spaceSm,
+          Row(
             children: [
-              FilledButton.tonalIcon(
-                onPressed: canFocusViewer ? onFocusViewer : null,
-                icon: const Icon(Icons.person_search_outlined),
-                label: Text(l10n.pick(vi: 'Xem quanh tôi', en: 'Focus on me')),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: canFocusViewer ? onFocusViewer : null,
+                  icon: const Icon(Icons.person_search_outlined),
+                  label: Text(
+                    l10n.pick(vi: 'Xem quanh tôi', en: 'Focus on me'),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ),
-              OutlinedButton.icon(
-                onPressed: onShowOverview,
-                icon: const Icon(Icons.grid_view_rounded),
-                label: Text(l10n.pick(vi: 'Xem toàn cảnh', en: 'Overview')),
+              SizedBox(width: tokens.spaceSm),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onShowOverview,
+                  icon: const Icon(Icons.grid_view_rounded),
+                  label: Text(
+                    l10n.pick(vi: 'Xem toàn cảnh', en: 'Overview'),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ),
             ],
           ),
