@@ -759,7 +759,6 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final card = AppWorkspaceSurface(
       key: key,
       padding: const EdgeInsets.all(20),
@@ -1020,6 +1019,9 @@ class _QuickStatsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final isCompact = screenWidth < 360 || textScale > 1.15;
     if (items.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -1027,6 +1029,11 @@ class _QuickStatsGrid extends StatelessWidget {
       return items.first;
     }
     if (items.length == 2) {
+      if (isCompact) {
+        return Column(
+          children: [items[0], const SizedBox(height: 12), items[1]],
+        );
+      }
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1067,25 +1074,26 @@ class _QuickStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
 
     return AppWorkspaceSurface(
       color: colorScheme.secondaryContainer,
       padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: Colors.white.withValues(alpha: 0.72),
-            foregroundColor: colorScheme.onSecondaryContainer,
-            child: Icon(icon),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 180 || textScale > 1.15;
+
+          if (isCompact) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Colors.white.withValues(alpha: 0.72),
+                  foregroundColor: colorScheme.onSecondaryContainer,
+                  child: Icon(icon),
+                ),
+                const SizedBox(height: 12),
                 Text(
                   value,
                   style: theme.textTheme.headlineSmall?.copyWith(
@@ -1106,9 +1114,49 @@ class _QuickStatCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
-            ),
-          ),
-        ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.white.withValues(alpha: 0.72),
+                foregroundColor: colorScheme.onSecondaryContainer,
+                child: Icon(icon),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      value,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      label,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSecondaryContainer.withValues(
+                          alpha: 0.9,
+                        ),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1141,11 +1189,15 @@ class _HeroHighlightChip extends StatelessWidget {
           children: [
             Icon(highlight.icon, size: 16, color: colorScheme.onSurfaceVariant),
             const SizedBox(width: 8),
-            Text(
-              highlight.label,
-              style: Theme.of(
-                context,
-              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+            Flexible(
+              child: Text(
+                highlight.label,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -1270,105 +1322,133 @@ class _BranchPreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = context.l10n;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
     final leaderDisplay = leaderName.isEmpty ? l10n.clanFieldUnset : leaderName;
     final viceLeaderDisplay = viceLeaderName.isEmpty
         ? l10n.clanFieldUnset
         : viceLeaderName;
+    final editMenu = canEdit && onEdit != null
+        ? PopupMenuButton<String>(
+            tooltip: l10n.pick(vi: 'Tùy chọn', en: 'Options'),
+            onSelected: (value) {
+              if (value == 'edit') {
+                onEdit?.call();
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                value: 'edit',
+                child: Text(l10n.clanEditBranchAction),
+              ),
+            ],
+          )
+        : null;
 
-    return AppWorkspaceSurface(
-      color: Colors.white.withValues(alpha: 0.9),
-      padding: const EdgeInsets.all(18),
-      child: SizedBox(
-        height: 200,
-        child: Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 320 || textScale > 1.15;
+        final headerDetails = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
+            Text(
+              branch.name,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              l10n.pick(
+                vi: '${l10n.clanBranchCodeLabel}: ${branch.code} • Đời ${branch.generationLevelHint}',
+                en: '${l10n.clanBranchCodeLabel}: ${branch.code} • Gen ${branch.generationLevelHint}',
+              ),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        );
+        final compactHeaderActions = editMenu == null
+            ? null
+            : <Widget>[
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerRight, child: editMenu),
+              ];
+        final rowHeaderActions = editMenu == null ? null : <Widget>[editMenu];
+
+        final header = isCompact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  headerDetails,
+                  ...?compactHeaderActions,
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: headerDetails),
+                  ...?rowHeaderActions,
+                ],
+              );
+
+        return AppWorkspaceSurface(
+          color: Colors.white.withValues(alpha: 0.9),
+          padding: const EdgeInsets.all(18),
+          child: ConstrainedBox(
+            constraints: isCompact
+                ? const BoxConstraints()
+                : const BoxConstraints(minHeight: 200),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            branch.name,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            l10n.pick(
-                              vi: '${l10n.clanBranchCodeLabel}: ${branch.code} • Đời ${branch.generationLevelHint}',
-                              en: '${l10n.clanBranchCodeLabel}: ${branch.code} • Gen ${branch.generationLevelHint}',
-                            ),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
+                    header,
+                    const SizedBox(height: 12),
+                    _BranchMetaRow(
+                      icon: Icons.star_outline,
+                      label: l10n.pick(vi: 'Trưởng chi', en: 'Leader'),
+                      value: leaderDisplay,
                     ),
-                    if (canEdit && onEdit != null)
-                      PopupMenuButton<String>(
-                        tooltip: l10n.pick(vi: 'Tùy chọn', en: 'Options'),
-                        onSelected: (value) {
-                          if (value == 'edit') {
-                            onEdit?.call();
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          PopupMenuItem<String>(
-                            value: 'edit',
-                            child: Text(l10n.clanEditBranchAction),
-                          ),
-                        ],
-                      ),
+                    const SizedBox(height: 10),
+                    _BranchMetaRow(
+                      icon: Icons.handshake_outlined,
+                      label: l10n.pick(vi: 'Phó chi', en: 'Vice leader'),
+                      value: viceLeaderDisplay,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                _BranchMetaRow(
-                  icon: Icons.star_outline,
-                  label: l10n.pick(vi: 'Trưởng chi', en: 'Leader'),
-                  value: leaderDisplay,
-                ),
-                const SizedBox(height: 10),
-                _BranchMetaRow(
-                  icon: Icons.handshake_outlined,
-                  label: l10n.pick(vi: 'Phó chi', en: 'Vice leader'),
-                  value: viceLeaderDisplay,
-                ),
-              ],
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _MiniPill(
-                  icon: Icons.groups_2_outlined,
-                  label:
-                      '${branch.memberCount} ${l10n.pick(vi: 'thành viên', en: 'members')}',
-                ),
-                _MiniPill(
-                  icon: Icons.hub_outlined,
-                  label: l10n.pick(
-                    vi: 'Đời ${branch.generationLevelHint}',
-                    en: 'Gen ${branch.generationLevelHint}',
-                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _MiniPill(
+                      icon: Icons.groups_2_outlined,
+                      label:
+                          '${branch.memberCount} ${l10n.pick(vi: 'thành viên', en: 'members')}',
+                    ),
+                    _MiniPill(
+                      icon: Icons.hub_outlined,
+                      label: l10n.pick(
+                        vi: 'Đời ${branch.generationLevelHint}',
+                        en: 'Gen ${branch.generationLevelHint}',
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

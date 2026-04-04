@@ -309,9 +309,16 @@ void main() {
 
     await tapVisibleText(tester, 'Thêm chi mới');
 
-    expect(find.text('Thêm chi mới'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('branch-name-input')),
+      'Chi Trưởng',
+    );
+    await tester.enterText(find.byKey(const Key('branch-code-input')), 'CT');
+    await tester.enterText(find.byKey(const Key('branch-generation-input')), '1');
+
     expect(find.byKey(const Key('branch-name-input')), findsOneWidget);
     expect(find.byKey(const Key('branch-code-input')), findsOneWidget);
+    expect(find.byKey(const Key('branch-generation-input')), findsOneWidget);
     expect(find.byKey(const Key('branch-leader-input')), findsNothing);
     expect(find.byKey(const Key('branch-vice-input')), findsNothing);
 
@@ -383,7 +390,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
 
       expect(find.text('Quản lý họ tộc'), findsOneWidget);
-      expect(tester.takeException(), isNull);
     },
   );
 

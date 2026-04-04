@@ -30,7 +30,9 @@ class FirebaseSessionAccessSync {
     sessionWriter,
     DateTime Function()? nowProvider,
   }) async {
-    if (AppEnvironment.useLocalFirebaseFallbacks) {
+    final usesInjectedSyncHandlers =
+        claimsResolver != null || sessionWriter != null;
+    if (AppEnvironment.useLocalFirebaseFallbacks && !usesInjectedSyncHandlers) {
       return;
     }
     final uid = session.uid.trim();
