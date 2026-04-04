@@ -1,75 +1,57 @@
 name: CD - Deploy Firebase (Production)
 
 on:
-  workflow_run:
-    workflows:
-      - CD - Release Main
-    branches:
-      - main
-    types:
-      - completed
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub release tag to deploy to production (for example v1.2.3)"
+        required: true
+        type: string
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: deploy-firebase-${{ github.event.workflow_run.head_branch || github.ref }}
+  group: deploy-firebase-${{ inputs.release_tag }}
   cancel-in-progress: true
 
 jobs:
-  gate-upstream:
-    name: Gate - Verify Upstream Release Status
-    runs-on: ubuntu-latest
-    outputs:
-      should_deploy: ${{ steps.gate.outputs.should_deploy }}
-    steps:
-      - name: Evaluate upstream conclusion
-        id: gate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
-            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Upstream release conclusion is '${{ github.event.workflow_run.conclusion }}'. Skipping production Firebase deploy."
-            exit 0
-          fi
-
-          if [ "${{ github.event.workflow_run.head_branch }}" != "main" ]; then
-            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Upstream release head branch is '${{ github.event.workflow_run.head_branch }}', not main. Skipping production Firebase deploy."
-            exit 0
-          fi
-
-          release_sha="${{ github.event.workflow_run.head_sha }}"
-          latest_main_sha="$(
-            gh api "repos/${GITHUB_REPOSITORY}/branches/main" --jq '.commit.sha'
-          )"
-          if [ -z "${release_sha}" ] || [ "${release_sha}" != "${latest_main_sha}" ]; then
-            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping stale production deploy: upstream SHA '${release_sha:-unknown}' is not latest main SHA '${latest_main_sha}'."
-            exit 0
-          fi
-
-          echo "should_deploy=true" >> "$GITHUB_OUTPUT"
-          echo "Upstream release succeeded and matches latest main commit. Proceeding with production Firebase deploy."
-
   deploy-production:
     name: Deploy Firebase (Production)
-    needs:
-      - gate-upstream
-    if: ${{ needs.gate-upstream.outputs.should_deploy == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
       name: production
 
     steps:
+      - name: Validate selected release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_TAG"
+          gh release view "$RELEASE_TAG" --json tagName,isDraft >/tmp/release.json
+          if [ "$(jq -r '.isDraft' /tmp/release.json)" != "false" ]; then
+            echo "::error::Release tag ${RELEASE_TAG} is still a draft release."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.release_tag }}
+          fetch-depth: 0
+
+      - name: Verify release tag belongs to main history
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Release tag ${{ inputs.release_tag }} does not belong to origin/main history."
+            exit 1
+          fi
 
       - name: Validate production OIDC configuration
         env:
@@ -475,7 +457,6 @@ jobs:
     name: Notify Firebase Deploy Failure
     if: ${{ always() && needs.deploy-production.result == 'failure' }}
     needs:
-      - gate-upstream
       - deploy-production
     runs-on: ubuntu-latest
     steps:

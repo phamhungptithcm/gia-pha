@@ -141,6 +141,16 @@ class ScholarshipController extends ChangeNotifier {
     return null;
   }
 
+  AchievementSubmission? submissionById(String submissionId) {
+    for (final submission in _submissions) {
+      if (submission.id == submissionId) {
+        return submission;
+      }
+    }
+
+    return null;
+  }
+
   Future<void> initialize() async {
     await refresh();
   }

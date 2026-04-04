@@ -6,6 +6,7 @@ import 'package:befam/features/auth/models/auth_session.dart';
 import '../../support/features/billing/services/debug_billing_repository.dart';
 import '../../support/features/clan/services/debug_clan_repository.dart';
 import '../../support/features/member/services/debug_member_repository.dart';
+import '../../support/features/scholarship/services/debug_scholarship_repository.dart';
 import 'package:befam/features/notifications/services/push_notification_service.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -100,6 +101,7 @@ void main() {
             clanRepository: DebugClanRepository.seeded(),
             memberRepository: DebugMemberRepository.seeded(),
             billingRepository: DebugBillingRepository.shared(),
+            scholarshipRepository: DebugScholarshipRepository.shared(),
             pushNotificationService: _NoopPushNotificationService(),
           ),
         ),
@@ -116,7 +118,9 @@ void main() {
     },
   );
 
-  testWidgets('ad banner auto hides after 10 seconds', (tester) async {
+  testWidgets('shell stays stable when banner ad is unavailable', (
+    tester,
+  ) async {
     setMobileViewport(tester);
     await tester.pumpWidget(
       _ShellTestApp(
@@ -126,18 +130,22 @@ void main() {
           clanRepository: DebugClanRepository.seeded(),
           memberRepository: DebugMemberRepository.seeded(),
           billingRepository: DebugBillingRepository.shared(),
+          scholarshipRepository: DebugScholarshipRepository.shared(),
           pushNotificationService: _NoopPushNotificationService(),
         ),
       ),
     );
     await pumpUi(tester);
 
-    expect(find.text('Free/Base plans show light ads.'), findsOneWidget);
+    expect(find.text('Billing'), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 11));
     await pumpUi(tester);
 
-    expect(find.text('Free/Base plans show light ads.'), findsNothing);
+    expect(find.text('Billing'), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -152,6 +160,7 @@ void main() {
             clanRepository: DebugClanRepository.seeded(),
             memberRepository: DebugMemberRepository.seeded(),
             billingRepository: DebugBillingRepository.shared(),
+            scholarshipRepository: DebugScholarshipRepository.shared(),
             pushNotificationService: _NoopPushNotificationService(),
           ),
         ),
@@ -192,6 +201,7 @@ void main() {
             clanRepository: DebugClanRepository.seeded(),
             memberRepository: DebugMemberRepository.seeded(),
             billingRepository: DebugBillingRepository.shared(),
+            scholarshipRepository: DebugScholarshipRepository.shared(),
             pushNotificationService: _NoopPushNotificationService(),
           ),
         ),

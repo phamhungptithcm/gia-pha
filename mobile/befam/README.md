@@ -66,10 +66,38 @@ dart run build_runner build --delete-conflicting-outputs
 Run the app:
 
 ```bash
-../../scripts/run_flutter_targets.sh
-../../scripts/run_flutter_targets.sh android-sim
-../../scripts/run_flutter_targets.sh ios-sim
-../../scripts/run_flutter_targets.sh web-chrome
+../../run_flutter_targets.sh
+../../run_flutter_targets.sh android-debug
+../../run_flutter_targets.sh android-usb
+../../run_flutter_targets.sh android-usb-staging-release
+../../run_flutter_targets.sh android-usb-release-ci
+../../run_flutter_targets.sh android-doctor
+../../run_flutter_targets.sh ios-sim
+../../run_flutter_targets.sh web-chrome
+```
+
+If a wired Android phone does not appear, run:
+
+```bash
+../../run_flutter_targets.sh android-doctor
+../../run_flutter_targets.sh android-restart-adb
+```
+
+Build signed local release artifacts (Android AAB + iOS IPA):
+
+```bash
+../../scripts/build_mobile_release_local.sh
+```
+
+By default the script opens a selection menu and auto-fills build metadata
+using release logic (no manual typing required).
+
+Optional examples:
+
+```bash
+../../scripts/build_mobile_release_local.sh --build-name 1.2.0 --build-number 120
+../../scripts/build_mobile_release_local.sh --skip-ios
+../../scripts/build_mobile_release_local.sh --skip-android
 ```
 
 `run_flutter_targets.sh` auto-injects

@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/services/app_environment.dart';
+import '../../../core/services/expiring_value_cache.dart';
 import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
@@ -18,9 +19,10 @@ import '../models/clan_workspace_snapshot.dart';
 import 'clan_repository.dart';
 
 class FirebaseClanRepository implements ClanRepository {
-  static const int _workspacePageSize = 250;
+  static const int _workspacePageSize = 400;
   static const int _workspaceMaxBranches = 1500;
   static const int _workspaceMaxMembers = 3000;
+  static const Duration _workspaceCacheTtl = Duration(seconds: 60);
 
   FirebaseClanRepository({
     FirebaseFirestore? firestore,
@@ -43,6 +45,12 @@ class FirebaseClanRepository implements ClanRepository {
   final FirestorePagedQueryLoader _pagedQueryLoader;
   final InflightTaskCache<String, ClanWorkspaceSnapshot> _workspaceLoadCache =
       InflightTaskCache<String, ClanWorkspaceSnapshot>();
+  final ExpiringValueCache<String, ClanWorkspaceSnapshot>
+  _workspaceSnapshotCache = ExpiringValueCache<String, ClanWorkspaceSnapshot>(
+    ttl: _workspaceCacheTtl,
+  );
+  final ExpiringValueCache<String, ClanProfile?> _clanProfileCache =
+      ExpiringValueCache<String, ClanProfile?>(ttl: _workspaceCacheTtl);
 
   CollectionReference<Map<String, dynamic>> get _clans =>
       _firestore.collection('clans');
@@ -68,6 +76,11 @@ class FirebaseClanRepository implements ClanRepository {
     final clanId = await _resolveClanId(session);
     if (clanId == null || clanId.isEmpty) {
       return const ClanWorkspaceSnapshot(clan: null, branches: [], members: []);
+    }
+
+    final cached = _workspaceSnapshotCache.read(clanId);
+    if (cached != null) {
+      return cached;
     }
 
     return _workspaceLoadCache.run(clanId, () async {
@@ -101,12 +114,45 @@ class FirebaseClanRepository implements ClanRepository {
           .sortedBy((member) => member.fullName.toLowerCase())
           .toList(growable: false);
 
-      return ClanWorkspaceSnapshot(
+      final snapshot = ClanWorkspaceSnapshot(
         clan: clan,
         branches: branches,
         members: members,
       );
+      _workspaceSnapshotCache.write(clanId, snapshot);
+      _clanProfileCache.write(clanId, clan);
+      return snapshot;
     });
+  }
+
+  @override
+  Future<ClanProfile?> loadClanProfile({required AuthSession session}) async {
+    await FirebaseSessionAccessSync.ensureUserSessionDocument(
+      firestore: _firestore,
+      session: session,
+    );
+
+    final clanId = await _resolveClanId(session);
+    if (clanId == null || clanId.isEmpty) {
+      return null;
+    }
+
+    final cachedWorkspace = _workspaceSnapshotCache.read(clanId);
+    if (cachedWorkspace?.clan != null) {
+      return cachedWorkspace!.clan;
+    }
+
+    final cachedProfile = _clanProfileCache.read(clanId);
+    if (cachedProfile != null) {
+      return cachedProfile;
+    }
+
+    final snapshot = await _clans.doc(clanId).get();
+    final clan = snapshot.data() == null
+        ? null
+        : ClanProfile.fromJson(snapshot.data()!);
+    _clanProfileCache.write(clanId, clan);
+    return clan;
   }
 
   @override
@@ -157,7 +203,7 @@ class FirebaseClanRepository implements ClanRepository {
     };
 
     await _clans.doc(clanId).set(payload, SetOptions(merge: true));
-    _workspaceLoadCache.invalidate(clanId);
+    _invalidateWorkspaceSnapshot(clanId);
   }
 
   @override
@@ -223,7 +269,7 @@ class FirebaseClanRepository implements ClanRepository {
       'updatedAt': now,
       'updatedBy': actor,
     }, SetOptions(merge: true));
-    _workspaceLoadCache.invalidate(clanId);
+    _invalidateWorkspaceSnapshot(clanId);
 
     return BranchProfile.fromJson(payload);
   }
@@ -292,5 +338,11 @@ class FirebaseClanRepository implements ClanRepository {
       pageSize: _workspacePageSize,
       maxDocuments: maxDocuments,
     );
+  }
+
+  void _invalidateWorkspaceSnapshot(String clanId) {
+    _workspaceLoadCache.invalidate(clanId);
+    _workspaceSnapshotCache.invalidate(clanId);
+    _clanProfileCache.invalidate(clanId);
   }
 }

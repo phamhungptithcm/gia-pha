@@ -28,6 +28,18 @@ void main() {
           path: '/befam-info',
           builder: (context, state) => const WebBeFamInfoPage(),
         ),
+        GoRoute(
+          path: '/privacy',
+          builder: (context, state) => const WebPrivacyPolicyPage(),
+        ),
+        GoRoute(
+          path: '/terms',
+          builder: (context, state) => const WebTermsPage(),
+        ),
+        GoRoute(
+          path: '/account-deletion',
+          builder: (context, state) => const WebAccountDeletionPage(),
+        ),
       ],
       errorBuilder: (context, state) => const WebLandingPage(),
     );
@@ -58,6 +70,15 @@ void main() {
 
     await pumpWebRouter(tester, initialLocation: '/befam-info');
     expect(find.byType(WebBeFamInfoPage), findsOneWidget);
+
+    await pumpWebRouter(tester, initialLocation: '/privacy');
+    expect(find.byType(WebPrivacyPolicyPage), findsOneWidget);
+
+    await pumpWebRouter(tester, initialLocation: '/terms');
+    expect(find.byType(WebTermsPage), findsOneWidget);
+
+    await pumpWebRouter(tester, initialLocation: '/account-deletion');
+    expect(find.byType(WebAccountDeletionPage), findsOneWidget);
   });
 
   testWidgets('navigates from landing CTA to about page', (tester) async {

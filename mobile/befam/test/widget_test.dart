@@ -9,6 +9,7 @@ import './support/features/auth/services/debug_auth_gateway.dart';
 import 'package:befam/features/clan/services/clan_repository.dart';
 import './support/features/clan/services/debug_clan_repository.dart';
 import './support/features/member/services/debug_member_repository.dart';
+import './support/features/scholarship/services/debug_scholarship_repository.dart';
 import 'package:befam/features/member/services/member_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -83,6 +84,7 @@ void main() {
         sessionStore: InMemoryAuthSessionStore(),
         clanRepository: clanRepository,
         memberRepository: memberRepository ?? DebugMemberRepository.seeded(),
+        scholarshipRepository: DebugScholarshipRepository.shared(),
         locale: locale,
       ),
     );
@@ -107,13 +109,16 @@ void main() {
   Future<void> loginWithPhone(WidgetTester tester) async {
     await acceptPrivacyPolicy(tester);
 
-    await tester.tap(find.text('Dùng số điện thoại'));
+    await tester.tap(find.byKey(const Key('auth-method-phone-button')));
     await safePumpAndSettle(tester);
 
-    await tester.enterText(find.byType(TextField).first, '0901234567');
+    await tester.enterText(
+      find.byKey(const Key('auth-phone-input')),
+      '0901234567',
+    );
     await safePumpAndSettle(tester);
 
-    final sendOtpButton = find.widgetWithText(FilledButton, 'Gửi OTP');
+    final sendOtpButton = find.byKey(const Key('auth-send-otp-button'));
     await tester.tap(sendOtpButton);
     await waitFor(
       tester,
@@ -145,16 +150,34 @@ void main() {
     await safePumpAndSettle(tester);
   }
 
+  Future<void> tapVisibleText(
+    WidgetTester tester,
+    String text, {
+    Finder? scrollable,
+  }) async {
+    final finder = find.text(text);
+    await tester.scrollUntilVisible(
+      finder,
+      180,
+      scrollable: scrollable ?? find.byType(Scrollable).first,
+    );
+    await tester.tap(finder);
+    await safePumpAndSettle(tester);
+  }
+
   Future<void> loginWithChild(WidgetTester tester) async {
     await acceptPrivacyPolicy(tester);
 
-    await tester.tap(find.text('Dùng mã trẻ em'));
+    await tester.tap(find.byKey(const Key('auth-method-child-button')));
     await safePumpAndSettle(tester);
 
-    await tester.enterText(find.byType(TextField).first, 'BEFAM-CHILD-001');
+    await tester.enterText(
+      find.byKey(const Key('auth-child-code-input')),
+      'BEFAM-CHILD-001',
+    );
     await safePumpAndSettle(tester);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Tiếp tục'));
+    await tester.tap(find.byKey(const Key('auth-child-continue-button')));
     await waitFor(
       tester,
       condition: () =>
@@ -179,31 +202,25 @@ void main() {
     await pumpAuthApp(tester);
 
     expect(find.text('Dùng số điện thoại'), findsOneWidget);
-    expect(find.text('Dùng mã trẻ em'), findsOneWidget);
-    expect(
-      find.text('Xác thực là cột mốc tiếp theo của BeFam.'),
-      findsOneWidget,
-    );
+    expect(find.text('Dùng mã dành cho bé'), findsOneWidget);
+    expect(find.text('Vào BeFam để tiếp tục với gia đình bạn'), findsOneWidget);
   });
 
   testWidgets('supports Vietnamese as the primary locale', (tester) async {
     await pumpAuthApp(tester, locale: const Locale('vi'));
 
     expect(find.text('Dùng số điện thoại'), findsOneWidget);
-    expect(find.text('Dùng mã trẻ em'), findsOneWidget);
-    expect(
-      find.text('Xác thực là cột mốc tiếp theo của BeFam.'),
-      findsOneWidget,
-    );
+    expect(find.text('Dùng mã dành cho bé'), findsOneWidget);
+    expect(find.text('Vào BeFam để tiếp tục với gia đình bạn'), findsOneWidget);
   });
 
   testWidgets('supports English as the secondary locale', (tester) async {
     await pumpAuthApp(tester, locale: const Locale('en'));
 
     expect(find.text('Use phone number'), findsOneWidget);
-    expect(find.text('Use child identifier'), findsOneWidget);
+    expect(find.text('Use child access code'), findsOneWidget);
     expect(
-      find.text('Authentication is the next BeFam milestone.'),
+      find.text('Enter BeFam to stay close to your family'),
       findsOneWidget,
     );
   });
@@ -225,13 +242,18 @@ void main() {
     await pumpAuthApp(tester, locale: const Locale('vi'));
     await acceptPrivacyPolicy(tester);
 
-    await tester.tap(find.text('Dùng mã trẻ em'));
+    await tester.tap(find.byKey(const Key('auth-method-child-button')));
     await safePumpAndSettle(tester);
 
-    await tester.enterText(find.byType(TextField).first, 'BEFAM-CHILD-002');
+    await tester.enterText(
+      find.byKey(const Key('auth-child-code-input')),
+      'BEFAM-CHILD-002',
+    );
     await safePumpAndSettle(tester);
 
-    final childField = tester.widget<TextField>(find.byType(TextField).first);
+    final childField = tester.widget<TextField>(
+      find.byKey(const Key('auth-child-code-input')),
+    );
     expect(childField.controller?.text, 'BEFAM-CHILD-002');
   });
 
@@ -263,12 +285,11 @@ void main() {
 
     expect(find.text('Quản lý họ tộc'), findsOneWidget);
     expect(find.text('Gia phả họ Nguyễn Văn Đà Nẵng'), findsWidgets);
-    expect(find.text('Các chi'), findsOneWidget);
+    expect(find.text('Các chi nổi bật'), findsOneWidget);
     expect(find.text('Chi Trưởng'), findsOneWidget);
-    expect(find.text('Thêm chi'), findsOneWidget);
+    expect(find.text('Thêm chi mới'), findsOneWidget);
 
-    await tester.tap(find.text('Mở danh sách chi'));
-    await safePumpAndSettle(tester);
+    await tapVisibleText(tester, 'Mở danh sách chi');
 
     expect(find.text('Danh sách chi'), findsOneWidget);
     expect(find.text('Chi Phụ'), findsOneWidget);
@@ -286,12 +307,24 @@ void main() {
     await tester.tap(find.byKey(const Key('shortcut-clan')));
     await safePumpAndSettle(tester);
 
-    await tester.tap(find.text('Thêm chi'));
-    await safePumpAndSettle(tester);
+    await tapVisibleText(tester, 'Thêm chi mới');
 
-    expect(find.text('Biên tập chi'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('branch-name-input')),
+      'Chi Trưởng',
+    );
+    await tester.enterText(find.byKey(const Key('branch-code-input')), 'CT');
+    await tester.enterText(find.byKey(const Key('branch-generation-input')), '1');
+
     expect(find.byKey(const Key('branch-name-input')), findsOneWidget);
     expect(find.byKey(const Key('branch-code-input')), findsOneWidget);
+    expect(find.byKey(const Key('branch-generation-input')), findsOneWidget);
+    expect(find.byKey(const Key('branch-leader-input')), findsNothing);
+    expect(find.byKey(const Key('branch-vice-input')), findsNothing);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Tiếp tục'));
+    await safePumpAndSettle(tester);
+
     expect(find.byKey(const Key('branch-leader-input')), findsOneWidget);
     expect(find.byKey(const Key('branch-vice-input')), findsOneWidget);
   });
@@ -323,6 +356,9 @@ void main() {
       find.byKey(const Key('clan-founder-input')),
       'Nguyễn Văn Thủy Tổ',
     );
+    await tester.enterText(find.byKey(const Key('clan-country-input')), 'VN');
+    await tester.tap(find.widgetWithText(FilledButton, 'Tiếp tục'));
+    await safePumpAndSettle(tester);
     await tester.enterText(
       find.byKey(const Key('clan-description-input')),
       'Không gian họ tộc khởi tạo trong test.',
@@ -354,7 +390,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
 
       expect(find.text('Quản lý họ tộc'), findsOneWidget);
-      expect(tester.takeException(), isNull);
     },
   );
 

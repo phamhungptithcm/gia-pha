@@ -803,7 +803,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileSettingsLogoutDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Xác nhận này giúp tránh đăng xuất nhầm khi bạn đang điều chỉnh cài đặt.'**
+  /// **'Bạn sẽ cần đăng nhập lại để tiếp tục dùng BeFam trên thiết bị này.'**
   String get profileSettingsLogoutDescription;
 
   /// No description provided for @profileCancelAction.
@@ -851,7 +851,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileLanguageVietnameseSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'Mặc định cho người dùng tại Việt Nam'**
+  /// **'Phù hợp với cách dùng phổ biến tại Việt Nam'**
   String get profileLanguageVietnameseSubtitle;
 
   /// No description provided for @profileLanguageEnglish.
@@ -863,7 +863,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileLanguageEnglishSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'Hiển thị tiếng Anh trên toàn bộ ứng dụng'**
+  /// **'Hiển thị toàn bộ ứng dụng bằng tiếng Anh'**
   String get profileLanguageEnglishSubtitle;
 
   /// No description provided for @profileSecuritySectionTitle.
@@ -893,8 +893,14 @@ abstract class AppLocalizations {
   /// No description provided for @profileNotificationFundAlerts.
   ///
   /// In vi, this message translates to:
-  /// **'Thông báo giao dịch quỹ'**
+  /// **'Quỹ họ'**
   String get profileNotificationFundAlerts;
+
+  /// No description provided for @profileNotificationFundAlertsHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thu chi, xác nhận và thay đổi số dư'**
+  String get profileNotificationFundAlertsHint;
 
   /// No description provided for @profileEditSheetTitle.
   ///
@@ -2651,26 +2657,62 @@ abstract class AppLocalizations {
   /// No description provided for @notificationSettingsTitle.
   ///
   /// In vi, this message translates to:
-  /// **'Cài đặt thông báo'**
+  /// **'Thông báo'**
   String get notificationSettingsTitle;
 
   /// No description provided for @notificationSettingsDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Quản lý lời nhắc và loại thông báo bạn muốn nhận trên thiết bị này.'**
+  /// **'Chọn cách nhận lịch họ, quỹ họ và tin mới trên thiết bị này.'**
   String get notificationSettingsDescription;
+
+  /// No description provided for @notificationSettingsHeroTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhận tin quan trọng từ họ tộc'**
+  String get notificationSettingsHeroTitle;
+
+  /// No description provided for @notificationSettingsHeroDescription.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhắc lịch giỗ, quỹ họ và cập nhật mới theo cách bạn muốn, gọn hơn và dễ kiểm soát hơn.'**
+  String get notificationSettingsHeroDescription;
 
   /// No description provided for @notificationSettingsPushChannel.
   ///
   /// In vi, this message translates to:
-  /// **'Thông báo đẩy (khuyên dùng)'**
+  /// **'Thông báo trên điện thoại'**
   String get notificationSettingsPushChannel;
+
+  /// No description provided for @notificationSettingsPushChannelHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cách nhanh nhất để không bỏ lỡ việc quan trọng'**
+  String get notificationSettingsPushChannelHint;
+
+  /// No description provided for @notificationSettingsPushStatusEnabled.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đang bật trên điện thoại'**
+  String get notificationSettingsPushStatusEnabled;
+
+  /// No description provided for @notificationSettingsPushStatusDisabled.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đang tắt trên điện thoại'**
+  String get notificationSettingsPushStatusDisabled;
 
   /// No description provided for @notificationSettingsEmailChannel.
   ///
   /// In vi, this message translates to:
-  /// **'Thông báo qua email'**
+  /// **'Email'**
   String get notificationSettingsEmailChannel;
+
+  /// No description provided for @notificationSettingsEmailChannelHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhận bản tổng hợp và cập nhật quan trọng'**
+  String get notificationSettingsEmailChannelHint;
 
   /// No description provided for @notificationSettingsSmsOtpOnlyNote.
   ///
@@ -2681,26 +2723,68 @@ abstract class AppLocalizations {
   /// No description provided for @notificationSettingsEventUpdates.
   ///
   /// In vi, this message translates to:
-  /// **'Nhắc lịch và cập nhật sự kiện'**
+  /// **'Lịch giỗ và sự kiện'**
   String get notificationSettingsEventUpdates;
+
+  /// No description provided for @notificationSettingsEventUpdatesHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lời mời, thay đổi giờ và nhắc lịch quan trọng'**
+  String get notificationSettingsEventUpdatesHint;
 
   /// No description provided for @notificationSettingsScholarshipUpdates.
   ///
   /// In vi, this message translates to:
-  /// **'Kết quả và cập nhật duyệt khuyến học'**
+  /// **'Khuyến học'**
   String get notificationSettingsScholarshipUpdates;
+
+  /// No description provided for @notificationSettingsScholarshipUpdatesHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Kết quả và cập nhật hồ sơ khuyến học'**
+  String get notificationSettingsScholarshipUpdatesHint;
 
   /// No description provided for @notificationSettingsGeneralUpdates.
   ///
   /// In vi, this message translates to:
-  /// **'Thông báo chung của họ tộc'**
+  /// **'Tin từ họ tộc'**
   String get notificationSettingsGeneralUpdates;
+
+  /// No description provided for @notificationSettingsGeneralUpdatesHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tin mới, nhắc việc và thông báo chung'**
+  String get notificationSettingsGeneralUpdatesHint;
 
   /// No description provided for @notificationSettingsQuietHours.
   ///
   /// In vi, this message translates to:
-  /// **'Chế độ giờ yên lặng'**
+  /// **'Giờ yên lặng'**
   String get notificationSettingsQuietHours;
+
+  /// No description provided for @notificationSettingsQuietHoursHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tạm giảm thông báo vào những lúc cần nghỉ ngơi'**
+  String get notificationSettingsQuietHoursHint;
+
+  /// No description provided for @notificationSettingsChannelsSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cách bạn nhận tin'**
+  String get notificationSettingsChannelsSectionTitle;
+
+  /// No description provided for @notificationSettingsTopicsSectionTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bạn muốn nhận gì'**
+  String get notificationSettingsTopicsSectionTitle;
+
+  /// No description provided for @notificationSettingsSavingBadge.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đang lưu'**
+  String get notificationSettingsSavingBadge;
 
   /// No description provided for @notificationSettingsPlaceholderNote.
   ///
@@ -3617,7 +3701,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'BeFam kết nối gia phả, sự kiện, quỹ họ và quản trị thành viên trong một không gian dữ liệu thống nhất.'**
+  /// **'BeFam kết nối gia phả, sự kiện, quỹ họ và quản trị thành viên trong một không gian dữ liệu thống nhất, dễ dùng cho mọi thế hệ.'**
   String get webLandingSubtitle;
 
   /// No description provided for @webLandingPrimaryCta.
@@ -3653,7 +3737,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingFeatureTreeDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Quản lý quan hệ huyết thống theo chi, đời và vai vế để mọi thế hệ dễ tra cứu và cập nhật.'**
+  /// **'Quản lý quan hệ huyết thống theo chi, đời và vai vế để các thế hệ dễ tra cứu, cập nhật.'**
   String get webLandingFeatureTreeDescription;
 
   /// No description provided for @webLandingFeatureEventsTitle.
@@ -3665,7 +3749,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingFeatureEventsDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Theo dõi lịch giỗ, lễ họp và các mốc quan trọng với nhắc lịch chủ động cho thành viên.'**
+  /// **'Theo dõi lịch giỗ, họp họ và các mốc quan trọng với nhắc lịch chủ động cho thành viên.'**
   String get webLandingFeatureEventsDescription;
 
   /// No description provided for @webLandingFeatureBillingTitle.
@@ -3677,7 +3761,7 @@ abstract class AppLocalizations {
   /// No description provided for @webLandingFeatureBillingDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Quản lý gói dịch vụ, gia hạn và trạng thái thanh toán minh bạch trên một luồng thống nhất.'**
+  /// **'Quản lý gói dịch vụ, gia hạn và trạng thái thanh toán trên một luồng rõ ràng, minh bạch.'**
   String get webLandingFeatureBillingDescription;
 
   /// No description provided for @webAboutTitle.
@@ -3689,7 +3773,7 @@ abstract class AppLocalizations {
   /// No description provided for @webAboutSubtitle.
   ///
   /// In vi, this message translates to:
-  /// **'BeFam ra đời từ trăn trở giữ kết nối họ tộc khi con cháu học tập, làm việc và sinh sống ở nhiều nơi trên thế giới.'**
+  /// **'BeFam ra đời từ mong muốn giữ kết nối họ tộc khi con cháu học tập, làm việc và sinh sống ở nhiều nơi.'**
   String get webAboutSubtitle;
 
   /// No description provided for @webAboutMissionTitle.
@@ -3701,7 +3785,7 @@ abstract class AppLocalizations {
   /// No description provided for @webAboutMissionDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Giúp mỗi dòng họ số hóa dữ liệu gia đình dễ hiểu, dễ dùng và bền vững theo thời gian.'**
+  /// **'Giúp mỗi dòng họ số hóa dữ liệu gia đình theo cách dễ hiểu, dễ dùng và bền vững theo thời gian.'**
   String get webAboutMissionDescription;
 
   /// No description provided for @webAboutVisionTitle.
@@ -3713,7 +3797,7 @@ abstract class AppLocalizations {
   /// No description provided for @webAboutVisionDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Trở thành nền tảng vận hành họ tộc đáng tin cậy cho cộng đồng gia đình Việt trên toàn cầu.'**
+  /// **'Trở thành nền tảng vận hành họ tộc đáng tin cậy cho cộng đồng gia đình Việt ở mọi nơi.'**
   String get webAboutVisionDescription;
 
   /// No description provided for @webAboutTrustTitle.
@@ -3761,7 +3845,7 @@ abstract class AppLocalizations {
   /// No description provided for @webInfoNotificationsDescription.
   ///
   /// In vi, this message translates to:
-  /// **'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng để không bỏ sót mốc cần theo dõi.'**
+  /// **'Nhận thông báo về sự kiện, khuyến học và các thay đổi quan trọng để không bỏ sót mốc cần theo dõi.'**
   String get webInfoNotificationsDescription;
 
   /// No description provided for @webInfoBillingTitle.
@@ -3791,7 +3875,7 @@ abstract class AppLocalizations {
   /// No description provided for @webInfoHighlightsItemTwo.
   ///
   /// In vi, this message translates to:
-  /// **'Thiết kế responsive cho điện thoại, tablet và desktop.'**
+  /// **'Thiết kế responsive cho điện thoại, máy tính bảng và desktop.'**
   String get webInfoHighlightsItemTwo;
 
   /// No description provided for @webInfoHighlightsItemThree.

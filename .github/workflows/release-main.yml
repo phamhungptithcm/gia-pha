@@ -345,6 +345,14 @@ jobs:
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
+          BEFAM_ADMOB_ANDROID_APP_ID: ${{ vars.BEFAM_ADMOB_ANDROID_APP_ID }}
+          BEFAM_ADMOB_IOS_APP_ID: ${{ vars.BEFAM_ADMOB_IOS_APP_ID }}
+          BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID: ${{ vars.BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID }}
+          BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID: ${{ vars.BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID }}
+          BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID: ${{ vars.BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID }}
+          BEFAM_ADMOB_IOS_BANNER_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_BANNER_UNIT_ID }}
+          BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID }}
+          BEFAM_ADMOB_IOS_REWARDED_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_REWARDED_UNIT_ID }}
           BILLING_WEBHOOK_SECRET: ${{ secrets.BILLING_WEBHOOK_SECRET }}
           APPLE_SHARED_SECRET: ${{ secrets.APPLE_SHARED_SECRET }}
         run: |
@@ -357,6 +365,14 @@ jobs:
             FIREBASE_FUNCTIONS_REGION
             FIRESTORE_DATABASE_ID
             GOOGLE_PLAY_PACKAGE_NAME
+            BEFAM_ADMOB_ANDROID_APP_ID
+            BEFAM_ADMOB_IOS_APP_ID
+            BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID
+            BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID
+            BEFAM_ADMOB_IOS_BANNER_UNIT_ID
+            BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
             BILLING_WEBHOOK_SECRET
             APPLE_SHARED_SECRET
           )
@@ -375,6 +391,49 @@ jobs:
             echo "::error::Release pipeline is targeting staging Firebase project ${STAGING_FIREBASE_PROJECT_ID}."
             exit 1
           fi
+
+          android_test_app_id="ca-app-pub-3940256099942544~3347511713"
+          ios_test_app_id="ca-app-pub-3940256099942544~1458002511"
+          test_unit_ids=(
+            "ca-app-pub-3940256099942544/6300978111"
+            "ca-app-pub-3940256099942544/1033173712"
+            "ca-app-pub-3940256099942544/5224354917"
+            "ca-app-pub-3940256099942544/2934735716"
+            "ca-app-pub-3940256099942544/4411468910"
+            "ca-app-pub-3940256099942544/1712485313"
+          )
+
+          if [ "$BEFAM_ADMOB_ANDROID_APP_ID" = "$android_test_app_id" ]; then
+            echo "::error::Production Android AdMob app ID is still set to the Google test ID."
+            exit 1
+          fi
+          if [ "$BEFAM_ADMOB_IOS_APP_ID" = "$ios_test_app_id" ]; then
+            echo "::error::Production iOS AdMob app ID is still set to the Google test ID."
+            exit 1
+          fi
+
+          production_ad_keys=(
+            BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID
+            BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID
+            BEFAM_ADMOB_IOS_BANNER_UNIT_ID
+            BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
+          )
+          for key in "${production_ad_keys[@]}"; do
+            value="${!key:-}"
+            for test_id in "${test_unit_ids[@]}"; do
+              if [ "$value" = "$test_id" ]; then
+                echo "::error::${key} is still set to a Google test ad unit ID."
+                exit 1
+              fi
+            done
+          done
+
+      - name: Validate production app-ads.txt source file
+        run: |
+          set -euo pipefail
+          bash scripts/verify_app_ads_txt.sh mobile/befam/web/app-ads.txt
 
       - name: Validate mobile signing secrets for release build
         env:
@@ -458,6 +517,8 @@ jobs:
 
       - name: Resolve release version
         id: version
+        env:
+          RELEASE_TIMEZONE: ${{ vars.APP_TIMEZONE }}
         run: node scripts/next_release_version.mjs
 
       - name: Create release tag
@@ -581,21 +642,49 @@ jobs:
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
+          BEFAM_ADMOB_ANDROID_APP_ID: ${{ vars.BEFAM_ADMOB_ANDROID_APP_ID }}
+          BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID: ${{ vars.BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID }}
+          BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID: ${{ vars.BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID }}
+          BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID: ${{ vars.BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID }}
           ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          android_admob_app_id="${BEFAM_ADMOB_ANDROID_APP_ID:-}"
+          if [ "$allow_bundled" != "false" ]; then
+            echo "::error::Production release builds must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${allow_bundled}"
+            exit 1
+          fi
           if [ "$otp_provider" != "twilio" ]; then
             echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
             exit 1
           fi
+          if [ -z "$android_admob_app_id" ]; then
+            echo "::error::Missing required production Android AdMob app ID."
+            exit 1
+          fi
+          export ANDROID_ADMOB_APPLICATION_ID="$android_admob_app_id"
+          export ALLOW_TEST_ADMOB_APP_IDS="false"
+          required_android_keys=(
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_ANDROID_API_KEY
+            BEFAM_FIREBASE_ANDROID_APP_ID
+            BEFAM_FIREBASE_ANDROID_MESSAGING_SENDER_ID
+          )
+          for key in "${required_android_keys[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required production Android var: ${key}"
+              exit 1
+            fi
+          done
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -615,6 +704,12 @@ jobs:
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
             BEFAM_IOS_APP_STORE_URL
             BEFAM_ANDROID_PLAY_STORE_URL
+            BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID
+            BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID
+            BEFAM_ADMOB_IOS_BANNER_UNIT_ID
+            BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
@@ -762,19 +857,50 @@ jobs:
           BEFAM_BILLING_PENDING_TIMEOUT_MINUTES: ${{ vars.BEFAM_BILLING_PENDING_TIMEOUT_MINUTES }}
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
+          BEFAM_ADMOB_IOS_APP_ID: ${{ vars.BEFAM_ADMOB_IOS_APP_ID }}
+          BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID: ${{ vars.BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID }}
+          BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID: ${{ vars.BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID }}
+          BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID: ${{ vars.BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID }}
+          BEFAM_ADMOB_IOS_BANNER_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_BANNER_UNIT_ID }}
+          BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID }}
+          BEFAM_ADMOB_IOS_REWARDED_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_REWARDED_UNIT_ID }}
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
+          set -euo pipefail
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          ios_admob_app_id="${BEFAM_ADMOB_IOS_APP_ID:-}"
+          if [ "$allow_bundled" != "false" ]; then
+            echo "::error::Production release builds must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${allow_bundled}"
+            exit 1
+          fi
           if [ "$otp_provider" != "twilio" ]; then
             echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
             exit 1
           fi
+          if [ -z "$ios_admob_app_id" ]; then
+            echo "::error::Missing required production iOS AdMob app ID."
+            exit 1
+          fi
+          export ADMOB_APPLICATION_ID="$ios_admob_app_id"
+          required_ios_keys=(
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_IOS_API_KEY
+            BEFAM_FIREBASE_IOS_APP_ID
+            BEFAM_FIREBASE_IOS_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_IOS_BUNDLE_ID
+          )
+          for key in "${required_ios_keys[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required production iOS var: ${key}"
+              exit 1
+            fi
+          done
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -794,6 +920,12 @@ jobs:
             BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
             BEFAM_IOS_APP_STORE_URL
             BEFAM_ANDROID_PLAY_STORE_URL
+            BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID
+            BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID
+            BEFAM_ADMOB_IOS_BANNER_UNIT_ID
+            BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
+            BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
           )
           optional_firebase_defines=()
           for key in "${firebase_define_keys[@]}"; do
@@ -846,6 +978,17 @@ jobs:
             --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
             --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
             "${optional_firebase_defines[@]}"
+
+          built_info_plist="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Info.plist"
+          if [ ! -f "$built_info_plist" ]; then
+            echo "::error::Built iOS Info.plist not found at ${built_info_plist}"
+            exit 1
+          fi
+          built_admob_app_id=$(/usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$built_info_plist")
+          if [ -z "$built_admob_app_id" ] || [ "$built_admob_app_id" != "$ios_admob_app_id" ]; then
+            echo "::error::Built iOS app is missing the expected production AdMob application ID."
+            exit 1
+          fi
 
       - name: Package signed iOS release IPA
         env:
@@ -922,16 +1065,33 @@ jobs:
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
+          set -euo pipefail
           befam_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
           befam_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           invalid_hosts="${BEFAM_INVALID_CHECKOUT_HOSTS:-example.com}"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
+          if [ "$allow_bundled" != "false" ]; then
+            echo "::error::Production release builds must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${allow_bundled}"
+            exit 1
+          fi
           if [ "$otp_provider" != "twilio" ]; then
             echo "::error::Production release builds must use BEFAM_OTP_PROVIDER=twilio. Current: ${otp_provider}"
             exit 1
           fi
+          required_web_keys=(
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_WEB_API_KEY
+            BEFAM_FIREBASE_WEB_APP_ID
+            BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+          )
+          for key in "${required_web_keys[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required production web var: ${key}"
+              exit 1
+            fi
+          done
           web_base_url="${BEFAM_WEB_BASE_URL:-}"
           if [ -z "$web_base_url" ] && [ -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]; then
             web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"
@@ -982,6 +1142,7 @@ jobs:
         run: |
           output_dir="${GITHUB_WORKSPACE}/dist/web"
           mkdir -p "${output_dir}"
+          bash ../../scripts/verify_app_ads_txt.sh build/web/app-ads.txt
           tar -czf "${output_dir}/befam-${RELEASE_VERSION}-web-release.tar.gz" -C build/web .
 
       - name: Upload web release bundle

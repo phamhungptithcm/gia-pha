@@ -76,6 +76,7 @@ nav:
           - CI/CD: vi/05-devops/ci-cd.md
           - Tăng cường Production CI/CD: vi/05-devops/ci-cd-production-hardening.md
           - Cấu hình Production: vi/05-devops/production-configuration.md
+          - Mẫu form xóa tài khoản cho Google Play: vi/05-devops/google-play-account-deletion-form.md
           - Test Plan trước release: vi/05-devops/release-test-plan.md
           - Test Execution Sheet: vi/05-devops/release-test-execution-guide.md
           - Checklist QA trước release: vi/05-devops/pre-release-qa-checklist.md
@@ -116,6 +117,7 @@ nav:
           - CI/CD: en/05-devops/ci-cd.md
           - Production Hardening: en/05-devops/ci-cd-production-hardening.md
           - Production Configuration: en/05-devops/production-configuration.md
+          - Google Play Account Deletion Form: en/05-devops/google-play-account-deletion-form.md
           - Pre-Release QA Checklist: en/05-devops/pre-release-qa-checklist.md
       - Security:
           - Privacy Model: en/06-security/privacy-model.md
@@ -132,6 +134,7 @@ nav:
       - Store Assets Checklist: 05-devops/store-assets-checklist.md
       - GitHub Workflow: 05-devops/github-workflow.md
       - Branching Strategy: 05-devops/branching-strategy.md
+      - CI/CD Architecture: 05-devops/ci-cd-architecture.md
       - GitHub Backlog: 05-devops/github-backlog.md
   - Operations:
       - Monitoring: 07-operations/monitoring.md

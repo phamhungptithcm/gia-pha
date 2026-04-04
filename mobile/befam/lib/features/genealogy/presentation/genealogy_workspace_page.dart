@@ -11,6 +11,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../../../app/theme/app_ui_tokens.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/governance_role_matrix.dart';
@@ -18,7 +19,9 @@ import '../../../core/services/kinship_title_resolver.dart';
 import '../../../core/services/performance_measurement_logger.dart';
 import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/app_async_action.dart';
+import '../../../core/widgets/app_compact_controls.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../core/widgets/member_phone_action.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -30,6 +33,9 @@ import '../../clan/services/clan_repository.dart';
 import '../../member/models/member_profile.dart';
 import '../../member/presentation/member_workspace_page.dart';
 import '../../member/services/member_repository.dart';
+import '../../onboarding/models/onboarding_models.dart';
+import '../../onboarding/presentation/onboarding_coordinator.dart';
+import '../../onboarding/presentation/onboarding_scope.dart';
 import '../models/genealogy_graph.dart';
 import '../models/genealogy_read_segment.dart';
 import '../models/genealogy_scope.dart';
@@ -82,6 +88,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   );
   AnimationController? _centerAnimController;
   late final ClanRepository _clanRepository;
+  late final OnboardingCoordinator _onboardingCoordinator;
 
   late GenealogyScopeType _scopeType;
   GenealogyReadSegment? _segment;
@@ -91,6 +98,8 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   bool _isSubmittingAddBranch = false;
   bool _showAddFabMenu = false;
   bool _shouldAutoFitTree = true;
+  bool _preferFocusedViewport = true;
+  bool _hasScheduledOnboarding = false;
 
   String? _rootMemberId;
   String? _selectedMemberId;
@@ -112,13 +121,27 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     _clanRepository =
         widget.clanRepository ??
         createDefaultClanRepository(session: widget.session);
+    _onboardingCoordinator = createDefaultOnboardingCoordinator(
+      session: widget.session,
+    );
     unawaited(_load());
+  }
+
+  @override
+  void didUpdateWidget(covariant GenealogyWorkspacePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session != widget.session) {
+      _onboardingCoordinator.updateSession(widget.session);
+      _hasScheduledOnboarding = false;
+    }
   }
 
   @override
   void dispose() {
     _centerAnimController?.dispose();
     _transformController.dispose();
+    unawaited(_onboardingCoordinator.interrupt());
+    _onboardingCoordinator.dispose();
     super.dispose();
   }
 
@@ -181,234 +204,320 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       segment.graph,
       siblingOrdersByMember,
     );
+    final selectedMember = _selectedMemberForGraph(segment.graph);
+    final treeViewportHeight = (math.min(
+      MediaQuery.sizeOf(context).height * 0.58,
+      720.0,
+    )).clamp(560.0, 720.0).toDouble();
 
-    return Stack(
+    final content = Stack(
       children: [
         RefreshIndicator(
           onRefresh: () => _load(allowCached: false),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
-            children: [
-              _LandingCard(
-                scopeType: _scopeType,
-                isLoading: _isLoading,
-                isFromCache: segment.fromCache,
-                onRefresh: _isLoading ? null : () => _load(allowCached: false),
-                onScopeChanged: _updateScope,
-                allowBranchScope: false,
-                session: widget.session,
-                memberCount: segment.graph.membersById.length,
-                branchCount: segment.branches.length,
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 620,
-                child: RepaintBoundary(
-                  key: _treePrintBoundaryKey,
-                  child: Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final viewport = Size(
-                          constraints.maxWidth,
-                          constraints.maxHeight,
-                        );
-                        if (_shouldAutoFitTree && scene.nodeRects.isNotEmpty) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted || !_shouldAutoFitTree) {
-                              return;
-                            }
-                            _shouldAutoFitTree = false;
-                            _fitTreeToViewport(
-                              scene: scene,
-                              viewport: viewport,
-                              focusMemberId: _rootMemberId,
-                            );
-                          });
-                        }
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: InteractiveViewer(
-                                transformationController: _transformController,
-                                constrained: false,
-                                boundaryMargin: const EdgeInsets.all(220),
-                                minScale: _minTreeScale,
-                                maxScale: _maxTreeScale,
-                                child: RepaintBoundary(
-                                  key: _treeCanvasPrintBoundaryKey,
-                                  child: SizedBox(
-                                    width: scene.canvasSize.width,
-                                    height: scene.canvasSize.height,
-                                    child: Stack(
-                                      children: [
-                                        Positioned.fill(
-                                          child: CustomPaint(
-                                            key: const Key('tree-connectors'),
-                                            painter: _TreeConnectorPainter(
-                                              connectorGroups:
-                                                  scene.connectorGroups,
-                                              selectedMemberId:
-                                                  _selectedMemberId,
-                                            ),
-                                          ),
+          child: AppWorkspaceViewport(
+            child: ListView(
+              padding: appWorkspacePagePadding(context, top: 20, bottom: 120),
+              children: [
+                _LandingCard(
+                  scopeType: _scopeType,
+                  isLoading: _isLoading,
+                  isFromCache: segment.fromCache,
+                  onRefresh: _isLoading
+                      ? null
+                      : () => _load(allowCached: false),
+                  onScopeChanged: _updateScope,
+                  allowBranchScope: false,
+                  session: widget.session,
+                  memberCount: segment.graph.membersById.length,
+                  branchCount: segment.branches.length,
+                  canFocusViewer: viewer != null,
+                  onFocusViewer: viewer == null
+                      ? null
+                      : () => _focusTreeAroundMember(viewer.id),
+                  onShowOverview: _showTreeOverview,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: treeViewportHeight,
+                  child: RepaintBoundary(
+                    key: _treePrintBoundaryKey,
+                    child: AppWorkspaceSurface(
+                      padding: EdgeInsets.zero,
+                      borderRadius: BorderRadius.circular(28),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final viewport = Size(
+                            constraints.maxWidth,
+                            constraints.maxHeight,
+                          );
+                          if (_shouldAutoFitTree &&
+                              scene.nodeRects.isNotEmpty) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted || !_shouldAutoFitTree) {
+                                return;
+                              }
+                              _shouldAutoFitTree = false;
+                              _fitTreeToViewport(
+                                scene: scene,
+                                graph: segment.graph,
+                                viewport: viewport,
+                                focusMemberId: _rootMemberId,
+                                preferFocusedView: _preferFocusedViewport,
+                              );
+                            });
+                          }
+                          final colorScheme = Theme.of(context).colorScheme;
+                          return Stack(
+                            children: [
+                              Positioned.fill(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.white.withValues(alpha: 0.98),
+                                        colorScheme.surfaceContainerLowest
+                                            .withValues(alpha: 0.92),
+                                        colorScheme.primaryContainer.withValues(
+                                          alpha: 0.18,
                                         ),
-                                        for (final entry
-                                            in scene.nodeRects.entries)
-                                          Positioned(
-                                            left: entry.value.left,
-                                            top: entry.value.top,
-                                            width: entry.value.width,
-                                            height: entry.value.height,
-                                            child: _MemberNodeCard(
-                                              key: Key(
-                                                'tree-node-${entry.key}',
-                                              ),
-                                              member: segment
-                                                  .graph
-                                                  .membersById[entry.key]!,
-                                              siblingOrderLabel:
-                                                  _siblingOrderLabel(
-                                                    l10n,
-                                                    siblingOrdersByMember[entry
-                                                            .key] ??
-                                                        segment
-                                                            .graph
-                                                            .membersById[entry
-                                                                .key]!
-                                                            .siblingOrder,
-                                                  ),
-                                              honorBadges: _honorBadgeLabels(
-                                                l10n,
-                                                honorBadgesByMember[entry
-                                                        .key] ??
-                                                    const [],
-                                              ),
-                                              generationLabel:
-                                                  _memberGenerationLabelForDisplay(
-                                                    l10n: l10n,
-                                                    member:
-                                                        segment
-                                                            .graph
-                                                            .membersById[entry
-                                                            .key]!,
-                                                    viewer: viewer,
-                                                    membersById: segment
-                                                        .graph
-                                                        .membersById,
-                                                    relativeLevel:
-                                                        relativeLevelsByCurrentUser[entry
-                                                            .key],
-                                                    compact: true,
-                                                  ),
-                                              parentCount: segment.graph
-                                                  .parentsOf(entry.key)
-                                                  .length,
-                                              childCount: segment.graph
-                                                  .childrenOf(entry.key)
-                                                  .length,
-                                              spouseCount: segment.graph
-                                                  .spousesOf(entry.key)
-                                                  .length,
-                                              isAlive: _isMemberAlive(
-                                                segment.graph.membersById[entry
-                                                    .key]!,
-                                              ),
-                                              aliveStatusLabel: l10n
-                                                  .genealogyMemberAliveStatus,
-                                              deceasedStatusLabel: l10n
-                                                  .genealogyMemberDeceasedStatus,
-                                              isSelected:
-                                                  _selectedMemberId ==
-                                                  entry.key,
-                                              onTap: () {
-                                                final member = segment
-                                                    .graph
-                                                    .membersById[entry.key]!;
-                                                setState(() {
-                                                  _selectedMemberId = member.id;
-                                                });
-                                                _centerOnMember(
-                                                  memberId: member.id,
-                                                  scene: scene,
-                                                  viewport: viewport,
-                                                );
-                                                unawaited(
-                                                  _openMemberDetailSheet(
-                                                    member: member,
-                                                    graph: segment.graph,
-                                                    branches: segment.branches,
-                                                    siblingOrder:
-                                                        siblingOrdersByMember[member
-                                                            .id] ??
-                                                        member.siblingOrder,
-                                                    honorBadges:
-                                                        honorBadgesByMember[member
-                                                            .id] ??
-                                                        const [],
-                                                    relativeLevelsByCurrentUser:
-                                                        relativeLevelsByCurrentUser,
-                                                  ),
-                                                );
-                                              },
-                                              onViewMemberInfo: () {
-                                                final member = segment
-                                                    .graph
-                                                    .membersById[entry.key]!;
-                                                setState(() {
-                                                  _selectedMemberId = member.id;
-                                                });
-                                                _centerOnMember(
-                                                  memberId: member.id,
-                                                  scene: scene,
-                                                  viewport: viewport,
-                                                );
-                                                unawaited(
-                                                  _openMemberDetailPage(
-                                                    member: member,
-                                                    graph: segment.graph,
-                                                    branches: segment.branches,
-                                                    siblingOrder:
-                                                        siblingOrdersByMember[member
-                                                            .id] ??
-                                                        member.siblingOrder,
-                                                    honorBadges:
-                                                        honorBadgesByMember[member
-                                                            .id] ??
-                                                        const [],
-                                                    relativeLevelsByCurrentUser:
-                                                        relativeLevelsByCurrentUser,
-                                                  ),
-                                                );
-                                              },
-                                              viewInfoTooltip: l10n
-                                                  .genealogyViewMemberInfoAction,
-                                            ),
-                                          ),
                                       ],
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            Positioned(
-                              left: 12,
-                              top: 12,
-                              child: _TreeZoomControls(
-                                onZoomIn: _zoomIn,
-                                onZoomOut: _zoomOut,
-                                onReset: _resetTreeViewport,
-                                onExport: _openTreeExportSheet,
+                              Positioned.fill(
+                                child: InteractiveViewer(
+                                  transformationController:
+                                      _transformController,
+                                  constrained: false,
+                                  boundaryMargin: const EdgeInsets.all(220),
+                                  minScale: _minTreeScale,
+                                  maxScale: _maxTreeScale,
+                                  child: RepaintBoundary(
+                                    key: _treeCanvasPrintBoundaryKey,
+                                    child: SizedBox(
+                                      width: scene.canvasSize.width,
+                                      height: scene.canvasSize.height,
+                                      child: Stack(
+                                        children: [
+                                          Positioned.fill(
+                                            child: CustomPaint(
+                                              key: const Key('tree-connectors'),
+                                              painter: _TreeConnectorPainter(
+                                                connectorGroups:
+                                                    scene.connectorGroups,
+                                                selectedMemberId:
+                                                    _selectedMemberId,
+                                              ),
+                                            ),
+                                          ),
+                                          for (final entry
+                                              in scene.nodeRects.entries)
+                                            Positioned(
+                                              left: entry.value.left,
+                                              top: entry.value.top,
+                                              width: entry.value.width,
+                                              height: entry.value.height,
+                                              child: _MemberNodeCard(
+                                                key: Key(
+                                                  'tree-node-${entry.key}',
+                                                ),
+                                                member: segment
+                                                    .graph
+                                                    .membersById[entry.key]!,
+                                                siblingOrderLabel:
+                                                    _siblingOrderLabel(
+                                                      l10n,
+                                                      siblingOrdersByMember[entry
+                                                              .key] ??
+                                                          segment
+                                                              .graph
+                                                              .membersById[entry
+                                                                  .key]!
+                                                              .siblingOrder,
+                                                    ),
+                                                honorBadges: _honorBadgeLabels(
+                                                  l10n,
+                                                  honorBadgesByMember[entry
+                                                          .key] ??
+                                                      const [],
+                                                ),
+                                                generationLabel:
+                                                    _memberGenerationLabelForDisplay(
+                                                      l10n: l10n,
+                                                      member:
+                                                          segment
+                                                              .graph
+                                                              .membersById[entry
+                                                              .key]!,
+                                                      viewer: viewer,
+                                                      membersById: segment
+                                                          .graph
+                                                          .membersById,
+                                                      relativeLevel:
+                                                          relativeLevelsByCurrentUser[entry
+                                                              .key],
+                                                      compact: true,
+                                                    ),
+                                                parentCount: segment.graph
+                                                    .parentsOf(entry.key)
+                                                    .length,
+                                                childCount: segment.graph
+                                                    .childrenOf(entry.key)
+                                                    .length,
+                                                spouseCount: segment.graph
+                                                    .spousesOf(entry.key)
+                                                    .length,
+                                                isAlive: _isMemberAlive(
+                                                  segment
+                                                      .graph
+                                                      .membersById[entry.key]!,
+                                                ),
+                                                aliveStatusLabel: l10n
+                                                    .genealogyMemberAliveStatus,
+                                                deceasedStatusLabel: l10n
+                                                    .genealogyMemberDeceasedStatus,
+                                                isSelected:
+                                                    _selectedMemberId ==
+                                                    entry.key,
+                                                onTap: () {
+                                                  final member = segment
+                                                      .graph
+                                                      .membersById[entry.key]!;
+                                                  setState(() {
+                                                    _selectedMemberId =
+                                                        member.id;
+                                                  });
+                                                  _centerOnMember(
+                                                    memberId: member.id,
+                                                    scene: scene,
+                                                    viewport: viewport,
+                                                  );
+                                                },
+                                                onViewMemberInfo: () {
+                                                  final member = segment
+                                                      .graph
+                                                      .membersById[entry.key]!;
+                                                  setState(() {
+                                                    _selectedMemberId =
+                                                        member.id;
+                                                  });
+                                                  _centerOnMember(
+                                                    memberId: member.id,
+                                                    scene: scene,
+                                                    viewport: viewport,
+                                                  );
+                                                  unawaited(
+                                                    _openMemberDetailPage(
+                                                      member: member,
+                                                      graph: segment.graph,
+                                                      branches:
+                                                          segment.branches,
+                                                      siblingOrder:
+                                                          siblingOrdersByMember[member
+                                                              .id] ??
+                                                          member.siblingOrder,
+                                                      honorBadges:
+                                                          honorBadgesByMember[member
+                                                              .id] ??
+                                                          const [],
+                                                      relativeLevelsByCurrentUser:
+                                                          relativeLevelsByCurrentUser,
+                                                    ),
+                                                  );
+                                                },
+                                                viewInfoTooltip: l10n
+                                                    .genealogyViewMemberInfoAction,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
+                              Positioned(
+                                left: 12,
+                                top: 12,
+                                child: _TreeZoomControls(
+                                  onZoomIn: _zoomIn,
+                                  onZoomOut: _zoomOut,
+                                  onReset: _resetTreeViewport,
+                                  onExport: _openTreeExportSheet,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+                if (selectedMember != null) ...[
+                  const SizedBox(height: 16),
+                  _TreeMemberSpotlightCard(
+                    member: selectedMember,
+                    branchName: _branchDisplayNameForMember(
+                      selectedMember,
+                      segment.branches,
+                      l10n,
+                    ),
+                    generationLabel: _memberGenerationLabelForDisplay(
+                      l10n: l10n,
+                      member: selectedMember,
+                      viewer: viewer,
+                      membersById: segment.graph.membersById,
+                      relativeLevel:
+                          relativeLevelsByCurrentUser[selectedMember.id],
+                      compact: true,
+                    ),
+                    siblingOrderLabel: _siblingOrderLabel(
+                      l10n,
+                      siblingOrdersByMember[selectedMember.id] ??
+                          selectedMember.siblingOrder,
+                    ),
+                    honorBadges: _honorBadgeLabels(
+                      l10n,
+                      honorBadgesByMember[selectedMember.id] ?? const [],
+                    ),
+                    parentCount: segment.graph
+                        .parentsOf(selectedMember.id)
+                        .length,
+                    childCount: segment.graph
+                        .childrenOf(selectedMember.id)
+                        .length,
+                    spouseCount: segment.graph
+                        .spousesOf(selectedMember.id)
+                        .length,
+                    isAlive: _isMemberAlive(selectedMember),
+                    aliveStatusLabel: l10n.genealogyMemberAliveStatus,
+                    deceasedStatusLabel: l10n.genealogyMemberDeceasedStatus,
+                    isFocusRoot: _rootMemberId == selectedMember.id,
+                    onViewDetails: () {
+                      unawaited(
+                        _openMemberDetailPage(
+                          member: selectedMember,
+                          graph: segment.graph,
+                          branches: segment.branches,
+                          siblingOrder:
+                              siblingOrdersByMember[selectedMember.id] ??
+                              selectedMember.siblingOrder,
+                          honorBadges:
+                              honorBadgesByMember[selectedMember.id] ??
+                              const [],
+                          relativeLevelsByCurrentUser:
+                              relativeLevelsByCurrentUser,
+                        ),
+                      );
+                    },
+                    onFocusMember: () =>
+                        _focusTreeAroundMember(selectedMember.id),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
         Positioned(
@@ -448,6 +557,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         ),
       ],
     );
+    return OnboardingScope(controller: _onboardingCoordinator, child: content);
   }
 
   Future<void> _load({bool allowCached = true}) async {
@@ -481,6 +591,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         _shouldAutoFitTree = true;
         _invalidateTreeSceneCache();
       });
+      _scheduleWorkspaceOnboardingIfNeeded();
 
       // Cached snapshots keep the workspace responsive, then we immediately
       // reconcile against Firestore to avoid stale production data.
@@ -498,6 +609,27 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     }
   }
 
+  void _scheduleWorkspaceOnboardingIfNeeded() {
+    if (_hasScheduledOnboarding || !mounted) {
+      return;
+    }
+    _hasScheduledOnboarding = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(
+        _onboardingCoordinator.scheduleTrigger(
+          const OnboardingTrigger(
+            id: 'genealogy_workspace_opened',
+            routeId: 'genealogy_workspace',
+          ),
+          delay: const Duration(milliseconds: 1100),
+        ),
+      );
+    });
+  }
+
   void _updateScope(GenealogyScopeType value) {
     if (value != GenealogyScopeType.clan) {
       return;
@@ -511,6 +643,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       _selectedMemberId = null;
       _transformController.value = Matrix4.identity();
       _shouldAutoFitTree = true;
+      _preferFocusedViewport = true;
       _invalidateTreeSceneCache();
     });
     unawaited(_load());
@@ -1980,159 +2113,6 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     _animateTransformTo(target, duration: const Duration(milliseconds: 260));
   }
 
-  Future<void> _openMemberDetailSheet({
-    required MemberProfile member,
-    required GenealogyGraph graph,
-    required List<BranchProfile> branches,
-    required int? siblingOrder,
-    required List<_GenealogyHonorBadge> honorBadges,
-    required Map<String, int?> relativeLevelsByCurrentUser,
-  }) async {
-    final l10n = context.l10n;
-    final viewer = _viewerMemberForGraph(graph);
-    final ancestry = GenealogyGraphAlgorithms.buildAncestryPath(
-      graph: graph,
-      memberId: member.id,
-    );
-    final descendants = GenealogyGraphAlgorithms.buildDescendantsTraversal(
-      graph: graph,
-      memberId: member.id,
-    );
-    final statusLabel = _isMemberAlive(member)
-        ? l10n.genealogyMemberAliveStatus
-        : l10n.genealogyMemberDeceasedStatus;
-    final generationLabel = _memberGenerationLabelForDisplay(
-      l10n: l10n,
-      member: member,
-      viewer: viewer,
-      membersById: graph.membersById,
-      relativeLevel: relativeLevelsByCurrentUser[member.id],
-      compact: true,
-    );
-    final siblingLabel =
-        _siblingOrderLabel(l10n, siblingOrder) ?? l10n.memberFieldUnset;
-    final honorBadgeLabels = _honorBadgeLabels(l10n, honorBadges);
-    final honorBadgeLabel = honorBadgeLabels.isEmpty
-        ? l10n.memberFieldUnset
-        : honorBadgeLabels.join(' • ');
-
-    final compactFacts = <_CompactFactItem>[
-      _CompactFactItem(
-        label: l10n.genealogyMemberStatusLabel,
-        value: statusLabel,
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Đời trong gia phả', en: 'Generation'),
-        value: generationLabel,
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Thứ bậc anh/chị/em', en: 'Sibling order'),
-        value: siblingLabel,
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Vai trò trong họ', en: 'Honor badges'),
-        value: honorBadgeLabel,
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Số cha/mẹ', en: 'Parents'),
-        value: '${graph.parentsOf(member.id).length}',
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Số con', en: 'Children'),
-        value: '${graph.childrenOf(member.id).length}',
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Số vợ/chồng', en: 'Spouses'),
-        value: '${graph.spousesOf(member.id).length}',
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Tổng con cháu', en: 'Descendants'),
-        value: '${descendants.length}',
-      ),
-      _CompactFactItem(
-        label: l10n.pick(vi: 'Số đời tổ tiên', en: 'Ancestry depth'),
-        value: '${ancestry.length}',
-      ),
-    ];
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            member.fullName,
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          if (member.nickName.trim().isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              member.nickName,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
-                      key: const Key('genealogy-open-member-detail-action'),
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        minimumSize: const Size(0, 34),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        unawaited(
-                          _openMemberDetailPage(
-                            member: member,
-                            graph: graph,
-                            branches: branches,
-                            siblingOrder: siblingOrder,
-                            honorBadges: honorBadges,
-                            relativeLevelsByCurrentUser:
-                                relativeLevelsByCurrentUser,
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.open_in_new, size: 16),
-                      label: Text(l10n.pick(vi: 'Xem chi tiết', en: 'Details')),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _CompactFactGrid(items: compactFacts),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _openMemberDetailPage({
     required MemberProfile member,
     required GenealogyGraph graph,
@@ -2286,6 +2266,35 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       return null;
     }
     return graph.membersById[viewerId];
+  }
+
+  MemberProfile? _selectedMemberForGraph(GenealogyGraph graph) {
+    final selectedId = _selectedMemberId?.trim();
+    if (selectedId != null && selectedId.isNotEmpty) {
+      final selected = graph.membersById[selectedId];
+      if (selected != null) {
+        return selected;
+      }
+    }
+    return _viewerMemberForGraph(graph) ??
+        (graph.membersById.isEmpty ? null : graph.membersById.values.first);
+  }
+
+  String _branchDisplayNameForMember(
+    MemberProfile member,
+    List<BranchProfile> branches,
+    AppLocalizations l10n,
+  ) {
+    final branchId = member.branchId.trim();
+    if (branchId.isEmpty) {
+      return l10n.pick(vi: 'Chưa gán chi', en: 'No branch yet');
+    }
+    for (final branch in branches) {
+      if (branch.id == branchId && branch.name.trim().isNotEmpty) {
+        return branch.name.trim();
+      }
+    }
+    return branchId;
   }
 
   Map<String, int?> _resolveRelativeLevelsByCurrentUser(GenealogyGraph graph) {
@@ -2547,8 +2556,27 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   void _zoomOut() => _scaleTree(0.86);
 
   void _resetTreeViewport() {
+    _showTreeOverview();
+  }
+
+  void _showTreeOverview() {
     setState(() {
       _shouldAutoFitTree = true;
+      _preferFocusedViewport = false;
+    });
+  }
+
+  void _focusTreeAroundMember(String memberId) {
+    final normalizedId = memberId.trim();
+    if (normalizedId.isEmpty) {
+      return;
+    }
+    setState(() {
+      _rootMemberId = normalizedId;
+      _selectedMemberId = normalizedId;
+      _shouldAutoFitTree = true;
+      _preferFocusedViewport = true;
+      _invalidateTreeSceneCache();
     });
   }
 
@@ -3055,10 +3083,45 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
 
   void _fitTreeToViewport({
     required _TreeScene scene,
+    required GenealogyGraph graph,
     required Size viewport,
     String? focusMemberId,
+    bool preferFocusedView = false,
   }) {
     if (viewport.width <= 0 || viewport.height <= 0) {
+      return;
+    }
+
+    final focusBounds = preferFocusedView && focusMemberId != null
+        ? _focusedViewportRect(
+            graph: graph,
+            scene: scene,
+            focusMemberId: focusMemberId,
+          )
+        : null;
+    if (focusBounds != null) {
+      const focusedPadding = 28.0;
+      final availableWidth = math.max(
+        1.0,
+        viewport.width - (focusedPadding * 2),
+      );
+      final availableHeight = math.max(
+        1.0,
+        viewport.height - (focusedPadding * 2),
+      );
+      final focusedScale = math.min(
+        availableWidth / focusBounds.width,
+        availableHeight / focusBounds.height,
+      );
+      final targetScale = focusedScale
+          .clamp(math.max(_minTreeScale, 0.42), 1.2)
+          .toDouble();
+      final dx = (viewport.width / 2) - (focusBounds.center.dx * targetScale);
+      final dy = (viewport.height / 2) - (focusBounds.center.dy * targetScale);
+      final target = Matrix4.identity()
+        ..translateByDouble(dx, dy, 0, 1)
+        ..scaleByDouble(targetScale, targetScale, targetScale, 1);
+      _animateTransformTo(target, duration: const Duration(milliseconds: 320));
       return;
     }
 
@@ -3097,6 +3160,30 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       ..translateByDouble(dx, dy, 0, 1)
       ..scaleByDouble(targetScale, targetScale, targetScale, 1);
     _animateTransformTo(target, duration: const Duration(milliseconds: 320));
+  }
+
+  Rect? _focusedViewportRect({
+    required GenealogyGraph graph,
+    required _TreeScene scene,
+    required String focusMemberId,
+  }) {
+    if (!scene.nodeRects.containsKey(focusMemberId)) {
+      return null;
+    }
+    final focusIds = <String>{
+      focusMemberId,
+      ...graph.parentsOf(focusMemberId),
+      ...graph.childrenOf(focusMemberId),
+      ...graph.spousesOf(focusMemberId),
+    }.where(scene.nodeRects.containsKey).toList(growable: false);
+    if (focusIds.isEmpty) {
+      return scene.nodeRects[focusMemberId];
+    }
+    Rect bounds = scene.nodeRects[focusIds.first]!;
+    for (final memberId in focusIds.skip(1)) {
+      bounds = bounds.expandToInclude(scene.nodeRects[memberId]!);
+    }
+    return bounds.inflate(72);
   }
 
   void _animateTransformTo(Matrix4 target, {required Duration duration}) {
@@ -3200,6 +3287,7 @@ class _AdditionalClanSheetState extends State<_AdditionalClanSheet> {
   late final TextEditingController _descriptionController;
   late final TextEditingController _founderController;
   late final TextEditingController _countryCodeController;
+  int _editorStep = 0;
   bool _isSubmitting = false;
 
   @override
@@ -3226,6 +3314,9 @@ class _AdditionalClanSheetState extends State<_AdditionalClanSheet> {
     if (_isSubmitting) {
       return;
     }
+    if (!_validateCurrentStep()) {
+      return;
+    }
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) {
       return;
@@ -3247,145 +3338,267 @@ class _AdditionalClanSheetState extends State<_AdditionalClanSheet> {
     Navigator.of(context).pop(_AdditionalClanPayload(draft: draft));
   }
 
+  bool _validateCurrentStep() {
+    if (_editorStep != 0) {
+      return true;
+    }
+    final l10n = context.l10n;
+    final error = switch ((
+      _nameController.text.trim().isEmpty,
+      _countryCodeController.text.trim().length < 2,
+    )) {
+      (true, _) => l10n.pick(
+        vi: 'Thiếu thông tin: Hãy nhập tên gia phả trước khi tiếp tục.',
+        en: 'Missing info: Please enter the genealogy name before continuing.',
+      ),
+      (_, true) => l10n.pick(
+        vi: 'Thiếu thông tin: Hãy chọn quốc gia trước khi tiếp tục.',
+        en: 'Missing info: Please choose the country before continuing.',
+      ),
+      _ => null,
+    };
+    if (error == null) {
+      return true;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    return false;
+  }
+
+  void _goToStep(int nextStep) {
+    if (nextStep > _editorStep && !_validateCurrentStep()) {
+      return;
+    }
+    setState(() => _editorStep = nextStep);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.pick(
-                    vi: 'Thêm gia phả riêng',
-                    en: 'Create private genealogy',
-                  ),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.pick(
-                    vi: 'Tạo một gia phả độc lập để quản lý nhánh gia đình nhỏ, nhưng vẫn giữ liên kết với gia phả hiện tại.',
-                    en: 'Create an isolated genealogy for your smaller family branch while keeping your current clan membership.',
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
-                      vi: 'Tên gia phả',
-                      en: 'Genealogy name',
-                    ),
-                    border: const OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if ((value ?? '').trim().isEmpty) {
-                      return l10n.pick(
-                        vi: 'Vui lòng nhập tên gia phả.',
-                        en: 'Please provide genealogy name.',
-                      );
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _slugController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
-                      vi: 'Slug (tùy chọn)',
-                      en: 'Slug (optional)',
-                    ),
-                    helperText: l10n.pick(
-                      vi: 'Để trống để hệ thống tự tạo từ tên.',
-                      en: 'Leave empty to auto-generate from name.',
-                    ),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _descriptionController,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _founderController,
-                        decoration: InputDecoration(
-                          labelText: l10n.pick(
-                            vi: 'Người đại diện',
-                            en: 'Founder',
-                          ),
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      width: 108,
-                      child: TextFormField(
-                        controller: _countryCodeController,
-                        decoration: InputDecoration(
-                          labelText: l10n.pick(vi: 'Quốc gia', en: 'Country'),
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 5,
-                      child: OutlinedButton(
-                        onPressed: _isSubmitting
-                            ? null
-                            : () => Navigator.of(context).pop(),
-                        child: Text(l10n.pick(vi: 'Hủy', en: 'Cancel')),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 7,
-                      child: FilledButton.icon(
-                        onPressed: _isSubmitting ? null : _submit,
-                        icon: const Icon(Icons.account_tree_outlined),
-                        label: Text(
-                          l10n.pick(
-                            vi: 'Tạo gia phả riêng',
-                            en: 'Create private tree',
-                          ),
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+    return _SetupSheetScaffold(
+      formKey: _formKey,
+      bottomInset: bottomInset,
+      scrollChild: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(999),
+              ),
             ),
           ),
+          const SizedBox(height: 14),
+          _SetupCompactHeader(
+            title: l10n.pick(
+              vi: 'Tạo gia phả riêng',
+              en: 'Create private genealogy',
+            ),
+            subtitle: l10n.pick(
+              vi: 'Điền vài thông tin cơ bản để bắt đầu gia phả của gia đình.',
+              en: 'Add a few essentials to start your family genealogy.',
+            ),
+          ),
+          const SizedBox(height: 12),
+          AppWorkspaceSurface(
+            padding: const EdgeInsets.all(16),
+            color: Colors.white.withValues(alpha: 0.76),
+            child: _SetupStepIndicator(
+              currentStep: _editorStep,
+              labels: [
+                l10n.pick(vi: 'Thông tin', en: 'Info'),
+                l10n.pick(vi: 'Giới thiệu', en: 'Story'),
+              ],
+              onStepSelected: _goToStep,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_editorStep == 0)
+            _SetupSectionCard(
+              title: l10n.pick(
+                vi: 'Thông tin chính',
+                en: 'Core details',
+              ),
+              description: l10n.pick(
+                vi: 'Chỉ cần tên gia phả, quốc gia và người đại diện để bắt đầu dễ hiểu và đủ tin cậy.',
+                en: 'Start with the genealogy name, country, and representative for a clear and trusted setup.',
+              ),
+              child: Column(
+                children: [
+                  TextFormField(
+                    key: const Key('additional-clan-name-input'),
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Tên gia phả',
+                        en: 'Genealogy name',
+                      ),
+                    ),
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return l10n.pick(
+                          vi: 'Vui lòng nhập tên gia phả.',
+                          en: 'Please provide genealogy name.',
+                        );
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('additional-clan-country-input'),
+                    controller: _countryCodeController,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Quốc gia', en: 'Country'),
+                      hintText: l10n.pick(vi: 'VN', en: 'VN'),
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      if ((value ?? '').trim().length < 2) {
+                        return l10n.pick(
+                          vi: 'Vui lòng nhập mã quốc gia hợp lệ.',
+                          en: 'Please enter a valid country code.',
+                        );
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('additional-clan-founder-input'),
+                    controller: _founderController,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Người đại diện',
+                        en: 'Representative',
+                      ),
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
+                ],
+              ),
+            ),
+          if (_editorStep == 1)
+            _SetupSectionCard(
+              title: l10n.pick(
+                vi: 'Giới thiệu & chia sẻ',
+                en: 'Story & sharing',
+              ),
+              description: l10n.pick(
+                vi: 'Thêm đường dẫn và vài dòng giới thiệu để gia phả dễ nhớ và dễ chia sẻ hơn.',
+                en: 'Add a share link and a short intro so the genealogy is easier to remember and share.',
+              ),
+              child: Column(
+                children: [
+                  TextFormField(
+                    key: const Key('additional-clan-slug-input'),
+                    controller: _slugController,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Đường dẫn chia sẻ',
+                        en: 'Share link',
+                      ),
+                      helperText: l10n.pick(
+                        vi: 'Để trống để hệ thống tự tạo từ tên gia phả.',
+                        en: 'Leave blank to auto-generate from the genealogy name.',
+                      ),
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('additional-clan-description-input'),
+                    controller: _descriptionController,
+                    maxLines: 4,
+                    minLines: 3,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Giới thiệu', en: 'Intro'),
+                      hintText: l10n.pick(
+                        vi: 'Ví dụ: Gia phả của nhánh gia đình tại Đà Nẵng',
+                        en: 'Example: Genealogy for the family branch in Da Nang',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      footer: AppWorkspaceSurface(
+        padding: const EdgeInsets.all(16),
+        color: Colors.white.withValues(alpha: 0.76),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 520;
+            final secondaryButton = OutlinedButton.icon(
+              onPressed: _isSubmitting
+                  ? null
+                  : () {
+                      if (_editorStep == 0) {
+                        Navigator.of(context).pop();
+                        return;
+                      }
+                      setState(() => _editorStep = 0);
+                    },
+              icon: Icon(
+                _editorStep == 0 ? Icons.close_outlined : Icons.arrow_back,
+              ),
+              label: Text(
+                _editorStep == 0
+                    ? l10n.pick(vi: 'Hủy', en: 'Cancel')
+                    : l10n.pick(vi: 'Quay lại', en: 'Back'),
+              ),
+            );
+            final primaryButton = _editorStep == 0
+                ? FilledButton.icon(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () {
+                            if (!_validateCurrentStep()) {
+                              return;
+                            }
+                            setState(() => _editorStep = 1);
+                          },
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(
+                      l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                    ),
+                  )
+                : FilledButton.icon(
+                    key: const Key('additional-clan-save-button'),
+                    onPressed: _isSubmitting ? null : _submit,
+                    icon: const Icon(Icons.account_tree_outlined),
+                    label: Text(
+                      l10n.pick(
+                        vi: 'Tạo gia phả riêng',
+                        en: 'Create private tree',
+                      ),
+                    ),
+                  );
+
+            if (compact) {
+              return Column(
+                children: [
+                  SizedBox(width: double.infinity, child: secondaryButton),
+                  const SizedBox(height: 10),
+                  SizedBox(width: double.infinity, child: primaryButton),
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: secondaryButton),
+                const SizedBox(width: 10),
+                Expanded(child: primaryButton),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -3413,6 +3626,7 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
   late bool _setCurrentAsLeader;
   String? _leaderMemberId;
   String? _viceLeaderMemberId;
+  int _editorStep = 0;
   bool _isSubmitting = false;
 
   @override
@@ -3436,8 +3650,24 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
     if (_isSubmitting) {
       return;
     }
+    if (!_validateCurrentStep()) {
+      return;
+    }
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) {
+      return;
+    }
+    if (_leaderMemberId != null && _leaderMemberId == _viceLeaderMemberId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Trưởng chi và phó chi nên là hai người khác nhau.',
+              en: 'Branch lead and deputy should be different people.',
+            ),
+          ),
+        ),
+      );
       return;
     }
     setState(() => _isSubmitting = true);
@@ -3456,6 +3686,39 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
     Navigator.of(context).pop(payload);
   }
 
+  bool _validateCurrentStep() {
+    if (_editorStep != 0) {
+      return true;
+    }
+    final l10n = context.l10n;
+    final error = switch ((
+      _nameController.text.trim().isEmpty,
+      _generationHint <= 0,
+    )) {
+      (true, _) => l10n.pick(
+        vi: 'Thiếu thông tin: Hãy nhập tên chi trước khi tiếp tục.',
+        en: 'Missing info: Please enter the branch name before continuing.',
+      ),
+      (_, true) => l10n.pick(
+        vi: 'Thiếu thông tin: Hãy chọn đời bắt đầu hợp lệ.',
+        en: 'Missing info: Please choose a valid starting generation.',
+      ),
+      _ => null,
+    };
+    if (error == null) {
+      return true;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    return false;
+  }
+
+  void _goToStep(int nextStep) {
+    if (nextStep > _editorStep && !_validateCurrentStep()) {
+      return;
+    }
+    setState(() => _editorStep = nextStep);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -3465,198 +3728,589 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
         (left, right) =>
             left.fullName.toLowerCase().compareTo(right.fullName.toLowerCase()),
       );
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.pick(
-                    vi: 'Thêm nhánh riêng',
-                    en: 'Create private branch',
-                  ),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.pick(
-                    vi: 'Nhánh riêng giúp gia đình nhỏ quản trị thành viên, sự kiện và quỹ độc lập.',
-                    en: 'A private branch helps your small family manage members, events, and funds independently.',
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Tên nhánh', en: 'Branch name'),
-                    border: const OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if ((value ?? '').trim().isEmpty) {
-                      return l10n.pick(
-                        vi: 'Vui lòng nhập tên nhánh.',
-                        en: 'Please provide branch name.',
-                      );
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _codeController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Mã nhánh', en: 'Branch code'),
-                    helperText: l10n.pick(
-                      vi: 'Để trống để tự tạo mã nhánh.',
-                      en: 'Leave empty to auto-generate branch code.',
-                    ),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: _setCurrentAsLeader,
-                  title: Text(
-                    l10n.pick(
-                      vi: 'Đặt tôi làm trưởng nhánh',
-                      en: 'Set me as branch lead',
-                    ),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _setCurrentAsLeader = value;
-                      _leaderMemberId = value ? widget.currentMemberId : null;
-                      if (_viceLeaderMemberId == _leaderMemberId) {
-                        _viceLeaderMemberId = null;
-                      }
-                    });
-                  },
-                ),
-                if (!_setCurrentAsLeader) ...[
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String?>(
-                    initialValue: _leaderMemberId,
+    return _SetupSheetScaffold(
+      formKey: _formKey,
+      bottomInset: bottomInset,
+      scrollChild: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _SetupCompactHeader(
+            title: l10n.pick(
+              vi: 'Tạo chi mới',
+              en: 'Create branch',
+            ),
+            subtitle: l10n.pick(
+              vi: 'Thêm chi để gia đình nhỏ quản lý thành viên rõ ràng hơn.',
+              en: 'Add a branch so a smaller family can manage members more clearly.',
+            ),
+          ),
+          const SizedBox(height: 12),
+          AppWorkspaceSurface(
+            padding: const EdgeInsets.all(16),
+            color: Colors.white.withValues(alpha: 0.76),
+            child: _SetupStepIndicator(
+              currentStep: _editorStep,
+              labels: [
+                l10n.pick(vi: 'Thông tin', en: 'Info'),
+                l10n.pick(vi: 'Phụ trách', en: 'Leadership'),
+              ],
+              onStepSelected: _goToStep,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_editorStep == 0)
+            _SetupSectionCard(
+              title: l10n.pick(vi: 'Thông tin chính', en: 'Core details'),
+              description: l10n.pick(
+                vi: 'Tên chi, mã chi và đời bắt đầu là phần cần chốt trước để cấu trúc hiển thị rõ ràng hơn.',
+                en: 'Branch name, code, and starting generation should be set first so the structure stays clear.',
+              ),
+              child: Column(
+                children: [
+                  TextFormField(
+                    key: const Key('private-branch-name-input'),
+                    controller: _nameController,
                     decoration: InputDecoration(
                       labelText: l10n.pick(
-                        vi: 'Trưởng nhánh',
-                        en: 'Branch lead',
+                        vi: 'Tên chi',
+                        en: 'Branch name',
                       ),
-                      border: const OutlineInputBorder(),
+                    ),
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return l10n.pick(
+                          vi: 'Vui lòng nhập tên chi.',
+                          en: 'Please provide branch name.',
+                        );
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const Key('private-branch-code-input'),
+                    controller: _codeController,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Mã chi',
+                        en: 'Branch code',
+                      ),
+                      helperText: l10n.pick(
+                        vi: 'Để trống để hệ thống tự tạo từ tên chi.',
+                        en: 'Leave blank to auto-generate from the branch name.',
+                      ),
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<int>(
+                    key: const Key('private-branch-generation-input'),
+                    initialValue: _generationHint,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(
+                        vi: 'Đời bắt đầu',
+                        en: 'Starting generation',
+                      ),
                     ),
                     items: [
-                      DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text(
-                          l10n.pick(vi: 'Chưa chọn', en: 'Not selected'),
-                        ),
-                      ),
-                      for (final member in sortedMembers)
-                        DropdownMenuItem<String?>(
-                          value: member.id,
-                          child: Text(member.fullName),
+                      for (var value = 1; value <= 12; value++)
+                        DropdownMenuItem<int>(
+                          value: value,
+                          child: Text('$value'),
                         ),
                     ],
                     onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() => _generationHint = value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          if (_editorStep == 1)
+            _SetupSectionCard(
+              title: l10n.pick(
+                vi: 'Người phụ trách',
+                en: 'Leadership',
+              ),
+              description: l10n.pick(
+                vi: 'Chọn người phụ trách ngay từ đầu để chi mới dễ quản lý và liên hệ hơn.',
+                en: 'Assign leadership from the start so the new branch is easier to manage and contact.',
+              ),
+              child: Column(
+                children: [
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _setCurrentAsLeader,
+                    title: Text(
+                      l10n.pick(
+                        vi: 'Đặt tôi làm trưởng chi',
+                        en: 'Set me as branch lead',
+                      ),
+                    ),
+                    subtitle: Text(
+                      l10n.pick(
+                        vi: 'Phù hợp khi bạn là người đang đứng ra quản lý chi này.',
+                        en: 'Use this when you will manage this branch yourself.',
+                      ),
+                    ),
+                    onChanged: (value) {
                       setState(() {
-                        _leaderMemberId = value;
-                        if (_viceLeaderMemberId == value) {
+                        _setCurrentAsLeader = value;
+                        _leaderMemberId = value ? widget.currentMemberId : null;
+                        if (_viceLeaderMemberId == _leaderMemberId) {
                           _viceLeaderMemberId = null;
                         }
                       });
                     },
                   ),
-                ],
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String?>(
-                  initialValue: _viceLeaderMemberId,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Phó nhánh', en: 'Deputy lead'),
-                    border: const OutlineInputBorder(),
-                  ),
-                  items: [
-                    DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text(l10n.pick(vi: 'Không có', en: 'None')),
-                    ),
-                    for (final member in sortedMembers)
-                      if (member.id != _leaderMemberId)
+                  if (!_setCurrentAsLeader) ...[
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String?>(
+                      key: const Key('private-branch-leader-input'),
+                      initialValue: _leaderMemberId,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: l10n.pick(
+                          vi: 'Trưởng chi',
+                          en: 'Branch lead',
+                        ),
+                      ),
+                      items: [
                         DropdownMenuItem<String?>(
-                          value: member.id,
-                          child: Text(member.fullName),
+                          value: null,
+                          child: Text(
+                            l10n.pick(vi: 'Chưa chọn', en: 'Not selected'),
+                          ),
                         ),
-                  ],
-                  onChanged: (value) {
-                    setState(() => _viceLeaderMemberId = value);
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  initialValue: _generationHint,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
-                      vi: 'Đời ưu tiên hiển thị',
-                      en: 'Generation hint',
+                        for (final member in sortedMembers)
+                          DropdownMenuItem<String?>(
+                            value: member.id,
+                            child: Text(
+                              member.fullName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _leaderMemberId = value;
+                          if (_viceLeaderMemberId == value) {
+                            _viceLeaderMemberId = null;
+                          }
+                        });
+                      },
                     ),
-                    border: const OutlineInputBorder(),
+                  ],
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String?>(
+                    key: const Key('private-branch-vice-input'),
+                    initialValue: _viceLeaderMemberId,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: l10n.pick(vi: 'Phó chi', en: 'Deputy lead'),
+                    ),
+                    items: [
+                      DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text(l10n.pick(vi: 'Không có', en: 'None')),
+                      ),
+                      for (final member in sortedMembers)
+                        if (member.id != _leaderMemberId)
+                          DropdownMenuItem<String?>(
+                            value: member.id,
+                            child: Text(
+                              member.fullName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                    ],
+                    onChanged: (value) {
+                      setState(() => _viceLeaderMemberId = value);
+                    },
                   ),
-                  items: [
-                    for (var value = 1; value <= 12; value++)
-                      DropdownMenuItem<int>(
-                        value: value,
-                        child: Text('$value'),
+                ],
+              ),
+            ),
+        ],
+      ),
+      footer: AppWorkspaceSurface(
+        padding: const EdgeInsets.all(16),
+        color: Colors.white.withValues(alpha: 0.76),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 520;
+            final secondaryButton = OutlinedButton.icon(
+              onPressed: _isSubmitting
+                  ? null
+                  : () {
+                      if (_editorStep == 0) {
+                        Navigator.of(context).pop();
+                        return;
+                      }
+                      setState(() => _editorStep = 0);
+                    },
+              icon: Icon(
+                _editorStep == 0 ? Icons.close_outlined : Icons.arrow_back,
+              ),
+              label: Text(
+                _editorStep == 0
+                    ? l10n.pick(vi: 'Hủy', en: 'Cancel')
+                    : l10n.pick(vi: 'Quay lại', en: 'Back'),
+              ),
+            );
+            final primaryButton = _editorStep == 0
+                ? FilledButton.icon(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () {
+                            if (!_validateCurrentStep()) {
+                              return;
+                            }
+                            setState(() => _editorStep = 1);
+                          },
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(
+                      l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                    ),
+                  )
+                : FilledButton.icon(
+                    key: const Key('private-branch-save-button'),
+                    onPressed: _isSubmitting ? null : _submit,
+                    icon: const Icon(Icons.call_split_outlined),
+                    label: Text(
+                      l10n.pick(
+                        vi: 'Tạo nhánh riêng',
+                        en: 'Create branch',
                       ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    setState(() => _generationHint = value);
-                  },
+                    ),
+                  );
+
+            if (compact) {
+              return Column(
+                children: [
+                  SizedBox(width: double.infinity, child: secondaryButton),
+                  const SizedBox(height: 10),
+                  SizedBox(width: double.infinity, child: primaryButton),
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: secondaryButton),
+                const SizedBox(width: 10),
+                Expanded(child: primaryButton),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _SetupSheetScaffold extends StatelessWidget {
+  const _SetupSheetScaffold({
+    required this.formKey,
+    required this.bottomInset,
+    required this.scrollChild,
+    required this.footer,
+  });
+
+  final GlobalKey<FormState> formKey;
+  final double bottomInset;
+  final Widget scrollChild;
+  final Widget footer;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.shadow.withValues(alpha: 0.14),
+              blurRadius: 32,
+              offset: const Offset(0, -10),
+            ),
+          ],
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+                    child: scrollChild,
+                  ),
                 ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 5,
-                      child: OutlinedButton(
-                        onPressed: _isSubmitting
-                            ? null
-                            : () => Navigator.of(context).pop(),
-                        child: Text(l10n.pick(vi: 'Hủy', en: 'Cancel')),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 7,
-                      child: FilledButton.icon(
-                        onPressed: _isSubmitting ? null : _submit,
-                        icon: const Icon(Icons.call_split_outlined),
-                        label: Text(
-                          l10n.pick(vi: 'Tạo nhánh riêng', en: 'Create branch'),
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  child: footer,
                 ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SetupCompactHeader extends StatelessWidget {
+  const _SetupCompactHeader({
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SetupSectionCard extends StatelessWidget {
+  const _SetupSectionCard({
+    required this.title,
+    required this.description,
+    required this.child,
+  });
+
+  final String title;
+  final String description;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.all(18),
+      color: Colors.white.withValues(alpha: 0.88),
+      borderRadius: BorderRadius.circular(28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _SetupStepIndicator extends StatelessWidget {
+  const _SetupStepIndicator({
+    required this.currentStep,
+    required this.labels,
+    required this.onStepSelected,
+  });
+
+  final int currentStep;
+  final List<String> labels;
+  final ValueChanged<int> onStepSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    const circleSize = 34.0;
+    const connectorThickness = 3.0;
+    const connectorHorizontalInset = 16.0;
+    const labelRowHeight = 40.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: circleSize,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final stepCount = labels.length;
+              final stepWidth = stepCount == 0
+                  ? 0.0
+                  : constraints.maxWidth / stepCount;
+              final connectorWidth =
+                  stepWidth - (connectorHorizontalInset * 2) > 0
+                  ? stepWidth - (connectorHorizontalInset * 2)
+                  : 0.0;
+
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (stepCount > 1)
+                    for (var index = 0; index < stepCount - 1; index++)
+                      Positioned(
+                        left:
+                            (stepWidth * (index + 0.5)) +
+                            connectorHorizontalInset,
+                        top: (circleSize - connectorThickness) / 2,
+                        width: connectorWidth,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          height: connectorThickness,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            color: index < currentStep
+                                ? colorScheme.primary
+                                : colorScheme.outlineVariant,
+                          ),
+                        ),
+                      ),
+                  Row(
+                    children: [
+                      for (var index = 0; index < labels.length; index++)
+                        Expanded(
+                          child: Center(
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () => onStepSelected(index),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    width: circleSize,
+                                    height: circleSize,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: index <= currentStep
+                                          ? colorScheme.primary
+                                          : colorScheme.surfaceContainerHighest,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: textTheme.titleSmall?.copyWith(
+                                        color: index <= currentStep
+                                            ? colorScheme.onPrimary
+                                            : colorScheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: labelRowHeight,
+          child: Row(
+            children: [
+              for (var index = 0; index < labels.length; index++)
+                Expanded(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => onStepSelected(index),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        child: Text(
+                          labels[index],
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.labelLarge?.copyWith(
+                            fontWeight: index == currentStep
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -3701,6 +4355,9 @@ class _LandingCard extends StatelessWidget {
     required this.session,
     required this.memberCount,
     required this.branchCount,
+    required this.canFocusViewer,
+    this.onFocusViewer,
+    required this.onShowOverview,
   });
 
   final GenealogyScopeType scopeType;
@@ -3712,27 +4369,22 @@ class _LandingCard extends StatelessWidget {
   final AuthSession session;
   final int memberCount;
   final int branchCount;
+  final bool canFocusViewer;
+  final VoidCallback? onFocusViewer;
+  final VoidCallback onShowOverview;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
 
-    return Container(
+    return AppWorkspaceSurface(
       key: const Key('genealogy-landing-card'),
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colorScheme.primaryContainer,
-            colorScheme.secondaryContainer,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
-      ),
+      padding: EdgeInsets.all(tokens.spaceXl + 2),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
+      borderRadius: BorderRadius.circular(tokens.radiusLg + 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3740,17 +4392,16 @@ class _LandingCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  l10n.genealogyWorkspaceTitle,
+                  l10n.pick(vi: 'Cây gia phả', en: 'Family tree'),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              IconButton(
+              AppCompactIconButton(
                 key: const Key('genealogy-refresh-icon'),
                 onPressed: onRefresh,
                 tooltip: l10n.genealogyRefreshAction,
-                visualDensity: VisualDensity.compact,
                 icon: isLoading
                     ? const SizedBox(
                         width: 18,
@@ -3761,18 +4412,11 @@ class _LandingCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: tokens.spaceMd),
           Wrap(
-            spacing: 10,
-            runSpacing: 10,
+            spacing: tokens.spaceMd - 2,
+            runSpacing: tokens.spaceMd - 2,
             children: [
-              _LandingInfoChip(
-                icon: Icons.visibility_outlined,
-                label: l10n.pick(
-                  vi: 'Đang xem: ${scopeType == GenealogyScopeType.clan ? 'Cả họ' : 'Chi hiện tại'}',
-                  en: 'Viewing: ${scopeType == GenealogyScopeType.clan ? 'Whole clan' : 'Current branch'}',
-                ),
-              ),
               _LandingInfoChip(
                 icon: Icons.groups_2_outlined,
                 label: l10n.pick(
@@ -3789,11 +4433,36 @@ class _LandingCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: tokens.spaceLg),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: canFocusViewer ? onFocusViewer : null,
+                  icon: const Icon(Icons.person_search_outlined),
+                  label: Text(
+                    l10n.pick(vi: 'Xem quanh tôi', en: 'Focus on me'),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+              SizedBox(width: tokens.spaceSm),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onShowOverview,
+                  icon: const Icon(Icons.grid_view_rounded),
+                  label: Text(
+                    l10n.pick(vi: 'Xem toàn cảnh', en: 'Overview'),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
+          ),
           if (allowBranchScope)
             Wrap(
-              spacing: 12,
-              runSpacing: 10,
+              spacing: tokens.spaceMd,
+              runSpacing: tokens.spaceMd - 2,
               children: [
                 ChoiceChip(
                   key: const Key('genealogy-scope-clan'),
@@ -3826,19 +4495,23 @@ class _LandingInfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
     return Container(
       constraints: const BoxConstraints(maxWidth: 240),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: tokens.spaceMd,
+        vertical: tokens.spaceSm,
+      ),
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.68),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(tokens.radiusPill),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: colorScheme.primary),
-          const SizedBox(width: 6),
+          SizedBox(width: tokens.spaceXs + 2),
           Flexible(
             child: Text(
               label,
@@ -3916,11 +4589,14 @@ class _AddActionFab extends StatelessWidget {
           ],
           const SizedBox(height: 10),
         ],
-        FloatingActionButton(
-          heroTag: 'genealogy-main-add-fab',
-          onPressed: onToggleMenu,
-          tooltip: l10n.pick(vi: 'Thêm mới', en: 'Add'),
-          child: Icon(isMenuOpen ? Icons.close : Icons.add),
+        OnboardingAnchor(
+          anchorId: 'genealogy.main_add_fab',
+          child: FloatingActionButton(
+            heroTag: 'genealogy-main-add-fab',
+            onPressed: onToggleMenu,
+            tooltip: l10n.pick(vi: 'Thêm mới', en: 'Add'),
+            child: Icon(isMenuOpen ? Icons.close : Icons.add),
+          ),
         ),
       ],
     );
@@ -3944,34 +4620,38 @@ class _TreeZoomControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = context.l10n;
+    final tokens = context.uiTokens;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(tokens.radiusMd),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: EdgeInsets.symmetric(
+          horizontal: tokens.spaceXs + 2,
+          vertical: tokens.spaceXs,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
+            AppCompactIconButton(
               key: const Key('tree-zoom-out'),
-              visualDensity: VisualDensity.compact,
               onPressed: onZoomOut,
               icon: const Icon(Icons.remove),
               tooltip: l10n.pick(vi: 'Thu nhỏ cây', en: 'Zoom out tree'),
             ),
-            IconButton(
-              key: const Key('tree-zoom-in'),
-              visualDensity: VisualDensity.compact,
-              onPressed: onZoomIn,
-              icon: const Icon(Icons.add),
-              tooltip: l10n.pick(vi: 'Phóng to cây', en: 'Zoom in tree'),
+            OnboardingAnchor(
+              anchorId: 'genealogy.zoom_in',
+              child: AppCompactIconButton(
+                key: const Key('tree-zoom-in'),
+                onPressed: onZoomIn,
+                icon: const Icon(Icons.add),
+                tooltip: l10n.pick(vi: 'Phóng to cây', en: 'Zoom in tree'),
+              ),
             ),
-            IconButton(
+            AppCompactIconButton(
               key: const Key('tree-zoom-reset'),
-              visualDensity: VisualDensity.compact,
               onPressed: onReset,
               icon: const Icon(Icons.filter_center_focus),
               tooltip: l10n.pick(
@@ -3982,9 +4662,8 @@ class _TreeZoomControls extends StatelessWidget {
             AppAsyncAction(
               onPressed: onExport,
               builder: (context, onPressed, isLoading) {
-                return IconButton(
+                return AppCompactIconButton(
                   key: const Key('tree-print'),
-                  visualDensity: VisualDensity.compact,
                   onPressed: onPressed,
                   icon: isLoading
                       ? const SizedBox(
@@ -4074,14 +4753,7 @@ class _TreeExportSheet extends StatelessWidget {
               context,
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.pick(
-              vi: 'Khuyên dùng poster nhiều trang cho cây lớn để chữ rõ và tránh quá tải bộ nhớ.',
-              en: 'For large trees, multi-page poster mode is recommended for better readability and lower memory load.',
-            ),
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           for (var index = 0; index < actions.length; index++) ...[
             Builder(
               builder: (context) {
@@ -4099,12 +4771,6 @@ class _TreeExportSheet extends StatelessWidget {
                     l10n.pick(
                       vi: _treeExportActionTitleVi(action),
                       en: _treeExportActionTitleEn(action),
-                    ),
-                  ),
-                  subtitle: Text(
-                    l10n.pick(
-                      vi: _treeExportActionSubtitleVi(action),
-                      en: _treeExportActionSubtitleEn(action),
                     ),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -4145,26 +4811,170 @@ String _treeExportActionTitleEn(_TreeExportAction action) {
       : 'Download single-page PDF ($paper)';
 }
 
-String _treeExportActionSubtitleVi(_TreeExportAction action) {
-  if (action.layout == _TreeExportLayout.poster) {
-    return action.mode == _TreeExportMode.print
-        ? 'Giữ chữ rõ hơn cho cây lớn, mở hộp thoại in theo nhiều trang.'
-        : 'Tạo PDF nhiều trang để lưu/chia sẻ dễ in khổ lớn.';
-  }
-  return action.mode == _TreeExportMode.print
-      ? 'Mở hộp thoại in và dồn toàn bộ cây vào một trang.'
-      : 'Lưu một tệp PDF 1 trang để chia sẻ nhanh.';
-}
+class _TreeMemberSpotlightCard extends StatelessWidget {
+  const _TreeMemberSpotlightCard({
+    required this.member,
+    required this.branchName,
+    required this.generationLabel,
+    required this.siblingOrderLabel,
+    required this.honorBadges,
+    required this.parentCount,
+    required this.childCount,
+    required this.spouseCount,
+    required this.isAlive,
+    required this.aliveStatusLabel,
+    required this.deceasedStatusLabel,
+    required this.isFocusRoot,
+    required this.onViewDetails,
+    required this.onFocusMember,
+  });
 
-String _treeExportActionSubtitleEn(_TreeExportAction action) {
-  if (action.layout == _TreeExportLayout.poster) {
-    return action.mode == _TreeExportMode.print
-        ? 'Keeps text readable on large trees and opens print dialog in multi-page poster mode.'
-        : 'Generates a multi-page PDF that is easier to print in large formats.';
+  final MemberProfile member;
+  final String branchName;
+  final String generationLabel;
+  final String? siblingOrderLabel;
+  final List<String> honorBadges;
+  final int parentCount;
+  final int childCount;
+  final int spouseCount;
+  final bool isAlive;
+  final String aliveStatusLabel;
+  final String deceasedStatusLabel;
+  final bool isFocusRoot;
+  final VoidCallback onViewDetails;
+  final VoidCallback onFocusMember;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.uiTokens;
+    final theme = Theme.of(context);
+    final accentLabel = honorBadges.isNotEmpty
+        ? honorBadges.first
+        : siblingOrderLabel;
+    return AppWorkspaceSurface(
+      padding: EdgeInsets.all(tokens.spaceLg),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.l10n.pick(vi: 'Đang chọn', en: 'Selected member'),
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(height: tokens.spaceMd),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                foregroundColor: theme.colorScheme.onPrimaryContainer,
+                child: Text(
+                  member.initials,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              SizedBox(width: tokens.spaceMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      member.displayName,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: tokens.spaceXs),
+                    Text(
+                      generationLabel,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (accentLabel != null) ...[
+                      SizedBox(height: tokens.spaceSm),
+                      _NodeAccentBadge(label: accentLabel),
+                    ],
+                  ],
+                ),
+              ),
+              SizedBox(width: tokens.spaceSm),
+              _StatusChip(
+                isAlive: isAlive,
+                aliveStatusLabel: aliveStatusLabel,
+                deceasedStatusLabel: deceasedStatusLabel,
+              ),
+            ],
+          ),
+          SizedBox(height: tokens.spaceMd),
+          Wrap(
+            spacing: tokens.spaceSm,
+            runSpacing: tokens.spaceSm,
+            children: [
+              _MiniFactChip(
+                icon: Icons.account_tree_outlined,
+                label: branchName,
+              ),
+              _MiniFactChip(icon: Icons.north_outlined, label: '$parentCount'),
+              _MiniFactChip(icon: Icons.south_outlined, label: '$childCount'),
+              _MiniFactChip(icon: Icons.favorite_border, label: '$spouseCount'),
+            ],
+          ),
+          SizedBox(height: tokens.spaceMd),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stackActions = constraints.maxWidth < 430;
+              final detailAction = FilledButton.icon(
+                onPressed: onViewDetails,
+                icon: const Icon(Icons.open_in_new),
+                label: Text(
+                  context.l10n.pick(vi: 'Xem chi tiết', en: 'View details'),
+                ),
+              );
+              final focusAction = OutlinedButton.icon(
+                onPressed: isFocusRoot ? null : onFocusMember,
+                icon: const Icon(Icons.center_focus_strong_outlined),
+                label: Text(
+                  isFocusRoot
+                      ? context.l10n.pick(
+                          vi: 'Đang là tâm điểm',
+                          en: 'Already focused',
+                        )
+                      : context.l10n.pick(
+                          vi: 'Xem quanh người này',
+                          en: 'Focus on this person',
+                        ),
+                ),
+              );
+              if (stackActions) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    detailAction,
+                    SizedBox(height: tokens.spaceSm),
+                    focusAction,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: detailAction),
+                  SizedBox(width: tokens.spaceSm),
+                  Expanded(child: focusAction),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
-  return action.mode == _TreeExportMode.print
-      ? 'Opens print dialog and fits the entire tree into a single page.'
-      : 'Creates a single-page PDF for quick sharing.';
 }
 
 class _MemberNodeCard extends StatelessWidget {
@@ -4205,46 +5015,111 @@ class _MemberNodeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    return Card(
-      color: isSelected ? colorScheme.primaryContainer : null,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
+    final tokens = context.uiTokens;
+    final accentLabel = honorBadges.isNotEmpty
+        ? honorBadges.first
+        : siblingOrderLabel;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isSelected
+              ? [
+                  colorScheme.primaryContainer.withValues(alpha: 0.94),
+                  Colors.white.withValues(alpha: 0.98),
+                ]
+              : [
+                  Colors.white.withValues(alpha: 0.98),
+                  colorScheme.surfaceContainerLowest.withValues(alpha: 0.92),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
           color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
           width: isSelected ? 2 : 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(
+              alpha: isSelected ? 0.12 : 0.06,
+            ),
+            blurRadius: isSelected ? 18 : 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    child: Text(
-                      member.initials,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 19,
+                      backgroundColor: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.primaryContainer,
+                      foregroundColor: isSelected
+                          ? colorScheme.onPrimary
+                          : colorScheme.onPrimaryContainer,
+                      child: Text(
+                        member.initials,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            member.fullName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            generationLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (accentLabel != null) ...[
+                            const SizedBox(height: 6),
+                            _NodeAccentBadge(label: accentLabel),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(
-                          member.fullName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
+                        Tooltip(
+                          message: viewInfoTooltip,
+                          child: IconButton(
+                            key: Key('tree-node-info-${member.id}'),
+                            visualDensity: VisualDensity.compact,
+                            iconSize: 16,
+                            splashRadius: 16,
+                            onPressed: onViewMemberInfo,
+                            icon: const Icon(Icons.info_outline),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -4255,68 +5130,58 @@ class _MemberNodeCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 2),
-                  Tooltip(
-                    message: viewInfoTooltip,
-                    child: IconButton(
-                      key: Key('tree-node-info-${member.id}'),
-                      visualDensity: VisualDensity.compact,
-                      iconSize: 16,
-                      splashRadius: 16,
-                      onPressed: onViewMemberInfo,
-                      icon: const Icon(Icons.info_outline),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.bottomLeft,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        if (siblingOrderLabel != null) ...[
-                          _MiniFactChip(
-                            icon: Icons.format_list_numbered,
-                            label: siblingOrderLabel!,
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        for (final badge in honorBadges.take(2)) ...[
-                          _MiniFactChip(
-                            icon: Icons.workspace_premium_outlined,
-                            label: badge,
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        _MiniFactChip(
-                          icon: Icons.layers_outlined,
-                          label: generationLabel,
-                        ),
-                        const SizedBox(width: 8),
-                        _MiniFactChip(
-                          icon: Icons.north_outlined,
-                          label: '$parentCount',
-                        ),
-                        const SizedBox(width: 8),
-                        _MiniFactChip(
-                          icon: Icons.south_outlined,
-                          label: '$childCount',
-                        ),
-                        const SizedBox(width: 8),
-                        _MiniFactChip(
-                          icon: Icons.favorite_border,
-                          label: '$spouseCount',
-                        ),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
-              ),
-            ],
+                const Spacer(),
+                Wrap(
+                  spacing: tokens.spaceXs + 2,
+                  runSpacing: tokens.spaceXs + 2,
+                  children: [
+                    _MiniFactChip(
+                      icon: Icons.north_outlined,
+                      label: '$parentCount',
+                    ),
+                    _MiniFactChip(
+                      icon: Icons.south_outlined,
+                      label: '$childCount',
+                    ),
+                    _MiniFactChip(
+                      icon: Icons.favorite_border,
+                      label: '$spouseCount',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NodeAccentBadge extends StatelessWidget {
+  const _NodeAccentBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.secondaryContainer.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: colorScheme.onSecondaryContainer,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -4369,19 +5234,23 @@ class _MiniFactChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.uiTokens;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(tokens.radiusPill),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: EdgeInsets.symmetric(
+          horizontal: tokens.spaceSm,
+          vertical: tokens.spaceXs,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 14),
-            const SizedBox(width: 4),
+            SizedBox(width: tokens.spaceXs),
             Text(label, style: Theme.of(context).textTheme.labelMedium),
           ],
         ),
@@ -4496,84 +5365,6 @@ class _FactLine extends StatelessWidget {
                   Align(alignment: Alignment.centerRight, child: trailing!),
                 ],
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CompactFactItem {
-  const _CompactFactItem({required this.label, required this.value});
-
-  final String label;
-  final String value;
-}
-
-class _CompactFactGrid extends StatelessWidget {
-  const _CompactFactGrid({required this.items});
-
-  final List<_CompactFactItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth >= 620 ? 3 : 2;
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            mainAxisExtent: 62,
-          ),
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return _CompactFactCard(item: item);
-          },
-        );
-      },
-    );
-  }
-}
-
-class _CompactFactCard extends StatelessWidget {
-  const _CompactFactCard({required this.item});
-
-  final _CompactFactItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Text(
-            item.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            item.value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w700,
             ),
           ),
         ],

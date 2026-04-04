@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import process from "node:process";
-import { execSync } from "node:child_process";
 
-const SEMVER_RE = /^v(\d+)\.(\d+)\.(\d+)$/;
+const DATE_TAG_RE = /^v(\d{4})\.(\d{2})\.(\d{2})$/;
+const LEGACY_SEMVER_RE = /^v(\d+)\.(\d+)\.(\d+)$/;
+const RELEASE_TAG_RE = /^v(?:(\d{4})\.(\d{2})\.(\d{2})|(\d+)\.(\d+)\.(\d+))$/;
 
 function run(command) {
   return execSync(command, {
@@ -32,23 +34,14 @@ function compareTags(a, b) {
   });
 }
 
-function listSemverTags(command) {
-  return readLines(command)
-    .filter((tag) => SEMVER_RE.test(tag))
-    .sort(compareTags);
+function isReleaseTag(tag) {
+  return RELEASE_TAG_RE.test(tag);
 }
 
-function parseVersion(value) {
-  const match = value.match(SEMVER_RE);
-  if (!match) {
-    throw new Error(`Invalid semver tag: ${value}`);
-  }
-
-  return {
-    major: Number(match[1]),
-    minor: Number(match[2]),
-    patch: Number(match[3]),
-  };
+function listReleaseTags(command) {
+  return readLines(command)
+    .filter((tag) => isReleaseTag(tag))
+    .sort(compareTags);
 }
 
 function previousTagFor(currentTag, tags) {
@@ -60,55 +53,31 @@ function previousTagFor(currentTag, tags) {
   return tags[index - 1];
 }
 
-function detectBump(logRange) {
-  const rawMessages = run(
-    `git log --no-merges --pretty=format:%s%n%b%x1e ${logRange}`
-  );
-
-  const messages = rawMessages
-    .split("\x1e")
-    .map((message) => message.trim())
-    .filter(Boolean);
-
-  let bump = "patch";
-
-  for (const message of messages) {
-    if (
-      /\bBREAKING CHANGE\b/i.test(message) ||
-      /^([a-z]+)(\([^)]+\))?!:/im.test(message)
-    ) {
-      return "major";
-    }
-
-    if (/^feat(\([^)]+\))?:/im.test(message)) {
-      bump = "minor";
-    }
-  }
-
-  return bump;
-}
-
-function bumpVersion(previousTag, bump) {
-  if (!previousTag) {
-    return "0.1.0";
-  }
-
-  const { major, minor, patch } = parseVersion(previousTag);
-
-  if (bump === "major") {
-    return `${major + 1}.0.0`;
-  }
-
-  if (bump === "minor") {
-    return `${major}.${minor + 1}.0`;
-  }
-
-  return `${major}.${minor}.${patch + 1}`;
-}
-
-function buildNumberFor(version) {
+function buildNumberForLegacyVersion(version) {
   const [major, minor, patch] = version.split(".").map(Number);
   return String(major * 10000 + minor * 100 + patch);
+}
+
+function buildNumberForTag(tag) {
+  const dateMatch = tag.match(DATE_TAG_RE);
+  if (dateMatch) {
+    return `${dateMatch[1]}${dateMatch[2]}${dateMatch[3]}`;
+  }
+
+  const legacyVersion = tag.replace(/^v/, "");
+  return buildNumberForLegacyVersion(legacyVersion);
+}
+
+function formatDateVersion(date, timeZone) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}.${values.month}.${values.day}`;
 }
 
 function emitOutput(payload) {
@@ -127,8 +96,9 @@ function emitOutput(payload) {
   console.log(JSON.stringify(payload, null, 2));
 }
 
-const tags = listSemverTags("git tag --list 'v*'");
-const headTags = listSemverTags("git tag --points-at HEAD");
+const releaseTimeZone = process.env.RELEASE_TIMEZONE || "Asia/Ho_Chi_Minh";
+const tags = listReleaseTags("git tag --list 'v*'");
+const headTags = listReleaseTags("git tag --points-at HEAD");
 const currentTag = headTags.at(-1);
 
 if (currentTag) {
@@ -136,7 +106,7 @@ if (currentTag) {
   emitOutput({
     tag: currentTag,
     version: currentVersion,
-    build_number: buildNumberFor(currentVersion),
+    build_number: buildNumberForTag(currentTag),
     previous_tag: previousTagFor(currentTag, tags),
     bump: "existing",
     head_already_tagged: "true",
@@ -145,15 +115,21 @@ if (currentTag) {
 }
 
 const previousTag = tags.at(-1) || "";
-const logRange = previousTag ? `${previousTag}..HEAD` : "HEAD";
-const bump = detectBump(logRange);
-const version = bumpVersion(previousTag, bump);
+const version = formatDateVersion(new Date(), releaseTimeZone);
+const tag = `v${version}`;
+
+if (tags.includes(tag)) {
+  console.error(
+    `Release tag ${tag} already exists on another commit. This pipeline supports one main release tag per day.`
+  );
+  process.exit(1);
+}
 
 emitOutput({
-  tag: `v${version}`,
+  tag,
   version,
-  build_number: buildNumberFor(version),
+  build_number: buildNumberForTag(tag),
   previous_tag: previousTag,
-  bump,
+  bump: "date",
   head_already_tagged: "false",
 });

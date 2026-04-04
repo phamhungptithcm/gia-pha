@@ -33,6 +33,14 @@ val releaseStoreFilePath = envOrProperty("ANDROID_KEYSTORE_PATH", "storeFile")
 val releaseStorePassword = envOrProperty("ANDROID_KEYSTORE_PASSWORD", "storePassword")
 val releaseKeyAlias = envOrProperty("ANDROID_KEY_ALIAS", "keyAlias")
 val releaseKeyPassword = envOrProperty("ANDROID_KEY_PASSWORD", "keyPassword")
+val androidTestAdMobApplicationId = "ca-app-pub-3940256099942544~3347511713"
+val configuredAdMobApplicationId =
+    envOrProperty("ANDROID_ADMOB_APPLICATION_ID", "admobApplicationId")
+val allowTestAdMobAppIds =
+    (System.getenv("ALLOW_TEST_ADMOB_APP_IDS") ?: "")
+        .trim()
+        .equals("true", ignoreCase = true)
+val resolvedAdMobApplicationId = configuredAdMobApplicationId ?: androidTestAdMobApplicationId
 val hasReleaseSigning =
     !releaseStoreFilePath.isNullOrEmpty() &&
     !releaseStorePassword.isNullOrEmpty() &&
@@ -47,6 +55,16 @@ if (isReleaseTaskRequested && !hasReleaseSigning) {
         "Missing Android release signing configuration. Set ANDROID_KEYSTORE_PATH, " +
             "ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD " +
             "or configure android/key.properties before running release tasks.",
+    )
+}
+if (
+    isReleaseTaskRequested &&
+        !allowTestAdMobAppIds &&
+        resolvedAdMobApplicationId == androidTestAdMobApplicationId
+) {
+    throw GradleException(
+        "Missing production Android AdMob application ID. Set ANDROID_ADMOB_APPLICATION_ID " +
+            "before running release tasks.",
     )
 }
 
@@ -73,6 +91,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["adMobApplicationId"] = resolvedAdMobApplicationId
     }
 
     signingConfigs {

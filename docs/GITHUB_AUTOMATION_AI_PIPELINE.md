@@ -1,7 +1,7 @@
 # GITHUB AUTOMATION AI PIPELINE
 ## AI-driven PR, Build, Review, and Release Workflow
 
-_Last reviewed: March 14, 2026_
+_Last reviewed: April 2, 2026_
 
 This document describes the current automation model used in this repository.
 
@@ -29,7 +29,7 @@ Both `staging` and `main` require:
 
 ### `branch-ci.yml` (`CI - Branch Quality Gates`)
 
-Runs on PR/push for `dev`, `staging`, and `main`:
+Runs on pushes to `staging` and `main`:
 
 - strict docs build
 - functions install + build
@@ -37,9 +37,9 @@ Runs on PR/push for `dev`, `staging`, and `main`:
 - Docker image build checks for mobile and Firebase tooling
 - dependency review + Trivy (filesystem + image) + gitleaks
 
-### `mobile-e2e.yml` (`CI - Mobile E2E (PR/Manual)`)
+### `mobile-e2e.yml` + `mobile-e2e-ios.yml`
 
-Runs Android + iOS end-to-end checks for mobile-focused pull requests and manual dispatch.
+Run Android + iOS smoke end-to-end checks on pushes to `staging` and `main`, plus manual dispatch.
 
 ### `deploy-docs.yml` (`CD - Deploy Docs (GitHub Pages)`)
 
@@ -77,13 +77,13 @@ Deploys production hosting from immutable release assets.
 
 Manual rollback to a selected release tag.
 
-### `weekly-release-promotion.yml` (`Ops - Promote Staging to Main`)
+### `promote-staging-to-main.yml` (`Ops - Promote Staging to Main`)
 
-Every Monday at 14:00 UTC (and manual dispatch):
+On every push to `staging` (and manual dispatch):
 
 - compares `staging` to `main`
 - creates/refreshes production promotion PR
-- enables auto-merge once approval + CI are satisfied
+- keeps final merge approval in human hands
 
 ### `release-issue-closure.yml` (`Ops - Close Released Issues`)
 

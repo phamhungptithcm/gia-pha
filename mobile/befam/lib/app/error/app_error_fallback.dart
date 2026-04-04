@@ -70,15 +70,6 @@ class AppErrorFallback extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(description, style: theme.textTheme.bodyMedium),
-                      const SizedBox(height: 16),
-                      Text(
-                        details.exceptionAsString(),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
                       const SizedBox(height: 20),
                       FilledButton.icon(
                         onPressed: () {

@@ -5,6 +5,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import '../../../core/services/expiring_value_cache.dart';
 import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
@@ -23,7 +24,8 @@ import '../models/scholarship_workspace_snapshot.dart';
 import 'scholarship_repository.dart';
 
 class FirebaseScholarshipRepository implements ScholarshipRepository {
-  static const int _workspacePageSize = 200;
+  static const int _workspacePageSize = 400;
+  static const Duration _workspaceCacheTtl = Duration(seconds: 60);
 
   FirebaseScholarshipRepository({
     FirebaseFirestore? firestore,
@@ -43,6 +45,11 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
   final InflightTaskCache<String, ScholarshipWorkspaceSnapshot>
   _workspaceLoadCache =
       InflightTaskCache<String, ScholarshipWorkspaceSnapshot>();
+  final ExpiringValueCache<String, ScholarshipWorkspaceSnapshot>
+  _workspaceSnapshotCache =
+      ExpiringValueCache<String, ScholarshipWorkspaceSnapshot>(
+        ttl: _workspaceCacheTtl,
+      );
 
   CollectionReference<Map<String, dynamic>> get _programs =>
       _firestore.collection('scholarshipPrograms');
@@ -85,6 +92,12 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
         councilHeadMemberIds: [],
       );
     }
+
+    final cached = _workspaceSnapshotCache.read(clanId);
+    if (cached != null) {
+      return cached;
+    }
+
     return _workspaceLoadCache.run(clanId, () async {
       final canReadClanWideSubmissions =
           GovernanceRoleMatrix.canManageScholarshipPrograms(session) ||
@@ -181,7 +194,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
           )
           .toList(growable: false);
 
-      return ScholarshipWorkspaceSnapshot(
+      final snapshot = ScholarshipWorkspaceSnapshot(
         programs: programs,
         awardLevels: awardLevels,
         submissions: submissions,
@@ -189,6 +202,8 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
         approvalLogs: approvalLogs,
         councilHeadMemberIds: councilHeadMemberIds,
       );
+      _workspaceSnapshotCache.write(clanId, snapshot);
+      return snapshot;
     });
   }
 
@@ -254,7 +269,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
 
     await programRef.set(payload, SetOptions(merge: true));
     final updated = await programRef.get();
-    _workspaceLoadCache.invalidate(clanId);
+    _invalidateWorkspaceSnapshot(clanId);
     return ScholarshipProgram.fromJson(updated.data()!);
   }
 
@@ -331,7 +346,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
 
     await awardRef.set(payload, SetOptions(merge: true));
     final updated = await awardRef.get();
-    _workspaceLoadCache.invalidate(clanId);
+    _invalidateWorkspaceSnapshot(clanId);
     return AwardLevel.fromJson(updated.data()!);
   }
 
@@ -433,7 +448,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
 
     await submissionRef.set(payload, SetOptions(merge: true));
     final updated = await submissionRef.get();
-    _workspaceLoadCache.invalidate(clanId);
+    _invalidateWorkspaceSnapshot(clanId);
     return AchievementSubmission.fromJson(updated.data()!);
   }
 
@@ -516,7 +531,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       });
       final data = response.data;
       if (data is Map && data['submission'] is Map<String, dynamic>) {
-        _workspaceLoadCache.invalidate(clanId);
+        _invalidateWorkspaceSnapshot(clanId);
         return AchievementSubmission.fromJson(
           data['submission'] as Map<String, dynamic>,
         );
@@ -533,7 +548,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
           ScholarshipRepositoryErrorCode.permissionDenied,
         );
       }
-      _workspaceLoadCache.invalidate(clanId);
+      _invalidateWorkspaceSnapshot(clanId);
       return AchievementSubmission.fromJson(updated.data()!);
     } on FirebaseFunctionsException catch (error) {
       if (error.code == 'already-exists') {
@@ -632,7 +647,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       });
       final data = response.data;
       if (data is Map && data['submission'] is Map<String, dynamic>) {
-        _workspaceLoadCache.invalidate(clanId);
+        _invalidateWorkspaceSnapshot(clanId);
         return AchievementSubmission.fromJson(
           data['submission'] as Map<String, dynamic>,
         );
@@ -648,7 +663,7 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
           ScholarshipRepositoryErrorCode.permissionDenied,
         );
       }
-      _workspaceLoadCache.invalidate(clanId);
+      _invalidateWorkspaceSnapshot(clanId);
       return AchievementSubmission.fromJson(updated.data()!);
     } on FirebaseFunctionsException catch (error) {
       if (error.code == 'permission-denied') {
@@ -702,6 +717,11 @@ class FirebaseScholarshipRepository implements ScholarshipRepository {
       pageSize: pageSize,
       maxDocuments: maxDocuments,
     );
+  }
+
+  void _invalidateWorkspaceSnapshot(String clanId) {
+    _workspaceLoadCache.invalidate(clanId);
+    _workspaceSnapshotCache.invalidate(clanId);
   }
 }
 

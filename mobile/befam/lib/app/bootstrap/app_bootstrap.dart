@@ -39,12 +39,13 @@ class AppBootstrap {
         try {
           final options = _resolveFirebaseOptions();
           await Firebase.initializeApp(options: options);
-          await _activateAppCheck();
-          await AdController.initializeSdk();
-
-          final crashReportingService = await CrashReportingService.create(
-            enableCrashlytics: kReleaseMode,
-          );
+          final setupResults = await Future.wait<Object?>([
+            _activateAppCheck().then<Object?>((_) => null),
+            AdController.initializeSdk().then<Object?>((_) => null),
+            CrashReportingService.create(enableCrashlytics: kReleaseMode),
+          ]);
+          final crashReportingService =
+              setupResults[2] as CrashReportingService;
 
           final status = FirebaseSetupStatus.ready(
             projectId: Firebase.app().options.projectId,
@@ -195,7 +196,9 @@ class AppBootstrap {
   static Future<void> _activateAppCheck() async {
     if (!AppEnvironment.enableAppCheck) {
       AppLogger.info(
-        'Firebase App Check is disabled by BEFAM_ENABLE_APP_CHECK.',
+        kReleaseMode
+            ? 'Firebase App Check is disabled by BEFAM_ENABLE_APP_CHECK.'
+            : 'Firebase App Check is skipped in local/testing builds.',
       );
       return;
     }

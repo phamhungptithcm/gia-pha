@@ -2,13 +2,17 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import '../theme/app_ui_tokens.dart';
 import '../../core/services/firebase_services.dart';
+import '../../core/services/performance_measurement_logger.dart';
 import '../../core/widgets/member_phone_action.dart';
 import '../../core/widgets/address_action_tools.dart';
+import '../../core/widgets/app_compact_controls.dart';
 import '../../core/widgets/app_loading_skeletons.dart';
 import '../../features/ads/services/ad_controller.dart';
 import '../../features/billing/presentation/billing_workspace_page.dart';
@@ -30,8 +34,10 @@ import '../../features/discovery/services/genealogy_discovery_repository.dart';
 import '../../features/member/presentation/member_workspace_page.dart';
 import '../../features/member/models/member_profile.dart';
 import '../../features/member/services/member_repository.dart';
-import '../../features/notifications/presentation/notification_target_page.dart';
 import '../../features/notifications/services/push_notification_service.dart';
+import '../../features/onboarding/models/onboarding_models.dart';
+import '../../features/onboarding/presentation/onboarding_coordinator.dart';
+import '../../features/onboarding/presentation/onboarding_scope.dart';
 import '../../features/profile/presentation/profile_workspace_page.dart';
 import '../../features/profile/services/profile_notification_preferences_repository.dart';
 import '../../features/scholarship/presentation/scholarship_workspace_page.dart';
@@ -54,6 +60,11 @@ part 'app_shell_page_sections.dart';
 
 enum _ShellOverflowAction { switchClan, logout }
 
+final PerformanceMeasurementLogger _shellPerformanceLogger =
+    PerformanceMeasurementLogger(
+      defaultSlowThreshold: const Duration(milliseconds: 2000),
+    );
+
 bool _sessionHasClanContext(AuthSession session) {
   final clanId = (session.clanId ?? '').trim();
   if (clanId.isEmpty) {
@@ -74,6 +85,7 @@ class AppShellPage extends StatefulWidget {
     this.genealogyRepository,
     this.genealogyDiscoveryRepository,
     this.billingRepository,
+    this.scholarshipRepository,
     this.pushNotificationService,
     this.clanContextService,
     this.profileNotificationPreferencesRepository,
@@ -90,6 +102,7 @@ class AppShellPage extends StatefulWidget {
   final GenealogyReadRepository? genealogyRepository;
   final GenealogyDiscoveryRepository? genealogyDiscoveryRepository;
   final BillingRepository? billingRepository;
+  final ScholarshipRepository? scholarshipRepository;
   final PushNotificationService? pushNotificationService;
   final ClanContextService? clanContextService;
   final ProfileNotificationPreferencesRepository?
@@ -101,9 +114,8 @@ class AppShellPage extends StatefulWidget {
   State<AppShellPage> createState() => _AppShellPageState();
 }
 
-class _AppShellPageState extends State<AppShellPage> {
-  static const Duration _adBannerAutoHideDelay = Duration(seconds: 10);
-
+class _AppShellPageState extends State<AppShellPage>
+    with WidgetsBindingObserver {
   int _selectedIndex = 0;
   final Set<int> _visitedDestinationIndexes = <int>{0};
   late AuthSession _activeSession;
@@ -112,17 +124,19 @@ class _AppShellPageState extends State<AppShellPage> {
   late final EventRepository _eventRepository;
   late final FundRepository _fundRepository;
   late final BillingRepository _billingRepository;
+  late final ScholarshipRepository _scholarshipRepository;
   late final AdController _adController;
   late final PushNotificationService _pushNotificationService;
   late final ClanContextService _clanContextService;
+  late final OnboardingCoordinator _onboardingCoordinator;
   final AuthSessionStore _sessionStore = SharedPrefsAuthSessionStore();
   String? _lastOpenedNotificationMessageId;
   bool _showAdBanner = false;
   bool _isResolvingBillingEntitlement = false;
   bool _dismissAdBannerForSession = false;
-  Timer? _adBannerAutoHideTimer;
   bool _isLoadingClanContexts = false;
   bool _isSwitchingClanContext = false;
+  AsyncCallback? _billingPricingQuickAction;
   List<ClanContextOption> _clanContexts = const [];
   final Map<String, String> _resolvedClanNamesById = <String, String>{};
   bool _isResolvingActiveClanName = false;
@@ -189,6 +203,7 @@ class _AppShellPageState extends State<AppShellPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _activeSession = _sanitizeSessionContext(widget.session);
     _genealogyRepository =
         widget.genealogyRepository ??
@@ -204,23 +219,36 @@ class _AppShellPageState extends State<AppShellPage> {
     _billingRepository =
         widget.billingRepository ??
         createDefaultBillingRepository(session: _session);
+    _scholarshipRepository =
+        widget.scholarshipRepository ??
+        createDefaultScholarshipRepository(session: _session);
     _adController = AdController(onStateChanged: _handleAdStateChanged);
+    unawaited(
+      _adController.initialize(
+        initialScreenId: _screenIdForIndex(_selectedIndex),
+      ),
+    );
     _pushNotificationService =
         widget.pushNotificationService ??
         createDefaultPushNotificationService(session: _session);
     _clanContextService =
         widget.clanContextService ??
         createDefaultClanContextService(session: _session);
-    unawaited(
-      _pushNotificationService.start(
-        session: _session,
-        onDeepLink: _handleNotificationDeepLink,
-      ),
+    _onboardingCoordinator = createDefaultOnboardingCoordinator(
+      session: _session,
     );
     unawaited(_loadClanContexts());
-    unawaited(_ensureActiveClanDisplayNameResolved());
-    unawaited(_refreshBillingEntitlement());
-    _syncAdBannerAutoHideTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_scheduleDeferredShellWarmup());
+      unawaited(
+        _onboardingCoordinator.scheduleTrigger(
+          const OnboardingTrigger(
+            id: 'app_shell_home',
+            routeId: 'app_shell_home',
+          ),
+        ),
+      );
+    });
   }
 
   @override
@@ -228,26 +256,38 @@ class _AppShellPageState extends State<AppShellPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session) {
       _activeSession = _sanitizeSessionContext(widget.session);
-      unawaited(
-        _pushNotificationService.start(
-          session: _session,
-          onDeepLink: _handleNotificationDeepLink,
-        ),
-      );
+      _onboardingCoordinator.updateSession(_activeSession);
       unawaited(_loadClanContexts());
-      unawaited(_ensureActiveClanDisplayNameResolved());
       _dismissAdBannerForSession = false;
-      unawaited(_refreshBillingEntitlement());
-      _syncAdBannerAutoHideTimer();
+      _adController.updateCurrentScreen(_screenIdForIndex(_selectedIndex));
+      unawaited(_scheduleDeferredShellWarmup());
     }
   }
 
   @override
+  void reassemble() {
+    super.reassemble();
+    if (!kDebugMode) {
+      return;
+    }
+    _adController.invalidateBannerPlacement();
+    _dismissAdBannerForSession = false;
+    _adController.updateCurrentScreen(_screenIdForIndex(_selectedIndex));
+  }
+
+  @override
   void dispose() {
-    _adBannerAutoHideTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _adController.dispose();
+    unawaited(_onboardingCoordinator.interrupt());
+    _onboardingCoordinator.dispose();
     unawaited(_pushNotificationService.stop());
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(_adController.onAppLifecycleStateChanged(state));
   }
 
   void _handleAdStateChanged() {
@@ -257,31 +297,41 @@ class _AppShellPageState extends State<AppShellPage> {
     setState(() {});
   }
 
+  void _handleBillingPricingQuickActionChanged(AsyncCallback? action) {
+    if (_billingPricingQuickAction == action || !mounted) {
+      return;
+    }
+    setState(() {
+      _billingPricingQuickAction = action;
+    });
+  }
+
+  Future<void> _scheduleDeferredShellWarmup() async {
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    if (!mounted) {
+      return;
+    }
+    unawaited(_startPushNotificationsForActiveSession());
+    if (_session.loginMethod == AuthEntryMethod.child) {
+      unawaited(_ensureActiveClanDisplayNameResolved());
+      unawaited(_refreshBillingEntitlement());
+    }
+  }
+
+  Future<void> _startPushNotificationsForActiveSession() {
+    return _pushNotificationService.start(
+      session: _session,
+      onDeepLink: _handleNotificationDeepLink,
+    );
+  }
+
   void _handleNotificationDeepLink(NotificationDeepLink deepLink) {
     if (!mounted) {
       return;
     }
 
-    final destinationIndex = _destinationIndexForNotificationTarget(
-      deepLink.targetType,
-    );
-    final shouldOpenTargetDestination =
-        deepLink.openedFromSystemNotification && destinationIndex != null;
-    if (shouldOpenTargetDestination) {
-      setState(() {
-        _selectedIndex = destinationIndex;
-        _visitedDestinationIndexes.add(destinationIndex);
-      });
-      _syncAdBannerAutoHideTimer();
-      if (deepLink.targetType != NotificationTargetType.billing) {
-        _openNotificationTargetPage(
-          targetType: deepLink.targetType,
-          referenceId: deepLink.referenceId,
-          sourceTitle: deepLink.title,
-          sourceBody: deepLink.body,
-          messageId: deepLink.messageId,
-        );
-      }
+    if (deepLink.openedFromSystemNotification) {
+      _openNotificationDestination(deepLink);
     }
 
     final defaultMessage = _defaultNotificationMessage(
@@ -301,18 +351,33 @@ class _AppShellPageState extends State<AppShellPage> {
     ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
   }
 
-  void _openNotificationTargetPage({
-    required NotificationTargetType targetType,
-    required String? referenceId,
-    required String? sourceTitle,
-    required String? sourceBody,
-    String? messageId,
-  }) {
-    if (targetType == NotificationTargetType.unknown ||
-        targetType == NotificationTargetType.billing) {
-      return;
+  void _openNotificationDestination(NotificationDeepLink deepLink) {
+    switch (deepLink.targetType) {
+      case NotificationTargetType.event:
+        _selectDestination(2);
+        _openEventNotificationDestination(
+          eventId: deepLink.referenceId,
+          messageId: deepLink.messageId,
+        );
+        return;
+      case NotificationTargetType.scholarship:
+        _openScholarshipNotificationDestination(
+          referenceId: deepLink.referenceId,
+          messageId: deepLink.messageId,
+        );
+        return;
+      case NotificationTargetType.billing:
+        _selectDestination(3);
+        return;
+      case NotificationTargetType.authRefresh:
+      case NotificationTargetType.unknown:
+        _openGenericNotificationDestination(deepLink);
+        return;
     }
-    if (!_shouldOpenNotificationMessage(messageId)) {
+  }
+
+  void _openGenericNotificationDestination(NotificationDeepLink deepLink) {
+    if (!_shouldOpenNotificationMessage(deepLink.messageId)) {
       return;
     }
 
@@ -321,19 +386,90 @@ class _AppShellPageState extends State<AppShellPage> {
         return;
       }
 
+      final type = deepLink.type?.trim().toLowerCase() ?? '';
+      if (type == 'join_request_created') {
+        unawaited(_openJoinRequestsCenter());
+        return;
+      }
+      if (deepLink.isJoinRequestNotification) {
+        unawaited(_openSubmittedJoinRequests());
+        return;
+      }
+      if (deepLink.isNearbyRelativesNotification) {
+        _selectDestination(0);
+      }
+    });
+  }
+
+  void _openEventNotificationDestination({
+    required String? eventId,
+    required String? messageId,
+  }) {
+    if (!_shouldOpenNotificationMessage(messageId)) {
+      return;
+    }
+
+    final normalizedEventId = _normalizeNotificationReferenceId(eventId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) {
-            return NotificationTargetPage(
-              targetType: targetType,
-              referenceId: referenceId,
-              sourceTitle: sourceTitle,
-              sourceBody: sourceBody,
+            return EventWorkspacePage(
+              session: _session,
+              repository: _eventRepository,
+              availableClanContexts: _clanContexts,
+              onSwitchClanContext: _switchClanContext,
+              initialEventId: normalizedEventId,
             );
           },
         ),
       );
     });
+  }
+
+  void _openScholarshipNotificationDestination({
+    required String? referenceId,
+    required String? messageId,
+  }) {
+    if (!_shouldOpenNotificationMessage(messageId)) {
+      return;
+    }
+
+    final normalizedReferenceId = _normalizeNotificationReferenceId(
+      referenceId,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) {
+            return ScholarshipWorkspacePage(
+              session: _session,
+              repository: _scholarshipRepository,
+              availableClanContexts: _clanContexts,
+              onSwitchClanContext: _switchClanContext,
+              initialProgramId: normalizedReferenceId,
+              initialSubmissionId: normalizedReferenceId,
+            );
+          },
+        ),
+      );
+    });
+  }
+
+  String? _normalizeNotificationReferenceId(String? value) {
+    final normalized = value?.trim() ?? '';
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
   }
 
   bool _shouldOpenNotificationMessage(String? messageId) {
@@ -377,34 +513,37 @@ class _AppShellPageState extends State<AppShellPage> {
     };
   }
 
-  int? _destinationIndexForNotificationTarget(
-    NotificationTargetType targetType,
-  ) {
-    return switch (targetType) {
-      NotificationTargetType.event || NotificationTargetType.scholarship => 2,
-      NotificationTargetType.billing => 3,
-      NotificationTargetType.authRefresh => null,
-      NotificationTargetType.unknown => null,
-    };
+  bool get _isAdBannerVisible =>
+      _showAdBanner &&
+      !_dismissAdBannerForSession &&
+      _adController.isBannerPlacementVisible;
+
+  String _screenIdForIndex(int index) {
+    final destinations = _hasClanContext
+        ? _destinations
+        : _unlinkedDestinations;
+    if (index < 0 || index >= destinations.length) {
+      return 'home';
+    }
+    return destinations[index].id;
   }
 
-  bool get _isAdBannerVisible =>
-      _showAdBanner && !_dismissAdBannerForSession && _selectedIndex != 3;
-
-  void _syncAdBannerAutoHideTimer() {
-    _adBannerAutoHideTimer?.cancel();
-    if (!_isAdBannerVisible) {
-      _adBannerAutoHideTimer = null;
+  void _selectDestination(int index) {
+    if (index == _selectedIndex) {
       return;
     }
-    _adBannerAutoHideTimer = Timer(_adBannerAutoHideDelay, () {
-      if (!mounted || !_isAdBannerVisible) {
-        return;
+    final previousIndex = _selectedIndex;
+    setState(() {
+      _selectedIndex = index;
+      _visitedDestinationIndexes.add(index);
+      if (_screenIdForIndex(index) == 'billing') {
+        _dismissAdBannerForSession = false;
       }
-      setState(() {
-        _dismissAdBannerForSession = true;
-      });
     });
+    _adController.recordNavigationTransition(
+      fromScreenId: _screenIdForIndex(previousIndex),
+      toScreenId: _screenIdForIndex(index),
+    );
   }
 
   Future<void> _refreshBillingEntitlement() async {
@@ -424,15 +563,18 @@ class _AppShellPageState extends State<AppShellPage> {
         setState(() {
           _showAdBanner = shouldShow;
         });
-        _syncAdBannerAutoHideTimer();
+        _adController.updateCurrentScreen(_screenIdForIndex(_selectedIndex));
       }
       return;
     }
 
     _isResolvingBillingEntitlement = true;
     try {
-      final entitlement = await _billingRepository.resolveEntitlement(
-        session: _session,
+      final entitlement = await _shellPerformanceLogger.measureAsync(
+        metric: 'shell.billing_entitlement',
+        dimensions: {'has_clan_context': _hasClanContext ? 1 : 0},
+        warnAfter: const Duration(milliseconds: 2000),
+        action: () => _billingRepository.resolveEntitlement(session: _session),
       );
       final normalizedTier = entitlement.planCode.trim().toUpperCase();
       final resolvedTier = normalizedTier.isEmpty ? 'FREE' : normalizedTier;
@@ -453,7 +595,7 @@ class _AppShellPageState extends State<AppShellPage> {
           _dismissAdBannerForSession = false;
         }
       });
-      _syncAdBannerAutoHideTimer();
+      _adController.updateCurrentScreen(_screenIdForIndex(_selectedIndex));
     } catch (_) {
       // Keep current state when billing entitlement cannot be refreshed.
     } finally {
@@ -512,8 +654,11 @@ class _AppShellPageState extends State<AppShellPage> {
     }
     _isLoadingClanContexts = true;
     try {
-      final snapshot = await _clanContextService.loadContexts(
-        session: _session,
+      final snapshot = await _shellPerformanceLogger.measureAsync(
+        metric: 'shell.clan_contexts',
+        dimensions: {'login_method': _session.loginMethod.name},
+        warnAfter: const Duration(milliseconds: 2000),
+        action: () => _clanContextService.loadContexts(session: _session),
       );
       if (!mounted) {
         return;
@@ -526,24 +671,26 @@ class _AppShellPageState extends State<AppShellPage> {
         _resolvedClanNamesById.addAll(resolvedNames);
       });
       await _sessionStore.write(_activeSession);
-      await _pushNotificationService.start(
-        session: _session,
-        onDeepLink: _handleNotificationDeepLink,
-      );
+      await _startPushNotificationsForActiveSession();
       unawaited(_ensureActiveClanDisplayNameResolved());
       unawaited(_refreshBillingEntitlement());
     } catch (_) {
       final sanitizedSession = _sanitizeSessionContext(_session);
-      if (!mounted || sanitizedSession == _session) {
+      if (!mounted) {
         return;
       }
-      setState(() {
-        _activeSession = sanitizedSession;
-        if (!_sessionHasClanContext(sanitizedSession)) {
-          _clanContexts = const [];
-        }
-      });
-      await _sessionStore.write(_activeSession);
+      if (sanitizedSession != _session) {
+        setState(() {
+          _activeSession = sanitizedSession;
+          if (!_sessionHasClanContext(sanitizedSession)) {
+            _clanContexts = const [];
+          }
+        });
+        await _sessionStore.write(_activeSession);
+      }
+      await _startPushNotificationsForActiveSession();
+      unawaited(_ensureActiveClanDisplayNameResolved());
+      unawaited(_refreshBillingEntitlement());
     } finally {
       _isLoadingClanContexts = false;
     }
@@ -575,10 +722,7 @@ class _AppShellPageState extends State<AppShellPage> {
         _visitedDestinationIndexes.add(_selectedIndex);
       });
       await _sessionStore.write(_activeSession);
-      await _pushNotificationService.start(
-        session: _session,
-        onDeepLink: _handleNotificationDeepLink,
-      );
+      await _startPushNotificationsForActiveSession();
       unawaited(_ensureActiveClanDisplayNameResolved());
       unawaited(_refreshBillingEntitlement());
       return _activeSession;
@@ -611,10 +755,7 @@ class _AppShellPageState extends State<AppShellPage> {
       _visitedDestinationIndexes.add(_selectedIndex);
     });
     await _sessionStore.write(_activeSession);
-    await _pushNotificationService.start(
-      session: _session,
-      onDeepLink: _handleNotificationDeepLink,
-    );
+    await _startPushNotificationsForActiveSession();
     unawaited(_ensureActiveClanDisplayNameResolved());
     unawaited(_refreshBillingEntitlement());
   }
@@ -754,11 +895,6 @@ class _AppShellPageState extends State<AppShellPage> {
       _selectedIndex = 0;
     }
     final sessionTooltip = l10n.authEntryMethodSummary(_session.loginMethod);
-    final readinessTooltip = widget.status.isReady
-        ? l10n.shellReadinessReady
-        : widget.status.errorMessage?.trim().isNotEmpty == true
-        ? widget.status.errorMessage!
-        : l10n.shellReadinessPending;
     final pages = [
       _HomeDashboard(
         key: ValueKey<String>('home-${_session.clanId ?? 'none'}'),
@@ -768,23 +904,16 @@ class _AppShellPageState extends State<AppShellPage> {
         memberRepository: widget.memberRepository,
         eventRepository: _eventRepository,
         fundRepository: _fundRepository,
+        scholarshipRepository: _scholarshipRepository,
         discoveryRepository: _genealogyDiscoveryRepository,
         activeClanName: _activeClanDisplayName(),
         availableClanContexts: _clanContexts,
         onSwitchClanContext: _switchClanContext,
         onOpenTreeRequested: () {
-          setState(() {
-            _selectedIndex = 1;
-            _visitedDestinationIndexes.add(1);
-          });
-          _syncAdBannerAutoHideTimer();
+          _selectDestination(1);
         },
         onOpenEventsRequested: () {
-          setState(() {
-            _selectedIndex = 2;
-            _visitedDestinationIndexes.add(2);
-          });
-          _syncAdBannerAutoHideTimer();
+          _selectDestination(2);
         },
         onOpenUpcomingEventDetailRequested: (event) {
           unawaited(_openUpcomingEventDetail(event));
@@ -796,11 +925,7 @@ class _AppShellPageState extends State<AppShellPage> {
           unawaited(_openJoinRequestsCenter());
         },
         onOpenProfileRequested: () {
-          setState(() {
-            _selectedIndex = 4;
-            _visitedDestinationIndexes.add(4);
-          });
-          _syncAdBannerAutoHideTimer();
+          _selectDestination(4);
         },
       ),
       if (_visitedDestinationIndexes.contains(1))
@@ -816,6 +941,7 @@ class _AppShellPageState extends State<AppShellPage> {
                 session: _session,
                 repository: _genealogyDiscoveryRepository,
                 onAddGenealogyRequested: _openClanWorkspaceFromTreeAddAction,
+                rewardedDiscoveryAttemptService: _adController,
               )
       else
         const SizedBox.shrink(),
@@ -839,6 +965,7 @@ class _AppShellPageState extends State<AppShellPage> {
           session: _session,
           repository: _billingRepository,
           embeddedInShell: true,
+          onPricingQuickActionChanged: _handleBillingPricingQuickActionChanged,
         )
       else
         const SizedBox.shrink(),
@@ -865,11 +992,7 @@ class _AppShellPageState extends State<AppShellPage> {
 
     final appBar = AppBar(
       title: Text(_activeClanAppBarTitle(l10n)),
-      actions: _buildAppBarActions(
-        l10n: l10n,
-        sessionTooltip: sessionTooltip,
-        readinessTooltip: readinessTooltip,
-      ),
+      actions: _buildAppBarActions(l10n: l10n, sessionTooltip: sessionTooltip),
     );
 
     Widget contentStack = IndexedStack(index: _selectedIndex, children: pages);
@@ -889,71 +1012,74 @@ class _AppShellPageState extends State<AppShellPage> {
           _SponsoredAdBanner(
             adController: _adController,
             onClose: () {
+              _adController.disposeBannerForSession();
               setState(() {
                 _dismissAdBannerForSession = true;
               });
-              _syncAdBannerAutoHideTimer();
             },
           ),
         Expanded(child: SafeArea(top: false, child: contentStack)),
       ],
     );
 
-    if (layout.useRailNavigation) {
-      return Scaffold(
-        appBar: appBar,
-        body: Row(
-          children: [
-            _ShellNavigationRail(
-              selectedIndex: _selectedIndex,
-              destinations: destinations,
-              onDestinationSelected: _handleDestinationSelected,
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(child: contentWithBanner),
-          ],
-        ),
-      );
-    }
-
-    return Scaffold(
-      appBar: appBar,
-      body: SafeArea(child: contentStack),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_isAdBannerVisible)
-            _SponsoredAdBanner(
-              adController: _adController,
-              onClose: () {
-                setState(() {
-                  _dismissAdBannerForSession = true;
-                });
-                _syncAdBannerAutoHideTimer();
-              },
-            ),
-          MediaQuery.withClampedTextScaling(
-            minScaleFactor: 1,
-            maxScaleFactor: 1,
-            child: NavigationBar(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: _handleDestinationSelected,
-              labelBehavior: layout.width < 460
-                  ? NavigationDestinationLabelBehavior.onlyShowSelected
-                  : NavigationDestinationLabelBehavior.alwaysShow,
-              destinations: [
-                for (final destination in destinations)
-                  NavigationDestination(
-                    icon: Icon(destination.icon),
-                    selectedIcon: Icon(destination.selectedIcon),
-                    label: l10n.shellDestinationLabel(destination.id),
-                  ),
+    final scaffold = layout.useRailNavigation
+        ? Scaffold(
+            appBar: appBar,
+            body: Row(
+              children: [
+                _ShellNavigationRail(
+                  selectedIndex: _selectedIndex,
+                  destinations: destinations,
+                  onDestinationSelected: _handleDestinationSelected,
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: contentWithBanner),
               ],
             ),
-          ),
-        ],
-      ),
-    );
+          )
+        : Scaffold(
+            appBar: appBar,
+            body: SafeArea(child: contentStack),
+            bottomNavigationBar: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_isAdBannerVisible)
+                  _SponsoredAdBanner(
+                    adController: _adController,
+                    onClose: () {
+                      _adController.disposeBannerForSession();
+                      setState(() {
+                        _dismissAdBannerForSession = true;
+                      });
+                    },
+                  ),
+                MediaQuery.withClampedTextScaling(
+                  minScaleFactor: 1,
+                  maxScaleFactor: 1,
+                  child: NavigationBar(
+                    selectedIndex: _selectedIndex,
+                    onDestinationSelected: _handleDestinationSelected,
+                    labelBehavior: layout.width < 460
+                        ? NavigationDestinationLabelBehavior.onlyShowSelected
+                        : NavigationDestinationLabelBehavior.alwaysShow,
+                    destinations: [
+                      for (final destination in destinations)
+                        NavigationDestination(
+                          icon: _buildShellDestinationAnchor(
+                            destination.id,
+                            child: Icon(destination.icon),
+                          ),
+                          selectedIcon: Icon(destination.selectedIcon),
+                          label: l10n.shellDestinationLabel(destination.id),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+
+    return OnboardingScope(controller: _onboardingCoordinator, child: scaffold);
   }
 
   Map<String, String> _extractNamedClanContexts(
@@ -1037,10 +1163,13 @@ class _AppShellPageState extends State<AppShellPage> {
 
     _isResolvingActiveClanName = true;
     try {
-      final workspace = await widget.clanRepository.loadWorkspace(
-        session: _session,
+      final clan = await _shellPerformanceLogger.measureAsync(
+        metric: 'shell.active_clan_name',
+        dimensions: {'selected_index': _selectedIndex},
+        warnAfter: const Duration(milliseconds: 1200),
+        action: () => widget.clanRepository.loadClanProfile(session: _session),
       );
-      final clanName = workspace.clan?.name.trim() ?? '';
+      final clanName = clan?.name.trim() ?? '';
       if (!mounted || clanName.isEmpty) {
         return;
       }
@@ -1058,21 +1187,12 @@ class _AppShellPageState extends State<AppShellPage> {
   }
 
   void _handleDestinationSelected(int index) {
-    if (index == _selectedIndex) {
-      return;
-    }
-    setState(() {
-      _selectedIndex = index;
-      _visitedDestinationIndexes.add(index);
-    });
-    _adController.onSafeUserAction();
-    _syncAdBannerAutoHideTimer();
+    _selectDestination(index);
   }
 
   List<Widget> _buildAppBarActions({
     required AppLocalizations l10n,
     required String sessionTooltip,
-    required String readinessTooltip,
   }) {
     final canSwitchClan =
         !_isLoadingClanContexts &&
@@ -1104,15 +1224,6 @@ class _AppShellPageState extends State<AppShellPage> {
         )
       else
         const SizedBox(width: 4),
-      Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Tooltip(
-          message: readinessTooltip,
-          child: Icon(
-            widget.status.isReady ? Icons.cloud_done : Icons.cloud_off,
-          ),
-        ),
-      ),
       if (_selectedIndex == 1)
         IconButton(
           tooltip: l10n.pick(
@@ -1121,6 +1232,21 @@ class _AppShellPageState extends State<AppShellPage> {
           ),
           onPressed: _openSubmittedJoinRequests,
           icon: const Icon(Icons.list_alt_outlined),
+        ),
+      if (_selectedIndex == 3 && _billingPricingQuickAction != null)
+        IconButton(
+          key: const Key('billing-pricing-quick-action'),
+          tooltip: l10n.pick(
+            vi: 'Xem nhanh bảng giá',
+            en: 'Quick pricing view',
+          ),
+          onPressed: () {
+            final action = _billingPricingQuickAction;
+            if (action != null) {
+              unawaited(action());
+            }
+          },
+          icon: const Icon(Icons.sell_outlined),
         ),
       if (canSwitchClan || canLogout)
         PopupMenuButton<_ShellOverflowAction>(
@@ -1185,6 +1311,10 @@ class _AppShellPageState extends State<AppShellPage> {
         },
       ),
     );
+    _adController.recordRouteReturn(
+      screenId: _screenIdForIndex(_selectedIndex),
+      routeId: 'clan_detail',
+    );
     await _loadClanContexts();
   }
 
@@ -1200,6 +1330,10 @@ class _AppShellPageState extends State<AppShellPage> {
           );
         },
       ),
+    );
+    _adController.recordRouteReturn(
+      screenId: _screenIdForIndex(_selectedIndex),
+      routeId: 'event_workspace',
     );
   }
 
@@ -1219,6 +1353,10 @@ class _AppShellPageState extends State<AppShellPage> {
           );
         },
       ),
+    );
+    _adController.recordRouteReturn(
+      screenId: _screenIdForIndex(_selectedIndex),
+      routeId: 'event_detail',
     );
   }
 
@@ -1246,6 +1384,10 @@ class _AppShellPageState extends State<AppShellPage> {
           },
         ),
       );
+      _adController.recordRouteReturn(
+        screenId: _screenIdForIndex(_selectedIndex),
+        routeId: 'join_request_review',
+      );
       return;
     }
 
@@ -1266,6 +1408,7 @@ class _AppShellPageState extends State<AppShellPage> {
                           ? null
                           : _openClanWorkspaceFromTreeAddAction,
                       initialQuery: query,
+                      rewardedDiscoveryAttemptService: _adController,
                     );
                   },
                 ),
@@ -1274,6 +1417,10 @@ class _AppShellPageState extends State<AppShellPage> {
           );
         },
       ),
+    );
+    _adController.recordRouteReturn(
+      screenId: _screenIdForIndex(_selectedIndex),
+      routeId: 'my_join_requests',
     );
   }
 
@@ -1296,6 +1443,7 @@ class _AppShellPageState extends State<AppShellPage> {
                           ? null
                           : _openClanWorkspaceFromTreeAddAction,
                       initialQuery: query,
+                      rewardedDiscoveryAttemptService: _adController,
                     );
                   },
                 ),
@@ -1304,6 +1452,10 @@ class _AppShellPageState extends State<AppShellPage> {
           );
         },
       ),
+    );
+    _adController.recordRouteReturn(
+      screenId: _screenIdForIndex(_selectedIndex),
+      routeId: 'submitted_join_requests',
     );
   }
 }

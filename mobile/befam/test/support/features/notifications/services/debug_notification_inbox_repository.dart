@@ -123,8 +123,8 @@ class DebugNotificationInboxRepository implements NotificationInboxRepository {
         isRead: false,
         createdAt: now.subtract(const Duration(minutes: 18)),
         target: NotificationInboxTarget.event,
-        targetId: 'event_demo_001',
-        data: const {'target': 'event', 'id': 'event_demo_001'},
+        targetId: 'event_demo_memorial_001',
+        data: const {'target': 'event', 'id': 'event_demo_memorial_001'},
       ),
       NotificationInboxItem(
         id: 'notif_demo_scholarship_001',
@@ -136,8 +136,12 @@ class DebugNotificationInboxRepository implements NotificationInboxRepository {
         isRead: false,
         createdAt: now.subtract(const Duration(hours: 3, minutes: 12)),
         target: NotificationInboxTarget.scholarship,
-        targetId: 'submission_demo_001',
-        data: const {'target': 'scholarship', 'id': 'submission_demo_001'},
+        targetId: 'sub_demo_001',
+        data: const {
+          'target': 'scholarship',
+          'id': 'sub_demo_001',
+          'submissionId': 'sub_demo_001',
+        },
       ),
       NotificationInboxItem(
         id: 'notif_demo_generic_001',
@@ -162,8 +166,8 @@ class DebugNotificationInboxRepository implements NotificationInboxRepository {
         isRead: false,
         createdAt: now.subtract(const Duration(hours: 20)),
         target: NotificationInboxTarget.event,
-        targetId: 'event_demo_002',
-        data: const {'target': 'event', 'id': 'event_demo_002'},
+        targetId: 'event_demo_gathering_001',
+        data: const {'target': 'event', 'id': 'event_demo_gathering_001'},
       ),
       NotificationInboxItem(
         id: 'notif_demo_scholarship_002',
@@ -175,8 +179,12 @@ class DebugNotificationInboxRepository implements NotificationInboxRepository {
         isRead: true,
         createdAt: now.subtract(const Duration(days: 1, hours: 3)),
         target: NotificationInboxTarget.scholarship,
-        targetId: 'submission_demo_002',
-        data: const {'target': 'scholarship', 'id': 'submission_demo_002'},
+        targetId: 'sub_demo_002',
+        data: const {
+          'target': 'scholarship',
+          'id': 'sub_demo_002',
+          'submissionId': 'sub_demo_002',
+        },
       ),
       NotificationInboxItem(
         id: 'notif_demo_generic_002',
@@ -203,8 +211,8 @@ class DebugNotificationInboxRepository implements NotificationInboxRepository {
         isRead: false,
         createdAt: now.subtract(const Duration(days: 2, hours: 6)),
         target: NotificationInboxTarget.event,
-        targetId: 'event_demo_003',
-        data: const {'target': 'event', 'id': 'event_demo_003'},
+        targetId: 'event_demo_gathering_001',
+        data: const {'target': 'event', 'id': 'event_demo_gathering_001'},
       ),
     ];
   }

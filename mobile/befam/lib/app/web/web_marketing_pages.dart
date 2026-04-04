@@ -14,6 +14,7 @@ const double _kSectionGap = 32;
 const double _kBlockGap = 20;
 const double _kCardGap = 16;
 const double _kCardPadding = 22;
+const String _kSupportEmail = 'support@hunpeo.vn';
 
 Future<void> _trackMarketingCtaClick({
   required String ctaType,
@@ -609,6 +610,361 @@ class WebBeFamInfoPage extends StatelessWidget {
               ),
               onSecondaryPressed: () => context.go('/about-us'),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class WebPrivacyPolicyPage extends StatelessWidget {
+  const WebPrivacyPolicyPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _LegalContentPage(
+      currentPath: '/privacy',
+      pageTitle: context.l10n.pick(
+        vi: 'Chính sách quyền riêng tư | BeFam',
+        en: 'Privacy Policy | BeFam',
+      ),
+      eyebrow: context.l10n.pick(vi: 'Quyền riêng tư', en: 'Privacy'),
+      title: context.l10n.pick(
+        vi: 'BeFam tôn trọng dữ liệu của từng thành viên dòng họ.',
+        en: 'BeFam respects each member’s family data.',
+      ),
+      subtitle: context.l10n.pick(
+        vi: 'Trang này tóm tắt cách BeFam thu thập, sử dụng, bảo vệ và phản hồi yêu cầu liên quan đến dữ liệu cá nhân.',
+        en: 'This page summarizes how BeFam collects, uses, protects, and responds to requests about personal data.',
+      ),
+      sections: [
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '1. Dữ liệu BeFam thu thập',
+            en: '1. Data BeFam collects',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'BeFam có thể xử lý số điện thoại, hồ sơ thành viên, vai trò trong gia phả, nội dung do người dùng nhập, giao dịch quỹ, hồ sơ khuyến học và các tín hiệu kỹ thuật phục vụ đăng nhập, bảo mật và vận hành.',
+              en: 'BeFam may process phone numbers, member profiles, genealogy roles, user-entered content, fund transactions, scholarship submissions, and technical signals needed for sign-in, security, and operations.',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '2. Mục đích sử dụng',
+            en: '2. Why we use this data',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'Dữ liệu được dùng để xác thực tài khoản, hiển thị gia phả đúng quyền, vận hành lịch sự kiện, quỹ, khuyến học, gửi thông báo quan trọng và hỗ trợ người dùng khi có sự cố.',
+              en: 'Data is used to authenticate accounts, show the correct family records with proper permissions, run event, fund, and scholarship workflows, send important notifications, and support users when issues happen.',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '3. Chia sẻ và bảo vệ dữ liệu',
+            en: '3. Sharing and protecting data',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'BeFam chỉ chia sẻ dữ liệu với hạ tầng và dịch vụ vận hành cần thiết như Firebase, Google Cloud, Apple App Store, Google Play hoặc các đối tác xác thực/thanh toán liên quan đến tính năng đang dùng. Quyền truy cập trong app được kiểm soát theo vai trò.',
+              en: 'BeFam only shares data with required operating infrastructure and services such as Firebase, Google Cloud, Apple App Store, Google Play, or relevant verification and payment providers used by the feature. In-app access is controlled by role.',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '4. Liên hệ về dữ liệu',
+            en: '4. Contact about your data',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'Nếu bạn cần cập nhật, phản hồi hoặc yêu cầu xử lý dữ liệu liên quan đến tài khoản BeFam, hãy liên hệ đội ngũ hỗ trợ qua email bên dưới.',
+              en: 'If you need to update, question, or request handling of data related to your BeFam account, contact the support team using the email below.',
+            ),
+          ],
+          actions: [
+            _LegalAction(
+              label: _kSupportEmail,
+              href: 'mailto:$_kSupportEmail?subject=BeFam%20Privacy%20Request',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class WebTermsPage extends StatelessWidget {
+  const WebTermsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _LegalContentPage(
+      currentPath: '/terms',
+      pageTitle: context.l10n.pick(
+        vi: 'Điều khoản sử dụng | BeFam',
+        en: 'Terms of Use | BeFam',
+      ),
+      eyebrow: context.l10n.pick(vi: 'Điều khoản', en: 'Terms'),
+      title: context.l10n.pick(
+        vi: 'BeFam được dùng để vận hành gia phả và hoạt động dòng họ một cách tôn trọng và minh bạch.',
+        en: 'BeFam is intended for respectful and transparent family-clan operations.',
+      ),
+      subtitle: context.l10n.pick(
+        vi: 'Khi dùng BeFam, người dùng cần bảo đảm thông tin cung cấp là phù hợp, đúng quyền và không gây ảnh hưởng đến thành viên khác trong dòng họ.',
+        en: 'When using BeFam, users are expected to provide appropriate information, act within their permissions, and avoid harming other family members.',
+      ),
+      sections: [
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '1. Phạm vi sử dụng',
+            en: '1. Intended use',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'BeFam hỗ trợ lưu trữ gia phả, quản lý thành viên, sự kiện, quỹ, khuyến học và các hoạt động liên quan đến vận hành họ tộc. Người dùng không được dùng BeFam để mạo danh, truy cập sai quyền hoặc đưa nội dung trái pháp luật.',
+              en: 'BeFam supports genealogy records, member management, events, funds, scholarships, and related clan operations. Users must not use BeFam to impersonate others, access data outside their permissions, or submit unlawful content.',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '2. Trách nhiệm tài khoản',
+            en: '2. Account responsibility',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'Mỗi tài khoản phải được dùng đúng người, đúng hồ sơ và đúng vai trò. Người dùng chịu trách nhiệm với thao tác của mình trên hệ thống, bao gồm yêu cầu tham gia, quản trị dữ liệu, giao dịch và cập nhật thông tin.',
+              en: 'Each account must be used by the right person, profile, and role. Users are responsible for their actions in the system, including join requests, data administration, transactions, and profile updates.',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '3. Dịch vụ trả phí và thông báo',
+            en: '3. Paid services and notifications',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'Một số tính năng có thể đi kèm gói dịch vụ hoặc nhắc việc qua thông báo. Quyền sử dụng chỉ được kích hoạt khi thanh toán hoặc xác minh hoàn tất theo chính sách của hệ thống và kho ứng dụng.',
+              en: 'Some features may depend on subscriptions or reminder notifications. Access is activated only after payment or verification completes according to system and store policies.',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '4. Hỗ trợ và phản hồi',
+            en: '4. Support and feedback',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'Nếu cần hỗ trợ về điều khoản, quyền sử dụng hoặc tranh chấp liên quan đến tài khoản BeFam, vui lòng liên hệ đội ngũ hỗ trợ.',
+              en: 'If you need help with terms, access rights, or account-related disputes in BeFam, please contact support.',
+            ),
+          ],
+          actions: [
+            _LegalAction(
+              label: _kSupportEmail,
+              href: 'mailto:$_kSupportEmail?subject=BeFam%20Terms%20Question',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class WebAccountDeletionPage extends StatelessWidget {
+  const WebAccountDeletionPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _LegalContentPage(
+      currentPath: '/account-deletion',
+      pageTitle: context.l10n.pick(
+        vi: 'Yêu cầu xóa tài khoản | BeFam',
+        en: 'Account Deletion Request | BeFam',
+      ),
+      eyebrow: context.l10n.pick(
+        vi: 'Xóa tài khoản',
+        en: 'Account deletion',
+      ),
+      title: context.l10n.pick(
+        vi: 'Bạn có thể gửi yêu cầu xóa tài khoản BeFam mà không cần đăng nhập.',
+        en: 'You can request deletion of your BeFam account without signing in.',
+      ),
+      subtitle: context.l10n.pick(
+        vi: 'Đội ngũ BeFam sẽ tiếp nhận yêu cầu, xác minh thông tin cần thiết và phản hồi tiến độ qua email hỗ trợ.',
+        en: 'The BeFam team will receive the request, verify the necessary details, and respond with next steps through support.',
+      ),
+      sections: [
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '1. Cách gửi yêu cầu',
+            en: '1. How to submit a request',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'Gửi email tới đội ngũ hỗ trợ với tiêu đề “Yêu cầu xóa tài khoản BeFam” và cung cấp số điện thoại đăng nhập, họ tên, cùng thông tin nhận diện cần thiết để xác minh.',
+              en: 'Send an email to support with the subject “BeFam account deletion request” and include the sign-in phone number, full name, and the identity details needed for verification.',
+            ),
+          ],
+          actions: [
+            _LegalAction(
+              label: context.l10n.pick(
+                vi: 'Gửi yêu cầu qua email',
+                en: 'Send request by email',
+              ),
+              href:
+                  'mailto:$_kSupportEmail?subject=BeFam%20Account%20Deletion%20Request',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '2. Dữ liệu sẽ được xử lý',
+            en: '2. What data will be handled',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'Khi yêu cầu được xác nhận, BeFam sẽ xử lý việc xóa hoặc vô hiệu hóa tài khoản và các dữ liệu liên quan theo chính sách vận hành hiện hành, ngoại trừ phần dữ liệu cần lưu giữ theo nghĩa vụ pháp lý hoặc phục vụ đối soát hệ thống.',
+              en: 'Once the request is confirmed, BeFam will process deletion or deactivation of the account and related data according to current operating policy, except data that must be retained for legal or system-reconciliation reasons.',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '3. Thời gian phản hồi',
+            en: '3. Response time',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'BeFam sẽ phản hồi yêu cầu qua email hỗ trợ sau khi tiếp nhận và xác minh thông tin. Trong giai đoạn đầu vận hành, thời gian xử lý có thể thay đổi theo khối lượng yêu cầu thực tế.',
+              en: 'BeFam will respond by email after receiving and verifying the request. In the early operating phase, handling time may vary depending on request volume.',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _LegalContentPage extends StatelessWidget {
+  const _LegalContentPage({
+    required this.currentPath,
+    required this.pageTitle,
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+    required this.sections,
+  });
+
+  final String currentPath;
+  final String pageTitle;
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+  final List<_LegalSection> sections;
+
+  @override
+  Widget build(BuildContext context) {
+    return _WebMarketingLayout(
+      currentPath: currentPath,
+      pageTitle: pageTitle,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 20, bottom: 44),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SectionCard(
+              title: title,
+              subtitle: subtitle,
+              icon: Icons.verified_user_rounded,
+              badge: eyebrow,
+            ),
+            const SizedBox(height: _kBlockGap),
+            ...[
+              for (final section in sections) ...[
+                _LegalSectionCard(section: section),
+                const SizedBox(height: _kCardGap),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LegalSection {
+  const _LegalSection({
+    required this.title,
+    required this.paragraphs,
+    this.actions = const [],
+  });
+
+  final String title;
+  final List<String> paragraphs;
+  final List<_LegalAction> actions;
+}
+
+class _LegalAction {
+  const _LegalAction({required this.label, required this.href});
+
+  final String label;
+  final String href;
+}
+
+class _LegalSectionCard extends StatelessWidget {
+  const _LegalSectionCard({required this.section});
+
+  final _LegalSection section;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(_kCardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              section.title,
+              style: textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ...[
+              for (final paragraph in section.paragraphs) ...[
+                Text(
+                  paragraph,
+                  style: textTheme.bodyLarge?.copyWith(height: 1.6),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ],
+            if (section.actions.isNotEmpty)
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final action in section.actions)
+                    OutlinedButton(
+                      onPressed: () => launchUrl(
+                        Uri.parse(action.href),
+                        mode: LaunchMode.platformDefault,
+                      ),
+                      child: Text(action.label),
+                    ),
+                ],
+              ),
           ],
         ),
       ),
@@ -1778,10 +2134,10 @@ class _HunpeoLabsContactCard extends StatelessWidget {
             _ContactRow(
               icon: Icons.mail_outline_rounded,
               value: l10n.pick(
-                vi: 'Email hỗ trợ: support@hunpeo.vn',
-                en: 'Support email: support@hunpeo.vn',
+                vi: 'Email hỗ trợ: $_kSupportEmail',
+                en: 'Support email: $_kSupportEmail',
               ),
-              link: 'mailto:support@hunpeo.vn',
+              link: 'mailto:$_kSupportEmail',
             ),
             const SizedBox(height: 8),
             _ContactRow(
@@ -1949,6 +2305,35 @@ class _WebFooter extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              _FooterLinkButton(
+                label: l10n.pick(
+                  vi: 'Chính sách quyền riêng tư',
+                  en: 'Privacy policy',
+                ),
+                onPressed: () => context.go('/privacy'),
+              ),
+              _FooterLinkButton(
+                label: l10n.pick(
+                  vi: 'Điều khoản sử dụng',
+                  en: 'Terms of use',
+                ),
+                onPressed: () => context.go('/terms'),
+              ),
+              _FooterLinkButton(
+                label: l10n.pick(
+                  vi: 'Yêu cầu xóa tài khoản',
+                  en: 'Account deletion',
+                ),
+                onPressed: () => context.go('/account-deletion'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Text(
             context.l10n.pick(
               vi: 'Copyright © $year BeFam. Đã đăng ký bản quyền.',
@@ -1959,6 +2344,29 @@ class _WebFooter extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FooterLinkButton extends StatelessWidget {
+  const _FooterLinkButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(label),
     );
   }
 }

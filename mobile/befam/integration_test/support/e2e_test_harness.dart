@@ -21,6 +21,7 @@ import '../../test/support/features/funds/services/debug_fund_repository.dart';
 import '../../test/support/features/genealogy/services/debug_genealogy_read_repository.dart';
 import '../../test/support/features/member/services/debug_member_repository.dart';
 import '../../test/support/features/profile/services/debug_profile_notification_preferences_repository.dart';
+import '../../test/support/features/scholarship/services/debug_scholarship_repository.dart';
 import '../../test/support/features/auth/services/debug_clan_context_service.dart';
 import 'e2e_scenarios.dart';
 import 'fakes/fake_push_notification_service.dart';
@@ -338,6 +339,7 @@ Future<E2EAppContext> pumpE2EApp(
       genealogyRepository: DebugGenealogyReadRepository.seeded(),
       genealogyDiscoveryRepository: DebugGenealogyDiscoveryRepository.seeded(),
       billingRepository: DebugBillingRepository.shared(),
+      scholarshipRepository: DebugScholarshipRepository.shared(),
       pushNotificationService: fakePush,
       profileNotificationPreferencesRepository:
           DebugProfileNotificationPreferencesRepository.shared(),

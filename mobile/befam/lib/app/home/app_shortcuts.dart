@@ -8,8 +8,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
   {
     'id': 'clan',
     'title': 'Clan',
-    'description':
-        'Set up clan identity, branch leadership, and the first administration workspace.',
+    'description': 'View clan details and family branches.',
     'route': '/clan',
     'iconKey': 'clan',
     'status': 'live',
@@ -18,8 +17,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
   {
     'id': 'tree',
     'title': 'Family Tree',
-    'description':
-        'Start the genealogy experience with branch-aware tree navigation.',
+    'description': 'Explore the family tree and member relationships.',
     'route': '/tree',
     'iconKey': 'tree',
     'status': 'bootstrap',
@@ -28,8 +26,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
   {
     'id': 'members',
     'title': 'Members',
-    'description':
-        'View member profiles, claim records, and prepare the first data flows.',
+    'description': 'Search and update member profiles quickly.',
     'route': '/members',
     'iconKey': 'members',
     'status': 'live',
@@ -38,8 +35,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
   {
     'id': 'events',
     'title': 'Events',
-    'description':
-        'Plan clan events, memorial days, and reminders from a shared calendar.',
+    'description': 'Follow family events, memorial dates, and reminders.',
     'route': '/events',
     'iconKey': 'events',
     'status': 'live',
@@ -48,8 +44,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
   {
     'id': 'funds',
     'title': 'Funds',
-    'description':
-        'Track contribution funds, transaction history, and transparent balances.',
+    'description': 'Track contributions, spending, and fund balance.',
     'route': '/funds',
     'iconKey': 'funds',
     'status': 'live',
@@ -57,8 +52,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
   {
     'id': 'scholarship',
     'title': 'Scholarships',
-    'description':
-        'Capture student achievements and later connect awards to family branches.',
+    'description': 'Review scholarship requests and student support.',
     'route': '/scholarship',
     'iconKey': 'scholarship',
     'status': 'planned',
@@ -66,8 +60,7 @@ const List<Map<String, dynamic>> _bootstrapShortcutSeed = [
   {
     'id': 'profile',
     'title': 'Profile',
-    'description':
-        'Reserve a personal space for member settings, guardianship, and context.',
+    'description': 'Update your profile and account settings.',
     'route': '/profile',
     'iconKey': 'profile',
     'status': 'live',

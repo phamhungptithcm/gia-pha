@@ -8,6 +8,7 @@ import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -614,7 +615,6 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
           visibleEvents,
           nowLocal: nowLocal,
         );
-        final hasMoreEvents = visibleEvents.length < filteredEvents.length;
 
         return Scaffold(
           appBar: AppBar(
@@ -639,8 +639,8 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
             child: _controller.isLoading
                 ? AppLoadingState(
                     message: l10n.pick(
-                      vi: 'Đang tải không gian sự kiện...',
-                      en: 'Loading event workspace...',
+                      vi: 'Đang tải sự kiện...',
+                      en: 'Loading events...',
                     ),
                   )
                 : !_controller.hasClanContext
@@ -651,272 +651,262 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
                   )
                 : RefreshIndicator(
                     onRefresh: _controller.refresh,
-                    child: ListView(
-                      controller: _workspaceScrollController,
-                      key: const Key('event-workspace-scroll'),
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                      children: [
-                        _WorkspaceHero(
-                          title: l10n.eventHeroTitle,
-                          description: l10n.eventHeroDescription,
+                    child: AppWorkspaceViewport(
+                      child: ListView(
+                        controller: _workspaceScrollController,
+                        key: const Key('event-workspace-scroll'),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: appWorkspacePagePadding(
+                          context,
+                          top: 16,
+                          bottom: 32,
                         ),
-                        const SizedBox(height: 20),
-                        if (_controller.permissions.isReadOnly) ...[
-                          _MessageCard(
-                            icon: Icons.visibility_outlined,
-                            title: l10n.eventReadOnlyTitle,
-                            description: l10n.eventReadOnlyDescription,
-                            tone: colorScheme.secondaryContainer,
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        if (_controller.errorMessage != null) ...[
-                          _MessageCard(
-                            icon: Icons.error_outline,
-                            title: l10n.eventLoadErrorTitle,
-                            description: l10n.eventLoadErrorDescription,
-                            tone: colorScheme.errorContainer,
-                          ),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              onPressed: _controller.refresh,
-                              icon: const Icon(Icons.refresh),
-                              label: Text(l10n.eventRefreshAction),
+                        children: [
+                          _WorkspaceHero(title: l10n.eventHeroTitle),
+                          const SizedBox(height: 16),
+                          if (_controller.permissions.isReadOnly) ...[
+                            _MessageCard(
+                              icon: Icons.visibility_outlined,
+                              title: l10n.eventReadOnlyTitle,
+                              description: l10n.eventReadOnlyDescription,
+                              tone: colorScheme.secondaryContainer,
                             ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        _StatGrid(
-                          items: [
-                            _StatTile(
-                              label: l10n.eventStatTotal,
-                              value:
-                                  '${_controller.upcomingCount + _controller.memorialCount}',
-                              icon: Icons.event_note_outlined,
-                            ),
-                            _StatTile(
-                              label: l10n.eventStatUpcoming,
-                              value: '${_controller.upcomingCount}',
-                              icon: Icons.upcoming_outlined,
-                            ),
-                            _StatTile(
-                              label: l10n.eventStatMemorial,
-                              value: '${_controller.memorialCount}',
-                              icon: Icons.emoji_people_outlined,
-                            ),
+                            const SizedBox(height: 16),
                           ],
-                        ),
-                        const SizedBox(height: 20),
-                        _MemorialQuickAccessCard(
-                          prayerPendingCount: _controller
-                              .memorialRitualChecklistItems
-                              .expand((item) => item.milestones)
-                              .where(
-                                (milestone) =>
-                                    milestone.milestone.type ==
-                                        MemorialRitualMilestoneType
-                                            .first49Days ||
-                                    milestone.milestone.type ==
-                                        MemorialRitualMilestoneType
-                                            .first50Days ||
-                                    milestone.milestone.type ==
-                                        MemorialRitualMilestoneType.day100,
-                              )
-                              .where(
-                                (milestone) =>
-                                    milestone.isMissing ||
-                                    milestone.hasDateMismatch,
-                              )
-                              .length,
-                          year1PendingCount: _controller
-                              .memorialRitualChecklistItems
-                              .expand((item) => item.milestones)
-                              .where(
-                                (milestone) =>
-                                    milestone.milestone.type ==
-                                    MemorialRitualMilestoneType.year1,
-                              )
-                              .where(
-                                (milestone) =>
-                                    milestone.isMissing ||
-                                    milestone.hasDateMismatch,
-                              )
-                              .length,
-                          year2PendingCount: _controller
-                              .memorialRitualChecklistItems
-                              .expand((item) => item.milestones)
-                              .where(
-                                (milestone) =>
-                                    milestone.milestone.type ==
-                                    MemorialRitualMilestoneType.year2,
-                              )
-                              .where(
-                                (milestone) =>
-                                    milestone.isMissing ||
-                                    milestone.hasDateMismatch,
-                              )
-                              .length,
-                          annualMemorialPendingCount: _controller
-                              .memorialChecklistItems
-                              .where(
-                                (item) =>
-                                    item.deathDate != null &&
-                                    _yearsSince(
-                                          deathDate: item.deathDate!,
-                                          now: nowLocal,
-                                        ) >=
-                                        3 &&
-                                    (!item.hasMemorialEvent ||
-                                        item.hasDateMismatch),
-                              )
-                              .length,
-                          onOpenPrayer: () => _openMemorialChecklistCenter(
-                            initialCategory: _MemorialChecklistCategory.prayer,
+                          if (_controller.errorMessage != null) ...[
+                            _MessageCard(
+                              icon: Icons.error_outline,
+                              title: l10n.eventLoadErrorTitle,
+                              description: l10n.eventLoadErrorDescription,
+                              tone: colorScheme.errorContainer,
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: _controller.refresh,
+                                icon: const Icon(Icons.refresh),
+                                label: Text(l10n.eventRefreshAction),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          _StatGrid(
+                            items: [
+                              _StatTile(
+                                label: l10n.eventStatTotal,
+                                value:
+                                    '${_controller.upcomingCount + _controller.memorialCount}',
+                                icon: Icons.event_note_outlined,
+                              ),
+                              _StatTile(
+                                label: l10n.eventStatUpcoming,
+                                value: '${_controller.upcomingCount}',
+                                icon: Icons.upcoming_outlined,
+                              ),
+                              _StatTile(
+                                label: l10n.eventStatMemorial,
+                                value: '${_controller.memorialCount}',
+                                icon: Icons.emoji_people_outlined,
+                              ),
+                            ],
                           ),
-                          onOpenYear1: () => _openMemorialChecklistCenter(
-                            initialCategory: _MemorialChecklistCategory.year1,
+                          const SizedBox(height: 16),
+                          _MemorialQuickAccessCard(
+                            prayerPendingCount: _controller
+                                .memorialRitualChecklistItems
+                                .expand((item) => item.milestones)
+                                .where(
+                                  (milestone) =>
+                                      milestone.milestone.type ==
+                                          MemorialRitualMilestoneType
+                                              .first49Days ||
+                                      milestone.milestone.type ==
+                                          MemorialRitualMilestoneType
+                                              .first50Days ||
+                                      milestone.milestone.type ==
+                                          MemorialRitualMilestoneType.day100,
+                                )
+                                .where(
+                                  (milestone) =>
+                                      milestone.isMissing ||
+                                      milestone.hasDateMismatch,
+                                )
+                                .length,
+                            year1PendingCount: _controller
+                                .memorialRitualChecklistItems
+                                .expand((item) => item.milestones)
+                                .where(
+                                  (milestone) =>
+                                      milestone.milestone.type ==
+                                      MemorialRitualMilestoneType.year1,
+                                )
+                                .where(
+                                  (milestone) =>
+                                      milestone.isMissing ||
+                                      milestone.hasDateMismatch,
+                                )
+                                .length,
+                            year2PendingCount: _controller
+                                .memorialRitualChecklistItems
+                                .expand((item) => item.milestones)
+                                .where(
+                                  (milestone) =>
+                                      milestone.milestone.type ==
+                                      MemorialRitualMilestoneType.year2,
+                                )
+                                .where(
+                                  (milestone) =>
+                                      milestone.isMissing ||
+                                      milestone.hasDateMismatch,
+                                )
+                                .length,
+                            annualMemorialPendingCount: _controller
+                                .memorialChecklistItems
+                                .where(
+                                  (item) =>
+                                      item.deathDate != null &&
+                                      _yearsSince(
+                                            deathDate: item.deathDate!,
+                                            now: nowLocal,
+                                          ) >=
+                                          3 &&
+                                      (!item.hasMemorialEvent ||
+                                          item.hasDateMismatch),
+                                )
+                                .length,
+                            onOpenPrayer: () => _openMemorialChecklistCenter(
+                              initialCategory:
+                                  _MemorialChecklistCategory.prayer,
+                            ),
+                            onOpenYear1: () => _openMemorialChecklistCenter(
+                              initialCategory: _MemorialChecklistCategory.year1,
+                            ),
+                            onOpenYear2: () => _openMemorialChecklistCenter(
+                              initialCategory: _MemorialChecklistCategory.year2,
+                            ),
+                            onOpenAnniversary: () =>
+                                _openMemorialChecklistCenter(
+                                  initialCategory:
+                                      _MemorialChecklistCategory.anniversary,
+                                ),
                           ),
-                          onOpenYear2: () => _openMemorialChecklistCenter(
-                            initialCategory: _MemorialChecklistCategory.year2,
+                          const SizedBox(height: 16),
+                          if (_controller.showLongevityReminderLink) ...[
+                            _SectionCard(
+                              title: l10n.pick(
+                                vi: 'Mừng thọ sắp tới',
+                                en: 'Upcoming longevity celebration',
+                              ),
+                              child: _LongevityReminderLinkCard(
+                                key: const Key(
+                                  'event-longevity-reminder-link-card',
+                                ),
+                                candidates:
+                                    _controller.longevityCelebrationCandidates,
+                                celebrationDate:
+                                    _controller.longevityCelebrationDate,
+                                onOpenList: _openLongevityCelebrationList,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          _SectionCard(
+                            title: l10n.eventFilterSectionTitle,
+                            child: _FilterPanel(
+                              searchController: _searchController,
+                              selectedType: _controller.typeFilter,
+                              onQueryChanged: _controller.updateQuery,
+                              onTypeChanged: _controller.updateTypeFilter,
+                              onClear: () {
+                                _searchController.clear();
+                                _controller.updateQuery('');
+                                _controller.updateTypeFilter(null);
+                              },
+                            ),
                           ),
-                          onOpenAnniversary: () => _openMemorialChecklistCenter(
-                            initialCategory:
-                                _MemorialChecklistCategory.anniversary,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        if (_controller.showLongevityReminderLink) ...[
+                          const SizedBox(height: 16),
                           _SectionCard(
                             title: l10n.pick(
-                              vi: 'Mừng thọ sắp tới',
-                              en: 'Upcoming longevity celebration',
+                              vi: 'Sự kiện sắp tới gần nhất',
+                              en: 'Nearest upcoming events',
                             ),
-                            child: _LongevityReminderLinkCard(
-                              key: const Key(
-                                'event-longevity-reminder-link-card',
-                              ),
-                              candidates:
-                                  _controller.longevityCelebrationCandidates,
-                              celebrationDate:
-                                  _controller.longevityCelebrationDate,
-                              onOpenList: _openLongevityCelebrationList,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        _SectionCard(
-                          title: l10n.eventFilterSectionTitle,
-                          child: _FilterPanel(
-                            searchController: _searchController,
-                            selectedType: _controller.typeFilter,
-                            onQueryChanged: _controller.updateQuery,
-                            onTypeChanged: _controller.updateTypeFilter,
-                            onClear: () {
-                              _searchController.clear();
-                              _controller.updateQuery('');
-                              _controller.updateTypeFilter(null);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        _SectionCard(
-                          title: l10n.pick(
-                            vi: 'Sự kiện sắp tới gần nhất',
-                            en: 'Nearest upcoming events',
-                          ),
-                          child: filteredEvents.isEmpty
-                              ? _WorkspaceEmptyState(
-                                  icon: Icons.event_busy_outlined,
-                                  title: l10n.eventListEmptyTitle,
-                                  description: l10n.eventListEmptyDescription,
-                                )
-                              : Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    for (final bucket
-                                        in groupedVisibleEvents) ...[
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 8,
-                                        ),
-                                        child: Text(
-                                          bucket.label,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelLarge
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                                color: colorScheme
-                                                    .onSurfaceVariant,
-                                              ),
-                                        ),
-                                      ),
-                                      for (
-                                        var i = 0;
-                                        i < bucket.events.length;
-                                        i++
-                                      )
+                            child: filteredEvents.isEmpty
+                                ? _WorkspaceEmptyState(
+                                    icon: Icons.event_busy_outlined,
+                                    title: l10n.eventListEmptyTitle,
+                                    description: l10n.eventListEmptyDescription,
+                                  )
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      for (final bucket
+                                          in groupedVisibleEvents) ...[
                                         Padding(
-                                          padding: EdgeInsets.only(
-                                            bottom:
-                                                i == bucket.events.length - 1
-                                                ? 12
-                                                : 14,
+                                          padding: const EdgeInsets.only(
+                                            bottom: 8,
                                           ),
-                                          child: _EventSummaryCard(
-                                            key: Key(
-                                              'event-row-${bucket.events[i].id}',
-                                            ),
-                                            event: bucket.events[i],
-                                            displayStartsAt: _controller
-                                                .displayStartsAt(
-                                                  bucket.events[i],
-                                                  now: nowLocal,
+                                          child: Text(
+                                            bucket.label,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelLarge
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
                                                 ),
-                                            displayEndsAt: _controller
-                                                .displayEndsAt(
-                                                  bucket.events[i],
-                                                  now: nowLocal,
-                                                ),
-                                            branchName: _controller.branchName(
-                                              bucket.events[i].branchId,
-                                            ),
-                                            targetMemberName: _controller
-                                                .memberName(
-                                                  bucket
-                                                      .events[i]
-                                                      .targetMemberId,
-                                                ),
-                                            onTap: () =>
-                                                _openDetail(bucket.events[i]),
                                           ),
                                         ),
-                                    ],
-                                    if (hasMoreEvents)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Text(
-                                          l10n.pick(
-                                            vi: 'Đang hiển thị ${visibleEvents.length}/${filteredEvents.length} sự kiện. Kéo xuống để tải thêm.',
-                                            en: 'Showing ${visibleEvents.length}/${filteredEvents.length} events. Scroll to load more.',
-                                          ),
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: colorScheme
-                                                    .onSurfaceVariant,
+                                        for (
+                                          var i = 0;
+                                          i < bucket.events.length;
+                                          i++
+                                        )
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                              bottom:
+                                                  i == bucket.events.length - 1
+                                                  ? 12
+                                                  : 14,
+                                            ),
+                                            child: _EventSummaryCard(
+                                              key: Key(
+                                                'event-row-${bucket.events[i].id}',
                                               ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                        ),
-                      ],
+                                              event: bucket.events[i],
+                                              displayStartsAt: _controller
+                                                  .displayStartsAt(
+                                                    bucket.events[i],
+                                                    now: nowLocal,
+                                                  ),
+                                              displayEndsAt: _controller
+                                                  .displayEndsAt(
+                                                    bucket.events[i],
+                                                    now: nowLocal,
+                                                  ),
+                                              branchName: _controller
+                                                  .branchName(
+                                                    bucket.events[i].branchId,
+                                                  ),
+                                              targetMemberName: _controller
+                                                  .memberName(
+                                                    bucket
+                                                        .events[i]
+                                                        .targetMemberId,
+                                                  ),
+                                              onTap: () =>
+                                                  _openDetail(bucket.events[i]),
+                                            ),
+                                          ),
+                                      ],
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
           ),
@@ -943,6 +933,7 @@ class _EventDetailPage extends StatelessWidget {
     final l10n = context.l10n;
 
     return Scaffold(
+      key: Key('event-detail-page-$eventId'),
       appBar: AppBar(
         title: Text(l10n.eventDetailTitle),
         actions: [
@@ -962,118 +953,122 @@ class _EventDetailPage extends StatelessWidget {
               title: l10n.eventDetailNotFoundTitle,
               description: l10n.eventDetailNotFoundDescription,
             )
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-              children: [
-                _SectionCard(
-                  title: event.title,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _SummaryRow(
-                        label: l10n.eventFieldType,
-                        value: l10n.eventTypeLabel(event.eventType),
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldBranch,
-                        value: controller.branchName(event.branchId).isEmpty
-                            ? l10n.eventFieldUnset
-                            : controller.branchName(event.branchId),
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldTargetMember,
-                        value:
-                            controller.memberName(event.targetMemberId).isEmpty
-                            ? l10n.eventFieldUnset
-                            : controller.memberName(event.targetMemberId),
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldLocationName,
-                        value: event.locationName.trim().isEmpty
-                            ? l10n.eventFieldUnset
-                            : event.locationName,
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldLocationAddress,
-                        value: event.locationAddress.trim().isEmpty
-                            ? l10n.eventFieldUnset
-                            : event.locationAddress,
-                        trailing: AddressDirectionIconButton(
-                          address: event.locationAddress,
-                          label: event.title,
+          : AppWorkspaceViewport(
+              child: ListView(
+                padding: appWorkspacePagePadding(context, top: 20, bottom: 32),
+                children: [
+                  _SectionCard(
+                    title: event.title,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SummaryRow(
+                          label: l10n.eventFieldType,
+                          value: l10n.eventTypeLabel(event.eventType),
                         ),
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldDescription,
-                        value: event.description.trim().isEmpty
-                            ? l10n.eventFieldUnset
-                            : event.description,
-                        isLast: true,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _SectionCard(
-                  title: l10n.eventDetailTimingSection,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _SummaryRow(
-                        label: l10n.eventFieldStartsAt,
-                        value: _formatDateTimeInput(event.startsAt.toLocal()),
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldEndsAt,
-                        value: event.endsAt == null
-                            ? l10n.eventFieldUnset
-                            : _formatDateTimeInput(event.endsAt!.toLocal()),
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldTimezone,
-                        value: event.timezone,
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldRecurring,
-                        value: event.isRecurring
-                            ? l10n.eventRecurringYes
-                            : l10n.eventRecurringNo,
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldRecurrenceRule,
-                        value: event.recurrenceRule ?? l10n.eventFieldUnset,
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldVisibility,
-                        value: event.visibility,
-                      ),
-                      _SummaryRow(
-                        label: l10n.eventFieldStatus,
-                        value: event.status,
-                        isLast: true,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _SectionCard(
-                  title: l10n.eventDetailReminderSection,
-                  child: event.reminderOffsetsMinutes.isEmpty
-                      ? _WorkspaceEmptyState(
-                          icon: Icons.notifications_none_outlined,
-                          title: l10n.eventReminderEmptyTitle,
-                          description: l10n.eventReminderEmptyDescription,
-                        )
-                      : Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final offset in event.reminderOffsetsMinutes)
-                              Chip(label: Text(_humanizeOffset(offset))),
-                          ],
+                        _SummaryRow(
+                          label: l10n.eventFieldBranch,
+                          value: controller.branchName(event.branchId).isEmpty
+                              ? l10n.eventFieldUnset
+                              : controller.branchName(event.branchId),
                         ),
-                ),
-              ],
+                        _SummaryRow(
+                          label: l10n.eventFieldTargetMember,
+                          value:
+                              controller
+                                  .memberName(event.targetMemberId)
+                                  .isEmpty
+                              ? l10n.eventFieldUnset
+                              : controller.memberName(event.targetMemberId),
+                        ),
+                        _SummaryRow(
+                          label: l10n.eventFieldLocationName,
+                          value: event.locationName.trim().isEmpty
+                              ? l10n.eventFieldUnset
+                              : event.locationName,
+                        ),
+                        _SummaryRow(
+                          label: l10n.eventFieldLocationAddress,
+                          value: event.locationAddress.trim().isEmpty
+                              ? l10n.eventFieldUnset
+                              : event.locationAddress,
+                          trailing: AddressDirectionIconButton(
+                            address: event.locationAddress,
+                            label: event.title,
+                          ),
+                        ),
+                        _SummaryRow(
+                          label: l10n.eventFieldDescription,
+                          value: event.description.trim().isEmpty
+                              ? l10n.eventFieldUnset
+                              : event.description,
+                          isLast: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _SectionCard(
+                    title: l10n.eventDetailTimingSection,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SummaryRow(
+                          label: l10n.eventFieldStartsAt,
+                          value: _formatDateTimeInput(event.startsAt.toLocal()),
+                        ),
+                        _SummaryRow(
+                          label: l10n.eventFieldEndsAt,
+                          value: event.endsAt == null
+                              ? l10n.eventFieldUnset
+                              : _formatDateTimeInput(event.endsAt!.toLocal()),
+                        ),
+                        _SummaryRow(
+                          label: l10n.eventFieldTimezone,
+                          value: event.timezone,
+                        ),
+                        _SummaryRow(
+                          label: l10n.eventFieldRecurring,
+                          value: event.isRecurring
+                              ? l10n.eventRecurringYes
+                              : l10n.eventRecurringNo,
+                        ),
+                        _SummaryRow(
+                          label: l10n.eventFieldRecurrenceRule,
+                          value: event.recurrenceRule ?? l10n.eventFieldUnset,
+                        ),
+                        _SummaryRow(
+                          label: l10n.eventFieldVisibility,
+                          value: event.visibility,
+                        ),
+                        _SummaryRow(
+                          label: l10n.eventFieldStatus,
+                          value: event.status,
+                          isLast: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _SectionCard(
+                    title: l10n.eventDetailReminderSection,
+                    child: event.reminderOffsetsMinutes.isEmpty
+                        ? _WorkspaceEmptyState(
+                            icon: Icons.notifications_none_outlined,
+                            title: l10n.eventReminderEmptyTitle,
+                            description: l10n.eventReminderEmptyDescription,
+                          )
+                        : Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final offset in event.reminderOffsetsMinutes)
+                                Chip(label: Text(_humanizeOffset(offset))),
+                            ],
+                          ),
+                  ),
+                ],
+              ),
             ),
     );
   }
@@ -1095,19 +1090,20 @@ class _LongevityReminderLinkCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final count = candidates.length;
-    final celebrationText = celebrationDate == null
-        ? l10n.pick(vi: 'Chưa xác định', en: 'Not available')
-        : _formatDateInput(celebrationDate!);
+    final summary = celebrationDate == null
+        ? l10n.pick(
+            vi: 'Có $count thành viên đến mốc mừng thọ.',
+            en: '$count members are reaching a longevity milestone.',
+          )
+        : l10n.pick(
+            vi: 'Có $count thành viên đến mốc mừng thọ vào ${_formatDateInput(celebrationDate!)}.',
+            en: '$count members are reaching a longevity milestone on ${_formatDateInput(celebrationDate!)}.',
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.pick(
-            vi: 'Đợt mừng thọ 4/1 âm lịch sắp diễn ra vào $celebrationText. Có $count thành viên đạt mốc 70+ (mỗi 5 năm).',
-            en: 'The lunar 4/1 longevity event is coming on $celebrationText. $count members reached a 70+ milestone (every 5 years).',
-          ),
-        ),
+        Text(summary),
         const SizedBox(height: 12),
         FilledButton.icon(
           key: const Key('event-longevity-link-button'),
@@ -2239,10 +2235,6 @@ class _MemorialQuickAccessCard extends StatelessWidget {
           vi: 'Lễ tiết cầu siêu (49/100 ngày)',
           en: 'Prayer rituals (49/100 days)',
         ),
-        subtitle: l10n.pick(
-          vi: 'Theo dõi và thiết lập mốc 49/50 ngày, 100 ngày.',
-          en: 'Track and set 49/50-day and 100-day milestones.',
-        ),
         pendingCount: prayerPendingCount,
         onTap: onOpenPrayer,
       ),
@@ -2250,10 +2242,6 @@ class _MemorialQuickAccessCard extends StatelessWidget {
         key: 'event-memorial-access-year1',
         icon: Icons.looks_one_outlined,
         title: l10n.pick(vi: 'Lễ Tiểu Tường (1 năm)', en: 'First-year ritual'),
-        subtitle: l10n.pick(
-          vi: 'Danh sách mốc 1 năm sau ngày mất.',
-          en: 'Entries for the 1-year milestone.',
-        ),
         pendingCount: year1PendingCount,
         onTap: onOpenYear1,
       ),
@@ -2261,10 +2249,6 @@ class _MemorialQuickAccessCard extends StatelessWidget {
         key: 'event-memorial-access-year2',
         icon: Icons.looks_two_outlined,
         title: l10n.pick(vi: 'Lễ Đại Tường (2 năm)', en: 'Second-year ritual'),
-        subtitle: l10n.pick(
-          vi: 'Danh sách mốc 2 năm sau ngày mất.',
-          en: 'Entries for the 2-year milestone.',
-        ),
         pendingCount: year2PendingCount,
         onTap: onOpenYear2,
       ),
@@ -2274,10 +2258,6 @@ class _MemorialQuickAccessCard extends StatelessWidget {
         title: l10n.pick(
           vi: 'Giỗ Kỵ (từ 3 năm trở đi)',
           en: 'Yearly memorial (from year 3)',
-        ),
-        subtitle: l10n.pick(
-          vi: 'Giỗ kỵ hằng năm từ năm thứ 3 trở đi.',
-          en: 'Yearly memorials from year 3 onwards.',
         ),
         pendingCount: annualMemorialPendingCount,
         onTap: onOpenAnniversary,
@@ -2350,13 +2330,6 @@ class _MemorialQuickAccessCard extends StatelessWidget {
                                                 fontWeight: FontWeight.w700,
                                               ),
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          action.subtitle,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall,
-                                        ),
                                         const SizedBox(height: 8),
                                         Text(
                                           l10n.pick(
@@ -2384,16 +2357,6 @@ class _MemorialQuickAccessCard extends StatelessWidget {
                   ],
                 );
               },
-            ),
-            const SizedBox(height: 4),
-            Text(
-              l10n.pick(
-                vi: 'Bấm một mục để mở đúng danh sách và bộ lọc tương ứng.',
-                en: 'Tap any item to open its dedicated list with matching filters.',
-              ),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
             ),
           ],
         ),
@@ -2806,40 +2769,27 @@ class _FilterPanel extends StatelessWidget {
 }
 
 class _WorkspaceHero extends StatelessWidget {
-  const _WorkspaceHero({required this.title, required this.description});
+  const _WorkspaceHero({required this.title});
 
   final String title;
-  final String description;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-    return Container(
+    return AppWorkspaceSurface(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colorScheme.primary, colorScheme.primaryContainer],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
-      ),
+      gradient: appWorkspaceHeroGradient(context),
+      showAccentOrbs: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: colorScheme.onPrimary,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: colorScheme.onSurface,
               fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onPrimary.withValues(alpha: 0.9),
             ),
           ),
         ],
@@ -2878,84 +2828,86 @@ class _EventSummaryCard extends StatelessWidget {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      event.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+    return AppWorkspaceSurface(
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        event.title,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Chip(
-                    label: Text(l10n.eventTypeLabel(event.eventType)),
-                    visualDensity: VisualDensity.compact,
-                    side: BorderSide.none,
-                    backgroundColor: colorScheme.secondaryContainer,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              _CardInfoRow(
-                icon: Icons.schedule_outlined,
-                text:
-                    '${_formatDateTimeInput(displayStartsAt)} • ${event.timezone}',
-              ),
-              if (displayEndsAt != null)
-                _CardInfoRow(
-                  icon: Icons.hourglass_bottom_outlined,
-                  text: _formatDateTimeInput(displayEndsAt!),
-                ),
-              if (branchName.isNotEmpty)
-                _CardInfoRow(
-                  icon: Icons.account_tree_outlined,
-                  text: branchName,
-                ),
-              if (targetMemberName.isNotEmpty)
-                _CardInfoRow(
-                  icon: Icons.person_outline,
-                  text: targetMemberName,
-                ),
-              if (event.locationName.trim().isNotEmpty)
-                _CardInfoRow(
-                  icon: Icons.place_outlined,
-                  text: event.locationName,
-                ),
-              if (event.locationAddress.trim().isNotEmpty)
-                _CardInfoRow(
-                  icon: Icons.pin_drop_outlined,
-                  text: event.locationAddress.trim(),
-                  trailing: AddressDirectionIconButton(
-                    address: event.locationAddress.trim(),
-                    iconSize: 18,
-                  ),
-                ),
-              if (event.reminderOffsetsMinutes.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final offset in event.reminderOffsetsMinutes)
-                      Chip(
-                        label: Text(_humanizeOffset(offset)),
-                        visualDensity: VisualDensity.compact,
-                      ),
+                    const SizedBox(width: 8),
+                    Chip(
+                      label: Text(l10n.eventTypeLabel(event.eventType)),
+                      visualDensity: VisualDensity.compact,
+                      side: BorderSide.none,
+                      backgroundColor: colorScheme.secondaryContainer,
+                    ),
                   ],
                 ),
+                const SizedBox(height: 10),
+                _CardInfoRow(
+                  icon: Icons.schedule_outlined,
+                  text:
+                      '${_formatDateTimeInput(displayStartsAt)} • ${event.timezone}',
+                ),
+                if (displayEndsAt != null)
+                  _CardInfoRow(
+                    icon: Icons.hourglass_bottom_outlined,
+                    text: _formatDateTimeInput(displayEndsAt!),
+                  ),
+                if (branchName.isNotEmpty)
+                  _CardInfoRow(
+                    icon: Icons.account_tree_outlined,
+                    text: branchName,
+                  ),
+                if (targetMemberName.isNotEmpty)
+                  _CardInfoRow(
+                    icon: Icons.person_outline,
+                    text: targetMemberName,
+                  ),
+                if (event.locationName.trim().isNotEmpty)
+                  _CardInfoRow(
+                    icon: Icons.place_outlined,
+                    text: event.locationName,
+                  ),
+                if (event.locationAddress.trim().isNotEmpty)
+                  _CardInfoRow(
+                    icon: Icons.pin_drop_outlined,
+                    text: event.locationAddress.trim(),
+                    trailing: AddressDirectionIconButton(
+                      address: event.locationAddress.trim(),
+                      iconSize: 18,
+                    ),
+                  ),
+                if (event.reminderOffsetsMinutes.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final offset in event.reminderOffsetsMinutes)
+                        Chip(
+                          label: Text(_humanizeOffset(offset)),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                    ],
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -3030,34 +2982,33 @@ class _StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: colorScheme.secondaryContainer,
-              child: Icon(icon),
+    return AppWorkspaceSurface(
+      color: Colors.white.withValues(alpha: 0.9),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: colorScheme.secondaryContainer,
+            child: Icon(icon),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(label, style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -3071,28 +3022,26 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
       ),
     );
   }
@@ -3159,32 +3108,30 @@ class _MessageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return AppWorkspaceSurface(
       color: tone,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(description),
-                ],
-              ),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(description),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

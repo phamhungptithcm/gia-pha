@@ -5,6 +5,7 @@ dist/
 __pycache__/
 .pytest_cache/
 .codex-artifacts/
+.claude/worktrees/
 .firebase/
 firebase-debug.log
 firebase-debug.*.log
@@ -15,3 +16,7 @@ firebase/functions/node_modules/
 firebase/functions/.env
 firebase/functions/.env.*
 !firebase/functions/.env.example
+artifacts/
+mobile/befam/artifacts/
+mobile/befam/integration_test/screenshots/
+scripts/local-release.env

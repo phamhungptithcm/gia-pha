@@ -1,13 +1,12 @@
 name: CD - Deploy Web Hosting (Production)
 
 on:
-  workflow_run:
-    workflows:
-      - CD - Deploy Firebase (Production)
-    branches:
-      - main
-    types:
-      - completed
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub release tag to deploy to production hosting (for example v1.2.3)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,96 +14,27 @@ permissions:
   actions: read
 
 concurrency:
-  group: deploy-web-hosting-${{ github.event.workflow_run.head_branch || github.ref }}
+  group: deploy-web-hosting-${{ inputs.release_tag }}
   cancel-in-progress: true
 
 jobs:
-  gate-upstream:
-    name: Gate - Verify Upstream Deploy Status
-    runs-on: ubuntu-latest
-    outputs:
-      should_deploy: ${{ steps.gate.outputs.should_deploy }}
-    steps:
-      - name: Evaluate upstream conclusion
-        id: gate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
-            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Upstream Firebase deploy conclusion is '${{ github.event.workflow_run.conclusion }}'. Skipping hosting deploy."
-            exit 0
-          fi
-
-          if [ "${{ github.event.workflow_run.head_branch }}" != "main" ]; then
-            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Upstream Firebase deploy head branch is '${{ github.event.workflow_run.head_branch }}', not main. Skipping hosting deploy."
-            exit 0
-          fi
-
-          deploy_sha="${{ github.event.workflow_run.head_sha }}"
-          latest_main_sha="$(
-            gh api "repos/${GITHUB_REPOSITORY}/branches/main" --jq '.commit.sha'
-          )"
-          if [ -z "${deploy_sha}" ] || [ "${deploy_sha}" != "${latest_main_sha}" ]; then
-            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping stale hosting deploy: upstream SHA '${deploy_sha:-unknown}' is not latest main SHA '${latest_main_sha}'."
-            exit 0
-          fi
-
-          deploy_job_conclusion="$(
-            gh api \
-              "repos/${GITHUB_REPOSITORY}/actions/runs/${{ github.event.workflow_run.id }}/jobs" \
-              --jq '
-                (.jobs // [])
-                | map(select(.name == "Deploy Firebase (Production)"))
-                | sort_by(.completed_at // .started_at // .created_at)
-                | last
-                | .conclusion // ""
-              '
-          )"
-
-          if [ "${deploy_job_conclusion:-}" = "success" ]; then
-            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
-            echo "Upstream Firebase production deploy job succeeded. Proceeding with hosting deploy."
-          else
-            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Upstream Firebase deploy job conclusion is '${deploy_job_conclusion:-unknown}'. Skipping hosting deploy."
-          fi
-
   build-web:
     name: Prepare Immutable Web Bundle
-    needs:
-      - gate-upstream
-    if: ${{ needs.gate-upstream.outputs.should_deploy == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-        with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-
-      - name: Resolve release tag from commit SHA
-        id: release
+      - name: Validate selected release tag
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-          release_sha="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}"
-          tag="$(
-            gh release list \
-              --limit 100 \
-              --json tagName,targetCommitish \
-              --jq ".[] | select(.targetCommitish==\"${release_sha}\") | .tagName" \
-              | head -n1
-          )"
-          if [ -z "$tag" ]; then
-            echo "::error::No GitHub release tag found for commit ${release_sha}."
+          test -n "$RELEASE_TAG"
+          gh release view "$RELEASE_TAG" --json tagName,isDraft >/tmp/release.json
+          if [ "$(jq -r '.isDraft' /tmp/release.json)" != "false" ]; then
+            echo "::error::Release tag ${RELEASE_TAG} is still a draft release."
             exit 1
           fi
-          echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Download immutable web release bundle
         env:
@@ -112,12 +42,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/web-release
-          gh release download "${{ steps.release.outputs.release_tag }}" \
+          gh release download "${{ inputs.release_tag }}" \
             --pattern "befam-*-web-release.tar.gz" \
             --dir dist/web-release
           bundle_path="$(find dist/web-release -maxdepth 1 -name 'befam-*-web-release.tar.gz' -print -quit)"
           if [ -z "$bundle_path" ]; then
-            echo "::error::Web release bundle not found for tag ${{ steps.release.outputs.release_tag }}."
+            echo "::error::Web release bundle not found for tag ${{ inputs.release_tag }}."
             exit 1
           fi
           mkdir -p mobile/befam/build/web
@@ -131,9 +61,7 @@ jobs:
 
   deploy-hosting:
     name: Deploy Web Hosting (Production)
-    if: ${{ needs.gate-upstream.outputs.should_deploy == 'true' }}
     needs:
-      - gate-upstream
       - build-web
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -143,7 +71,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.release_tag }}
+          fetch-depth: 0
+
+      - name: Verify release tag belongs to main history
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Release tag ${{ inputs.release_tag }} does not belong to origin/main history."
+            exit 1
+          fi
 
       - name: Validate production OIDC configuration
         env:
@@ -182,6 +120,11 @@ jobs:
         with:
           name: befam-web-build
           path: mobile/befam/build/web
+
+      - name: Validate web bundle app-ads.txt
+        run: |
+          set -euo pipefail
+          bash scripts/verify_app_ads_txt.sh mobile/befam/build/web/app-ads.txt
 
       - name: Set up Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5

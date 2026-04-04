@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">BeFam CI/CD leadership overview</title>
+  <desc id="desc">High-level CI/CD flow from staging push through promotion, release build, and production deployment.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f7fafc"/>
+      <stop offset="100%" stop-color="#edf2f7"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#1f2937"/>
+    </marker>
+    <style>
+      .title { font: 700 40px Arial, Helvetica, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 20px Arial, Helvetica, sans-serif; fill: #334155; }
+      .small { font: 400 16px Arial, Helvetica, sans-serif; fill: #475569; }
+      .box-title { font: 700 22px Arial, Helvetica, sans-serif; fill: #0f172a; }
+      .box-body { font: 400 17px Arial, Helvetica, sans-serif; fill: #334155; }
+      .pill { font: 700 14px Arial, Helvetica, sans-serif; }
+      .arrow-label { font: 700 15px Arial, Helvetica, sans-serif; fill: #475569; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <text x="80" y="90" class="title">BeFam CI/CD Architecture</text>
+  <text x="80" y="126" class="subtitle">Current delivery model for staging promotion, release build, and production deployment</text>
+
+  <rect x="80" y="160" width="1440" height="660" rx="28" fill="#ffffff" opacity="0.9"/>
+
+  <g filter="url(#shadow)">
+    <rect x="110" y="250" width="180" height="150" rx="24" fill="#e2e8f0"/>
+    <text x="145" y="305" class="box-title">Push to</text>
+    <text x="145" y="336" class="box-title">staging</text>
+    <text x="145" y="374" class="box-body">Feature integration</text>
+    <text x="145" y="398" class="box-body">branch for release</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="340" y="225" width="220" height="200" rx="24" fill="#dbeafe"/>
+    <text x="375" y="285" class="box-title">Checks</text>
+    <text x="375" y="323" class="box-body">Branch CI</text>
+    <text x="375" y="349" class="box-body">Security scans</text>
+    <text x="375" y="375" class="box-body">Android + iOS E2E</text>
+    <rect x="374" y="392" width="102" height="30" rx="15" fill="#2563eb"/>
+    <text x="394" y="412" class="pill" fill="#ffffff">Required</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="620" y="200" width="260" height="250" rx="24" fill="#ccfbf1"/>
+    <text x="655" y="262" class="box-title">Staging Deploy</text>
+    <text x="655" y="302" class="box-body">Deploy Firebase backend</text>
+    <text x="655" y="328" class="box-body">Deploy web hosting</text>
+    <text x="655" y="354" class="box-body">Sandbox validation lane</text>
+    <rect x="655" y="385" width="132" height="34" rx="17" fill="#0f766e"/>
+    <text x="679" y="407" class="pill" fill="#ffffff">OTP: Firebase</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="950" y="250" width="220" height="150" rx="24" fill="#ede9fe"/>
+    <text x="985" y="306" class="box-title">Promote PR</text>
+    <text x="985" y="344" class="box-body">Auto-open or refresh</text>
+    <text x="985" y="368" class="box-body">staging to main PR</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1240" y="250" width="220" height="150" rx="24" fill="#fee2e2"/>
+    <text x="1275" y="306" class="box-title">Merge to main</text>
+    <text x="1275" y="344" class="box-body">Human approval</text>
+    <text x="1275" y="368" class="box-body">before production</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="220" y="540" width="300" height="190" rx="24" fill="#fef3c7"/>
+    <text x="255" y="600" class="box-title">Release Build</text>
+    <text x="255" y="638" class="box-body">Quality re-check + preflight</text>
+    <text x="255" y="664" class="box-body">Tag: BeFam vYYYY.MM.DD</text>
+    <text x="255" y="690" class="box-body">Build Android, iOS, Web</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="620" y="540" width="320" height="190" rx="24" fill="#fde68a"/>
+    <text x="655" y="600" class="box-title">Immutable Release Assets</text>
+    <text x="655" y="638" class="box-body">GitHub Release</text>
+    <text x="655" y="664" class="box-body">Checksums + manifest</text>
+    <text x="655" y="690" class="box-body">Provenance + GHCR images</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1040" y="515" width="220" height="215" rx="24" fill="#fecaca"/>
+    <text x="1075" y="575" class="box-title">Production</text>
+    <text x="1075" y="606" class="box-title">Backend</text>
+    <text x="1075" y="644" class="box-body">Deploy Firebase</text>
+    <text x="1075" y="670" class="box-body">rules, indexes,</text>
+    <text x="1075" y="696" class="box-body">storage, functions</text>
+    <rect x="1075" y="705" width="116" height="34" rx="17" fill="#b91c1c"/>
+    <text x="1098" y="727" class="pill" fill="#ffffff">OTP: Twilio</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1320" y="540" width="180" height="190" rx="24" fill="#fee2e2"/>
+    <text x="1355" y="600" class="box-title">Production</text>
+    <text x="1355" y="631" class="box-title">Hosting</text>
+    <text x="1355" y="669" class="box-body">Download immutable</text>
+    <text x="1355" y="695" class="box-body">web bundle and</text>
+    <text x="1355" y="721" class="box-body">deploy hosting</text>
+  </g>
+
+  <line x1="290" y1="325" x2="340" y2="325" stroke="#1f2937" stroke-width="4" marker-end="url(#arrow)"/>
+  <line x1="560" y1="325" x2="620" y2="325" stroke="#1f2937" stroke-width="4" marker-end="url(#arrow)"/>
+  <line x1="880" y1="325" x2="950" y2="325" stroke="#1f2937" stroke-width="4" marker-end="url(#arrow)"/>
+  <line x1="1170" y1="325" x2="1240" y2="325" stroke="#1f2937" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <path d="M1350 400 C1350 470, 370 460, 370 540" fill="none" stroke="#1f2937" stroke-width="4" marker-end="url(#arrow)"/>
+  <text x="940" y="470" class="arrow-label">approved promotion to production</text>
+
+  <line x1="520" y1="635" x2="620" y2="635" stroke="#1f2937" stroke-width="4" marker-end="url(#arrow)"/>
+  <line x1="940" y1="635" x2="1040" y2="635" stroke="#1f2937" stroke-width="4" marker-end="url(#arrow)"/>
+  <line x1="1260" y1="635" x2="1320" y2="635" stroke="#1f2937" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <rect x="110" y="760" width="560" height="40" rx="20" fill="#eff6ff"/>
+  <text x="135" y="786" class="small">Staging is the integration lane. Production is release-driven and deploys from immutable artifacts.</text>
+
+  <rect x="1030" y="145" width="430" height="58" rx="18" fill="#ffffff" stroke="#cbd5e1"/>
+  <circle cx="1065" cy="174" r="10" fill="#0f766e"/>
+  <text x="1085" y="180" class="small">staging lane</text>
+  <circle cx="1195" cy="174" r="10" fill="#b91c1c"/>
+  <text x="1215" y="180" class="small">production lane</text>
+  <circle cx="1362" cy="174" r="10" fill="#2563eb"/>
+  <text x="1382" y="180" class="small">required gates</text>
+</svg>

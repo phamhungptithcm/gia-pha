@@ -399,7 +399,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get profileSettingsLogoutDescription =>
-      'Xác nhận này giúp tránh đăng xuất nhầm khi bạn đang điều chỉnh cài đặt.';
+      'Bạn sẽ cần đăng nhập lại để tiếp tục dùng BeFam trên thiết bị này.';
 
   @override
   String get profileCancelAction => 'Hủy';
@@ -426,14 +426,14 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get profileLanguageVietnameseSubtitle =>
-      'Mặc định cho người dùng tại Việt Nam';
+      'Phù hợp với cách dùng phổ biến tại Việt Nam';
 
   @override
   String get profileLanguageEnglish => 'Tiếng Anh';
 
   @override
   String get profileLanguageEnglishSubtitle =>
-      'Hiển thị tiếng Anh trên toàn bộ ứng dụng';
+      'Hiển thị toàn bộ ứng dụng bằng tiếng Anh';
 
   @override
   String get profileSecuritySectionTitle => 'Riêng tư và bảo mật';
@@ -450,7 +450,11 @@ class AppLocalizationsVi extends AppLocalizations {
   String get profileSessionSectionTitle => 'Phiên đăng nhập';
 
   @override
-  String get profileNotificationFundAlerts => 'Thông báo giao dịch quỹ';
+  String get profileNotificationFundAlerts => 'Quỹ họ';
+
+  @override
+  String get profileNotificationFundAlertsHint =>
+      'Thu chi, xác nhận và thay đổi số dư';
 
   @override
   String get profileEditSheetTitle => 'Chỉnh sửa hồ sơ';
@@ -1400,35 +1404,81 @@ class AppLocalizationsVi extends AppLocalizations {
   String get notificationTargetUnknownReference => 'Không có';
 
   @override
-  String get notificationSettingsTitle => 'Cài đặt thông báo';
+  String get notificationSettingsTitle => 'Thông báo';
 
   @override
   String get notificationSettingsDescription =>
-      'Quản lý lời nhắc và loại thông báo bạn muốn nhận trên thiết bị này.';
+      'Chọn cách nhận lịch họ, quỹ họ và tin mới trên thiết bị này.';
 
   @override
-  String get notificationSettingsPushChannel => 'Thông báo đẩy (khuyên dùng)';
+  String get notificationSettingsHeroTitle => 'Nhận tin quan trọng từ họ tộc';
 
   @override
-  String get notificationSettingsEmailChannel => 'Thông báo qua email';
+  String get notificationSettingsHeroDescription =>
+      'Nhắc lịch giỗ, quỹ họ và cập nhật mới theo cách bạn muốn, gọn hơn và dễ kiểm soát hơn.';
+
+  @override
+  String get notificationSettingsPushChannel => 'Thông báo trên điện thoại';
+
+  @override
+  String get notificationSettingsPushChannelHint =>
+      'Cách nhanh nhất để không bỏ lỡ việc quan trọng';
+
+  @override
+  String get notificationSettingsPushStatusEnabled =>
+      'Đang bật trên điện thoại';
+
+  @override
+  String get notificationSettingsPushStatusDisabled =>
+      'Đang tắt trên điện thoại';
+
+  @override
+  String get notificationSettingsEmailChannel => 'Email';
+
+  @override
+  String get notificationSettingsEmailChannelHint =>
+      'Nhận bản tổng hợp và cập nhật quan trọng';
 
   @override
   String get notificationSettingsSmsOtpOnlyNote =>
       'SMS chỉ dùng cho xác minh OTP.';
 
   @override
-  String get notificationSettingsEventUpdates =>
-      'Nhắc lịch và cập nhật sự kiện';
+  String get notificationSettingsEventUpdates => 'Lịch giỗ và sự kiện';
 
   @override
-  String get notificationSettingsScholarshipUpdates =>
-      'Kết quả và cập nhật duyệt khuyến học';
+  String get notificationSettingsEventUpdatesHint =>
+      'Lời mời, thay đổi giờ và nhắc lịch quan trọng';
 
   @override
-  String get notificationSettingsGeneralUpdates => 'Thông báo chung của họ tộc';
+  String get notificationSettingsScholarshipUpdates => 'Khuyến học';
 
   @override
-  String get notificationSettingsQuietHours => 'Chế độ giờ yên lặng';
+  String get notificationSettingsScholarshipUpdatesHint =>
+      'Kết quả và cập nhật hồ sơ khuyến học';
+
+  @override
+  String get notificationSettingsGeneralUpdates => 'Tin từ họ tộc';
+
+  @override
+  String get notificationSettingsGeneralUpdatesHint =>
+      'Tin mới, nhắc việc và thông báo chung';
+
+  @override
+  String get notificationSettingsQuietHours => 'Giờ yên lặng';
+
+  @override
+  String get notificationSettingsQuietHoursHint =>
+      'Tạm giảm thông báo vào những lúc cần nghỉ ngơi';
+
+  @override
+  String get notificationSettingsChannelsSectionTitle => 'Cách bạn nhận tin';
+
+  @override
+  String get notificationSettingsTopicsSectionTitle => 'Bạn muốn nhận gì';
+
+  @override
+  String get notificationSettingsSavingBadge => 'Đang lưu';
 
   @override
   String get notificationSettingsPlaceholderNote =>
@@ -1946,7 +1996,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webLandingSubtitle =>
-      'BeFam kết nối gia phả, sự kiện, quỹ họ và quản trị thành viên trong một không gian dữ liệu thống nhất.';
+      'BeFam kết nối gia phả, sự kiện, quỹ họ và quản trị thành viên trong một không gian dữ liệu thống nhất, dễ dùng cho mọi thế hệ.';
 
   @override
   String get webLandingPrimaryCta => 'Mở ứng dụng';
@@ -1966,42 +2016,42 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webLandingFeatureTreeDescription =>
-      'Quản lý quan hệ huyết thống theo chi, đời và vai vế để mọi thế hệ dễ tra cứu và cập nhật.';
+      'Quản lý quan hệ huyết thống theo chi, đời và vai vế để các thế hệ dễ tra cứu, cập nhật.';
 
   @override
   String get webLandingFeatureEventsTitle => 'Lịch sự kiện tập trung';
 
   @override
   String get webLandingFeatureEventsDescription =>
-      'Theo dõi lịch giỗ, lễ họp và các mốc quan trọng với nhắc lịch chủ động cho thành viên.';
+      'Theo dõi lịch giỗ, họp họ và các mốc quan trọng với nhắc lịch chủ động cho thành viên.';
 
   @override
   String get webLandingFeatureBillingTitle => 'Quản lý gói dịch vụ';
 
   @override
   String get webLandingFeatureBillingDescription =>
-      'Quản lý gói dịch vụ, gia hạn và trạng thái thanh toán minh bạch trên một luồng thống nhất.';
+      'Quản lý gói dịch vụ, gia hạn và trạng thái thanh toán trên một luồng rõ ràng, minh bạch.';
 
   @override
   String get webAboutTitle => 'Về chúng tôi';
 
   @override
   String get webAboutSubtitle =>
-      'BeFam ra đời từ trăn trở giữ kết nối họ tộc khi con cháu học tập, làm việc và sinh sống ở nhiều nơi trên thế giới.';
+      'BeFam ra đời từ mong muốn giữ kết nối họ tộc khi con cháu học tập, làm việc và sinh sống ở nhiều nơi.';
 
   @override
   String get webAboutMissionTitle => 'Sứ mệnh';
 
   @override
   String get webAboutMissionDescription =>
-      'Giúp mỗi dòng họ số hóa dữ liệu gia đình dễ hiểu, dễ dùng và bền vững theo thời gian.';
+      'Giúp mỗi dòng họ số hóa dữ liệu gia đình theo cách dễ hiểu, dễ dùng và bền vững theo thời gian.';
 
   @override
   String get webAboutVisionTitle => 'Tầm nhìn';
 
   @override
   String get webAboutVisionDescription =>
-      'Trở thành nền tảng vận hành họ tộc đáng tin cậy cho cộng đồng gia đình Việt trên toàn cầu.';
+      'Trở thành nền tảng vận hành họ tộc đáng tin cậy cho cộng đồng gia đình Việt ở mọi nơi.';
 
   @override
   String get webAboutTrustTitle => 'Cam kết';
@@ -2029,7 +2079,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webInfoNotificationsDescription =>
-      'Nhận thông báo cho sự kiện, khuyến học và các thay đổi quan trọng để không bỏ sót mốc cần theo dõi.';
+      'Nhận thông báo về sự kiện, khuyến học và các thay đổi quan trọng để không bỏ sót mốc cần theo dõi.';
 
   @override
   String get webInfoBillingTitle => 'Gói và thanh toán';
@@ -2047,7 +2097,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get webInfoHighlightsItemTwo =>
-      'Thiết kế responsive cho điện thoại, tablet và desktop.';
+      'Thiết kế responsive cho điện thoại, máy tính bảng và desktop.';
 
   @override
   String get webInfoHighlightsItemThree =>

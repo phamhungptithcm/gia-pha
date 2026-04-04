@@ -10,7 +10,13 @@ import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
 
-enum NotificationTargetType { event, scholarship, billing, authRefresh, unknown }
+enum NotificationTargetType {
+  event,
+  scholarship,
+  billing,
+  authRefresh,
+  unknown,
+}
 
 enum NotificationMessageOrigin { foreground, openedApp, launchedFromTerminated }
 
@@ -20,28 +26,42 @@ class NotificationDeepLink {
     required this.referenceId,
     required this.messageId,
     required this.origin,
+    required this.rawTarget,
+    required this.dataPayload,
     this.title,
     this.body,
+    this.type,
   });
 
   final NotificationTargetType targetType;
   final String? referenceId;
   final String? messageId;
   final NotificationMessageOrigin origin;
+  final String rawTarget;
+  final Map<String, String> dataPayload;
   final String? title;
   final String? body;
+  final String? type;
 
   bool get openedFromSystemNotification {
     return origin != NotificationMessageOrigin.foreground;
+  }
+
+  bool get isJoinRequestNotification {
+    return rawTarget == 'join_request' ||
+        (type?.trim().toLowerCase().startsWith('join_request_') ?? false);
+  }
+
+  bool get isNearbyRelativesNotification {
+    return dataPayload['feature']?.trim().toLowerCase() == 'nearby_relatives';
   }
 
   factory NotificationDeepLink.fromRemoteMessage(
     RemoteMessage message, {
     required NotificationMessageOrigin origin,
   }) {
-    final targetRaw = (message.data['target'] as String? ?? '')
-        .trim()
-        .toLowerCase();
+    final payload = _readMessagePayload(message.data);
+    final targetRaw = (payload['target'] ?? '').trim().toLowerCase();
     final targetType = switch (targetRaw) {
       'event' => NotificationTargetType.event,
       'scholarship' => NotificationTargetType.scholarship,
@@ -51,13 +71,33 @@ class NotificationDeepLink {
     };
     return NotificationDeepLink(
       targetType: targetType,
-      referenceId: message.data['id'] as String?,
+      referenceId: payload['id'],
       messageId: message.messageId,
       origin: origin,
+      rawTarget: targetRaw,
+      dataPayload: payload,
       title: message.notification?.title,
       body: message.notification?.body,
+      type: payload['type'],
     );
   }
+}
+
+Map<String, String> _readMessagePayload(Map<String, dynamic> data) {
+  final payload = <String, String>{};
+  for (final entry in data.entries) {
+    final normalizedKey = entry.key.trim();
+    final value = entry.value;
+    if (normalizedKey.isEmpty || value is! String) {
+      continue;
+    }
+    final normalizedValue = value.trim();
+    if (normalizedValue.isEmpty) {
+      continue;
+    }
+    payload[normalizedKey] = normalizedValue;
+  }
+  return payload;
 }
 
 abstract interface class PushNotificationService {

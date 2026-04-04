@@ -27,6 +27,11 @@ export type BillingTierPricing = {
   vatIncluded: boolean;
   showAds: boolean;
   adFree: boolean;
+  displayName?: string;
+  displayNameEn?: string;
+  displayNameVi?: string;
+  descriptionEn?: string;
+  descriptionVi?: string;
 };
 
 const REQUIRED_PLAN_ORDER: ReadonlyArray<BillingPlanCode> = [
@@ -97,6 +102,11 @@ export function setBillingPricingTiersForTesting(
       vatIncluded: tier.vatIncluded,
       showAds: tier.showAds,
       adFree: tier.adFree,
+      displayName: readOptionalTrimmedString(tier.displayName),
+      displayNameEn: readOptionalTrimmedString(tier.displayNameEn),
+      displayNameVi: readOptionalTrimmedString(tier.displayNameVi),
+      descriptionEn: readOptionalTrimmedString(tier.descriptionEn),
+      descriptionVi: readOptionalTrimmedString(tier.descriptionVi),
     };
   });
   if (!isTierStructureValid(normalized)) {
@@ -314,6 +324,11 @@ function normalizePricingDocs(
       vatIncluded: readRequiredBoolean(doc.data.vatIncluded, `${doc.id}.vatIncluded`),
       showAds,
       adFree,
+      displayName: readOptionalTrimmedString(doc.data.displayName),
+      displayNameEn: readOptionalTrimmedString(doc.data.displayNameEn),
+      displayNameVi: readOptionalTrimmedString(doc.data.displayNameVi),
+      descriptionEn: readOptionalTrimmedString(doc.data.descriptionEn),
+      descriptionVi: readOptionalTrimmedString(doc.data.descriptionVi),
     });
   }
 
@@ -428,6 +443,11 @@ function readRequiredNonNegativeInt(value: unknown, fieldPath: string): number {
 
 function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function readOptionalTrimmedString(value: unknown): string | undefined {
+  const normalized = readString(value);
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function normalizeNullableMemberCount(

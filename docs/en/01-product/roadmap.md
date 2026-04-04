@@ -1,12 +1,12 @@
 # Roadmap
 
-_Last reviewed: March 17, 2026_
+_Last reviewed: April 2, 2026_
 
 ## Delivery Model
 
 - `staging`: integration branch for active implementation
 - `main`: protected production branch
-- weekly release-promotion PR from `staging` to `main`
+- push-driven release-promotion PR from `staging` to `main`
 
 ## Milestones
 

@@ -1981,12 +1981,12 @@ const subscriptionPackages = [
     id: 'FREE',
     planCode: 'FREE',
     displayName: 'Miễn phí',
-    displayNameEn: 'BeFam Free',
+    displayNameEn: 'Free',
     displayNameVi: 'Miễn phí',
     descriptionEn:
-      'Manage your family tree with up to 10 members (with ads)',
+      'For small family trees, up to 10 members, with ads',
     descriptionVi:
-      'Quản lý gia phả tối đa 10 thành viên (có quảng cáo)',
+      'Cho gia phả nhỏ, tối đa 10 thành viên, có quảng cáo',
     minMembers: 0,
     maxMembers: 10,
     priceVndYear: 0,
@@ -2004,13 +2004,13 @@ const subscriptionPackages = [
   {
     id: 'BASE',
     planCode: 'BASE',
-    displayName: 'Gói Cơ bản',
-    displayNameEn: 'BeFam Base',
-    displayNameVi: 'Gói Cơ bản',
+    displayName: 'Tiêu chuẩn',
+    displayNameEn: 'Standard',
+    displayNameVi: 'Tiêu chuẩn',
     descriptionEn:
-      'Manage your family tree with up to 200 members (with ads)',
+      'For growing family trees, 11 - 200 members, with ads',
     descriptionVi:
-      'Quản lý gia phả tối đa 200 thành viên (có quảng cáo)',
+      'Phù hợp gia phả đang mở rộng, 11 - 200 thành viên, có quảng cáo',
     storeProductIds: {
       ios: 'befam.base.yearly',
       android: 'befam.base.yearly',
@@ -2032,13 +2032,13 @@ const subscriptionPackages = [
   {
     id: 'PLUS',
     planCode: 'PLUS',
-    displayName: 'Gói Nâng cao',
-    displayNameEn: 'BeFam Plus',
-    displayNameVi: 'Gói Nâng cao',
+    displayName: 'Nâng cao',
+    displayNameEn: 'Advanced',
+    displayNameVi: 'Nâng cao',
     descriptionEn:
-      'Advanced family tree management with up to 700 members (no ads)',
+      'Ad-free for larger family trees, 201 - 700 members',
     descriptionVi:
-      'Quản lý gia phả nâng cao đến 700 thành viên (không quảng cáo)',
+      'Không quảng cáo, dành cho gia phả 201 - 700 thành viên',
     storeProductIds: {
       ios: 'befam.plus.yearly',
       android: 'befam.plus.yearly',
@@ -2060,13 +2060,13 @@ const subscriptionPackages = [
   {
     id: 'PRO',
     planCode: 'PRO',
-    displayName: 'Gói Chuyên nghiệp',
-    displayNameEn: 'BeFam Pro',
-    displayNameVi: 'Gói Chuyên nghiệp',
+    displayName: 'Toàn diện',
+    displayNameEn: 'Pro',
+    displayNameVi: 'Toàn diện',
     descriptionEn:
-      'Unlimited members with all premium features (no ads)',
+      'Ad-free with unlimited members',
     descriptionVi:
-      'Không giới hạn thành viên, đầy đủ tính năng (không quảng cáo)',
+      'Không quảng cáo, không giới hạn thành viên',
     storeProductIds: {
       ios: 'befam.pro.yearly',
       android: 'befam.pro.yearly',

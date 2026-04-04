@@ -68,7 +68,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Không gian cây gia phả'), findsOneWidget);
+    expect(find.text('Cây gia phả'), findsOneWidget);
     expect(find.text('Chế độ hiển thị mặc định'), findsNothing);
     expect(find.byKey(const Key('genealogy-scope-clan')), findsNothing);
     await scrollToTreeWorkspace(tester);
@@ -140,7 +140,9 @@ void main() {
     expect(find.byKey(const Key('tree-print')), findsOneWidget);
   });
 
-  testWidgets('opens member detail sheet from node tap', (tester) async {
+  testWidgets('selects a node and keeps its detail action available', (
+    tester,
+  ) async {
     final repository = DebugGenealogyReadRepository(
       store: DebugGenealogyStore.seeded(),
     );
@@ -171,7 +173,7 @@ void main() {
 
     expect(find.text('Bé Minh'), findsWidgets);
     expect(
-      find.byKey(const Key('genealogy-open-member-detail-action')),
+      find.byKey(const Key('tree-node-info-member_demo_child_001')),
       findsOneWidget,
     );
   });

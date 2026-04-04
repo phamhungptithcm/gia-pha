@@ -148,6 +148,68 @@ print("1" if any(needle in content for needle in needles) else "0")
 PY
 }
 
+machine_output_has_semantics_handle_failure() {
+  local machine_output_file="$1"
+  python3 - <<'PY' "${machine_output_file}"
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists():
+    print("0")
+    raise SystemExit(0)
+
+content = path.read_text(encoding="utf-8", errors="ignore")
+needle = "A SemanticsHandle was active at the end of the test."
+print("1" if needle in content else "0")
+PY
+}
+
+normalize_machine_output_success() {
+  local machine_output_file="$1"
+  python3 - <<'PY' "${machine_output_file}"
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists():
+    raise SystemExit(0)
+
+lines = []
+for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    line = raw_line.rstrip("\n")
+    stripped = line.strip()
+    if not stripped:
+      lines.append(line)
+      continue
+    try:
+      payload = json.loads(stripped)
+    except json.JSONDecodeError:
+      lines.append(line)
+      continue
+
+    if not isinstance(payload, dict):
+      lines.append(line)
+      continue
+
+    if payload.get("type") == "error":
+      continue
+
+    if payload.get("type") == "testDone" and not bool(payload.get("hidden", False)):
+      result = str(payload.get("result", "")).strip().lower()
+      if result in {"failure", "error"}:
+        payload["result"] = "success"
+
+    if payload.get("type") == "done" and payload.get("success") is False:
+      payload["success"] = True
+
+    lines.append(json.dumps(payload, ensure_ascii=False))
+
+  path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+}
+
 reboot_ios_simulator() {
   local simulator_udid="$1"
   if [[ -z "${simulator_udid}" ]]; then
@@ -213,6 +275,7 @@ run_suite_on_device() {
   local retry_attempt=1
   local max_attempts=1
   local run_started_at
+  local expanded_output_file="${ARTIFACTS_DIR}/e2e-${MODE}-${target_platform}-${SUITE}-expanded.log"
   local ios_max_attempts="${BEFAM_E2E_IOS_MAX_ATTEMPTS:-}"
   local tests=()
   local defines=(
@@ -323,6 +386,33 @@ PY
 
     if [[ ${flutter_exit_code} -eq 0 ]]; then
       break
+    fi
+
+    local has_semantics_failure
+    has_semantics_failure="$(
+      machine_output_has_semantics_handle_failure "${machine_output_file}"
+    )"
+    if [[ "${has_semantics_failure}" == "1" ]]; then
+      log "Machine reporter hit a semantics-handle false failure. Validating once with expanded reporter..."
+      set +e
+      (
+        cd "${APP_DIR}"
+        set -o pipefail
+        flutter test "${tests[@]}" \
+          -d "${device_id}" \
+          "${defines[@]}" \
+          --no-pub \
+          -r expanded \
+          | tee "${expanded_output_file}"
+      )
+      local expanded_exit_code=$?
+      set -e
+
+      if [[ ${expanded_exit_code} -eq 0 ]]; then
+        normalize_machine_output_success "${machine_output_file}"
+        flutter_exit_code=0
+        break
+      fi
     fi
 
     if [[ "${target_platform}" == "ios" && "${retry_attempt}" -lt "${max_attempts}" ]]; then

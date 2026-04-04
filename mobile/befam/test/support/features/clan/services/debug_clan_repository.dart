@@ -143,6 +143,16 @@ class DebugClanRepository implements ClanRepository {
   }
 
   @override
+  Future<ClanProfile?> loadClanProfile({required AuthSession session}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    final clanId = session.clanId?.trim() ?? '';
+    if (clanId.isEmpty) {
+      return null;
+    }
+    return _clans[clanId];
+  }
+
+  @override
   Future<void> saveClan({
     required AuthSession session,
     required ClanDraft draft,

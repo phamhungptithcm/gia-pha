@@ -274,6 +274,7 @@ jobs:
           BEFAM_IOS_APP_STORE_URL: ${{ vars.BEFAM_IOS_APP_STORE_URL }}
           BEFAM_ANDROID_PLAY_STORE_URL: ${{ vars.BEFAM_ANDROID_PLAY_STORE_URL }}
         run: |
+          android_test_admob_app_id="ca-app-pub-3940256099942544~3347511713"
           allow_bundled="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-true}"
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           firebase_define_keys=(
@@ -308,6 +309,9 @@ jobs:
             echo "::error::Branch CI builds must use BEFAM_OTP_PROVIDER=firebase. Current: ${otp_provider}"
             exit 1
           fi
+          # Branch CI only performs compile validation; production AdMob enforcement stays in release-main.
+          export ANDROID_ADMOB_APPLICATION_ID="$android_test_admob_app_id"
+          export ALLOW_TEST_ADMOB_APP_IDS="true"
           build_common_args=(
             --build-name 0.0.0
             --build-number 1

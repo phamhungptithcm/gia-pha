@@ -1,25 +1,102 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../features/auth/models/auth_session.dart';
+import 'app_environment.dart';
+import 'performance_measurement_logger.dart';
 
 class FirebaseSessionAccessSync {
   FirebaseSessionAccessSync._();
 
   static const Duration _minimumSyncInterval = Duration(minutes: 10);
+  static const Duration _claimsCacheTtl = Duration(minutes: 2);
   static final Map<String, _SessionSyncSnapshot> _lastSyncedSnapshotByUid = {};
+  static final Map<String, _ClaimsSnapshot> _claimsSnapshotByUid = {};
+  static final Map<String, Future<void>> _inflightSyncByUid = {};
+  static final PerformanceMeasurementLogger _performanceLogger =
+      PerformanceMeasurementLogger(
+        defaultSlowThreshold: const Duration(milliseconds: 250),
+      );
 
   static Future<void> ensureUserSessionDocument({
-    required FirebaseFirestore firestore,
+    FirebaseFirestore? firestore,
     required AuthSession session,
     FirebaseAuth? auth,
+    Future<Map<String, dynamic>?> Function(FirebaseAuth? auth)? claimsResolver,
+    Future<void> Function(String uid, Map<String, dynamic> payload)?
+    sessionWriter,
+    DateTime Function()? nowProvider,
   }) async {
+    final usesInjectedSyncHandlers =
+        claimsResolver != null || sessionWriter != null;
+    if (AppEnvironment.useLocalFirebaseFallbacks && !usesInjectedSyncHandlers) {
+      return;
+    }
     final uid = session.uid.trim();
     if (uid.isEmpty) {
       return;
     }
 
-    final claims = await _resolveClaims(auth);
+    if (sessionWriter == null && firestore == null) {
+      throw ArgumentError(
+        'firestore is required when no custom sessionWriter is provided.',
+      );
+    }
+
+    final existing = _inflightSyncByUid[uid];
+    if (existing != null) {
+      await existing;
+      return;
+    }
+
+    final syncFuture = _performanceLogger.measureAsync<void>(
+      metric: 'firebase.session_sync',
+      warnAfter: const Duration(milliseconds: 250),
+      dimensions: <String, Object?>{
+        'login_method': session.loginMethod.name,
+        'linked_auth_uid': session.linkedAuthUid ? 1 : 0,
+      },
+      action: () => _ensureUserSessionDocumentInternal(
+        firestore: firestore,
+        session: session,
+        uid: uid,
+        auth: auth,
+        claimsResolver: claimsResolver ?? _resolveClaims,
+        sessionWriter: sessionWriter,
+        nowProvider: nowProvider ?? DateTime.now,
+      ),
+    );
+    _inflightSyncByUid[uid] = syncFuture;
+    try {
+      await syncFuture;
+    } finally {
+      if (identical(_inflightSyncByUid[uid], syncFuture)) {
+        _inflightSyncByUid.remove(uid);
+      }
+    }
+  }
+
+  static Future<void> _ensureUserSessionDocumentInternal({
+    required FirebaseFirestore? firestore,
+    required AuthSession session,
+    required String uid,
+    required FirebaseAuth? auth,
+    required Future<Map<String, dynamic>?> Function(FirebaseAuth? auth)
+    claimsResolver,
+    required Future<void> Function(String uid, Map<String, dynamic> payload)?
+    sessionWriter,
+    required DateTime Function() nowProvider,
+  }) async {
+    final currentTime = nowProvider();
+    final claims = await _resolveClaimsCached(
+      uid: uid,
+      auth: auth,
+      now: currentTime,
+      claimsResolver: claimsResolver,
+    );
     if (claims == null) {
       return;
     }
@@ -53,7 +130,6 @@ class FirebaseSessionAccessSync {
       accessMode: accessMode,
       linkedAuthUid: session.linkedAuthUid,
     );
-    final currentTime = DateTime.now();
     final previous = _lastSyncedSnapshotByUid[uid];
     if (previous != null &&
         previous.fingerprint == fingerprint &&
@@ -62,7 +138,7 @@ class FirebaseSessionAccessSync {
     }
 
     try {
-      await firestore.collection('users').doc(uid).set({
+      final payload = <String, dynamic>{
         'uid': uid,
         'memberId': memberId,
         'clanId': clanId,
@@ -73,7 +149,15 @@ class FirebaseSessionAccessSync {
         'linkedAuthUid': session.linkedAuthUid,
         'updatedAt': now,
         'createdAt': now,
-      }, SetOptions(merge: true));
+      };
+      if (sessionWriter != null) {
+        await sessionWriter(uid, payload);
+      } else {
+        await firestore!
+            .collection('users')
+            .doc(uid)
+            .set(payload, SetOptions(merge: true));
+      }
       _lastSyncedSnapshotByUid[uid] = _SessionSyncSnapshot(
         fingerprint: fingerprint,
         syncedAt: currentTime,
@@ -82,6 +166,33 @@ class FirebaseSessionAccessSync {
       // Session sync is best-effort; do not block feature flows when claims/rules are in transition.
       return;
     }
+  }
+
+  static Future<Map<String, dynamic>?> _resolveClaimsCached({
+    required String uid,
+    required FirebaseAuth? auth,
+    required DateTime now,
+    required Future<Map<String, dynamic>?> Function(FirebaseAuth? auth)
+    claimsResolver,
+  }) async {
+    final cached = _claimsSnapshotByUid[uid];
+    if (cached != null && now.difference(cached.resolvedAt) < _claimsCacheTtl) {
+      return cached.claims;
+    }
+
+    final claims = await claimsResolver(auth);
+    if (claims == null) {
+      return null;
+    }
+
+    final normalizedClaims = Map<String, dynamic>.unmodifiable(
+      claims.map((key, value) => MapEntry(key.toString(), value)),
+    );
+    _claimsSnapshotByUid[uid] = _ClaimsSnapshot(
+      claims: normalizedClaims,
+      resolvedAt: now,
+    );
+    return normalizedClaims;
   }
 
   static Future<Map<String, dynamic>?> _resolveClaims(
@@ -164,6 +275,13 @@ class FirebaseSessionAccessSync {
       linkedAuthUid ? '1' : '0',
     ].join('|');
   }
+
+  @visibleForTesting
+  static void resetForTest() {
+    _lastSyncedSnapshotByUid.clear();
+    _claimsSnapshotByUid.clear();
+    _inflightSyncByUid.clear();
+  }
 }
 
 class _SessionSyncSnapshot {
@@ -174,4 +292,11 @@ class _SessionSyncSnapshot {
 
   final String fingerprint;
   final DateTime syncedAt;
+}
+
+class _ClaimsSnapshot {
+  const _ClaimsSnapshot({required this.claims, required this.resolvedAt});
+
+  final Map<String, dynamic> claims;
+  final DateTime resolvedAt;
 }

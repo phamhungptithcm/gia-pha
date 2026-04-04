@@ -125,7 +125,7 @@ void main() {
     await pumpBillingPage(tester, session: buildNoClanSession());
 
     expect(find.text('Gói cá nhân của bạn'), findsNothing);
-    expect(find.text('Gói dịch vụ & thanh toán'), findsOneWidget);
+    expect(find.text('Chọn gói phù hợp'), findsOneWidget);
     final selector = find.byKey(const Key('billing-plan-selector'));
     expect(selector, findsOneWidget);
     final baseOption = find.byKey(const Key('billing-plan-option-base'));
@@ -185,15 +185,16 @@ void main() {
     final saveBeforeChange = tester.widget<FilledButton>(saveButton);
     expect(saveBeforeChange.onPressed, isNull);
 
-    final reminderChip = find.byKey(const Key('billing-reminder-chip-30'));
+    final reminderSwitch = find.byType(Switch);
+    expect(reminderSwitch, findsOneWidget);
     await tester.scrollUntilVisible(
-      reminderChip,
+      reminderSwitch,
       280,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.ensureVisible(reminderChip);
+    await tester.ensureVisible(reminderSwitch);
     await tester.pumpAndSettle();
-    await tester.tap(reminderChip, warnIfMissed: false);
+    await tester.tap(reminderSwitch);
     await tester.pumpAndSettle();
 
     final saveAfterChange = tester.widget<FilledButton>(saveButton);
@@ -212,6 +213,7 @@ void main() {
 
     final saveAfterPersist = tester.widget<FilledButton>(saveButton);
     expect(saveAfterPersist.onPressed, isNull);
+    expect(find.byKey(const Key('billing-save-success-indicator')), findsOneWidget);
   });
 
   testWidgets('viewer mode shows summary only and hides manager actions', (

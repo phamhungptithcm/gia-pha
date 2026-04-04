@@ -612,77 +612,23 @@ class DebugBillingRepository implements BillingRepository {
 
   _PricingTier _resolveTier(int memberCount) {
     if (memberCount <= 10) {
-      return const _PricingTier(
-        planCode: 'FREE',
-        minMembers: 0,
-        maxMembers: 10,
-        priceVndYear: 0,
-        showAds: true,
-      );
+      return _catalogTierForPlanCode('FREE');
     }
     if (memberCount <= 200) {
-      return const _PricingTier(
-        planCode: 'BASE',
-        minMembers: 11,
-        maxMembers: 200,
-        priceVndYear: 99000,
-        showAds: true,
-      );
+      return _catalogTierForPlanCode('BASE');
     }
     if (memberCount <= 700) {
-      return const _PricingTier(
-        planCode: 'PLUS',
-        minMembers: 201,
-        maxMembers: 700,
-        priceVndYear: 199000,
-        showAds: false,
-      );
+      return _catalogTierForPlanCode('PLUS');
     }
-    return const _PricingTier(
-      planCode: 'PRO',
-      minMembers: 701,
-      maxMembers: null,
-      priceVndYear: 299000,
-      showAds: false,
-    );
+    return _catalogTierForPlanCode('PRO');
   }
 
   _PricingTier _resolveTierByPlanCode(String planCode) {
     final normalized = planCode.trim().toUpperCase();
-    if (normalized == 'BASE') {
-      return const _PricingTier(
-        planCode: 'BASE',
-        minMembers: 11,
-        maxMembers: 200,
-        priceVndYear: 99000,
-        showAds: true,
-      );
+    if (normalized == 'BASE' || normalized == 'PLUS' || normalized == 'PRO') {
+      return _catalogTierForPlanCode(normalized);
     }
-    if (normalized == 'PLUS') {
-      return const _PricingTier(
-        planCode: 'PLUS',
-        minMembers: 201,
-        maxMembers: 700,
-        priceVndYear: 199000,
-        showAds: false,
-      );
-    }
-    if (normalized == 'PRO') {
-      return const _PricingTier(
-        planCode: 'PRO',
-        minMembers: 701,
-        maxMembers: null,
-        priceVndYear: 299000,
-        showAds: false,
-      );
-    }
-    return const _PricingTier(
-      planCode: 'FREE',
-      minMembers: 0,
-      maxMembers: 10,
-      priceVndYear: 0,
-      showAds: true,
-    );
+    return _catalogTierForPlanCode('FREE');
   }
 
   int _rankPlanCode(String planCode) {
@@ -760,34 +706,10 @@ class _DebugBillingState {
 
   BillingWorkspaceSnapshot toSnapshot() {
     final pricing = [
-      const _PricingTier(
-        planCode: 'FREE',
-        minMembers: 0,
-        maxMembers: 10,
-        priceVndYear: 0,
-        showAds: true,
-      ),
-      const _PricingTier(
-        planCode: 'BASE',
-        minMembers: 11,
-        maxMembers: 200,
-        priceVndYear: 99000,
-        showAds: true,
-      ),
-      const _PricingTier(
-        planCode: 'PLUS',
-        minMembers: 201,
-        maxMembers: 700,
-        priceVndYear: 199000,
-        showAds: false,
-      ),
-      const _PricingTier(
-        planCode: 'PRO',
-        minMembers: 701,
-        maxMembers: null,
-        priceVndYear: 299000,
-        showAds: false,
-      ),
+      _catalogTierForPlanCode('FREE'),
+      _catalogTierForPlanCode('BASE'),
+      _catalogTierForPlanCode('PLUS'),
+      _catalogTierForPlanCode('PRO'),
     ].map((tier) => tier.toPricing()).toList(growable: false);
 
     return BillingWorkspaceSnapshot(
@@ -844,6 +766,64 @@ class _DebugBillingState {
   }
 }
 
+_PricingTier _catalogTierForPlanCode(String planCode) {
+  switch (planCode.trim().toUpperCase()) {
+    case 'BASE':
+      return const _PricingTier(
+        planCode: 'BASE',
+        minMembers: 11,
+        maxMembers: 200,
+        priceVndYear: 99000,
+        showAds: true,
+        displayName: 'Tiêu chuẩn',
+        displayNameEn: 'Standard',
+        displayNameVi: 'Tiêu chuẩn',
+        descriptionEn: 'For growing family trees, 11 - 200 members, with ads',
+        descriptionVi:
+            'Phù hợp gia phả đang mở rộng, 11 - 200 thành viên, có quảng cáo',
+      );
+    case 'PLUS':
+      return const _PricingTier(
+        planCode: 'PLUS',
+        minMembers: 201,
+        maxMembers: 700,
+        priceVndYear: 199000,
+        showAds: false,
+        displayName: 'Nâng cao',
+        displayNameEn: 'Advanced',
+        displayNameVi: 'Nâng cao',
+        descriptionEn: 'Ad-free for larger family trees, 201 - 700 members',
+        descriptionVi: 'Không quảng cáo, dành cho gia phả 201 - 700 thành viên',
+      );
+    case 'PRO':
+      return const _PricingTier(
+        planCode: 'PRO',
+        minMembers: 701,
+        maxMembers: null,
+        priceVndYear: 299000,
+        showAds: false,
+        displayName: 'Toàn diện',
+        displayNameEn: 'Pro',
+        displayNameVi: 'Toàn diện',
+        descriptionEn: 'Ad-free with unlimited members',
+        descriptionVi: 'Không quảng cáo, không giới hạn thành viên',
+      );
+    default:
+      return const _PricingTier(
+        planCode: 'FREE',
+        minMembers: 0,
+        maxMembers: 10,
+        priceVndYear: 0,
+        showAds: true,
+        displayName: 'Miễn phí',
+        displayNameEn: 'Free',
+        displayNameVi: 'Miễn phí',
+        descriptionEn: 'For small family trees, up to 10 members, with ads',
+        descriptionVi: 'Cho gia phả nhỏ, tối đa 10 thành viên, có quảng cáo',
+      );
+  }
+}
+
 class _PricingTier {
   const _PricingTier({
     required this.planCode,
@@ -851,6 +831,11 @@ class _PricingTier {
     required this.maxMembers,
     required this.priceVndYear,
     required this.showAds,
+    required this.displayName,
+    required this.displayNameEn,
+    required this.displayNameVi,
+    required this.descriptionEn,
+    required this.descriptionVi,
   });
 
   final String planCode;
@@ -858,6 +843,11 @@ class _PricingTier {
   final int? maxMembers;
   final int priceVndYear;
   final bool showAds;
+  final String displayName;
+  final String displayNameEn;
+  final String displayNameVi;
+  final String descriptionEn;
+  final String descriptionVi;
 
   BillingPlanPricing toPricing() {
     return BillingPlanPricing(
@@ -868,6 +858,11 @@ class _PricingTier {
       vatIncluded: true,
       showAds: showAds,
       adFree: !showAds,
+      displayName: displayName,
+      displayNameEn: displayNameEn,
+      displayNameVi: displayNameVi,
+      descriptionEn: descriptionEn,
+      descriptionVi: descriptionVi,
     );
   }
 }

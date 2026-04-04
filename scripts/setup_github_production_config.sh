@@ -15,6 +15,14 @@ Required environment variables:
   FIRESTORE_DATABASE_ID
   APP_TIMEZONE
   GOOGLE_PLAY_PACKAGE_NAME
+  BEFAM_ADMOB_ANDROID_APP_ID
+  BEFAM_ADMOB_IOS_APP_ID
+  BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID
+  BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID
+  BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID
+  BEFAM_ADMOB_IOS_BANNER_UNIT_ID
+  BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
+  BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
   BILLING_WEBHOOK_SECRET
   APPLE_SHARED_SECRET
 
@@ -101,6 +109,18 @@ Optional environment variables:
   BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK
   BEFAM_IOS_APP_STORE_URL
   BEFAM_ANDROID_PLAY_STORE_URL
+  BEFAM_ADMOB_ANDROID_APP_ID
+  BEFAM_ADMOB_IOS_APP_ID
+  BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID
+  BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID
+  BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID
+  BEFAM_ADMOB_IOS_BANNER_UNIT_ID
+  BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
+  BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
+  STAGING_ANDROID_RELEASE_TRACK
+  STAGING_ANDROID_CLOSED_TRACK_NAME
+  STAGING_IOS_RELEASE_CHANNEL
+  STAGING_MOBILE_PUBLISH_ENABLED
 
 Optional environment secrets:
   CARD_WEBHOOK_SECRET
@@ -109,6 +129,10 @@ Optional environment secrets:
   GOOGLE_IAP_WEBHOOK_BEARER_TOKEN
   OTP_TWILIO_ACCOUNT_SID
   OTP_TWILIO_AUTH_TOKEN
+  GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+  APP_STORE_CONNECT_ISSUER_ID
+  APP_STORE_CONNECT_API_KEY_ID
+  APP_STORE_CONNECT_API_PRIVATE_KEY
 EOF
 }
 
@@ -212,6 +236,14 @@ for key in \
   FIRESTORE_DATABASE_ID \
   APP_TIMEZONE \
   GOOGLE_PLAY_PACKAGE_NAME \
+  BEFAM_ADMOB_ANDROID_APP_ID \
+  BEFAM_ADMOB_IOS_APP_ID \
+  BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID \
+  BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID \
+  BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID \
+  BEFAM_ADMOB_IOS_BANNER_UNIT_ID \
+  BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID \
+  BEFAM_ADMOB_IOS_REWARDED_UNIT_ID \
   BILLING_WEBHOOK_SECRET \
   APPLE_SHARED_SECRET; do
   if ! require_non_empty_env "$key"; then
@@ -236,17 +268,38 @@ if [[ "$missing" -ne 0 ]]; then
   exit 1
 fi
 
-otp_provider="${OTP_PROVIDER:-twilio}"
-befam_otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
-if [[ "$otp_provider" != "twilio" ]]; then
-  echo "OTP_PROVIDER must be twilio for production setup." >&2
+case "$ENV_NAME" in
+  production)
+    expected_otp_provider="twilio"
+    expected_befam_otp_provider="twilio"
+    ;;
+  staging)
+    expected_otp_provider="firebase"
+    expected_befam_otp_provider="firebase"
+    ;;
+  *)
+    echo "Unsupported environment: $ENV_NAME (expected production or staging)." >&2
+    exit 1
+    ;;
+esac
+
+otp_provider="${OTP_PROVIDER:-$expected_otp_provider}"
+befam_otp_provider="${BEFAM_OTP_PROVIDER:-$expected_befam_otp_provider}"
+bundled_firebase_options="${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:-false}"
+
+if [[ "$otp_provider" != "$expected_otp_provider" ]]; then
+  echo "OTP_PROVIDER must be $expected_otp_provider for $ENV_NAME setup." >&2
   missing=1
 fi
-if [[ "$befam_otp_provider" != "twilio" ]]; then
-  echo "BEFAM_OTP_PROVIDER must be twilio for production setup." >&2
+if [[ "$befam_otp_provider" != "$expected_befam_otp_provider" ]]; then
+  echo "BEFAM_OTP_PROVIDER must be $expected_befam_otp_provider for $ENV_NAME setup." >&2
   missing=1
 fi
-if [[ "$otp_provider" == "twilio" ]]; then
+if [[ "$bundled_firebase_options" != "false" ]]; then
+  echo "BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS must be false for $ENV_NAME setup." >&2
+  missing=1
+fi
+if [[ "$expected_otp_provider" == "twilio" ]]; then
   for key in OTP_TWILIO_ACCOUNT_SID OTP_TWILIO_AUTH_TOKEN OTP_TWILIO_VERIFY_SERVICE_SID; do
     if ! require_non_empty_env "$key"; then
       missing=1
@@ -254,12 +307,13 @@ if [[ "$otp_provider" == "twilio" ]]; then
   done
 fi
 if [[ "$missing" -ne 0 ]]; then
-  echo "Abort: Twilio OTP is enabled but Twilio credentials are incomplete." >&2
+  echo "Abort: environment configuration is incomplete or violates the OTP/bundled-Firebase policy." >&2
   exit 1
 fi
 
-: "${OTP_PROVIDER:=twilio}"
-: "${BEFAM_OTP_PROVIDER:=twilio}"
+: "${OTP_PROVIDER:=$expected_otp_provider}"
+: "${BEFAM_OTP_PROVIDER:=$expected_befam_otp_provider}"
+: "${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS:=false}"
 : "${BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK:=false}"
 
 echo "Applying GitHub environment configuration:"
@@ -349,6 +403,18 @@ set_var_if_present BEFAM_OTP_PROVIDER
 set_var_if_present BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK
 set_var_if_present BEFAM_IOS_APP_STORE_URL
 set_var_if_present BEFAM_ANDROID_PLAY_STORE_URL
+set_var_if_present BEFAM_ADMOB_ANDROID_APP_ID
+set_var_if_present BEFAM_ADMOB_IOS_APP_ID
+set_var_if_present BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID
+set_var_if_present BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID
+set_var_if_present BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID
+set_var_if_present BEFAM_ADMOB_IOS_BANNER_UNIT_ID
+set_var_if_present BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
+set_var_if_present BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
+set_var_if_present STAGING_ANDROID_RELEASE_TRACK
+set_var_if_present STAGING_ANDROID_CLOSED_TRACK_NAME
+set_var_if_present STAGING_IOS_RELEASE_CHANNEL
+set_var_if_present STAGING_MOBILE_PUBLISH_ENABLED
 
 set_secret_if_present FIREBASE_SERVICE_ACCOUNT
 set_secret_if_present BILLING_WEBHOOK_SECRET
@@ -359,5 +425,9 @@ set_secret_if_present APPLE_IAP_WEBHOOK_BEARER_TOKEN
 set_secret_if_present GOOGLE_IAP_WEBHOOK_BEARER_TOKEN
 set_secret_if_present OTP_TWILIO_ACCOUNT_SID
 set_secret_if_present OTP_TWILIO_AUTH_TOKEN
+set_secret_if_present GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+set_secret_if_present APP_STORE_CONNECT_ISSUER_ID
+set_secret_if_present APP_STORE_CONNECT_API_KEY_ID
+set_secret_if_present APP_STORE_CONNECT_API_PRIVATE_KEY
 
 echo "Done."

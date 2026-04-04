@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: __BEFAM_WEB_BASE_URL__/sitemap.xml
+Sitemap: http://localhost/sitemap.xml

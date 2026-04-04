@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
 
+import '../../../core/services/expiring_value_cache.dart';
 import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
@@ -18,6 +19,7 @@ import 'fund_repository.dart';
 
 class FirebaseFundRepository implements FundRepository {
   static const int _workspacePageSize = 200;
+  static const Duration _workspaceCacheTtl = Duration(seconds: 60);
 
   FirebaseFundRepository({
     FirebaseFirestore? firestore,
@@ -33,6 +35,10 @@ class FirebaseFundRepository implements FundRepository {
   final FirestorePagedQueryLoader _pagedQueryLoader;
   final InflightTaskCache<String, FundWorkspaceSnapshot> _workspaceLoadCache =
       InflightTaskCache<String, FundWorkspaceSnapshot>();
+  final ExpiringValueCache<String, FundWorkspaceSnapshot>
+  _workspaceSnapshotCache = ExpiringValueCache<String, FundWorkspaceSnapshot>(
+    ttl: _workspaceCacheTtl,
+  );
 
   CollectionReference<Map<String, dynamic>> get _funds =>
       _firestore.collection('funds');
@@ -58,6 +64,11 @@ class FirebaseFundRepository implements FundRepository {
     final clanId = session.clanId;
     if (clanId == null || clanId.isEmpty) {
       return const FundWorkspaceSnapshot(funds: [], transactions: []);
+    }
+
+    final cached = _workspaceSnapshotCache.read(clanId);
+    if (cached != null) {
+      return cached;
     }
 
     return _workspaceLoadCache.run(clanId, () async {
@@ -89,7 +100,12 @@ class FirebaseFundRepository implements FundRepository {
           .take(400)
           .toList(growable: false);
 
-      return FundWorkspaceSnapshot(funds: funds, transactions: transactions);
+      final snapshot = FundWorkspaceSnapshot(
+        funds: funds,
+        transactions: transactions,
+      );
+      _workspaceSnapshotCache.write(clanId, snapshot);
+      return snapshot;
     });
   }
 
@@ -228,7 +244,7 @@ class FirebaseFundRepository implements FundRepository {
 
         await batch.commit();
       }
-      _workspaceLoadCache.invalidate(sessionClanId);
+      _invalidateWorkspaceSnapshot(sessionClanId);
 
       // Build response without an extra read: substitute FieldValue sentinels
       // with local timestamps (within milliseconds of the server timestamp).
@@ -290,7 +306,7 @@ class FirebaseFundRepository implements FundRepository {
       });
       final payload = response.data;
       if (payload is Map && payload['transaction'] is Map<String, dynamic>) {
-        _workspaceLoadCache.invalidate(clanId);
+        _invalidateWorkspaceSnapshot(clanId);
         return FundTransaction.fromJson(
           payload['transaction'] as Map<String, dynamic>,
         );
@@ -316,7 +332,7 @@ class FirebaseFundRepository implements FundRepository {
           FundRepositoryErrorCode.writeFailed,
         );
       }
-      _workspaceLoadCache.invalidate(clanId);
+      _invalidateWorkspaceSnapshot(clanId);
       return fallback;
     } on FundRepositoryException {
       rethrow;
@@ -399,6 +415,11 @@ class FirebaseFundRepository implements FundRepository {
       FundRepositoryErrorCode.writeFailed,
       error.message ?? error.code,
     );
+  }
+
+  void _invalidateWorkspaceSnapshot(String clanId) {
+    _workspaceLoadCache.invalidate(clanId);
+    _workspaceSnapshotCache.invalidate(clanId);
   }
 }
 

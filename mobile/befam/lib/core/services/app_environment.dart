@@ -103,8 +103,15 @@ class AppEnvironment {
 
   static const bool enableAppCheck = bool.fromEnvironment(
     'BEFAM_ENABLE_APP_CHECK',
-    defaultValue: true,
+    defaultValue: false,
   );
+
+  static const bool useLocalFirebaseFallbacks =
+      !kReleaseMode && allowBundledFirebaseOptions;
+
+  static const bool useMockAuth =
+      !kReleaseMode &&
+      bool.fromEnvironment('BEFAM_USE_MOCK_AUTH', defaultValue: false);
 
   static const bool allowFirebasePhoneAuthFallback =
       !kReleaseMode &&
@@ -145,6 +152,36 @@ class AppEnvironment {
 
   static const String androidPlayStoreUrl = String.fromEnvironment(
     'BEFAM_ANDROID_PLAY_STORE_URL',
+    defaultValue: '',
+  );
+
+  static const String adMobAndroidBannerUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_ANDROID_BANNER_UNIT_ID',
+    defaultValue: '',
+  );
+
+  static const String adMobAndroidInterstitialUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_ANDROID_INTERSTITIAL_UNIT_ID',
+    defaultValue: '',
+  );
+
+  static const String adMobIosBannerUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_IOS_BANNER_UNIT_ID',
+    defaultValue: '',
+  );
+
+  static const String adMobIosInterstitialUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID',
+    defaultValue: '',
+  );
+
+  static const String adMobAndroidRewardedUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_ANDROID_REWARDED_UNIT_ID',
+    defaultValue: '',
+  );
+
+  static const String adMobIosRewardedUnitId = String.fromEnvironment(
+    'BEFAM_ADMOB_IOS_REWARDED_UNIT_ID',
     defaultValue: '',
   );
 }

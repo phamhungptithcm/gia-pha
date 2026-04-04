@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 
 import '../../../core/services/app_environment.dart';
+import '../../../core/services/expiring_value_cache.dart';
 import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
@@ -18,8 +19,10 @@ import 'event_repository.dart';
 import 'event_validation.dart';
 
 class FirebaseEventRepository implements EventRepository {
-  static const int _workspacePageSize = 250;
+  static const int _workspacePageSize = 400;
   static const int _workspaceMaxDocuments = 2000;
+  static const Duration _workspaceCacheTtl = Duration(seconds: 60);
+  static const Duration _upcomingCacheTtl = Duration(seconds: 45);
 
   FirebaseEventRepository({
     FirebaseFirestore? firestore,
@@ -32,6 +35,12 @@ class FirebaseEventRepository implements EventRepository {
   final FirestorePagedQueryLoader _pagedQueryLoader;
   final InflightTaskCache<String, EventWorkspaceSnapshot> _workspaceLoadCache =
       InflightTaskCache<String, EventWorkspaceSnapshot>();
+  final ExpiringValueCache<String, EventWorkspaceSnapshot>
+  _workspaceSnapshotCache = ExpiringValueCache<String, EventWorkspaceSnapshot>(
+    ttl: _workspaceCacheTtl,
+  );
+  final ExpiringValueCache<String, List<EventRecord>> _upcomingEventsCache =
+      ExpiringValueCache<String, List<EventRecord>>(ttl: _upcomingCacheTtl);
 
   CollectionReference<Map<String, dynamic>> get _events =>
       _firestore.collection('events');
@@ -63,6 +72,11 @@ class FirebaseEventRepository implements EventRepository {
       );
     }
 
+    final cached = _workspaceSnapshotCache.read(clanId);
+    if (cached != null) {
+      return cached;
+    }
+
     return _workspaceLoadCache.run(clanId, () async {
       final results =
           await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
@@ -86,11 +100,13 @@ class FirebaseEventRepository implements EventRepository {
           .sortedBy((branch) => branch.name.toLowerCase())
           .toList(growable: false);
 
-      return EventWorkspaceSnapshot(
+      final snapshot = EventWorkspaceSnapshot(
         events: events,
         members: members,
         branches: branches,
       );
+      _workspaceSnapshotCache.write(clanId, snapshot);
+      return snapshot;
     });
   }
 
@@ -109,6 +125,11 @@ class FirebaseEventRepository implements EventRepository {
       return const <EventRecord>[];
     }
     final safeLimit = limit.clamp(1, 200);
+    final cacheKey = '$clanId|$safeLimit';
+    final cached = _upcomingEventsCache.read(cacheKey);
+    if (cached != null) {
+      return cached;
+    }
     final now = DateTime.now().toUtc();
     final anchor = Timestamp.fromDate(now.subtract(const Duration(days: 1)));
 
@@ -119,12 +140,14 @@ class FirebaseEventRepository implements EventRepository {
         .limit(safeLimit)
         .get();
 
-    return snapshot.docs
+    final events = snapshot.docs
         .map((doc) => EventRecord.fromJson(doc.data()))
         .where((event) => !event.startsAt.isBefore(now))
         .sortedBy((event) => event.startsAt)
         .take(safeLimit)
         .toList(growable: false);
+    _upcomingEventsCache.write(cacheKey, events);
+    return events;
   }
 
   Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
@@ -224,8 +247,14 @@ class FirebaseEventRepository implements EventRepository {
 
     await eventRef.set(payload, SetOptions(merge: true));
     final updated = await eventRef.get();
-    _workspaceLoadCache.invalidate(clanId);
+    _invalidateEventCaches(clanId);
     return EventRecord.fromJson(updated.data()!);
+  }
+
+  void _invalidateEventCaches(String clanId) {
+    _workspaceLoadCache.invalidate(clanId);
+    _workspaceSnapshotCache.invalidate(clanId);
+    _upcomingEventsCache.invalidate();
   }
 
   void _ensureCanManage(AuthSession session) {

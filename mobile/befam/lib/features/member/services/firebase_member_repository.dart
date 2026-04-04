@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:collection/collection.dart';
 
 import '../../../core/services/app_environment.dart';
+import '../../../core/services/expiring_value_cache.dart';
 import '../../../core/services/firestore_paged_query_loader.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
 import '../../../core/services/firebase_services.dart';
@@ -19,8 +20,9 @@ import '../models/member_workspace_snapshot.dart';
 import 'member_repository.dart';
 
 class FirebaseMemberRepository implements MemberRepository {
-  static const int _workspacePageSize = 200;
+  static const int _workspacePageSize = 400;
   static const int _workspaceMaxDocuments = 1500;
+  static const Duration _workspaceCacheTtl = Duration(seconds: 60);
 
   FirebaseMemberRepository({
     FirebaseFirestore? firestore,
@@ -43,6 +45,10 @@ class FirebaseMemberRepository implements MemberRepository {
   final FirestorePagedQueryLoader _pagedQueryLoader;
   final InflightTaskCache<String, MemberWorkspaceSnapshot> _workspaceLoadCache =
       InflightTaskCache<String, MemberWorkspaceSnapshot>();
+  final ExpiringValueCache<String, MemberWorkspaceSnapshot>
+  _workspaceSnapshotCache = ExpiringValueCache<String, MemberWorkspaceSnapshot>(
+    ttl: _workspaceCacheTtl,
+  );
 
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
@@ -67,6 +73,11 @@ class FirebaseMemberRepository implements MemberRepository {
       return const MemberWorkspaceSnapshot(members: [], branches: []);
     }
 
+    final cached = _workspaceSnapshotCache.read(clanId);
+    if (cached != null) {
+      return cached;
+    }
+
     return _workspaceLoadCache.run(clanId, () async {
       final results =
           await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
@@ -83,7 +94,12 @@ class FirebaseMemberRepository implements MemberRepository {
           .sortedBy((branch) => branch.name.toLowerCase())
           .toList(growable: false);
 
-      return MemberWorkspaceSnapshot(members: members, branches: branches);
+      final snapshot = MemberWorkspaceSnapshot(
+        members: members,
+        branches: branches,
+      );
+      _workspaceSnapshotCache.write(clanId, snapshot);
+      return snapshot;
     });
   }
 
@@ -126,7 +142,7 @@ class FirebaseMemberRepository implements MemberRepository {
         draft: draft,
         normalizedPhone: normalizedPhone,
       );
-      _workspaceLoadCache.invalidate(clanId);
+      _invalidateWorkspaceSnapshot(clanId);
       return created;
     }
 
@@ -253,7 +269,7 @@ class FirebaseMemberRepository implements MemberRepository {
       ..['updatedAt'] = nowIso
       ..['id'] = memberRef.id;
     if (isNew) responsePayload['createdAt'] = nowIso;
-    _workspaceLoadCache.invalidate(clanId);
+    _invalidateWorkspaceSnapshot(clanId);
     return MemberProfile.fromJson(responsePayload);
   }
 
@@ -488,7 +504,7 @@ class FirebaseMemberRepository implements MemberRepository {
       responseData['avatarUrl'] = url;
       responseData['updatedAt'] = DateTime.now().toUtc().toIso8601String();
       responseData['updatedBy'] = actor;
-      _workspaceLoadCache.invalidate(clanId);
+      _invalidateWorkspaceSnapshot(clanId);
       return MemberProfile.fromJson(responseData);
     } catch (error) {
       throw MemberRepositoryException(
@@ -541,7 +557,7 @@ class FirebaseMemberRepository implements MemberRepository {
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': actor,
     }, SetOptions(merge: true));
-    _workspaceLoadCache.invalidate(clanId);
+    _invalidateWorkspaceSnapshot(clanId);
   }
 
   @override
@@ -625,6 +641,11 @@ class FirebaseMemberRepository implements MemberRepository {
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': actor,
     }, SetOptions(merge: true));
+  }
+
+  void _invalidateWorkspaceSnapshot(String clanId) {
+    _workspaceLoadCache.invalidate(clanId);
+    _workspaceSnapshotCache.invalidate(clanId);
   }
 }
 
