@@ -544,12 +544,10 @@ class _MethodActionButton extends StatelessWidget {
     required this.icon,
     required this.filled,
     required this.onPressed,
-    this.subtitle,
   });
 
   final Key buttonKey;
   final String title;
-  final String? subtitle;
   final IconData icon;
   final bool filled;
   final VoidCallback? onPressed;
@@ -560,34 +558,40 @@ class _MethodActionButton extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     final buttonChild = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
+        SizedBox(
           width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: filled
-                ? colorScheme.onPrimary.withValues(alpha: 0.14)
-                : colorScheme.primaryContainer.withValues(alpha: 0.65),
-            borderRadius: BorderRadius.circular(tokens.radiusMd),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: filled
+                  ? colorScheme.onPrimary.withValues(alpha: 0.14)
+                  : colorScheme.primaryContainer.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(tokens.radiusMd),
+            ),
+            child: Icon(icon),
           ),
-          child: Icon(icon),
         ),
         SizedBox(width: tokens.spaceMd),
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-              if (subtitle != null && subtitle!.isNotEmpty) ...[
-                SizedBox(height: tokens.spaceXs),
-                Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis),
-              ],
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
             ],
           ),
         ),
         SizedBox(width: tokens.spaceSm),
-        const Icon(Icons.arrow_forward),
+        const SizedBox(
+          width: 40,
+          child: Center(child: Icon(Icons.arrow_forward)),
+        ),
       ],
     );
 
@@ -1287,7 +1291,7 @@ class _MemberSelectionCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                candidate.displayNameMasked,
+                                candidate.displayName,
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w800),
                               ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/app_locale_controller.dart';
@@ -23,6 +24,7 @@ import '../../member/models/member_profile.dart';
 import '../../member/models/member_social_links.dart';
 import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
+import '../../notifications/services/notification_test_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/profile_notification_preferences.dart';
 import '../services/profile_notification_preferences_repository.dart';
@@ -66,9 +68,12 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
   late final AppLocaleController _localeController;
   late final SharedPrefsAuthSessionStore _sessionStore;
   late final _UnlinkedProfileDraftStore _unlinkedProfileStore;
+  late final NotificationTestService _notificationTestService;
   late final bool _ownsLocaleController;
   ProfileDraft? _unlinkedDraft;
   bool _isSavingUnlinkedProfile = false;
+  bool _isSendingTestNotification = false;
+  bool _isSendingEventReminderTest = false;
 
   @override
   void initState() {
@@ -83,6 +88,9 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
     _localeController = widget.localeController ?? AppLocaleController();
     _sessionStore = SharedPrefsAuthSessionStore();
     _unlinkedProfileStore = const _UnlinkedProfileDraftStore();
+    _notificationTestService = createDefaultNotificationTestService(
+      session: widget.session,
+    );
     _ownsLocaleController = widget.localeController == null;
     unawaited(_localeController.load());
     unawaited(_controller.initialize());
@@ -178,6 +186,139 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.profileUpdateSuccess)));
     }
+  }
+
+  Future<void> _sendTestNotification() async {
+    if (_isSendingTestNotification) {
+      return;
+    }
+
+    final l10n = context.l10n;
+    setState(() {
+      _isSendingTestNotification = true;
+    });
+
+    try {
+      final result = await _notificationTestService.sendSelfTest(
+        session: widget.session,
+        delaySeconds: 8,
+        title: l10n.pick(
+          vi: 'Thông báo thử từ BeFam',
+          en: 'Test notification from BeFam',
+        ),
+        body: l10n.pick(
+          vi: 'Chạm để mở BeFam và kiểm tra luồng thông báo trên máy này.',
+          en: 'Tap to open BeFam and verify the notification flow on this device.',
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'BeFam sẽ gửi thông báo thử sau ${result.delaySeconds} giây. Hãy đưa app ra nền để kiểm tra.',
+              en: 'BeFam will send a test notification in ${result.delaySeconds} seconds. Put the app in the background to verify it.',
+            ),
+          ),
+        ),
+      );
+    } on NotificationTestServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_notificationTestErrorMessage(l10n, error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingTestNotification = false;
+        });
+      } else {
+        _isSendingTestNotification = false;
+      }
+    }
+  }
+
+  Future<void> _sendEventReminderTest() async {
+    if (_isSendingEventReminderTest) {
+      return;
+    }
+
+    final l10n = context.l10n;
+    setState(() {
+      _isSendingEventReminderTest = true;
+    });
+
+    try {
+      final result = await _notificationTestService.sendEventReminderSelfTest(
+        session: widget.session,
+        delaySeconds: 8,
+        title: l10n.pick(vi: 'Sự kiện thử từ BeFam', en: 'BeFam test event'),
+        body: l10n.pick(
+          vi: 'BeFam sẽ nhắc bạn mở lại app để kiểm tra event reminder trên máy thật.',
+          en: 'BeFam will remind you to reopen the app so you can verify event reminders on a real device.',
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick(
+              vi: 'BeFam đã tạo một sự kiện thử và sẽ nhắc sau ${result.delaySeconds} giây. Hãy đưa app ra nền để kiểm tra.',
+              en: 'BeFam created a test event and will remind you in ${result.delaySeconds} seconds. Put the app in the background to verify it.',
+            ),
+          ),
+        ),
+      );
+    } on NotificationTestServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_notificationTestErrorMessage(l10n, error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingEventReminderTest = false;
+        });
+      } else {
+        _isSendingEventReminderTest = false;
+      }
+    }
+  }
+
+  String _notificationTestErrorMessage(
+    AppLocalizations l10n,
+    NotificationTestServiceException error,
+  ) {
+    return switch (error.code) {
+      NotificationTestServiceErrorCode.unauthenticated => l10n.pick(
+        vi: 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại rồi thử tiếp.',
+        en: 'This session expired. Sign in again and try once more.',
+      ),
+      NotificationTestServiceErrorCode.permissionDenied => l10n.pick(
+        vi: 'Phiên này chưa được phép gửi thông báo thử.',
+        en: 'This session is not allowed to send a test notification.',
+      ),
+      NotificationTestServiceErrorCode.failedPrecondition => l10n.pick(
+        vi: 'Máy này chưa sẵn sàng cho bài test này. Hãy mở app vài giây, cấp quyền thông báo và bật nhắc sự kiện rồi thử lại.',
+        en: 'This device is not ready for this test yet. Keep the app open briefly, allow notifications, enable event reminders, then try again.',
+      ),
+      NotificationTestServiceErrorCode.unavailable => l10n.pick(
+        vi: 'Máy chủ tạm thời chưa phản hồi. Hãy thử lại sau ít phút.',
+        en: 'The server is temporarily unavailable. Please try again shortly.',
+      ),
+      NotificationTestServiceErrorCode.unknown => l10n.pick(
+        vi: 'Chưa thể chạy bài test lúc này.',
+        en: 'Unable to run this test right now.',
+      ),
+    };
   }
 
   Future<MemberRepositoryErrorCode?> _saveUnlinkedProfileDraft(
@@ -444,6 +585,11 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
             billingRepository: widget.billingRepository,
             onBillingStateChanged: widget.onBillingStateChanged,
             onLogoutRequested: widget.onLogoutRequested,
+            showTestAction: !kReleaseMode,
+            isSendingTestNotification: _isSendingTestNotification,
+            isSendingEventReminderTest: _isSendingEventReminderTest,
+            onSendTestNotification: _sendTestNotification,
+            onSendEventReminderTest: _sendEventReminderTest,
           );
         },
       ),
@@ -769,17 +915,27 @@ class _SettingsScreenShell extends StatelessWidget {
     required this.controller,
     required this.session,
     required this.localeController,
+    required this.showTestAction,
+    required this.isSendingTestNotification,
+    required this.isSendingEventReminderTest,
     this.billingRepository,
     this.onBillingStateChanged,
     required this.onLogoutRequested,
+    this.onSendTestNotification,
+    this.onSendEventReminderTest,
   });
 
   final ProfileController controller;
   final AuthSession session;
   final AppLocaleController localeController;
+  final bool showTestAction;
+  final bool isSendingTestNotification;
+  final bool isSendingEventReminderTest;
   final BillingRepository? billingRepository;
   final VoidCallback? onBillingStateChanged;
   final Future<void> Function()? onLogoutRequested;
+  final Future<void> Function()? onSendTestNotification;
+  final Future<void> Function()? onSendEventReminderTest;
 
   Future<void> _confirmLogout(BuildContext context) async {
     if (onLogoutRequested == null) {
@@ -828,7 +984,14 @@ class _SettingsScreenShell extends StatelessWidget {
               child: ListView(
                 padding: appWorkspacePagePadding(context, top: 16, bottom: 32),
                 children: [
-                  _NotificationSettingsHeroCard(controller: controller),
+                  _NotificationSettingsHeroCard(
+                    controller: controller,
+                    showTestAction: showTestAction,
+                    isSendingTestNotification: isSendingTestNotification,
+                    isSendingEventReminderTest: isSendingEventReminderTest,
+                    onSendTestNotification: onSendTestNotification,
+                    onSendEventReminderTest: onSendEventReminderTest,
+                  ),
                   const SizedBox(height: 16),
                   _ProfileSectionCard(
                     title: l10n.notificationSettingsTitle,
@@ -1075,9 +1238,21 @@ class _NotificationSettingsPanel extends StatelessWidget {
 }
 
 class _NotificationSettingsHeroCard extends StatelessWidget {
-  const _NotificationSettingsHeroCard({required this.controller});
+  const _NotificationSettingsHeroCard({
+    required this.controller,
+    required this.showTestAction,
+    required this.isSendingTestNotification,
+    required this.isSendingEventReminderTest,
+    this.onSendTestNotification,
+    this.onSendEventReminderTest,
+  });
 
   final ProfileController controller;
+  final bool showTestAction;
+  final bool isSendingTestNotification;
+  final bool isSendingEventReminderTest;
+  final Future<void> Function()? onSendTestNotification;
+  final Future<void> Function()? onSendEventReminderTest;
 
   @override
   Widget build(BuildContext context) {
@@ -1193,6 +1368,75 @@ class _NotificationSettingsHeroCard extends StatelessWidget {
               ],
             ),
           ),
+          if (showTestAction) ...[
+            const SizedBox(height: 12),
+            AppWorkspaceSurface(
+              color: Colors.white.withValues(alpha: 0.76),
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.l10n.pick(
+                      vi: 'Kiểm tra trên máy này',
+                      en: 'Test on this device',
+                    ),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    context.l10n.pick(
+                      vi: 'BeFam có thể gửi một push nhanh hoặc một nhắc sự kiện để bạn kiểm tra notification thật trên máy này.',
+                      en: 'BeFam can send a quick push or an event reminder so you can verify notifications on a real device.',
+                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: isSendingTestNotification
+                            ? null
+                            : onSendTestNotification,
+                        icon: const Icon(Icons.send_to_mobile_rounded),
+                        label: AppStableLoadingChild(
+                          isLoading: isSendingTestNotification,
+                          child: Text(
+                            context.l10n.pick(
+                              vi: 'Push ngay',
+                              en: 'Quick push',
+                            ),
+                          ),
+                        ),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: isSendingEventReminderTest
+                            ? null
+                            : onSendEventReminderTest,
+                        icon: const Icon(Icons.event_available_rounded),
+                        label: AppStableLoadingChild(
+                          isLoading: isSendingEventReminderTest,
+                          child: Text(
+                            context.l10n.pick(
+                              vi: 'Nhắc sự kiện',
+                              en: 'Event reminder',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

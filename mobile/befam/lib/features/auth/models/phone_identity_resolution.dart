@@ -1,11 +1,9 @@
-enum PhoneIdentityResolutionStatus {
-  needsSelection,
-  createNewOnly,
-}
+enum PhoneIdentityResolutionStatus { needsSelection, createNewOnly }
 
 class PhoneIdentityCandidate {
   const PhoneIdentityCandidate({
     required this.memberId,
+    required this.displayName,
     required this.displayNameMasked,
     required this.birthHint,
     required this.clanLabel,
@@ -16,6 +14,7 @@ class PhoneIdentityCandidate {
   });
 
   final String memberId;
+  final String displayName;
   final String displayNameMasked;
   final String? birthHint;
   final String? clanLabel;
@@ -35,6 +34,10 @@ class PhoneIdentityCandidate {
 
     return PhoneIdentityCandidate(
       memberId: normalizeNullableString(data['memberId']) ?? '',
+      displayName:
+          normalizeNullableString(data['displayName']) ??
+          normalizeNullableString(data['displayNameMasked']) ??
+          '***',
       displayNameMasked:
           normalizeNullableString(data['displayNameMasked']) ?? '***',
       birthHint: normalizeNullableString(data['birthHint']),
@@ -60,4 +63,3 @@ class PhoneIdentityResolution {
   final bool allowCreateNew;
   final List<PhoneIdentityCandidate> candidates;
 }
-

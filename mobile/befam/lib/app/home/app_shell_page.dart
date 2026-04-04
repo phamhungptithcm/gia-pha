@@ -359,17 +359,46 @@ class _AppShellPageState extends State<AppShellPage>
           eventId: deepLink.referenceId,
           messageId: deepLink.messageId,
         );
+        return;
       case NotificationTargetType.scholarship:
         _openScholarshipNotificationDestination(
           referenceId: deepLink.referenceId,
           messageId: deepLink.messageId,
         );
+        return;
       case NotificationTargetType.billing:
         _selectDestination(3);
+        return;
       case NotificationTargetType.authRefresh:
       case NotificationTargetType.unknown:
-        break;
+        _openGenericNotificationDestination(deepLink);
+        return;
     }
+  }
+
+  void _openGenericNotificationDestination(NotificationDeepLink deepLink) {
+    if (!_shouldOpenNotificationMessage(deepLink.messageId)) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final type = deepLink.type?.trim().toLowerCase() ?? '';
+      if (type == 'join_request_created') {
+        unawaited(_openJoinRequestsCenter());
+        return;
+      }
+      if (deepLink.isJoinRequestNotification) {
+        unawaited(_openSubmittedJoinRequests());
+        return;
+      }
+      if (deepLink.isNearbyRelativesNotification) {
+        _selectDestination(0);
+      }
+    });
   }
 
   void _openEventNotificationDestination({

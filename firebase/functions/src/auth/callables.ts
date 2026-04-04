@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { getAuth } from 'firebase-admin/auth';
+import { getMessaging } from 'firebase-admin/messaging';
 import {
   FieldValue,
   Timestamp,
@@ -28,6 +29,7 @@ import {
   getOtpReviewBypassCode,
   getOtpTwilioAuthToken,
 } from '../config/runtime';
+import { sendEventReminderRun } from '../events/event-triggers';
 import { db } from '../shared/firestore';
 import { requireAuth } from '../shared/errors';
 import { logInfo, logWarn } from '../shared/logger';
@@ -150,6 +152,7 @@ type LookupMemberProfileResponse = {
 
 type MaskedMemberCandidate = {
   memberId: string;
+  displayName: string;
   displayNameMasked: string;
   birthHint: string | null;
   clanLabel: string | null;
@@ -281,8 +284,16 @@ const APP_CHECK_CALLABLE_OPTIONS = {
   region: APP_REGION,
   enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
 } as const;
+const SELF_TEST_NOTIFICATION_CALLABLE_OPTIONS = {
+  region: APP_REGION,
+  enforceAppCheck: false,
+} as const;
 const SUPPORTED_PHONE_DIAL_CODES = ['886', '84', '82', '81', '65', '61', '49', '44', '33', '1'];
 const OTP_REVIEW_BYPASS_PHONE_SET = buildOtpReviewBypassPhoneSet();
+const SELF_TEST_NOTIFICATION_INVALID_TOKEN_CODES = new Set([
+  'messaging/invalid-registration-token',
+  'messaging/registration-token-not-registered',
+]);
 
 function personalBillingScopeId(uid: string): string {
   return `user_scope__${uid.trim()}`;
@@ -1823,6 +1834,281 @@ export const registerDeviceToken = onCall(APP_CHECK_CALLABLE_OPTIONS, async (req
     token,
   };
 });
+
+// Intentionally skips App Check so QA and debug builds can verify
+// real-device push delivery even when App Check is not wired yet.
+export const sendSelfTestNotification = onCall(
+  SELF_TEST_NOTIFICATION_CALLABLE_OPTIONS,
+  async (request) => {
+    const auth = requireAuth(request);
+    const delaySeconds = readSelfTestDelaySeconds(request.data);
+    const title = sanitizeSelfTestText(
+      optionalString(request.data, 'title'),
+      'BeFam test notification',
+      120,
+    );
+    const body = sanitizeSelfTestText(
+      optionalString(request.data, 'body'),
+      'Tap to open BeFam and verify notification delivery on this device.',
+      240,
+    );
+    const targetId = `self_test_${Date.now()}`;
+    const resolvedContext = await resolveSelfTestMemberContext({
+      uid: auth.uid,
+      memberId: optionalString(request.data, 'memberId'),
+      clanId: optionalString(request.data, 'clanId'),
+      authToken: auth.token as Record<string, unknown>,
+    });
+
+    const tokenSnapshot = await db
+      .collection('users')
+      .doc(auth.uid)
+      .collection('deviceTokens')
+      .limit(20)
+      .get();
+
+    const tokenDocs = tokenSnapshot.docs
+      .map((doc) => {
+        const token = optionalString(doc.data(), 'token')?.trim() ?? doc.id.trim();
+        if (token.length === 0) {
+          return null;
+        }
+        return { documentId: doc.id, token };
+      })
+      .filter((value): value is { documentId: string; token: string } => value != null);
+
+    if (tokenDocs.length === 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'No registered device token was found for this user.',
+      );
+    }
+
+    if (delaySeconds > 0) {
+      await sleepForMillis(delaySeconds * 1000);
+    }
+
+    const response = await getMessaging().sendEachForMulticast({
+      tokens: tokenDocs.map((record) => record.token),
+      notification: {
+        title,
+        body,
+      },
+      data: {
+        target: 'billing',
+        id: targetId,
+        type: 'self_test_notification',
+        source: 'self_test_notification',
+      },
+      android: {
+        priority: 'high',
+      },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+      },
+    });
+
+    const invalidTokenDeletes: Array<Promise<unknown>> = [];
+    for (let index = 0; index < response.responses.length; index += 1) {
+      const sendResponse = response.responses[index];
+      if (sendResponse.success) {
+        continue;
+      }
+      const errorCode = sendResponse.error?.code ?? '';
+      if (!SELF_TEST_NOTIFICATION_INVALID_TOKEN_CODES.has(errorCode)) {
+        continue;
+      }
+      const tokenDoc = tokenDocs[index];
+      invalidTokenDeletes.push(
+        db
+          .collection('users')
+          .doc(auth.uid)
+          .collection('deviceTokens')
+          .doc(tokenDoc.documentId)
+          .delete()
+          .catch(() => null),
+      );
+    }
+    await Promise.all(invalidTokenDeletes);
+
+    let notificationId: string | null = null;
+    if (
+      response.successCount > 0 &&
+      resolvedContext.memberId != null &&
+      resolvedContext.clanId != null
+    ) {
+      const notificationRef = db.collection('notifications').doc();
+      await notificationRef.set({
+        id: notificationRef.id,
+        memberId: resolvedContext.memberId,
+        clanId: resolvedContext.clanId,
+        type: 'self_test_notification',
+        title,
+        body,
+        data: {
+          target: 'billing',
+          id: targetId,
+          source: 'self_test_notification',
+        },
+        isRead: false,
+        sentAt: FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      notificationId = notificationRef.id;
+    }
+
+    logInfo('sendSelfTestNotification completed', {
+      uid: auth.uid,
+      tokenCount: tokenDocs.length,
+      sentCount: response.successCount,
+      failedCount: response.failureCount,
+      delaySeconds,
+      memberId: resolvedContext.memberId,
+      clanId: resolvedContext.clanId,
+      notificationId,
+      appId: request.app?.appId ?? null,
+    });
+
+    return {
+      tokenCount: tokenDocs.length,
+      sentCount: response.successCount,
+      failedCount: response.failureCount,
+      delaySeconds,
+      notificationId,
+    };
+  },
+);
+
+export const sendSelfTestEventReminder = onCall(
+  SELF_TEST_NOTIFICATION_CALLABLE_OPTIONS,
+  async (request) => {
+    const auth = requireAuth(request);
+    const delaySeconds = readSelfTestDelaySeconds(request.data);
+    const title = sanitizeSelfTestText(
+      optionalString(request.data, 'title'),
+      'Sự kiện thử từ BeFam',
+      120,
+    );
+    const description = sanitizeSelfTestText(
+      optionalString(request.data, 'body'),
+      'BeFam sẽ nhắc bạn mở lại app để kiểm tra event reminder trên máy thật.',
+      240,
+    );
+    const resolvedContext = await resolveSelfTestMemberContext({
+      uid: auth.uid,
+      memberId: optionalString(request.data, 'memberId'),
+      clanId: optionalString(request.data, 'clanId'),
+      authToken: auth.token as Record<string, unknown>,
+    });
+
+    if (resolvedContext.memberId == null || resolvedContext.clanId == null) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Event reminder self-test requires an active clan member context.',
+      );
+    }
+
+    const memberSnapshot = await db
+      .collection('members')
+      .doc(resolvedContext.memberId)
+      .get();
+    if (!memberSnapshot.exists) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Active member record was not found for this event reminder test.',
+      );
+    }
+
+    const memberData = memberSnapshot.data() as MemberRecord | undefined;
+    const branchId = optionalString(memberData, 'branchId')?.trim() ?? '';
+    const visibility = branchId.length > 0 ? 'branch' : 'clan';
+    const reminderAt = new Date(Date.now() + (delaySeconds * 1000));
+    const startsAt = new Date(reminderAt.getTime() + (60 * 1000));
+    const endsAt = new Date(startsAt.getTime() + (30 * 60 * 1000));
+    const eventId = `self_test_event_${Date.now()}`;
+    const reminderOffsetMinutes = 1;
+    const dispatchId = buildSelfTestEventReminderDispatchId({
+      eventId,
+      reminderAt,
+      offsetMinutes: reminderOffsetMinutes,
+    });
+
+    await db.collection('events').doc(eventId).set({
+      id: eventId,
+      clanId: resolvedContext.clanId,
+      branchId: branchId.length > 0 ? branchId : null,
+      title,
+      description,
+      eventType: 'other',
+      targetMemberId: null,
+      locationName: 'BeFam QA',
+      locationAddress: '',
+      startsAt: Timestamp.fromDate(startsAt),
+      endsAt: Timestamp.fromDate(endsAt),
+      timezone: 'UTC',
+      isRecurring: false,
+      recurrenceRule: null,
+      reminderOffsetsMinutes: [reminderOffsetMinutes],
+      visibility,
+      status: 'scheduled',
+      ritualKey: null,
+      ritualPreset: null,
+      isAutoGenerated: true,
+      nextReminderAt: Timestamp.fromDate(reminderAt),
+      nextReminderOffsetMinutes: reminderOffsetMinutes,
+      nextReminderOccurrenceStartsAt: Timestamp.fromDate(startsAt),
+      reminderCursorVersion: 1,
+      reminderCursorUpdatedAt: FieldValue.serverTimestamp(),
+      reminderCursorSource: 'callable:sendSelfTestEventReminder',
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: auth.uid,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: auth.uid,
+    });
+
+    if (delaySeconds > 0) {
+      await sleepForMillis(delaySeconds * 1000);
+    }
+
+    const reminderRun = await sendEventReminderRun({
+      source: 'callable:sendSelfTestEventReminder',
+      now: new Date(),
+    });
+    const dispatchSnapshot = await db
+      .collection('eventReminderDispatches')
+      .doc(dispatchId)
+      .get();
+    const dispatchData = dispatchSnapshot.data() as Record<string, unknown> | undefined;
+    const dispatchStatus = optionalString(dispatchData, 'status')?.trim() ?? '';
+
+    logInfo('sendSelfTestEventReminder completed', {
+      uid: auth.uid,
+      memberId: resolvedContext.memberId,
+      clanId: resolvedContext.clanId,
+      eventId,
+      delaySeconds,
+      dispatchId,
+      dispatchStatus: dispatchStatus || null,
+      ...reminderRun,
+      appId: request.app?.appId ?? null,
+    });
+
+    return {
+      eventId,
+      delaySeconds,
+      sentCount: dispatchStatus === 'sent' ? 1 : 0,
+      dispatchStatus,
+      remindersSent: reminderRun.remindersSent,
+    };
+  },
+);
 
 export const listUserClanContexts = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
@@ -3439,11 +3725,12 @@ function buildMaskedMemberCandidate(input: {
       : null;
   const clanId = optionalTrimmedRecordString(input.member.clanId);
   const clanLabel = clanId == null ? null : input.clanNameById.get(clanId) ?? clanId;
+  const displayName =
+    resolveMemberDisplayName(input.member) ?? memberFallbackDisplayName(input.languageCode);
   return {
     memberId: input.memberId,
-    displayNameMasked: maskMemberDisplayName(
-      resolveMemberDisplayName(input.member) ?? memberFallbackDisplayName(input.languageCode),
-    ),
+    displayName,
+    displayNameMasked: maskMemberDisplayName(displayName),
     birthHint: buildMaskedBirthHint(input.member.birthDate ?? null),
     clanLabel: clanLabel == null ? null : maskClanLabel(clanLabel),
     roleLabel: roleLabelFromClaim(
@@ -4342,6 +4629,101 @@ function rolePriority(role: string): number {
     default:
       return 10;
   }
+}
+
+async function resolveSelfTestMemberContext({
+  uid,
+  memberId,
+  clanId,
+  authToken,
+}: {
+  uid: string;
+  memberId?: string | null;
+  clanId?: string | null;
+  authToken: Record<string, unknown>;
+}): Promise<{ memberId: string | null; clanId: string | null }> {
+  const requestedMemberId = memberId?.trim() ?? '';
+  const requestedClanId = clanId?.trim() ?? '';
+  if (requestedMemberId.length > 0) {
+    const memberSnapshot = await db.collection('members').doc(requestedMemberId).get();
+    if (memberSnapshot.exists) {
+      const memberData = memberSnapshot.data() as MemberRecord | undefined;
+      const linkedUid = optionalString(memberData, 'authUid')?.trim() ?? '';
+      const memberClanId = optionalString(memberData, 'clanId')?.trim() ?? '';
+      if (
+        linkedUid === uid &&
+        memberClanId.length > 0 &&
+        (requestedClanId.length === 0 || requestedClanId === memberClanId)
+      ) {
+        return {
+          memberId: requestedMemberId,
+          clanId: memberClanId,
+        };
+      }
+    }
+  }
+
+  const tokenMemberId = optionalString(authToken, 'memberId')?.trim() ?? '';
+  const tokenClanIds = Array.isArray(authToken.clanIds)
+    ? authToken.clanIds
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0)
+    : [];
+  return {
+    memberId: tokenMemberId.length > 0 ? tokenMemberId : null,
+    clanId: tokenClanIds.length > 0 ? tokenClanIds[0] : null,
+  };
+}
+
+function readSelfTestDelaySeconds(data: unknown): number {
+  const rawValue = data != null && typeof data === 'object'
+    ? (data as Record<string, unknown>).delaySeconds
+    : null;
+  const parsedValue = typeof rawValue === 'number'
+    ? Math.trunc(rawValue)
+    : typeof rawValue === 'string'
+      ? Number.parseInt(rawValue, 10)
+      : Number.NaN;
+  if (!Number.isFinite(parsedValue)) {
+    return 8;
+  }
+  return Math.max(0, Math.min(30, parsedValue));
+}
+
+function sanitizeSelfTestText(
+  value: string | null | undefined,
+  fallback: string,
+  maxLength: number,
+): string {
+  const normalized = value?.trim() ?? '';
+  if (normalized.length === 0) {
+    return fallback;
+  }
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return normalized.substring(0, maxLength).trimEnd();
+}
+
+function buildSelfTestEventReminderDispatchId(input: {
+  eventId: string;
+  reminderAt: Date;
+  offsetMinutes: number;
+}): string {
+  const fingerprint = createHash('sha256')
+    .update(
+      `${input.eventId}:${input.reminderAt.toISOString()}:${input.offsetMinutes}`,
+    )
+    .digest('hex')
+    .slice(0, 32);
+  return `evt_reminder_${fingerprint}`;
+}
+
+function sleepForMillis(durationMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, durationMs);
+  });
 }
 
 async function writeAuditLog({
