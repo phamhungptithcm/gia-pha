@@ -509,23 +509,12 @@ class _LoginMethodSelectionCard extends StatelessWidget {
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
-              SizedBox(height: tokens.spaceSm),
-              Text(
-                l10n.pick(
-                  vi: 'Bạn có thể tiếp tục bằng số điện thoại của mình hoặc mã dành cho bé.',
-                  en: 'You can continue with your phone number or a child access code.',
-                ),
-              ),
               SizedBox(height: tokens.spaceLg),
               _MethodActionButton(
                 buttonKey: const Key('auth-method-phone-button'),
                 title: l10n.pick(
                   vi: 'Dùng số điện thoại',
                   en: 'Use phone number',
-                ),
-                subtitle: l10n.pick(
-                  vi: 'Nhận mã OTP để tiếp tục nhanh',
-                  en: 'Get an OTP code and continue quickly',
                 ),
                 icon: Icons.phone_iphone,
                 filled: true,
@@ -539,10 +528,6 @@ class _LoginMethodSelectionCard extends StatelessWidget {
                 title: l10n.pick(
                   vi: 'Dùng mã dành cho bé',
                   en: 'Use child access code',
-                ),
-                subtitle: l10n.pick(
-                  vi: 'Phù hợp khi bạn đăng nhập cho bé',
-                  en: 'Use this when signing in for a child',
                 ),
                 icon: Icons.child_care,
                 filled: false,
@@ -569,15 +554,15 @@ class _MethodActionButton extends StatelessWidget {
   const _MethodActionButton({
     required this.buttonKey,
     required this.title,
-    required this.subtitle,
     required this.icon,
     required this.filled,
     required this.onPressed,
+    this.subtitle,
   });
 
   final Key buttonKey;
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final IconData icon;
   final bool filled;
   final VoidCallback? onPressed;
@@ -607,8 +592,10 @@ class _MethodActionButton extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-              SizedBox(height: tokens.spaceXs),
-              Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+              if (subtitle != null && subtitle!.isNotEmpty) ...[
+                SizedBox(height: tokens.spaceXs),
+                Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis),
+              ],
             ],
           ),
         ),
@@ -712,14 +699,6 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
-                    ),
-                    SizedBox(height: tokens.spaceXs),
-                    Text(
-                      l10n.pick(
-                        vi: 'BeFam chỉ dùng thông tin này để xác minh và giữ an toàn cho tài khoản.',
-                        en: 'BeFam only uses this information to verify and keep your account secure.',
-                      ),
-                      style: theme.textTheme.bodySmall,
                     ),
                   ],
                 ),
