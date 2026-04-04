@@ -28,7 +28,10 @@ void main() {
     );
 
     expect(find.text('Something went wrong'), findsOneWidget);
-    expect(find.textContaining('Render failed'), findsOneWidget);
+    expect(
+      find.textContaining('return to Home and continue using the app'),
+      findsOneWidget,
+    );
     expect(find.widgetWithText(FilledButton, 'Back to home'), findsOneWidget);
   });
 

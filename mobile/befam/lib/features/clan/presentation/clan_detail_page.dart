@@ -308,6 +308,9 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final l10n = context.l10n;
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final compactAppBarActions = screenWidth < 360 || textScale > 1.15;
         final profileRows = _profileRows();
         final clanName = _controller.clan?.name ?? l10n.clanCreateFirstTitle;
         final heroHighlights = <_HeroHighlight>[
@@ -334,23 +337,66 @@ class _ClanDetailPageState extends State<ClanDetailPage> {
 
         final scaffold = Scaffold(
           appBar: AppBar(
-            title: Text(l10n.clanDetailTitle),
-            actions: [
-              if (_canReviewJoinRequests)
-                IconButton(
-                  tooltip: l10n.pick(
-                    vi: 'Duyệt yêu cầu tham gia',
-                    en: 'Review join requests',
-                  ),
-                  onPressed: _openJoinRequestReview,
-                  icon: const Icon(Icons.fact_check_outlined),
-                ),
-              IconButton(
-                tooltip: l10n.clanRefreshAction,
-                onPressed: _controller.isLoading ? null : _controller.refresh,
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
+            title: Text(
+              l10n.clanDetailTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            actions: compactAppBarActions
+                ? [
+                    PopupMenuButton<String>(
+                      tooltip: l10n.pick(
+                        vi: 'Tùy chọn không gian họ tộc',
+                        en: 'Clan workspace options',
+                      ),
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'join_requests':
+                            _openJoinRequestReview();
+                            break;
+                          case 'refresh':
+                            if (!_controller.isLoading) {
+                              _controller.refresh();
+                            }
+                            break;
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (_canReviewJoinRequests)
+                          PopupMenuItem<String>(
+                            value: 'join_requests',
+                            child: Text(
+                              l10n.pick(
+                                vi: 'Duyệt yêu cầu tham gia',
+                                en: 'Review join requests',
+                              ),
+                            ),
+                          ),
+                        PopupMenuItem<String>(
+                          value: 'refresh',
+                          child: Text(l10n.clanRefreshAction),
+                        ),
+                      ],
+                    ),
+                  ]
+                : [
+                    if (_canReviewJoinRequests)
+                      IconButton(
+                        tooltip: l10n.pick(
+                          vi: 'Duyệt yêu cầu tham gia',
+                          en: 'Review join requests',
+                        ),
+                        onPressed: _openJoinRequestReview,
+                        icon: const Icon(Icons.fact_check_outlined),
+                      ),
+                    IconButton(
+                      tooltip: l10n.clanRefreshAction,
+                      onPressed: _controller.isLoading
+                          ? null
+                          : _controller.refresh,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
           ),
           body: SafeArea(
             child: _controller.isLoading
@@ -717,54 +763,108 @@ class _SectionCard extends StatelessWidget {
     final card = AppWorkspaceSurface(
       key: key,
       padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (description != null && description!.trim().isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          description!,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (actionLabel != null && onAction != null)
-                TextButton.icon(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stackHeader = constraints.maxWidth < 420;
+          final actionButton = actionLabel != null && onAction != null
+              ? TextButton.icon(
                   onPressed: onAction,
                   icon: const Icon(Icons.add_circle_outline),
-                  style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
-                  label: Text(actionLabel!),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(44, 44),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                  ),
+                  label: Text(actionLabel!, overflow: TextOverflow.ellipsis),
+                )
+              : null;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (stackHeader)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionCardHeaderText(
+                      title: title,
+                      description: description,
+                    ),
+                    if (actionButton != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: actionButton,
+                      ),
+                    ],
+                  ],
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _SectionCardHeaderText(
+                        title: title,
+                        description: description,
+                      ),
+                    ),
+                    if (actionButton != null) ...[
+                      const SizedBox(width: 12),
+                      Flexible(child: actionButton),
+                    ],
+                  ],
                 ),
+              const SizedBox(height: 16),
+              child,
+              if (footer != null) ...[const SizedBox(height: 16), footer!],
             ],
-          ),
-          const SizedBox(height: 16),
-          child,
-          if (footer != null) ...[const SizedBox(height: 16), footer!],
-        ],
+          );
+        },
       ),
     );
     if (anchorId == null) {
       return card;
     }
     return OnboardingAnchor(anchorId: anchorId!, child: card);
+  }
+}
+
+class _SectionCardHeaderText extends StatelessWidget {
+  const _SectionCardHeaderText({
+    required this.title,
+    required this.description,
+  });
+
+  final String title;
+  final String? description;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        if (description != null && description!.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              description!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 
@@ -826,10 +926,7 @@ class _EditorSheetScaffold extends StatelessWidget {
 }
 
 class _CompactEditorHeader extends StatelessWidget {
-  const _CompactEditorHeader({
-    required this.title,
-    required this.subtitle,
-  });
+  const _CompactEditorHeader({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
@@ -1603,10 +1700,7 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
             ),
           ),
           const SizedBox(height: 14),
-          _CompactEditorHeader(
-            title: editorTitle,
-            subtitle: editorDescription,
-          ),
+          _CompactEditorHeader(title: editorTitle, subtitle: editorDescription),
           const SizedBox(height: 12),
           AppWorkspaceSurface(
             padding: const EdgeInsets.all(16),
@@ -1623,10 +1717,7 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
           const SizedBox(height: 12),
           if (_editorStep == 0)
             _SectionCard(
-              title: l10n.pick(
-                vi: 'Thông tin chính',
-                en: 'Core details',
-              ),
+              title: l10n.pick(vi: 'Thông tin chính', en: 'Core details'),
               description: l10n.pick(
                 vi: 'Tên gia phả, quốc gia và người đại diện là phần quan trọng nhất để bắt đầu gọn và dễ hiểu.',
                 en: 'Genealogy name, country, and representative are the key details to start clearly.',
@@ -1713,10 +1804,7 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                     controller: _logoUrlController,
                     decoration: InputDecoration(
                       labelText: l10n.clanFieldLogoUrl,
-                      hintText: l10n.pick(
-                        vi: 'https://...',
-                        en: 'https://...',
-                      ),
+                      hintText: l10n.pick(vi: 'https://...', en: 'https://...'),
                     ),
                     keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.next,
@@ -1774,9 +1862,7 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                             setState(() => _editorStep = 1);
                           },
                     icon: const Icon(Icons.arrow_forward),
-                    label: Text(
-                      l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                    ),
+                    label: Text(l10n.pick(vi: 'Tiếp tục', en: 'Continue')),
                   )
                 : FilledButton.icon(
                     key: const Key('clan-save-button'),
@@ -1991,10 +2077,7 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
             ),
           ),
           const SizedBox(height: 14),
-          _CompactEditorHeader(
-            title: editorTitle,
-            subtitle: editorDescription,
-          ),
+          _CompactEditorHeader(title: editorTitle, subtitle: editorDescription),
           const SizedBox(height: 12),
           AppWorkspaceSurface(
             padding: const EdgeInsets.all(16),
@@ -2011,10 +2094,7 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
           const SizedBox(height: 12),
           if (_editorStep == 0)
             _SectionCard(
-              title: l10n.pick(
-                vi: 'Nhận diện chi',
-                en: 'Branch identity',
-              ),
+              title: l10n.pick(vi: 'Nhận diện chi', en: 'Branch identity'),
               description: l10n.pick(
                 vi: 'Tên chi, mã chi và đời bắt đầu nên được chốt ở bước đầu để phần còn lại nhất quán hơn.',
                 en: 'Keep branch name, code, and starting generation together in the first step so the rest stays consistent.',
@@ -2075,10 +2155,7 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
             ),
           if (_editorStep == 1)
             _SectionCard(
-              title: l10n.pick(
-                vi: 'Điều hành chi',
-                en: 'Branch leadership',
-              ),
+              title: l10n.pick(vi: 'Điều hành chi', en: 'Branch leadership'),
               description: l10n.pick(
                 vi: 'Chọn trưởng chi và phó chi để sơ đồ điều hành rõ ràng hơn ngay khi tạo mới.',
                 en: 'Assign the branch leader and vice leader so the leadership structure is clear from the start.',
@@ -2183,9 +2260,7 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
                             setState(() => _editorStep = 1);
                           },
                     icon: const Icon(Icons.arrow_forward),
-                    label: Text(
-                      l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                    ),
+                    label: Text(l10n.pick(vi: 'Tiếp tục', en: 'Continue')),
                   )
                 : FilledButton.icon(
                     key: const Key('branch-save-button'),
@@ -2198,10 +2273,7 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
                           )
                         : const Icon(Icons.save_outlined),
                     label: Text(
-                      l10n.pick(
-                        vi: 'Lưu thay đổi',
-                        en: 'Save changes',
-                      ),
+                      l10n.pick(vi: 'Lưu thay đổi', en: 'Save changes'),
                     ),
                   );
 

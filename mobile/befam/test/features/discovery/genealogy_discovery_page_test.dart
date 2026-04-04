@@ -18,6 +18,15 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/features/discovery/services/debug_genealogy_discovery_repository.dart';
 
 void main() {
+  void setDiscoveryViewport(WidgetTester tester) {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(800, 1400);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+  }
+
   AuthSession buildSession() {
     return AuthSession(
       uid: 'debug:+84901230000',
@@ -41,6 +50,7 @@ void main() {
     GenealogyDiscoveryRepository? repository,
     RewardedDiscoveryAttemptService? rewardedDiscoveryAttemptService,
   }) async {
+    setDiscoveryViewport(tester);
     final session = buildSession();
     await tester.pumpWidget(
       MaterialApp(
@@ -74,7 +84,7 @@ void main() {
 
     expect(find.byKey(const Key('discovery-query-input')), findsOneWidget);
     expect(find.byKey(const Key('discovery-search-button')), findsOneWidget);
-    expect(find.byKey(const Key('discovery-add-fab')), findsOneWidget);
+    expect(find.text('Create a new genealogy'), findsOneWidget);
     expect(find.text('Nguyễn tộc miền Trung'), findsOneWidget);
   });
 
@@ -85,12 +95,20 @@ void main() {
 
     expect(analytics.searchSubmitted.single['source'], 'initial');
 
-    await tester.tap(find.text('Request to join').first);
+    final requestToJoinButton = find.widgetWithText(
+      FilledButton,
+      'Request to join',
+    );
+    await _tapVisibleButton(tester, requestToJoinButton);
     await _pumpInteraction(tester);
 
     expect(analytics.sheetOpened.single['clan_id'], 'clan_demo_001');
 
-    await tester.tap(find.text('Submit request'));
+    final submitRequestButton = find.widgetWithText(
+      FilledButton,
+      'Submit request',
+    );
+    await _tapVisibleButton(tester, submitRequestButton);
     await _pumpInteraction(tester);
 
     expect(analytics.submitted.single['clan_id'], 'clan_demo_001');
@@ -102,9 +120,18 @@ void main() {
 
     await pumpPage(tester, analyticsService: analytics);
 
-    await tester.tap(find.text('Request to join').first);
+    final requestToJoinButton = find.widgetWithText(
+      FilledButton,
+      'Request to join',
+    );
+    await _tapVisibleButton(tester, requestToJoinButton);
     await _pumpInteraction(tester);
-    await tester.tap(find.text('Cancel'));
+    final cancelButton = find.widgetWithText(OutlinedButton, 'Cancel');
+    await _tapVisibleButton(
+      tester,
+      cancelButton,
+      scrollable: find.byType(Scrollable).last,
+    );
     await _pumpInteraction(tester);
 
     expect(analytics.sheetDismissed.single['clan_id'], 'clan_demo_001');
@@ -149,6 +176,21 @@ Future<void> _pumpInteraction(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
   await tester.pump(const Duration(milliseconds: 100));
+}
+
+Future<void> _tapVisibleButton(
+  WidgetTester tester,
+  Finder finder, {
+  Finder? scrollable,
+}) async {
+  final target = finder.first;
+  await tester.scrollUntilVisible(
+    target,
+    180,
+    scrollable: scrollable ?? find.byType(Scrollable).first,
+  );
+  await tester.ensureVisible(target);
+  await tester.tap(target, warnIfMissed: false);
 }
 
 class _RecordingGenealogyDiscoveryAnalyticsService

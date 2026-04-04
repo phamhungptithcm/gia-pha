@@ -6,6 +6,7 @@ import 'package:befam/features/auth/models/auth_session.dart';
 import '../../support/features/billing/services/debug_billing_repository.dart';
 import '../../support/features/clan/services/debug_clan_repository.dart';
 import '../../support/features/member/services/debug_member_repository.dart';
+import '../../support/features/scholarship/services/debug_scholarship_repository.dart';
 import 'package:befam/features/notifications/services/push_notification_service.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -100,6 +101,7 @@ void main() {
             clanRepository: DebugClanRepository.seeded(),
             memberRepository: DebugMemberRepository.seeded(),
             billingRepository: DebugBillingRepository.shared(),
+            scholarshipRepository: DebugScholarshipRepository.shared(),
             pushNotificationService: _NoopPushNotificationService(),
           ),
         ),
@@ -128,6 +130,7 @@ void main() {
           clanRepository: DebugClanRepository.seeded(),
           memberRepository: DebugMemberRepository.seeded(),
           billingRepository: DebugBillingRepository.shared(),
+          scholarshipRepository: DebugScholarshipRepository.shared(),
           pushNotificationService: _NoopPushNotificationService(),
         ),
       ),
@@ -157,6 +160,7 @@ void main() {
             clanRepository: DebugClanRepository.seeded(),
             memberRepository: DebugMemberRepository.seeded(),
             billingRepository: DebugBillingRepository.shared(),
+            scholarshipRepository: DebugScholarshipRepository.shared(),
             pushNotificationService: _NoopPushNotificationService(),
           ),
         ),
@@ -197,6 +201,7 @@ void main() {
             clanRepository: DebugClanRepository.seeded(),
             memberRepository: DebugMemberRepository.seeded(),
             billingRepository: DebugBillingRepository.shared(),
+            scholarshipRepository: DebugScholarshipRepository.shared(),
             pushNotificationService: _NoopPushNotificationService(),
           ),
         ),
