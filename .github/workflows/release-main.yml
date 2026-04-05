@@ -933,6 +933,18 @@ jobs:
           export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
           export FLUTTER_XCODE_DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
           
+          echo "Injecting AdMob App ID into Info.plist..."
+
+          plist="ios/Runner/Info.plist"
+
+          # Remove existing key if exists (idempotent)
+          /usr/libexec/PlistBuddy -c "Delete :GADApplicationIdentifier" "$plist" || true
+
+          # Add new value from CI
+          /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $ios_admob_app_id" "$plist"
+
+          echo "Injected GADApplicationIdentifier=$ios_admob_app_id"
+
           flutter build ipa \
             --release \
             --build-name "${{ needs.prepare-release.outputs.version }}" \
