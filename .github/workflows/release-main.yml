@@ -806,6 +806,7 @@ jobs:
       - name: Validate iOS signing setup
         env:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
           set -euo pipefail
 
