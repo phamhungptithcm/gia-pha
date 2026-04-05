@@ -734,6 +734,14 @@ jobs:
             fi
           done
 
+      - name: Enforce manual signing for Runner
+        run: |
+          cd ios
+
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Runner.xcodeproj/project.pbxproj || true
+
+          echo "Runner signing forced to Manual"
+          
       - name: Import iOS signing certificate and provisioning profile
         env:
           IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
@@ -777,14 +785,47 @@ jobs:
           echo "IOS_SIGNING_KEYCHAIN_PATH=$keychain_path" >> "$GITHUB_ENV"
           echo "IOS_SIGNING_KEYCHAIN_PASSWORD=$keychain_password" >> "$GITHUB_ENV"
           echo "IOS_PROVISIONING_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
+      
       - name: Disable code signing for Pods
         run: |
+          set -euo pipefail
           cd ios
-          # Pods không được sign
-          sed -i '' 's/CODE_SIGNING_ALLOWED = YES;/CODE_SIGNING_ALLOWED = NO;/g' Pods/Pods.xcodeproj/project.pbxproj || true
-          sed -i '' 's/CODE_SIGNING_REQUIRED = YES;/CODE_SIGNING_REQUIRED = NO;/g' Pods/Pods.xcodeproj/project.pbxproj || true
 
-          echo "Disabled signing for Pods"
+          if [ ! -f "Pods/Pods.xcodeproj/project.pbxproj" ]; then
+            echo "::error::Pods project file not found"
+            exit 1
+          fi
+
+          sed -i '' 's/CODE_SIGNING_ALLOWED = YES;/CODE_SIGNING_ALLOWED = NO;/g' Pods/Pods.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGNING_REQUIRED = YES;/CODE_SIGNING_REQUIRED = NO;/g' Pods/Pods.xcodeproj/project.pbxproj
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;/PROVISIONING_PROFILE_SPECIFIER = "";/' Pods/Pods.xcodeproj/project.pbxproj || true
+          sed -i '' 's/DEVELOPMENT_TEAM = .*;/DEVELOPMENT_TEAM = "";/' Pods/Pods.xcodeproj/project.pbxproj || true
+
+          echo "Disabled signing for Pods targets"
+
+      - name: Validate iOS signing setup
+        run: |
+          set -euo pipefail
+
+          security find-identity -v -p codesigning
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles"
+
+          if ! security find-identity -v -p codesigning | grep -q "Apple Distribution"; then
+            echo "::error::Apple Distribution certificate not found in keychain"
+            exit 1
+          fi
+
+          if [ -z "${IOS_PROVISIONING_PROFILE_NAME:-}" ]; then
+            echo "::error::IOS_PROVISIONING_PROFILE_NAME is empty"
+            exit 1
+          fi
+
+          if [ -z "${IOS_TEAM_ID:-}" ]; then
+            echo "::error::IOS_TEAM_ID is empty"
+            exit 1
+          fi
+
+          echo "iOS signing preflight passed"
       - name: Build iOS signed release IPA
         env:
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
@@ -937,11 +978,8 @@ jobs:
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
             --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
             --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
-            "${optional_firebase_defines[@]}" \
-            -- \
-            DEVELOPMENT_TEAM=$IOS_TEAM_ID \
-            CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROVISIONING_PROFILE_NAME"
+            "${optional_firebase_defines[@]}" 
+            
           built_info_plist="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Info.plist"
           if [ ! -f "$built_info_plist" ]; then
             echo "::error::Built iOS Info.plist not found at ${built_info_plist}"
