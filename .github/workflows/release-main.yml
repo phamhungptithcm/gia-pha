@@ -734,14 +734,6 @@ jobs:
             fi
           done
 
-      - name: Enforce manual signing for Runner
-        run: |
-          cd ios
-
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Runner.xcodeproj/project.pbxproj || true
-
-          echo "Runner signing forced to Manual"
-
       - name: Import iOS signing certificate and provisioning profile
         env:
           IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
@@ -790,16 +782,21 @@ jobs:
         run: |
           set -euo pipefail
           cd ios
-
           FILE="Pods/Pods.xcodeproj/project.pbxproj"
 
-          sed -i '' 's/CODE_SIGNING_ALLOWED = YES;/CODE_SIGNING_ALLOWED = NO;/g' "$FILE" || true
-          sed -i '' 's/CODE_SIGNING_REQUIRED = YES;/CODE_SIGNING_REQUIRED = NO;/g' "$FILE" || true
+          echo "Hard disabling signing for Pods targets..."
 
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$FILE" || true
-          sed -i '' 's/PROVISIONING_PROFILE = .*;/PROVISIONING_PROFILE = "";/g' "$FILE" || true
+          # Remove ALL signing-related configs 
+          sed -i '' '/CODE_SIGN/d' "$FILE" || true
+          sed -i '' '/PROVISIONING_PROFILE/d' "$FILE" || true
+          sed -i '' '/DEVELOPMENT_TEAM/d' "$FILE" || true
+          sed -i '' '/EXPANDED_CODE_SIGN_IDENTITY/d' "$FILE" || true
 
-          sed -i '' 's/DEVELOPMENT_TEAM = .*;/DEVELOPMENT_TEAM = "";/g' "$FILE" || true
+          #Force explicit no-sign override
+          echo "
+          CODE_SIGNING_ALLOWED = NO;
+          CODE_SIGNING_REQUIRED = NO;
+          " >> "$FILE"
 
           echo "Pods signing fully disabled"
 
@@ -967,6 +964,10 @@ jobs:
           export FLUTTER_XCODE_DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
           export FLUTTER_XCODE_PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_NAME}"
           export FLUTTER_XCODE_OTHER_CODE_SIGN_FLAGS="--keychain ${IOS_SIGNING_KEYCHAIN_PATH}"
+          export CODE_SIGNING_ALLOWED=YES
+          export CODE_SIGNING_REQUIRED=YES
+          export EXPANDED_CODE_SIGN_IDENTITY=""
+          export CODE_SIGN_IDENTITY=""
 
           flutter build ipa \
             --release \
