@@ -825,6 +825,20 @@ jobs:
           fi
 
           echo "Signing OK"
+      - name: Debug Xcode signing settings
+        run: |
+          cd ios
+
+          echo "==== RUNNER TARGET SETTINGS ===="
+          xcodebuild -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -showBuildSettings | grep -E "CODE_SIGN|PROVISIONING"
+
+          echo "==== PODS TARGET SETTINGS ===="
+          xcodebuild -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -showBuildSettings | grep -E "Pods|CODE_SIGN|PROVISIONING" | head -200
+      
       - name: Build iOS signed release IPA
         env:
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
@@ -961,13 +975,8 @@ jobs:
 
           export FLUTTER_XCODE_CODE_SIGN_STYLE=Manual
           export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
-          export FLUTTER_XCODE_DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
-          export FLUTTER_XCODE_PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_NAME}"
           export FLUTTER_XCODE_OTHER_CODE_SIGN_FLAGS="--keychain ${IOS_SIGNING_KEYCHAIN_PATH}"
-          export CODE_SIGNING_ALLOWED=YES
           export CODE_SIGNING_REQUIRED=YES
-          export EXPANDED_CODE_SIGN_IDENTITY=""
-          export CODE_SIGN_IDENTITY=""
 
           flutter build ipa \
             --release \
