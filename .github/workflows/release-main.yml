@@ -764,7 +764,7 @@ jobs:
             -t cert \
             -f pkcs12
           security set-key-partition-list \
-            -S apple-tool:,apple: \
+            -S apple-tool:,apple:,codesign: \
             -s \
             -k "$keychain_password" \
             "$keychain_path"
@@ -955,6 +955,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
+          set -euo pipefail
           ipa_path="build/ios/ipa/Runner.ipa"
           output_dir="${GITHUB_WORKSPACE}/dist/ios"
           asset_name="befam-${RELEASE_VERSION}-ios-release.ipa"
@@ -1101,6 +1102,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
+          set -euo pipefail
           output_dir="${GITHUB_WORKSPACE}/dist/web"
           mkdir -p "${output_dir}"
           bash ../../scripts/verify_app_ads_txt.sh build/web/app-ads.txt
@@ -1297,6 +1299,7 @@ jobs:
           RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
+          set -euo pipefail
           title="BeFam ${RELEASE_TAG}"
           android_asset_path="dist/android/app-release.aab"
           android_asset_name="befam-${RELEASE_VERSION}-android-release.aab"
