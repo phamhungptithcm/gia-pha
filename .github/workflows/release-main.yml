@@ -975,23 +975,41 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           set -euo pipefail
-          ipa_path="build/ios/ipa/Runner.ipa"
+
+          ipa_dir="build/ios/ipa"
           output_dir="${GITHUB_WORKSPACE}/dist/ios"
           asset_name="befam-${RELEASE_VERSION}-ios-release.ipa"
 
-          if [ ! -f "${ipa_path}" ]; then
-            echo "Expected signed iOS IPA not found at ${ipa_path}" >&2
+          echo "Looking for IPA in ${ipa_dir}..."
+
+          if [ ! -d "$ipa_dir" ]; then
+            echo "::error::IPA directory not found at $ipa_dir"
             exit 1
           fi
 
+          echo "Contents of IPA directory:"
+          ls -la "$ipa_dir" || true
+
+          ipa_path="$(find "$ipa_dir" -maxdepth 1 -name "*.ipa" | head -n 1)"
+
+          if [ -z "$ipa_path" ] || [ ! -f "$ipa_path" ]; then
+            echo "::error::No IPA file found in $ipa_dir"
+            exit 1
+          fi
+
+          echo "Found IPA: $ipa_path"
+
           mkdir -p "${output_dir}"
           cp "${ipa_path}" "${output_dir}/${asset_name}"
+
+          echo "Packaged IPA as ${output_dir}/${asset_name}"
 
       - name: Upload signed iOS release IPA
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ios-release-ipa
-          path: dist/ios/*.ipa
+          path: dist/ios/befam-${{ needs.prepare-release.outputs.version }}-ios-release.ipa
+          if-no-files-found: error
 
   build-web-release:
     name: Build Web Release Bundle
