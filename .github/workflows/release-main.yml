@@ -779,7 +779,7 @@ jobs:
           echo "IOS_SIGNING_KEYCHAIN_PASSWORD=$keychain_password" >> "$GITHUB_ENV"
           echo "IOS_PROVISIONING_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
 
-            - name: Build iOS signed release IPA
+      - name: Build iOS signed release IPA
         env:
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
