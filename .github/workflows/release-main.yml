@@ -909,7 +909,7 @@ jobs:
           </plist>
           EOF
 
-          flutter build ipa \
+          flutter build ipa --no-codesign\
             --release \
             --build-name "${{ needs.prepare-release.outputs.version }}" \
             --build-number "${{ needs.prepare-release.outputs.build_number }}" \
@@ -1303,19 +1303,6 @@ jobs:
           gh release upload "${RELEASE_TAG}" "dist/checksums.txt#checksums-${RELEASE_VERSION}.txt" --clobber
           gh release upload "${RELEASE_TAG}" "dist/release-manifest.json#release-manifest-${RELEASE_VERSION}.json" --clobber
 
-  deploy-production-firebase:
-    name: Deploy Firebase (Production)
-    needs:
-      - prepare-release
-      - publish-github-release
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/deploy-firebase.yml
-    with:
-      release_tag: ${{ needs.prepare-release.outputs.tag }}
-    secrets: inherit
-
   notify-release-failure:
     name: Notify Release Failure
     if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}
@@ -1332,7 +1319,6 @@ jobs:
       - publish-mobile-image
       - publish-firebase-image
       - publish-github-release
-      - deploy-production-firebase
     runs-on: ubuntu-latest
     steps:
       - name: Send Slack notification
