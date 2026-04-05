@@ -779,7 +779,7 @@ jobs:
           echo "IOS_SIGNING_KEYCHAIN_PASSWORD=$keychain_password" >> "$GITHUB_ENV"
           echo "IOS_PROVISIONING_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
 
-      - name: Build iOS signed release IPA
+            - name: Build iOS signed release IPA
         env:
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
@@ -823,6 +823,7 @@ jobs:
           enable_app_check="${BEFAM_ENABLE_APP_CHECK:-true}"
           otp_provider="${BEFAM_OTP_PROVIDER:-twilio}"
           ios_admob_app_id="${BEFAM_ADMOB_IOS_APP_ID:-}"
+
           if [ "$allow_bundled" != "false" ]; then
             echo "::error::Production release builds must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${allow_bundled}"
             exit 1
@@ -835,7 +836,9 @@ jobs:
             echo "::error::Missing required production iOS AdMob app ID."
             exit 1
           fi
+
           export ADMOB_APPLICATION_ID="$ios_admob_app_id"
+
           required_ios_keys=(
             BEFAM_FIREBASE_PROJECT_ID
             BEFAM_FIREBASE_IOS_API_KEY
@@ -849,6 +852,7 @@ jobs:
               exit 1
             fi
           done
+
           firebase_define_keys=(
             BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
             BEFAM_FIREBASE_PROJECT_ID
@@ -888,6 +892,7 @@ jobs:
             echo "::error::Missing required production var: BEFAM_FIREBASE_IOS_BUNDLE_ID"
             exit 1
           fi
+
           export_options_plist="ios/ExportOptions.plist"
           cat > "${export_options_plist}" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -913,37 +918,13 @@ jobs:
           </plist>
           EOF
 
-          # Inject PROVISIONING_PROFILE_SPECIFIER into Flutter's Release xcconfig.
-          # ios/Flutter/Release.xcconfig is included ONLY by the Runner target —
-          # CocoaPods pod targets have their own separate xcconfigs and never
-          # read this file. This means the profile specifier applies only to
-          # Runner, avoiding the "does not support provisioning profiles" hard
-          # error that occurs when the setting is applied globally via the
-          # FLUTTER_XCODE_PROVISIONING_PROFILE_SPECIFIER env var (which is a
-          # command-line xcodebuild override that affects every target including
-          # static library pod targets).
           printf '\nPROVISIONING_PROFILE_SPECIFIER = %s\n' \
             "${IOS_PROVISIONING_PROFILE_NAME}" \
             >> ios/Flutter/Release.xcconfig
 
-          # CODE_SIGN_STYLE, CODE_SIGN_IDENTITY and DEVELOPMENT_TEAM are safe
-          # to pass as global FLUTTER_XCODE_* overrides — they do not trigger
-          # provisioning profile validation on pod targets by themselves.
           export FLUTTER_XCODE_CODE_SIGN_STYLE=Manual
           export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
           export FLUTTER_XCODE_DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
-          
-          echo "Injecting AdMob App ID into Info.plist..."
-
-          plist="ios/Runner/Info.plist"
-
-          # Remove existing key if exists (idempotent)
-          /usr/libexec/PlistBuddy -c "Delete :GADApplicationIdentifier" "$plist" || true
-
-          # Add new value from CI
-          /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $ios_admob_app_id" "$plist"
-
-          echo "Injected GADApplicationIdentifier=$ios_admob_app_id"
 
           flutter build ipa \
             --release \
@@ -957,14 +938,21 @@ jobs:
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
             --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
             --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
-            "${optional_firebase_defines[@]}" 
-            
+            "${optional_firebase_defines[@]}"
+
           built_info_plist="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Info.plist"
           if [ ! -f "$built_info_plist" ]; then
             echo "::error::Built iOS Info.plist not found at ${built_info_plist}"
             exit 1
           fi
-          built_admob_app_id=$(/usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$built_info_plist")
+
+          # Patch the archived app bundle deterministically before validation.
+          /usr/libexec/PlistBuddy -c "Delete :GADApplicationIdentifier" "$built_info_plist" || true
+          /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $ios_admob_app_id" "$built_info_plist"
+
+          built_admob_app_id="$(
+            /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$built_info_plist"
+          )"
           if [ -z "$built_admob_app_id" ] || [ "$built_admob_app_id" != "$ios_admob_app_id" ]; then
             echo "::error::Built iOS app is missing the expected production AdMob application ID."
             exit 1
