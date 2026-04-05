@@ -777,68 +777,7 @@ jobs:
           echo "IOS_SIGNING_KEYCHAIN_PATH=$keychain_path" >> "$GITHUB_ENV"
           echo "IOS_SIGNING_KEYCHAIN_PASSWORD=$keychain_password" >> "$GITHUB_ENV"
           echo "IOS_PROVISIONING_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
-      
-      - name: Disable code signing for Pods
-        run: |
-          set -euo pipefail
-          cd ios
-          FILE="Pods/Pods.xcodeproj/project.pbxproj"
 
-          echo "Hard disabling signing for Pods targets..."
-
-          # Remove ALL signing-related configs 
-          sed -i '' '/CODE_SIGN/d' "$FILE" || true
-          sed -i '' '/PROVISIONING_PROFILE/d' "$FILE" || true
-          sed -i '' '/DEVELOPMENT_TEAM/d' "$FILE" || true
-          sed -i '' '/EXPANDED_CODE_SIGN_IDENTITY/d' "$FILE" || true
-
-          #Force explicit no-sign override
-          echo "
-          CODE_SIGNING_ALLOWED = NO;
-          CODE_SIGNING_REQUIRED = NO;
-          " >> "$FILE"
-
-          echo "Pods signing fully disabled"
-
-      - name: Validate iOS signing setup
-        env:
-          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
-          IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
-        run: |
-          set -euo pipefail
-
-          security find-identity -v -p codesigning
-
-          if ! security find-identity -v -p codesigning | grep -q "Apple Distribution"; then
-            echo "::error::Missing Apple Distribution cert"
-            exit 1
-          fi
-
-          if [ -z "${IOS_PROVISIONING_PROFILE_NAME:-}" ]; then
-            echo "::error::Missing provisioning profile name"
-            exit 1
-          fi
-
-          if [ -z "${IOS_TEAM_ID:-}" ]; then
-            echo "::error::IOS_TEAM_ID is empty"
-            exit 1
-          fi
-
-          echo "Signing OK"
-      - name: Debug Xcode signing settings
-        run: |
-          cd ios
-
-          echo "==== RUNNER TARGET SETTINGS ===="
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -showBuildSettings | grep -E "CODE_SIGN|PROVISIONING"
-
-          echo "==== PODS TARGET SETTINGS ===="
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -showBuildSettings | grep -E "Pods|CODE_SIGN|PROVISIONING" | head -200
-      
       - name: Build iOS signed release IPA
         env:
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
@@ -975,10 +914,8 @@ jobs:
 
           export FLUTTER_XCODE_CODE_SIGN_STYLE=Manual
           export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
-          export FLUTTER_XCODE_OTHER_CODE_SIGN_FLAGS="--keychain ${IOS_SIGNING_KEYCHAIN_PATH}"
-          export CODE_SIGNING_REQUIRED=YES
-          export PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_NAME}"
-          export DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
+          export FLUTTER_XCODE_DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
+          export FLUTTER_XCODE_PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_NAME}"
           
           flutter build ipa \
             --release \
