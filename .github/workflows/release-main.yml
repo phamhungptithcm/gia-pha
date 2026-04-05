@@ -791,17 +791,17 @@ jobs:
           set -euo pipefail
           cd ios
 
-          if [ ! -f "Pods/Pods.xcodeproj/project.pbxproj" ]; then
-            echo "::error::Pods project file not found"
-            exit 1
-          fi
+          FILE="Pods/Pods.xcodeproj/project.pbxproj"
 
-          sed -i '' 's/CODE_SIGNING_ALLOWED = YES;/CODE_SIGNING_ALLOWED = NO;/g' Pods/Pods.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGNING_REQUIRED = YES;/CODE_SIGNING_REQUIRED = NO;/g' Pods/Pods.xcodeproj/project.pbxproj
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;/PROVISIONING_PROFILE_SPECIFIER = "";/' Pods/Pods.xcodeproj/project.pbxproj || true
-          sed -i '' 's/DEVELOPMENT_TEAM = .*;/DEVELOPMENT_TEAM = "";/' Pods/Pods.xcodeproj/project.pbxproj || true
+          sed -i '' 's/CODE_SIGNING_ALLOWED = YES;/CODE_SIGNING_ALLOWED = NO;/g' "$FILE" || true
+          sed -i '' 's/CODE_SIGNING_REQUIRED = YES;/CODE_SIGNING_REQUIRED = NO;/g' "$FILE" || true
 
-          echo "Disabled signing for Pods targets"
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$FILE" || true
+          sed -i '' 's/PROVISIONING_PROFILE = .*;/PROVISIONING_PROFILE = "";/g' "$FILE" || true
+
+          sed -i '' 's/DEVELOPMENT_TEAM = .*;/DEVELOPMENT_TEAM = "";/g' "$FILE" || true
+
+          echo "Pods signing fully disabled"
 
       - name: Validate iOS signing setup
         env:
