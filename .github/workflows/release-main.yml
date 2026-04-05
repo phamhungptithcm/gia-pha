@@ -977,7 +977,9 @@ jobs:
           export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
           export FLUTTER_XCODE_OTHER_CODE_SIGN_FLAGS="--keychain ${IOS_SIGNING_KEYCHAIN_PATH}"
           export CODE_SIGNING_REQUIRED=YES
-
+          export PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_NAME}"
+          export DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
+          
           flutter build ipa \
             --release \
             --build-name "${{ needs.prepare-release.outputs.version }}" \
