@@ -912,10 +912,18 @@ jobs:
           </plist>
           EOF
 
+          # Inject signing settings only for the Runner target via xcodebuild.
+          # PROVISIONING_PROFILE_SPECIFIER must NOT be set here — it is a
+          # global xcodebuild override that applies to every target including
+          # CocoaPods static libraries, which do not support provisioning
+          # profiles and will cause a hard build error. Xcode resolves the
+          # correct profile automatically from the profile installed in
+          # ~/Library/MobileDevice/Provisioning Profiles/ that matches the
+          # bundle ID and Distribution certificate. ExportOptions.plist maps
+          # the bundle ID to the profile name explicitly for the export phase.
           export FLUTTER_XCODE_CODE_SIGN_STYLE=Manual
           export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
           export FLUTTER_XCODE_DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
-          export FLUTTER_XCODE_PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_NAME}"
           
           flutter build ipa \
             --release \
