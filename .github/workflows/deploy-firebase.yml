@@ -29,10 +29,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           test -n "$RELEASE_TAG"
-          gh release view "$RELEASE_TAG" --json tagName,isDraft >/tmp/release.json
+
+          gh release view "$RELEASE_TAG" \
+            --repo "$REPO" \
+            --json tagName,isDraft >/tmp/release.json
+
           if [ "$(jq -r '.isDraft' /tmp/release.json)" != "false" ]; then
             echo "::error::Release tag ${RELEASE_TAG} is still a draft release."
             exit 1
@@ -47,7 +52,7 @@ jobs:
       - name: Verify release tag belongs to main history
         run: |
           set -euo pipefail
-          git fetch origin main --depth=1
+          git fetch origin main --depth=0
           if ! git merge-base --is-ancestor HEAD origin/main; then
             echo "::error::Release tag ${{ inputs.release_tag }} does not belong to origin/main history."
             exit 1
