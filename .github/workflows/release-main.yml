@@ -741,7 +741,7 @@ jobs:
           sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Runner.xcodeproj/project.pbxproj || true
 
           echo "Runner signing forced to Manual"
-          
+
       - name: Import iOS signing certificate and provisioning profile
         env:
           IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
@@ -804,19 +804,21 @@ jobs:
           echo "Disabled signing for Pods targets"
 
       - name: Validate iOS signing setup
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
           set -euo pipefail
 
           security find-identity -v -p codesigning
-          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles"
 
           if ! security find-identity -v -p codesigning | grep -q "Apple Distribution"; then
-            echo "::error::Apple Distribution certificate not found in keychain"
+            echo "::error::Missing Apple Distribution cert"
             exit 1
           fi
 
           if [ -z "${IOS_PROVISIONING_PROFILE_NAME:-}" ]; then
-            echo "::error::IOS_PROVISIONING_PROFILE_NAME is empty"
+            echo "::error::Missing provisioning profile name"
             exit 1
           fi
 
@@ -825,7 +827,7 @@ jobs:
             exit 1
           fi
 
-          echo "iOS signing preflight passed"
+          echo "Signing OK"
       - name: Build iOS signed release IPA
         env:
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
