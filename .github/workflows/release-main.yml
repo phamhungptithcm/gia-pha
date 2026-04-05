@@ -750,7 +750,7 @@ jobs:
           security create-keychain -p "$keychain_password" "$keychain_path"
           security set-keychain-settings -lut 21600 "$keychain_path"
           security unlock-keychain -p "$keychain_password" "$keychain_path"
-          security list-keychains -d user -s "$keychain_path"
+          security list-keychains -d user -s "$keychain_path" login.keychain-db
           security default-keychain -s "$keychain_path"
 
           security import "$cert_path" \
@@ -926,11 +926,7 @@ jobs:
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
             --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
             --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
-            "${optional_firebase_defines[@]}" \
-            -- \
-            CODE_SIGN_STYLE=Manual \                                  
-            DEVELOPMENT_TEAM="${IOS_TEAM_ID}" \                      
-            PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_NAME}"
+            "${optional_firebase_defines[@]}"
 
           built_info_plist="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Info.plist"
           if [ ! -f "$built_info_plist" ]; then
