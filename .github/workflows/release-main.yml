@@ -774,7 +774,7 @@ jobs:
           echo "IOS_SIGNING_KEYCHAIN_PATH=$keychain_path" >> "$GITHUB_ENV"
           echo "IOS_SIGNING_KEYCHAIN_PASSWORD=$keychain_password" >> "$GITHUB_ENV"
           echo "IOS_PROVISIONING_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
-
+    
       - name: Build iOS signed release IPA
         env:
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
@@ -921,7 +921,11 @@ jobs:
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
             --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
             --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
-            "${optional_firebase_defines[@]}"
+            "${optional_firebase_defines[@]}" \
+            -- \
+            CODE_SIGN_STYLE=Manual \                                  
+            DEVELOPMENT_TEAM="${IOS_TEAM_ID}" \                      
+            PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_NAME}"
 
           built_info_plist="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Info.plist"
           if [ ! -f "$built_info_plist" ]; then
