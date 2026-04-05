@@ -539,6 +539,7 @@ jobs:
           ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           required=(
             ANDROID_RELEASE_KEYSTORE_BASE64
             ANDROID_RELEASE_KEYSTORE_PASSWORD
@@ -763,7 +764,7 @@ jobs:
             -t cert \
             -f pkcs12
           security set-key-partition-list \
-            -S apple-tool:,apple: \
+            -S apple-tool:,apple:,codesign: \
             -s \
             -k "$keychain_password" \
             "$keychain_path"
@@ -777,68 +778,7 @@ jobs:
           echo "IOS_SIGNING_KEYCHAIN_PATH=$keychain_path" >> "$GITHUB_ENV"
           echo "IOS_SIGNING_KEYCHAIN_PASSWORD=$keychain_password" >> "$GITHUB_ENV"
           echo "IOS_PROVISIONING_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
-      
-      - name: Disable code signing for Pods
-        run: |
-          set -euo pipefail
-          cd ios
-          FILE="Pods/Pods.xcodeproj/project.pbxproj"
 
-          echo "Hard disabling signing for Pods targets..."
-
-          # Remove ALL signing-related configs 
-          sed -i '' '/CODE_SIGN/d' "$FILE" || true
-          sed -i '' '/PROVISIONING_PROFILE/d' "$FILE" || true
-          sed -i '' '/DEVELOPMENT_TEAM/d' "$FILE" || true
-          sed -i '' '/EXPANDED_CODE_SIGN_IDENTITY/d' "$FILE" || true
-
-          #Force explicit no-sign override
-          echo "
-          CODE_SIGNING_ALLOWED = NO;
-          CODE_SIGNING_REQUIRED = NO;
-          " >> "$FILE"
-
-          echo "Pods signing fully disabled"
-
-      - name: Validate iOS signing setup
-        env:
-          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
-          IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
-        run: |
-          set -euo pipefail
-
-          security find-identity -v -p codesigning
-
-          if ! security find-identity -v -p codesigning | grep -q "Apple Distribution"; then
-            echo "::error::Missing Apple Distribution cert"
-            exit 1
-          fi
-
-          if [ -z "${IOS_PROVISIONING_PROFILE_NAME:-}" ]; then
-            echo "::error::Missing provisioning profile name"
-            exit 1
-          fi
-
-          if [ -z "${IOS_TEAM_ID:-}" ]; then
-            echo "::error::IOS_TEAM_ID is empty"
-            exit 1
-          fi
-
-          echo "Signing OK"
-      - name: Debug Xcode signing settings
-        run: |
-          cd ios
-
-          echo "==== RUNNER TARGET SETTINGS ===="
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -showBuildSettings | grep -E "CODE_SIGN|PROVISIONING"
-
-          echo "==== PODS TARGET SETTINGS ===="
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -showBuildSettings | grep -E "Pods|CODE_SIGN|PROVISIONING" | head -200
-      
       - name: Build iOS signed release IPA
         env:
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
@@ -973,12 +913,18 @@ jobs:
           </plist>
           EOF
 
+          # Inject signing settings only for the Runner target via xcodebuild.
+          # PROVISIONING_PROFILE_SPECIFIER must NOT be set here — it is a
+          # global xcodebuild override that applies to every target including
+          # CocoaPods static libraries, which do not support provisioning
+          # profiles and will cause a hard build error. Xcode resolves the
+          # correct profile automatically from the profile installed in
+          # ~/Library/MobileDevice/Provisioning Profiles/ that matches the
+          # bundle ID and Distribution certificate. ExportOptions.plist maps
+          # the bundle ID to the profile name explicitly for the export phase.
           export FLUTTER_XCODE_CODE_SIGN_STYLE=Manual
           export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
-          export FLUTTER_XCODE_OTHER_CODE_SIGN_FLAGS="--keychain ${IOS_SIGNING_KEYCHAIN_PATH}"
-          export CODE_SIGNING_REQUIRED=YES
-          export PROVISIONING_PROFILE_SPECIFIER="${IOS_PROVISIONING_PROFILE_NAME}"
-          export DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
+          export FLUTTER_XCODE_DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
           
           flutter build ipa \
             --release \
@@ -1009,6 +955,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
+          set -euo pipefail
           ipa_path="build/ios/ipa/Runner.ipa"
           output_dir="${GITHUB_WORKSPACE}/dist/ios"
           asset_name="befam-${RELEASE_VERSION}-ios-release.ipa"
@@ -1155,6 +1102,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
+          set -euo pipefail
           output_dir="${GITHUB_WORKSPACE}/dist/web"
           mkdir -p "${output_dir}"
           bash ../../scripts/verify_app_ads_txt.sh build/web/app-ads.txt
@@ -1351,6 +1299,7 @@ jobs:
           RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
+          set -euo pipefail
           title="BeFam ${RELEASE_TAG}"
           android_asset_path="dist/android/app-release.aab"
           android_asset_name="befam-${RELEASE_VERSION}-android-release.aab"
