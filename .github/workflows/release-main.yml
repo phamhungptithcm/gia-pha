@@ -909,7 +909,7 @@ jobs:
           </plist>
           EOF
 
-          flutter build ipa --no-codesign\
+          flutter build ipa \
             --release \
             --build-name "${{ needs.prepare-release.outputs.version }}" \
             --build-number "${{ needs.prepare-release.outputs.build_number }}" \
