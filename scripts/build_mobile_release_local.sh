@@ -29,6 +29,10 @@ IOS_TEST_REWARDED_AD_UNIT_ID="ca-app-pub-3940256099942544/1712485313"
 IOS_KEYCHAIN_PATH=""
 IOS_PROFILE_PATH=""
 IOS_EXPORT_OPTIONS_TMP=""
+IOS_RESOLVED_TEAM_ID=""
+IOS_RESOLVED_PROFILE_NAME=""
+IOS_XCCONFIG_PATCHED="false"
+IOS_XCCONFIG_ORIGINAL_CONTENT=""
 _SHOULD_INTERACTIVE="false"
 
 usage() {
@@ -520,6 +524,14 @@ prepare_android_release_signing() {
 }
 
 cleanup_ios_signing() {
+  # Restore Flutter Release xcconfig if it was patched for CI-style manual signing
+  if [[ "$IOS_XCCONFIG_PATCHED" == "true" ]]; then
+    local xcconfig_path="$APP_DIR/ios/Flutter/Release.xcconfig"
+    if [[ -f "$xcconfig_path" ]]; then
+      printf '%s' "$IOS_XCCONFIG_ORIGINAL_CONTENT" > "$xcconfig_path"
+    fi
+    IOS_XCCONFIG_PATCHED="false"
+  fi
   if [[ -n "$IOS_KEYCHAIN_PATH" && -f "$IOS_KEYCHAIN_PATH" ]]; then
     security delete-keychain "$IOS_KEYCHAIN_PATH" >/dev/null 2>&1 || true
   fi
@@ -578,7 +590,7 @@ prepare_ios_release_signing() {
     -t cert \
     -f pkcs12
   security set-key-partition-list \
-    -S apple-tool:,apple: \
+    -S apple-tool:,apple:,codesign: \
     -s \
     -k "$keychain_password" \
     "$IOS_KEYCHAIN_PATH"
@@ -614,6 +626,8 @@ prepare_ios_release_signing() {
 </plist>
 EOF
   IOS_EXPORT_OPTIONS_PLIST="$IOS_EXPORT_OPTIONS_TMP"
+  IOS_RESOLVED_TEAM_ID="$team_id"
+  IOS_RESOLVED_PROFILE_NAME="$profile_name"
 
   rm -f "$cert_path" "$profile_plist"
 }
@@ -694,6 +708,23 @@ build_ios_ipa() {
   prepare_ios_release_signing
 
   (cd "$APP_DIR/ios" && pod install)
+
+  # Mirror the CI signing approach: inject PROVISIONING_PROFILE_SPECIFIER into
+  # Flutter's Release xcconfig so it applies ONLY to the Runner target.
+  # Setting it via FLUTTER_XCODE_PROVISIONING_PROFILE_SPECIFIER (command-line)
+  # would apply it globally to all xcodebuild targets including CocoaPods static
+  # library pod targets, causing "does not support provisioning profiles" errors.
+  if [[ -n "$IOS_RESOLVED_PROFILE_NAME" ]]; then
+    local xcconfig_path="$APP_DIR/ios/Flutter/Release.xcconfig"
+    IOS_XCCONFIG_ORIGINAL_CONTENT="$(cat "$xcconfig_path")"
+    IOS_XCCONFIG_PATCHED="true"
+    printf '\nPROVISIONING_PROFILE_SPECIFIER = %s\n' "$IOS_RESOLVED_PROFILE_NAME" \
+      >> "$xcconfig_path"
+    export FLUTTER_XCODE_CODE_SIGN_STYLE=Manual
+    export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
+    export FLUTTER_XCODE_DEVELOPMENT_TEAM="$IOS_RESOLVED_TEAM_ID"
+    say "Manual signing: profile='${IOS_RESOLVED_PROFILE_NAME}' team='${IOS_RESOLVED_TEAM_ID}'"
+  fi
 
   local ios_args=(
     --release
