@@ -30,7 +30,9 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$RELEASE_TAG"
-          gh release view "$RELEASE_TAG" --json tagName,isDraft >/tmp/release.json
+          gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json tagName,isDraft >/tmp/release.json
           if [ "$(jq -r '.isDraft' /tmp/release.json)" != "false" ]; then
             echo "::error::Release tag ${RELEASE_TAG} is still a draft release."
             exit 1
@@ -43,6 +45,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist/web-release
           gh release download "${{ inputs.release_tag }}" \
+            --repo "$GITHUB_REPOSITORY" \
             --pattern "befam-*-web-release.tar.gz" \
             --dir dist/web-release
           bundle_path="$(find dist/web-release -maxdepth 1 -name 'befam-*-web-release.tar.gz' -print -quit)"

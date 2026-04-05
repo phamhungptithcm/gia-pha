@@ -539,6 +539,7 @@ jobs:
           ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           required=(
             ANDROID_RELEASE_KEYSTORE_BASE64
             ANDROID_RELEASE_KEYSTORE_PASSWORD
@@ -556,6 +557,7 @@ jobs:
         env:
           ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
         run: |
+          set -euo pipefail
           keystore_path="$RUNNER_TEMP/android-release.keystore"
           echo "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
           echo "ANDROID_KEYSTORE_PATH=$keystore_path" >> "$GITHUB_ENV"
@@ -719,6 +721,7 @@ jobs:
           IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
+          set -euo pipefail
           required=(
             IOS_P12_BASE64
             IOS_P12_PASSWORD
@@ -738,6 +741,7 @@ jobs:
           IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
           IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
         run: |
+          set -euo pipefail
           keychain_path="$RUNNER_TEMP/befam-signing.keychain-db"
           keychain_password="$(openssl rand -hex 24)"
           cert_path="$RUNNER_TEMP/signing-cert.p12"
@@ -760,7 +764,7 @@ jobs:
             -t cert \
             -f pkcs12
           security set-key-partition-list \
-            -S apple-tool:,apple: \
+            -S apple-tool:,apple:,codesign: \
             -s \
             -k "$keychain_password" \
             "$keychain_path"
@@ -909,6 +913,38 @@ jobs:
           </plist>
           EOF
 
+          # Inject PROVISIONING_PROFILE_SPECIFIER into Flutter's Release xcconfig.
+          # ios/Flutter/Release.xcconfig is included ONLY by the Runner target —
+          # CocoaPods pod targets have their own separate xcconfigs and never
+          # read this file. This means the profile specifier applies only to
+          # Runner, avoiding the "does not support provisioning profiles" hard
+          # error that occurs when the setting is applied globally via the
+          # FLUTTER_XCODE_PROVISIONING_PROFILE_SPECIFIER env var (which is a
+          # command-line xcodebuild override that affects every target including
+          # static library pod targets).
+          printf '\nPROVISIONING_PROFILE_SPECIFIER = %s\n' \
+            "${IOS_PROVISIONING_PROFILE_NAME}" \
+            >> ios/Flutter/Release.xcconfig
+
+          # CODE_SIGN_STYLE, CODE_SIGN_IDENTITY and DEVELOPMENT_TEAM are safe
+          # to pass as global FLUTTER_XCODE_* overrides — they do not trigger
+          # provisioning profile validation on pod targets by themselves.
+          export FLUTTER_XCODE_CODE_SIGN_STYLE=Manual
+          export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
+          export FLUTTER_XCODE_DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
+          
+          echo "Injecting AdMob App ID into Info.plist..."
+
+          plist="ios/Runner/Info.plist"
+
+          # Remove existing key if exists (idempotent)
+          /usr/libexec/PlistBuddy -c "Delete :GADApplicationIdentifier" "$plist" || true
+
+          # Add new value from CI
+          /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $ios_admob_app_id" "$plist"
+
+          echo "Injected GADApplicationIdentifier=$ios_admob_app_id"
+
           flutter build ipa \
             --release \
             --build-name "${{ needs.prepare-release.outputs.version }}" \
@@ -921,8 +957,8 @@ jobs:
             --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION="${befam_region}" \
             --dart-define=BEFAM_DEFAULT_TIMEZONE="${befam_timezone}" \
             --dart-define=BEFAM_INVALID_CHECKOUT_HOSTS="${invalid_hosts}" \
-            "${optional_firebase_defines[@]}"
-
+            "${optional_firebase_defines[@]}" 
+            
           built_info_plist="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Info.plist"
           if [ ! -f "$built_info_plist" ]; then
             echo "::error::Built iOS Info.plist not found at ${built_info_plist}"
@@ -938,23 +974,42 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          ipa_path="build/ios/ipa/Runner.ipa"
+          set -euo pipefail
+
+          ipa_dir="build/ios/ipa"
           output_dir="${GITHUB_WORKSPACE}/dist/ios"
           asset_name="befam-${RELEASE_VERSION}-ios-release.ipa"
 
-          if [ ! -f "${ipa_path}" ]; then
-            echo "Expected signed iOS IPA not found at ${ipa_path}" >&2
+          echo "Looking for IPA in ${ipa_dir}..."
+
+          if [ ! -d "$ipa_dir" ]; then
+            echo "::error::IPA directory not found at $ipa_dir"
             exit 1
           fi
 
+          echo "Contents of IPA directory:"
+          ls -la "$ipa_dir" || true
+
+          ipa_path="$(find "$ipa_dir" -maxdepth 1 -name "*.ipa" | head -n 1)"
+
+          if [ -z "$ipa_path" ] || [ ! -f "$ipa_path" ]; then
+            echo "::error::No IPA file found in $ipa_dir"
+            exit 1
+          fi
+
+          echo "Found IPA: $ipa_path"
+
           mkdir -p "${output_dir}"
           cp "${ipa_path}" "${output_dir}/${asset_name}"
+
+          echo "Packaged IPA as ${output_dir}/${asset_name}"
 
       - name: Upload signed iOS release IPA
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ios-release-ipa
-          path: dist/ios/*.ipa
+          path: dist/ios/befam-${{ needs.prepare-release.outputs.version }}-ios-release.ipa
+          if-no-files-found: error
 
   build-web-release:
     name: Build Web Release Bundle
@@ -1084,6 +1139,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
+          set -euo pipefail
           output_dir="${GITHUB_WORKSPACE}/dist/web"
           mkdir -p "${output_dir}"
           bash ../../scripts/verify_app_ads_txt.sh build/web/app-ads.txt
@@ -1231,6 +1287,7 @@ jobs:
           RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
+          set -euo pipefail
           android_asset_path="dist/android/app-release.aab"
           ios_asset_path="dist/ios/befam-${RELEASE_VERSION}-ios-release.ipa"
           web_asset_path="dist/web/befam-${RELEASE_VERSION}-web-release.tar.gz"
@@ -1279,6 +1336,7 @@ jobs:
           RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
+          set -euo pipefail
           title="BeFam ${RELEASE_TAG}"
           android_asset_path="dist/android/app-release.aab"
           android_asset_name="befam-${RELEASE_VERSION}-android-release.aab"

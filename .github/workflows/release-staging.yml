@@ -572,7 +572,7 @@ jobs:
           </plist>
           EOF
 
-          flutter build ipa \
+          flutter build ipa --no-codesign\
             --release \
             --build-name "${{ needs.prepare.outputs.build_name }}" \
             --build-number "${{ needs.prepare.outputs.build_number }}" \
