@@ -331,14 +331,17 @@ export const OTP_TWILIO_BACKOFF_MS = readEnvInt(
   { min: 50, max: 5000 },
 );
 
+const APP_REVIEW_PHONE_NUMBER = readEnvString('APP_REVIEW_PHONE_NUMBER');
+const APP_REVIEW_OTP = readEnvString('APP_REVIEW_OTP');
+
 export const OTP_REVIEW_BYPASS_ENABLED = readEnvBoolean(
   'OTP_REVIEW_BYPASS_ENABLED',
-  false,
+  APP_REVIEW_PHONE_NUMBER.length > 0 && APP_REVIEW_OTP.length > 0,
 );
 
 export const OTP_REVIEW_BYPASS_PHONES = readEnvStringList(
   'OTP_REVIEW_BYPASS_PHONES',
-  [],
+  APP_REVIEW_PHONE_NUMBER.length > 0 ? [APP_REVIEW_PHONE_NUMBER] : [],
 );
 
 export function getOtpTwilioAuthToken(): string {
@@ -346,5 +349,5 @@ export function getOtpTwilioAuthToken(): string {
 }
 
 export function getOtpReviewBypassCode(): string {
-  return readEnvString('OTP_REVIEW_BYPASS_CODE');
+  return readEnvString('OTP_REVIEW_BYPASS_CODE', APP_REVIEW_OTP);
 }

@@ -39,6 +39,8 @@ extra_javascript:
   - https://unpkg.com/mermaid@10/dist/mermaid.min.js
   - javascripts/mermaid-init.js
   - javascripts/release-sync.js
+  - javascripts/befam-docs-ads-config.js
+  - javascripts/befam-web-ads.js
 
 nav:
   - Home: index.md

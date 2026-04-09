@@ -184,4 +184,14 @@ class AppEnvironment {
     'BEFAM_ADMOB_IOS_REWARDED_UNIT_ID',
     defaultValue: '',
   );
+
+  static const String adSensePublisherId = String.fromEnvironment(
+    'BEFAM_ADSENSE_PUBLISHER_ID',
+    defaultValue: 'ca-pub-5281756390120867',
+  );
+
+  static const String adSenseMarketingInlineSlotId = String.fromEnvironment(
+    'BEFAM_ADSENSE_MARKETING_INLINE_SLOT_ID',
+    defaultValue: '',
+  );
 }
