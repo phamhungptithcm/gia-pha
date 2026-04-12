@@ -6,8 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/services/analytics_event_names.dart';
 import '../../core/services/app_environment.dart';
+import '../../core/services/app_locale_controller.dart';
 import '../../core/services/app_logger.dart';
 import '../../core/services/firebase_services.dart';
+import '../../core/widgets/app_locale_scope.dart';
 import '../../l10n/l10n.dart';
 import 'widgets/marketing_ad_slot.dart';
 
@@ -1212,6 +1214,7 @@ class _TopNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final textTheme = Theme.of(context).textTheme;
+    final localeController = AppLocaleScope.maybeOf(context);
     final navItems = [
       _NavItem(path: '/', label: l10n.webNavHome),
       _NavItem(path: '/about-us', label: l10n.webNavAboutUs),
@@ -1289,6 +1292,11 @@ class _TopNavigation extends StatelessWidget {
                       backgroundColor: _kLandingPaper,
                     ),
                   ),
+                const SizedBox(width: 8),
+                _MarketingLanguageSwitch(
+                  controller: localeController,
+                  compact: isCompact,
+                ),
                 const SizedBox(width: 10),
                 FilledButton(
                   onPressed: () => _trackAndOpenApp(
@@ -3271,9 +3279,10 @@ class _WebFooter extends StatelessWidget {
                       vi: 'Tải trên App Store',
                       en: 'Download on App Store',
                     ),
-                    subtitle: iosStoreUrl.isEmpty
-                        ? l10n.pick(vi: 'Sắp mở', en: 'Coming soon')
-                        : l10n.pick(vi: 'iOS app', en: 'iOS app'),
+                    subtitle: l10n.pick(
+                      vi: 'Ứng dụng iPhone',
+                      en: 'iOS app',
+                    ),
                     url: iosStoreUrl,
                   ),
                   _StoreDownloadButton(
@@ -3284,9 +3293,10 @@ class _WebFooter extends StatelessWidget {
                       vi: 'Tải trên Google Play',
                       en: 'Get it on Google Play',
                     ),
-                    subtitle: androidStoreUrl.isEmpty
-                        ? l10n.pick(vi: 'Sắp mở', en: 'Coming soon')
-                        : l10n.pick(vi: 'Android app', en: 'Android app'),
+                    subtitle: l10n.pick(
+                      vi: 'Ứng dụng Android',
+                      en: 'Android app',
+                    ),
                     url: androidStoreUrl,
                   ),
                 ],
@@ -3461,6 +3471,125 @@ class _FooterLinkButton extends StatelessWidget {
   }
 }
 
+class _MarketingLanguageSwitch extends StatelessWidget {
+  const _MarketingLanguageSwitch({
+    required this.controller,
+    this.compact = false,
+  });
+
+  final AppLocaleController? controller;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    if (controller == null) {
+      return const SizedBox.shrink();
+    }
+
+    final l10n = context.l10n;
+    final selectedLanguageCode = controller!.locale.languageCode.toLowerCase();
+    final options = [
+      (
+        code: 'vi',
+        short: 'VI',
+        label: l10n.pick(vi: 'Tiếng Việt', en: 'Vietnamese'),
+      ),
+      (
+        code: 'en',
+        short: 'EN',
+        label: l10n.pick(vi: 'Tiếng Anh', en: 'English'),
+      ),
+    ];
+
+    Future<void> selectLanguage(String code) async {
+      await controller!.updateLanguageCode(code);
+    }
+
+    final current = options.firstWhere(
+      (option) => option.code == selectedLanguageCode,
+      orElse: () => options.first,
+    );
+    final textTheme = Theme.of(context).textTheme;
+    final pillPadding = compact
+        ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+        : const EdgeInsets.symmetric(horizontal: 12, vertical: 9);
+
+    return PopupMenuButton<String>(
+      tooltip: l10n.pick(vi: 'Đổi ngôn ngữ', en: 'Change language'),
+      onSelected: (languageCode) => unawaited(selectLanguage(languageCode)),
+      offset: const Offset(0, 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      itemBuilder: (context) => [
+        for (final option in options)
+          PopupMenuItem<String>(
+            value: option.code,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    option.label,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: _kLandingInk,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (selectedLanguageCode == option.code)
+                  const Icon(
+                    Icons.check_rounded,
+                    size: 18,
+                    color: _kLandingInk,
+                  ),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        padding: pillPadding,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: Colors.white.withValues(alpha: 0.72),
+          border: Border.all(color: _kLandingLine),
+          boxShadow: compact
+              ? null
+              : const [
+                  BoxShadow(
+                    color: Color(0x0F000000),
+                    blurRadius: 14,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.language_rounded,
+              size: compact ? 16 : 18,
+              color: _kLandingMuted,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              current.short,
+              style: textTheme.labelLarge?.copyWith(
+                color: _kLandingInk,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: compact ? 18 : 20,
+              color: _kLandingMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _StoreDownloadButton extends StatelessWidget {
   const _StoreDownloadButton({
     required this.ctaType,
@@ -3481,66 +3610,89 @@ class _StoreDownloadButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isEnabled = url.trim().isNotEmpty;
+    final hasStoreUrl = url.trim().isNotEmpty;
 
-    return InkWell(
-      onTap: !isEnabled
-          ? null
-          : () async {
-              await _trackAndOpenExternalUrl(
-                ctaType: ctaType,
-                placement: placement,
-                pagePath: pagePath,
-                url: url,
-              );
-            },
-      borderRadius: BorderRadius.circular(22),
-      child: Ink(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          color: const Color(0xFF05080B),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 248, maxWidth: 300),
-          child: Row(
-            children: [
-              _StoreBrandTile(ctaType: ctaType, isEnabled: isEnabled),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        height: 1.2,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF9BA8B3),
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Icon(
-                isEnabled
-                    ? Icons.arrow_outward_rounded
-                    : Icons.lock_clock_rounded,
-                color: Colors.white.withValues(alpha: isEnabled ? 0.9 : 0.4),
+    Future<void> handleTap() async {
+      if (hasStoreUrl) {
+        await _trackAndOpenExternalUrl(
+          ctaType: ctaType,
+          placement: placement,
+          pagePath: pagePath,
+          url: url,
+        );
+        return;
+      }
+
+      _trackAndOpenApp(
+        context,
+        pagePath: pagePath,
+        placement: '${placement}_fallback_open_app',
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: handleTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF020304), Color(0xFF0B0F12)],
+            ),
+            border: Border.all(color: const Color(0xFF1F262C)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x24000000),
+                blurRadius: 24,
+                offset: Offset(0, 14),
               ),
             ],
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 264, maxWidth: 320),
+            child: Row(
+              children: [
+                _StoreBrandTile(ctaType: ctaType, isEnabled: true),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.2,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFFC3CDD5),
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Icon(
+                  hasStoreUrl
+                      ? Icons.arrow_outward_rounded
+                      : Icons.smartphone_rounded,
+                  color: Colors.white.withValues(alpha: 0.92),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -3556,40 +3708,33 @@ class _StoreBrandTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final opacity = isEnabled ? 1.0 : 0.55;
     if (ctaType == 'app_store') {
-      return Opacity(
-        opacity: opacity,
-        child: Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF3B82F6), Color(0xFF0EA5E9)],
-            ),
+      return Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF3B82F6), Color(0xFF0EA5E9)],
           ),
-          child: CustomPaint(painter: _AppStoreGlyphPainter()),
         ),
+        child: CustomPaint(painter: _AppStoreGlyphPainter()),
       );
     }
 
-    return Opacity(
-      opacity: opacity,
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.white.withValues(alpha: 0.08),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-        ),
-        child: const Padding(
-          padding: EdgeInsets.all(11),
-          child: CustomPaint(painter: _GooglePlayGlyphPainter()),
-        ),
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withValues(alpha: 0.06),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.all(11),
+        child: CustomPaint(painter: _GooglePlayGlyphPainter()),
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/services/app_locale_controller.dart';
 import '../core/services/app_locale_store.dart';
+import '../core/widgets/app_locale_scope.dart';
 import '../features/auth/presentation/auth_experience.dart';
 import '../features/auth/services/auth_analytics_service.dart';
 import '../features/auth/services/auth_gateway.dart';
@@ -121,7 +122,37 @@ class _BeFamAppState extends State<BeFamApp> {
     final authExperience = _buildAuthExperience();
 
     if (kIsWeb) {
-      return MaterialApp.router(
+      return AppLocaleScope(
+        controller: _localeController,
+        child: MaterialApp.router(
+          onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          locale: effectiveLocale,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          localeResolutionCallback: (deviceLocale, supportedLocales) {
+            for (final supportedLocale in supportedLocales) {
+              if (supportedLocale.languageCode == effectiveLocale.languageCode) {
+                return supportedLocale;
+              }
+            }
+
+            return BeFamApp.defaultLocale;
+          },
+          routerConfig: _webRouter!,
+        ),
+      );
+    }
+
+    return AppLocaleScope(
+      controller: _localeController,
+      child: MaterialApp(
         onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
@@ -142,32 +173,8 @@ class _BeFamAppState extends State<BeFamApp> {
 
           return BeFamApp.defaultLocale;
         },
-        routerConfig: _webRouter!,
-      );
-    }
-
-    return MaterialApp(
-      onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      locale: effectiveLocale,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      localeResolutionCallback: (deviceLocale, supportedLocales) {
-        for (final supportedLocale in supportedLocales) {
-          if (supportedLocale.languageCode == effectiveLocale.languageCode) {
-            return supportedLocale;
-          }
-        }
-
-        return BeFamApp.defaultLocale;
-      },
-      home: authExperience,
+        home: authExperience,
+      ),
     );
   }
 

@@ -382,7 +382,9 @@ class AdController implements RewardedDiscoveryAttemptService {
     if (_shouldPlaceBannerOnCurrentScreen) {
       await _requestBanner(userState: userState);
     }
-    await _requestInterstitial(userState: userState);
+    if (_shouldWarmInterstitial(userState: userState)) {
+      await _requestInterstitial(userState: userState);
+    }
     if (_shouldPrimeRewardedDiscovery) {
       await primeRewardedDiscoveryAttempt();
     }
@@ -396,32 +398,45 @@ class AdController implements RewardedDiscoveryAttemptService {
   }
 
   Future<void> _requestBanner({required AdUserState userState}) async {
-    if (!_shouldPlaceBannerOnCurrentScreen || _adService.isBannerReady) {
+    if (!_shouldPlaceBannerOnCurrentScreen) {
       return;
     }
+    final placement = 'banner_$_currentScreenId';
     await _analyticsTracker.trackRequest(
       format: 'banner',
-      placement: 'banner_$_currentScreenId',
+      placement: placement,
       userState: userState,
     );
     await _adService.ensureBannerLoaded(
-      onLoaded: () {
+      placement: placement,
+      onLoaded: (responseDiagnostics) {
         _bannerLoadFailed = false;
         unawaited(
           _analyticsTracker.trackLoaded(
             format: 'banner',
-            placement: 'banner_$_currentScreenId',
+            placement: placement,
             userState: userState,
+            responseDiagnostics: responseDiagnostics,
           ),
         );
         _notifyStateChanged();
+      },
+      onPaidEvent: (paidEvent) {
+        unawaited(
+          _analyticsTracker.trackPaidEvent(
+            format: 'banner',
+            placement: placement,
+            userState: userState,
+            paidEvent: paidEvent,
+          ),
+        );
       },
       onFailed: (errorCode) {
         _bannerLoadFailed = true;
         unawaited(
           _analyticsTracker.trackFailed(
             format: 'banner',
-            placement: 'banner_$_currentScreenId',
+            placement: placement,
             userState: userState,
             errorCode: errorCode,
           ),
@@ -432,7 +447,9 @@ class AdController implements RewardedDiscoveryAttemptService {
   }
 
   Future<void> _requestInterstitial({required AdUserState userState}) async {
-    if (_adService.isInterstitialReady || _adService.isShowingInterstitial) {
+    if (_adService.isInterstitialReady ||
+        _adService.isShowingInterstitial ||
+        !_shouldWarmInterstitial(userState: userState)) {
       return;
     }
     await _analyticsTracker.trackRequest(
@@ -441,13 +458,14 @@ class AdController implements RewardedDiscoveryAttemptService {
       userState: userState,
     );
     await _adService.ensureInterstitialLoaded(
-      onLoaded: () {
+      onLoaded: (responseDiagnostics) {
         _sessionState?.clearInterstitialLoadFailures();
         unawaited(
           _analyticsTracker.trackLoaded(
             format: 'interstitial',
             placement: 'interstitial_default',
             userState: userState,
+            responseDiagnostics: responseDiagnostics,
           ),
         );
         _notifyStateChanged();
@@ -481,12 +499,13 @@ class AdController implements RewardedDiscoveryAttemptService {
       userState: userState,
     );
     await _adService.ensureRewardedLoaded(
-      onLoaded: () {
+      onLoaded: (responseDiagnostics) {
         unawaited(
           _analyticsTracker.trackLoaded(
             format: 'rewarded',
             placement: 'rewarded_discovery_extra_attempt',
             userState: userState,
+            responseDiagnostics: responseDiagnostics,
           ),
         );
         _notifyStateChanged();
@@ -591,6 +610,16 @@ class AdController implements RewardedDiscoveryAttemptService {
           completer.complete(RewardedDiscoveryAttemptResult.failed);
         }
       },
+      onPaidEvent: (paidEvent) {
+        unawaited(
+          _analyticsTracker.trackPaidEvent(
+            format: 'rewarded',
+            placement: placementId,
+            userState: userState,
+            paidEvent: paidEvent,
+          ),
+        );
+      },
       onRewardEarned: (rewardAmount, rewardType) {
         unawaited(
           _analyticsTracker.trackRewardEarned(
@@ -640,7 +669,6 @@ class AdController implements RewardedDiscoveryAttemptService {
       blockReason: decision.reason,
       policyVersion: _policy.policyVersion,
       score: decision.score,
-      shown: decision.shouldShow,
     );
 
     if (!decision.shouldShow) {
@@ -722,6 +750,16 @@ class AdController implements RewardedDiscoveryAttemptService {
         unawaited(_requestInterstitial(userState: userState));
         _notifyStateChanged();
       },
+      onPaidEvent: (paidEvent) {
+        unawaited(
+          _analyticsTracker.trackPaidEvent(
+            format: 'interstitial',
+            placement: context.placementId,
+            userState: userState,
+            paidEvent: paidEvent,
+          ),
+        );
+      },
     );
 
     if (!showSucceeded) {
@@ -758,6 +796,56 @@ class AdController implements RewardedDiscoveryAttemptService {
       ),
     );
   }
+
+  bool _shouldWarmInterstitial({required AdUserState userState}) {
+    final sessionState = _sessionState;
+    if (sessionState == null ||
+        !_policy.interstitialEnabled ||
+        _adService.isInterstitialReady ||
+        _adService.isShowingInterstitial) {
+      return false;
+    }
+
+    final screenPolicy = ScreenContextPolicy.forScreen(_currentScreenId);
+    if (!screenPolicy.allowInterstitial ||
+        screenPolicy.isBadMomentForInterstitial) {
+      return false;
+    }
+
+    final now = _clock();
+    for (final breakpointType in _warmupBreakpointTypes) {
+      if (!_policy.isInterstitialAllowedAtBreakpoint(breakpointType)) {
+        continue;
+      }
+      final decision = _eligibilityEvaluator.evaluateInterstitialWarmup(
+        context: AdOpportunityContext(
+          screenId: _currentScreenId,
+          placementId: 'warmup_${_currentScreenId}_$breakpointType',
+          breakpointType: breakpointType,
+          source: 'warmup',
+          isNaturalBreakpoint: true,
+          isBadMoment: false,
+        ),
+        userState: userState,
+        sessionState: sessionState,
+        policy: _policy,
+        now: now,
+      );
+      if (decision.shouldShow) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static const List<String> _warmupBreakpointTypes = <String>[
+    'task_complete',
+    'result_exit',
+    'content_unit_end',
+    'route_return',
+    'shell_tab_switch',
+  ];
 
   Future<void> _savePersistedState() async {
     final state = _persistedState;

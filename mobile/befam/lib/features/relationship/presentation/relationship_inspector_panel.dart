@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../core/widgets/app_feedback_states.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -92,88 +93,69 @@ class _RelationshipInspectorPanelState
         .where((relationship) => relationship.type == RelationshipType.spouse)
         .toList(growable: false);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.relationshipInspectorTitle,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        l10n.relationshipInspectorDescription,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    return AppWorkspaceSurface(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.relationshipInspectorTitle,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 14),
+          if (_error != null) ...[
+            _RelationshipMessage(
+              title: l10n.relationshipErrorTitle,
+              description: _relationshipErrorText(l10n, _error!),
+              icon: Icons.error_outline,
+              color: Theme.of(context).colorScheme.errorContainer,
             ),
-            const SizedBox(height: 16),
-            if (_error != null) ...[
-              _RelationshipMessage(
-                title: l10n.relationshipErrorTitle,
-                description: _relationshipErrorText(l10n, _error!),
-                icon: Icons.error_outline,
-                color: Theme.of(context).colorScheme.errorContainer,
-              ),
-              const SizedBox(height: 16),
-            ],
-            if (_isLoading)
-              AppLoadingState(
-                message: l10n.pick(
-                  vi: 'Đang tải quan hệ...',
-                  en: 'Loading relationships...',
-                ),
-              )
-            else ...[
-              _RelationshipGroup(
-                title: l10n.pick(vi: 'Cha/mẹ', en: 'Parents'),
-                emptyLabel: l10n.pick(
-                  vi: 'Chưa có liên kết cha/mẹ.',
-                  en: 'No parent links yet.',
-                ),
-                relationships: parentRelationships,
-                currentMemberId: widget.member.id,
-                memberById: memberById,
-                onOpenMemberDetail: widget.onOpenMemberDetail,
-              ),
-              const SizedBox(height: 14),
-              _RelationshipGroup(
-                title: l10n.pick(vi: 'Con', en: 'Children'),
-                emptyLabel: l10n.relationshipNoChildren,
-                relationships: childRelationships,
-                currentMemberId: widget.member.id,
-                memberById: memberById,
-                onOpenMemberDetail: widget.onOpenMemberDetail,
-              ),
-              const SizedBox(height: 14),
-              _RelationshipGroup(
-                title: l10n.pick(vi: 'Vợ/chồng', en: 'Spouses'),
-                emptyLabel: l10n.pick(
-                  vi: 'Chưa có liên kết vợ/chồng.',
-                  en: 'No spouse links yet.',
-                ),
-                relationships: spouseRelationships,
-                currentMemberId: widget.member.id,
-                memberById: memberById,
-                onOpenMemberDetail: widget.onOpenMemberDetail,
-              ),
-            ],
+            const SizedBox(height: 14),
           ],
-        ),
+          if (_isLoading)
+            AppLoadingState(
+              message: l10n.pick(
+                vi: 'Đang tải quan hệ...',
+                en: 'Loading relationships...',
+              ),
+            )
+          else ...[
+            _RelationshipGroup(
+              title: l10n.pick(vi: 'Cha/mẹ', en: 'Parents'),
+              emptyLabel: l10n.pick(
+                vi: 'Chưa có liên kết cha/mẹ.',
+                en: 'No parent links yet.',
+              ),
+              relationships: parentRelationships,
+              currentMemberId: widget.member.id,
+              memberById: memberById,
+              onOpenMemberDetail: widget.onOpenMemberDetail,
+            ),
+            const SizedBox(height: 14),
+            _RelationshipGroup(
+              title: l10n.pick(vi: 'Vợ/chồng', en: 'Spouses'),
+              emptyLabel: l10n.pick(
+                vi: 'Chưa có liên kết vợ/chồng.',
+                en: 'No spouse links yet.',
+              ),
+              relationships: spouseRelationships,
+              currentMemberId: widget.member.id,
+              memberById: memberById,
+              onOpenMemberDetail: widget.onOpenMemberDetail,
+            ),
+            const SizedBox(height: 14),
+            _RelationshipGroup(
+              title: l10n.pick(vi: 'Con', en: 'Children'),
+              emptyLabel: l10n.relationshipNoChildren,
+              relationships: childRelationships,
+              currentMemberId: widget.member.id,
+              memberById: memberById,
+              onOpenMemberDetail: widget.onOpenMemberDetail,
+            ),
+          ],
+        ],
       ),
     );
   }
