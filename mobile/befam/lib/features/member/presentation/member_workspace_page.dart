@@ -430,8 +430,7 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
+        final colorScheme = Theme.of(context).colorScheme;
         final l10n = context.l10n;
         final hasActiveFilters =
             _controller.filters.query.trim().isNotEmpty ||
@@ -443,20 +442,12 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
             .take(_visibleMemberCount)
             .toList(growable: false);
         final hasMoreMembers = visibleMembers.length < filteredMembers.length;
-        final heroBadges = <_HeroBadgeData>[
-          _HeroBadgeData(
-            icon: Icons.groups_2_outlined,
-            label: l10n.pick(
-              vi: '${_controller.members.length} hồ sơ',
-              en: '${_controller.members.length} profiles',
-            ),
-          ),
-          if (hasActiveFilters)
-            _HeroBadgeData(
-              icon: Icons.tune_outlined,
-              label: l10n.pick(vi: 'Đang lọc', en: 'Filtered'),
-            ),
-        ];
+        void clearFilters() {
+          _searchController.clear();
+          _controller.updateSearchQuery('');
+          _controller.updateBranchFilter(null);
+          _controller.updateGenerationFilter(null);
+        }
 
         final scaffold = Scaffold(
           appBar: AppBar(
@@ -472,11 +463,14 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
           floatingActionButton: _controller.permissions.canCreateMembers
               ? OnboardingAnchor(
                   anchorId: 'member.add_fab',
-                  child: FloatingActionButton(
+                  child: FloatingActionButton.extended(
                     key: const Key('member-add-fab'),
                     onPressed: _openMemberEditor,
                     tooltip: l10n.memberAddAction,
-                    child: const Icon(Icons.add),
+                    icon: const Icon(Icons.add),
+                    label: Text(
+                      l10n.pick(vi: 'Thêm thành viên', en: 'Add member'),
+                    ),
                   ),
                 )
               : null,
@@ -505,11 +499,6 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                           bottom: 32,
                         ),
                         children: [
-                          _WorkspaceHero(
-                            title: l10n.memberWorkspaceHeroTitle,
-                            badges: heroBadges,
-                          ),
-                          const SizedBox(height: 14),
                           if (_controller.permissions.isReadOnly) ...[
                             _MessageCard(
                               icon: Icons.visibility_outlined,
@@ -537,181 +526,136 @@ class _MemberWorkspacePageState extends State<MemberWorkspacePage> {
                             ),
                             const SizedBox(height: 14),
                           ],
-                          _StatGrid(
-                            items: [
-                              _StatTile(
-                                label: l10n.memberStatCount,
-                                value: '${_controller.members.length}',
-                                icon: Icons.groups_2_outlined,
-                              ),
-                              _StatTile(
-                                label: l10n.memberStatVisible,
-                                value: '${filteredMembers.length}',
-                                icon: Icons.filter_alt_outlined,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          if (_controller.selfMember
-                              case final selfMember?) ...[
-                            _SectionCard(
-                              title: l10n.memberOwnProfileTitle,
-                              child: _MemberSummaryCard(
-                                member: selfMember,
-                                branchName: _controller.branchName(
-                                  selfMember.branchId,
-                                ),
-                                roleLabel: l10n.roleLabel(
-                                  selfMember.primaryRole,
-                                ),
-                                showRoleBadge: true,
-                                onTap: () => _openMemberDetail(selfMember),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                          ],
-                          _SectionCard(
-                            title: l10n.memberFilterSectionTitle,
+                          AppWorkspaceSurface(
+                            padding: const EdgeInsets.all(16),
                             child: _FilterPanel(
                               searchController: _searchController,
                               branches: _controller.visibleBranches,
                               generationOptions: _controller.generationOptions,
+                              totalMemberCount: _controller.members.length,
+                              filteredMemberCount: filteredMembers.length,
                               filtersBranchId: _controller.filters.branchId,
                               filtersGeneration: _controller.filters.generation,
                               onSearchChanged: _controller.updateSearchQuery,
                               onBranchChanged: _controller.updateBranchFilter,
                               onGenerationChanged:
                                   _controller.updateGenerationFilter,
-                              onClearFilters: () {
-                                _searchController.clear();
-                                _controller.updateSearchQuery('');
-                                _controller.updateBranchFilter(null);
-                                _controller.updateGenerationFilter(null);
-                              },
+                              onClearFilters: clearFilters,
                             ),
                           ),
-                          const SizedBox(height: 14),
-                          _SectionCard(
-                            title: l10n.memberListSectionTitle,
-                            child: _controller.isSearching
-                                ? _SearchStateCard(
-                                    key: const Key(
-                                      'member-search-loading-state',
+                          const SizedBox(height: 16),
+                          if (_controller.isSearching)
+                            _SearchStateCard(
+                              key: const Key('member-search-loading-state'),
+                              icon: Icons.search,
+                              title: l10n.pick(
+                                vi: 'Đang tìm thành viên...',
+                                en: 'Searching members...',
+                              ),
+                              trailing: const Padding(
+                                padding: EdgeInsets.only(top: 4),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          else if (_controller.searchError != null)
+                            _SearchStateCard(
+                              key: const Key('member-search-error-state'),
+                              icon: Icons.wifi_tethering_error_outlined,
+                              title: l10n.memberLoadErrorTitle,
+                              description: l10n.memberLoadErrorDescription,
+                              trailing: TextButton.icon(
+                                key: const Key('member-search-retry-action'),
+                                onPressed: _controller.retrySearch,
+                                icon: const Icon(Icons.refresh),
+                                label: Text(l10n.memberRefreshAction),
+                              ),
+                            )
+                          else if (filteredMembers.isEmpty)
+                            _SearchStateCard(
+                              key: const Key('member-search-empty-state'),
+                              icon: Icons.person_search_outlined,
+                              title: hasActiveFilters
+                                  ? l10n.pick(
+                                      vi: 'Không tìm thấy thành viên phù hợp',
+                                      en: 'No members match these filters',
+                                    )
+                                  : l10n.memberListEmptyTitle,
+                              description: hasActiveFilters
+                                  ? l10n.pick(
+                                      vi: 'Thử tên, chi hoặc đời khác.',
+                                      en: 'Try a different name, branch, or generation.',
+                                    )
+                                  : l10n.memberListEmptyDescription,
+                              trailing: hasActiveFilters
+                                  ? TextButton.icon(
+                                      onPressed: clearFilters,
+                                      icon: const Icon(
+                                        Icons.filter_alt_off_outlined,
+                                      ),
+                                      label: Text(
+                                        l10n.memberClearFiltersAction,
+                                      ),
+                                    )
+                                  : null,
+                            )
+                          else
+                            Column(
+                              children: [
+                                for (final member in visibleMembers)
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom: member == visibleMembers.last
+                                          ? 0
+                                          : 10,
                                     ),
-                                    icon: Icons.search,
-                                    title: l10n.memberSearchLabel,
-                                    trailing: const Padding(
-                                      padding: EdgeInsets.only(top: 4),
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                                    child: KeyedSubtree(
+                                      key: Key(
+                                        'member-search-result-${member.id}',
+                                      ),
+                                      child: _MemberSummaryCard(
+                                        key: Key('member-row-${member.id}'),
+                                        member: member,
+                                        branchName: _controller.branchName(
+                                          member.branchId,
+                                        ),
+                                        roleLabel: l10n.roleLabel(
+                                          member.primaryRole,
+                                        ),
+                                        showRoleBadge:
+                                            member.primaryRole
+                                                .trim()
+                                                .toUpperCase() !=
+                                            'MEMBER',
+                                        highlightQuery:
+                                            _controller.filters.query,
+                                        onTap: () => _openMemberDetail(member),
                                       ),
                                     ),
-                                  )
-                                : _controller.searchError != null
-                                ? _SearchStateCard(
-                                    key: const Key('member-search-error-state'),
-                                    icon: Icons.wifi_tethering_error_outlined,
-                                    title: l10n.memberLoadErrorTitle,
-                                    description:
-                                        l10n.memberLoadErrorDescription,
-                                    trailing: TextButton.icon(
-                                      key: const Key(
-                                        'member-search-retry-action',
-                                      ),
-                                      onPressed: _controller.retrySearch,
-                                      icon: const Icon(Icons.refresh),
-                                      label: Text(l10n.memberRefreshAction),
-                                    ),
-                                  )
-                                : filteredMembers.isEmpty
-                                ? _SearchStateCard(
-                                    key: const Key('member-search-empty-state'),
-                                    icon: Icons.person_search_outlined,
-                                    title: hasActiveFilters
-                                        ? l10n.memberSearchLabel
-                                        : l10n.memberListEmptyTitle,
-                                    description: hasActiveFilters
-                                        ? null
-                                        : l10n.memberListEmptyDescription,
-                                    trailing: hasActiveFilters
-                                        ? TextButton.icon(
-                                            onPressed: () {
-                                              _searchController.clear();
-                                              _controller.updateSearchQuery('');
-                                              _controller.updateBranchFilter(
-                                                null,
-                                              );
-                                              _controller
-                                                  .updateGenerationFilter(null);
-                                            },
-                                            icon: const Icon(
-                                              Icons.filter_alt_off_outlined,
-                                            ),
-                                            label: Text(
-                                              l10n.memberClearFiltersAction,
-                                            ),
-                                          )
-                                        : null,
-                                  )
-                                : Column(
-                                    children: [
-                                      for (final member in visibleMembers)
-                                        Padding(
-                                          padding: EdgeInsets.only(
-                                            bottom:
-                                                member == visibleMembers.last
-                                                ? 0
-                                                : 12,
-                                          ),
-                                          child: KeyedSubtree(
-                                            key: Key(
-                                              'member-search-result-${member.id}',
-                                            ),
-                                            child: _MemberSummaryCard(
-                                              key: Key(
-                                                'member-row-${member.id}',
-                                              ),
-                                              member: member,
-                                              branchName: _controller
-                                                  .branchName(member.branchId),
-                                              roleLabel: l10n.roleLabel(
-                                                member.primaryRole,
-                                              ),
-                                              showRoleBadge:
-                                                  member.primaryRole
-                                                      .trim()
-                                                      .toUpperCase() !=
-                                                  'MEMBER',
-                                              highlightQuery:
-                                                  _controller.filters.query,
-                                              onTap: () =>
-                                                  _openMemberDetail(member),
-                                            ),
-                                          ),
-                                        ),
-                                      if (hasMoreMembers) ...[
-                                        const SizedBox(height: 12),
-                                        _SearchStateCard(
-                                          icon: Icons.unfold_more_outlined,
-                                          title: l10n.pick(
-                                            vi: 'Đã hiển thị ${visibleMembers.length}/${filteredMembers.length}',
-                                            en: 'Showing ${visibleMembers.length}/${filteredMembers.length}',
-                                          ),
-                                          trailing: TextButton.icon(
-                                            onPressed: _loadMoreMembersIfNeeded,
-                                            icon: const Icon(Icons.expand_more),
-                                            label: Text(
-                                              l10n.pick(
-                                                vi: 'Tải thêm',
-                                                en: 'Load more',
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
                                   ),
-                          ),
+                                if (hasMoreMembers) ...[
+                                  const SizedBox(height: 12),
+                                  _SearchStateCard(
+                                    icon: Icons.unfold_more_outlined,
+                                    title: l10n.pick(
+                                      vi: 'Đã hiển thị ${visibleMembers.length}/${filteredMembers.length}',
+                                      en: 'Showing ${visibleMembers.length}/${filteredMembers.length}',
+                                    ),
+                                    trailing: TextButton.icon(
+                                      onPressed: _loadMoreMembersIfNeeded,
+                                      icon: const Icon(Icons.expand_more),
+                                      label: Text(
+                                        l10n.pick(
+                                          vi: 'Tải thêm',
+                                          en: 'Load more',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                         ],
                       ),
                     ),
@@ -801,6 +745,13 @@ class _MemberDetailPage extends StatelessWidget {
           appBar: AppBar(
             title: Text(l10n.memberDetailTitle),
             actions: [
+              if (member != null && controller.canEditMember(member))
+                IconButton(
+                  key: const Key('member-edit-action'),
+                  tooltip: l10n.pick(vi: 'Sửa thành viên', en: 'Edit member'),
+                  onPressed: () => onEditMember(member: member),
+                  icon: const Icon(Icons.edit_outlined),
+                ),
               if (member != null && controller.canUploadAvatar(member))
                 IconButton(
                   key: const Key('member-upload-avatar-button'),
@@ -808,18 +759,10 @@ class _MemberDetailPage extends StatelessWidget {
                   onPressed: controller.isUploadingAvatar
                       ? null
                       : () => _handleAvatarUpload(context, member),
-                  icon: const Icon(Icons.cloud_upload_outlined),
+                  icon: const Icon(Icons.photo_camera_outlined),
                 ),
             ],
           ),
-          floatingActionButton:
-              member != null && controller.canEditMember(member)
-              ? FloatingActionButton(
-                  key: const Key('member-edit-fab'),
-                  onPressed: () => onEditMember(member: member),
-                  child: const Icon(Icons.edit_outlined),
-                )
-              : null,
           body: SafeArea(
             child: member == null
                 ? _WorkspaceEmptyState(
@@ -836,14 +779,12 @@ class _MemberDetailPage extends StatelessWidget {
                       ),
                       children: [
                         AppWorkspaceSurface(
-                          padding: const EdgeInsets.all(24),
-                          gradient: appWorkspaceHeroGradient(context),
-                          showAccentOrbs: true,
+                          padding: const EdgeInsets.all(20),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _AvatarBadge(member: member, radius: 34),
-                              const SizedBox(width: 16),
+                              _AvatarBadge(member: member, radius: 30),
+                              const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -855,164 +796,56 @@ class _MemberDetailPage extends StatelessWidget {
                                             fontWeight: FontWeight.w800,
                                           ),
                                     ),
+                                    if (member.nickName.trim().isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        member.nickName,
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ],
                                     const SizedBox(height: 8),
                                     Text(
-                                      member.nickName.trim().isEmpty
-                                          ? l10n.memberDetailNoNickname
-                                          : member.nickName,
-                                      style: theme.textTheme.titleMedium
+                                      _buildMemberMetadataLine(
+                                        parts: [
+                                          controller.branchName(
+                                            member.branchId,
+                                          ),
+                                          l10n.pick(
+                                            vi: 'Đời ${member.generation}',
+                                            en: 'Generation ${member.generation}',
+                                          ),
+                                          l10n.roleLabel(member.primaryRole),
+                                          ..._optionalMetadataPart(
+                                            siblingOrderLabel,
+                                          ),
+                                        ],
+                                      ),
+                                      style: theme.textTheme.bodyMedium
                                           ?.copyWith(
                                             color: theme
                                                 .colorScheme
                                                 .onSurfaceVariant,
+                                            fontWeight: FontWeight.w600,
                                           ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Wrap(
-                                      spacing: 10,
-                                      runSpacing: 10,
-                                      children: [
-                                        _ChipPill(
-                                          icon: Icons.account_tree_outlined,
-                                          label: controller.branchName(
-                                            member.branchId,
-                                          ),
-                                        ),
-                                        _ChipPill(
-                                          icon: Icons.filter_5_outlined,
-                                          label: l10n.pick(
-                                            vi: 'Đời thứ ${member.generation}',
-                                            en: 'Generation ${member.generation}',
-                                          ),
-                                        ),
-                                        _ChipPill(
-                                          icon: Icons.verified_user_outlined,
-                                          label: l10n.roleLabel(
-                                            member.primaryRole,
-                                          ),
-                                        ),
-                                        if (siblingOrderLabel != null)
-                                          _ChipPill(
-                                            icon: Icons.format_list_numbered,
-                                            label: siblingOrderLabel,
-                                          ),
-                                      ],
                                     ),
                                   ],
                                 ),
                               ),
+                              if ((member.phoneE164 ?? '').trim().isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 12),
+                                  child: MemberPhoneActionIconButton(
+                                    phoneNumber: member.phoneE164!,
+                                    contactName: member.displayName,
+                                  ),
+                                ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 14),
-                        _SectionCard(
-                          title: l10n.memberDetailSummaryTitle,
-                          child: Column(
-                            children: [
-                              _DetailRow(
-                                label: l10n.memberFullNameLabel,
-                                value: member.fullName,
-                              ),
-                              _DetailRow(
-                                label: l10n.memberNicknameLabel,
-                                value: member.nickName.trim().isEmpty
-                                    ? l10n.memberFieldUnset
-                                    : member.nickName,
-                              ),
-                              _DetailRow(
-                                label: l10n.memberPhoneLabel,
-                                value:
-                                    member.phoneE164 ?? l10n.memberFieldUnset,
-                                trailing: MemberPhoneActionIconButton(
-                                  phoneNumber: member.phoneE164 ?? '',
-                                  contactName: member.displayName,
-                                ),
-                              ),
-                              _DetailRow(
-                                label: l10n.memberEmailLabel,
-                                value: member.email ?? l10n.memberFieldUnset,
-                              ),
-                              _DetailRow(
-                                label: l10n.memberGenderLabel,
-                                value: _genderLabel(l10n, member.gender),
-                              ),
-                              _DetailRow(
-                                label: l10n.pick(
-                                  vi: 'Thứ bậc anh/chị/em',
-                                  en: 'Sibling order',
-                                ),
-                                value:
-                                    siblingOrderLabel ?? l10n.memberFieldUnset,
-                              ),
-                              _DetailRow(
-                                label: l10n.memberBirthDateLabel,
-                                value:
-                                    member.birthDate ?? l10n.memberFieldUnset,
-                              ),
-                              _DetailRow(
-                                label: l10n.memberDeathDateLabel,
-                                value:
-                                    member.deathDate ?? l10n.memberFieldUnset,
-                              ),
-                              _DetailRow(
-                                label: l10n.memberJobTitleLabel,
-                                value: member.jobTitle ?? l10n.memberFieldUnset,
-                              ),
-                              _DetailRow(
-                                label: l10n.memberAddressLabel,
-                                value:
-                                    member.addressText ?? l10n.memberFieldUnset,
-                                trailing: AddressDirectionIconButton(
-                                  address: member.addressText ?? '',
-                                  label: member.displayName,
-                                ),
-                              ),
-                              _DetailRow(
-                                label: l10n.memberBioLabel,
-                                value: member.bio ?? l10n.memberFieldUnset,
-                                isLast: true,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        _SectionCard(
-                          title: l10n.memberSocialLinksTitle,
-                          child: member.socialLinks.isEmpty
-                              ? _WorkspaceEmptyState(
-                                  icon: Icons.link_off_outlined,
-                                  title: l10n.memberSocialLinksEmptyTitle,
-                                  description:
-                                      l10n.memberSocialLinksEmptyDescription,
-                                )
-                              : Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: [
-                                        if (member.socialLinks.facebook != null)
-                                          SocialLinkActionIconButton(
-                                            platform: SocialPlatform.facebook,
-                                            rawValue:
-                                                member.socialLinks.facebook!,
-                                          ),
-                                        if (member.socialLinks.zalo != null)
-                                          SocialLinkActionIconButton(
-                                            platform: SocialPlatform.zalo,
-                                            rawValue: member.socialLinks.zalo!,
-                                          ),
-                                        if (member.socialLinks.linkedin != null)
-                                          SocialLinkActionIconButton(
-                                            platform: SocialPlatform.linkedin,
-                                            rawValue:
-                                                member.socialLinks.linkedin!,
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
                         ),
                         const SizedBox(height: 14),
                         RelationshipInspectorPanel(
@@ -1040,6 +873,140 @@ class _MemberDetailPage extends StatelessWidget {
                               ),
                             );
                           },
+                        ),
+                        const SizedBox(height: 14),
+                        _SectionCard(
+                          title: l10n.pick(
+                            vi: 'Thông tin chính',
+                            en: 'Key information',
+                          ),
+                          child: Column(
+                            children: [
+                              _DetailRow(
+                                label: l10n.memberPhoneLabel,
+                                value:
+                                    member.phoneE164 ?? l10n.memberFieldUnset,
+                                trailing:
+                                    (member.phoneE164 ?? '').trim().isEmpty
+                                    ? null
+                                    : MemberPhoneActionIconButton(
+                                        phoneNumber: member.phoneE164!,
+                                        contactName: member.displayName,
+                                      ),
+                              ),
+                              _DetailRow(
+                                label: l10n.memberEmailLabel,
+                                value: member.email ?? l10n.memberFieldUnset,
+                              ),
+                              _DetailRow(
+                                label: l10n.memberGenderLabel,
+                                value: _genderLabel(l10n, member.gender),
+                              ),
+                              _DetailRow(
+                                label: l10n.pick(
+                                  vi: 'Thứ bậc anh/chị/em',
+                                  en: 'Sibling order',
+                                ),
+                                value:
+                                    siblingOrderLabel ?? l10n.memberFieldUnset,
+                              ),
+                              _DetailRow(
+                                label: l10n.memberBirthDateLabel,
+                                value:
+                                    member.birthDate ?? l10n.memberFieldUnset,
+                              ),
+                              _DetailRow(
+                                label: l10n.memberDeathDateLabel,
+                                value:
+                                    member.deathDate ?? l10n.memberFieldUnset,
+                                isLast: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_hasAdditionalMemberDetails(member)) ...[
+                          const SizedBox(height: 14),
+                          _SectionCard(
+                            title: l10n.pick(
+                              vi: 'Thông tin thêm',
+                              en: 'Additional information',
+                            ),
+                            child: Column(
+                              children: [
+                                if ((member.jobTitle ?? '').trim().isNotEmpty)
+                                  _DetailRow(
+                                    label: l10n.memberJobTitleLabel,
+                                    value: member.jobTitle!,
+                                  ),
+                                if ((member.addressText ?? '')
+                                    .trim()
+                                    .isNotEmpty)
+                                  _DetailRow(
+                                    label: l10n.memberAddressLabel,
+                                    value: member.addressText!,
+                                    trailing: AddressDirectionIconButton(
+                                      address: member.addressText!,
+                                      label: member.displayName,
+                                    ),
+                                    isLast: (member.bio ?? '').trim().isEmpty,
+                                  ),
+                                if ((member.bio ?? '').trim().isNotEmpty)
+                                  _DetailRow(
+                                    label: l10n.memberBioLabel,
+                                    value: member.bio!,
+                                    isLast: true,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 14),
+                        _SectionCard(
+                          title: l10n.memberSocialLinksTitle,
+                          child: member.socialLinks.isEmpty
+                              ? Text(
+                                  l10n.pick(
+                                    vi: 'Chưa có Facebook, Zalo hoặc LinkedIn.',
+                                    en: 'No Facebook, Zalo, or LinkedIn linked yet.',
+                                  ),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                )
+                              : Column(
+                                  children: [
+                                    if (member.socialLinks.facebook != null)
+                                      _DetailRow(
+                                        label: 'Facebook',
+                                        value: member.socialLinks.facebook!,
+                                        trailing: SocialLinkActionIconButton(
+                                          platform: SocialPlatform.facebook,
+                                          rawValue:
+                                              member.socialLinks.facebook!,
+                                        ),
+                                      ),
+                                    if (member.socialLinks.zalo != null)
+                                      _DetailRow(
+                                        label: 'Zalo',
+                                        value: member.socialLinks.zalo!,
+                                        trailing: SocialLinkActionIconButton(
+                                          platform: SocialPlatform.zalo,
+                                          rawValue: member.socialLinks.zalo!,
+                                        ),
+                                      ),
+                                    if (member.socialLinks.linkedin != null)
+                                      _DetailRow(
+                                        label: 'LinkedIn',
+                                        value: member.socialLinks.linkedin!,
+                                        trailing: SocialLinkActionIconButton(
+                                          platform: SocialPlatform.linkedin,
+                                          rawValue:
+                                              member.socialLinks.linkedin!,
+                                        ),
+                                        isLast: true,
+                                      ),
+                                  ],
+                                ),
                         ),
                       ],
                     ),
@@ -3339,6 +3306,8 @@ class _FilterPanel extends StatelessWidget {
     required this.searchController,
     required this.branches,
     required this.generationOptions,
+    required this.totalMemberCount,
+    required this.filteredMemberCount,
     required this.filtersBranchId,
     required this.filtersGeneration,
     required this.onSearchChanged,
@@ -3350,6 +3319,8 @@ class _FilterPanel extends StatelessWidget {
   final TextEditingController searchController;
   final List<BranchProfile> branches;
   final List<int> generationOptions;
+  final int totalMemberCount;
+  final int filteredMemberCount;
   final String? filtersBranchId;
   final int? filtersGeneration;
   final ValueChanged<String> onSearchChanged;
@@ -3360,43 +3331,34 @@ class _FilterPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final theme = Theme.of(context);
     final hasActiveFilters =
         searchController.text.trim().isNotEmpty ||
         filtersBranchId != null ||
         filtersGeneration != null;
-    final activeFilterLabels = <String>[
-      if (searchController.text.trim().isNotEmpty)
-        l10n.pick(vi: 'Tên', en: 'Name'),
-      if (filtersBranchId != null) l10n.pick(vi: 'Chi', en: 'Branch'),
-      if (filtersGeneration != null) l10n.pick(vi: 'Đời', en: 'Generation'),
-    ];
+    final resultSummary = hasActiveFilters
+        ? l10n.pick(
+            vi: '$filteredMemberCount / $totalMemberCount thành viên',
+            en: '$filteredMemberCount of $totalMemberCount members',
+          )
+        : l10n.pick(
+            vi: '$totalMemberCount thành viên',
+            en: '$totalMemberCount members',
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (hasActiveFilters) ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final label in activeFilterLabels)
-                _ChipPill(
-                  icon: Icons.tune_outlined,
-                  label: label,
-                  compact: true,
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-        ],
         TextField(
           key: const Key('members-search-input'),
           controller: searchController,
           onChanged: onSearchChanged,
           decoration: InputDecoration(
             prefixIcon: const Icon(Icons.search),
-            labelText: l10n.memberSearchLabel,
-            hintText: l10n.memberSearchHint,
+            hintText: l10n.pick(
+              vi: 'Tìm tên, số điện thoại, chi hoặc đời',
+              en: 'Search name, phone, branch, or generation',
+            ),
             suffixIcon: searchController.text.trim().isEmpty
                 ? null
                 : AppCompactIconButton(
@@ -3482,15 +3444,42 @@ class _FilterPanel extends StatelessWidget {
             );
           },
         ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            key: const Key('members-clear-filters'),
-            onPressed: hasActiveFilters ? onClearFilters : null,
-            icon: const Icon(Icons.filter_alt_off_outlined),
-            label: Text(l10n.memberClearFiltersAction),
-          ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 420;
+            final summaryText = Text(
+              resultSummary,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            );
+            final clearButton = TextButton.icon(
+              key: const Key('members-clear-filters'),
+              onPressed: hasActiveFilters ? onClearFilters : null,
+              icon: const Icon(Icons.filter_alt_off_outlined),
+              label: Text(l10n.memberClearFiltersAction),
+            );
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  summaryText,
+                  if (hasActiveFilters) ...[
+                    const SizedBox(height: 4),
+                    clearButton,
+                  ],
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: summaryText),
+                if (hasActiveFilters) clearButton,
+              ],
+            );
+          },
         ),
       ],
     );
@@ -3520,6 +3509,17 @@ class _MemberSummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
+    final metadataLine = _buildMemberMetadataLine(
+      parts: [
+        branchName,
+        l10n.pick(
+          vi: 'Đời ${member.generation}',
+          en: 'Generation ${member.generation}',
+        ),
+        if (showRoleBadge) roleLabel,
+      ],
+    );
+    final hasPhone = (member.phoneE164 ?? '').trim().isNotEmpty;
 
     return AppWorkspaceSurface(
       padding: EdgeInsets.zero,
@@ -3528,11 +3528,11 @@ class _MemberSummaryCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _AvatarBadge(member: member, radius: 22),
+                _AvatarBadge(member: member, radius: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -3549,8 +3549,9 @@ class _MemberSummaryCard extends StatelessWidget {
                           color: colorScheme.primary,
                         ),
                       ),
-                      if (member.nickName.trim().isNotEmpty) ...[
-                        const SizedBox(height: 2),
+                      if (member.nickName.trim().isNotEmpty &&
+                          member.nickName.trim() != member.fullName.trim()) ...[
+                        const SizedBox(height: 1),
                         _HighlightedText(
                           text: member.nickName,
                           query: highlightQuery,
@@ -3563,37 +3564,25 @@ class _MemberSummaryCard extends StatelessWidget {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          _ChipPill(
-                            icon: Icons.account_tree_outlined,
-                            label: branchName,
-                            compact: true,
-                          ),
-                          _ChipPill(
-                            icon: Icons.filter_5_outlined,
-                            label:
-                                '${l10n.memberGenerationLabel}: ${member.generation}',
-                            compact: true,
-                          ),
-                          if (showRoleBadge)
-                            _ChipPill(
-                              icon: Icons.badge_outlined,
-                              label: roleLabel,
-                              compact: true,
-                            ),
-                        ],
+                      const SizedBox(height: 4),
+                      Text(
+                        metadataLine,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: _HighlightedText(
-                              text: member.phoneE164 ?? l10n.memberPhoneMissing,
+                              text: hasPhone
+                                  ? member.phoneE164!
+                                  : l10n.memberPhoneMissing,
                               query: highlightQuery,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: colorScheme.onSurfaceVariant,
@@ -3605,7 +3594,7 @@ class _MemberSummaryCard extends StatelessWidget {
                                   ),
                             ),
                           ),
-                          if ((member.phoneE164 ?? '').trim().isNotEmpty)
+                          if (hasPhone)
                             MemberPhoneActionIconButton(
                               phoneNumber: member.phoneE164!,
                               contactName: member.displayName,
@@ -3658,45 +3647,6 @@ class _AvatarBadge extends StatelessWidget {
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
-    );
-  }
-}
-
-class _WorkspaceHero extends StatelessWidget {
-  const _WorkspaceHero({required this.title, required this.badges});
-
-  final String title;
-  final List<_HeroBadgeData> badges;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return AppWorkspaceSurface(
-      padding: const EdgeInsets.all(24),
-      gradient: appWorkspaceHeroGradient(context),
-      showAccentOrbs: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          if (badges.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [for (final badge in badges) _HeroBadge(data: badge)],
-            ),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -3893,84 +3843,6 @@ class _MessageCard extends StatelessWidget {
   }
 }
 
-class _StatGrid extends StatelessWidget {
-  const _StatGrid({required this.items});
-
-  final List<_StatTile> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final textScale = MediaQuery.textScalerOf(context).scale(1);
-        final crossAxisCount = constraints.maxWidth > 820 ? 3 : 2;
-        final narrow = constraints.maxWidth < 420;
-        final compactRatio = textScale > 1.1 || narrow ? 1.45 : 1.8;
-        return GridView.builder(
-          itemCount: items.length,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: crossAxisCount == 2 ? compactRatio : 1.65,
-          ),
-          itemBuilder: (context, index) => items[index],
-        );
-      },
-    );
-  }
-}
-
-class _StatTile extends StatelessWidget {
-  const _StatTile({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return AppWorkspaceSurface(
-      color: colorScheme.secondaryContainer,
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Icon(icon),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ChipPill extends StatelessWidget {
   const _ChipPill({
     required this.icon,
@@ -4131,36 +4003,59 @@ class _DetailRow extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
-      child: Row(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 132,
-            child: Text(
-              label,
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
-                if (trailing != null) ...[
-                  const SizedBox(width: 8),
-                  Align(alignment: Alignment.centerRight, child: trailing!),
-                ],
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  value,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                Align(alignment: Alignment.topRight, child: trailing!),
               ],
-            ),
+            ],
           ),
         ],
       ),
     );
   }
+}
+
+String _buildMemberMetadataLine({required List<String> parts}) {
+  return parts
+      .map((part) => part.trim())
+      .where((part) => part.isNotEmpty)
+      .join(' • ');
+}
+
+List<String> _optionalMetadataPart(String? value) {
+  if (value == null) {
+    return const [];
+  }
+  return [value];
+}
+
+bool _hasAdditionalMemberDetails(MemberProfile member) {
+  return (member.jobTitle ?? '').trim().isNotEmpty ||
+      (member.addressText ?? '').trim().isNotEmpty ||
+      (member.bio ?? '').trim().isNotEmpty;
 }
 
 String _memberRepositoryErrorMessage(

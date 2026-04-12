@@ -1927,22 +1927,70 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    String joinNonEmptyText(List<String?> values) {
+      return values
+          .map((value) => value?.trim() ?? '')
+          .where((value) => value.isNotEmpty)
+          .join(' • ');
+    }
+
+    String branchLabel(String? branchId) {
+      final normalized = (branchId ?? '').trim();
+      if (normalized.isEmpty) {
+        return '';
+      }
+      for (final branch in widget.branches) {
+        if (branch.id == normalized) {
+          return branch.name;
+        }
+      }
+      return '';
+    }
+
     final sheetTitle = widget.editingEvent == null
         ? l10n.pick(vi: 'Tạo sự kiện', en: 'Create event')
         : l10n.pick(vi: 'Chỉnh sửa sự kiện', en: 'Edit event');
     final sheetSubtitle = _editorStep == 0
         ? l10n.pick(
-            vi:
-                'Gom nội dung chính, nhân vật liên quan và thời gian tổ chức vào một flow ngắn gọn.',
-            en:
-                'Bring event details, related people, and schedule into one compact flow.',
+            vi: 'Gom nội dung chính, nhân vật liên quan và thời gian tổ chức vào một flow ngắn gọn.',
+            en: 'Bring event details, related people, and schedule into one compact flow.',
           )
         : l10n.pick(
-            vi:
-                'Chọn người nhận thật gọn, loại trừ đúng đối tượng và kiểm tra danh sách trước khi lưu.',
-            en:
-                'Pick recipients compactly, exclude the right members, and review the list before saving.',
+            vi: 'Chọn người nhận thật gọn, loại trừ đúng đối tượng và kiểm tra danh sách trước khi lưu.',
+            en: 'Pick recipients compactly, exclude the right members, and review the list before saving.',
           );
+    final recipientsPreview = _resolvedRecipientsPreview();
+    final branchSummary = branchLabel(_audienceBranchId);
+    final audienceSummary = joinNonEmptyText([
+      _audienceSummaryLabel(l10n, _buildNotificationAudience()),
+      branchSummary,
+    ]);
+    final sortedReminderOffsets = _reminderOffsets.toList(growable: false)
+      ..sort((left, right) => right.compareTo(left));
+    final reminderSummaryText = sortedReminderOffsets.isEmpty
+        ? l10n.pick(vi: 'Chưa đặt nhắc lịch', en: 'No reminders')
+        : sortedReminderOffsets
+              .map((offset) => _offsetLabel(l10n, offset))
+              .join(', ');
+    final scheduleSummary = _dateMode == CalendarDateMode.solar
+        ? _formatDateTime(
+            DateTime(
+              _solarDate.year,
+              _solarDate.month,
+              _solarDate.day,
+              _timeOfDay.hour,
+              _timeOfDay.minute,
+            ),
+          )
+        : _previewSolarDate == null
+        ? l10n.pick(
+            vi: 'Chưa quy đổi được ngày âm',
+            en: 'Lunar date unresolved',
+          )
+        : '${_formatDate(_previewSolarDate!)} ${_timeOfDay.format(context)}';
+    final locationSummary = _locationAddressController.text.trim().isEmpty
+        ? l10n.pick(vi: 'Chưa có địa điểm', en: 'No location yet')
+        : _locationAddressController.text.trim();
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface,
@@ -1975,15 +2023,13 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                 ),
                 const SizedBox(height: 12),
                 AppWorkspaceSurface(
-                  padding: const EdgeInsets.all(20),
-                  gradient: appWorkspaceHeroGradient(context),
-                  showAccentOrbs: true,
+                  padding: const EdgeInsets.all(18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         sheetTitle,
-                        style: theme.textTheme.headlineSmall?.copyWith(
+                        style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -2005,7 +2051,10 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                 : Icons.edit_outlined,
                             label: widget.editingEvent == null
                                 ? l10n.pick(vi: 'Tạo mới', en: 'Create')
-                                : l10n.pick(vi: 'Đang chỉnh sửa', en: 'Editing'),
+                                : l10n.pick(
+                                    vi: 'Đang chỉnh sửa',
+                                    en: 'Editing',
+                                  ),
                           ),
                           _EventEditorBadge(
                             icon: Icons.event_note_outlined,
@@ -2045,6 +2094,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        _EventEditorSectionLead(
+                          title: l10n.pick(
+                            vi: 'Thông tin sự kiện',
+                            en: 'Event details',
+                          ),
+                          description: l10n.pick(
+                            vi: 'Bắt đầu bằng tên sự kiện, loại sự kiện và những người liên quan chính.',
+                            en: 'Start with the title, event type, and the people directly involved.',
+                          ),
+                        ),
                         TextField(
                           key: const Key('calendar-event-title-field'),
                           controller: _titleController,
@@ -2058,7 +2117,10 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                           controller: _descriptionController,
                           maxLines: 3,
                           decoration: InputDecoration(
-                            labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                            labelText: l10n.pick(
+                              vi: 'Mô tả',
+                              en: 'Description',
+                            ),
                             border: const OutlineInputBorder(),
                           ),
                         ),
@@ -2102,6 +2164,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                         ),
                         if (_eventType.isMemorial) ...[
                           const SizedBox(height: 12),
+                          Text(
+                            l10n.pick(
+                              vi: 'Người được giỗ',
+                              en: 'Memorial subject',
+                            ),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
@@ -2182,6 +2254,13 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                             ),
                         ],
                         const SizedBox(height: 12),
+                        Text(
+                          l10n.pick(vi: 'Nhà tổ chức', en: 'Host households'),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
@@ -2199,10 +2278,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                             icon: const Icon(Icons.home_outlined),
                             label: Text(
                               _selectedHostMemberIds.isEmpty
-                                  ? l10n.pick(
-                                      vi: 'Nhà của ai',
-                                      en: 'Hosted by',
-                                    )
+                                  ? l10n.pick(vi: 'Nhà của ai', en: 'Hosted by')
                                   : l10n.pick(
                                       vi: 'Đã chọn ${_selectedHostMemberIds.length}/${_aliveMembers.length} thành viên',
                                       en: 'Selected ${_selectedHostMemberIds.length}/${_aliveMembers.length} members',
@@ -2231,6 +2307,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                           ),
                         ],
                         const SizedBox(height: 16),
+                        Text(
+                          l10n.pick(
+                            vi: 'Lịch và địa điểm',
+                            en: 'Schedule and location',
+                          ),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         AddressAutocompleteField(
                           controller: _locationAddressController,
                           labelText: l10n.pick(vi: 'Địa chỉ', en: 'Address'),
@@ -2339,16 +2425,49 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                           },
                         ),
                         const SizedBox(height: 16),
+                        AppWorkspaceSurface(
+                          color: colorScheme.surfaceContainerHighest,
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.pick(
+                                  vi: 'Xem nhanh trước khi sang bước tiếp',
+                                  en: 'Quick review before continuing',
+                                ),
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              _CalendarEventReviewRow(
+                                label: l10n.pick(
+                                  vi: 'Thời gian',
+                                  en: 'Schedule',
+                                ),
+                                value: scheduleSummary,
+                              ),
+                              _CalendarEventReviewRow(
+                                label: l10n.pick(
+                                  vi: 'Địa điểm',
+                                  en: 'Location',
+                                ),
+                                value: locationSummary,
+                                isLast: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: _isSubmitting
                                 ? null
                                 : () => Navigator.of(context).pop(false),
-                            icon: const Icon(Icons.save_as_outlined),
-                            label: Text(
-                              l10n.pick(vi: 'Lưu nháp', en: 'Save draft'),
-                            ),
+                            icon: const Icon(Icons.close),
+                            label: Text(l10n.pick(vi: 'Đóng', en: 'Close')),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -2380,6 +2499,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        _EventEditorSectionLead(
+                          title: l10n.pick(
+                            vi: 'Người nhận và nhắc lịch',
+                            en: 'Audience and reminders',
+                          ),
+                          description: l10n.pick(
+                            vi: 'Chỉ giữ đúng nhóm nhận thông báo và các mốc nhắc thực sự cần thiết.',
+                            en: 'Keep the audience focused and only add reminder checkpoints that matter.',
+                          ),
+                        ),
                         Text(
                           l10n.pick(
                             vi: 'Người nhận thông báo',
@@ -2475,8 +2604,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                   EventNotificationAudienceMode.branchAll) {
                                 _audienceBranchId = null;
                               } else if (widget.branches.isNotEmpty) {
-                                _audienceBranchId ??=
-                                    widget.branches.first.id;
+                                _audienceBranchId ??= widget.branches.first.id;
                               }
                             });
                           },
@@ -2623,7 +2751,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                         const SizedBox(height: 12),
                         Builder(
                           builder: (context) {
-                            final recipients = _resolvedRecipientsPreview();
+                            final recipients = recipientsPreview;
                             return AppWorkspaceSurface(
                               color: colorScheme.surfaceContainerHighest,
                               padding: const EdgeInsets.all(14),
@@ -2633,8 +2761,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                   Text(
                                     l10n.pick(
                                       vi: 'Đã chọn gửi cho ${recipients.length} người',
-                                      en:
-                                          'Will notify ${recipients.length} members',
+                                      en: 'Will notify ${recipients.length} members',
                                     ),
                                     style: theme.textTheme.bodyMedium?.copyWith(
                                       fontWeight: FontWeight.w700,
@@ -2672,10 +2799,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          l10n.pick(
-                            vi: 'Mốc lời nhắc',
-                            en: 'Reminder offsets',
-                          ),
+                          l10n.pick(vi: 'Mốc lời nhắc', en: 'Reminder offsets'),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
@@ -2700,6 +2824,61 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                 },
                               ),
                           ],
+                        ),
+                        const SizedBox(height: 14),
+                        AppWorkspaceSurface(
+                          color: colorScheme.surfaceContainerHighest,
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.pick(
+                                  vi: 'Sẵn sàng lưu',
+                                  en: 'Ready to save',
+                                ),
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              _CalendarEventReviewRow(
+                                label: l10n.pick(
+                                  vi: 'Loại sự kiện',
+                                  en: 'Event type',
+                                ),
+                                value: l10n.eventTypeLabel(_eventType),
+                              ),
+                              _CalendarEventReviewRow(
+                                label: l10n.pick(
+                                  vi: 'Thời gian',
+                                  en: 'Schedule',
+                                ),
+                                value: scheduleSummary,
+                              ),
+                              _CalendarEventReviewRow(
+                                label: l10n.pick(
+                                  vi: 'Địa điểm',
+                                  en: 'Location',
+                                ),
+                                value: locationSummary,
+                              ),
+                              _CalendarEventReviewRow(
+                                label: l10n.pick(vi: 'Gửi cho', en: 'Audience'),
+                                value: audienceSummary.isEmpty
+                                    ? l10n.pick(vi: 'Toàn tộc', en: 'All clan')
+                                    : '$audienceSummary • ${recipientsPreview.length} người',
+                              ),
+                              _CalendarEventReviewRow(
+                                label: l10n.pick(
+                                  vi: 'Nhắc lịch',
+                                  en: 'Reminders',
+                                ),
+                                value: reminderSummaryText,
+                                isLast: true,
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 20),
                         SizedBox(
@@ -3698,12 +3877,85 @@ class _EventEditorBadge extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _EventEditorSectionLead extends StatelessWidget {
+  const _EventEditorSectionLead({
+    required this.title,
+    required this.description,
+  });
+
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarEventReviewRow extends StatelessWidget {
+  const _CalendarEventReviewRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
+
+  final String label;
+  final String value;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 108,
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }

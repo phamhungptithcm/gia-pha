@@ -5,6 +5,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../../core/services/app_environment.dart';
 import '../../../core/services/app_logger.dart';
 import 'ad_consent_service.dart';
+import 'ad_diagnostics_models.dart';
 
 class AdService {
   AdService();
@@ -27,6 +28,15 @@ class AdService {
 
   static bool get canRequestAds => _canRequestAds;
   static bool get isSdkInitialized => _sdkInitialized;
+
+  @visibleForTesting
+  static void debugSetAdsStateForTesting({
+    required bool canRequestAds,
+    required bool sdkInitialized,
+  }) {
+    _canRequestAds = canRequestAds;
+    _sdkInitialized = sdkInitialized;
+  }
 
   static Future<void> initializeSdk({AdConsentService? consentService}) async {
     if (kIsWeb) {
@@ -64,6 +74,7 @@ class AdService {
   InterstitialAd? _interstitialAd;
   RewardedAd? _rewardedAd;
   int? _bannerWidthDp;
+  String? _bannerPlacement;
   bool _loadingBanner = false;
   bool _loadingInterstitial = false;
   bool _loadingRewarded = false;
@@ -78,7 +89,9 @@ class AdService {
   bool get isShowingRewarded => _showingRewarded;
 
   Future<void> ensureBannerLoaded({
-    required VoidCallback onLoaded,
+    required String placement,
+    required void Function(AdResponseDiagnostics diagnostics) onLoaded,
+    required void Function(AdPaidEvent paidEvent) onPaidEvent,
     required void Function(String errorCode) onFailed,
   }) async {
     if (kIsWeb || _loadingBanner) {
@@ -89,10 +102,13 @@ class AdService {
       onFailed('banner_size_unavailable');
       return;
     }
-    if (_bannerAd != null && _bannerWidthDp == widthDp) {
+    if (_bannerAd != null &&
+        _bannerWidthDp == widthDp &&
+        _bannerPlacement == placement) {
       return;
     }
-    if (_bannerAd != null && _bannerWidthDp != widthDp) {
+    if (_bannerAd != null &&
+        (_bannerWidthDp != widthDp || _bannerPlacement != placement)) {
       disposeBanner();
     }
     final adUnitId = _bannerAdUnitIdForPlatform();
@@ -120,14 +136,28 @@ class AdService {
           _bannerAd?.dispose();
           _bannerAd = ad as BannerAd;
           _bannerWidthDp = widthDp;
-          onLoaded();
+          _bannerPlacement = placement;
+          onLoaded(
+            AdResponseDiagnostics.fromResponseInfo(_bannerAd?.responseInfo),
+          );
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           _loadingBanner = false;
           _bannerAd = null;
           _bannerWidthDp = null;
+          _bannerPlacement = null;
           onFailed(error.code.toString());
+        },
+        onPaidEvent: (ad, valueMicros, precision, currencyCode) {
+          onPaidEvent(
+            AdPaidEvent.fromAdValue(
+              valueMicros: valueMicros,
+              precision: precision,
+              currencyCode: currencyCode,
+              responseInfo: (ad as BannerAd).responseInfo,
+            ),
+          );
         },
       ),
     );
@@ -138,6 +168,7 @@ class AdService {
       _loadingBanner = false;
       _bannerAd = null;
       _bannerWidthDp = null;
+      _bannerPlacement = null;
       onFailed('banner_load_exception');
       AppLogger.warning(
         'Banner ad load threw an exception.',
@@ -148,7 +179,7 @@ class AdService {
   }
 
   Future<void> ensureInterstitialLoaded({
-    required VoidCallback onLoaded,
+    required void Function(AdResponseDiagnostics diagnostics) onLoaded,
     required void Function(String errorCode) onFailed,
   }) async {
     if (kIsWeb || _loadingInterstitial || _interstitialAd != null) {
@@ -170,7 +201,11 @@ class AdService {
             _loadingInterstitial = false;
             _interstitialAd?.dispose();
             _interstitialAd = ad;
-            onLoaded();
+            onLoaded(
+              AdResponseDiagnostics.fromResponseInfo(
+                _interstitialAd?.responseInfo,
+              ),
+            );
           },
           onAdFailedToLoad: (error) {
             _loadingInterstitial = false;
@@ -192,7 +227,7 @@ class AdService {
   }
 
   Future<void> ensureRewardedLoaded({
-    required VoidCallback onLoaded,
+    required void Function(AdResponseDiagnostics diagnostics) onLoaded,
     required void Function(String errorCode) onFailed,
   }) async {
     if (kIsWeb || _loadingRewarded || _rewardedAd != null) {
@@ -214,7 +249,9 @@ class AdService {
             _loadingRewarded = false;
             _rewardedAd?.dispose();
             _rewardedAd = ad;
-            onLoaded();
+            onLoaded(
+              AdResponseDiagnostics.fromResponseInfo(_rewardedAd?.responseInfo),
+            );
           },
           onAdFailedToLoad: (error) {
             _loadingRewarded = false;
@@ -239,6 +276,7 @@ class AdService {
     required VoidCallback onShown,
     required void Function(int dismissDelaySec) onDismissed,
     required void Function(String errorCode) onFailedToShow,
+    required void Function(AdPaidEvent paidEvent) onPaidEvent,
   }) async {
     final ad = _interstitialAd;
     if (kIsWeb || ad == null || _showingInterstitial) {
@@ -248,6 +286,16 @@ class AdService {
     _showingInterstitial = true;
     _interstitialAd = null;
     final shownAt = DateTime.now();
+    ad.onPaidEvent = (_, valueMicros, precision, currencyCode) {
+      onPaidEvent(
+        AdPaidEvent.fromAdValue(
+          valueMicros: valueMicros,
+          precision: precision,
+          currencyCode: currencyCode,
+          responseInfo: ad.responseInfo,
+        ),
+      );
+    };
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (ad) {
@@ -285,6 +333,7 @@ class AdService {
     required void Function(int dismissDelaySec, bool rewardEarned) onDismissed,
     required void Function(String errorCode) onFailedToShow,
     required void Function(int rewardAmount, String rewardType) onRewardEarned,
+    required void Function(AdPaidEvent paidEvent) onPaidEvent,
   }) async {
     final ad = _rewardedAd;
     if (kIsWeb || ad == null || _showingRewarded) {
@@ -295,6 +344,16 @@ class AdService {
     _rewardedAd = null;
     var rewardEarned = false;
     final shownAt = DateTime.now();
+    ad.onPaidEvent = (_, valueMicros, precision, currencyCode) {
+      onPaidEvent(
+        AdPaidEvent.fromAdValue(
+          valueMicros: valueMicros,
+          precision: precision,
+          currencyCode: currencyCode,
+          responseInfo: ad.responseInfo,
+        ),
+      );
+    };
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (ad) {
@@ -336,6 +395,7 @@ class AdService {
     _bannerAd?.dispose();
     _bannerAd = null;
     _bannerWidthDp = null;
+    _bannerPlacement = null;
     _loadingBanner = false;
   }
 

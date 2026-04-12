@@ -288,6 +288,8 @@ jobs:
           STAGING_FIREBASE_PROJECT_ID: ${{ vars.STAGING_FIREBASE_PROJECT_ID }}
           FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+          OTP_PROVIDER: ${{ vars.OTP_PROVIDER }}
+          CALLABLE_ENFORCE_APP_CHECK: ${{ vars.CALLABLE_ENFORCE_APP_CHECK }}
           GOOGLE_PLAY_PACKAGE_NAME: ${{ vars.GOOGLE_PLAY_PACKAGE_NAME }}
           BEFAM_ADMOB_ANDROID_APP_ID: ${{ vars.BEFAM_ADMOB_ANDROID_APP_ID }}
           BEFAM_ADMOB_IOS_APP_ID: ${{ vars.BEFAM_ADMOB_IOS_APP_ID }}
@@ -306,8 +308,11 @@ jobs:
             GCP_SERVICE_ACCOUNT_EMAIL
             FIREBASE_PROJECT_ID
             PRODUCTION_FIREBASE_PROJECT_ID
+            STAGING_FIREBASE_PROJECT_ID
             FIREBASE_FUNCTIONS_REGION
             FIRESTORE_DATABASE_ID
+            OTP_PROVIDER
+            CALLABLE_ENFORCE_APP_CHECK
             GOOGLE_PLAY_PACKAGE_NAME
             BEFAM_ADMOB_ANDROID_APP_ID
             BEFAM_ADMOB_IOS_APP_ID
@@ -331,8 +336,16 @@ jobs:
             echo "::error::Release pipeline must target configured project ${expected_project}. Current: ${FIREBASE_PROJECT_ID}."
             exit 1
           fi
-          if [ -n "${STAGING_FIREBASE_PROJECT_ID:-}" ] && [ "$FIREBASE_PROJECT_ID" = "$STAGING_FIREBASE_PROJECT_ID" ]; then
+          if [ "$FIREBASE_PROJECT_ID" = "$STAGING_FIREBASE_PROJECT_ID" ]; then
             echo "::error::Release pipeline is targeting staging Firebase project ${STAGING_FIREBASE_PROJECT_ID}."
+            exit 1
+          fi
+          if [ "$OTP_PROVIDER" != "twilio" ]; then
+            echo "::error::Production environment must set OTP_PROVIDER=twilio. Current: ${OTP_PROVIDER}."
+            exit 1
+          fi
+          if [ "$CALLABLE_ENFORCE_APP_CHECK" != "true" ]; then
+            echo "::error::Production environment must set CALLABLE_ENFORCE_APP_CHECK=true. Current: ${CALLABLE_ENFORCE_APP_CHECK}."
             exit 1
           fi
 

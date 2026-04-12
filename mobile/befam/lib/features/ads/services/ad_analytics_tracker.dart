@@ -3,6 +3,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../../../core/services/analytics_event_names.dart';
 import '../../../core/services/app_logger.dart';
+import 'ad_diagnostics_models.dart';
 import 'ad_runtime_models.dart';
 
 abstract class AdAnalyticsTracker {
@@ -31,6 +32,7 @@ abstract class AdAnalyticsTracker {
     required String format,
     required String placement,
     required AdUserState userState,
+    AdResponseDiagnostics? responseDiagnostics,
   });
 
   Future<void> trackFailed({
@@ -46,6 +48,13 @@ abstract class AdAnalyticsTracker {
     required String screenId,
     required AdUserState userState,
     required int sessionAgeSec,
+  });
+
+  Future<void> trackPaidEvent({
+    required String format,
+    required String placement,
+    required AdUserState userState,
+    required AdPaidEvent paidEvent,
   });
 
   Future<void> trackDismissed({
@@ -124,6 +133,7 @@ class NoopAdAnalyticsTracker implements AdAnalyticsTracker {
     required String format,
     required String placement,
     required AdUserState userState,
+    AdResponseDiagnostics? responseDiagnostics,
   }) async {}
 
   @override
@@ -141,6 +151,14 @@ class NoopAdAnalyticsTracker implements AdAnalyticsTracker {
     required String screenId,
     required AdUserState userState,
     required int sessionAgeSec,
+  }) async {}
+
+  @override
+  Future<void> trackPaidEvent({
+    required String format,
+    required String placement,
+    required AdUserState userState,
+    required AdPaidEvent paidEvent,
   }) async {}
 
   @override
@@ -252,11 +270,13 @@ class FirebaseAdAnalyticsTracker implements AdAnalyticsTracker {
     required String format,
     required String placement,
     required AdUserState userState,
+    AdResponseDiagnostics? responseDiagnostics,
   }) {
     return _logEvent(AnalyticsEventNames.adLoaded, <String, Object>{
       'format': format,
       'placement': placement,
       'segment': userState.segmentName,
+      ..._responseDiagnosticsParameters(responseDiagnostics),
     });
   }
 
@@ -402,6 +422,24 @@ class FirebaseAdAnalyticsTracker implements AdAnalyticsTracker {
     });
   }
 
+  @override
+  Future<void> trackPaidEvent({
+    required String format,
+    required String placement,
+    required AdUserState userState,
+    required AdPaidEvent paidEvent,
+  }) {
+    return _logEvent(AnalyticsEventNames.adPaidEvent, <String, Object>{
+      'format': format,
+      'placement': placement,
+      'segment': userState.segmentName,
+      'value_micros': paidEvent.valueMicros.round(),
+      'currency_code': paidEvent.currencyCode,
+      'precision': paidEvent.precision,
+      ..._responseDiagnosticsParameters(paidEvent.responseDiagnostics),
+    });
+  }
+
   Future<void> _setUserProperty(String name, String value) async {
     try {
       await _analytics.setUserProperty(name: name, value: value);
@@ -431,6 +469,46 @@ class FirebaseAdAnalyticsTracker implements AdAnalyticsTracker {
         stackTrace,
       );
     }
+  }
+
+  Map<String, Object> _responseDiagnosticsParameters(
+    AdResponseDiagnostics? responseDiagnostics,
+  ) {
+    if (responseDiagnostics == null || !responseDiagnostics.hasAnyValue) {
+      return const <String, Object>{};
+    }
+    return <String, Object>{
+      ...?responseDiagnostics.responseId == null
+          ? null
+          : <String, Object>{'response_id': responseDiagnostics.responseId!},
+      ...?responseDiagnostics.mediationAdapterClassName == null
+          ? null
+          : <String, Object>{
+              'mediation_adapter':
+                  responseDiagnostics.mediationAdapterClassName!,
+            },
+      ...?responseDiagnostics.loadedAdapterClassName == null
+          ? null
+          : <String, Object>{
+              'loaded_adapter': responseDiagnostics.loadedAdapterClassName!,
+            },
+      ...?responseDiagnostics.mediationGroupName == null
+          ? null
+          : <String, Object>{
+              'mediation_group': responseDiagnostics.mediationGroupName!,
+            },
+      ...?responseDiagnostics.mediationAbTestName == null
+          ? null
+          : <String, Object>{
+              'mediation_ab_test': responseDiagnostics.mediationAbTestName!,
+            },
+      ...?responseDiagnostics.mediationAbTestVariant == null
+          ? null
+          : <String, Object>{
+              'mediation_ab_variant':
+                  responseDiagnostics.mediationAbTestVariant!,
+            },
+    };
   }
 }
 

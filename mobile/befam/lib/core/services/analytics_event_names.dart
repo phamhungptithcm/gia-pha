@@ -47,6 +47,7 @@ abstract final class AnalyticsEventNames {
   static const adFailed = 'ad_failed';
   static const adShown = 'ad_shown';
   static const adDismissed = 'ad_dismissed';
+  static const adPaidEvent = 'ad_paid_event';
   static const adRewardEarned = 'ad_reward_earned';
   static const screenAfterAd = 'screen_after_ad';
   static const sessionExitAfterAd = 'session_exit_after_ad';
@@ -99,6 +100,7 @@ abstract final class AnalyticsEventNames {
     adFailed,
     adShown,
     adDismissed,
+    adPaidEvent,
     adRewardEarned,
     screenAfterAd,
     sessionExitAfterAd,
