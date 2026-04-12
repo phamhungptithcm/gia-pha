@@ -124,9 +124,12 @@ case "$ENV_NAME" in
     required_vars=(
       FIREBASE_PROJECT_ID
       PRODUCTION_FIREBASE_PROJECT_ID
+      STAGING_FIREBASE_PROJECT_ID
       FIREBASE_FUNCTIONS_REGION
       FIRESTORE_DATABASE_ID
       APP_TIMEZONE
+      OTP_PROVIDER
+      CALLABLE_ENFORCE_APP_CHECK
       GOOGLE_PLAY_PACKAGE_NAME
       BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS
       BEFAM_ENABLE_APP_CHECK
@@ -161,10 +164,7 @@ case "$ENV_NAME" in
       BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
     )
     recommended_vars=(
-      STAGING_FIREBASE_PROJECT_ID
       BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
-      CALLABLE_ENFORCE_APP_CHECK
-      OTP_PROVIDER
     )
     required_secrets=(
       GCP_WORKLOAD_IDENTITY_PROVIDER
@@ -250,6 +250,8 @@ invalid_required_values=()
 if [[ "$ENV_NAME" == "production" ]]; then
   befam_allow_bundled="$(get_var_value BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS)"
   befam_otp_provider="$(get_var_value BEFAM_OTP_PROVIDER)"
+  otp_provider="$(get_var_value OTP_PROVIDER)"
+  callable_enforce_app_check="$(get_var_value CALLABLE_ENFORCE_APP_CHECK)"
   befam_web_base_url="$(get_var_value BEFAM_WEB_BASE_URL)"
   befam_ios_store_url="$(get_var_value BEFAM_IOS_APP_STORE_URL)"
   befam_android_store_url="$(get_var_value BEFAM_ANDROID_PLAY_STORE_URL)"
@@ -264,6 +266,14 @@ if [[ "$ENV_NAME" == "production" ]]; then
 
   if [[ -n "$befam_otp_provider" && "$befam_otp_provider" != "twilio" ]]; then
     invalid_required_values+=("BEFAM_OTP_PROVIDER must be twilio for production")
+  fi
+
+  if [[ -n "$otp_provider" && "$otp_provider" != "twilio" ]]; then
+    invalid_required_values+=("OTP_PROVIDER must be twilio for production")
+  fi
+
+  if [[ -n "$callable_enforce_app_check" && "$callable_enforce_app_check" != "true" ]]; then
+    invalid_required_values+=("CALLABLE_ENFORCE_APP_CHECK must be true for production")
   fi
 
   if [[ -n "$befam_web_base_url" && ! "$befam_web_base_url" =~ ^https:// ]]; then

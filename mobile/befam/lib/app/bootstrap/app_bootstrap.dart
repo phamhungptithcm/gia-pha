@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
@@ -29,8 +31,8 @@ class AppBootstrap {
         defaultSlowThreshold: const Duration(milliseconds: 2500),
       );
 
-  static Future<AppBootstrapResult> initialize() async {
-    return _performanceLogger.measureAsync(
+  static Future<AppBootstrapResult> initialize({Duration? timeout}) async {
+    final initialization = _performanceLogger.measureAsync(
       metric: 'bootstrap.firebase_initialize',
       dimensions: {'release_mode': kReleaseMode ? 1 : 0},
       action: () async {
@@ -75,6 +77,26 @@ class AppBootstrap {
         }
       },
     );
+
+    if (timeout == null) {
+      return initialization;
+    }
+
+    try {
+      return await initialization.timeout(timeout);
+    } on TimeoutException catch (error, stackTrace) {
+      AppLogger.error('Firebase bootstrap timed out.', error, stackTrace);
+      final fallbackIdentity = _resolveFallbackIdentity();
+      return AppBootstrapResult(
+        status: FirebaseSetupStatus.failed(
+          projectId: fallbackIdentity.projectId,
+          storageBucket: fallbackIdentity.storageBucket,
+          errorMessage:
+              'Bootstrap timed out after ${timeout.inSeconds}s on ${kIsWeb ? 'web' : defaultTargetPlatform.name}.',
+        ),
+        crashReportingService: const CrashReportingService.disabled(),
+      );
+    }
   }
 
   static FirebaseOptions _resolveFirebaseOptions() {

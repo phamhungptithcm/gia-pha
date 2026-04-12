@@ -178,6 +178,8 @@ jobs:
           OTP_TWILIO_TIMEOUT_MS: ${{ vars.OTP_TWILIO_TIMEOUT_MS }}
           OTP_TWILIO_MAX_RETRIES: ${{ vars.OTP_TWILIO_MAX_RETRIES }}
           OTP_TWILIO_BACKOFF_MS: ${{ vars.OTP_TWILIO_BACKOFF_MS }}
+          APP_REVIEW_PHONE_NUMBER: ${{ vars.APP_REVIEW_PHONE_NUMBER }}
+          APP_REVIEW_OTP_VAR: ${{ vars.APP_REVIEW_OTP }}
           OTP_REVIEW_BYPASS_ENABLED: ${{ vars.OTP_REVIEW_BYPASS_ENABLED }}
           OTP_REVIEW_BYPASS_PHONES: ${{ vars.OTP_REVIEW_BYPASS_PHONES }}
           BILLING_IAP_ALLOW_TEST_MOCK: ${{ vars.BILLING_IAP_ALLOW_TEST_MOCK }}
@@ -193,6 +195,7 @@ jobs:
           APPLE_SHARED_SECRET: ${{ secrets.APPLE_SHARED_SECRET }}
           OTP_TWILIO_ACCOUNT_SID: ${{ secrets.OTP_TWILIO_ACCOUNT_SID }}
           OTP_TWILIO_AUTH_TOKEN: ${{ secrets.OTP_TWILIO_AUTH_TOKEN }}
+          APP_REVIEW_OTP: ${{ secrets.APP_REVIEW_OTP }}
           OTP_REVIEW_BYPASS_CODE: ${{ secrets.OTP_REVIEW_BYPASS_CODE }}
           APPLE_IAP_WEBHOOK_BEARER_TOKEN: ${{ secrets.APPLE_IAP_WEBHOOK_BEARER_TOKEN }}
           GOOGLE_IAP_WEBHOOK_BEARER_TOKEN: ${{ secrets.GOOGLE_IAP_WEBHOOK_BEARER_TOKEN }}
@@ -234,6 +237,8 @@ jobs:
           resolved_otp_twilio_timeout_ms="${OTP_TWILIO_TIMEOUT_MS:-6000}"
           resolved_otp_twilio_max_retries="${OTP_TWILIO_MAX_RETRIES:-2}"
           resolved_otp_twilio_backoff_ms="${OTP_TWILIO_BACKOFF_MS:-300}"
+          resolved_app_review_phone_number="${APP_REVIEW_PHONE_NUMBER:-}"
+          resolved_app_review_otp="${APP_REVIEW_OTP:-${APP_REVIEW_OTP_VAR:-}}"
           resolved_otp_review_bypass_enabled="${OTP_REVIEW_BYPASS_ENABLED:-false}"
           resolved_otp_review_bypass_phones="${OTP_REVIEW_BYPASS_PHONES:-}"
           resolved_otp_review_bypass_code="${OTP_REVIEW_BYPASS_CODE:-}"
@@ -295,6 +300,22 @@ jobs:
             true|false|1|0|yes|no) ;;
             *) echo "Unsupported OTP_REVIEW_BYPASS_ENABLED: $resolved_otp_review_bypass_enabled"; exit 1 ;;
           esac
+          if { [[ -n "$resolved_app_review_phone_number" ]] && [[ -z "$resolved_app_review_otp" ]]; } || \
+             { [[ -z "$resolved_app_review_phone_number" ]] && [[ -n "$resolved_app_review_otp" ]]; }; then
+            echo "APP_REVIEW_PHONE_NUMBER and APP_REVIEW_OTP must be configured together."
+            exit 1
+          fi
+          if [[ -n "$resolved_app_review_phone_number" && -n "$resolved_app_review_otp" ]]; then
+            if [[ -z "${OTP_REVIEW_BYPASS_PHONES:-}" ]]; then
+              resolved_otp_review_bypass_phones="$resolved_app_review_phone_number"
+            fi
+            if [[ -z "${OTP_REVIEW_BYPASS_CODE:-}" ]]; then
+              resolved_otp_review_bypass_code="$resolved_app_review_otp"
+            fi
+            if [[ -z "${OTP_REVIEW_BYPASS_ENABLED:-}" ]]; then
+              resolved_otp_review_bypass_enabled=true
+            fi
+          fi
           if [[ "$resolved_otp_provider" != "twilio" ]]; then
             echo "OTP_PROVIDER must be twilio in production."
             exit 1
@@ -372,6 +393,8 @@ jobs:
           OTP_TWILIO_TIMEOUT_MS=${resolved_otp_twilio_timeout_ms}
           OTP_TWILIO_MAX_RETRIES=${resolved_otp_twilio_max_retries}
           OTP_TWILIO_BACKOFF_MS=${resolved_otp_twilio_backoff_ms}
+          APP_REVIEW_PHONE_NUMBER=${resolved_app_review_phone_number}
+          APP_REVIEW_OTP=${resolved_app_review_otp}
           OTP_REVIEW_BYPASS_ENABLED=${resolved_otp_review_bypass_enabled}
           OTP_REVIEW_BYPASS_PHONES=${resolved_otp_review_bypass_phones}
           OTP_REVIEW_BYPASS_CODE=${resolved_otp_review_bypass_code}

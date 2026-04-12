@@ -10,6 +10,8 @@ import 'app/error/app_error_fallback.dart';
 import 'core/services/crash_reporting_service.dart';
 import 'features/notifications/services/push_notification_service.dart';
 
+const Duration _kWebBootstrapTimeout = Duration(seconds: 8);
+
 Future<void> main() async {
   var crashReportingService = const CrashReportingService.disabled();
 
@@ -38,7 +40,9 @@ Future<void> main() async {
         return true;
       };
 
-      final bootstrap = await AppBootstrap.initialize();
+      final bootstrap = await AppBootstrap.initialize(
+        timeout: kIsWeb ? _kWebBootstrapTimeout : null,
+      );
       crashReportingService = bootstrap.crashReportingService;
       configurePushBackgroundHandler();
       runApp(BeFamApp(status: bootstrap.status));
