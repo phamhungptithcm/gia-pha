@@ -2504,45 +2504,48 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                AppWorkspaceSurface(
-                  padding: const EdgeInsets.all(20),
-                  gradient: appWorkspaceHeroGradient(context),
-                  showAccentOrbs: true,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.profileEditSheetTitle,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
+                SizedBox(
+                  width: double.infinity,
+                  child: AppWorkspaceSurface(
+                    padding: const EdgeInsets.all(20),
+                    gradient: appWorkspaceHeroGradient(context),
+                    showAccentOrbs: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.profileEditSheetTitle,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _EditorBadge(
-                            icon: Icons.badge_outlined,
-                            label: l10n.pick(
-                              vi: 'Thông tin chính',
-                              en: 'Core info',
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _EditorBadge(
+                              icon: Icons.badge_outlined,
+                              label: l10n.pick(
+                                vi: 'Thông tin chính',
+                                en: 'Core info',
+                              ),
                             ),
-                          ),
-                          _EditorBadge(
-                            icon: Icons.call_outlined,
-                            label: l10n.pick(vi: 'Liên hệ', en: 'Contact'),
-                          ),
-                          _EditorBadge(
-                            icon: Icons.share_outlined,
-                            label: l10n.pick(
-                              vi: '$socialLinkCount mạng xã hội',
-                              en: '$socialLinkCount socials',
+                            _EditorBadge(
+                              icon: Icons.call_outlined,
+                              label: l10n.pick(vi: 'Liên hệ', en: 'Contact'),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                            _EditorBadge(
+                              icon: Icons.share_outlined,
+                              label: l10n.pick(
+                                vi: '$socialLinkCount mạng xã hội',
+                                en: '$socialLinkCount socials',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
