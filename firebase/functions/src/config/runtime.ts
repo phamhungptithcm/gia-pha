@@ -282,6 +282,18 @@ export const BILLING_CONTACT_SMS_WEBHOOK_URL = readEnvString(
 export const BILLING_CONTACT_EMAIL_WEBHOOK_URL = readEnvString(
   'BILLING_CONTACT_EMAIL_WEBHOOK_URL',
 );
+export const AI_ASSIST_ENABLED = readEnvBoolean(
+  'AI_ASSIST_ENABLED',
+  true,
+);
+export const AI_ASSIST_MODEL = readEnvString(
+  'AI_ASSIST_MODEL',
+  'gemini-2.5-flash-lite',
+);
+
+export function getAiApiKey(): string {
+  return readEnvString('GOOGLE_GENAI_API_KEY');
+}
 
 export function getBillingContactNoticeWebhookToken(): string {
   return readEnvString('BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN');

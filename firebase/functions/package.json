@@ -23,8 +23,10 @@
     "test:rules": "npm run build && firebase emulators:exec --project demo-befam-rules --only firestore,storage \"npm run test:rules:emulator\""
   },
   "dependencies": {
+    "@genkit-ai/google-genai": "^1.24.0",
     "firebase-admin": "^13.7.0",
     "firebase-functions": "^7.2.2",
+    "genkit": "^1.24.0",
     "google-auth-library": "^9.15.1",
     "googleapis": "^140.0.1",
     "jose": "^5.10.0"

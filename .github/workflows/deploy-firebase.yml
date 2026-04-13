@@ -131,6 +131,38 @@ jobs:
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@14.19.1
 
+      - name: Sync AI secret to Firebase Secret Manager
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          AI_ASSIST_ENABLED: ${{ vars.AI_ASSIST_ENABLED }}
+          GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_PROJECT_ID"
+          resolved_ai_assist_enabled="${AI_ASSIST_ENABLED:-true}"
+          case "$resolved_ai_assist_enabled" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported AI_ASSIST_ENABLED: $resolved_ai_assist_enabled"; exit 1 ;;
+          esac
+          case "$resolved_ai_assist_enabled" in
+            true|1|yes)
+              test -n "$GOOGLE_GENAI_API_KEY" || {
+                echo "GOOGLE_GENAI_API_KEY is required when AI_ASSIST_ENABLED=true."
+                exit 1
+              }
+              secret_file="$(mktemp)"
+              trap 'rm -f "$secret_file"' EXIT
+              echo "::add-mask::$GOOGLE_GENAI_API_KEY"
+              printf '%s' "$GOOGLE_GENAI_API_KEY" > "$secret_file"
+              firebase functions:secrets:set GOOGLE_GENAI_API_KEY \
+                --project "$FIREBASE_PROJECT_ID" \
+                --data-file "$secret_file"
+              ;;
+            *)
+              echo "AI assist disabled; skipping GOOGLE_GENAI_API_KEY sync."
+              ;;
+          esac
+
       - name: Write Functions runtime env file
         working-directory: firebase/functions
         env:
@@ -172,6 +204,8 @@ jobs:
           BILLING_CONTACT_SMS_WEBHOOK_URL: ${{ vars.BILLING_CONTACT_SMS_WEBHOOK_URL }}
           BILLING_CONTACT_EMAIL_WEBHOOK_URL: ${{ vars.BILLING_CONTACT_EMAIL_WEBHOOK_URL }}
           CALLABLE_ENFORCE_APP_CHECK: ${{ vars.CALLABLE_ENFORCE_APP_CHECK }}
+          AI_ASSIST_ENABLED: ${{ vars.AI_ASSIST_ENABLED }}
+          AI_ASSIST_MODEL: ${{ vars.AI_ASSIST_MODEL }}
           OTP_PROVIDER: ${{ vars.OTP_PROVIDER }}
           OTP_ALLOWED_DIAL_CODES: ${{ vars.OTP_ALLOWED_DIAL_CODES }}
           OTP_TWILIO_VERIFY_SERVICE_SID: ${{ vars.OTP_TWILIO_VERIFY_SERVICE_SID }}
@@ -237,6 +271,8 @@ jobs:
           resolved_otp_twilio_timeout_ms="${OTP_TWILIO_TIMEOUT_MS:-6000}"
           resolved_otp_twilio_max_retries="${OTP_TWILIO_MAX_RETRIES:-2}"
           resolved_otp_twilio_backoff_ms="${OTP_TWILIO_BACKOFF_MS:-300}"
+          resolved_ai_assist_enabled="${AI_ASSIST_ENABLED:-true}"
+          resolved_ai_assist_model="${AI_ASSIST_MODEL:-gemini-2.5-flash-lite}"
           resolved_app_review_phone_number="${APP_REVIEW_PHONE_NUMBER:-}"
           resolved_app_review_otp="${APP_REVIEW_OTP:-${APP_REVIEW_OTP_VAR:-}}"
           resolved_otp_review_bypass_enabled="${OTP_REVIEW_BYPASS_ENABLED:-false}"
@@ -292,10 +328,15 @@ jobs:
             true|false|1|0|yes|no) ;;
             *) echo "Unsupported CALLABLE_ENFORCE_APP_CHECK: $resolved_callable_enforce_app_check"; exit 1 ;;
           esac
+          case "$resolved_ai_assist_enabled" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported AI_ASSIST_ENABLED: $resolved_ai_assist_enabled"; exit 1 ;;
+          esac
           case "$resolved_otp_provider" in
             firebase|twilio) ;;
             *) echo "Unsupported OTP_PROVIDER: $resolved_otp_provider"; exit 1 ;;
           esac
+          test -n "$resolved_ai_assist_model"
           case "$resolved_otp_review_bypass_enabled" in
             true|false|1|0|yes|no) ;;
             *) echo "Unsupported OTP_REVIEW_BYPASS_ENABLED: $resolved_otp_review_bypass_enabled"; exit 1 ;;
@@ -379,6 +420,8 @@ jobs:
           BILLING_CONTACT_SMS_WEBHOOK_URL=${resolved_contact_sms_webhook_url}
           BILLING_CONTACT_EMAIL_WEBHOOK_URL=${resolved_contact_email_webhook_url}
           BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN=${resolved_contact_notice_webhook_token}
+          AI_ASSIST_ENABLED=${resolved_ai_assist_enabled}
+          AI_ASSIST_MODEL=${resolved_ai_assist_model}
           BILLING_DELINQUENCY_GRACE_DAYS=${resolved_delinquency_grace_days}
           BILLING_DELINQUENCY_LIMIT=${resolved_delinquency_limit}
           BILLING_DELINQUENCY_REMINDER_DAYS=${resolved_delinquency_reminder_days}
@@ -448,6 +491,8 @@ jobs:
           echo "OTP_REVIEW_BYPASS_ENABLED=$resolved_otp_review_bypass_enabled" >> "$GITHUB_ENV"
           echo "OTP_REVIEW_BYPASS_PHONES=$resolved_otp_review_bypass_phones" >> "$GITHUB_ENV"
           echo "CALLABLE_ENFORCE_APP_CHECK=$resolved_callable_enforce_app_check" >> "$GITHUB_ENV"
+          echo "AI_ASSIST_ENABLED=$resolved_ai_assist_enabled" >> "$GITHUB_ENV"
+          echo "AI_ASSIST_MODEL=$resolved_ai_assist_model" >> "$GITHUB_ENV"
           echo "BILLING_CARD_CHECKOUT_URL_BASE=$BILLING_CARD_CHECKOUT_URL_BASE" >> "$GITHUB_ENV"
           echo "NOTIFICATION_PUSH_ENABLED=$resolved_notification_push_enabled" >> "$GITHUB_ENV"
           echo "NOTIFICATION_EMAIL_ENABLED=$resolved_notification_email_enabled" >> "$GITHUB_ENV"
@@ -480,6 +525,13 @@ jobs:
           --project "${{ vars.FIREBASE_PROJECT_ID }}"
           --non-interactive
           --only firestore:rules,firestore:indexes,storage,functions
+
+      - name: Remove runtime env file
+        if: ${{ always() }}
+        working-directory: firebase/functions
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: rm -f ".env.${FIREBASE_PROJECT_ID}"
 
   notify-deploy-firebase-failure:
     name: Notify Firebase Deploy Failure

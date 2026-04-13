@@ -56,6 +56,7 @@ nav:
           - User stories: vi/01-product/user-stories.md
           - Đặc tả tính năng: vi/01-product/feature-spec.md
           - Epic lịch kép: vi/01-product/epic-dual-calendar-system.md
+          - Epic cộng đồng thôn/làng và memorial: vi/01-product/epic-thon-lang-memorial.md
           - Epic gói dịch vụ: vi/01-product/epic-tiered-subscription-payments.md
           - Lộ trình phát triển: vi/01-product/roadmap.md
       - Kiến trúc:

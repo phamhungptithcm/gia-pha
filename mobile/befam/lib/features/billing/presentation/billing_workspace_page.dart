@@ -245,12 +245,11 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            errorMessage.isEmpty
-                ? l10n.pick(
-                    vi: 'Không thể hoàn tất giao dịch. Vui lòng thử lại.',
-                    en: 'Could not complete this purchase. Please try again.',
-                  )
-                : errorMessage,
+            _friendlyStorePurchaseErrorMessage(
+              errorMessage,
+              l10n,
+              storeLabel: _activeStoreLabel(l10n),
+            ),
           ),
         ),
       );
@@ -2501,6 +2500,49 @@ String _friendlyErrorMessage(String? raw, AppLocalizations l10n) {
     return '${firstLine.substring(0, 120)}...';
   }
   return firstLine;
+}
+
+String _friendlyStorePurchaseErrorMessage(
+  String? raw,
+  AppLocalizations l10n, {
+  required String storeLabel,
+}) {
+  final fallback = l10n.pick(
+    vi: 'Không thể hoàn tất giao dịch. Vui lòng thử lại.',
+    en: 'Could not complete this purchase. Please try again.',
+  );
+  if (raw == null || raw.trim().isEmpty) {
+    return fallback;
+  }
+
+  final normalized = raw.replaceAll('\r', '').trim();
+  final lower = normalized.toLowerCase();
+  final isPlayMissingItem =
+      lower.contains('could not be found') ||
+      lower.contains('item unavailable') ||
+      lower.contains('item is unavailable') ||
+      lower.contains('product not available') ||
+      lower.contains('requested product is not available');
+
+  if (isPlayMissingItem) {
+    return l10n.pick(
+      vi: '$storeLabel chưa nhận ra gói đăng ký cho bản app hiện tại. Nếu đây là bản cài thủ công bằng adb, hãy test bằng build cài từ Google Play internal testing hoặc thêm tài khoản vào License Testing. Đồng thời kiểm tra product ID đang active trên Play Console: befam.base.yearly, befam.plus.yearly, befam.pro.yearly.',
+      en: '$storeLabel does not recognize the subscription for this app build. If this is a sideloaded adb build, test with a build installed from Google Play internal testing or add the account to License Testing. Also verify these Play Console product IDs are active: befam.base.yearly, befam.plus.yearly, befam.pro.yearly.',
+    );
+  }
+
+  if (lower.contains('billing unavailable') ||
+      lower.contains('store billing')) {
+    return l10n.pick(
+      vi: 'Thiết bị này chưa sẵn sàng cho thanh toán qua $storeLabel. Hãy kiểm tra Google Play Services, tài khoản đăng nhập và kết nối mạng rồi thử lại.',
+      en: 'This device is not ready for $storeLabel billing yet. Check Google Play Services, the signed-in account, and network connectivity, then try again.',
+    );
+  }
+
+  if (normalized.length > 180) {
+    return '${normalized.substring(0, 180)}...';
+  }
+  return normalized;
 }
 
 extension on Iterable<BillingPlanPricing> {

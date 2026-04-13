@@ -235,6 +235,8 @@ jobs:
           APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
           OTP_ALLOWED_DIAL_CODES: ${{ vars.OTP_ALLOWED_DIAL_CODES }}
           CALLABLE_ENFORCE_APP_CHECK: ${{ vars.CALLABLE_ENFORCE_APP_CHECK }}
+          AI_ASSIST_ENABLED: ${{ vars.AI_ASSIST_ENABLED }}
+          AI_ASSIST_MODEL: ${{ vars.AI_ASSIST_MODEL }}
         run: |
           set -euo pipefail
           resolved_region="${FIREBASE_FUNCTIONS_REGION:-asia-southeast1}"
@@ -242,16 +244,25 @@ jobs:
           resolved_timezone="${APP_TIMEZONE:-Asia/Ho_Chi_Minh}"
           resolved_otp_allowed_dial_codes="${OTP_ALLOWED_DIAL_CODES:-84}"
           resolved_callable_enforce_app_check="${CALLABLE_ENFORCE_APP_CHECK:-true}"
+          resolved_ai_assist_enabled="${AI_ASSIST_ENABLED:-false}"
+          resolved_ai_assist_model="${AI_ASSIST_MODEL:-gemini-2.5-flash-lite}"
           case "$resolved_callable_enforce_app_check" in
             true|false|1|0|yes|no) ;;
             *) echo "Unsupported CALLABLE_ENFORCE_APP_CHECK: $resolved_callable_enforce_app_check"; exit 1 ;;
           esac
+          case "$resolved_ai_assist_enabled" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported AI_ASSIST_ENABLED: $resolved_ai_assist_enabled"; exit 1 ;;
+          esac
+          test -n "$resolved_ai_assist_model"
           env_file=".env.${FIREBASE_PROJECT_ID}"
           cat > "$env_file" <<EOF
           APP_REGION=${resolved_region}
           FIRESTORE_DATABASE_ID=${resolved_firestore_database_id}
           APP_TIMEZONE=${resolved_timezone}
           CALLABLE_ENFORCE_APP_CHECK=${resolved_callable_enforce_app_check}
+          AI_ASSIST_ENABLED=${resolved_ai_assist_enabled}
+          AI_ASSIST_MODEL=${resolved_ai_assist_model}
           OTP_PROVIDER=firebase
           OTP_ALLOWED_DIAL_CODES=${resolved_otp_allowed_dial_codes}
           EOF
@@ -259,6 +270,38 @@ jobs:
 
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@14.19.1
+
+      - name: Sync AI secret to Firebase Secret Manager (staging)
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          AI_ASSIST_ENABLED: ${{ vars.AI_ASSIST_ENABLED }}
+          GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_PROJECT_ID"
+          resolved_ai_assist_enabled="${AI_ASSIST_ENABLED:-false}"
+          case "$resolved_ai_assist_enabled" in
+            true|false|1|0|yes|no) ;;
+            *) echo "Unsupported AI_ASSIST_ENABLED: $resolved_ai_assist_enabled"; exit 1 ;;
+          esac
+          case "$resolved_ai_assist_enabled" in
+            true|1|yes)
+              test -n "$GOOGLE_GENAI_API_KEY" || {
+                echo "GOOGLE_GENAI_API_KEY is required when AI_ASSIST_ENABLED=true."
+                exit 1
+              }
+              secret_file="$(mktemp)"
+              trap 'rm -f "$secret_file"' EXIT
+              echo "::add-mask::$GOOGLE_GENAI_API_KEY"
+              printf '%s' "$GOOGLE_GENAI_API_KEY" > "$secret_file"
+              firebase functions:secrets:set GOOGLE_GENAI_API_KEY \
+                --project "$FIREBASE_PROJECT_ID" \
+                --data-file "$secret_file"
+              ;;
+            *)
+              echo "AI assist disabled for staging; skipping GOOGLE_GENAI_API_KEY sync."
+              ;;
+          esac
 
       - name: Sync runtime config document
         working-directory: firebase/functions
@@ -274,6 +317,13 @@ jobs:
           --project "${FIREBASE_PROJECT_ID}"
           --non-interactive
           --only firestore:rules,firestore:indexes,storage,functions
+
+      - name: Remove runtime env file (staging)
+        if: ${{ always() }}
+        working-directory: firebase/functions
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: rm -f ".env.${FIREBASE_PROJECT_ID}"
 
   deploy-staging-web:
     name: Deploy Web Hosting (Staging)

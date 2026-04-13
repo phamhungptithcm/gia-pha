@@ -13,9 +13,23 @@ class FirebaseServices {
   static FirebaseAuth get auth => FirebaseAuth.instance;
   static FirebaseAnalytics get analytics => FirebaseAnalytics.instance;
   static FirebaseFirestore get firestore => FirebaseFirestore.instance;
-  static FirebaseFunctions get functions => FirebaseFunctions.instanceFor(
-    region: AppEnvironment.firebaseFunctionsRegion,
-  );
+  static FirebaseFunctions? _functionsInstance;
+  static bool _functionsEmulatorConfigured = false;
+
+  static FirebaseFunctions get functions {
+    final instance = _functionsInstance ??= FirebaseFunctions.instanceFor(
+      region: AppEnvironment.firebaseFunctionsRegion,
+    );
+    if (!_functionsEmulatorConfigured && AppEnvironment.useFunctionsEmulator) {
+      instance.useFunctionsEmulator(
+        AppEnvironment.functionsEmulatorHost.trim(),
+        AppEnvironment.functionsEmulatorPort,
+      );
+      _functionsEmulatorConfigured = true;
+    }
+    return instance;
+  }
+
   static FirebaseStorage get storage => FirebaseStorage.instance;
   static FirebaseMessaging get messaging => FirebaseMessaging.instance;
 

@@ -25,6 +25,7 @@ import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../core/widgets/member_phone_action.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
+import '../../ai/services/ai_product_analytics_service.dart';
 import '../../auth/models/auth_session.dart';
 import '../../clan/models/branch_profile.dart';
 import '../../clan/models/branch_draft.dart';
@@ -89,6 +90,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   AnimationController? _centerAnimController;
   late final ClanRepository _clanRepository;
   late final OnboardingCoordinator _onboardingCoordinator;
+  late final AiProductAnalyticsService _aiAnalyticsService;
 
   late GenealogyScopeType _scopeType;
   GenealogyReadSegment? _segment;
@@ -121,6 +123,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
     _clanRepository =
         widget.clanRepository ??
         createDefaultClanRepository(session: widget.session);
+    _aiAnalyticsService = createDefaultAiProductAnalyticsService();
     _onboardingCoordinator = createDefaultOnboardingCoordinator(
       session: widget.session,
     );
@@ -728,6 +731,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
         }
 
         final acceptedOverride = await _confirmDuplicateClanOverride(
+          draft: payload.draft,
           candidates: candidates,
         );
         if (!acceptedOverride) {
@@ -859,13 +863,32 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
   }
 
   Future<bool> _confirmDuplicateClanOverride({
+    required ClanDraft draft,
     required List<_DuplicateGenealogyCandidate> candidates,
   }) async {
     if (!mounted) {
       return false;
     }
     final l10n = context.l10n;
-    return await showModalBottomSheet<bool>(
+    final presentation = _buildDuplicateReviewPresentation(
+      l10n: l10n,
+      draft: draft,
+      candidates: candidates,
+    );
+    final highestScore = candidates
+        .map((candidate) => candidate.score)
+        .fold<int>(0, math.max);
+    unawaited(
+      _aiAnalyticsService.trackDuplicateReviewOpened(
+        candidateCount: candidates.length,
+        highestScore: highestScore,
+      ),
+    );
+    if (!mounted) {
+      return false;
+    }
+    final shouldOverride =
+        await showModalBottomSheet<bool>(
           context: context,
           useSafeArea: true,
           isScrollControlled: true,
@@ -888,20 +911,38 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Text(
-                      l10n.pick(
-                        vi: 'Vui lòng kiểm tra các gia phả bên dưới trước khi tạo mới. Bạn vẫn có thể tiếp tục nếu chắc chắn đây là gia phả khác.',
-                        en: 'Please review the candidates below before creating a new tree. You can still continue if this is intentionally different.',
-                      ),
-                    ),
+                    Text(presentation.summary),
+                    if (presentation.checklist.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      for (final item in presentation.checklist)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Icon(
+                                  Icons.circle,
+                                  size: 8,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(item)),
+                            ],
+                          ),
+                        ),
+                    ],
                     const SizedBox(height: 12),
                     Flexible(
                       child: ListView.separated(
                         shrinkWrap: true,
-                        itemCount: candidates.length,
+                        itemCount: presentation.candidates.length,
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
-                          final candidate = candidates[index];
+                          final entry = presentation.candidates[index];
+                          final candidate = entry.candidate;
                           return DecoratedBox(
                             decoration: BoxDecoration(
                               color: theme.colorScheme.surfaceContainerHighest,
@@ -921,10 +962,32 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                                   const SizedBox(height: 4),
                                   Text(
                                     l10n.pick(
-                                      vi: 'Trưởng tộc: ${candidate.leaderName}\nKhu vực: ${candidate.provinceCity.isEmpty ? 'Chưa cập nhật' : candidate.provinceCity}\nĐộ tương đồng: ${candidate.score}%',
-                                      en: 'Leader: ${candidate.leaderName}\nLocation: ${candidate.provinceCity.isEmpty ? 'Not specified' : candidate.provinceCity}\nSimilarity: ${candidate.score}%',
+                                      vi: 'Trưởng tộc: ${candidate.leaderName.isEmpty ? 'Chưa cập nhật' : candidate.leaderName}\nKhu vực: ${candidate.provinceCity.isEmpty ? 'Chưa cập nhật' : candidate.provinceCity}\nĐộ tương đồng: ${candidate.score}%',
+                                      en: 'Leader: ${candidate.leaderName.isEmpty ? 'Not specified' : candidate.leaderName}\nLocation: ${candidate.provinceCity.isEmpty ? 'Not specified' : candidate.provinceCity}\nSimilarity: ${candidate.score}%',
                                     ),
                                   ),
+                                  if (entry.signals.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      l10n.pick(
+                                        vi: 'Tín hiệu cần so',
+                                        en: 'Signals to compare',
+                                      ),
+                                      style: theme.textTheme.labelLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        for (final signal in entry.signals)
+                                          Chip(label: Text(signal)),
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -947,12 +1010,7 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
                         Expanded(
                           child: FilledButton(
                             onPressed: () => Navigator.of(context).pop(true),
-                            child: Text(
-                              l10n.pick(
-                                vi: 'Vẫn tạo gia phả mới',
-                                en: 'Create anyway',
-                              ),
-                            ),
+                            child: Text(presentation.confirmLabel),
                           ),
                         ),
                       ],
@@ -964,6 +1022,14 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
           },
         ) ??
         false;
+    unawaited(
+      _aiAnalyticsService.trackDuplicateReviewDecision(
+        candidateCount: candidates.length,
+        highestScore: highestScore,
+        decision: shouldOverride ? 'create_anyway' : 'review_first',
+      ),
+    );
+    return shouldOverride;
   }
 
   Future<void> _openAddPrivateBranchSheet() async {
@@ -1003,6 +1069,123 @@ class _GenealogyWorkspacePageState extends State<GenealogyWorkspacePage>
       return;
     }
     await _submitPrivateBranch(payload);
+  }
+
+  _DuplicateReviewPresentation _buildDuplicateReviewPresentation({
+    required AppLocalizations l10n,
+    required ClanDraft draft,
+    required List<_DuplicateGenealogyCandidate> candidates,
+  }) {
+    final highestScore = candidates
+        .map((candidate) => candidate.score)
+        .fold<int>(0, math.max);
+    final requiresCarefulReview = highestScore >= 85 || candidates.length > 1;
+    final checklist = <String>[
+      l10n.pick(
+        vi: 'Đối chiếu tên trưởng tộc hoặc người khai sáng với danh sách bên dưới.',
+        en: 'Compare the founder or current leader name against the candidates below.',
+      ),
+      l10n.pick(
+        vi: 'Kiểm tra khu vực, đường dẫn chia sẻ, và phạm vi chi nhánh trước khi tạo mới.',
+        en: 'Check the location, share link, and branch scope before creating another tree.',
+      ),
+      l10n.pick(
+        vi: 'Chỉ tạo thêm nếu đây thật sự là một gia phả khác, không phải cùng họ bị tạo lặp.',
+        en: 'Only continue if this is genuinely a different tree, not the same family created twice.',
+      ),
+    ];
+    final summary = switch ((highestScore, candidates.length)) {
+      (>= 90, _) => l10n.pick(
+        vi: 'Có ít nhất một gia phả trùng rất mạnh với bản bạn đang tạo. Hãy kiểm tra kỹ trước khi tạo thêm.',
+        en: 'At least one existing genealogy is a very strong match. Review carefully before creating another tree.',
+      ),
+      (>= 80, > 1) => l10n.pick(
+        vi: 'Có nhiều gia phả khá giống với bản bạn đang tạo. Nên đối chiếu từng ứng viên trước khi tiếp tục.',
+        en: 'Several genealogies look close to the one you are creating. Compare each candidate before you continue.',
+      ),
+      _ => l10n.pick(
+        vi: 'Một số gia phả hiện có khá gần với bản bạn đang tạo. Kiểm tra nhanh danh sách bên dưới trước khi quyết định.',
+        en: 'Some existing genealogies are close to the one you are creating. Do a quick review below before deciding.',
+      ),
+    };
+
+    return _DuplicateReviewPresentation(
+      summary: summary,
+      checklist: checklist,
+      confirmLabel: requiresCarefulReview
+          ? l10n.pick(
+              vi: 'Tôi đã kiểm tra, vẫn tạo mới',
+              en: 'I checked, create anyway',
+            )
+          : l10n.pick(vi: 'Tiếp tục tạo gia phả mới', en: 'Continue creating'),
+      candidates: candidates
+          .map(
+            (candidate) => _DuplicateReviewCandidateEntry(
+              candidate: candidate,
+              signals: _candidateSignals(
+                l10n: l10n,
+                draft: draft,
+                candidate: candidate,
+              ),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  List<String> _candidateSignals({
+    required AppLocalizations l10n,
+    required ClanDraft draft,
+    required _DuplicateGenealogyCandidate candidate,
+  }) {
+    final signals = <String>[];
+    final normalizedDraftName = _normalizeDuplicateComparison(draft.name);
+    final normalizedCandidateName = _normalizeDuplicateComparison(
+      candidate.genealogyName,
+    );
+    final normalizedFounder = _normalizeDuplicateComparison(draft.founderName);
+    final normalizedLeader = _normalizeDuplicateComparison(
+      candidate.leaderName,
+    );
+    final normalizedDescription = _normalizeDuplicateComparison(
+      draft.description,
+    );
+    final normalizedProvince = _normalizeDuplicateComparison(
+      candidate.provinceCity,
+    );
+
+    if (normalizedDraftName.isNotEmpty &&
+        normalizedDraftName == normalizedCandidateName) {
+      signals.add(
+        l10n.pick(
+          vi: 'Tên gia phả gần như trùng',
+          en: 'Very similar genealogy name',
+        ),
+      );
+    }
+    if (normalizedFounder.isNotEmpty && normalizedFounder == normalizedLeader) {
+      signals.add(
+        l10n.pick(vi: 'Tên trưởng tộc trùng', en: 'Same leader or founder'),
+      );
+    }
+    if (normalizedProvince.isNotEmpty &&
+        normalizedDescription.isNotEmpty &&
+        normalizedDescription.contains(normalizedProvince)) {
+      signals.add(
+        l10n.pick(
+          vi: 'Mô tả nhắc cùng khu vực',
+          en: 'Description mentions the same area',
+        ),
+      );
+    }
+    if (candidate.score >= 90) {
+      signals.add(
+        l10n.pick(vi: 'Độ tương đồng rất cao', en: 'Very high similarity'),
+      );
+    } else if (candidate.score >= 80) {
+      signals.add(l10n.pick(vi: 'Độ tương đồng cao', en: 'High similarity'));
+    }
+    return signals;
   }
 
   Future<void> _submitPrivateBranch(_PrivateBranchPayload payload) async {
@@ -3251,6 +3434,37 @@ class _DuplicateGenealogyCandidate {
   }
 }
 
+class _DuplicateReviewPresentation {
+  const _DuplicateReviewPresentation({
+    required this.summary,
+    required this.checklist,
+    required this.confirmLabel,
+    required this.candidates,
+  });
+
+  final String summary;
+  final List<String> checklist;
+  final String confirmLabel;
+  final List<_DuplicateReviewCandidateEntry> candidates;
+}
+
+class _DuplicateReviewCandidateEntry {
+  const _DuplicateReviewCandidateEntry({
+    required this.candidate,
+    required this.signals,
+  });
+
+  final _DuplicateGenealogyCandidate candidate;
+  final List<String> signals;
+}
+
+String _normalizeDuplicateComparison(String value) {
+  return value.trim().toLowerCase().replaceAll(
+    RegExp(r'[^\p{L}\p{N}]+', unicode: true),
+    '',
+  );
+}
+
 class _PrivateBranchPayload {
   const _PrivateBranchPayload({
     required this.name,
@@ -3418,10 +3632,7 @@ class _AdditionalClanSheetState extends State<_AdditionalClanSheet> {
           const SizedBox(height: 12),
           if (_editorStep == 0)
             _SetupSectionCard(
-              title: l10n.pick(
-                vi: 'Thông tin chính',
-                en: 'Core details',
-              ),
+              title: l10n.pick(vi: 'Thông tin chính', en: 'Core details'),
               description: l10n.pick(
                 vi: 'Chỉ cần tên gia phả, quốc gia và người đại diện để bắt đầu dễ hiểu và đủ tin cậy.',
                 en: 'Start with the genealogy name, country, and representative for a clear and trusted setup.',
@@ -3565,9 +3776,7 @@ class _AdditionalClanSheetState extends State<_AdditionalClanSheet> {
                             setState(() => _editorStep = 1);
                           },
                     icon: const Icon(Icons.arrow_forward),
-                    label: Text(
-                      l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                    ),
+                    label: Text(l10n.pick(vi: 'Tiếp tục', en: 'Continue')),
                   )
                 : FilledButton.icon(
                     key: const Key('additional-clan-save-button'),
@@ -3746,10 +3955,7 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
           ),
           const SizedBox(height: 14),
           _SetupCompactHeader(
-            title: l10n.pick(
-              vi: 'Tạo chi mới',
-              en: 'Create branch',
-            ),
+            title: l10n.pick(vi: 'Tạo chi mới', en: 'Create branch'),
             subtitle: l10n.pick(
               vi: 'Thêm chi để gia đình nhỏ quản lý thành viên rõ ràng hơn.',
               en: 'Add a branch so a smaller family can manage members more clearly.',
@@ -3782,10 +3988,7 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
                     key: const Key('private-branch-name-input'),
                     controller: _nameController,
                     decoration: InputDecoration(
-                      labelText: l10n.pick(
-                        vi: 'Tên chi',
-                        en: 'Branch name',
-                      ),
+                      labelText: l10n.pick(vi: 'Tên chi', en: 'Branch name'),
                     ),
                     textInputAction: TextInputAction.next,
                     validator: (value) {
@@ -3803,10 +4006,7 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
                     key: const Key('private-branch-code-input'),
                     controller: _codeController,
                     decoration: InputDecoration(
-                      labelText: l10n.pick(
-                        vi: 'Mã chi',
-                        en: 'Branch code',
-                      ),
+                      labelText: l10n.pick(vi: 'Mã chi', en: 'Branch code'),
                       helperText: l10n.pick(
                         vi: 'Để trống để hệ thống tự tạo từ tên chi.',
                         en: 'Leave blank to auto-generate from the branch name.',
@@ -3844,10 +4044,7 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
             ),
           if (_editorStep == 1)
             _SetupSectionCard(
-              title: l10n.pick(
-                vi: 'Người phụ trách',
-                en: 'Leadership',
-              ),
+              title: l10n.pick(vi: 'Người phụ trách', en: 'Leadership'),
               description: l10n.pick(
                 vi: 'Chọn người phụ trách ngay từ đầu để chi mới dễ quản lý và liên hệ hơn.',
                 en: 'Assign leadership from the start so the new branch is easier to manage and contact.',
@@ -3987,19 +4184,14 @@ class _PrivateBranchSheetState extends State<_PrivateBranchSheet> {
                             setState(() => _editorStep = 1);
                           },
                     icon: const Icon(Icons.arrow_forward),
-                    label: Text(
-                      l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                    ),
+                    label: Text(l10n.pick(vi: 'Tiếp tục', en: 'Continue')),
                   )
                 : FilledButton.icon(
                     key: const Key('private-branch-save-button'),
                     onPressed: _isSubmitting ? null : _submit,
                     icon: const Icon(Icons.call_split_outlined),
                     label: Text(
-                      l10n.pick(
-                        vi: 'Tạo nhánh riêng',
-                        en: 'Create branch',
-                      ),
+                      l10n.pick(vi: 'Tạo nhánh riêng', en: 'Create branch'),
                     ),
                   );
 
@@ -4085,10 +4277,7 @@ class _SetupSheetScaffold extends StatelessWidget {
 }
 
 class _SetupCompactHeader extends StatelessWidget {
-  const _SetupCompactHeader({
-    required this.title,
-    required this.subtitle,
-  });
+  const _SetupCompactHeader({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;

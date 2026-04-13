@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase-admin/app';
-import { setGlobalOptions } from 'firebase-functions/v2/options';
+import { initializeApp } from "firebase-admin/app";
+import { setGlobalOptions } from "firebase-functions/v2/options";
 
 import {
   bootstrapClanWorkspace,
@@ -20,26 +20,32 @@ import {
   submitAccountDeletionRequest,
   switchActiveClanContext,
   verifyOtpChallenge,
-} from './auth/callables';
+} from "./auth/callables";
 import {
   loadBillingWorkspace,
   resolveBillingEntitlement,
   verifyInAppPurchase,
   updateBillingPreferences,
-} from './billing/callables';
-import { appleIapWebhook, googleIapWebhook } from './billing/iap-webhooks';
-import { APP_REGION } from './config/runtime';
-import { onEventCreated, sendEventReminder } from './events/event-triggers';
-import { recordFundTransaction } from './funds/callables';
+} from "./billing/callables";
+import { appleIapWebhook, googleIapWebhook } from "./billing/iap-webhooks";
+import { APP_REGION } from "./config/runtime";
+import { onEventCreated, sendEventReminder } from "./events/event-triggers";
+import { recordFundTransaction } from "./funds/callables";
 import {
   createParentChildRelationship,
   createSpouseRelationship,
-} from './genealogy/callables';
+} from "./genealogy/callables";
+import {
+  chatWithAppAssistantAi,
+  draftEventCopyAi,
+  explainDuplicateGenealogyAi,
+  reviewProfileDraftAi,
+} from "./ai/callables";
 import {
   createClanMember,
   notifyNearbyRelativesDetected,
-} from './members/callables';
-import { onMemberDeathDateChanged } from './members/memorial-ritual-triggers';
+} from "./members/callables";
+import { onMemberDeathDateChanged } from "./members/memorial-ritual-triggers";
 import {
   cancelJoinRequest,
   detectDuplicateGenealogy,
@@ -48,29 +54,29 @@ import {
   reviewJoinRequest,
   searchGenealogyDiscovery,
   submitJoinRequest,
-} from './genealogy/discovery-callables';
+} from "./genealogy/discovery-callables";
 import {
   onRelationshipCreated,
   onRelationshipDeleted,
-} from './genealogy/relationship-triggers';
+} from "./genealogy/relationship-triggers";
 import {
   assignGovernanceRole,
   getTreasurerDashboard,
-} from './governance/callables';
+} from "./governance/callables";
 import {
   disburseScholarshipSubmissionFromFund,
   reviewScholarshipSubmission,
-} from './scholarship/callables';
+} from "./scholarship/callables";
 import {
   billingContactNoticeJob,
   billingPendingTimeoutJob,
   billingSubscriptionDelinquencyJob,
   billingSubscriptionReminderJob,
   expireInvitesJob,
-} from './scheduled/jobs';
-import { onSubmissionReviewed } from './scholarship/submission-triggers';
-import { onTransactionCreated } from './funds/transaction-triggers';
-import { appHealthCheck } from './system/health';
+} from "./scheduled/jobs";
+import { onSubmissionReviewed } from "./scholarship/submission-triggers";
+import { onTransactionCreated } from "./funds/transaction-triggers";
+import { appHealthCheck } from "./system/health";
 
 initializeApp();
 
@@ -90,6 +96,7 @@ export {
   billingSubscriptionReminderJob,
   bootstrapClanWorkspace,
   claimMemberRecord,
+  chatWithAppAssistantAi,
   createUnlinkedPhoneIdentity,
   getAccountDeletionRequestStatus,
   cancelJoinRequest,
@@ -105,7 +112,9 @@ export {
   expireInvitesJob,
   assignGovernanceRole,
   appHealthCheck,
+  draftEventCopyAi,
   getTreasurerDashboard,
+  explainDuplicateGenealogyAi,
   listJoinRequestsForReview,
   listMyJoinRequests,
   listUserClanContexts,
@@ -123,6 +132,7 @@ export {
   resolvePhoneIdentityAfterOtp,
   resolveBillingEntitlement,
   reviewJoinRequest,
+  reviewProfileDraftAi,
   reviewScholarshipSubmission,
   resolveChildLoginContext,
   sendSelfTestEventReminder,

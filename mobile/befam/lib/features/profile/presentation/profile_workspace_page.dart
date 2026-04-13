@@ -16,6 +16,7 @@ import '../../../core/widgets/social_link_actions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../ads/services/ad_consent_service.dart';
+import '../../ai/services/ai_product_analytics_service.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/services/auth_session_store.dart';
 import '../../auth/services/phone_number_formatter.dart';
@@ -27,8 +28,10 @@ import '../../member/models/member_social_links.dart';
 import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
 import '../../notifications/services/notification_test_service.dart';
+import '../../ai/services/ai_assist_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/profile_draft.dart';
+import '../services/profile_quality_check_actions.dart';
 import '../services/account_deletion_request_service.dart';
 import '../services/profile_notification_preferences_repository.dart';
 import 'profile_controller.dart';
@@ -47,6 +50,7 @@ class ProfileWorkspacePage extends StatefulWidget {
     this.onSessionUpdated,
     this.accountDeletionRequestService,
     this.adConsentService,
+    this.aiAssistService,
     this.showAppBar = false,
   });
 
@@ -62,6 +66,7 @@ class ProfileWorkspacePage extends StatefulWidget {
   final ValueChanged<AuthSession>? onSessionUpdated;
   final AccountDeletionRequestService? accountDeletionRequestService;
   final AdConsentService? adConsentService;
+  final AiAssistService? aiAssistService;
   final bool showAppBar;
 
   @override
@@ -77,6 +82,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
   late final NotificationTestService _notificationTestService;
   late final AccountDeletionRequestService _accountDeletionRequestService;
   late final AdConsentService _adConsentService;
+  late final AiAssistService _aiAssistService;
   late final bool _ownsLocaleController;
   ProfileDraft? _unlinkedDraft;
   bool _isSavingUnlinkedProfile = false;
@@ -109,6 +115,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         createDefaultAccountDeletionRequestService(session: widget.session);
     _adConsentService =
         widget.adConsentService ?? createDefaultAdConsentService();
+    _aiAssistService = widget.aiAssistService ?? createDefaultAiAssistService();
     _ownsLocaleController = widget.localeController == null;
     unawaited(_localeController.load());
     unawaited(_controller.initialize());
@@ -145,9 +152,11 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return _ProfileEditorSheet(
+          session: widget.session,
           initialDraft: ProfileDraft.fromMember(profile),
           isSaving: _controller.isSavingProfile,
           onSubmit: _controller.saveProfile,
+          aiAssistService: _aiAssistService,
         );
       },
     );
@@ -195,10 +204,12 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return _ProfileEditorSheet(
+          session: widget.session,
           initialDraft:
               _unlinkedDraft ?? _fallbackUnlinkedDraft(widget.session),
           isSaving: _isSavingUnlinkedProfile,
           onSubmit: _saveUnlinkedProfileDraft,
+          aiAssistService: _aiAssistService,
         );
       },
     );
@@ -2068,15 +2079,19 @@ enum _AvatarAction { view, upload }
 
 class _ProfileEditorSheet extends StatefulWidget {
   const _ProfileEditorSheet({
+    required this.session,
     required this.initialDraft,
     required this.isSaving,
     required this.onSubmit,
+    required this.aiAssistService,
   });
 
+  final AuthSession session;
   final ProfileDraft initialDraft;
   final bool isSaving;
   final Future<MemberRepositoryErrorCode?> Function(ProfileDraft draft)
   onSubmit;
+  final AiAssistService aiAssistService;
 
   @override
   State<_ProfileEditorSheet> createState() => _ProfileEditorSheetState();
@@ -2094,11 +2109,21 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
   late final TextEditingController _facebookController;
   late final TextEditingController _zaloController;
   late final TextEditingController _linkedinController;
+  late final FocusNode _nickNameFocusNode;
+  late final FocusNode _phoneFocusNode;
+  late final FocusNode _emailFocusNode;
+  late final FocusNode _addressFocusNode;
+  late final FocusNode _jobTitleFocusNode;
+  late final FocusNode _bioFocusNode;
+  late final FocusNode _facebookFocusNode;
+  late final AiProductAnalyticsService _aiAnalyticsService;
   late String _phoneCountryIsoCode;
   bool _resolvedAutoPhoneCountry = false;
 
   MemberRepositoryErrorCode? _submitError;
+  ProfileAiReview? _aiReview;
   bool _isSubmitting = false;
+  bool _isReviewingWithAi = false;
 
   @override
   void initState() {
@@ -2133,6 +2158,14 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     _linkedinController = TextEditingController(
       text: widget.initialDraft.linkedin,
     );
+    _nickNameFocusNode = FocusNode();
+    _phoneFocusNode = FocusNode();
+    _emailFocusNode = FocusNode();
+    _addressFocusNode = FocusNode();
+    _jobTitleFocusNode = FocusNode();
+    _bioFocusNode = FocusNode();
+    _facebookFocusNode = FocusNode();
+    _aiAnalyticsService = createDefaultAiProductAnalyticsService();
   }
 
   @override
@@ -2147,6 +2180,13 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     _facebookController.dispose();
     _zaloController.dispose();
     _linkedinController.dispose();
+    _nickNameFocusNode.dispose();
+    _phoneFocusNode.dispose();
+    _emailFocusNode.dispose();
+    _addressFocusNode.dispose();
+    _jobTitleFocusNode.dispose();
+    _bioFocusNode.dispose();
+    _facebookFocusNode.dispose();
     super.dispose();
   }
 
@@ -2174,6 +2214,97 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     _phoneController
       ..text = normalized
       ..selection = TextSelection.collapsed(offset: normalized.length);
+  }
+
+  ProfileDraft _currentDraft() {
+    final trimmedPhone = _phoneController.text.trim();
+    final normalizedPhone = trimmedPhone.isEmpty
+        ? ''
+        : PhoneNumberFormatter.tryParseE164(
+                trimmedPhone,
+                defaultCountryIso: _phoneCountryIsoCode,
+              ) ??
+              trimmedPhone;
+    return ProfileDraft(
+      fullName: _fullNameController.text.trim(),
+      nickName: _nickNameController.text.trim(),
+      phoneInput: normalizedPhone,
+      email: _emailController.text.trim(),
+      addressText: _addressController.text.trim(),
+      jobTitle: _jobTitleController.text.trim(),
+      bio: _bioController.text.trim(),
+      facebook: _facebookController.text.trim(),
+      zalo: _zaloController.text.trim(),
+      linkedin: _linkedinController.text.trim(),
+    );
+  }
+
+  List<ProfileQualityCheckActionTarget> _qualityCheckActions() {
+    return buildProfileQualityCheckActions(_currentDraft());
+  }
+
+  String _quickFixLabel(
+    BuildContext context,
+    ProfileQualityCheckActionTarget target,
+  ) {
+    final l10n = context.l10n;
+    return switch (target) {
+      ProfileQualityCheckActionTarget.nickname => l10n.pick(
+        vi: 'Thêm tên thường gọi',
+        en: 'Add a familiar nickname',
+      ),
+      ProfileQualityCheckActionTarget.jobTitle => l10n.pick(
+        vi: 'Thêm nghề nghiệp hiện tại',
+        en: 'Add your current role',
+      ),
+      ProfileQualityCheckActionTarget.bio => l10n.pick(
+        vi: 'Thêm vài dòng giới thiệu',
+        en: 'Add a short intro',
+      ),
+      ProfileQualityCheckActionTarget.contact => l10n.pick(
+        vi: 'Thêm cách liên hệ',
+        en: 'Add a contact method',
+      ),
+      ProfileQualityCheckActionTarget.address => l10n.pick(
+        vi: 'Thêm khu vực đang sống',
+        en: 'Add your area',
+      ),
+      ProfileQualityCheckActionTarget.social => l10n.pick(
+        vi: 'Thêm một mạng xã hội',
+        en: 'Add one social link',
+      ),
+    };
+  }
+
+  String _quickFixTargetId(ProfileQualityCheckActionTarget target) {
+    return switch (target) {
+      ProfileQualityCheckActionTarget.nickname => 'nickname',
+      ProfileQualityCheckActionTarget.jobTitle => 'job_title',
+      ProfileQualityCheckActionTarget.bio => 'bio',
+      ProfileQualityCheckActionTarget.contact => 'contact',
+      ProfileQualityCheckActionTarget.address => 'address',
+      ProfileQualityCheckActionTarget.social => 'social',
+    };
+  }
+
+  void _applyQuickFix(ProfileQualityCheckActionTarget target) {
+    final focusNode = switch (target) {
+      ProfileQualityCheckActionTarget.nickname => _nickNameFocusNode,
+      ProfileQualityCheckActionTarget.jobTitle => _jobTitleFocusNode,
+      ProfileQualityCheckActionTarget.bio => _bioFocusNode,
+      ProfileQualityCheckActionTarget.contact =>
+        _phoneController.text.trim().isEmpty
+            ? _phoneFocusNode
+            : _emailFocusNode,
+      ProfileQualityCheckActionTarget.address => _addressFocusNode,
+      ProfileQualityCheckActionTarget.social => _facebookFocusNode,
+    };
+    unawaited(
+      _aiAnalyticsService.trackProfileQuickFixSelected(
+        target: _quickFixTargetId(target),
+      ),
+    );
+    FocusScope.of(context).requestFocus(focusNode);
   }
 
   Future<void> _submit() async {
@@ -2240,6 +2371,81 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     });
   }
 
+  Future<void> _reviewWithAi() async {
+    if (_isSubmitting || widget.isSaving || _isReviewingWithAi) {
+      return;
+    }
+
+    final locale = Localizations.localeOf(context).languageCode;
+    final l10n = context.l10n;
+    final draft = _currentDraft();
+    unawaited(
+      _aiAnalyticsService.trackProfileCheckRequested(
+        hasPhone: draft.phoneInput.trim().isNotEmpty,
+        hasEmail: draft.email.trim().isNotEmpty,
+        hasBio: draft.bio.trim().isNotEmpty,
+        socialLinkCount: [
+          draft.facebook,
+          draft.zalo,
+          draft.linkedin,
+        ].where((value) => value.trim().isNotEmpty).length,
+      ),
+    );
+    setState(() {
+      _isReviewingWithAi = true;
+    });
+
+    try {
+      final review = await widget.aiAssistService.reviewProfileDraft(
+        session: widget.session,
+        locale: locale,
+        draft: ProfileDraft(
+          fullName: draft.fullName.trim().isEmpty
+              ? l10n.pick(vi: 'Hồ sơ chưa có tên', en: 'Unnamed profile')
+              : draft.fullName.trim(),
+          nickName: draft.nickName,
+          phoneInput: draft.phoneInput,
+          email: draft.email,
+          addressText: draft.addressText,
+          jobTitle: draft.jobTitle,
+          bio: draft.bio,
+          facebook: draft.facebook,
+          zalo: draft.zalo,
+          linkedin: draft.linkedin,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      unawaited(
+        _aiAnalyticsService.trackProfileCheckCompleted(
+          usedFallback: review.usedFallback,
+          missingCount: review.missingImportant.length,
+          riskCount: review.risks.length,
+          nextActionCount: review.nextActions.length,
+        ),
+      );
+      setState(() {
+        _aiReview = review;
+      });
+    } on AiAssistServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isReviewingWithAi = false;
+        });
+      } else {
+        _isReviewingWithAi = false;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final insets = MediaQuery.viewInsetsOf(context);
@@ -2254,6 +2460,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
       _zaloController.text,
       _linkedinController.text,
     ].where((value) => value.trim().isNotEmpty).length;
+    final quickFixActions = _qualityCheckActions();
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -2328,6 +2535,160 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
+                _EditorSectionCard(
+                  title: l10n.pick(
+                    vi: 'Kiểm tra nhanh hồ sơ',
+                    en: 'Quick profile check',
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.pick(
+                          vi: 'Rà nhanh các chi tiết còn thiếu để người thân nhận ra bạn dễ hơn và hồ sơ đáng tin hơn.',
+                          en: 'Run a quick check for the details that make your profile easier to recognize and trust.',
+                        ),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.tonalIcon(
+                          key: const Key('profile-quality-check-button'),
+                          onPressed:
+                              (_isSubmitting ||
+                                  widget.isSaving ||
+                                  _isReviewingWithAi)
+                              ? null
+                              : _reviewWithAi,
+                          icon: _isReviewingWithAi
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.auto_awesome_outlined),
+                          label: Text(
+                            _isReviewingWithAi
+                                ? l10n.pick(
+                                    vi: 'Đang phân tích...',
+                                    en: 'Checking...',
+                                  )
+                                : l10n.pick(
+                                    vi: 'Kiểm tra hồ sơ này',
+                                    en: 'Check this profile',
+                                  ),
+                          ),
+                        ),
+                      ),
+                      if (_aiReview != null) ...[
+                        const SizedBox(height: 14),
+                        AppWorkspaceSurface(
+                          padding: const EdgeInsets.all(14),
+                          color: Colors.white.withValues(alpha: 0.76),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _aiReview!.summary,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (_aiReview!.usedFallback) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  l10n.pick(
+                                    vi: 'Hôm nay đang dùng chế độ kiểm tra nội bộ để giữ kết quả ổn định.',
+                                    en: 'Using the built-in quality check mode to keep the guidance stable today.',
+                                  ),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                              if (quickFixActions.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  l10n.pick(
+                                    vi: 'Sửa nhanh các chỗ dễ thiếu',
+                                    en: 'Quick fixes',
+                                  ),
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final action in quickFixActions)
+                                      OutlinedButton.icon(
+                                        key: Key(
+                                          'profile-quick-fix-${_quickFixTargetId(action)}',
+                                        ),
+                                        onPressed: () => _applyQuickFix(action),
+                                        icon: const Icon(
+                                          Icons.edit_note_outlined,
+                                        ),
+                                        label: Text(
+                                          _quickFixLabel(context, action),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                              if (_aiReview!.strengths.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _AiAdviceGroup(
+                                  title: l10n.pick(
+                                    vi: 'Điểm đã ổn',
+                                    en: 'What already works',
+                                  ),
+                                  items: _aiReview!.strengths,
+                                ),
+                              ],
+                              if (_aiReview!.missingImportant.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _AiAdviceGroup(
+                                  title: l10n.pick(
+                                    vi: 'Nên bổ sung',
+                                    en: 'Worth adding',
+                                  ),
+                                  items: _aiReview!.missingImportant,
+                                ),
+                              ],
+                              if (_aiReview!.risks.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _AiAdviceGroup(
+                                  title: l10n.pick(
+                                    vi: 'Chỗ cần lưu ý',
+                                    en: 'Watchouts',
+                                  ),
+                                  items: _aiReview!.risks,
+                                ),
+                              ],
+                              if (_aiReview!.nextActions.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _AiAdviceGroup(
+                                  title: l10n.pick(
+                                    vi: 'Bước tiếp theo',
+                                    en: 'Next steps',
+                                  ),
+                                  items: _aiReview!.nextActions,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
                 if (_submitError != null) ...[
                   const SizedBox(height: 16),
                   _ProfileInfoCard(
@@ -2343,6 +2704,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                   child: Column(
                     children: [
                       TextFormField(
+                        key: const Key('profile-full-name-field'),
                         controller: _fullNameController,
                         decoration: InputDecoration(
                           labelText: l10n.memberFullNameLabel,
@@ -2355,6 +2717,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-nickname-field'),
+                        focusNode: _nickNameFocusNode,
                         controller: _nickNameController,
                         decoration: InputDecoration(
                           labelText: l10n.memberNicknameLabel,
@@ -2362,6 +2726,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-job-title-field'),
+                        focusNode: _jobTitleFocusNode,
                         controller: _jobTitleController,
                         decoration: InputDecoration(
                           labelText: l10n.memberJobTitleLabel,
@@ -2369,6 +2735,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-bio-field'),
+                        focusNode: _bioFocusNode,
                         controller: _bioController,
                         maxLines: 3,
                         decoration: InputDecoration(
@@ -2399,6 +2767,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: TextFormField(
+                              key: const Key('profile-phone-field'),
+                              focusNode: _phoneFocusNode,
                               controller: _phoneController,
                               decoration: InputDecoration(
                                 labelText: l10n.memberPhoneLabel,
@@ -2427,6 +2797,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-email-field'),
+                        focusNode: _emailFocusNode,
                         controller: _emailController,
                         decoration: InputDecoration(
                           labelText: l10n.memberEmailLabel,
@@ -2434,7 +2806,9 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       AddressAutocompleteField(
+                        key: const Key('profile-address-field'),
                         controller: _addressController,
+                        focusNode: _addressFocusNode,
                         maxLines: 2,
                         labelText: l10n.memberAddressLabel,
                         hintText: l10n.pick(
@@ -2452,6 +2826,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       TextFormField(
+                        key: const Key('profile-facebook-field'),
+                        focusNode: _facebookFocusNode,
                         controller: _facebookController,
                         decoration: InputDecoration(
                           labelText: l10n.profileFacebookUrlLabel,
@@ -2469,6 +2845,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-zalo-field'),
                         controller: _zaloController,
                         decoration: InputDecoration(
                           labelText: l10n.profileZaloUrlLabel,
@@ -2486,6 +2863,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-linkedin-field'),
                         controller: _linkedinController,
                         decoration: InputDecoration(
                           labelText: l10n.profileLinkedinUrlLabel,
@@ -2572,6 +2950,49 @@ class _ProfileSectionCard extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+class _AiAdviceGroup extends StatelessWidget {
+  const _AiAdviceGroup({required this.title, required this.items});
+
+  final String title;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final item in items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(item)),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
