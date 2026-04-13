@@ -29,6 +29,7 @@ import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
 import '../../notifications/services/notification_test_service.dart';
 import '../../ai/services/ai_assist_service.dart';
+import '../../ai/presentation/ai_usage_quota_notice.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/profile_draft.dart';
 import '../services/profile_quality_check_actions.dart';
@@ -157,6 +158,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
           isSaving: _controller.isSavingProfile,
           onSubmit: _controller.saveProfile,
           aiAssistService: _aiAssistService,
+          billingRepository: widget.billingRepository,
         );
       },
     );
@@ -210,6 +212,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
           isSaving: _isSavingUnlinkedProfile,
           onSubmit: _saveUnlinkedProfileDraft,
           aiAssistService: _aiAssistService,
+          billingRepository: widget.billingRepository,
         );
       },
     );
@@ -2084,6 +2087,7 @@ class _ProfileEditorSheet extends StatefulWidget {
     required this.isSaving,
     required this.onSubmit,
     required this.aiAssistService,
+    this.billingRepository,
   });
 
   final AuthSession session;
@@ -2092,6 +2096,7 @@ class _ProfileEditorSheet extends StatefulWidget {
   final Future<MemberRepositoryErrorCode?> Function(ProfileDraft draft)
   onSubmit;
   final AiAssistService aiAssistService;
+  final BillingRepository? billingRepository;
 
   @override
   State<_ProfileEditorSheet> createState() => _ProfileEditorSheetState();
@@ -2572,6 +2577,17 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                         ),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      AiUsageQuotaNotice(
+                        session: widget.session,
+                        billingRepository: widget.billingRepository,
+                        requestCost: 1,
+                        compact: true,
+                        usageHint: l10n.pick(
+                          vi: 'Lượt kiểm tra này dùng 1 credit AI.',
+                          en: 'This profile check uses 1 AI credit.',
                         ),
                       ),
                       const SizedBox(height: 12),

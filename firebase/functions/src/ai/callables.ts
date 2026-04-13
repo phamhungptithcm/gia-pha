@@ -1,4 +1,3 @@
-import { FieldValue } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { genkit, z } from "genkit";
@@ -8,17 +7,16 @@ import {
   AI_ASSIST_ENABLED,
   AI_ASSIST_MODEL,
   AI_ASSIST_TIMEOUT_MS,
-  AI_FEATURE_COOLDOWN_MS,
   APP_REGION,
   CALLABLE_ENFORCE_APP_CHECK,
   getAiApiKey,
 } from "../config/runtime";
 import {
-  buildEntitlementFromSubscription,
-  loadSubscription,
-} from "../billing/store";
+  type AiFeatureName,
+  enforceAiFeatureThrottle,
+  enforceAiPlanUsageLimit,
+} from "./usage";
 import { requireAuth } from "../shared/errors";
-import { db } from "../shared/firestore";
 import { logInfo, logWarn } from "../shared/logger";
 import {
   GOVERNANCE_ROLES,
@@ -27,6 +25,7 @@ import {
   ensureClanAccess,
   stringOrNull,
   tokenClanIds,
+  tokenMemberAccessMode,
   tokenMemberId,
   tokenPrimaryRole,
   type AuthToken,
@@ -40,9 +39,6 @@ const APP_CHECK_CALLABLE_OPTIONS = {
   // Restrict Gemini API key access to AI callables only.
   secrets: [GOOGLE_GENAI_API_KEY_SECRET],
 };
-
-const aiFeatureThrottleCollection = db.collection("aiFeatureThrottle");
-const clansCollection = db.collection("clans");
 
 const ProfileReviewSchema = z.object({
   summary: z.string(),
@@ -140,6 +136,34 @@ type AppAssistantInput = {
   activeClanName: string;
   question: string;
   history: Array<AppAssistantHistoryMessage>;
+  searchContext: AppAssistantSearchContextInput;
+};
+
+type AppAssistantMemberMatchInput = {
+  memberId: string;
+  displayName: string;
+  fullName: string;
+  nickName: string;
+  branchName: string;
+  generation: number;
+  birthDate: string;
+  deathDate: string;
+  jobTitle: string;
+  hasPhone: boolean;
+  hasAddress: boolean;
+  parentCount: number;
+  childCount: number;
+  spouseCount: number;
+};
+
+type AppAssistantSearchContextInput = {
+  searchQueryHint: string;
+  activeClanName: string;
+  activeClanMemberCount: number;
+  activeClanBranchCount: number;
+  availableClanCount: number;
+  availableClanNames: Array<string>;
+  memberMatches: Array<AppAssistantMemberMatchInput>;
 };
 
 type StructuredAiResult<T> = {
@@ -180,6 +204,15 @@ export const reviewProfileDraftAi = onCall(
       locale,
       traceId,
     });
+    if (getAiClient() != null) {
+      await enforceAiPlanUsageLimit({
+        uid: auth.uid,
+        clanId,
+        feature: "profile_review",
+        locale,
+        traceId,
+      });
+    }
 
     const fallback = buildProfileFallback(locale, draft);
     const result = await maybeGenerateStructured({
@@ -232,6 +265,15 @@ export const draftEventCopyAi = onCall(
       locale,
       traceId,
     });
+    if (getAiClient() != null) {
+      await enforceAiPlanUsageLimit({
+        uid: auth.uid,
+        clanId: draft.clanId,
+        feature: "event_copy",
+        locale,
+        traceId,
+      });
+    }
 
     const fallback = buildEventCopyFallback(locale, draft);
     const result = await maybeGenerateStructured({
@@ -300,6 +342,15 @@ export const explainDuplicateGenealogyAi = onCall(
       locale,
       traceId,
     });
+    if (getAiClient() != null) {
+      await enforceAiPlanUsageLimit({
+        uid: auth.uid,
+        clanId,
+        feature: "duplicate_genealogy",
+        locale,
+        traceId,
+      });
+    }
 
     const fallback = buildDuplicateExplanationFallback(locale, input);
     const result = await maybeGenerateStructured({
@@ -339,16 +390,11 @@ export const chatWithAppAssistantAi = onCall(
   APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
-    ensureClaimedSession(auth.token);
+    ensureAssistantReadableSession(auth.token);
 
     const locale = normalizeLocale(optionalString(request.data, "locale"));
     const input = readAppAssistantInput(request.data);
     ensureClanAccess(auth.token, input.clanId);
-    await ensurePremiumAssistantAccess({
-      uid: auth.uid,
-      clanId: input.clanId,
-      locale,
-    });
 
     const traceId = `ai_app_assistant_${Date.now()}`;
     await enforceAiFeatureThrottle({
@@ -358,6 +404,15 @@ export const chatWithAppAssistantAi = onCall(
       locale,
       traceId,
     });
+    if (getAiClient() != null) {
+      await enforceAiPlanUsageLimit({
+        uid: auth.uid,
+        clanId: input.clanId,
+        feature: "app_assistant_chat",
+        locale,
+        traceId,
+      });
+    }
     const fallback = buildAppAssistantFallback(locale, input);
     const result = await maybeGenerateStructured({
       clanId: input.clanId,
@@ -372,18 +427,18 @@ export const chatWithAppAssistantAi = onCall(
       prompt: [
         localized(
           locale,
-          "Bạn là trợ lý hỗ trợ sử dụng app BeFam. Chỉ trả lời về cách dùng app, quy trình gia phả, sự kiện, hồ sơ, gói dịch vụ và những thao tác có thật trong app. Không hứa các tính năng chưa tồn tại, không bịa dữ liệu và không nói lan man.",
-          "You are the BeFam in-app assistant. Answer only about using the app, genealogy workflows, events, profile management, billing, and flows that genuinely exist in the app. Never promise unavailable features, invent data, or ramble.",
+          "Bạn là trợ lý tìm kiếm và hỗ trợ trong app BeFam. Nhiệm vụ của bạn là giúp người dùng: 1) tìm nhanh người thân/thành viên trong gia phả đang mở, 2) hiểu nên vào khu nào của app để làm việc, 3) tóm tắt vài bước thao tác ngắn gọn. Không hứa tính năng chưa có, không bịa dữ liệu, và không trả lời như chatbot chung chung.",
+          "You are the BeFam in-app search and help assistant. Your job is to help the user: 1) quickly find relatives or members in the active genealogy, 2) understand which app area fits the task, and 3) summarize a few short action steps. Never promise unavailable features, invent data, or answer like a generic chatbot.",
         ),
         localized(
           locale,
-          "Hãy trả lời ngắn, thực dụng, ưu tiên 2-4 bước thao tác. Nếu người dùng hỏi ngoài phạm vi app, hãy nói rõ và kéo họ về thao tác gần nhất trong BeFam. Nếu cần điều hướng, chỉ chọn một đích trong home/tree/events/billing/profile hoặc none.",
-          "Keep the answer concise and practical, prioritizing 2-4 actionable steps. If the request is outside the app scope, say so and redirect them to the closest BeFam workflow. If navigation would help, choose exactly one destination from home/tree/events/billing/profile or none.",
+          "Nếu SEARCH_CONTEXT_JSON có memberMatches và câu hỏi liên quan người trong gia phả, hãy ưu tiên dùng chính dữ liệu đó làm căn cứ. Nếu có nhiều kết quả gần đúng, nói rõ là có nhiều ứng viên và nêu cách xác minh. Nếu không có kết quả rõ ràng, nói thẳng là chưa tìm thấy chắc chắn trong gia phả hiện tại và hướng người dùng sang Tree để kiểm tra thêm.",
+          "If SEARCH_CONTEXT_JSON contains memberMatches and the question is about people in the genealogy, treat that data as the source of truth. If there are multiple close matches, say so clearly and explain how to verify them. If there is no clear match, say that you could not confidently find one in the active clan and direct the user to Tree for a manual check.",
         ),
         localized(
           locale,
-          "Các khu vực chính của app: home (tổng quan và lối tắt), tree (gia phả và quan hệ), events (lịch song song, sự kiện, giỗ kỵ), billing (gói dịch vụ và thanh toán), profile (hồ sơ, cài đặt, ngôn ngữ).",
-          "Main app areas: home (overview and shortcuts), tree (genealogy and relationships), events (dual calendar, events, memorial rituals), billing (plans and payments), profile (profile, settings, language).",
+          "Trả lời ngắn, thực dụng, ưu tiên 2-4 bước thao tác. Nếu cần điều hướng, chỉ chọn một đích trong home/tree/events/billing/profile hoặc none. Khi dùng dữ liệu người thân, chỉ dựa trên JSON đã được gửi lên, không bịa thêm số điện thoại, địa chỉ, quan hệ hay lịch sử gia đình.",
+          "Keep the answer concise and practical, prioritizing 2-4 actionable steps. If navigation would help, choose exactly one destination from home/tree/events/billing/profile or none. When using relative/member data, rely only on the provided JSON and never invent phone numbers, addresses, relationships, or family history.",
         ),
         `APP_CONTEXT_JSON:\n${JSON.stringify(
           {
@@ -392,10 +447,12 @@ export const chatWithAppAssistantAi = onCall(
             currentScreenTitle: input.currentScreenTitle,
             activeClanName: input.activeClanName,
             role: tokenPrimaryRole(auth.token),
+            memberAccessMode: tokenMemberAccessMode(auth.token),
           },
           null,
           2,
         )}`,
+        `SEARCH_CONTEXT_JSON:\n${JSON.stringify(input.searchContext, null, 2)}`,
         `CONVERSATION_HISTORY_JSON:\n${JSON.stringify(input.history, null, 2)}`,
         `USER_QUESTION:\n${input.question}`,
       ].join("\n\n"),
@@ -581,86 +638,6 @@ function logAiExecution(input: {
   }
 
   logInfo("AI callable completed", payload);
-}
-
-export function computeAiFeatureThrottleRemainingMs(input: {
-  lastRequestedAtMs: number;
-  nowMs: number;
-  cooldownMs: number;
-}): number {
-  if (input.lastRequestedAtMs <= 0) {
-    return 0;
-  }
-  return Math.max(
-    0,
-    input.cooldownMs - Math.max(0, input.nowMs - input.lastRequestedAtMs),
-  );
-}
-
-async function enforceAiFeatureThrottle(input: {
-  uid: string;
-  clanId: string;
-  feature: string;
-  locale: string;
-  traceId: string;
-}): Promise<void> {
-  const throttleRef = aiFeatureThrottleCollection.doc(
-    `${input.uid}_${input.feature}`,
-  );
-  const nowMs = Date.now();
-  const remainingMs = await db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(throttleRef);
-    const state = asRecord(snapshot.data());
-    const lastRequestedAtMs = readPositiveInt(state["lastRequestedAtMs"]);
-    const pendingRemainingMs = computeAiFeatureThrottleRemainingMs({
-      lastRequestedAtMs,
-      nowMs,
-      cooldownMs: AI_FEATURE_COOLDOWN_MS,
-    });
-    if (pendingRemainingMs > 0) {
-      return pendingRemainingMs;
-    }
-
-    transaction.set(
-      throttleRef,
-      {
-        id: throttleRef.id,
-        uid: input.uid,
-        clanId: input.clanId,
-        feature: input.feature,
-        lastRequestedAtMs: nowMs,
-        updatedAt: FieldValue.serverTimestamp(),
-        createdAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
-    return 0;
-  });
-
-  if (remainingMs <= 0) {
-    return;
-  }
-
-  logWarn("AI callable throttled", {
-    clanId: input.clanId,
-    uid: input.uid,
-    feature: input.feature,
-    locale: input.locale,
-    traceId: input.traceId,
-    remaining_ms: remainingMs,
-  });
-  throw new HttpsError(
-    "resource-exhausted",
-    localized(
-      input.locale,
-      `Bạn vừa dùng tính năng này. Hãy thử lại sau khoảng ${Math.ceil(
-        remainingMs / 1000,
-      )} giây.`,
-      `You just used this feature. Try again in about ${Math.ceil(
-        remainingMs / 1000,
-      )} seconds.`,
-    ),
-  );
 }
 
 function getAiClient(): ReturnType<typeof genkit> | null {
@@ -1057,6 +1034,13 @@ function buildAppAssistantFallback(
 ): AppAssistantReply {
   const normalizedQuestion = normalizeSearchText(input.question);
   const screenId = input.currentScreenId;
+  const memberSearchFallback = buildAppAssistantMemberSearchFallback(
+    locale,
+    input,
+  );
+  if (memberSearchFallback != null) {
+    return memberSearchFallback;
+  }
 
   if (
     containsAny(normalizedQuestion, [
@@ -1249,6 +1233,123 @@ function buildAppAssistantFallback(
   };
 }
 
+function buildAppAssistantMemberSearchFallback(
+  locale: string,
+  input: AppAssistantInput,
+): AppAssistantReply | null {
+  const matches = input.searchContext.memberMatches;
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const topMatch = matches[0];
+  const searchContextClanName = input.searchContext.activeClanName.trim();
+  const activeClanName = input.activeClanName.trim();
+  const clanLabel =
+    searchContextClanName.length > 0 ? searchContextClanName : activeClanName;
+  const summary = matches.length === 1
+    ? localized(
+        locale,
+        `Mình tìm thấy hồ sơ gần nhất là ${topMatch.displayName} trong ${
+          clanLabel.length > 0 ? clanLabel : "gia phả hiện tại"
+        }.`,
+        `The closest matching profile is ${topMatch.displayName} in ${
+          clanLabel.length > 0 ? clanLabel : "the active clan"
+        }.`,
+      )
+    : localized(
+        locale,
+        `Mình tìm thấy ${matches.length} hồ sơ gần với “${
+          input.searchContext.searchQueryHint || input.question.trim()
+        }” trong ${clanLabel.length > 0 ? clanLabel : "gia phả hiện tại"}.`,
+        `I found ${matches.length} close matches for “${
+          input.searchContext.searchQueryHint || input.question.trim()
+        }” in ${clanLabel.length > 0 ? clanLabel : "the active clan"}.`,
+      );
+  const steps = [
+    describeAssistantMemberMatch(locale, topMatch),
+    ...(matches.length > 1
+      ? [
+          localized(
+            locale,
+            "Có nhiều hồ sơ gần giống nhau, nên đối chiếu thêm chi, đời và mốc sinh/mất trước khi kết luận.",
+            "There are multiple close matches, so compare branch, generation, and birth/death clues before deciding.",
+          ),
+        ]
+      : []),
+    localized(
+      locale,
+      "Mở Tree để kiểm tra đúng hồ sơ và xem tiếp các quan hệ trong gia phả.",
+      "Open Tree to verify the right profile and inspect relationships in the genealogy.",
+    ),
+  ];
+
+  return {
+    answer: summary,
+    steps,
+    quickReplies: [
+      localized(locale, "Mở Tree để xem", "Open Tree"),
+      localized(locale, "Tìm người khác", "Search another person"),
+      localized(locale, "Cách thêm thành viên?", "How do I add a member?"),
+    ],
+    caution: localized(
+      locale,
+      "Kết quả này dựa trên các hồ sơ gần nhất trong gia phả đang mở, không phải xác nhận tuyệt đối nếu có nhiều người trùng tên.",
+      "This is based on the closest profiles in the active genealogy and is not an absolute identity confirmation when names overlap.",
+    ),
+    suggestedDestination: "tree",
+  };
+}
+
+function describeAssistantMemberMatch(
+  locale: string,
+  member: AppAssistantMemberMatchInput,
+): string {
+  const parts = [
+    member.branchName.trim().length > 0
+      ? localized(
+          locale,
+          `Chi: ${member.branchName.trim()}`,
+          `Branch: ${member.branchName.trim()}`,
+        )
+      : "",
+    member.generation > 0
+      ? localized(
+          locale,
+          `Đời ${member.generation}`,
+          `Generation ${member.generation}`,
+        )
+      : "",
+    member.birthDate.trim().length > 0
+      ? localized(
+          locale,
+          `Sinh: ${member.birthDate.trim()}`,
+          `Born: ${member.birthDate.trim()}`,
+        )
+      : "",
+    member.deathDate.trim().length > 0
+      ? localized(
+          locale,
+          `Mất: ${member.deathDate.trim()}`,
+          `Died: ${member.deathDate.trim()}`,
+        )
+      : "",
+    member.jobTitle.trim().length > 0
+      ? localized(
+          locale,
+          `Vai trò/nghề: ${member.jobTitle.trim()}`,
+          `Role/job: ${member.jobTitle.trim()}`,
+        )
+      : "",
+  ].filter((value) => value.trim().length > 0);
+
+  return localized(
+    locale,
+    `${member.displayName} ${parts.length === 0 ? "" : "• "}${parts.join(" • ")}`,
+    `${member.displayName} ${parts.length === 0 ? "" : "• "}${parts.join(" • ")}`,
+  ).trim();
+}
+
 export function readProfileDraftInput(value: unknown): ProfileDraftInput {
   const data = asRecord(value);
   return {
@@ -1370,7 +1471,7 @@ function asRecord(value: unknown): Record<string, unknown> {
   return {};
 }
 
-function readAppAssistantInput(value: unknown): AppAssistantInput {
+export function readAppAssistantInput(value: unknown): AppAssistantInput {
   const data = asRecord(value);
   const clanId = requireNonEmptyString(data, "clanId");
   const question = requireNonEmptyString(data, "question").slice(0, 900);
@@ -1382,6 +1483,7 @@ function readAppAssistantInput(value: unknown): AppAssistantInput {
     120,
   );
   const activeClanName = optionalString(data, "activeClanName").slice(0, 120);
+  const searchContext = readAppAssistantSearchContext(data["searchContext"]);
   const rawHistory = Array.isArray(data["history"]) ? data["history"] : [];
   const history = rawHistory
     .map((entry) => asRecord(entry))
@@ -1400,6 +1502,62 @@ function readAppAssistantInput(value: unknown): AppAssistantInput {
     activeClanName,
     question,
     history,
+    searchContext,
+  };
+}
+
+function readAppAssistantSearchContext(
+  value: unknown,
+): AppAssistantSearchContextInput {
+  const data = asRecord(value);
+  const rawClanNames = Array.isArray(data["availableClanNames"])
+    ? data["availableClanNames"]
+    : [];
+  const rawMemberMatches = Array.isArray(data["memberMatches"])
+    ? data["memberMatches"]
+    : [];
+
+  return {
+    searchQueryHint: optionalString(data, "searchQueryHint").slice(0, 160),
+    activeClanName: optionalString(data, "activeClanName").slice(0, 120),
+    activeClanMemberCount: Math.min(
+      5000,
+      readPositiveInt(data["activeClanMemberCount"]),
+    ),
+    activeClanBranchCount: Math.min(
+      300,
+      readPositiveInt(data["activeClanBranchCount"]),
+    ),
+    availableClanCount: Math.min(20, readPositiveInt(data["availableClanCount"])),
+    availableClanNames: rawClanNames
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      .slice(0, 6),
+    memberMatches: rawMemberMatches
+      .map((entry) => asRecord(entry))
+      .map((entry) => ({
+        memberId: optionalString(entry, "memberId").slice(0, 80),
+        displayName: optionalString(entry, "displayName").slice(0, 120),
+        fullName: optionalString(entry, "fullName").slice(0, 160),
+        nickName: optionalString(entry, "nickName").slice(0, 120),
+        branchName: optionalString(entry, "branchName").slice(0, 120),
+        generation: Math.min(50, readPositiveInt(entry["generation"])),
+        birthDate: optionalString(entry, "birthDate").slice(0, 32),
+        deathDate: optionalString(entry, "deathDate").slice(0, 32),
+        jobTitle: optionalString(entry, "jobTitle").slice(0, 120),
+        hasPhone: entry["hasPhone"] === true,
+        hasAddress: entry["hasAddress"] === true,
+        parentCount: Math.min(12, readPositiveInt(entry["parentCount"])),
+        childCount: Math.min(30, readPositiveInt(entry["childCount"])),
+        spouseCount: Math.min(8, readPositiveInt(entry["spouseCount"])),
+      }))
+      .filter(
+        (entry) =>
+          entry.memberId.length > 0 &&
+          (entry.displayName.length > 0 || entry.fullName.length > 0),
+      )
+      .slice(0, 5),
   };
 }
 
@@ -1470,7 +1628,7 @@ function buildDefaultQuickReplies(
     default:
       return [
         localized(locale, "Bắt đầu từ đâu?", "Where should I start?"),
-        localized(locale, "Mời người thân", "Invite relatives"),
+        localized(locale, "Tìm người thân", "Find a relative"),
         localized(locale, "Tạo sự kiện", "Create an event"),
       ];
   }
@@ -1586,45 +1744,15 @@ function containsAny(haystack: string, needles: Array<string>): boolean {
   return needles.some((needle) => haystack.includes(needle));
 }
 
-async function ensurePremiumAssistantAccess(input: {
-  uid: string;
-  clanId: string;
-  locale: string;
-}): Promise<void> {
-  const ownerUid = await resolveClanOwnerUid(input.clanId);
-  const subscription = await loadSubscription({
-    clanId: input.clanId,
-    ownerUid,
-  });
-  const entitlement =
-    subscription == null
-      ? null
-      : buildEntitlementFromSubscription(subscription);
-  if (entitlement?.hasPremiumAccess != true) {
-    throw new HttpsError(
-      "permission-denied",
-      localized(
-        input.locale,
-        "Trợ lý AI chỉ khả dụng cho các gói BeFam trả phí.",
-        "The AI assistant is available on paid BeFam plans only.",
-      ),
-    );
+function ensureAssistantReadableSession(token: AuthToken): void {
+  const mode = tokenMemberAccessMode(token);
+  if (mode === "claimed" || mode === "child") {
+    return;
   }
-}
-
-async function resolveClanOwnerUid(clanId: string): Promise<string> {
-  const snapshot = await clansCollection.doc(clanId).get();
-  if (!snapshot.exists) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Clan billing scope is not configured yet.",
-    );
-  }
-  const ownerUid = stringOrNull(snapshot.data()?.ownerUid) ?? "";
-  if (ownerUid.length === 0) {
-    throw new HttpsError("failed-precondition", "Clan owner is missing.");
-  }
-  return ownerUid;
+  throw new HttpsError(
+    "permission-denied",
+    "This session must be linked to a clan before using the assistant.",
+  );
 }
 
 function limitList(values: Array<string>, limit: number): Array<string> {

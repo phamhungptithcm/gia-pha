@@ -213,6 +213,7 @@ class BillingController extends ChangeNotifier {
           scope: current.scope,
           subscription: current.subscription,
           entitlement: entitlement,
+          aiUsageSummary: current.aiUsageSummary,
           settings: current.settings,
           checkoutFlow: current.checkoutFlow,
           pricingTiers: current.pricingTiers,

@@ -15,6 +15,7 @@ import '../../core/widgets/address_action_tools.dart';
 import '../../core/widgets/app_compact_controls.dart';
 import '../../core/widgets/app_loading_skeletons.dart';
 import '../../features/ads/services/ad_controller.dart';
+import '../../features/ai/presentation/app_assistant_launcher.dart';
 import '../../features/billing/presentation/billing_workspace_page.dart';
 import '../../features/billing/services/billing_repository.dart';
 import '../../features/clan/presentation/clan_detail_page.dart';
@@ -421,6 +422,7 @@ class _AppShellPageState extends State<AppShellPage>
             return EventWorkspacePage(
               session: _session,
               repository: _eventRepository,
+              billingRepository: _billingRepository,
               availableClanContexts: _clanContexts,
               onSwitchClanContext: _switchClanContext,
               initialEventId: normalizedEventId,
@@ -526,6 +528,23 @@ class _AppShellPageState extends State<AppShellPage>
       return 'home';
     }
     return destinations[index].id;
+  }
+
+  bool _screenHasTrailingFloatingActions(String screenId) {
+    return screenId == 'tree' || screenId == 'events';
+  }
+
+  FloatingActionButtonLocation _assistantFabLocation({
+    required bool useRailNavigation,
+    required String screenId,
+  }) {
+    if (useRailNavigation) {
+      return FloatingActionButtonLocation.endFloat;
+    }
+    if (_screenHasTrailingFloatingActions(screenId)) {
+      return FloatingActionButtonLocation.startFloat;
+    }
+    return FloatingActionButtonLocation.endFloat;
   }
 
   void _selectDestination(int index) {
@@ -951,6 +970,7 @@ class _AppShellPageState extends State<AppShellPage>
           child: DualCalendarWorkspacePage(
             session: _session,
             memberRepository: widget.memberRepository,
+            billingRepository: _billingRepository,
             availableClanContexts: _clanContexts,
             onSwitchClanContext: _switchClanContext,
           ),
@@ -994,6 +1014,34 @@ class _AppShellPageState extends State<AppShellPage>
       title: Text(_activeClanAppBarTitle(l10n)),
       actions: _buildAppBarActions(l10n: l10n, sessionTooltip: sessionTooltip),
     );
+    final showAiAssistant =
+        _hasClanContext &&
+        _session.accessMode != AuthMemberAccessMode.unlinked &&
+        (_session.clanId ?? '').trim().isNotEmpty;
+    final currentScreenId = _screenIdForIndex(_selectedIndex);
+    final assistantFabLocation = _assistantFabLocation(
+      useRailNavigation: layout.useRailNavigation,
+      screenId: currentScreenId,
+    );
+    final assistantLauncher = showAiAssistant
+        ? AiAssistantLauncher(
+            session: _session,
+            currentScreenId: currentScreenId,
+            currentScreenTitle: l10n.shellDestinationTitle(currentScreenId),
+            activeClanName: _activeClanDisplayName(),
+            availableClanContexts: _clanContexts,
+            memberRepository: widget.memberRepository,
+            billingRepository: _billingRepository,
+            onOpenDestinationRequested: (destinationId) {
+              final index = destinations.indexWhere(
+                (destination) => destination.id == destinationId,
+              );
+              if (index >= 0) {
+                _selectDestination(index);
+              }
+            },
+          )
+        : null;
 
     Widget contentStack = IndexedStack(index: _selectedIndex, children: pages);
     if (layout.useRailNavigation) {
@@ -1036,10 +1084,14 @@ class _AppShellPageState extends State<AppShellPage>
                 Expanded(child: contentWithBanner),
               ],
             ),
+            floatingActionButton: assistantLauncher,
+            floatingActionButtonLocation: assistantFabLocation,
           )
         : Scaffold(
             appBar: appBar,
             body: SafeArea(child: contentStack),
+            floatingActionButton: assistantLauncher,
+            floatingActionButtonLocation: assistantFabLocation,
             bottomNavigationBar: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1325,6 +1377,7 @@ class _AppShellPageState extends State<AppShellPage>
           return EventWorkspacePage(
             session: _session,
             repository: _eventRepository,
+            billingRepository: _billingRepository,
             availableClanContexts: _clanContexts,
             onSwitchClanContext: _switchClanContext,
           );
@@ -1347,6 +1400,7 @@ class _AppShellPageState extends State<AppShellPage>
           return EventWorkspacePage(
             session: _session,
             repository: _eventRepository,
+            billingRepository: _billingRepository,
             availableClanContexts: _clanContexts,
             onSwitchClanContext: _switchClanContext,
             initialEventId: event.id,

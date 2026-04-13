@@ -4,6 +4,7 @@ class BillingWorkspaceSnapshot {
     required this.scope,
     required this.subscription,
     required this.entitlement,
+    required this.aiUsageSummary,
     required this.settings,
     required this.checkoutFlow,
     required this.pricingTiers,
@@ -17,6 +18,7 @@ class BillingWorkspaceSnapshot {
   final BillingScopeContext scope;
   final BillingSubscription subscription;
   final BillingEntitlement entitlement;
+  final BillingAiUsageSummary aiUsageSummary;
   final BillingSettings settings;
   final BillingCheckoutFlowConfig checkoutFlow;
   final List<BillingPlanPricing> pricingTiers;
@@ -63,6 +65,7 @@ class BillingViewerSummary {
     required this.scope,
     required this.subscription,
     required this.entitlement,
+    required this.aiUsageSummary,
     required this.pricingTiers,
     required this.memberCount,
   });
@@ -71,8 +74,48 @@ class BillingViewerSummary {
   final BillingScopeContext scope;
   final BillingSubscription subscription;
   final BillingEntitlement entitlement;
+  final BillingAiUsageSummary aiUsageSummary;
   final List<BillingPlanPricing> pricingTiers;
   final int memberCount;
+}
+
+class BillingAiUsageSummary {
+  const BillingAiUsageSummary({
+    required this.windowKey,
+    required this.planCode,
+    required this.quotaCredits,
+    required this.usedCredits,
+    required this.remainingCredits,
+    required this.totalRequests,
+    required this.featureCounts,
+    required this.featureCredits,
+  });
+
+  final String windowKey;
+  final String planCode;
+  final int quotaCredits;
+  final int usedCredits;
+  final int remainingCredits;
+  final int totalRequests;
+  final Map<String, int> featureCounts;
+  final Map<String, int> featureCredits;
+
+  double get usageProgress {
+    if (quotaCredits <= 0) {
+      return 0;
+    }
+    final ratio = usedCredits / quotaCredits;
+    if (ratio.isNaN || ratio.isInfinite) {
+      return 0;
+    }
+    if (ratio < 0) {
+      return 0;
+    }
+    if (ratio > 1) {
+      return 1;
+    }
+    return ratio;
+  }
 }
 
 class BillingScopeContext {

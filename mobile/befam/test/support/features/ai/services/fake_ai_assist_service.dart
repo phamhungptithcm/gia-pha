@@ -1,4 +1,5 @@
 import 'package:befam/features/ai/services/ai_assist_service.dart';
+import 'package:befam/features/ai/services/app_assistant_context_service.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
 import 'package:befam/features/events/models/event_draft.dart';
 import 'package:befam/features/profile/models/profile_draft.dart';
@@ -18,6 +19,7 @@ class FakeAiAssistService implements AiAssistService {
     required String currentScreenTitle,
     required String question,
     required List<AppAssistantConversationMessage> history,
+    required AppAssistantSearchContext searchContext,
     String? activeClanName,
   })?
   onAskAppAssistant;
@@ -55,6 +57,7 @@ class FakeAiAssistService implements AiAssistService {
     required String currentScreenTitle,
     required String question,
     required List<AppAssistantConversationMessage> history,
+    required AppAssistantSearchContext searchContext,
     String? activeClanName,
   }) {
     final handler = onAskAppAssistant;
@@ -68,6 +71,7 @@ class FakeAiAssistService implements AiAssistService {
       currentScreenTitle: currentScreenTitle,
       question: question,
       history: history,
+      searchContext: searchContext,
       activeClanName: activeClanName,
     );
   }

@@ -2,6 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 
 import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from "../config/runtime";
 import { loadBillingRuntimeConfig } from "../config/runtime-overrides";
+import { loadAiUsageSummaryForClan } from "../ai/usage";
 import {
   applyPaymentResult,
   cancelStalePendingTransactionsRun,
@@ -257,6 +258,7 @@ export const resolveBillingEntitlement = onCall(
       now,
     });
     const entitlement = buildEntitlementFromSubscription(ensured.subscription);
+    const aiUsageSummary = await loadAiUsageSummaryForClan(scope.clanId);
 
     return {
       clanId: scope.clanId,
@@ -269,6 +271,7 @@ export const resolveBillingEntitlement = onCall(
       pricingTiers: BILLING_PRICING_TIERS,
       settings: ensured.settings,
       memberCount: resolvedMemberCount,
+      aiUsageSummary,
     };
   },
 );
@@ -325,6 +328,7 @@ export const loadBillingWorkspace = onCall(
           .limit(40)
           .get(),
       ]);
+    const aiUsageSummary = await loadAiUsageSummaryForClan(scope.clanId);
 
     return {
       clanId: scope.clanId,
@@ -338,6 +342,7 @@ export const loadBillingWorkspace = onCall(
       checkoutFlow: buildCheckoutFlowConfig(),
       pricingTiers: BILLING_PRICING_TIERS,
       memberCount: resolvedMemberCount,
+      aiUsageSummary,
       transactions: transactionsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...normalizeFirestoreJson(doc.data()),

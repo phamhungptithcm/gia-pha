@@ -72,6 +72,11 @@ abstract final class AnalyticsEventNames {
   static const aiEventSuggestionApplied = 'ai_event_suggestion_applied';
   static const aiDuplicateReviewOpened = 'ai_duplicate_review_opened';
   static const aiDuplicateReviewDecision = 'ai_duplicate_review_decision';
+  static const aiAssistantOpened = 'ai_assistant_opened';
+  static const aiAssistantQuerySubmitted = 'ai_assistant_query_submitted';
+  static const aiAssistantQueryCompleted = 'ai_assistant_query_completed';
+  static const aiAssistantQueryFailed = 'ai_assistant_query_failed';
+  static const aiAssistantDestinationOpened = 'ai_assistant_destination_opened';
 
   static const values = <String>[
     authMethodSelected,
@@ -130,6 +135,11 @@ abstract final class AnalyticsEventNames {
     aiEventSuggestionApplied,
     aiDuplicateReviewOpened,
     aiDuplicateReviewDecision,
+    aiAssistantOpened,
+    aiAssistantQuerySubmitted,
+    aiAssistantQueryCompleted,
+    aiAssistantQueryFailed,
+    aiAssistantDestinationOpened,
   ];
 }
 

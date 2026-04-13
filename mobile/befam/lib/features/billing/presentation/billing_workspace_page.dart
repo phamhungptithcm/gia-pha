@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_ui_tokens.dart';
 import '../../../core/services/app_environment.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
@@ -716,6 +717,10 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                   entitlement.nextPaymentDueAtIso ??
                   workspace.subscription.nextPaymentDueAtIso,
             ),
+            const SizedBox(height: 16),
+            _AiUsageSummaryCard(
+              summary: workspace.aiUsageSummary,
+            ),
             if (!canManage) ...[
               const SizedBox(height: 16),
               _InfoCard(
@@ -1378,6 +1383,10 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
               nextPaymentDueAtIso:
                   entitlement.nextPaymentDueAtIso ??
                   summary.subscription.nextPaymentDueAtIso,
+            ),
+            const SizedBox(height: 16),
+            _AiUsageSummaryCard(
+              summary: summary.aiUsageSummary,
             ),
             const SizedBox(height: 16),
             _InfoCard(
@@ -2141,6 +2150,313 @@ class _PricingTierTile extends StatelessWidget {
   }
 }
 
+class _AiUsageSummaryCard extends StatelessWidget {
+  const _AiUsageSummaryCard({required this.summary});
+
+  final BillingAiUsageSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final tokens = context.uiTokens;
+    final planLabel = _localizedPlanName(summary.planCode, l10n);
+    final progress = summary.usageProgress;
+    final isExhausted = summary.remainingCredits <= 0;
+    final isNearLimit = !isExhausted && progress >= 0.8;
+    final featureEntries = summary.featureCredits.entries.toList(growable: false)
+      ..sort((left, right) => right.value.compareTo(left.value));
+    final topFeatures = featureEntries.take(3).toList(growable: false);
+    final statusTitle = isExhausted
+        ? l10n.pick(
+            vi: 'Đã dùng hết lượt trong tháng này',
+            en: 'Monthly AI help has been used up',
+          )
+        : isNearLimit
+        ? l10n.pick(
+            vi: 'Sắp chạm giới hạn tháng',
+            en: 'Getting close to the monthly limit',
+          )
+        : l10n.pick(
+            vi: 'Vẫn còn dư để dùng khi thật sự cần',
+            en: 'Still plenty left for the moments that matter',
+          );
+    final statusDescription = isExhausted
+        ? l10n.pick(
+            vi:
+                'Các tính năng AI sẽ tạm nghỉ đến kỳ mới hoặc khi gói được nâng cấp.',
+            en:
+                'AI features pause until the next billing window or until the plan is upgraded.',
+          )
+        : isNearLimit
+        ? l10n.pick(
+            vi:
+                'Ưu tiên giữ lượt cho các câu hỏi tìm người thân hoặc tác vụ thật sự cần thiết.',
+            en:
+                'Save the remaining uses for family lookups or the tasks that matter most.',
+          )
+        : l10n.pick(
+            vi:
+                'Bạn vẫn còn khá thoải mái cho chat tìm người, hỗ trợ hồ sơ, và gợi ý nội dung.',
+            en:
+                'You still have comfortable room for family search, profile help, and content suggestions.',
+          );
+    final topFeature = topFeatures.isEmpty ? null : topFeatures.first;
+
+    return _SectionCard(
+      sectionKey: const Key('billing-ai-usage-section'),
+      title: l10n.pick(
+        vi: 'Lượt hỗ trợ AI tháng này',
+        en: 'AI help this month',
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.pick(
+                        vi: 'Còn lại',
+                        en: 'Remaining',
+                      ),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: tokens.spaceXs),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${summary.remainingCredits}',
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: isExhausted
+                                ? colorScheme.error
+                                : colorScheme.onSurface,
+                          ),
+                        ),
+                        SizedBox(width: tokens.spaceSm),
+                        Padding(
+                          padding: EdgeInsets.only(bottom: tokens.spaceXs),
+                          child: Text(
+                            l10n.pick(
+                              vi: '/ ${summary.quotaCredits} lượt',
+                              en: '/ ${summary.quotaCredits} uses',
+                            ),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: tokens.spaceXs),
+                      Text(
+                        l10n.pick(
+                          vi:
+                            'Đang áp dụng theo gói $planLabel cho ${_aiUsageWindowLabel(summary.windowKey, l10n)}.',
+                          en:
+                            'Based on the $planLabel plan for ${_aiUsageWindowLabel(summary.windowKey, l10n)}.',
+                        ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: tokens.spaceMd),
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: tokens.spaceMd,
+                  vertical: tokens.spaceSm,
+                ),
+                decoration: BoxDecoration(
+                  color: isExhausted
+                      ? colorScheme.errorContainer
+                      : isNearLimit
+                      ? colorScheme.tertiaryContainer
+                      : colorScheme.primaryContainer.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(tokens.radiusLg),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.pick(vi: 'Đã dùng', en: 'Used'),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: tokens.spaceXs / 2),
+                    Text(
+                      '${summary.usedCredits}',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: tokens.spaceMd),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: progress,
+              backgroundColor: colorScheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isExhausted
+                    ? colorScheme.error
+                    : isNearLimit
+                    ? colorScheme.tertiary
+                    : colorScheme.primary,
+              ),
+            ),
+          ),
+          SizedBox(height: tokens.spaceMd),
+          Wrap(
+            spacing: tokens.spaceSm,
+            runSpacing: tokens.spaceSm,
+            children: [
+              _HeroPill(
+                icon: Icons.history_outlined,
+                text: l10n.pick(
+                  vi: '${summary.totalRequests} lần dùng',
+                  en: '${summary.totalRequests} uses',
+                ),
+              ),
+              _HeroPill(
+                icon: Icons.auto_awesome_outlined,
+                text: topFeature == null
+                    ? l10n.pick(vi: 'Chưa có hoạt động', en: 'No usage yet')
+                    : l10n.pick(
+                        vi: 'Dùng nhiều nhất: ${_aiFeatureLabel(topFeature.key, l10n)}',
+                        en:
+                            'Top use: ${_aiFeatureLabel(topFeature.key, l10n)}',
+                      ),
+              ),
+            ],
+          ),
+          SizedBox(height: tokens.spaceMd),
+          Container(
+            padding: EdgeInsets.all(tokens.spaceMd),
+            decoration: BoxDecoration(
+              color: isExhausted
+                  ? colorScheme.errorContainer.withValues(alpha: 0.82)
+                  : isNearLimit
+                  ? colorScheme.tertiaryContainer.withValues(alpha: 0.82)
+                  : colorScheme.secondaryContainer.withValues(alpha: 0.68),
+              borderRadius: BorderRadius.circular(tokens.radiusLg),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  isExhausted
+                      ? Icons.block_outlined
+                      : isNearLimit
+                      ? Icons.warning_amber_rounded
+                      : Icons.favorite_border_rounded,
+                ),
+                SizedBox(width: tokens.spaceSm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        statusTitle,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: tokens.spaceXs),
+                      Text(
+                        statusDescription,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (topFeatures.isNotEmpty) ...[
+            SizedBox(height: tokens.spaceMd),
+            Text(
+              l10n.pick(
+                vi: 'Dùng nhiều nhất',
+                en: 'Used most often',
+              ),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(height: tokens.spaceSm),
+            for (var index = 0; index < topFeatures.length; index += 1)
+              Container(
+                margin: EdgeInsets.only(
+                  bottom: index == topFeatures.length - 1 ? 0 : tokens.spaceSm,
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: tokens.spaceMd,
+                  vertical: tokens.spaceSm,
+                ),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.56,
+                  ),
+                  borderRadius: BorderRadius.circular(tokens.radiusLg),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _aiFeatureLabel(topFeatures[index].key, l10n),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: tokens.spaceSm),
+                    Text(
+                      l10n.pick(
+                        vi:
+                            '${summary.featureCounts[topFeatures[index].key] ?? 0} lần • ${topFeatures[index].value} lượt',
+                        en:
+                            '${summary.featureCounts[topFeatures[index].key] ?? 0} uses • ${topFeatures[index].value} credits',
+                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _BillingDetailRow extends StatelessWidget {
   const _BillingDetailRow({required this.label, required this.value});
 
@@ -2167,6 +2483,41 @@ class _BillingDetailRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String _aiFeatureLabel(String feature, AppLocalizations l10n) {
+  switch (feature.trim()) {
+    case 'app_assistant_chat':
+      return l10n.pick(vi: 'Bubble chat và tìm kiếm', en: 'Bubble chat and search');
+    case 'event_copy':
+      return l10n.pick(vi: 'Gợi ý nội dung sự kiện', en: 'Event copy suggestions');
+    case 'profile_review':
+      return l10n.pick(vi: 'Kiểm tra nhanh hồ sơ', en: 'Quick profile check');
+    case 'duplicate_genealogy':
+      return l10n.pick(
+        vi: 'Rà soát tạo trùng gia phả',
+        en: 'Duplicate genealogy review',
+      );
+    default:
+      return feature.trim().isEmpty ? l10n.pick(vi: 'AI khác', en: 'Other AI') : feature;
+  }
+}
+
+String _aiUsageWindowLabel(String windowKey, AppLocalizations l10n) {
+  final parts = windowKey.split('-');
+  if (parts.length != 2) {
+    return windowKey;
+  }
+  final year = int.tryParse(parts[0]);
+  final month = int.tryParse(parts[1]);
+  if (year == null || month == null || month < 1 || month > 12) {
+    return windowKey;
+  }
+  final normalizedMonth = month.toString().padLeft(2, '0');
+  return l10n.pick(
+    vi: 'tháng $normalizedMonth/$year',
+    en: '$normalizedMonth/$year',
+  );
 }
 
 class _HeroPill extends StatelessWidget {

@@ -300,6 +300,26 @@ export const AI_FEATURE_COOLDOWN_MS = readEnvInt(
   10000,
   { min: 1000, max: 300000 },
 );
+export const AI_USAGE_LIMIT_FREE = readEnvInt(
+  'AI_USAGE_LIMIT_FREE',
+  20,
+  { min: 1, max: 100000 },
+);
+export const AI_USAGE_LIMIT_BASE = readEnvInt(
+  'AI_USAGE_LIMIT_BASE',
+  80,
+  { min: 1, max: 100000 },
+);
+export const AI_USAGE_LIMIT_PLUS = readEnvInt(
+  'AI_USAGE_LIMIT_PLUS',
+  240,
+  { min: 1, max: 100000 },
+);
+export const AI_USAGE_LIMIT_PRO = readEnvInt(
+  'AI_USAGE_LIMIT_PRO',
+  800,
+  { min: 1, max: 100000 },
+);
 
 export function getAiApiKey(): string {
   return readEnvString('GOOGLE_GENAI_API_KEY');

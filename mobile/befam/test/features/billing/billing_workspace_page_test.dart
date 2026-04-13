@@ -111,6 +111,8 @@ void main() {
 
     expect(find.text('Gói dịch vụ'), findsOneWidget);
     expect(find.textContaining('Số thành viên hiện tại'), findsOneWidget);
+    expect(find.byKey(const Key('billing-ai-usage-section')), findsOneWidget);
+    expect(find.text('Lượt hỗ trợ AI tháng này'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Lịch sử thanh toán'),
       280,
@@ -125,6 +127,11 @@ void main() {
     await pumpBillingPage(tester, session: buildNoClanSession());
 
     expect(find.text('Gói cá nhân của bạn'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Chọn gói phù hợp'),
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Chọn gói phù hợp'), findsOneWidget);
     final selector = find.byKey(const Key('billing-plan-selector'));
     expect(selector, findsOneWidget);
@@ -151,8 +158,6 @@ void main() {
     final checkoutButton = find.byKey(
       const Key('billing-open-checkout-button'),
     );
-    expect(checkoutButton, findsOneWidget);
-
     await tester.scrollUntilVisible(
       checkoutButton,
       280,
@@ -160,6 +165,7 @@ void main() {
     );
     await tester.ensureVisible(checkoutButton);
     await tester.pumpAndSettle();
+    expect(checkoutButton, findsOneWidget);
     await tester.tap(checkoutButton);
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
@@ -226,6 +232,11 @@ void main() {
       repository: repository,
     );
 
+    await tester.scrollUntilVisible(
+      find.text('Chế độ xem'),
+      280,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Chế độ xem'), findsOneWidget);
     expect(find.byKey(const Key('billing-open-checkout-button')), findsNothing);
     expect(
@@ -236,6 +247,7 @@ void main() {
       find.byKey(const Key('billing-payment-history-section')),
       findsNothing,
     );
+    expect(find.byKey(const Key('billing-ai-usage-section')), findsOneWidget);
   });
 
   testWidgets(
@@ -248,17 +260,19 @@ void main() {
       );
 
       final selector = find.byKey(const Key('billing-plan-selector'));
-      expect(selector, findsOneWidget);
       await tester.scrollUntilVisible(
         selector,
         280,
         scrollable: find.byType(Scrollable).first,
       );
+      expect(selector, findsOneWidget);
       final baseOption = find.byKey(const Key('billing-plan-option-base'));
       expect(baseOption, findsOneWidget);
       expect(find.byKey(const Key('billing-plan-option-plus')), findsOneWidget);
       expect(find.byKey(const Key('billing-plan-option-pro')), findsOneWidget);
 
+      await tester.ensureVisible(baseOption);
+      await tester.pumpAndSettle();
       await tester.tap(baseOption);
       await tester.pumpAndSettle();
 

@@ -6,6 +6,7 @@ import '../../../core/services/firebase_services.dart';
 import '../../auth/models/auth_session.dart';
 import '../../events/models/event_draft.dart';
 import '../../profile/models/profile_draft.dart';
+import 'app_assistant_context_service.dart';
 
 abstract interface class AiAssistService {
   Future<AppAssistantReply> askAppAssistant({
@@ -15,6 +16,7 @@ abstract interface class AiAssistService {
     required String currentScreenTitle,
     required String question,
     required List<AppAssistantConversationMessage> history,
+    required AppAssistantSearchContext searchContext,
     String? activeClanName,
   });
 
@@ -61,6 +63,7 @@ class FirebaseAiAssistService implements AiAssistService {
     required String currentScreenTitle,
     required String question,
     required List<AppAssistantConversationMessage> history,
+    required AppAssistantSearchContext searchContext,
     String? activeClanName,
   }) async {
     final callable = _callable('chatWithAppAssistantAi');
@@ -75,6 +78,7 @@ class FirebaseAiAssistService implements AiAssistService {
         'history': history
             .map((entry) => entry.toMap())
             .toList(growable: false),
+        'searchContext': searchContext.toMap(),
       });
       return AppAssistantReply.fromMap(_asMap(response.data));
     } on FirebaseFunctionsException catch (error) {
@@ -430,20 +434,16 @@ AiAssistServiceException _exceptionForFunctionsError(
   if (message.isNotEmpty) {
     return AiAssistServiceException(message, code: error.code);
   }
-  return AiAssistServiceException(
-    switch (error.code) {
-      'permission-denied' =>
-        'You do not have permission to use this AI feature.',
-      'failed-precondition' =>
-        'This AI feature is not available in the current session.',
-      'resource-exhausted' =>
-        'This AI feature is cooling down. Please wait a few seconds and try again.',
-      'deadline-exceeded' =>
-        'AI assistance took too long. Please try again in a moment.',
-      _ => 'AI assistance is temporarily unavailable.',
-    },
-    code: error.code,
-  );
+  return AiAssistServiceException(switch (error.code) {
+    'permission-denied' => 'You do not have permission to use this AI feature.',
+    'failed-precondition' =>
+      'This AI feature is not available in the current session.',
+    'resource-exhausted' =>
+      'This AI feature is cooling down. Please wait a few seconds and try again.',
+    'deadline-exceeded' =>
+      'AI assistance took too long. Please try again in a moment.',
+    _ => 'AI assistance is temporarily unavailable.',
+  }, code: error.code);
 }
 
 int _wordCount(String value) {

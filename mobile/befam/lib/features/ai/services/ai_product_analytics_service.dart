@@ -5,6 +5,36 @@ import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 
 abstract interface class AiProductAnalyticsService {
+  Future<void> trackAssistantOpened({
+    required String screenId,
+    required int availableClanCount,
+  });
+
+  Future<void> trackAssistantQuerySubmitted({
+    required String screenId,
+    required bool hasSearchHint,
+    required int memberMatchCount,
+  });
+
+  Future<void> trackAssistantQueryCompleted({
+    required String screenId,
+    required bool usedFallback,
+    required bool hasSearchHint,
+    required int memberMatchCount,
+    required int elapsedMs,
+  });
+
+  Future<void> trackAssistantQueryFailed({
+    required String screenId,
+    required String reason,
+    required int elapsedMs,
+  });
+
+  Future<void> trackAssistantDestinationOpened({
+    required String screenId,
+    required String destinationId,
+  });
+
   Future<void> trackProfileCheckRequested({
     required bool hasPhone,
     required bool hasEmail,
@@ -70,6 +100,41 @@ abstract interface class AiProductAnalyticsService {
 
 class NoopAiProductAnalyticsService implements AiProductAnalyticsService {
   const NoopAiProductAnalyticsService();
+
+  @override
+  Future<void> trackAssistantDestinationOpened({
+    required String screenId,
+    required String destinationId,
+  }) async {}
+
+  @override
+  Future<void> trackAssistantOpened({
+    required String screenId,
+    required int availableClanCount,
+  }) async {}
+
+  @override
+  Future<void> trackAssistantQueryCompleted({
+    required String screenId,
+    required bool usedFallback,
+    required bool hasSearchHint,
+    required int memberMatchCount,
+    required int elapsedMs,
+  }) async {}
+
+  @override
+  Future<void> trackAssistantQueryFailed({
+    required String screenId,
+    required String reason,
+    required int elapsedMs,
+  }) async {}
+
+  @override
+  Future<void> trackAssistantQuerySubmitted({
+    required String screenId,
+    required bool hasSearchHint,
+    required int memberMatchCount,
+  }) async {}
 
   @override
   Future<void> trackDuplicateReviewDecision({
@@ -146,6 +211,80 @@ class NoopAiProductAnalyticsService implements AiProductAnalyticsService {
 
 class FirebaseAiProductAnalyticsService implements AiProductAnalyticsService {
   const FirebaseAiProductAnalyticsService();
+
+  @override
+  Future<void> trackAssistantDestinationOpened({
+    required String screenId,
+    required String destinationId,
+  }) {
+    return _logEvent(
+      AnalyticsEventNames.aiAssistantDestinationOpened,
+      <String, Object>{'screen_id': screenId, 'destination_id': destinationId},
+    );
+  }
+
+  @override
+  Future<void> trackAssistantOpened({
+    required String screenId,
+    required int availableClanCount,
+  }) {
+    return _logEvent(AnalyticsEventNames.aiAssistantOpened, <String, Object>{
+      'screen_id': screenId,
+      'available_clan_count': availableClanCount,
+    });
+  }
+
+  @override
+  Future<void> trackAssistantQueryCompleted({
+    required String screenId,
+    required bool usedFallback,
+    required bool hasSearchHint,
+    required int memberMatchCount,
+    required int elapsedMs,
+  }) {
+    return _logEvent(
+      AnalyticsEventNames.aiAssistantQueryCompleted,
+      <String, Object>{
+        'screen_id': screenId,
+        'used_fallback': usedFallback ? 1 : 0,
+        'has_search_hint': hasSearchHint ? 1 : 0,
+        'member_match_count': memberMatchCount,
+        'elapsed_ms': elapsedMs,
+      },
+    );
+  }
+
+  @override
+  Future<void> trackAssistantQueryFailed({
+    required String screenId,
+    required String reason,
+    required int elapsedMs,
+  }) {
+    return _logEvent(
+      AnalyticsEventNames.aiAssistantQueryFailed,
+      <String, Object>{
+        'screen_id': screenId,
+        'reason': reason,
+        'elapsed_ms': elapsedMs,
+      },
+    );
+  }
+
+  @override
+  Future<void> trackAssistantQuerySubmitted({
+    required String screenId,
+    required bool hasSearchHint,
+    required int memberMatchCount,
+  }) {
+    return _logEvent(
+      AnalyticsEventNames.aiAssistantQuerySubmitted,
+      <String, Object>{
+        'screen_id': screenId,
+        'has_search_hint': hasSearchHint ? 1 : 0,
+        'member_match_count': memberMatchCount,
+      },
+    );
+  }
 
   @override
   Future<void> trackDuplicateReviewDecision({
@@ -273,10 +412,10 @@ class FirebaseAiProductAnalyticsService implements AiProductAnalyticsService {
     required String reason,
     required int elapsedMs,
   }) {
-    return _logEvent(
-      AnalyticsEventNames.aiProfileCheckFailed,
-      <String, Object>{'reason': reason, 'elapsed_ms': elapsedMs},
-    );
+    return _logEvent(AnalyticsEventNames.aiProfileCheckFailed, <String, Object>{
+      'reason': reason,
+      'elapsed_ms': elapsedMs,
+    });
   }
 
   @override

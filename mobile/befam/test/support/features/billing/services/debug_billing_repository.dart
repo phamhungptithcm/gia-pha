@@ -711,6 +711,7 @@ class _DebugBillingState {
       _catalogTierForPlanCode('PLUS'),
       _catalogTierForPlanCode('PRO'),
     ].map((tier) => tier.toPricing()).toList(growable: false);
+    final aiUsageSummary = _buildAiUsageSummary(subscription.planCode);
 
     return BillingWorkspaceSnapshot(
       clanId: clanId,
@@ -723,6 +724,7 @@ class _DebugBillingState {
       ),
       subscription: subscription,
       entitlement: entitlement,
+      aiUsageSummary: aiUsageSummary,
       settings: settings,
       checkoutFlow: const BillingCheckoutFlowConfig(
         storeProductIdsByPlan: <String, String>{
@@ -760,9 +762,57 @@ class _DebugBillingState {
       scope: snapshot.scope,
       subscription: snapshot.subscription,
       entitlement: snapshot.entitlement,
+      aiUsageSummary: snapshot.aiUsageSummary,
       pricingTiers: snapshot.pricingTiers,
       memberCount: snapshot.memberCount,
     );
+  }
+
+  BillingAiUsageSummary _buildAiUsageSummary(String planCode) {
+    final normalizedPlanCode = planCode.trim().toUpperCase();
+    final quotaCredits = _aiQuotaForPlan(normalizedPlanCode);
+    final usedCredits = switch (normalizedPlanCode) {
+      'PRO' => 184,
+      'PLUS' => 72,
+      'BASE' => 18,
+      _ => 6,
+    };
+    return BillingAiUsageSummary(
+      windowKey: '2026-04',
+      planCode: normalizedPlanCode.isEmpty ? 'FREE' : normalizedPlanCode,
+      quotaCredits: quotaCredits,
+      usedCredits: usedCredits,
+      remainingCredits: (quotaCredits - usedCredits).clamp(0, quotaCredits),
+      totalRequests: switch (normalizedPlanCode) {
+        'PRO' => 129,
+        'PLUS' => 48,
+        'BASE' => 12,
+        _ => 4,
+      },
+      featureCounts: const <String, int>{
+        'app_assistant_chat': 8,
+        'event_copy': 3,
+        'profile_review': 2,
+      },
+      featureCredits: const <String, int>{
+        'app_assistant_chat': 16,
+        'event_copy': 3,
+        'profile_review': 2,
+      },
+    );
+  }
+}
+
+int _aiQuotaForPlan(String planCode) {
+  switch (planCode.trim().toUpperCase()) {
+    case 'BASE':
+      return 80;
+    case 'PLUS':
+      return 240;
+    case 'PRO':
+      return 800;
+    default:
+      return 20;
   }
 }
 

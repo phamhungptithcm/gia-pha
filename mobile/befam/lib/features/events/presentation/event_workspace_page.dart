@@ -11,10 +11,12 @@ import '../../../core/widgets/app_feedback_states.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
+import '../../ai/presentation/ai_usage_quota_notice.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/models/clan_context_option.dart';
 import '../../ai/services/ai_assist_service.dart';
 import '../../ai/services/ai_product_analytics_service.dart';
+import '../../billing/services/billing_repository.dart';
 import '../../calendar/services/lunar_conversion_engine.dart';
 import '../../calendar/presentation/dual_calendar_workspace_page.dart';
 import '../../clan/models/branch_profile.dart';
@@ -41,6 +43,7 @@ class EventWorkspacePage extends StatefulWidget {
     this.nowProvider,
     this.lunarConversionEngine,
     this.aiAssistService,
+    this.billingRepository,
   });
 
   final AuthSession session;
@@ -51,6 +54,7 @@ class EventWorkspacePage extends StatefulWidget {
   final DateTime Function()? nowProvider;
   final LunarConversionEngine? lunarConversionEngine;
   final AiAssistService? aiAssistService;
+  final BillingRepository? billingRepository;
 
   @override
   State<EventWorkspacePage> createState() => _EventWorkspacePageState();
@@ -63,6 +67,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
   late EventController _controller;
   late AuthSession _activeSession;
   late final AiAssistService _aiAssistService;
+  BillingRepository? _billingRepository;
   late final TextEditingController _searchController;
   late final ScrollController _workspaceScrollController;
   int _visibleEventCount = _eventBatchSize;
@@ -78,6 +83,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     super.initState();
     _activeSession = widget.session;
     _aiAssistService = widget.aiAssistService ?? createDefaultAiAssistService();
+    _billingRepository = widget.billingRepository;
     _controller = _buildController(_session);
     _searchController = TextEditingController();
     _workspaceScrollController = ScrollController()
@@ -94,13 +100,17 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     final nowProviderChanged = oldWidget.nowProvider != widget.nowProvider;
     final lunarEngineChanged =
         oldWidget.lunarConversionEngine != widget.lunarConversionEngine;
+    final billingRepositoryChanged =
+        oldWidget.billingRepository != widget.billingRepository;
     if (!sessionChanged &&
         !repositoryChanged &&
         !nowProviderChanged &&
-        !lunarEngineChanged) {
+        !lunarEngineChanged &&
+        !billingRepositoryChanged) {
       return;
     }
     _activeSession = widget.session;
+    _billingRepository = widget.billingRepository;
     _controller.dispose();
     _controller = _buildController(_session);
     final incomingInitialEventId = _normalizeInitialEventId(
@@ -230,6 +240,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
           branches: _controller.branches,
           members: _controller.members,
           aiAssistService: _aiAssistService,
+          billingRepository: _billingRepository,
           isSaving: _controller.isSaving,
           onSubmit: (draft) {
             return _controller.saveEvent(eventId: event.id, draft: draft);
@@ -253,6 +264,7 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
             session: _session,
             availableClanContexts: widget.availableClanContexts,
             onSwitchClanContext: widget.onSwitchClanContext,
+            billingRepository: _billingRepository,
             memberRepository: _EventWorkspaceMemberRepositoryAdapter(
               members: _controller.members,
               branches: _controller.branches,
@@ -1395,6 +1407,7 @@ class _EventEditorSheet extends StatefulWidget {
     required this.aiAssistService,
     required this.onSubmit,
     required this.isSaving,
+    this.billingRepository,
   });
 
   final AuthSession session;
@@ -1404,6 +1417,7 @@ class _EventEditorSheet extends StatefulWidget {
   final List<MemberProfile> members;
   final AiAssistService aiAssistService;
   final bool isSaving;
+  final BillingRepository? billingRepository;
   final Future<EventRepositoryErrorCode?> Function(EventDraft draft) onSubmit;
 
   @override
@@ -2322,6 +2336,17 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                 ),
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              AiUsageQuotaNotice(
+                                session: widget.session,
+                                billingRepository: widget.billingRepository,
+                                requestCost: 1,
+                                compact: true,
+                                usageHint: l10n.pick(
+                                  vi: 'Lượt gợi ý này dùng 1 credit AI.',
+                                  en: 'This suggestion uses 1 AI credit.',
                                 ),
                               ),
                               const SizedBox(height: 10),

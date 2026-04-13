@@ -10,6 +10,7 @@ import '../../../core/widgets/app_feedback_states.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
+import '../../billing/services/billing_repository.dart';
 import '../../events/presentation/event_workspace_page.dart';
 import '../../events/services/event_repository.dart';
 import '../../auth/models/auth_member_access_mode.dart';
@@ -49,6 +50,7 @@ class DualCalendarWorkspacePage extends StatefulWidget {
     this.holidayRepository,
     this.settingsStore,
     this.memberRepository,
+    this.billingRepository,
   });
 
   final AuthSession? session;
@@ -61,6 +63,7 @@ class DualCalendarWorkspacePage extends StatefulWidget {
   final LunarHolidayRepository? holidayRepository;
   final CalendarSettingsStore? settingsStore;
   final MemberRepository? memberRepository;
+  final BillingRepository? billingRepository;
 
   @override
   State<DualCalendarWorkspacePage> createState() =>
@@ -440,6 +443,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
           return EventWorkspacePage(
             session: session,
             repository: createDefaultEventRepository(session: session),
+            billingRepository: widget.billingRepository,
             availableClanContexts: widget.availableClanContexts,
             onSwitchClanContext: widget.onSwitchClanContext,
           );

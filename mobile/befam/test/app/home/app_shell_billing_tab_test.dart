@@ -115,6 +115,10 @@ void main() {
       expect(destinations.length, 5);
       expect(destinations[3].label, 'Billing');
       expect(destinations[4].label, 'Profile');
+      expect(
+        find.byKey(const Key('shell-ai-assistant-button')),
+        findsOneWidget,
+      );
     },
   );
 
@@ -173,6 +177,7 @@ void main() {
       expect(destinations.length, 5);
       expect(destinations[3].label, 'Billing');
       expect(destinations[4].label, 'Profile');
+      expect(find.byKey(const Key('shell-ai-assistant-button')), findsNothing);
 
       await tester.tap(find.text('Billing'));
       await pumpUi(tester, frames: 96);

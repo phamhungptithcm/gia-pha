@@ -57,6 +57,7 @@ class FirebaseBillingRepository implements BillingRepository {
       ),
       subscription: _parseSubscription(_asMap(map['subscription'])),
       entitlement: _parseEntitlement(_asMap(map['entitlement'])),
+      aiUsageSummary: _parseAiUsageSummary(_asMap(map['aiUsageSummary'])),
       pricingTiers: pricing,
       memberCount: _readInt(map, 'memberCount'),
     );
@@ -165,6 +166,7 @@ class FirebaseBillingRepository implements BillingRepository {
       ),
       subscription: _parseSubscription(_asMap(map['subscription'])),
       entitlement: _parseEntitlement(_asMap(map['entitlement'])),
+      aiUsageSummary: _parseAiUsageSummary(_asMap(map['aiUsageSummary'])),
       settings: _parseSettings(_asMap(map['settings'])),
       checkoutFlow: _parseCheckoutFlow(_asMap(map['checkoutFlow'])),
       pricingTiers: pricing,
@@ -219,6 +221,19 @@ class FirebaseBillingRepository implements BillingRepository {
       hasPremiumAccess: _readBool(map, 'hasPremiumAccess', fallback: false),
       expiresAtIso: _readIso(map, 'expiresAtIso'),
       nextPaymentDueAtIso: _readIso(map, 'nextPaymentDueAtIso'),
+    );
+  }
+
+  BillingAiUsageSummary _parseAiUsageSummary(Map<String, dynamic> map) {
+    return BillingAiUsageSummary(
+      windowKey: _readString(map, 'windowKey'),
+      planCode: _readString(map, 'planCode', fallback: 'FREE'),
+      quotaCredits: _readInt(map, 'quotaCredits'),
+      usedCredits: _readInt(map, 'usedCredits'),
+      remainingCredits: _readInt(map, 'remainingCredits'),
+      totalRequests: _readInt(map, 'totalRequests'),
+      featureCounts: _readIntMap(map['featureCounts']),
+      featureCredits: _readIntMap(map['featureCredits']),
     );
   }
 
@@ -325,6 +340,28 @@ class FirebaseBillingRepository implements BillingRepository {
     return output;
   }
 
+  Map<String, int> _readIntMap(Object? raw) {
+    if (raw is! Map) {
+      return const <String, int>{};
+    }
+    final output = <String, int>{};
+    for (final entry in raw.entries) {
+      if (entry.key is! String) {
+        continue;
+      }
+      final key = (entry.key as String).trim();
+      if (key.isEmpty) {
+        continue;
+      }
+      final value = _coerceInt(entry.value);
+      if (value <= 0) {
+        continue;
+      }
+      output[key] = value;
+    }
+    return output;
+  }
+
   BillingPaymentTransaction _parseTransaction(Map<String, dynamic> map) {
     return BillingPaymentTransaction(
       id: _readString(map, 'id'),
@@ -424,20 +461,7 @@ class FirebaseBillingRepository implements BillingRepository {
   }
 
   int _readInt(Map<String, dynamic> map, String key, {int fallback = 0}) {
-    final value = map[key];
-    if (value is int) {
-      return value;
-    }
-    if (value is num) {
-      return value.toInt();
-    }
-    if (value is String) {
-      final parsed = int.tryParse(value);
-      if (parsed != null) {
-        return parsed;
-      }
-    }
-    return fallback;
+    return _coerceInt(map[key], fallback: fallback);
   }
 
   int? _readNullableInt(Map<String, dynamic> map, String key) {
@@ -445,6 +469,15 @@ class FirebaseBillingRepository implements BillingRepository {
     if (value == null) {
       return null;
     }
+    return _coerceNullableInt(value);
+  }
+
+  int _coerceInt(Object? value, {int fallback = 0}) {
+    final parsed = _coerceNullableInt(value);
+    return parsed ?? fallback;
+  }
+
+  int? _coerceNullableInt(Object? value) {
     if (value is int) {
       return value;
     }
