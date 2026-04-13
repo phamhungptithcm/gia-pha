@@ -56,6 +56,14 @@ class AdService {
         );
         return;
       }
+      if (!_hasSdkConfigurationForCurrentBuild()) {
+        _canRequestAds = false;
+        _sdkInitialized = false;
+        AppLogger.info(
+          'Google Mobile Ads SDK initialization skipped because this build has no eligible AdMob configuration.',
+        );
+        return;
+      }
       await MobileAds.instance.initialize();
       _sdkInitialized = true;
       AppLogger.info('Google Mobile Ads SDK initialized.');
@@ -488,6 +496,40 @@ class AdService {
       return test;
     }
     return null;
+  }
+
+  static bool _hasSdkConfigurationForCurrentBuild() {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return _hasConfiguredAdUnitIds(
+              AppEnvironment.adMobAndroidBannerUnitId,
+              AppEnvironment.adMobAndroidInterstitialUnitId,
+              AppEnvironment.adMobAndroidRewardedUnitId,
+            ) ||
+            !kReleaseMode;
+      case TargetPlatform.iOS:
+        return _hasConfiguredAdUnitIds(
+              AppEnvironment.adMobIosBannerUnitId,
+              AppEnvironment.adMobIosInterstitialUnitId,
+              AppEnvironment.adMobIosRewardedUnitId,
+            ) ||
+            !kReleaseMode;
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+      case TargetPlatform.fuchsia:
+        return false;
+    }
+  }
+
+  static bool _hasConfiguredAdUnitIds(
+    String bannerUnitId,
+    String interstitialUnitId,
+    String rewardedUnitId,
+  ) {
+    return bannerUnitId.trim().isNotEmpty ||
+        interstitialUnitId.trim().isNotEmpty ||
+        rewardedUnitId.trim().isNotEmpty;
   }
 
   int? _currentBannerWidthDp() {

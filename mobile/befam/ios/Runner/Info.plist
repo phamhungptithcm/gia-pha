@@ -37,6 +37,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GADApplicationIdentifier</key>
+	<string>$(IOS_ADMOB_APPLICATION_ID)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
