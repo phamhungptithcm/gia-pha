@@ -33,8 +33,6 @@ class FakeAiAssistService implements AiAssistService {
     required AuthSession session,
     required String locale,
     required EventDraft draft,
-    String? branchName,
-    String? targetMemberName,
   })?
   onDraftEventCopy;
 
@@ -79,20 +77,12 @@ class FakeAiAssistService implements AiAssistService {
     required AuthSession session,
     required String locale,
     required EventDraft draft,
-    String? branchName,
-    String? targetMemberName,
   }) {
     final handler = onDraftEventCopy;
     if (handler == null) {
       throw UnimplementedError('draftEventCopy was not stubbed');
     }
-    return handler(
-      session: session,
-      locale: locale,
-      draft: draft,
-      branchName: branchName,
-      targetMemberName: targetMemberName,
-    );
+    return handler(session: session, locale: locale, draft: draft);
   }
 
   @override

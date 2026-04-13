@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../../core/services/firebase_services.dart';
@@ -26,8 +28,6 @@ abstract interface class AiAssistService {
     required AuthSession session,
     required String locale,
     required EventDraft draft,
-    String? branchName,
-    String? targetMemberName,
   });
 
   Future<DuplicateGenealogyExplanation> explainDuplicateGenealogy({
@@ -42,10 +42,16 @@ abstract interface class AiAssistService {
 }
 
 class FirebaseAiAssistService implements AiAssistService {
-  FirebaseAiAssistService({FirebaseFunctions? functions})
-    : _functions = functions ?? FirebaseServices.functions;
+  FirebaseAiAssistService({
+    FirebaseFunctions? functions,
+    Duration callableTimeout = _defaultCallableTimeout,
+  }) : _functions = functions ?? FirebaseServices.functions,
+       _callableTimeout = callableTimeout;
 
   final FirebaseFunctions _functions;
+  final Duration _callableTimeout;
+
+  static const Duration _defaultCallableTimeout = Duration(milliseconds: 6500);
 
   @override
   Future<AppAssistantReply> askAppAssistant({
@@ -57,7 +63,7 @@ class FirebaseAiAssistService implements AiAssistService {
     required List<AppAssistantConversationMessage> history,
     String? activeClanName,
   }) async {
-    final callable = _functions.httpsCallable('chatWithAppAssistantAi');
+    final callable = _callable('chatWithAppAssistantAi');
     try {
       final response = await callable.call(<String, dynamic>{
         'clanId': _requireClanId(session),
@@ -72,7 +78,12 @@ class FirebaseAiAssistService implements AiAssistService {
       });
       return AppAssistantReply.fromMap(_asMap(response.data));
     } on FirebaseFunctionsException catch (error) {
-      throw AiAssistServiceException(_messageForFunctionsError(error));
+      throw _exceptionForFunctionsError(error);
+    } on TimeoutException {
+      throw const AiAssistServiceException(
+        'AI assistance took too long. Please try again in a moment.',
+        code: 'deadline-exceeded',
+      );
     }
   }
 
@@ -82,25 +93,33 @@ class FirebaseAiAssistService implements AiAssistService {
     required String locale,
     required ProfileDraft draft,
   }) async {
-    final callable = _functions.httpsCallable('reviewProfileDraftAi');
+    final callable = _callable('reviewProfileDraftAi');
+    final socialLinkCount = [
+      draft.facebook,
+      draft.zalo,
+      draft.linkedin,
+    ].where((value) => value.trim().isNotEmpty).length;
     try {
       final response = await callable.call(<String, dynamic>{
         'clanId': _requireClanId(session),
         'locale': locale,
         'fullName': draft.fullName,
         'nickName': draft.nickName,
-        'phoneInput': draft.phoneInput,
-        'email': draft.email,
-        'addressText': draft.addressText,
         'jobTitle': draft.jobTitle,
-        'bio': draft.bio,
-        'facebook': draft.facebook,
-        'zalo': draft.zalo,
-        'linkedin': draft.linkedin,
+        'hasPhone': draft.phoneInput.trim().isNotEmpty,
+        'hasEmail': draft.email.trim().isNotEmpty,
+        'hasAddress': draft.addressText.trim().isNotEmpty,
+        'bioWordCount': _wordCount(draft.bio),
+        'socialLinkCount': socialLinkCount,
       });
       return ProfileAiReview.fromMap(_asMap(response.data));
     } on FirebaseFunctionsException catch (error) {
-      throw AiAssistServiceException(_messageForFunctionsError(error));
+      throw _exceptionForFunctionsError(error);
+    } on TimeoutException {
+      throw const AiAssistServiceException(
+        'The profile check took too long. Please try again in a moment.',
+        code: 'deadline-exceeded',
+      );
     }
   }
 
@@ -109,28 +128,29 @@ class FirebaseAiAssistService implements AiAssistService {
     required AuthSession session,
     required String locale,
     required EventDraft draft,
-    String? branchName,
-    String? targetMemberName,
   }) async {
-    final callable = _functions.httpsCallable('draftEventCopyAi');
+    final callable = _callable('draftEventCopyAi');
     try {
       final response = await callable.call(<String, dynamic>{
         'clanId': _requireClanId(session),
         'locale': locale,
         'eventType': draft.eventType.wireName,
-        'branchName': branchName ?? '',
-        'targetMemberName': targetMemberName ?? '',
         'title': draft.title,
         'description': draft.description,
         'locationName': draft.locationName,
-        'locationAddress': draft.locationAddress,
+        'hasLocationAddress': draft.locationAddress.trim().isNotEmpty,
         'startsAtIso': draft.startsAt.toUtc().toIso8601String(),
         'timezone': draft.timezone,
         'isRecurring': draft.isRecurring,
       });
       return EventAiSuggestion.fromMap(_asMap(response.data));
     } on FirebaseFunctionsException catch (error) {
-      throw AiAssistServiceException(_messageForFunctionsError(error));
+      throw _exceptionForFunctionsError(error);
+    } on TimeoutException {
+      throw const AiAssistServiceException(
+        'Event suggestions took too long. Please try again in a moment.',
+        code: 'deadline-exceeded',
+      );
     }
   }
 
@@ -144,7 +164,7 @@ class FirebaseAiAssistService implements AiAssistService {
     required String description,
     required List<Map<String, dynamic>> candidates,
   }) async {
-    final callable = _functions.httpsCallable('explainDuplicateGenealogyAi');
+    final callable = _callable('explainDuplicateGenealogyAi');
     try {
       final response = await callable.call(<String, dynamic>{
         'clanId': _requireClanId(session),
@@ -157,8 +177,20 @@ class FirebaseAiAssistService implements AiAssistService {
       });
       return DuplicateGenealogyExplanation.fromMap(_asMap(response.data));
     } on FirebaseFunctionsException catch (error) {
-      throw AiAssistServiceException(_messageForFunctionsError(error));
+      throw _exceptionForFunctionsError(error);
+    } on TimeoutException {
+      throw const AiAssistServiceException(
+        'Duplicate review assistance took too long. Please try again shortly.',
+        code: 'deadline-exceeded',
+      );
     }
+  }
+
+  HttpsCallable _callable(String name) {
+    return _functions.httpsCallable(
+      name,
+      options: HttpsCallableOptions(timeout: _callableTimeout),
+    );
   }
 
   String _requireClanId(AuthSession session) {
@@ -177,9 +209,10 @@ AiAssistService createDefaultAiAssistService() {
 }
 
 class AiAssistServiceException implements Exception {
-  const AiAssistServiceException(this.message);
+  const AiAssistServiceException(this.message, {this.code});
 
   final String message;
+  final String? code;
 
   @override
   String toString() => message;
@@ -390,15 +423,33 @@ List<int> _asIntList(dynamic value) {
       .toList(growable: false);
 }
 
-String _messageForFunctionsError(FirebaseFunctionsException error) {
+AiAssistServiceException _exceptionForFunctionsError(
+  FirebaseFunctionsException error,
+) {
   final message = error.message?.trim() ?? '';
   if (message.isNotEmpty) {
-    return message;
+    return AiAssistServiceException(message, code: error.code);
   }
-  return switch (error.code) {
-    'permission-denied' => 'You do not have permission to use this AI feature.',
-    'failed-precondition' =>
-      'This AI feature is not available in the current session.',
-    _ => 'AI assistance is temporarily unavailable.',
-  };
+  return AiAssistServiceException(
+    switch (error.code) {
+      'permission-denied' =>
+        'You do not have permission to use this AI feature.',
+      'failed-precondition' =>
+        'This AI feature is not available in the current session.',
+      'resource-exhausted' =>
+        'This AI feature is cooling down. Please wait a few seconds and try again.',
+      'deadline-exceeded' =>
+        'AI assistance took too long. Please try again in a moment.',
+      _ => 'AI assistance is temporarily unavailable.',
+    },
+    code: error.code,
+  );
+}
+
+int _wordCount(String value) {
+  return value
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((token) => token.isNotEmpty)
+      .length;
 }

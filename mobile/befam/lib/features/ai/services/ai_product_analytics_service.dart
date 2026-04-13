@@ -17,6 +17,12 @@ abstract interface class AiProductAnalyticsService {
     required int missingCount,
     required int riskCount,
     required int nextActionCount,
+    required int elapsedMs,
+  });
+
+  Future<void> trackProfileCheckFailed({
+    required String reason,
+    required int elapsedMs,
   });
 
   Future<void> trackProfileQuickFixSelected({required String target});
@@ -36,6 +42,13 @@ abstract interface class AiProductAnalyticsService {
     required bool hasTitleSuggestion,
     required bool hasDescriptionSuggestion,
     required int reminderSuggestionCount,
+    required int elapsedMs,
+  });
+
+  Future<void> trackEventSuggestionFailed({
+    required String eventType,
+    required String reason,
+    required int elapsedMs,
   });
 
   Future<void> trackEventSuggestionApplied({
@@ -84,6 +97,14 @@ class NoopAiProductAnalyticsService implements AiProductAnalyticsService {
     required bool hasTitleSuggestion,
     required bool hasDescriptionSuggestion,
     required int reminderSuggestionCount,
+    required int elapsedMs,
+  }) async {}
+
+  @override
+  Future<void> trackEventSuggestionFailed({
+    required String eventType,
+    required String reason,
+    required int elapsedMs,
   }) async {}
 
   @override
@@ -102,6 +123,13 @@ class NoopAiProductAnalyticsService implements AiProductAnalyticsService {
     required int missingCount,
     required int riskCount,
     required int nextActionCount,
+    required int elapsedMs,
+  }) async {}
+
+  @override
+  Future<void> trackProfileCheckFailed({
+    required String reason,
+    required int elapsedMs,
   }) async {}
 
   @override
@@ -167,6 +195,7 @@ class FirebaseAiProductAnalyticsService implements AiProductAnalyticsService {
     required bool hasTitleSuggestion,
     required bool hasDescriptionSuggestion,
     required int reminderSuggestionCount,
+    required int elapsedMs,
   }) {
     return _logEvent(
       AnalyticsEventNames.aiEventSuggestionCompleted,
@@ -176,6 +205,23 @@ class FirebaseAiProductAnalyticsService implements AiProductAnalyticsService {
         'has_title_suggestion': hasTitleSuggestion ? 1 : 0,
         'has_description_suggestion': hasDescriptionSuggestion ? 1 : 0,
         'reminder_suggestion_count': reminderSuggestionCount,
+        'elapsed_ms': elapsedMs,
+      },
+    );
+  }
+
+  @override
+  Future<void> trackEventSuggestionFailed({
+    required String eventType,
+    required String reason,
+    required int elapsedMs,
+  }) {
+    return _logEvent(
+      AnalyticsEventNames.aiEventSuggestionFailed,
+      <String, Object>{
+        'event_type': eventType,
+        'reason': reason,
+        'elapsed_ms': elapsedMs,
       },
     );
   }
@@ -208,6 +254,7 @@ class FirebaseAiProductAnalyticsService implements AiProductAnalyticsService {
     required int missingCount,
     required int riskCount,
     required int nextActionCount,
+    required int elapsedMs,
   }) {
     return _logEvent(
       AnalyticsEventNames.aiProfileCheckCompleted,
@@ -216,7 +263,19 @@ class FirebaseAiProductAnalyticsService implements AiProductAnalyticsService {
         'missing_count': missingCount,
         'risk_count': riskCount,
         'next_action_count': nextActionCount,
+        'elapsed_ms': elapsedMs,
       },
+    );
+  }
+
+  @override
+  Future<void> trackProfileCheckFailed({
+    required String reason,
+    required int elapsedMs,
+  }) {
+    return _logEvent(
+      AnalyticsEventNames.aiProfileCheckFailed,
+      <String, Object>{'reason': reason, 'elapsed_ms': elapsedMs},
     );
   }
 

@@ -64,9 +64,11 @@ abstract final class AnalyticsEventNames {
       'genealogy_discovery_reward_unlocked';
   static const aiProfileCheckRequested = 'ai_profile_check_requested';
   static const aiProfileCheckCompleted = 'ai_profile_check_completed';
+  static const aiProfileCheckFailed = 'ai_profile_check_failed';
   static const aiProfileQuickFixSelected = 'ai_profile_quick_fix_selected';
   static const aiEventSuggestionRequested = 'ai_event_suggestion_requested';
   static const aiEventSuggestionCompleted = 'ai_event_suggestion_completed';
+  static const aiEventSuggestionFailed = 'ai_event_suggestion_failed';
   static const aiEventSuggestionApplied = 'ai_event_suggestion_applied';
   static const aiDuplicateReviewOpened = 'ai_duplicate_review_opened';
   static const aiDuplicateReviewDecision = 'ai_duplicate_review_decision';
@@ -120,9 +122,11 @@ abstract final class AnalyticsEventNames {
     genealogyDiscoveryRewardUnlocked,
     aiProfileCheckRequested,
     aiProfileCheckCompleted,
+    aiProfileCheckFailed,
     aiProfileQuickFixSelected,
     aiEventSuggestionRequested,
     aiEventSuggestionCompleted,
+    aiEventSuggestionFailed,
     aiEventSuggestionApplied,
     aiDuplicateReviewOpened,
     aiDuplicateReviewDecision,

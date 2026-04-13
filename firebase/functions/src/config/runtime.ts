@@ -290,6 +290,16 @@ export const AI_ASSIST_MODEL = readEnvString(
   'AI_ASSIST_MODEL',
   'gemini-2.5-flash-lite',
 );
+export const AI_ASSIST_TIMEOUT_MS = readEnvInt(
+  'AI_ASSIST_TIMEOUT_MS',
+  4500,
+  { min: 500, max: 30000 },
+);
+export const AI_FEATURE_COOLDOWN_MS = readEnvInt(
+  'AI_FEATURE_COOLDOWN_MS',
+  10000,
+  { min: 1000, max: 300000 },
+);
 
 export function getAiApiKey(): string {
   return readEnvString('GOOGLE_GENAI_API_KEY');

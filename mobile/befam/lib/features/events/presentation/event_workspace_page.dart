@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/address_autocomplete_field.dart';
@@ -1576,14 +1575,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         widget.initialDraft.startsAt;
     final endInput = _endsAtController.text.trim();
     final endsAt = endInput.isEmpty ? null : _parseDateTimeInput(endInput);
-    final targetMember = widget.members.where((member) {
-      return member.id == _selectedTargetMemberId;
-    }).firstOrNull;
-    final branchName = widget.branches
-        .where((branch) => branch.id == _selectedBranchId)
-        .map((branch) => branch.name)
-        .firstOrNull;
     final draft = _buildDraft(startsAt: startsAt, endsAt: endsAt);
+    final aiStopwatch = Stopwatch()..start();
     unawaited(
       _aiAnalyticsService.trackEventSuggestionRequested(
         eventType: draft.eventType.wireName,
@@ -1606,9 +1599,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         session: widget.session,
         locale: locale,
         draft: draft,
-        branchName: branchName,
-        targetMemberName: targetMember?.fullName,
       );
+      aiStopwatch.stop();
       if (!mounted) {
         return;
       }
@@ -1620,6 +1612,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
           hasDescriptionSuggestion: suggestion.description.trim().isNotEmpty,
           reminderSuggestionCount:
               suggestion.recommendedReminderOffsetsMinutes.length,
+          elapsedMs: aiStopwatch.elapsedMilliseconds,
         ),
       );
       setState(() {
@@ -1636,9 +1629,17 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         ),
       );
     } on AiAssistServiceException catch (error) {
+      aiStopwatch.stop();
       if (!mounted) {
         return;
       }
+      unawaited(
+        _aiAnalyticsService.trackEventSuggestionFailed(
+          eventType: draft.eventType.wireName,
+          reason: error.code ?? 'unknown',
+          elapsedMs: aiStopwatch.elapsedMilliseconds,
+        ),
+      );
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
@@ -2313,6 +2314,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                 ),
                                 style: theme.textTheme.bodySmall,
                               ),
+                              const SizedBox(height: 6),
+                              Text(
+                                l10n.pick(
+                                  vi: 'AI chỉ dùng dữ liệu sự kiện hiện tại để tạo gợi ý. Bạn vẫn cần xem lại trước khi áp dụng.',
+                                  en: 'AI only uses the current event details to draft suggestions. Review each suggestion before applying it.',
+                                ),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
                               const SizedBox(height: 10),
                               SizedBox(
                                 width: double.infinity,
@@ -2343,6 +2354,18 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                   ),
                                 ),
                               ),
+                              if (_isGeneratingAiCopy) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  l10n.pick(
+                                    vi: 'Đang tạo gợi ý, thường mất vài giây.',
+                                    en: 'Generating suggestions. This usually takes a few seconds.',
+                                  ),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                               if (_selectedType.isMemorial &&
                                   (_selectedTargetMemberId?.trim().isEmpty ??
                                       true)) ...[

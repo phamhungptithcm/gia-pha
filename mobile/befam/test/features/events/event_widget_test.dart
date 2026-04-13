@@ -432,8 +432,6 @@ void main() {
             required session,
             required locale,
             required draft,
-            branchName,
-            targetMemberName,
           }) async {
             return const EventAiSuggestion(
               title: 'Lễ tưởng niệm họ Nguyễn cuối tuần',
@@ -536,6 +534,120 @@ void main() {
 
     expect(find.byKey(const Key('event-reminder-chip-4320')), findsOneWidget);
     expect(find.byKey(const Key('event-reminder-chip-30')), findsOneWidget);
+  });
+
+  testWidgets('shows AI disclosure and loading copy while generating event suggestions', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    final aiAssistService = FakeAiAssistService(
+      onDraftEventCopy:
+          ({
+            required session,
+            required locale,
+            required draft,
+          }) async {
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+            return const EventAiSuggestion(
+              title: 'Họp họ cuối tháng',
+              description: 'Nhắc mọi người xác nhận tham gia trước 2 ngày.',
+              recommendedReminderOffsetsMinutes: [2880],
+              rationale: ['Giữ nội dung ngắn để dễ đọc trên thông báo.'],
+              usedFallback: true,
+              model: null,
+            );
+          },
+    );
+
+    await pumpWorkspace(tester, repository, aiAssistService: aiAssistService);
+
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
+    );
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.text(
+        'AI chỉ dùng dữ liệu sự kiện hiện tại để tạo gợi ý. Bạn vẫn cần xem lại trước khi áp dụng.',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('event-ai-suggest-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+
+    expect(find.text('Đang gợi ý...'), findsOneWidget);
+    expect(
+      find.text('Đang tạo gợi ý, thường mất vài giây.'),
+      findsOneWidget,
+    );
+
+    await tester.pump(const Duration(milliseconds: 260));
+    expect(find.text('Bản gợi ý mới'), findsOneWidget);
+  });
+
+  testWidgets('shows a friendly message when event AI is throttled', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    final aiAssistService = FakeAiAssistService(
+      onDraftEventCopy:
+          ({
+            required session,
+            required locale,
+            required draft,
+          }) async {
+            throw const AiAssistServiceException(
+              'Bạn vừa dùng tính năng này. Hãy thử lại sau khoảng 10 giây.',
+              code: 'resource-exhausted',
+            );
+          },
+    );
+
+    await pumpWorkspace(tester, repository, aiAssistService: aiAssistService);
+
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
+    );
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(find.byKey(const Key('event-ai-suggest-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(
+      find.text('Bạn vừa dùng tính năng này. Hãy thử lại sau khoảng 10 giây.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('edits an existing event from detail screen', (tester) async {

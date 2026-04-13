@@ -1,12 +1,14 @@
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/ai/services/ai_assist_service.dart';
 import 'package:befam/features/profile/presentation/profile_workspace_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/features/member/services/debug_member_repository.dart';
+import '../../support/features/ai/services/fake_ai_assist_service.dart';
 import '../../support/features/profile/services/debug_profile_notification_preferences_repository.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 
@@ -81,5 +83,69 @@ void main() {
     expect(find.text('Quiet hours'), findsOneWidget);
     expect(find.text('Test on this device'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows AI disclosure and loading copy in the profile quick check', (
+    tester,
+  ) async {
+    configureMobileViewport(tester);
+    final aiAssistService = FakeAiAssistService(
+      onReviewProfileDraft:
+          ({required session, required locale, required draft}) async {
+            await Future<void>.delayed(const Duration(milliseconds: 220));
+            return const ProfileAiReview(
+              summary: 'Hồ sơ đã có nền khá tốt.',
+              strengths: ['Tên đầy đủ rõ ràng.'],
+              missingImportant: ['Nên thêm vài dòng giới thiệu ngắn.'],
+              risks: [],
+              nextActions: ['Bổ sung 1-2 câu về nơi ở hiện tại.'],
+              usedFallback: false,
+              model: null,
+            );
+          },
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('vi'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: ProfileWorkspacePage(
+          session: buildSession(),
+          memberRepository: DebugMemberRepository.seeded(),
+          notificationPreferencesRepository:
+              DebugProfileNotificationPreferencesRepository.shared(),
+          aiAssistService: aiAssistService,
+          showAppBar: true,
+        ),
+      ),
+    );
+    await pumpUi(tester, frames: 120);
+
+    await tester.tap(find.byIcon(Icons.edit_outlined).first);
+    await pumpUi(tester, frames: 40);
+
+    expect(find.text('Kiểm tra nhanh hồ sơ'), findsOneWidget);
+    expect(
+      find.text(
+        'AI chỉ dùng các tín hiệu cần thiết của hồ sơ nháp để kiểm tra, không dùng toàn bộ dữ liệu liên hệ thô.',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('profile-quality-check-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+
+    expect(find.text('Đang phân tích...'), findsOneWidget);
+    expect(find.text('Đang tạo gợi ý, thường mất vài giây.'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 260));
+    expect(find.text('Hồ sơ đã có nền khá tốt.'), findsOneWidget);
   });
 }

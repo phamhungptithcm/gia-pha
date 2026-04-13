@@ -2379,6 +2379,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     final locale = Localizations.localeOf(context).languageCode;
     final l10n = context.l10n;
     final draft = _currentDraft();
+    final aiStopwatch = Stopwatch()..start();
     unawaited(
       _aiAnalyticsService.trackProfileCheckRequested(
         hasPhone: draft.phoneInput.trim().isNotEmpty,
@@ -2414,6 +2415,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
           linkedin: draft.linkedin,
         ),
       );
+      aiStopwatch.stop();
       if (!mounted) {
         return;
       }
@@ -2423,15 +2425,23 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
           missingCount: review.missingImportant.length,
           riskCount: review.risks.length,
           nextActionCount: review.nextActions.length,
+          elapsedMs: aiStopwatch.elapsedMilliseconds,
         ),
       );
       setState(() {
         _aiReview = review;
       });
     } on AiAssistServiceException catch (error) {
+      aiStopwatch.stop();
       if (!mounted) {
         return;
       }
+      unawaited(
+        _aiAnalyticsService.trackProfileCheckFailed(
+          reason: error.code ?? 'unknown',
+          elapsedMs: aiStopwatch.elapsedMilliseconds,
+        ),
+      );
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
@@ -2551,6 +2561,16 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                         ),
                         style: theme.textTheme.bodyMedium,
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        l10n.pick(
+                          vi: 'AI chỉ dùng các tín hiệu cần thiết của hồ sơ nháp để kiểm tra, không dùng toàn bộ dữ liệu liên hệ thô.',
+                          en: 'AI only uses the draft signals needed for this check, not the full raw contact details.',
+                        ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
@@ -2584,6 +2604,18 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                           ),
                         ),
                       ),
+                      if (_isReviewingWithAi) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.pick(
+                            vi: 'Đang tạo gợi ý, thường mất vài giây.',
+                            en: 'Checking the draft now. This usually takes a few seconds.',
+                          ),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                       if (_aiReview != null) ...[
                         const SizedBox(height: 14),
                         AppWorkspaceSurface(

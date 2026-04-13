@@ -7,6 +7,8 @@ import { googleAI } from "@genkit-ai/google-genai";
 import {
   AI_ASSIST_ENABLED,
   AI_ASSIST_MODEL,
+  AI_ASSIST_TIMEOUT_MS,
+  AI_FEATURE_COOLDOWN_MS,
   APP_REGION,
   CALLABLE_ENFORCE_APP_CHECK,
   getAiApiKey,
@@ -17,7 +19,7 @@ import {
 } from "../billing/store";
 import { requireAuth } from "../shared/errors";
 import { db } from "../shared/firestore";
-import { logError, logWarn } from "../shared/logger";
+import { logInfo, logWarn } from "../shared/logger";
 import {
   GOVERNANCE_ROLES,
   ensureAnyRole,
@@ -39,7 +41,7 @@ const APP_CHECK_CALLABLE_OPTIONS = {
   secrets: [GOOGLE_GENAI_API_KEY_SECRET],
 };
 
-const auditLogsCollection = db.collection("auditLogs");
+const aiFeatureThrottleCollection = db.collection("aiFeatureThrottle");
 const clansCollection = db.collection("clans");
 
 const ProfileReviewSchema = z.object({
@@ -87,25 +89,21 @@ type AppAssistantReply = z.infer<typeof AppAssistantReplySchema>;
 type ProfileDraftInput = {
   fullName: string;
   nickName: string;
-  phoneInput: string;
-  email: string;
-  addressText: string;
   jobTitle: string;
-  bio: string;
-  facebook: string;
-  zalo: string;
-  linkedin: string;
+  hasPhone: boolean;
+  hasEmail: boolean;
+  hasAddress: boolean;
+  bioWordCount: number;
+  socialLinkCount: number;
 };
 
 type EventDraftInput = {
   clanId: string;
   eventType: string;
-  branchName: string;
-  targetMemberName: string;
   title: string;
   description: string;
   locationName: string;
-  locationAddress: string;
+  hasLocationAddress: boolean;
   startsAtIso: string;
   timezone: string;
   isRecurring: boolean;
@@ -148,7 +146,15 @@ type StructuredAiResult<T> = {
   output: T;
   usedFallback: boolean;
   model: string | null;
+  elapsedMs: number;
+  fallbackReason: AiFallbackReason | null;
 };
+
+type AiFallbackReason =
+  | "disabled"
+  | "timeout"
+  | "invalid_output"
+  | "generation_error";
 
 let cachedAiClient: ReturnType<typeof genkit> | null = null;
 let cachedAiApiKey = "";
@@ -167,9 +173,19 @@ export const reviewProfileDraftAi = onCall(
     ensureClanAccess(auth.token, clanId);
     const draft = readProfileDraftInput(request.data);
     const traceId = `ai_profile_${Date.now()}`;
+    await enforceAiFeatureThrottle({
+      uid: auth.uid,
+      clanId,
+      feature: "profile_review",
+      locale,
+      traceId,
+    });
 
     const fallback = buildProfileFallback(locale, draft);
     const result = await maybeGenerateStructured({
+      clanId,
+      uid: auth.uid,
+      authToken: auth.token,
       feature: "profile_review",
       locale,
       traceId,
@@ -184,22 +200,11 @@ export const reviewProfileDraftAi = onCall(
         ),
         localized(
           locale,
-          "Hãy đọc hồ sơ nháp bên dưới và trả về: 1 câu tóm tắt ngắn, tối đa 3 điểm mạnh, tối đa 4 mục còn thiếu quan trọng, tối đa 3 rủi ro/chỗ chưa rõ, và tối đa 3 bước tiếp theo cụ thể.",
-          "Review the draft profile below and return: one short summary sentence, up to 3 strengths, up to 4 important missing items, up to 3 risks/ambiguities, and up to 3 concrete next steps.",
+          "Hãy đọc tín hiệu hồ sơ nháp bên dưới và trả về: 1 câu tóm tắt ngắn, tối đa 3 điểm mạnh, tối đa 4 mục còn thiếu quan trọng, tối đa 3 rủi ro/chỗ chưa rõ, và tối đa 3 bước tiếp theo cụ thể. Chỉ dựa vào dữ liệu có sẵn, không suy đoán các chi tiết cá nhân chưa được gửi lên.",
+          "Review the draft profile signals below and return: one short summary sentence, up to 3 strengths, up to 4 important missing items, up to 3 risks/ambiguities, and up to 3 concrete next steps. Only rely on the provided data and do not infer personal details that were not shared.",
         ),
         `PROFILE_DRAFT_JSON:\n${JSON.stringify(draft, null, 2)}`,
       ].join("\n\n"),
-    });
-
-    await writeAiAuditLog({
-      clanId,
-      feature: "profile_review",
-      authToken: auth.token,
-      uid: auth.uid,
-      locale,
-      traceId,
-      usedFallback: result.usedFallback,
-      model: result.model,
     });
 
     return {
@@ -220,9 +225,19 @@ export const draftEventCopyAi = onCall(
     const draft = readEventDraftInput(request.data);
     ensureClanAccess(auth.token, draft.clanId);
     const traceId = `ai_event_${Date.now()}`;
+    await enforceAiFeatureThrottle({
+      uid: auth.uid,
+      clanId: draft.clanId,
+      feature: "event_copy",
+      locale,
+      traceId,
+    });
 
     const fallback = buildEventCopyFallback(locale, draft);
     const result = await maybeGenerateStructured({
+      clanId: draft.clanId,
+      uid: auth.uid,
+      authToken: auth.token,
       feature: "event_copy",
       locale,
       traceId,
@@ -237,22 +252,11 @@ export const draftEventCopyAi = onCall(
         ),
         localized(
           locale,
-          "Dựa trên dữ liệu sự kiện, hãy đề xuất tiêu đề, mô tả ngắn phù hợp để hiển thị trong app, 2-4 mốc nhắc lịch thực dụng, và vài lý do ngắn cho lựa chọn đó.",
-          "Based on the event data, suggest a suitable title, a short in-app description, 2-4 practical reminder offsets, and a few short reasons for those choices.",
+          "Dựa trên dữ liệu sự kiện tối thiểu, hãy đề xuất tiêu đề, mô tả ngắn phù hợp để hiển thị trong app, 2-4 mốc nhắc lịch thực dụng, và vài lý do ngắn cho lựa chọn đó. Không bịa thêm tên người, địa chỉ chi tiết, hoặc thông tin chưa có trong JSON.",
+          "Based on the minimal event data, suggest a suitable title, a short in-app description, 2-4 practical reminder offsets, and a few short reasons for those choices. Do not invent person names, detailed addresses, or any information not present in the JSON.",
         ),
         `EVENT_DRAFT_JSON:\n${JSON.stringify(draft, null, 2)}`,
       ].join("\n\n"),
-    });
-
-    await writeAiAuditLog({
-      clanId: draft.clanId,
-      feature: "event_copy",
-      authToken: auth.token,
-      uid: auth.uid,
-      locale,
-      traceId,
-      usedFallback: result.usedFallback,
-      model: result.model,
     });
 
     return {
@@ -289,9 +293,19 @@ export const explainDuplicateGenealogyAi = onCall(
     );
     ensureClanAccess(auth.token, clanId);
     const traceId = `ai_duplicate_${Date.now()}`;
+    await enforceAiFeatureThrottle({
+      uid: auth.uid,
+      clanId,
+      feature: "duplicate_genealogy",
+      locale,
+      traceId,
+    });
 
     const fallback = buildDuplicateExplanationFallback(locale, input);
     const result = await maybeGenerateStructured({
+      clanId,
+      uid: auth.uid,
+      authToken: auth.token,
       feature: "duplicate_genealogy",
       locale,
       traceId,
@@ -311,17 +325,6 @@ export const explainDuplicateGenealogyAi = onCall(
         ),
         `DUPLICATE_INPUT_JSON:\n${JSON.stringify(input, null, 2)}`,
       ].join("\n\n"),
-    });
-
-    await writeAiAuditLog({
-      clanId,
-      feature: "duplicate_genealogy",
-      authToken: auth.token,
-      uid: auth.uid,
-      locale,
-      traceId,
-      usedFallback: result.usedFallback,
-      model: result.model,
     });
 
     return {
@@ -348,8 +351,18 @@ export const chatWithAppAssistantAi = onCall(
     });
 
     const traceId = `ai_app_assistant_${Date.now()}`;
+    await enforceAiFeatureThrottle({
+      uid: auth.uid,
+      clanId: input.clanId,
+      feature: "app_assistant_chat",
+      locale,
+      traceId,
+    });
     const fallback = buildAppAssistantFallback(locale, input);
     const result = await maybeGenerateStructured({
+      clanId: input.clanId,
+      uid: auth.uid,
+      authToken: auth.token,
       feature: "app_assistant_chat",
       locale,
       traceId,
@@ -388,17 +401,6 @@ export const chatWithAppAssistantAi = onCall(
       ].join("\n\n"),
     });
 
-    await writeAiAuditLog({
-      clanId: input.clanId,
-      feature: "app_assistant_chat",
-      authToken: auth.token,
-      uid: auth.uid,
-      locale,
-      traceId,
-      usedFallback: result.usedFallback,
-      model: result.model,
-    });
-
     return {
       ...result.output,
       usedFallback: result.usedFallback,
@@ -407,7 +409,59 @@ export const chatWithAppAssistantAi = onCall(
   },
 );
 
+class AiTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`AI generation timed out after ${timeoutMs}ms.`);
+    this.name = "AiTimeoutError";
+  }
+}
+
+export async function runAiTaskWithFallback<T>(input: {
+  task: () => Promise<T>;
+  fallback: T;
+  timeoutMs: number;
+}): Promise<{
+  output: T;
+  usedFallback: boolean;
+  elapsedMs: number;
+  fallbackReason: Exclude<AiFallbackReason, "disabled"> | null;
+}> {
+  const startedAt = Date.now();
+  let timeoutHandle: NodeJS.Timeout | undefined;
+
+  try {
+    const output = await Promise.race([
+      input.task(),
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(new AiTimeoutError(input.timeoutMs));
+        }, input.timeoutMs);
+      }),
+    ]);
+    return {
+      output,
+      usedFallback: false,
+      elapsedMs: Date.now() - startedAt,
+      fallbackReason: null,
+    };
+  } catch (error) {
+    return {
+      output: input.fallback,
+      usedFallback: true,
+      elapsedMs: Date.now() - startedAt,
+      fallbackReason: normalizeAiFallbackReason(error),
+    };
+  } finally {
+    if (timeoutHandle != null) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
 async function maybeGenerateStructured<T>(input: {
+  clanId: string;
+  uid: string;
+  authToken: AuthToken;
   feature: string;
   locale: string;
   traceId: string;
@@ -418,44 +472,195 @@ async function maybeGenerateStructured<T>(input: {
 }): Promise<StructuredAiResult<T>> {
   const aiClient = getAiClient();
   if (aiClient == null) {
-    return { output: input.fallback, usedFallback: true, model: null };
-  }
-
-  try {
-    const response = await aiClient.generate({
-      model: `googleai/${AI_ASSIST_MODEL}`,
-      system: input.system,
-      prompt: input.prompt,
-      output: { schema: input.schema },
-      config: {
-        temperature: 0.25,
-        maxOutputTokens: 750,
-      },
-    });
-
-    if (response.output == null) {
-      throw new Error("AI response did not match the expected schema.");
-    }
-
-    return {
-      output: response.output,
-      usedFallback: false,
-      model: AI_ASSIST_MODEL,
+    const result: StructuredAiResult<T> = {
+      output: input.fallback,
+      usedFallback: true,
+      model: null,
+      elapsedMs: 0,
+      fallbackReason: "disabled",
     };
-  } catch (error) {
-    logWarn("AI assist generation failed; falling back", {
+    logAiExecution({
+      clanId: input.clanId,
+      uid: input.uid,
+      authToken: input.authToken,
       feature: input.feature,
       locale: input.locale,
       traceId: input.traceId,
-      model: AI_ASSIST_MODEL,
-      error: normalizeErrorMessage(error),
+      result,
     });
-    return {
-      output: input.fallback,
-      usedFallback: true,
-      model: AI_ASSIST_MODEL,
-    };
+    return result;
   }
+
+  const runtimeResult = await runAiTaskWithFallback<T>({
+    fallback: input.fallback,
+    timeoutMs: AI_ASSIST_TIMEOUT_MS,
+    task: async () => {
+      const response = await aiClient.generate({
+        model: `googleai/${AI_ASSIST_MODEL}`,
+        system: input.system,
+        prompt: input.prompt,
+        output: { schema: input.schema },
+        config: {
+          temperature: 0.25,
+          maxOutputTokens: 750,
+        },
+      });
+
+      if (response.output == null) {
+        throw new Error("AI response did not match the expected schema.");
+      }
+
+      return response.output;
+    },
+  });
+
+  const result: StructuredAiResult<T> = {
+    output: runtimeResult.output,
+    usedFallback: runtimeResult.usedFallback,
+    model: AI_ASSIST_MODEL,
+    elapsedMs: runtimeResult.elapsedMs,
+    fallbackReason: runtimeResult.fallbackReason,
+  };
+  logAiExecution({
+    clanId: input.clanId,
+    uid: input.uid,
+    authToken: input.authToken,
+    feature: input.feature,
+    locale: input.locale,
+    traceId: input.traceId,
+    result,
+  });
+  return result;
+}
+
+function normalizeAiFallbackReason(
+  error: unknown,
+): Exclude<AiFallbackReason, "disabled"> {
+  if (error instanceof AiTimeoutError) {
+    return "timeout";
+  }
+  if (
+    error instanceof Error &&
+    error.message.includes("did not match the expected schema")
+  ) {
+    return "invalid_output";
+  }
+  return "generation_error";
+}
+
+function logAiExecution(input: {
+  clanId: string;
+  uid: string;
+  authToken: AuthToken;
+  feature: string;
+  locale: string;
+  traceId: string;
+  result: StructuredAiResult<unknown>;
+}): void {
+  const payload = {
+    clanId: input.clanId,
+    uid: input.uid,
+    memberId: tokenMemberId(input.authToken),
+    role: tokenPrimaryRole(input.authToken),
+    feature: input.feature,
+    locale: input.locale,
+    traceId: input.traceId,
+    elapsed_ms: input.result.elapsedMs,
+    usedFallback: input.result.usedFallback,
+    fallbackReason: input.result.fallbackReason,
+    model: input.result.model,
+  };
+
+  if (
+    input.result.usedFallback &&
+    input.result.fallbackReason != null &&
+    input.result.fallbackReason !== "disabled"
+  ) {
+    logWarn("AI callable completed with fallback", payload);
+    return;
+  }
+
+  logInfo("AI callable completed", payload);
+}
+
+export function computeAiFeatureThrottleRemainingMs(input: {
+  lastRequestedAtMs: number;
+  nowMs: number;
+  cooldownMs: number;
+}): number {
+  if (input.lastRequestedAtMs <= 0) {
+    return 0;
+  }
+  return Math.max(
+    0,
+    input.cooldownMs - Math.max(0, input.nowMs - input.lastRequestedAtMs),
+  );
+}
+
+async function enforceAiFeatureThrottle(input: {
+  uid: string;
+  clanId: string;
+  feature: string;
+  locale: string;
+  traceId: string;
+}): Promise<void> {
+  const throttleRef = aiFeatureThrottleCollection.doc(
+    `${input.uid}_${input.feature}`,
+  );
+  const nowMs = Date.now();
+  const remainingMs = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(throttleRef);
+    const state = asRecord(snapshot.data());
+    const lastRequestedAtMs = readPositiveInt(state["lastRequestedAtMs"]);
+    const pendingRemainingMs = computeAiFeatureThrottleRemainingMs({
+      lastRequestedAtMs,
+      nowMs,
+      cooldownMs: AI_FEATURE_COOLDOWN_MS,
+    });
+    if (pendingRemainingMs > 0) {
+      return pendingRemainingMs;
+    }
+
+    transaction.set(
+      throttleRef,
+      {
+        id: throttleRef.id,
+        uid: input.uid,
+        clanId: input.clanId,
+        feature: input.feature,
+        lastRequestedAtMs: nowMs,
+        updatedAt: FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return 0;
+  });
+
+  if (remainingMs <= 0) {
+    return;
+  }
+
+  logWarn("AI callable throttled", {
+    clanId: input.clanId,
+    uid: input.uid,
+    feature: input.feature,
+    locale: input.locale,
+    traceId: input.traceId,
+    remaining_ms: remainingMs,
+  });
+  throw new HttpsError(
+    "resource-exhausted",
+    localized(
+      input.locale,
+      `Bạn vừa dùng tính năng này. Hãy thử lại sau khoảng ${Math.ceil(
+        remainingMs / 1000,
+      )} giây.`,
+      `You just used this feature. Try again in about ${Math.ceil(
+        remainingMs / 1000,
+      )} seconds.`,
+    ),
+  );
 }
 
 function getAiClient(): ReturnType<typeof genkit> | null {
@@ -510,7 +715,7 @@ function buildProfileFallback(
     );
   }
 
-  if (draft.phoneInput.trim().length > 0) {
+  if (draft.hasPhone) {
     strengths.push(
       localized(
         locale,
@@ -528,7 +733,7 @@ function buildProfileFallback(
     );
   }
 
-  if (draft.addressText.trim().length > 0) {
+  if (draft.hasAddress) {
     strengths.push(
       localized(
         locale,
@@ -546,7 +751,7 @@ function buildProfileFallback(
     );
   }
 
-  if (draft.bio.trim().length === 0) {
+  if (draft.bioWordCount === 0) {
     missingImportant.push(
       localized(
         locale,
@@ -554,7 +759,7 @@ function buildProfileFallback(
         "Add a short bio so the profile has more context.",
       ),
     );
-  } else if (draft.bio.trim().length < 24) {
+  } else if (draft.bioWordCount < 8) {
     risks.push(
       localized(
         locale,
@@ -564,7 +769,7 @@ function buildProfileFallback(
     );
   }
 
-  if (draft.email.trim().length === 0 && socialLinkCount(draft) == 0) {
+  if (!draft.hasEmail && draft.socialLinkCount == 0) {
     missingImportant.push(
       localized(
         locale,
@@ -592,7 +797,7 @@ function buildProfileFallback(
       ),
     );
   }
-  if (draft.bio.trim().length === 0) {
+  if (draft.bioWordCount === 0) {
     nextActions.push(
       localized(
         locale,
@@ -604,11 +809,11 @@ function buildProfileFallback(
 
   const completenessSignals = [
     draft.fullName,
-    draft.phoneInput,
-    draft.addressText,
-    draft.bio,
-    draft.email,
-  ].filter((value) => value.trim().length > 0).length;
+    draft.hasPhone ? "phone" : "",
+    draft.hasAddress ? "address" : "",
+    draft.bioWordCount > 0 ? "bio" : "",
+    draft.hasEmail ? "email" : "",
+  ].filter((value) => value.length > 0).length;
 
   const summary =
     completenessSignals >= 4
@@ -636,13 +841,10 @@ function buildEventCopyFallback(
   locale: string,
   draft: EventDraftInput,
 ): EventCopySuggestion {
-  const targetName = draft.targetMemberName.trim();
   const startsAtLabel = formatIsoDateForLocale(locale, draft.startsAtIso);
-  const locationBits = [
-    draft.locationName.trim(),
-    draft.locationAddress.trim(),
-  ].filter((value) => value.length > 0);
-  const locationLine = locationBits.join(", ");
+  const locationLine = draft.locationName.trim();
+  const hasLocationDetails =
+    locationLine.length > 0 || draft.hasLocationAddress;
 
   let title = draft.title.trim();
   let description = draft.description.trim();
@@ -651,18 +853,11 @@ function buildEventCopyFallback(
   if (title.length === 0) {
     switch (draft.eventType) {
       case "death_anniversary":
-        title =
-          targetName.length === 0
-            ? localized(
-                locale,
-                "Lễ tưởng niệm gia đình",
-                "Family memorial service",
-              )
-            : localized(
-                locale,
-                `Lễ tưởng niệm ${targetName}`,
-                `Memorial for ${targetName}`,
-              );
+        title = localized(
+          locale,
+          "Lễ tưởng niệm gia đình",
+          "Family memorial service",
+        );
         rationale.push(
           localized(
             locale,
@@ -682,14 +877,7 @@ function buildEventCopyFallback(
         );
         break;
       case "birthday":
-        title =
-          targetName.length === 0
-            ? localized(locale, "Mừng sinh nhật", "Birthday celebration")
-            : localized(
-                locale,
-                `Mừng sinh nhật ${targetName}`,
-                `Birthday celebration for ${targetName}`,
-              );
+        title = localized(locale, "Mừng sinh nhật", "Birthday celebration");
         rationale.push(
           localized(
             locale,
@@ -721,20 +909,44 @@ function buildEventCopyFallback(
           startsAtLabel.length === 0
             ? ""
             : `Thời gian dự kiến: ${startsAtLabel}. `
-        }${locationLine.length === 0 ? "" : `Địa điểm: ${locationLine}.`}`,
+        }${
+          !hasLocationDetails
+            ? ""
+            : locationLine.length > 0
+              ? `Địa điểm: ${locationLine}.`
+              : "Địa điểm đã được thêm trong chi tiết sự kiện."
+        }`,
         `Family members are respectfully invited to attend. ${
           startsAtLabel.length === 0 ? "" : `Planned time: ${startsAtLabel}. `
-        }${locationLine.length === 0 ? "" : `Location: ${locationLine}.`}`,
+        }${
+          !hasLocationDetails
+            ? ""
+            : locationLine.length > 0
+              ? `Location: ${locationLine}.`
+              : "Location details are already included in the event."
+        }`,
       ).trim();
     } else {
       description = localized(
         locale,
         `Mời mọi người theo dõi thời gian và sắp xếp tham gia. ${
           startsAtLabel.length === 0 ? "" : `Dự kiến: ${startsAtLabel}. `
-        }${locationLine.length === 0 ? "" : `Địa điểm: ${locationLine}.`}`,
+        }${
+          !hasLocationDetails
+            ? ""
+            : locationLine.length > 0
+              ? `Địa điểm: ${locationLine}.`
+              : "Địa điểm đã được thêm trong chi tiết sự kiện."
+        }`,
         `Please review the time and plan to join. ${
           startsAtLabel.length === 0 ? "" : `Planned time: ${startsAtLabel}. `
-        }${locationLine.length === 0 ? "" : `Location: ${locationLine}.`}`,
+        }${
+          !hasLocationDetails
+            ? ""
+            : locationLine.length > 0
+              ? `Location: ${locationLine}.`
+              : "Location details are already included in the event."
+        }`,
       ).trim();
     }
   }
@@ -1037,74 +1249,29 @@ function buildAppAssistantFallback(
   };
 }
 
-async function writeAiAuditLog(input: {
-  clanId: string;
-  feature: string;
-  authToken: AuthToken;
-  uid: string;
-  locale: string;
-  traceId: string;
-  usedFallback: boolean;
-  model: string | null;
-}): Promise<void> {
-  try {
-    const auditRef = auditLogsCollection.doc();
-    await auditRef.set({
-      id: auditRef.id,
-      clanId: input.clanId,
-      entityType: "ai_assist",
-      entityId: input.feature,
-      action: `ai_${input.feature}`,
-      uid: input.uid,
-      memberId: tokenMemberId(input.authToken),
-      before: {
-        locale: input.locale,
-        role: tokenPrimaryRole(input.authToken),
-      },
-      after: {
-        usedFallback: input.usedFallback,
-        model: input.model,
-        traceId: input.traceId,
-      },
-      createdAt: FieldValue.serverTimestamp(),
-    });
-  } catch (error) {
-    logError("AI audit log write failed", {
-      feature: input.feature,
-      clanId: input.clanId,
-      traceId: input.traceId,
-      error: normalizeErrorMessage(error),
-    });
-  }
-}
-
-function readProfileDraftInput(value: unknown): ProfileDraftInput {
+export function readProfileDraftInput(value: unknown): ProfileDraftInput {
   const data = asRecord(value);
   return {
     fullName: requireNonEmptyString(data, "fullName"),
     nickName: optionalString(data, "nickName"),
-    phoneInput: optionalString(data, "phoneInput"),
-    email: optionalString(data, "email"),
-    addressText: optionalString(data, "addressText"),
     jobTitle: optionalString(data, "jobTitle"),
-    bio: optionalString(data, "bio"),
-    facebook: optionalString(data, "facebook"),
-    zalo: optionalString(data, "zalo"),
-    linkedin: optionalString(data, "linkedin"),
+    hasPhone: data["hasPhone"] === true,
+    hasEmail: data["hasEmail"] === true,
+    hasAddress: data["hasAddress"] === true,
+    bioWordCount: readPositiveInt(data["bioWordCount"]),
+    socialLinkCount: Math.min(6, readPositiveInt(data["socialLinkCount"])),
   };
 }
 
-function readEventDraftInput(value: unknown): EventDraftInput {
+export function readEventDraftInput(value: unknown): EventDraftInput {
   const data = asRecord(value);
   return {
     clanId: requireNonEmptyString(data, "clanId"),
     eventType: requireNonEmptyString(data, "eventType"),
-    branchName: optionalString(data, "branchName"),
-    targetMemberName: optionalString(data, "targetMemberName"),
     title: optionalString(data, "title"),
     description: optionalString(data, "description"),
     locationName: optionalString(data, "locationName"),
-    locationAddress: optionalString(data, "locationAddress"),
+    hasLocationAddress: data["hasLocationAddress"] === true,
     startsAtIso: optionalString(data, "startsAtIso"),
     timezone: optionalString(data, "timezone"),
     isRecurring: data["isRecurring"] == true,
@@ -1121,12 +1288,12 @@ function readDuplicateExplanationInput(
   const candidates = rawCandidates
     .map((entry) => asRecord(entry))
     .map((candidate) => ({
-      clanId: optionalString(candidate, "clanId"),
-      genealogyName: optionalString(candidate, "genealogyName"),
-      leaderName: optionalString(candidate, "leaderName"),
-      provinceCity: optionalString(candidate, "provinceCity"),
+      clanId: optionalString(candidate, "clanId").slice(0, 80),
+      genealogyName: optionalString(candidate, "genealogyName").slice(0, 160),
+      leaderName: optionalString(candidate, "leaderName").slice(0, 120),
+      provinceCity: optionalString(candidate, "provinceCity").slice(0, 120),
       score: toNumber(candidate["score"]),
-      summary: optionalString(candidate, "summary"),
+      summary: optionalString(candidate, "summary").slice(0, 240),
       memberCount: toNullableInt(candidate["memberCount"]),
     }))
     .filter((candidate) => candidate.genealogyName.length > 0)
@@ -1141,10 +1308,10 @@ function readDuplicateExplanationInput(
 
   return {
     clanId: requireNonEmptyString(data, "clanId"),
-    genealogyName: requireNonEmptyString(data, "genealogyName"),
-    founderName: optionalString(data, "founderName"),
-    countryCode: optionalString(data, "countryCode"),
-    description: optionalString(data, "description"),
+    genealogyName: requireNonEmptyString(data, "genealogyName").slice(0, 160),
+    founderName: optionalString(data, "founderName").slice(0, 120),
+    countryCode: optionalString(data, "countryCode").slice(0, 12),
+    description: optionalString(data, "description").slice(0, 600),
     candidates,
   };
 }
@@ -1210,8 +1377,11 @@ function readAppAssistantInput(value: unknown): AppAssistantInput {
   const currentScreenId = normalizeScreenId(
     optionalString(data, "currentScreenId"),
   );
-  const currentScreenTitle = optionalString(data, "currentScreenTitle");
-  const activeClanName = optionalString(data, "activeClanName");
+  const currentScreenTitle = optionalString(data, "currentScreenTitle").slice(
+    0,
+    120,
+  );
+  const activeClanName = optionalString(data, "activeClanName").slice(0, 120);
   const rawHistory = Array.isArray(data["history"]) ? data["history"] : [];
   const history = rawHistory
     .map((entry) => asRecord(entry))
@@ -1477,27 +1647,11 @@ function sanitizeReminderOffsets(values: Array<number>): Array<number> {
     .slice(0, 4);
 }
 
-function normalizeErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === "string") {
-    return error;
-  }
-  return "Unknown error";
-}
-
 function countWords(value: string): number {
   return value
     .trim()
     .split(/\s+/)
     .filter((token) => token.length > 0).length;
-}
-
-function socialLinkCount(draft: ProfileDraftInput): number {
-  return [draft.facebook, draft.zalo, draft.linkedin].filter(
-    (value) => value.trim().length > 0,
-  ).length;
 }
 
 function toNumber(value: unknown): number {
@@ -1513,12 +1667,20 @@ function toNumber(value: unknown): number {
   return 0;
 }
 
-function toNullableInt(value: unknown): number | null {
+function readPositiveInt(value: unknown): number {
   const parsed = toNumber(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
+    return 0;
   }
   return Math.round(parsed);
+}
+
+function toNullableInt(value: unknown): number | null {
+  const parsed = readPositiveInt(value);
+  if (parsed <= 0) {
+    return null;
+  }
+  return parsed;
 }
 
 function formatIsoDateForLocale(locale: string, value: string): string {
