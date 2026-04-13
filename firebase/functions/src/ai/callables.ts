@@ -17,7 +17,7 @@ import {
 } from "../billing/store";
 import { requireAuth } from "../shared/errors";
 import { db } from "../shared/firestore";
-import { logError, logInfo, logWarn } from "../shared/logger";
+import { logError, logWarn } from "../shared/logger";
 import {
   GOVERNANCE_ROLES,
   ensureAnyRole,
