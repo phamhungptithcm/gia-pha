@@ -76,6 +76,32 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
+  Future<void> pumpBillingDetailsPage(
+    WidgetTester tester, {
+    AuthSession? session,
+    BillingRepository? repository,
+    Locale locale = const Locale('vi'),
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: locale,
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: BillingDetailsPage(
+          session: session ?? buildSession(),
+          repository: repository ?? DebugBillingRepository.shared(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
   void seedPaidTier() {
     final store = DebugGenealogyStore.sharedSeeded();
     for (var index = 0; index < 20; index += 1) {
@@ -111,14 +137,15 @@ void main() {
 
     expect(find.text('Gói dịch vụ'), findsOneWidget);
     expect(find.textContaining('Số thành viên hiện tại'), findsOneWidget);
-    expect(find.byKey(const Key('billing-ai-usage-section')), findsOneWidget);
-    expect(find.text('Lượt hỗ trợ AI tháng này'), findsOneWidget);
+    expect(find.byKey(const Key('billing-ai-usage-section')), findsNothing);
+    expect(find.byKey(const Key('billing-payment-history-section')), findsNothing);
+    expect(find.text('Chọn gói phù hợp'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('Lịch sử thanh toán'),
-      280,
+      find.text('Theo dõi chi tiết trong Hồ sơ'),
+      240,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Lịch sử thanh toán'), findsOneWidget);
+    expect(find.text('Theo dõi chi tiết trong Hồ sơ'), findsOneWidget);
   });
 
   testWidgets('no-clan user can load personal billing workspace and checkout', (
@@ -175,9 +202,11 @@ void main() {
     );
   });
 
-  testWidgets('saves billing preference changes', (tester) async {
+  testWidgets('saves billing preference changes from billing details', (
+    tester,
+  ) async {
     seedPaidTier();
-    await pumpBillingPage(tester);
+    await pumpBillingDetailsPage(tester);
 
     final saveButton = find.byKey(const Key('billing-save-preferences-button'));
     await tester.scrollUntilVisible(
@@ -239,15 +268,8 @@ void main() {
     );
     expect(find.text('Chế độ xem'), findsOneWidget);
     expect(find.byKey(const Key('billing-open-checkout-button')), findsNothing);
-    expect(
-      find.byKey(const Key('billing-save-preferences-button')),
-      findsNothing,
-    );
-    expect(
-      find.byKey(const Key('billing-payment-history-section')),
-      findsNothing,
-    );
-    expect(find.byKey(const Key('billing-ai-usage-section')), findsOneWidget);
+    expect(find.byKey(const Key('billing-ai-usage-section')), findsNothing);
+    expect(find.byKey(const Key('billing-payment-history-section')), findsNothing);
   });
 
   testWidgets(
@@ -284,9 +306,9 @@ void main() {
     },
   );
 
-  testWidgets('localizes statuses and audit labels in English', (tester) async {
+  testWidgets('localizes billing details in English', (tester) async {
     seedPaidTier();
-    await pumpBillingPage(
+    await pumpBillingDetailsPage(
       tester,
       locale: const Locale('en'),
       session: buildSession(uid: 'debug:billing-en-localization'),
@@ -298,8 +320,6 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Payment history'), findsOneWidget);
-
-    expect(find.text('Checkout created'), findsNothing);
-    expect(find.text('Payment transaction'), findsNothing);
+    expect(find.text('AI help this month'), findsOneWidget);
   });
 }

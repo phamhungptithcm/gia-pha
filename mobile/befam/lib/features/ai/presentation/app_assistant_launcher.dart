@@ -100,10 +100,7 @@ class AiAssistantLauncher extends StatelessWidget {
 }
 
 class _AiBubbleButton extends StatelessWidget {
-  const _AiBubbleButton({
-    required this.contextIcon,
-    required this.onTap,
-  });
+  const _AiBubbleButton({required this.contextIcon, required this.onTap});
 
   final IconData contextIcon;
   final VoidCallback onTap;
@@ -160,10 +157,7 @@ class _AiBubbleButton extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: colorScheme.primary,
                     borderRadius: BorderRadius.circular(tokens.radiusPill),
-                    border: Border.all(
-                      color: colorScheme.surface,
-                      width: 1.4,
-                    ),
+                    border: Border.all(color: colorScheme.surface, width: 1.4),
                   ),
                   child: Icon(
                     contextIcon,
@@ -868,9 +862,7 @@ class _AssistantMemberMatchSection extends StatelessWidget {
             vi: clanLabel.isEmpty
                 ? 'Người phù hợp'
                 : 'Người phù hợp trong $clanLabel',
-            en: clanLabel.isEmpty
-                ? 'Matches'
-                : 'Matches in $clanLabel',
+            en: clanLabel.isEmpty ? 'Matches' : 'Matches in $clanLabel',
           ),
           style: theme.textTheme.labelMedium?.copyWith(
             fontWeight: FontWeight.w800,
@@ -898,6 +890,8 @@ class _AssistantMemberMatchCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final tokens = context.uiTokens;
     final meta = <String>[
+      if (match.relationshipCode.trim().isNotEmpty)
+        _relationshipLabel(context, match.relationshipCode),
       if (match.nickName.trim().isNotEmpty &&
           match.nickName.trim().toLowerCase() !=
               match.displayName.trim().toLowerCase())
@@ -973,6 +967,38 @@ class _AssistantMemberMatchCard extends StatelessWidget {
       ),
     );
   }
+
+  String _relationshipLabel(BuildContext context, String relationshipCode) {
+    return switch (relationshipCode.trim().toLowerCase()) {
+      'spouse' => context.l10n.pick(vi: 'Phối ngẫu', en: 'Spouse'),
+      'sibling' => context.l10n.pick(vi: 'Anh chị em', en: 'Sibling'),
+      'cousin' => context.l10n.pick(vi: 'Anh chị em họ', en: 'Cousin'),
+      'parent' => context.l10n.pick(vi: 'Cha mẹ', en: 'Parent'),
+      'aunt_uncle' => context.l10n.pick(vi: 'Bác chú cô dì', en: 'Aunt/Uncle'),
+      'grandparent' => context.l10n.pick(vi: 'Ông bà', en: 'Grandparent'),
+      'great_grandparent' => context.l10n.pick(
+        vi: 'Cụ',
+        en: 'Great-grandparent',
+      ),
+      'great_great_grandparent' => context.l10n.pick(
+        vi: 'Cụ kỵ',
+        en: 'Great-great-grandparent',
+      ),
+      'child' => context.l10n.pick(vi: 'Con', en: 'Child'),
+      'niece_nephew' => context.l10n.pick(vi: 'Cháu', en: 'Niece/Nephew'),
+      'grandchild' => context.l10n.pick(vi: 'Cháu', en: 'Grandchild'),
+      'great_grandchild' => context.l10n.pick(
+        vi: 'Chắt',
+        en: 'Great-grandchild',
+      ),
+      'great_great_grandchild' => context.l10n.pick(
+        vi: 'Chít',
+        en: 'Great-great-grandchild',
+      ),
+      'descendant' => context.l10n.pick(vi: 'Hậu duệ', en: 'Descendant'),
+      _ => context.l10n.pick(vi: 'Người thân', en: 'Relative'),
+    };
+  }
 }
 
 class _AssistantTypingBubble extends StatelessWidget {
@@ -1003,10 +1029,7 @@ class _AssistantTypingBubble extends StatelessWidget {
               ),
               SizedBox(width: tokens.spaceSm),
               Text(
-                context.l10n.pick(
-                  vi: 'Đang trả lời...',
-                  en: 'Thinking...',
-                ),
+                context.l10n.pick(vi: 'Đang trả lời...', en: 'Thinking...'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,

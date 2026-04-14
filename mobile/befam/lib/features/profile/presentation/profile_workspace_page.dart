@@ -21,6 +21,7 @@ import '../../auth/models/auth_session.dart';
 import '../../auth/services/auth_session_store.dart';
 import '../../auth/services/phone_number_formatter.dart';
 import '../../auth/widgets/phone_country_selector_field.dart';
+import '../../billing/models/billing_workspace_snapshot.dart';
 import '../../billing/presentation/billing_workspace_page.dart';
 import '../../billing/services/billing_repository.dart';
 import '../../member/models/member_profile.dart';
@@ -1237,40 +1238,10 @@ class _SettingsScreenShell extends StatelessWidget {
                       vi: 'Gói dịch vụ và thanh toán',
                       en: 'Subscription & billing',
                     ),
-                    child: AppWorkspaceSurface(
-                      padding: const EdgeInsets.all(16),
-                      color: Colors.white.withValues(alpha: 0.76),
-                      child: AppAsyncAction(
-                        onPressed: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (context) => BillingWorkspacePage(
-                                session: session,
-                                repository: billingRepository,
-                              ),
-                            ),
-                          );
-                          onBillingStateChanged?.call();
-                        },
-                        builder: (context, onPressed, isLoading) {
-                          return SizedBox(
-                            width: double.infinity,
-                            child: FilledButton.tonalIcon(
-                              onPressed: onPressed,
-                              icon: const Icon(Icons.open_in_new_rounded),
-                              label: AppStableLoadingChild(
-                                isLoading: isLoading,
-                                child: Text(
-                                  l10n.pick(
-                                    vi: 'Mở quản lý gói',
-                                    en: 'Open billing',
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                    child: _BillingSettingsHub(
+                      session: session,
+                      billingRepository: billingRepository,
+                      onBillingStateChanged: onBillingStateChanged,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1408,6 +1379,446 @@ class _SettingsScreenShell extends StatelessWidget {
       },
     );
   }
+}
+
+class _BillingSettingsHub extends StatefulWidget {
+  const _BillingSettingsHub({
+    required this.session,
+    this.billingRepository,
+    this.onBillingStateChanged,
+  });
+
+  final AuthSession session;
+  final BillingRepository? billingRepository;
+  final VoidCallback? onBillingStateChanged;
+
+  @override
+  State<_BillingSettingsHub> createState() => _BillingSettingsHubState();
+}
+
+class _BillingSettingsHubState extends State<_BillingSettingsHub> {
+  late final BillingRepository _billingRepository;
+  late Future<_BillingSettingsSnapshot> _snapshotFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _billingRepository =
+        widget.billingRepository ??
+        createDefaultBillingRepository(session: widget.session);
+    _snapshotFuture = _loadSnapshot();
+  }
+
+  Future<_BillingSettingsSnapshot> _loadSnapshot() async {
+    try {
+      final workspace = await _billingRepository.loadWorkspace(
+        session: widget.session,
+      );
+      return _BillingSettingsSnapshot.fromWorkspace(workspace);
+    } on BillingRepositoryException catch (error) {
+      if (_shouldFallbackToViewer(error)) {
+        final summary = await _billingRepository.loadViewerSummary(
+          session: widget.session,
+        );
+        return _BillingSettingsSnapshot.fromViewerSummary(summary);
+      }
+      rethrow;
+    }
+  }
+
+  bool _shouldFallbackToViewer(BillingRepositoryException error) {
+    if (error.code == BillingRepositoryErrorCode.permissionDenied) {
+      return true;
+    }
+    if (error.code == BillingRepositoryErrorCode.failedPrecondition) {
+      final lower = (error.message ?? '').toLowerCase();
+      if (lower.contains('owner') ||
+          lower.contains('billing scope') ||
+          lower.contains('clan billing')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _openBillingWorkspace() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => BillingWorkspacePage(
+          session: widget.session,
+          repository: _billingRepository,
+        ),
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    widget.onBillingStateChanged?.call();
+    setState(() {
+      _snapshotFuture = _loadSnapshot();
+    });
+  }
+
+  Future<void> _openBillingDetails() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => BillingDetailsPage(
+          session: widget.session,
+          repository: _billingRepository,
+        ),
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    widget.onBillingStateChanged?.call();
+    setState(() {
+      _snapshotFuture = _loadSnapshot();
+    });
+  }
+
+  String _planLabel(_BillingSettingsSnapshot snapshot, AppLocalizations l10n) {
+    return switch (snapshot.planCode.trim().toUpperCase()) {
+      'BASE' => l10n.pick(vi: 'Gói Cơ bản', en: 'Base plan'),
+      'PLUS' => l10n.pick(vi: 'Gói Plus', en: 'Plus plan'),
+      'PRO' => l10n.pick(vi: 'Gói Pro', en: 'Pro plan'),
+      _ => l10n.pick(vi: 'Gói Miễn phí', en: 'Free plan'),
+    };
+  }
+
+  String _statusLabel(_BillingSettingsSnapshot snapshot, AppLocalizations l10n) {
+    return switch (snapshot.status.trim().toLowerCase()) {
+      'active' => l10n.pick(vi: 'Đang hoạt động', en: 'Active'),
+      'grace_period' => l10n.pick(vi: 'Ân hạn', en: 'Grace period'),
+      'pending_payment' => l10n.pick(vi: 'Chờ thanh toán', en: 'Pending'),
+      'expired' => l10n.pick(vi: 'Hết hạn', en: 'Expired'),
+      _ => snapshot.status,
+    };
+  }
+
+  String _expiresLabel(_BillingSettingsSnapshot snapshot, AppLocalizations l10n) {
+    final iso = snapshot.expiresAtIso;
+    if (iso == null || iso.trim().isEmpty) {
+      return l10n.pick(vi: 'Chưa có mốc', en: 'No date yet');
+    }
+    final parsed = DateTime.tryParse(iso)?.toLocal();
+    if (parsed == null) {
+      return iso;
+    }
+    final day = '${parsed.day}'.padLeft(2, '0');
+    final month = '${parsed.month}'.padLeft(2, '0');
+    return '$day/$month/${parsed.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return FutureBuilder<_BillingSettingsSnapshot>(
+      future: _snapshotFuture,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        final progress = data?.aiUsageSummary.usageProgress ?? 0.0;
+        final remainingCredits = data?.aiUsageSummary.remainingCredits;
+        final quotaCredits = data?.aiUsageSummary.quotaCredits;
+        final isNearLimit =
+            data != null &&
+            data.aiUsageSummary.remainingCredits > 0 &&
+            data.aiUsageSummary.usageProgress >= 0.8;
+        final isExhausted =
+            data != null && data.aiUsageSummary.remainingCredits <= 0;
+
+        return AppWorkspaceSurface(
+          padding: const EdgeInsets.all(16),
+          color: Colors.white.withValues(alpha: 0.76),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (data != null) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _planLabel(data, l10n),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            data.canManage
+                                ? l10n.pick(
+                                    vi: 'Bạn có thể đổi gói hoặc gia hạn cho gia phả này.',
+                                    en: 'You can change or renew the plan for this family tree.',
+                                  )
+                                : l10n.pick(
+                                    vi: 'Bạn đang xem gói hiện tại của gia phả này.',
+                                    en: 'You are viewing the current plan for this family tree.',
+                                  ),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _statusLabel(data, l10n),
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isExhausted
+                        ? colorScheme.errorContainer.withValues(alpha: 0.8)
+                        : isNearLimit
+                        ? colorScheme.tertiaryContainer.withValues(alpha: 0.78)
+                        : colorScheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: isExhausted
+                          ? colorScheme.error.withValues(alpha: 0.28)
+                          : isNearLimit
+                          ? colorScheme.tertiary.withValues(alpha: 0.24)
+                          : colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.pick(
+                          vi: 'Lượt hỗ trợ AI tháng này',
+                          en: 'AI help this month',
+                        ),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${remainingCredits ?? 0}',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: isExhausted
+                                  ? colorScheme.error
+                                  : colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              l10n.pick(
+                                vi: '/ ${quotaCredits ?? 0} lượt còn lại',
+                                en: '/ ${quotaCredits ?? 0} uses left',
+                              ),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          minHeight: 7,
+                          value: progress,
+                          backgroundColor: colorScheme.surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isExhausted
+                                ? colorScheme.error
+                                : isNearLimit
+                                ? colorScheme.tertiary
+                                : colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        isExhausted
+                            ? l10n.pick(
+                                vi: 'Đã dùng hết lượt tháng này. Bạn vẫn có thể nâng cấp để dùng tiếp ngay.',
+                                en: 'This month is used up. You can upgrade to keep using AI right away.',
+                              )
+                            : isNearLimit
+                            ? l10n.pick(
+                                vi: 'Sắp chạm giới hạn tháng. Nếu dùng thường xuyên, đây là lúc phù hợp để nâng gói.',
+                                en: 'You are getting close to the monthly limit. If you use AI often, this is a good time to upgrade.',
+                              )
+                            : l10n.pick(
+                                vi: 'Vẫn còn dư để hỏi nhanh hoặc dùng các gợi ý AI khi cần.',
+                                en: 'You still have room for quick questions and AI suggestions when needed.',
+                              ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l10n.pick(
+                    vi: 'Hết hạn hoặc kỳ tiếp theo: ${_expiresLabel(data, l10n)}',
+                    en: 'Expires or renews next: ${_expiresLabel(data, l10n)}',
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ] else if (snapshot.hasError) ...[
+                Text(
+                  l10n.pick(
+                    vi: 'Không tải được tóm tắt gói lúc này.',
+                    en: 'Unable to load the subscription summary right now.',
+                  ),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ] else ...[
+                Row(
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l10n.pick(
+                          vi: 'Đang tải gói hiện tại và lượt AI...',
+                          en: 'Loading your current plan and AI usage...',
+                        ),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.tonalIcon(
+                  onPressed: _openBillingWorkspace,
+                  icon: const Icon(Icons.workspace_premium_outlined),
+                  label: Text(
+                    data?.canManage == false
+                        ? l10n.pick(
+                            vi: 'Xem gói hiện tại',
+                            en: 'View current plan',
+                          )
+                        : l10n.pick(
+                            vi: 'Đổi hoặc nâng cấp gói',
+                            en: 'Change or upgrade plan',
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _openBillingDetails,
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: Text(
+                    data?.canManage == false
+                        ? l10n.pick(
+                            vi: 'Lượt AI tháng này',
+                            en: 'AI usage this month',
+                          )
+                        : l10n.pick(
+                            vi: 'Lượt AI và lịch sử thanh toán',
+                            en: 'AI usage and billing history',
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BillingSettingsSnapshot {
+  const _BillingSettingsSnapshot({
+    required this.planCode,
+    required this.status,
+    required this.expiresAtIso,
+    required this.aiUsageSummary,
+    required this.canManage,
+  });
+
+  factory _BillingSettingsSnapshot.fromWorkspace(
+    BillingWorkspaceSnapshot workspace,
+  ) {
+    return _BillingSettingsSnapshot(
+      planCode: workspace.entitlement.planCode,
+      status: workspace.entitlement.status,
+      expiresAtIso:
+          workspace.entitlement.expiresAtIso ??
+          workspace.subscription.expiresAtIso,
+      aiUsageSummary: workspace.aiUsageSummary,
+      canManage: true,
+    );
+  }
+
+  factory _BillingSettingsSnapshot.fromViewerSummary(
+    BillingViewerSummary summary,
+  ) {
+    return _BillingSettingsSnapshot(
+      planCode: summary.entitlement.planCode,
+      status: summary.entitlement.status,
+      expiresAtIso:
+          summary.entitlement.expiresAtIso ?? summary.subscription.expiresAtIso,
+      aiUsageSummary: summary.aiUsageSummary,
+      canManage: false,
+    );
+  }
+
+  final String planCode;
+  final String status;
+  final String? expiresAtIso;
+  final BillingAiUsageSummary aiUsageSummary;
+  final bool canManage;
 }
 
 class _NotificationSettingsPanel extends StatelessWidget {

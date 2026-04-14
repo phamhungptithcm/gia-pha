@@ -1,15 +1,18 @@
 import '../../auth/models/auth_session.dart';
 import '../../auth/models/clan_context_option.dart';
 import '../../clan/models/branch_profile.dart';
+import '../../member/models/member_profile.dart';
 import '../../member/models/member_workspace_snapshot.dart';
 import '../../member/services/member_repository.dart';
 import '../../member/services/member_search_provider.dart';
+import '../../../core/services/kinship_title_resolver.dart';
 
 class AppAssistantMemberMatch {
   const AppAssistantMemberMatch({
     required this.memberId,
     required this.displayName,
     required this.fullName,
+    required this.relationshipCode,
     required this.nickName,
     required this.branchName,
     required this.generation,
@@ -26,6 +29,7 @@ class AppAssistantMemberMatch {
   final String memberId;
   final String displayName;
   final String fullName;
+  final String relationshipCode;
   final String nickName;
   final String branchName;
   final int generation;
@@ -43,6 +47,7 @@ class AppAssistantMemberMatch {
       'memberId': memberId,
       'displayName': displayName,
       'fullName': fullName,
+      'relationshipCode': relationshipCode,
       'nickName': nickName,
       'branchName': branchName,
       'generation': generation,
@@ -146,6 +151,7 @@ class MemberWorkspaceAssistantContextService
       final searchQueryHint = _extractSearchQueryHint(question);
       final memberMatches = await _resolveMemberMatches(
         snapshot: snapshot,
+        session: session,
         searchQueryHint: searchQueryHint,
       );
 
@@ -208,11 +214,25 @@ class MemberWorkspaceAssistantContextService
 
   Future<List<AppAssistantMemberMatch>> _resolveMemberMatches({
     required MemberWorkspaceSnapshot snapshot,
+    required AuthSession session,
     required String searchQueryHint,
   }) async {
     final normalizedQuery = searchQueryHint.trim();
     if (normalizedQuery.isEmpty) {
       return const [];
+    }
+
+    final viewer = _findViewer(snapshot: snapshot, session: session);
+    final kinshipIntent = _detectKinshipSearchIntent(normalizedQuery);
+    if (kinshipIntent != null && viewer != null) {
+      final relationshipMatches = _resolveRelationshipMatches(
+        snapshot: snapshot,
+        viewer: viewer,
+        intent: kinshipIntent,
+      );
+      if (relationshipMatches.isNotEmpty) {
+        return relationshipMatches;
+      }
     }
 
     final rankedMatches = await _memberSearchProvider.search(
@@ -234,6 +254,10 @@ class MemberWorkspaceAssistantContextService
             memberId: member.id,
             displayName: member.displayName,
             fullName: member.fullName.trim(),
+            relationshipCode: _relationshipCodeForMemberMatch(
+              viewer: viewer,
+              member: member,
+            ),
             nickName: member.nickName.trim(),
             branchName:
                 branchesById[member.branchId]?.name.trim().isNotEmpty == true
@@ -251,6 +275,94 @@ class MemberWorkspaceAssistantContextService
           ),
         )
         .toList(growable: false);
+  }
+
+  List<AppAssistantMemberMatch> _resolveRelationshipMatches({
+    required MemberWorkspaceSnapshot snapshot,
+    required MemberProfile viewer,
+    required _KinshipSearchIntent intent,
+  }) {
+    final branchesById = <String, BranchProfile>{
+      for (final branch in snapshot.branches) branch.id: branch,
+    };
+    final membersById = <String, MemberProfile>{
+      for (final member in snapshot.members) member.id: member,
+    };
+    final matches = <AppAssistantMemberMatch>[];
+
+    for (final member in snapshot.members) {
+      if (member.id == viewer.id) {
+        continue;
+      }
+      if (!_matchesKinshipIntent(
+        viewer: viewer,
+        member: member,
+        intent: intent,
+      )) {
+        continue;
+      }
+      matches.add(
+        AppAssistantMemberMatch(
+          memberId: member.id,
+          displayName: member.displayName,
+          fullName: member.fullName.trim(),
+          relationshipCode: _relationshipCodeForMemberMatch(
+            viewer: viewer,
+            member: member,
+          ),
+          nickName: member.nickName.trim(),
+          branchName:
+              branchesById[member.branchId]?.name.trim().isNotEmpty == true
+              ? branchesById[member.branchId]!.name.trim()
+              : '',
+          generation: member.generation,
+          birthDate: (member.birthDate ?? '').trim(),
+          deathDate: (member.deathDate ?? '').trim(),
+          jobTitle: (member.jobTitle ?? '').trim(),
+          hasPhone: (member.phoneE164 ?? '').trim().isNotEmpty,
+          hasAddress: (member.addressText ?? '').trim().isNotEmpty,
+          parentCount: member.parentIds.length,
+          childCount: member.childrenIds.length,
+          spouseCount: member.spouseIds.length,
+        ),
+      );
+    }
+
+    matches.sort((left, right) {
+      final ageWeight = _compareRelativeAgeByMatch(
+        left: membersById[left.memberId],
+        right: membersById[right.memberId],
+      );
+      if (ageWeight != 0) {
+        if (intent.requiredAgeDirection == _KinshipAgeDirection.younger) {
+          return -ageWeight;
+        }
+        return ageWeight;
+      }
+      final byGeneration = left.generation.compareTo(right.generation);
+      if (byGeneration != 0) {
+        return byGeneration;
+      }
+      return left.fullName.compareTo(right.fullName);
+    });
+
+    return matches.take(5).toList(growable: false);
+  }
+
+  MemberProfile? _findViewer({
+    required MemberWorkspaceSnapshot snapshot,
+    required AuthSession session,
+  }) {
+    final viewerId = (session.memberId ?? '').trim();
+    if (viewerId.isEmpty) {
+      return null;
+    }
+    for (final member in snapshot.members) {
+      if (member.id == viewerId) {
+        return member;
+      }
+    }
+    return null;
   }
 
   List<String> _resolveClanNames({
@@ -278,6 +390,270 @@ class MemberWorkspaceAssistantContextService
     }
     return names.take(6).toList(growable: false);
   }
+}
+
+class _KinshipSearchIntent {
+  const _KinshipSearchIntent({
+    required this.allowedRoles,
+    this.requiredGender,
+    this.requiredAgeDirection,
+  });
+
+  final Set<KinshipTitleRole> allowedRoles;
+  final _KinshipGenderFilter? requiredGender;
+  final _KinshipAgeDirection? requiredAgeDirection;
+}
+
+enum _KinshipGenderFilter { male, female }
+
+enum _KinshipAgeDirection { older, younger }
+
+_KinshipSearchIntent? _detectKinshipSearchIntent(String searchQueryHint) {
+  final normalized = _normalizeSearchText(searchQueryHint);
+  if (normalized.isEmpty) {
+    return null;
+  }
+
+  if (_containsAny(normalized, const ['anh ho', 'anh em ho'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.sameGenerationRelative},
+      requiredGender: _KinshipGenderFilter.male,
+      requiredAgeDirection: _KinshipAgeDirection.older,
+    );
+  }
+  if (_containsAny(normalized, const ['chi ho'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.sameGenerationRelative},
+      requiredGender: _KinshipGenderFilter.female,
+      requiredAgeDirection: _KinshipAgeDirection.older,
+    );
+  }
+  if (_containsAny(normalized, const ['em ho'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.sameGenerationRelative},
+      requiredAgeDirection: _KinshipAgeDirection.younger,
+    );
+  }
+  if (_containsAny(normalized, const [
+    'anh chi em ho',
+    'anh em ho',
+    'chi em ho',
+    'cousin',
+    'ba con ho',
+    'nguoi ho hang cung doi',
+  ])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.sameGenerationRelative},
+    );
+  }
+  if (_containsAny(normalized, const ['anh trai', 'anh ruot'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.sibling},
+      requiredGender: _KinshipGenderFilter.male,
+      requiredAgeDirection: _KinshipAgeDirection.older,
+    );
+  }
+  if (_containsAny(normalized, const ['chi gai', 'chi ruot'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.sibling},
+      requiredGender: _KinshipGenderFilter.female,
+      requiredAgeDirection: _KinshipAgeDirection.older,
+    );
+  }
+  if (_containsAny(normalized, const ['em trai'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.sibling},
+      requiredGender: _KinshipGenderFilter.male,
+      requiredAgeDirection: _KinshipAgeDirection.younger,
+    );
+  }
+  if (_containsAny(normalized, const ['em gai'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.sibling},
+      requiredGender: _KinshipGenderFilter.female,
+      requiredAgeDirection: _KinshipAgeDirection.younger,
+    );
+  }
+  if (_containsAny(normalized, const ['anh chi em', 'sibling'])) {
+    return const _KinshipSearchIntent(allowedRoles: {KinshipTitleRole.sibling});
+  }
+  if (_containsAny(normalized, const ['cha', 'bo', 'ba', 'father', 'dad'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.parent},
+      requiredGender: _KinshipGenderFilter.male,
+    );
+  }
+  if (_containsAny(normalized, const ['me', 'ma ', 'mom', 'mother'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.parent},
+      requiredGender: _KinshipGenderFilter.female,
+    );
+  }
+  if (_containsAny(normalized, const ['phu huynh', 'bo me', 'parent'])) {
+    return const _KinshipSearchIntent(allowedRoles: {KinshipTitleRole.parent});
+  }
+  if (_containsAny(normalized, const ['ong ba', 'grandparent'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {
+        KinshipTitleRole.grandparent,
+        KinshipTitleRole.greatGrandparent,
+        KinshipTitleRole.greatGreatGrandparent,
+      },
+    );
+  }
+  if (_containsAny(normalized, const [
+    'bac',
+    'chu',
+    'co',
+    'di',
+    'cau',
+    'aunt',
+    'uncle',
+  ])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.elderRelativeOneGeneration},
+    );
+  }
+  if (_containsAny(normalized, const ['con trai', 'son'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.child},
+      requiredGender: _KinshipGenderFilter.male,
+    );
+  }
+  if (_containsAny(normalized, const ['con gai', 'daughter'])) {
+    return const _KinshipSearchIntent(
+      allowedRoles: {KinshipTitleRole.child},
+      requiredGender: _KinshipGenderFilter.female,
+    );
+  }
+  if (_containsAny(normalized, const ['con ', 'child'])) {
+    return const _KinshipSearchIntent(allowedRoles: {KinshipTitleRole.child});
+  }
+
+  return null;
+}
+
+bool _containsAny(String normalized, List<String> candidates) {
+  for (final candidate in candidates) {
+    if (normalized.contains(candidate)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool _matchesKinshipIntent({
+  required MemberProfile viewer,
+  required MemberProfile member,
+  required _KinshipSearchIntent intent,
+}) {
+  final role = KinshipTitleResolver.resolveRole(viewer: viewer, member: member);
+  if (!intent.allowedRoles.contains(role)) {
+    return false;
+  }
+
+  if (intent.requiredGender != null) {
+    final gender = _genderFilterFor(member.gender);
+    if (gender != intent.requiredGender) {
+      return false;
+    }
+  }
+
+  if (intent.requiredAgeDirection != null) {
+    final ageDirection = _relativeAgeDirection(viewer: viewer, member: member);
+    if (ageDirection != intent.requiredAgeDirection) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+_KinshipGenderFilter? _genderFilterFor(String? gender) {
+  final normalized = (gender ?? '').trim().toLowerCase();
+  if (normalized == 'male' || normalized == 'nam') {
+    return _KinshipGenderFilter.male;
+  }
+  if (normalized == 'female' || normalized == 'nu' || normalized == 'nữ') {
+    return _KinshipGenderFilter.female;
+  }
+  return null;
+}
+
+_KinshipAgeDirection? _relativeAgeDirection({
+  required MemberProfile viewer,
+  required MemberProfile member,
+}) {
+  final viewerBirth = DateTime.tryParse((viewer.birthDate ?? '').trim());
+  final memberBirth = DateTime.tryParse((member.birthDate ?? '').trim());
+  if (viewerBirth != null && memberBirth != null) {
+    if (memberBirth.isBefore(viewerBirth)) {
+      return _KinshipAgeDirection.older;
+    }
+    if (memberBirth.isAfter(viewerBirth)) {
+      return _KinshipAgeDirection.younger;
+    }
+  }
+
+  final sameParents =
+      viewer.parentIds.isNotEmpty &&
+      member.parentIds.isNotEmpty &&
+      viewer.parentIds
+          .toSet()
+          .intersection(member.parentIds.toSet())
+          .isNotEmpty;
+  if (sameParents &&
+      viewer.siblingOrder != null &&
+      member.siblingOrder != null &&
+      viewer.siblingOrder != member.siblingOrder) {
+    return member.siblingOrder! < viewer.siblingOrder!
+        ? _KinshipAgeDirection.older
+        : _KinshipAgeDirection.younger;
+  }
+
+  return null;
+}
+
+int _compareRelativeAgeByMatch({
+  required MemberProfile? left,
+  required MemberProfile? right,
+}) {
+  if (left == null || right == null) {
+    return 0;
+  }
+  final leftBirth = DateTime.tryParse((left.birthDate ?? '').trim());
+  final rightBirth = DateTime.tryParse((right.birthDate ?? '').trim());
+  if (leftBirth != null && rightBirth != null) {
+    return leftBirth.compareTo(rightBirth);
+  }
+  return left.fullName.compareTo(right.fullName);
+}
+
+String _relationshipCodeForMemberMatch({
+  required MemberProfile? viewer,
+  required MemberProfile member,
+}) {
+  if (viewer == null) {
+    return '';
+  }
+  final role = KinshipTitleResolver.resolveRole(viewer: viewer, member: member);
+  return switch (role) {
+    KinshipTitleRole.self => 'self',
+    KinshipTitleRole.spouse => 'spouse',
+    KinshipTitleRole.sibling => 'sibling',
+    KinshipTitleRole.sameGenerationRelative => 'cousin',
+    KinshipTitleRole.parent => 'parent',
+    KinshipTitleRole.elderRelativeOneGeneration => 'aunt_uncle',
+    KinshipTitleRole.grandparent => 'grandparent',
+    KinshipTitleRole.greatGrandparent => 'great_grandparent',
+    KinshipTitleRole.greatGreatGrandparent => 'great_great_grandparent',
+    KinshipTitleRole.child => 'child',
+    KinshipTitleRole.youngerRelativeOneGeneration => 'niece_nephew',
+    KinshipTitleRole.grandchild => 'grandchild',
+    KinshipTitleRole.greatGrandchild => 'great_grandchild',
+    KinshipTitleRole.greatGreatGrandchild => 'great_great_grandchild',
+    KinshipTitleRole.descendant => 'descendant',
+  };
 }
 
 String _extractSearchQueryHint(String question) {

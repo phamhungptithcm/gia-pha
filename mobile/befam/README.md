@@ -73,6 +73,7 @@ Run the app:
 ../../run_flutter_targets.sh android-usb-release-ci
 ../../run_flutter_targets.sh android-doctor
 ../../run_flutter_targets.sh ios-sim
+../../run_flutter_targets.sh ios-device-staging-release
 ../../run_flutter_targets.sh web-chrome
 ```
 

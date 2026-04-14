@@ -74,6 +74,31 @@ void main() {
     },
   );
 
+  test(
+    'buildSearchContext resolves kinship queries like anh ho toi from the active member context',
+    () async {
+      final service = MemberWorkspaceAssistantContextService(
+        memberRepository: DebugMemberRepository.seeded(),
+      );
+
+      final context = await service.buildSearchContext(
+        session: buildSession(),
+        question: 'Anh họ tôi là ai?',
+        activeClanName: 'Gia phả họ Nguyễn',
+        availableClanContexts: availableClanContexts,
+      );
+
+      expect(context.searchQueryHint, 'Anh họ tôi');
+      expect(context.memberMatches, isNotEmpty);
+      expect(
+        context.memberMatches.every(
+          (entry) => entry.relationshipCode == 'cousin',
+        ),
+        isTrue,
+      );
+    },
+  );
+
   test('buildSearchContext stays empty for pure app-help questions', () async {
     final service = MemberWorkspaceAssistantContextService(
       memberRepository: DebugMemberRepository.seeded(),
@@ -91,59 +116,65 @@ void main() {
     expect(context.activeClanMemberCount, greaterThan(0));
   });
 
-  test('buildSearchContext reuses cached workspace within the cache window', () async {
-    final repository = _CountingMemberRepository(
-      delegate: DebugMemberRepository.seeded(),
-    );
-    final service = MemberWorkspaceAssistantContextService(
-      memberRepository: repository,
-    );
+  test(
+    'buildSearchContext reuses cached workspace within the cache window',
+    () async {
+      final repository = _CountingMemberRepository(
+        delegate: DebugMemberRepository.seeded(),
+      );
+      final service = MemberWorkspaceAssistantContextService(
+        memberRepository: repository,
+      );
 
-    await service.buildSearchContext(
-      session: buildSession(),
-      question: 'Tìm Nguyễn Minh trong gia phả này',
-      activeClanName: 'Gia phả họ Nguyễn',
-      availableClanContexts: availableClanContexts,
-    );
-    await service.buildSearchContext(
-      session: buildSession(),
-      question: 'Nguyễn Minh thuộc chi nào?',
-      activeClanName: 'Gia phả họ Nguyễn',
-      availableClanContexts: availableClanContexts,
-    );
+      await service.buildSearchContext(
+        session: buildSession(),
+        question: 'Tìm Nguyễn Minh trong gia phả này',
+        activeClanName: 'Gia phả họ Nguyễn',
+        availableClanContexts: availableClanContexts,
+      );
+      await service.buildSearchContext(
+        session: buildSession(),
+        question: 'Nguyễn Minh thuộc chi nào?',
+        activeClanName: 'Gia phả họ Nguyễn',
+        availableClanContexts: availableClanContexts,
+      );
 
-    expect(repository.loadWorkspaceCallCount, 1);
-  });
+      expect(repository.loadWorkspaceCallCount, 1);
+    },
+  );
 
-  test('buildSearchContext refreshes the cache after the cache window expires', () async {
-    final repository = _CountingMemberRepository(
-      delegate: DebugMemberRepository.seeded(),
-    );
-    var now = DateTime(2026, 4, 13, 8, 0);
-    final service = MemberWorkspaceAssistantContextService(
-      memberRepository: repository,
-      snapshotCacheTtl: const Duration(minutes: 1),
-      nowProvider: () => now,
-    );
+  test(
+    'buildSearchContext refreshes the cache after the cache window expires',
+    () async {
+      final repository = _CountingMemberRepository(
+        delegate: DebugMemberRepository.seeded(),
+      );
+      var now = DateTime(2026, 4, 13, 8, 0);
+      final service = MemberWorkspaceAssistantContextService(
+        memberRepository: repository,
+        snapshotCacheTtl: const Duration(minutes: 1),
+        nowProvider: () => now,
+      );
 
-    await service.buildSearchContext(
-      session: buildSession(),
-      question: 'Tìm Nguyễn Minh trong gia phả này',
-      activeClanName: 'Gia phả họ Nguyễn',
-      availableClanContexts: availableClanContexts,
-    );
+      await service.buildSearchContext(
+        session: buildSession(),
+        question: 'Tìm Nguyễn Minh trong gia phả này',
+        activeClanName: 'Gia phả họ Nguyễn',
+        availableClanContexts: availableClanContexts,
+      );
 
-    now = now.add(const Duration(minutes: 2));
+      now = now.add(const Duration(minutes: 2));
 
-    await service.buildSearchContext(
-      session: buildSession(),
-      question: 'Nguyễn Minh thuộc chi nào?',
-      activeClanName: 'Gia phả họ Nguyễn',
-      availableClanContexts: availableClanContexts,
-    );
+      await service.buildSearchContext(
+        session: buildSession(),
+        question: 'Nguyễn Minh thuộc chi nào?',
+        activeClanName: 'Gia phả họ Nguyễn',
+        availableClanContexts: availableClanContexts,
+      );
 
-    expect(repository.loadWorkspaceCallCount, 2);
-  });
+      expect(repository.loadWorkspaceCallCount, 2);
+    },
+  );
 }
 
 class _CountingMemberRepository implements MemberRepository {

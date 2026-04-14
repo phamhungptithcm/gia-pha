@@ -302,22 +302,22 @@ export const AI_FEATURE_COOLDOWN_MS = readEnvInt(
 );
 export const AI_USAGE_LIMIT_FREE = readEnvInt(
   'AI_USAGE_LIMIT_FREE',
-  20,
+  30,
   { min: 1, max: 100000 },
 );
 export const AI_USAGE_LIMIT_BASE = readEnvInt(
   'AI_USAGE_LIMIT_BASE',
-  80,
+  120,
   { min: 1, max: 100000 },
 );
 export const AI_USAGE_LIMIT_PLUS = readEnvInt(
   'AI_USAGE_LIMIT_PLUS',
-  240,
+  360,
   { min: 1, max: 100000 },
 );
 export const AI_USAGE_LIMIT_PRO = readEnvInt(
   'AI_USAGE_LIMIT_PRO',
-  800,
+  1200,
   { min: 1, max: 100000 },
 );
 

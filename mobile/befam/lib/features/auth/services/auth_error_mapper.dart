@@ -62,12 +62,14 @@ class AuthErrorMapper {
           case 'otp_request_rate_limited':
             return const AuthIssue(AuthIssueKey.tooManyRequests);
           case 'otp_country_not_allowed':
-          case 'otp_provider_auth_failed':
             return const AuthIssue(AuthIssueKey.operationNotAllowed);
+          case 'otp_provider_auth_failed':
+          case 'otp_provider_misconfigured':
+            return const AuthIssue(AuthIssueKey.authUnavailable);
           case 'otp_invalid_payload':
             return const AuthIssue(AuthIssueKey.invalidPhoneNumber);
           case 'otp_provider_unavailable':
-            return const AuthIssue(AuthIssueKey.networkRequestFailed);
+            return const AuthIssue(AuthIssueKey.authUnavailable);
           case 'parent_verification_mismatch':
             return const AuthIssue(AuthIssueKey.parentVerificationMismatch);
           case 'child_context_not_found':
@@ -106,8 +108,17 @@ class AuthErrorMapper {
         'not-found' => const AuthIssue(AuthIssueKey.authUnavailable),
         'already-exists' => const AuthIssue(AuthIssueKey.memberAlreadyLinked),
         'resource-exhausted' => const AuthIssue(AuthIssueKey.tooManyRequests),
+        'unauthenticated'
+            when normalizedMessage.contains('app check') ||
+                normalizedMessage.contains('appcheck') =>
+          const AuthIssue(AuthIssueKey.authUnavailable),
         'failed-precondition' when normalizedMessage.contains('parent phone') =>
           const AuthIssue(AuthIssueKey.parentVerificationMismatch),
+        'failed-precondition'
+            when normalizedMessage.contains('app check') ||
+                normalizedMessage.contains('appcheck') ||
+                normalizedMessage.contains('otp provider') =>
+          const AuthIssue(AuthIssueKey.authUnavailable),
         'failed-precondition'
             when normalizedMessage.contains(
               'verification data is not sufficient',
@@ -150,6 +161,11 @@ class AuthErrorMapper {
             ) =>
           const AuthIssue(AuthIssueKey.memberClaimConflict),
         'invalid-argument' => const AuthIssue(AuthIssueKey.preparationFailed),
+        'permission-denied'
+            when normalizedMessage.contains('app check') ||
+                normalizedMessage.contains('appcheck') ||
+                normalizedMessage.contains('attest') =>
+          const AuthIssue(AuthIssueKey.authUnavailable),
         'permission-denied' => const AuthIssue(
           AuthIssueKey.operationNotAllowed,
         ),

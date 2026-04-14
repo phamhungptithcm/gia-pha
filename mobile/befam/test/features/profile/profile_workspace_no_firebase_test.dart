@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/features/member/services/debug_member_repository.dart';
 import '../../support/features/ai/services/fake_ai_assist_service.dart';
+import '../../support/features/billing/services/debug_billing_repository.dart';
 import '../../support/features/profile/services/debug_profile_notification_preferences_repository.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
 
@@ -64,6 +65,7 @@ void main() {
         home: ProfileWorkspacePage(
           session: buildSession(),
           memberRepository: DebugMemberRepository.seeded(),
+          billingRepository: DebugBillingRepository.shared(),
           notificationPreferencesRepository:
               DebugProfileNotificationPreferencesRepository.shared(),
           showAppBar: true,
@@ -81,6 +83,13 @@ void main() {
     expect(find.text('Scholarships'), findsOneWidget);
     expect(find.text('Family updates'), findsOneWidget);
     expect(find.text('Quiet hours'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('AI help this month'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('AI help this month'), findsOneWidget);
+    expect(find.text('Change or upgrade plan'), findsOneWidget);
     expect(find.text('Test on this device'), findsNothing);
     expect(tester.takeException(), isNull);
   });

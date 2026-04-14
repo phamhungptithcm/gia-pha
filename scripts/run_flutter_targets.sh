@@ -128,6 +128,10 @@ Targets:
   ios-device-release [device_udid]
     - Run iOS real device in release mode (choose device if omitted)
 
+  ios-device-staging-release [device_udid]
+    - Run iOS real device in release mode with staging-safe defaults
+    - Prefers local staging env or bundled staging Firebase config
+
   web-chrome
     - Run on Chrome (debug)
 
@@ -150,6 +154,7 @@ Examples:
   ./run_flutter_targets.sh android-build-aab-ci
   ./run_flutter_targets.sh ios-sim ios
   ./run_flutter_targets.sh ios-device-release
+  ./run_flutter_targets.sh ios-device-staging-release
   ./run_flutter_targets.sh web-server 8080
   ./run_flutter_targets.sh android-debug emulator-5554 --dart-define=BEFAM_USE_LIVE_AUTH=false
 
@@ -196,8 +201,69 @@ load_env_file_safe_defaults() {
   done < "$file"
 }
 
+normalize_release_profile() {
+  local raw="${1:-}"
+  raw="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' | xargs)"
+  case "$raw" in
+    staging|stage)
+      echo "staging"
+      ;;
+    production|prod|env)
+      echo "env"
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}
+
+read_env_file_release_profile() {
+  local file="$1"
+  local line=""
+  local key=""
+  local value=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line//[[:space:]]/}" ]] && continue
+    if [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*) ]]; then
+      key="${BASH_REMATCH[1]}"
+      value="${BASH_REMATCH[2]}"
+      if [[ "$key" != "BEFAM_RELEASE_PROFILE" ]]; then
+        continue
+      fi
+      if [[ "$value" =~ ^\"(.*)\"$ ]] || [[ "$value" =~ ^\'(.*)\'$ ]]; then
+        value="${BASH_REMATCH[1]}"
+      fi
+      normalize_release_profile "$value"
+      return 0
+    fi
+  done < "$file"
+  echo ""
+  return 0
+}
+
+env_file_matches_release_profile() {
+  local file="$1"
+  local requested_profile
+  requested_profile="$(normalize_release_profile "${2:-}")"
+  local declared_profile
+  declared_profile="$(read_env_file_release_profile "$file")"
+
+  if [[ -z "$requested_profile" ]]; then
+    return 0
+  fi
+  if [[ -z "$declared_profile" ]]; then
+    return 0
+  fi
+  [[ "$requested_profile" == "$declared_profile" ]]
+}
+
 pick_release_env_file() {
-  local profile="${BEFAM_RELEASE_PROFILE:-staging}"
+  local profile
+  profile="$(normalize_release_profile "${BEFAM_RELEASE_PROFILE:-staging}")"
+  if [[ -z "$profile" ]]; then
+    profile="staging"
+  fi
   local -a candidates=()
   local candidate=""
 
@@ -218,6 +284,10 @@ pick_release_env_file() {
 
   for candidate in "${candidates[@]}"; do
     if [[ -f "$candidate" ]]; then
+      if ! env_file_matches_release_profile "$candidate" "$profile"; then
+        echo "Warning: Skipping $(basename "$candidate") because it is tagged for a different release profile." >&2
+        continue
+      fi
       echo "$candidate"
       return 0
     fi
@@ -245,7 +315,7 @@ load_release_env_defaults_if_needed() {
 
 target_needs_release_defaults() {
   case "$1" in
-    android-release|android-usb-release|android-usb-staging-release|android-usb-release-ci|android-build-aab|android-build-aab-ci|ios-device-release)
+    android-release|android-usb-release|android-usb-staging-release|android-usb-release-ci|android-build-aab|android-build-aab-ci|ios-device-release|ios-device-staging-release)
       return 0
       ;;
     *)
@@ -777,6 +847,7 @@ select_ios_target_interactive() {
     "iOS Simulator (Debug)"
     "iOS Real Device (Debug)"
     "iOS Real Device (Release)"
+    "iOS Real Device (Staging Release)"
     "Back"
   )
   local choice=""
@@ -801,6 +872,10 @@ select_ios_target_interactive() {
         return 0
         ;;
       4)
+        echo "ios-device-staging-release"
+        return 0
+        ;;
+      5)
         echo "$(select_target_interactive)"
         return 0
         ;;
@@ -1100,6 +1175,7 @@ build_befam_dart_define_args() {
     BEFAM_INVALID_CHECKOUT_HOSTS
     BEFAM_ENABLE_APP_CHECK
     BEFAM_OTP_PROVIDER
+    BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK
     BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
     BEFAM_BILLING_PENDING_TIMEOUT_MINUTES
     BEFAM_IOS_APP_STORE_URL
@@ -1144,6 +1220,10 @@ if [[ "$TARGET" == "interactive" || "$TARGET" == "menu" ]]; then
 fi
 
 if [[ "$TARGET" == "android-usb-staging-release" ]]; then
+  export BEFAM_RELEASE_PROFILE="staging"
+fi
+
+if [[ "$TARGET" == "ios-device-staging-release" ]]; then
   export BEFAM_RELEASE_PROFILE="staging"
 fi
 
@@ -1279,6 +1359,22 @@ case "$TARGET" in
     ;;
 
   ios-device-release)
+    DEVICE_ID="${1:-}"
+    if [[ -n "$DEVICE_ID" ]]; then
+      shift
+    else
+      DEVICE_ID="$(pick_device_id "ios" "" "physical")"
+    fi
+    if [[ -z "$DEVICE_ID" ]]; then
+      echo "No iOS real device found. Please connect your iPhone/iPad and trust this computer, then try again." >&2
+      exit 1
+    fi
+    cd "$APP_DIR"
+    flutter pub get
+    run_flutter_ios_cmd run --release -d "$DEVICE_ID" "${BEFAM_DART_DEFINE_ARGS[@]}" "$@"
+    ;;
+
+  ios-device-staging-release)
     DEVICE_ID="${1:-}"
     if [[ -n "$DEVICE_ID" ]]; then
       shift

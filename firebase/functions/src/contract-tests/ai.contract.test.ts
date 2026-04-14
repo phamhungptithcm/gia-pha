@@ -114,6 +114,10 @@ test("ai contract: throttle window reports remaining cooldown correctly", () => 
 });
 
 test("ai contract: monthly quota scales from free to pro", () => {
+  assert.equal(resolveAiMonthlyUsageLimit("FREE"), 30);
+  assert.equal(resolveAiMonthlyUsageLimit("BASE"), 120);
+  assert.equal(resolveAiMonthlyUsageLimit("PLUS"), 360);
+  assert.equal(resolveAiMonthlyUsageLimit("PRO"), 1200);
   assert.equal(resolveAiMonthlyUsageLimit("FREE") < resolveAiMonthlyUsageLimit("BASE"), true);
   assert.equal(resolveAiMonthlyUsageLimit("BASE") < resolveAiMonthlyUsageLimit("PLUS"), true);
   assert.equal(resolveAiMonthlyUsageLimit("PLUS") < resolveAiMonthlyUsageLimit("PRO"), true);
@@ -171,6 +175,7 @@ test("ai contract: assistant input keeps only bounded grounded search context", 
           memberId: "member_demo_parent_001",
           displayName: "Nguyễn Minh",
           fullName: "Nguyễn Minh",
+          relationshipCode: "cousin",
           nickName: "Minh",
           branchName: "Chi Trưởng",
           generation: 8,
@@ -198,6 +203,7 @@ test("ai contract: assistant input keeps only bounded grounded search context", 
     memberId: "member_demo_parent_001",
     displayName: "Nguyễn Minh",
     fullName: "Nguyễn Minh",
+    relationshipCode: "cousin",
     nickName: "Minh",
     branchName: "Chi Trưởng",
     generation: 8,

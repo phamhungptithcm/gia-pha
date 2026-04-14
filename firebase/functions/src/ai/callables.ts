@@ -143,6 +143,7 @@ type AppAssistantMemberMatchInput = {
   memberId: string;
   displayName: string;
   fullName: string;
+  relationshipCode: string;
   nickName: string;
   branchName: string;
   generation: number;
@@ -1306,6 +1307,13 @@ function describeAssistantMemberMatch(
   member: AppAssistantMemberMatchInput,
 ): string {
   const parts = [
+    member.relationshipCode.trim().length > 0
+      ? localized(
+          locale,
+          `Quan hệ: ${describeRelationshipCode(locale, member.relationshipCode)}`,
+          `Relation: ${describeRelationshipCode(locale, member.relationshipCode)}`,
+        )
+      : "",
     member.branchName.trim().length > 0
       ? localized(
           locale,
@@ -1348,6 +1356,41 @@ function describeAssistantMemberMatch(
     `${member.displayName} ${parts.length === 0 ? "" : "• "}${parts.join(" • ")}`,
     `${member.displayName} ${parts.length === 0 ? "" : "• "}${parts.join(" • ")}`,
   ).trim();
+}
+
+function describeRelationshipCode(locale: string, relationshipCode: string): string {
+  switch (relationshipCode.trim().toLowerCase()) {
+    case "spouse":
+      return localized(locale, "Phối ngẫu", "Spouse");
+    case "sibling":
+      return localized(locale, "Anh chị em", "Sibling");
+    case "cousin":
+      return localized(locale, "Anh chị em họ", "Cousin");
+    case "parent":
+      return localized(locale, "Cha mẹ", "Parent");
+    case "aunt_uncle":
+      return localized(locale, "Bác chú cô dì", "Aunt/Uncle");
+    case "grandparent":
+      return localized(locale, "Ông bà", "Grandparent");
+    case "great_grandparent":
+      return localized(locale, "Cụ", "Great-grandparent");
+    case "great_great_grandparent":
+      return localized(locale, "Cụ kỵ", "Great-great-grandparent");
+    case "child":
+      return localized(locale, "Con", "Child");
+    case "niece_nephew":
+      return localized(locale, "Cháu", "Niece/Nephew");
+    case "grandchild":
+      return localized(locale, "Cháu", "Grandchild");
+    case "great_grandchild":
+      return localized(locale, "Chắt", "Great-grandchild");
+    case "great_great_grandchild":
+      return localized(locale, "Chít", "Great-great-grandchild");
+    case "descendant":
+      return localized(locale, "Hậu duệ", "Descendant");
+    default:
+      return localized(locale, "Người thân", "Relative");
+  }
 }
 
 export function readProfileDraftInput(value: unknown): ProfileDraftInput {
@@ -1540,6 +1583,7 @@ function readAppAssistantSearchContext(
         memberId: optionalString(entry, "memberId").slice(0, 80),
         displayName: optionalString(entry, "displayName").slice(0, 120),
         fullName: optionalString(entry, "fullName").slice(0, 160),
+        relationshipCode: optionalString(entry, "relationshipCode").slice(0, 48),
         nickName: optionalString(entry, "nickName").slice(0, 120),
         branchName: optionalString(entry, "branchName").slice(0, 120),
         generation: Math.min(50, readPositiveInt(entry["generation"])),
