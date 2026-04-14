@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
-import '../../../core/services/governance_role_matrix.dart';
 import '../../ads/services/ad_conversion_tracker.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
@@ -41,34 +40,10 @@ class BillingController extends ChangeNotifier {
   bool get hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
 
   bool get canManageBilling {
-    if (_session.uid.trim().isEmpty) {
-      return false;
-    }
-    if (!hasClanContext) {
-      // Personal billing scope: authenticated users can manage their own plan
-      // before joining any clan.
-      return true;
-    }
-    if (!GovernanceRoleMatrix.isClaimedClanSession(_session)) {
-      return false;
-    }
-    final role = (_session.primaryRole ?? '').trim().toUpperCase();
-    return role == 'SUPER_ADMIN' ||
-        role == 'CLAN_ADMIN' ||
-        role == 'BRANCH_ADMIN' ||
-        role == 'CLAN_OWNER' ||
-        role == 'CLAN_LEADER' ||
-        role == 'VICE_LEADER' ||
-        role == 'SUPPORTER_OF_LEADER';
+    return _session.uid.trim().isNotEmpty;
   }
 
   bool get canMutateBilling {
-    if (_session.uid.trim().isEmpty) {
-      return false;
-    }
-    if (!hasClanContext) {
-      return true;
-    }
     return canManageBilling;
   }
 

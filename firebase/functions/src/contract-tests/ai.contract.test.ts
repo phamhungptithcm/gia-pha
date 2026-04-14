@@ -8,9 +8,11 @@ import {
   runAiTaskWithFallback,
 } from "../ai/callables";
 import {
+  buildAiUsageDocumentId,
   computeAiFeatureThrottleRemainingMs,
   computeAiQuotaRemainingCredits,
   computeAiUsageWindowKey,
+  resolveAiUsageScopeId,
   resolveAiFeatureUsageCost,
   resolveAiMonthlyUsageLimit,
 } from "../ai/usage";
@@ -149,6 +151,17 @@ test("ai contract: usage window is grouped by UTC month", () => {
   assert.equal(
     computeAiUsageWindowKey(new Date("2026-05-01T00:00:00.000Z")),
     "2026-05",
+  );
+});
+
+test("ai contract: monthly AI usage is keyed to the personal billing scope", () => {
+  assert.equal(resolveAiUsageScopeId(" user_demo_001 "), "user_scope__user_demo_001");
+  assert.equal(
+    buildAiUsageDocumentId({
+      windowKey: "2026-04",
+      uid: "user_demo_001",
+    }),
+    "2026-04_user_scope__user_demo_001",
   );
 });
 

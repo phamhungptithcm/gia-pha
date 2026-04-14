@@ -1234,10 +1234,7 @@ class _SettingsScreenShell extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   _ProfileSectionCard(
-                    title: l10n.pick(
-                      vi: 'Gói dịch vụ và thanh toán',
-                      en: 'Subscription & billing',
-                    ),
+                    title: l10n.pick(vi: 'Gói của bạn', en: 'Your plan'),
                     child: _BillingSettingsHub(
                       session: session,
                       billingRepository: billingRepository,
@@ -1486,7 +1483,10 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
     };
   }
 
-  String _statusLabel(_BillingSettingsSnapshot snapshot, AppLocalizations l10n) {
+  String _statusLabel(
+    _BillingSettingsSnapshot snapshot,
+    AppLocalizations l10n,
+  ) {
     return switch (snapshot.status.trim().toLowerCase()) {
       'active' => l10n.pick(vi: 'Đang hoạt động', en: 'Active'),
       'grace_period' => l10n.pick(vi: 'Ân hạn', en: 'Grace period'),
@@ -1496,7 +1496,10 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
     };
   }
 
-  String _expiresLabel(_BillingSettingsSnapshot snapshot, AppLocalizations l10n) {
+  String _expiresLabel(
+    _BillingSettingsSnapshot snapshot,
+    AppLocalizations l10n,
+  ) {
     final iso = snapshot.expiresAtIso;
     if (iso == null || iso.trim().isEmpty) {
       return l10n.pick(vi: 'Chưa có mốc', en: 'No date yet');
@@ -1520,19 +1523,29 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
       future: _snapshotFuture,
       builder: (context, snapshot) {
         final data = snapshot.data;
-        final progress = data?.aiUsageSummary.usageProgress ?? 0.0;
-        final remainingCredits = data?.aiUsageSummary.remainingCredits;
-        final quotaCredits = data?.aiUsageSummary.quotaCredits;
+        final hasResolvedQuota = data?.aiUsageSummary.hasResolvedQuota ?? false;
+        final progress = hasResolvedQuota
+            ? (data?.aiUsageSummary.usageProgress ?? 0.0)
+            : 0.0;
+        final remainingCredits = hasResolvedQuota
+            ? data?.aiUsageSummary.remainingCredits
+            : null;
+        final quotaCredits = hasResolvedQuota
+            ? data?.aiUsageSummary.quotaCredits
+            : null;
         final isNearLimit =
             data != null &&
+            data.aiUsageSummary.hasResolvedQuota &&
             data.aiUsageSummary.remainingCredits > 0 &&
             data.aiUsageSummary.usageProgress >= 0.8;
         final isExhausted =
-            data != null && data.aiUsageSummary.remainingCredits <= 0;
+            data != null && data.aiUsageSummary.isExhausted;
+        final statusLabel = data == null ? null : _statusLabel(data, l10n);
+        final nextCycleLabel = data == null ? null : _expiresLabel(data, l10n);
 
         return AppWorkspaceSurface(
-          padding: const EdgeInsets.all(16),
-          color: Colors.white.withValues(alpha: 0.76),
+          padding: const EdgeInsets.all(14),
+          color: Colors.white.withValues(alpha: 0.82),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1550,20 +1563,19 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             data.canManage
                                 ? l10n.pick(
-                                    vi: 'Bạn có thể đổi gói hoặc gia hạn cho gia phả này.',
-                                    en: 'You can change or renew the plan for this family tree.',
+                                    vi: 'Đang áp dụng cho tài khoản này.',
+                                    en: 'Currently applied to this account.',
                                   )
                                 : l10n.pick(
-                                    vi: 'Bạn đang xem gói hiện tại của gia phả này.',
-                                    en: 'You are viewing the current plan for this family tree.',
+                                    vi: 'Thông tin gói hiện tại.',
+                                    en: 'Current plan information.',
                                   ),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colorScheme.onSurfaceVariant,
-                              height: 1.3,
                             ),
                           ),
                         ],
@@ -1590,122 +1602,89 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: isExhausted
-                        ? colorScheme.errorContainer.withValues(alpha: 0.8)
-                        : isNearLimit
-                        ? colorScheme.tertiaryContainer.withValues(alpha: 0.78)
-                        : colorScheme.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: isExhausted
-                          ? colorScheme.error.withValues(alpha: 0.28)
-                          : isNearLimit
-                          ? colorScheme.tertiary.withValues(alpha: 0.24)
-                          : colorScheme.outlineVariant,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.pick(
-                          vi: 'Lượt hỗ trợ AI tháng này',
-                          en: 'AI help this month',
-                        ),
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            '${remainingCredits ?? 0}',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: isExhausted
-                                  ? colorScheme.error
-                                  : colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              l10n.pick(
-                                vi: '/ ${quotaCredits ?? 0} lượt còn lại',
-                                en: '/ ${quotaCredits ?? 0} uses left',
-                              ),
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          minHeight: 7,
-                          value: progress,
-                          backgroundColor: colorScheme.surfaceContainerHighest,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            isExhausted
-                                ? colorScheme.error
-                                : isNearLimit
-                                ? colorScheme.tertiary
-                                : colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        isExhausted
+                Row(
+                  children: [
+                    Expanded(
+                      child: _BillingSettingsMiniStat(
+                        label: l10n.pick(vi: 'AI còn lại', en: 'AI left'),
+                        value: hasResolvedQuota
                             ? l10n.pick(
-                                vi: 'Đã dùng hết lượt tháng này. Bạn vẫn có thể nâng cấp để dùng tiếp ngay.',
-                                en: 'This month is used up. You can upgrade to keep using AI right away.',
-                              )
-                            : isNearLimit
-                            ? l10n.pick(
-                                vi: 'Sắp chạm giới hạn tháng. Nếu dùng thường xuyên, đây là lúc phù hợp để nâng gói.',
-                                en: 'You are getting close to the monthly limit. If you use AI often, this is a good time to upgrade.',
+                                vi: '${remainingCredits ?? 0} lượt',
+                                en: '${remainingCredits ?? 0} left',
                               )
                             : l10n.pick(
-                                vi: 'Vẫn còn dư để hỏi nhanh hoặc dùng các gợi ý AI khi cần.',
-                                en: 'You still have room for quick questions and AI suggestions when needed.',
+                                vi: 'Đang cập nhật',
+                                en: 'Updating',
                               ),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          height: 1.3,
-                        ),
+                        hint: hasResolvedQuota
+                            ? l10n.pick(
+                                vi: '/ ${quotaCredits ?? 0} trong tháng',
+                                en: '/ ${quotaCredits ?? 0} this month',
+                              )
+                            : l10n.pick(
+                                vi: 'Lượt AI sẽ hiện sau khi đồng bộ',
+                                en: 'AI usage will appear after sync',
+                              ),
+                        accentColor: isExhausted
+                            ? colorScheme.error
+                            : isNearLimit
+                            ? colorScheme.tertiary
+                            : colorScheme.primary,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _BillingSettingsMiniStat(
+                        label: l10n.pick(vi: 'Kỳ tiếp theo', en: 'Next cycle'),
+                        value: nextCycleLabel ?? '',
+                        hint: statusLabel ?? '',
+                        accentColor: colorScheme.secondary,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  l10n.pick(
-                    vi: 'Hết hạn hoặc kỳ tiếp theo: ${_expiresLabel(data, l10n)}',
-                    en: 'Expires or renews next: ${_expiresLabel(data, l10n)}',
+                if (hasResolvedQuota) ...[
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      minHeight: 6,
+                      value: progress,
+                      backgroundColor: colorScheme.surfaceContainerHighest,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        isExhausted
+                            ? colorScheme.error
+                            : isNearLimit
+                            ? colorScheme.tertiary
+                            : colorScheme.primary,
+                      ),
+                    ),
                   ),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+                ],
+                if (isExhausted || isNearLimit) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    isExhausted
+                        ? l10n.pick(
+                            vi: 'Bạn đã dùng hết lượt AI tháng này. Nâng gói để dùng tiếp ngay.',
+                            en: 'You have used up this month’s AI help. Upgrade to continue right away.',
+                          )
+                        : l10n.pick(
+                            vi: 'Bạn sắp chạm giới hạn tháng này.',
+                            en: 'You are getting close to this month’s limit.',
+                          ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
+                ],
               ] else if (snapshot.hasError) ...[
                 Text(
                   l10n.pick(
                     vi: 'Không tải được tóm tắt gói lúc này.',
-                    en: 'Unable to load the subscription summary right now.',
+                    en: 'Unable to load the plan summary right now.',
                   ),
-                  style: theme.textTheme.bodyMedium?.copyWith(
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -1721,10 +1700,10 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
                     Expanded(
                       child: Text(
                         l10n.pick(
-                          vi: 'Đang tải gói hiện tại và lượt AI...',
-                          en: 'Loading your current plan and AI usage...',
+                          vi: 'Đang tải gói của bạn...',
+                          en: 'Loading your plan...',
                         ),
-                        style: theme.textTheme.bodyMedium?.copyWith(
+                        style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
                       ),
@@ -1735,7 +1714,7 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
               const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.tonalIcon(
+                child: FilledButton.icon(
                   onPressed: _openBillingWorkspace,
                   icon: const Icon(Icons.workspace_premium_outlined),
                   label: Text(
@@ -1745,28 +1724,20 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
                             en: 'View current plan',
                           )
                         : l10n.pick(
-                            vi: 'Đổi hoặc nâng cấp gói',
-                            en: 'Change or upgrade plan',
+                            vi: 'Đổi hoặc nâng cấp',
+                            en: 'Change or upgrade',
                           ),
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: _openBillingDetails,
                   icon: const Icon(Icons.receipt_long_outlined),
                   label: Text(
-                    data?.canManage == false
-                        ? l10n.pick(
-                            vi: 'Lượt AI tháng này',
-                            en: 'AI usage this month',
-                          )
-                        : l10n.pick(
-                            vi: 'Lượt AI và lịch sử thanh toán',
-                            en: 'AI usage and billing history',
-                          ),
+                    l10n.pick(vi: 'AI và thanh toán', en: 'AI and billing'),
                   ),
                 ),
               ),
@@ -1819,6 +1790,61 @@ class _BillingSettingsSnapshot {
   final String? expiresAtIso;
   final BillingAiUsageSummary aiUsageSummary;
   final bool canManage;
+}
+
+class _BillingSettingsMiniStat extends StatelessWidget {
+  const _BillingSettingsMiniStat({
+    required this.label,
+    required this.value,
+    required this.hint,
+    required this.accentColor,
+  });
+
+  final String label;
+  final String value;
+  final String hint;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: accentColor,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            hint,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _NotificationSettingsPanel extends StatelessWidget {

@@ -95,6 +95,31 @@ void main() {
           (entry) => entry.relationshipCode == 'cousin',
         ),
         isTrue,
+    );
+  },
+  );
+
+  test(
+    'buildSearchContext resolves sibling queries like anh em ruot cua toi',
+    () async {
+      final service = MemberWorkspaceAssistantContextService(
+        memberRepository: DebugMemberRepository.seeded(),
+      );
+
+      final context = await service.buildSearchContext(
+        session: buildSession(),
+        question: 'Tìm thông anh em ruột của tôi',
+        activeClanName: 'Gia phả họ Nguyễn',
+        availableClanContexts: availableClanContexts,
+      );
+
+      expect(context.searchQueryHint, 'Tìm thông anh em ruột của tôi');
+      expect(context.memberMatches, isNotEmpty);
+      expect(
+        context.memberMatches.every(
+          (entry) => entry.relationshipCode == 'sibling',
+        ),
+        isTrue,
       );
     },
   );

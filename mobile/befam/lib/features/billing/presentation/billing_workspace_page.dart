@@ -301,7 +301,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
 
     final currentPlanCode =
         workspace?.entitlement.planCode ?? viewerSummary?.entitlement.planCode;
-    final memberCount = workspace?.memberCount ?? viewerSummary?.memberCount;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -318,7 +317,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  sheetL10n.pick(vi: 'Bảng giá', en: 'Pricing tiers'),
+                  sheetL10n.pick(vi: 'Các gói hiện có', en: 'Available plans'),
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -326,25 +325,13 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                 const SizedBox(height: 6),
                 Text(
                   sheetL10n.pick(
-                    vi: 'Giá theo năm, đã gồm VAT.',
-                    en: 'Annual pricing, VAT included.',
+                    vi: 'So sánh nhanh để chọn gói phù hợp với bạn. Giá theo năm, đã gồm VAT.',
+                    en: 'Quick comparison to choose what fits you. Annual pricing, VAT included.',
                   ),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                if (memberCount != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    sheetL10n.pick(
-                      vi: 'Gia phả hiện có $memberCount thành viên.',
-                      en: 'This family tree currently has $memberCount members.',
-                    ),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 16),
                 _buildPricingTierList(
                   context,
@@ -412,7 +399,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
           appBar: widget.embeddedInShell
               ? null
               : AppBar(
-                  title: Text(l10n.pick(vi: 'Gói dịch vụ', en: 'Subscription')),
+                  title: Text(l10n.pick(vi: 'Gói của bạn', en: 'Your plan')),
                   actions: [
                     IconButton(
                       key: const Key('billing-pricing-quick-action'),
@@ -440,8 +427,11 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       en: 'Loading subscription details...',
                     ),
                   )
-                : _controller.canManageBilling && workspace == null
-                ? _EmptyState(
+                : workspace != null
+                ? _buildManagerWorkspace(context, workspace)
+                : viewerSummary != null
+                ? _buildViewerWorkspace(context, viewerSummary)
+                : _EmptyState(
                     icon: Icons.error_outline,
                     title: l10n.pick(
                       vi: 'Không thể tải gói dịch vụ',
@@ -451,22 +441,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       _controller.errorMessage,
                       l10n,
                     ),
-                  )
-                : _controller.canManageBilling
-                ? _buildManagerWorkspace(context, workspace!)
-                : viewerSummary == null
-                ? _EmptyState(
-                    icon: Icons.error_outline,
-                    title: l10n.pick(
-                      vi: 'Không thể tải gói dịch vụ',
-                      en: 'Unable to load billing',
-                    ),
-                    description: _friendlyErrorMessage(
-                      _controller.errorMessage,
-                      l10n,
-                    ),
-                  )
-                : _buildViewerWorkspace(context, viewerSummary),
+                  ),
           ),
         );
       },
@@ -485,10 +460,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         .where((item) => item.planCode == entitlement.planCode)
         .firstOrNull;
     final canManage = _controller.canMutateBilling;
-    final ownerLabel = (workspace.scope.ownerDisplayName ?? '').trim();
-    final resolvedOwnerLabel = ownerLabel.isEmpty
-        ? l10n.pick(vi: 'quản trị gia phả', en: 'the clan owner')
-        : ownerLabel;
     final minimumTier = _minimumTierForMemberCount(
       workspace.pricingTiers,
       workspace.memberCount,
@@ -573,8 +544,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             ],
             if (_controller.isProcessingPayment)
               const LinearProgressIndicator(minHeight: 2),
-            if (_controller.isProcessingPayment)
-              const SizedBox(height: 12),
+            if (_controller.isProcessingPayment) const SizedBox(height: 12),
             _SubscriptionHeroCard(
               planCode: entitlement.planCode,
               planDisplayName: _localizedPlanName(
@@ -583,7 +553,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                 tier: tier,
               ),
               status: entitlement.status,
-              memberCount: workspace.memberCount,
               amountVnd:
                   tier?.priceVndYear ?? workspace.subscription.amountVndYear,
               showAds: entitlement.showAds,
@@ -600,12 +569,12 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
               _InfoCard(
                 icon: Icons.lock_outline,
                 title: l10n.pick(
-                  vi: 'Chỉ quản trị viên có thể đổi gói',
-                  en: 'Only admins can manage billing',
+                  vi: 'Cần đúng tài khoản đang sở hữu gói',
+                  en: 'Use the account that owns the plan',
                 ),
                 description: l10n.pick(
-                  vi: 'Liên hệ $resolvedOwnerLabel để nâng cấp hoặc gia hạn.',
-                  en: 'Contact $resolvedOwnerLabel to upgrade or renew.',
+                  vi: 'Hãy dùng đúng tài khoản đang sở hữu gói nếu bạn cần đổi hoặc gia hạn.',
+                  en: 'Use the account that owns this plan if you need to change or renew it.',
                 ),
                 tone: colorScheme.primaryContainer,
               ),
@@ -613,8 +582,8 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             const SizedBox(height: 16),
             _SectionCard(
               title: l10n.pick(
-                vi: 'Chọn gói phù hợp',
-                en: 'Choose the right plan',
+                vi: 'Chọn gói tiếp theo',
+                en: 'Choose your next plan',
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -644,8 +613,10 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                                 l10n,
                                 tier: selectablePlans[index],
                               ),
-                              detailLabel:
-                                  '${_memberRangeLabel(selectablePlans[index], l10n)} • ${_adsExperienceLabel(selectablePlans[index], l10n)}',
+                              detailLabel: _planSupportLabel(
+                                selectablePlans[index],
+                                l10n,
+                              ),
                               priceLabel: _annualPriceLabel(
                                 selectablePlans[index].priceVndYear,
                                 l10n,
@@ -722,8 +693,8 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                         en: 'Downgrade blocked',
                       ),
                       description: l10n.pick(
-                        vi: 'Gia phả hiện có ${workspace.memberCount} thành viên, vượt giới hạn gói ${_localizedPlanName(selectedTier.planCode, l10n, tier: selectedTier)}.',
-                        en: 'Current clan has ${workspace.memberCount} members, which exceeds ${_localizedPlanName(selectedTier.planCode, l10n, tier: selectedTier)}.',
+                        vi: 'Gói này không phù hợp với dữ liệu hiện tại của tài khoản.',
+                        en: 'This plan does not fit the current account data.',
                       ),
                       tone: colorScheme.errorContainer,
                     )
@@ -861,7 +832,6 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                 tier: tier,
               ),
               status: entitlement.status,
-              memberCount: summary.memberCount,
               amountVnd:
                   tier?.priceVndYear ?? summary.subscription.amountVndYear,
               showAds: entitlement.showAds,
@@ -875,10 +845,10 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
             const SizedBox(height: 16),
             _InfoCard(
               icon: Icons.visibility_outlined,
-              title: l10n.pick(vi: 'Chế độ xem', en: 'View mode'),
+              title: l10n.pick(vi: 'Thông tin gói', en: 'Plan details'),
               description: l10n.pick(
-                vi: 'Bạn đang xem gói hiện tại. Quản trị viên có thể đổi gói và theo dõi lịch sử trong Hồ sơ > Cài đặt.',
-                en: 'You are viewing the current plan. Admins can change plans and review billing details in Profile > Settings.',
+                vi: 'Bạn đang xem gói hiện tại của tài khoản này.',
+                en: 'You are viewing the current plan for this account.',
               ),
               tone: colorScheme.secondaryContainer,
             ),
@@ -993,9 +963,7 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                 l10n,
                 tier: tiers[index],
               ),
-              detailLabel:
-                  '${_memberRangeLabel(tiers[index], l10n)} • '
-                  '${_adsExperienceLabel(tiers[index], l10n)}',
+              detailLabel: _planSupportLabel(tiers[index], l10n),
               priceLabel: _annualPriceLabel(tiers[index].priceVndYear, l10n),
               badgeLabel:
                   tiers[index].planCode.trim().toUpperCase() ==
@@ -1056,27 +1024,33 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     }
   }
 
-  String _memberRangeLabel(BillingPlanPricing tier, AppLocalizations l10n) {
-    if (tier.maxMembers == null) {
-      return l10n.pick(
-        vi: '${tier.minMembers}+ thành viên',
-        en: '${tier.minMembers}+ members',
-      );
-    }
-    return l10n.pick(
-      vi: '${tier.minMembers} - ${tier.maxMembers} thành viên',
-      en: '${tier.minMembers} - ${tier.maxMembers} members',
-    );
+  String _planSupportLabel(BillingPlanPricing tier, AppLocalizations l10n) {
+    final normalizedPlanCode = tier.planCode.trim().toUpperCase();
+    final baseLabel = switch (normalizedPlanCode) {
+      'BASE' => l10n.pick(
+        vi: 'Gọn nhẹ cho nhu cầu hằng ngày',
+        en: 'A lighter fit for everyday use',
+      ),
+      'PLUS' => l10n.pick(
+        vi: 'Thoải mái hơn khi dùng thường xuyên',
+        en: 'More room when you use it often',
+      ),
+      'PRO' => l10n.pick(
+        vi: 'Ưu tiên đầy đủ cho nhu cầu chuyên sâu',
+        en: 'Full priority for heavier usage',
+      ),
+      _ => l10n.pick(
+        vi: 'Dùng thử các tính năng chính',
+        en: 'Try the essential features',
+      ),
+    };
+    final adsLabel = _adsExperienceLabel(tier, l10n);
+    return '$baseLabel • $adsLabel';
   }
-
 }
 
 class BillingDetailsPage extends StatefulWidget {
-  const BillingDetailsPage({
-    super.key,
-    required this.session,
-    this.repository,
-  });
+  const BillingDetailsPage({super.key, required this.session, this.repository});
 
   final AuthSession session;
   final BillingRepository? repository;
@@ -1374,10 +1348,7 @@ class _BillingDetailsPageState extends State<BillingDetailsPage> {
         return Scaffold(
           appBar: AppBar(
             title: Text(
-              l10n.pick(
-                vi: 'Lượt AI và thanh toán',
-                en: 'AI usage & billing',
-              ),
+              l10n.pick(vi: 'Lượt AI và thanh toán', en: 'AI usage & billing'),
             ),
             actions: [
               IconButton(
@@ -1814,7 +1785,6 @@ class _SubscriptionHeroCard extends StatelessWidget {
     required this.planCode,
     required this.planDisplayName,
     required this.status,
-    required this.memberCount,
     required this.amountVnd,
     required this.showAds,
     required this.adFree,
@@ -1825,7 +1795,6 @@ class _SubscriptionHeroCard extends StatelessWidget {
   final String planCode;
   final String planDisplayName;
   final String status;
-  final int memberCount;
   final int amountVnd;
   final bool showAds;
   final bool adFree;
@@ -1899,8 +1868,8 @@ class _SubscriptionHeroCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             l10n.pick(
-              vi: 'Số thành viên hiện tại: $memberCount',
-              en: 'Current members: $memberCount',
+              vi: 'Gói đang áp dụng cho tài khoản của bạn.',
+              en: 'This plan is currently applied to your account.',
             ),
             style: theme.textTheme.bodyLarge?.copyWith(
               color: colorScheme.onSurface,
@@ -2205,12 +2174,33 @@ class _AiUsageSummaryCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final tokens = context.uiTokens;
     final planLabel = _localizedPlanName(summary.planCode, l10n);
+    final hasResolvedQuota = summary.hasResolvedQuota;
     final progress = summary.usageProgress;
-    final isExhausted = summary.remainingCredits <= 0;
+    final isExhausted = summary.isExhausted;
     final isNearLimit = !isExhausted && progress >= 0.8;
-    final featureEntries = summary.featureCredits.entries.toList(growable: false)
-      ..sort((left, right) => right.value.compareTo(left.value));
+    final featureEntries = summary.featureCredits.entries.toList(
+      growable: false,
+    )..sort((left, right) => right.value.compareTo(left.value));
     final topFeatures = featureEntries.take(3).toList(growable: false);
+    if (!hasResolvedQuota) {
+      return _SectionCard(
+        sectionKey: const Key('billing-ai-usage-section'),
+        title: l10n.pick(
+          vi: 'Lượt hỗ trợ AI của bạn tháng này',
+          en: 'Your AI help this month',
+        ),
+        child: Text(
+          l10n.pick(
+            vi: 'Lượt AI đang được đồng bộ cho tài khoản này. Hãy thử mở lại sau một lát.',
+            en: 'AI usage is syncing for this account. Try reopening this section in a moment.',
+          ),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+            height: 1.4,
+          ),
+        ),
+      );
+    }
     final statusTitle = isExhausted
         ? l10n.pick(
             vi: 'Đã dùng hết lượt trong tháng này',
@@ -2227,31 +2217,25 @@ class _AiUsageSummaryCard extends StatelessWidget {
           );
     final statusDescription = isExhausted
         ? l10n.pick(
-            vi:
-                'Các tính năng AI sẽ tạm nghỉ đến kỳ mới hoặc khi gói được nâng cấp.',
-            en:
-                'AI features pause until the next billing window or until the plan is upgraded.',
+            vi: 'Các tính năng AI sẽ tạm nghỉ đến kỳ mới hoặc khi gói được nâng cấp.',
+            en: 'AI features pause until the next billing window or until the plan is upgraded.',
           )
         : isNearLimit
         ? l10n.pick(
-            vi:
-                'Ưu tiên giữ lượt cho các câu hỏi tìm người thân hoặc tác vụ thật sự cần thiết.',
-            en:
-                'Save the remaining uses for family lookups or the tasks that matter most.',
+            vi: 'Ưu tiên giữ lượt cho các câu hỏi tìm người thân hoặc tác vụ thật sự cần thiết.',
+            en: 'Save the remaining uses for family lookups or the tasks that matter most.',
           )
         : l10n.pick(
-            vi:
-                'Bạn vẫn còn khá thoải mái cho chat tìm người, hỗ trợ hồ sơ, và gợi ý nội dung.',
-            en:
-                'You still have comfortable room for family search, profile help, and content suggestions.',
+            vi: 'Bạn vẫn còn khá thoải mái cho chat tìm người, hỗ trợ hồ sơ, và gợi ý nội dung.',
+            en: 'You still have comfortable room for family search, profile help, and content suggestions.',
           );
     final topFeature = topFeatures.isEmpty ? null : topFeatures.first;
 
     return _SectionCard(
       sectionKey: const Key('billing-ai-usage-section'),
       title: l10n.pick(
-        vi: 'Lượt hỗ trợ AI tháng này',
-        en: 'AI help this month',
+        vi: 'Lượt hỗ trợ AI của bạn tháng này',
+        en: 'Your AI help this month',
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2264,10 +2248,7 @@ class _AiUsageSummaryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      l10n.pick(
-                        vi: 'Còn lại',
-                        en: 'Remaining',
-                      ),
+                      l10n.pick(vi: 'Còn lại', en: 'Remaining'),
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
@@ -2303,13 +2284,11 @@ class _AiUsageSummaryCard extends StatelessWidget {
                       ],
                     ),
                     SizedBox(height: tokens.spaceXs),
-                      Text(
-                        l10n.pick(
-                          vi:
-                            'Đang áp dụng theo gói $planLabel cho ${_aiUsageWindowLabel(summary.windowKey, l10n)}.',
-                          en:
-                            'Based on the $planLabel plan for ${_aiUsageWindowLabel(summary.windowKey, l10n)}.',
-                        ),
+                    Text(
+                      l10n.pick(
+                        vi: 'Đang áp dụng theo gói $planLabel của bạn cho ${_aiUsageWindowLabel(summary.windowKey, l10n)}.',
+                        en: 'Based on your $planLabel plan for ${_aiUsageWindowLabel(summary.windowKey, l10n)}.',
+                      ),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                         height: 1.3,
@@ -2388,8 +2367,7 @@ class _AiUsageSummaryCard extends StatelessWidget {
                     ? l10n.pick(vi: 'Chưa có hoạt động', en: 'No usage yet')
                     : l10n.pick(
                         vi: 'Dùng nhiều nhất: ${_aiFeatureLabel(topFeature.key, l10n)}',
-                        en:
-                            'Top use: ${_aiFeatureLabel(topFeature.key, l10n)}',
+                        en: 'Top use: ${_aiFeatureLabel(topFeature.key, l10n)}',
                       ),
               ),
             ],
@@ -2443,10 +2421,7 @@ class _AiUsageSummaryCard extends StatelessWidget {
           if (topFeatures.isNotEmpty) ...[
             SizedBox(height: tokens.spaceMd),
             Text(
-              l10n.pick(
-                vi: 'Dùng nhiều nhất',
-                en: 'Used most often',
-              ),
+              l10n.pick(vi: 'Dùng nhiều nhất', en: 'Used most often'),
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
@@ -2480,10 +2455,8 @@ class _AiUsageSummaryCard extends StatelessWidget {
                     SizedBox(width: tokens.spaceSm),
                     Text(
                       l10n.pick(
-                        vi:
-                            '${summary.featureCounts[topFeatures[index].key] ?? 0} lần • ${topFeatures[index].value} lượt',
-                        en:
-                            '${summary.featureCounts[topFeatures[index].key] ?? 0} uses • ${topFeatures[index].value} credits',
+                        vi: '${summary.featureCounts[topFeatures[index].key] ?? 0} lần • ${topFeatures[index].value} lượt',
+                        en: '${summary.featureCounts[topFeatures[index].key] ?? 0} uses • ${topFeatures[index].value} credits',
                       ),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
@@ -2531,9 +2504,15 @@ class _BillingDetailRow extends StatelessWidget {
 String _aiFeatureLabel(String feature, AppLocalizations l10n) {
   switch (feature.trim()) {
     case 'app_assistant_chat':
-      return l10n.pick(vi: 'Bubble chat và tìm kiếm', en: 'Bubble chat and search');
+      return l10n.pick(
+        vi: 'Bubble chat và tìm kiếm',
+        en: 'Bubble chat and search',
+      );
     case 'event_copy':
-      return l10n.pick(vi: 'Gợi ý nội dung sự kiện', en: 'Event copy suggestions');
+      return l10n.pick(
+        vi: 'Gợi ý nội dung sự kiện',
+        en: 'Event copy suggestions',
+      );
     case 'profile_review':
       return l10n.pick(vi: 'Kiểm tra nhanh hồ sơ', en: 'Quick profile check');
     case 'duplicate_genealogy':
@@ -2542,7 +2521,9 @@ String _aiFeatureLabel(String feature, AppLocalizations l10n) {
         en: 'Duplicate genealogy review',
       );
     default:
-      return feature.trim().isEmpty ? l10n.pick(vi: 'AI khác', en: 'Other AI') : feature;
+      return feature.trim().isEmpty
+          ? l10n.pick(vi: 'AI khác', en: 'Other AI')
+          : feature;
   }
 }
 
@@ -2879,8 +2860,8 @@ String _friendlyErrorMessage(String? raw, AppLocalizations l10n) {
   }
   if (lower.contains('permission-denied')) {
     return l10n.pick(
-      vi: 'Bạn chưa có quyền truy cập tính năng gói dịch vụ của gia phả này.',
-      en: 'You do not have permission to access billing for this clan.',
+      vi: 'Bạn chưa thể mở phần gói trong phiên này.',
+      en: 'You cannot open plan details in this session.',
     );
   }
   if (lower.contains('unavailable')) {

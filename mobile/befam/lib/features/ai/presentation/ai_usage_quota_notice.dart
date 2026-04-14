@@ -54,7 +54,9 @@ class _AiUsageQuotaNoticeState extends State<AiUsageQuotaNotice> {
       return null;
     }
     try {
-      final summary = await repository.loadViewerSummary(session: widget.session);
+      final summary = await repository.loadViewerSummary(
+        session: widget.session,
+      );
       return summary.aiUsageSummary;
     } catch (_) {
       return null;
@@ -86,12 +88,15 @@ class _AiUsageQuotaNoticeState extends State<AiUsageQuotaNotice> {
         if (summary == null) {
           return const SizedBox.shrink();
         }
+        if (!summary.hasResolvedQuota) {
+          return const SizedBox.shrink();
+        }
 
         final l10n = context.l10n;
         final remainingCredits = summary.remainingCredits;
         final remainingAfterRequest = (remainingCredits - widget.requestCost)
             .clamp(0, summary.quotaCredits);
-        final isExhausted = remainingCredits <= 0;
+        final isExhausted = summary.isExhausted;
         final isLastSafeRequest =
             !isExhausted && remainingCredits <= widget.requestCost;
         final isNearLimit =
@@ -99,35 +104,24 @@ class _AiUsageQuotaNoticeState extends State<AiUsageQuotaNotice> {
 
         final title = isExhausted
             ? l10n.pick(
-                vi: 'Tháng này bạn đã dùng hết lượt hỗ trợ AI.',
-                en: 'You have used all AI help for this month.',
+                vi: 'Tháng này bạn đã dùng hết lượt hỗ trợ AI của mình.',
+                en: 'You have used all of your AI help for this month.',
               )
             : l10n.pick(
-                vi:
-                    'Bạn còn $remainingCredits/${summary.quotaCredits} lượt hỗ trợ trong tháng này.',
-                en:
-                    'You have $remainingCredits/${summary.quotaCredits} AI help uses left this month.',
+                vi: 'Bạn còn $remainingCredits/${summary.quotaCredits} lượt hỗ trợ trong tháng này.',
+                en: 'You have $remainingCredits/${summary.quotaCredits} AI help uses left this month.',
               );
 
         final description = isExhausted
             ? l10n.pick(
-                vi:
-                    'Tính năng AI sẽ tạm dừng cho đến kỳ tháng mới hoặc khi gói được nâng cấp.',
-                en:
-                    'AI features pause until the next monthly window or until the plan is upgraded.',
+                vi: 'Tính năng AI sẽ tạm dừng cho tài khoản của bạn đến kỳ tháng mới hoặc khi gói được nâng cấp.',
+                en: 'AI features pause for your account until the next monthly window or until the plan is upgraded.',
               )
-            : '${widget.usageHint} ${isLastSafeRequest ? l10n.pick(
-                    vi: 'Sau lượt này bạn sẽ chạm giới hạn tháng.',
-                    en: 'After this request, you will hit the monthly limit.',
-                  ) : isNearLimit
-                    ? l10n.pick(
-                        vi: 'Bạn đang gần chạm giới hạn tháng.',
-                        en: 'You are getting close to the monthly limit.',
-                      )
-                    : l10n.pick(
-                        vi: 'Sau lượt này vẫn còn khoảng $remainingAfterRequest lượt.',
-                        en: 'After this request, about $remainingAfterRequest uses remain.',
-                      )}';
+            : '${widget.usageHint} ${isLastSafeRequest
+                  ? l10n.pick(vi: 'Sau lượt này bạn sẽ chạm giới hạn tháng.', en: 'After this request, you will hit the monthly limit.')
+                  : isNearLimit
+                  ? l10n.pick(vi: 'Bạn đang gần chạm giới hạn tháng.', en: 'You are getting close to the monthly limit.')
+                  : l10n.pick(vi: 'Sau lượt này vẫn còn khoảng $remainingAfterRequest lượt.', en: 'After this request, about $remainingAfterRequest uses remain.')}';
 
         return _AiUsageNoticeCard(
           compact: widget.compact,
@@ -261,10 +255,11 @@ class _AiUsageNoticeCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: (compact
-                          ? theme.textTheme.bodySmall
-                          : theme.textTheme.bodyMedium)
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                  style:
+                      (compact
+                              ? theme.textTheme.bodySmall
+                              : theme.textTheme.bodyMedium)
+                          ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 if (description != null && description!.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),

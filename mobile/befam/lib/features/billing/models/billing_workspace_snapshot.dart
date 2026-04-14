@@ -100,8 +100,20 @@ class BillingAiUsageSummary {
   final Map<String, int> featureCounts;
   final Map<String, int> featureCredits;
 
+  bool get hasResolvedQuota {
+    if (windowKey.trim().isEmpty) {
+      return false;
+    }
+    if (quotaCredits > 0) {
+      return true;
+    }
+    return usedCredits > 0 || totalRequests > 0;
+  }
+
+  bool get isExhausted => hasResolvedQuota && remainingCredits <= 0;
+
   double get usageProgress {
-    if (quotaCredits <= 0) {
+    if (!hasResolvedQuota || quotaCredits <= 0) {
       return 0;
     }
     final ratio = usedCredits / quotaCredits;

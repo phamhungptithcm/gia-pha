@@ -31,10 +31,10 @@ class DebugBillingRepository implements BillingRepository {
     required AuthSession session,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 120));
-    final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    final scopeId = _billingScopeIdOf(session);
+    final state = _ensureState(clanId: scopeId, ownerUid: session.uid);
     _expireStalePendingTransactions(state);
-    _syncStateWithMemberCount(state, clanId);
+    _syncStateWithMemberCount(state, scopeId);
     return state.toSnapshot();
   }
 
@@ -43,10 +43,10 @@ class DebugBillingRepository implements BillingRepository {
     required AuthSession session,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 90));
-    final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    final scopeId = _billingScopeIdOf(session);
+    final state = _ensureState(clanId: scopeId, ownerUid: session.uid);
     _expireStalePendingTransactions(state);
-    _syncStateWithMemberCount(state, clanId);
+    _syncStateWithMemberCount(state, scopeId);
     return state.toViewerSummary();
   }
 
@@ -55,10 +55,10 @@ class DebugBillingRepository implements BillingRepository {
     required AuthSession session,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 60));
-    final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    final scopeId = _billingScopeIdOf(session);
+    final state = _ensureState(clanId: scopeId, ownerUid: session.uid);
     _expireStalePendingTransactions(state);
-    _syncStateWithMemberCount(state, clanId);
+    _syncStateWithMemberCount(state, scopeId);
     return state.entitlement;
   }
 
@@ -70,8 +70,8 @@ class DebugBillingRepository implements BillingRepository {
     List<int>? reminderDaysBefore,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 90));
-    final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    final scopeId = _billingScopeIdOf(session);
+    final state = _ensureState(clanId: scopeId, ownerUid: session.uid);
 
     final normalizedMode = paymentMode.trim().toLowerCase();
     if (normalizedMode != 'manual' && normalizedMode != 'auto_renew') {
@@ -82,8 +82,8 @@ class DebugBillingRepository implements BillingRepository {
     }
 
     state.settings = BillingSettings(
-      id: '${clanId}__${session.uid}',
-      clanId: clanId,
+      id: '${scopeId}__${session.uid}',
+      clanId: scopeId,
       paymentMode: normalizedMode,
       autoRenew: autoRenew,
       reminderDaysBefore:
@@ -116,7 +116,7 @@ class DebugBillingRepository implements BillingRepository {
 
     _writeAudit(
       state,
-      clanId: clanId,
+      clanId: scopeId,
       action: 'billing_preferences_updated',
       entityType: 'billingSettings',
       entityId: state.settings.id,
@@ -149,8 +149,8 @@ class DebugBillingRepository implements BillingRepository {
       paymentMethod: paymentMethod,
       requestedPlanCode: planCode,
     );
-    final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    final scopeId = _billingScopeIdOf(session);
+    final state = _ensureState(clanId: scopeId, ownerUid: session.uid);
     _applySuccessfulPayment(
       state,
       transactionId: transactionId,
@@ -164,10 +164,10 @@ class DebugBillingRepository implements BillingRepository {
     required String paymentMethod,
     required String requestedPlanCode,
   }) async {
-    final clanId = _clanIdOf(session);
-    final state = _ensureState(clanId: clanId, ownerUid: session.uid);
+    final scopeId = _billingScopeIdOf(session);
+    final state = _ensureState(clanId: scopeId, ownerUid: session.uid);
     _expireStalePendingTransactions(state);
-    _syncStateWithMemberCount(state, clanId);
+    _syncStateWithMemberCount(state, scopeId);
 
     final method = paymentMethod.trim().toLowerCase();
     if (method != 'apple_iap' && method != 'google_play') {
@@ -195,7 +195,7 @@ class DebugBillingRepository implements BillingRepository {
 
     final transaction = BillingPaymentTransaction(
       id: transactionId,
-      clanId: clanId,
+      clanId: scopeId,
       subscriptionId: state.subscription.id,
       invoiceId: invoiceId,
       paymentMethod: method,
@@ -215,7 +215,7 @@ class DebugBillingRepository implements BillingRepository {
 
     final invoice = BillingInvoice(
       id: invoiceId,
-      clanId: clanId,
+      clanId: scopeId,
       subscriptionId: state.subscription.id,
       transactionId: transactionId,
       planCode: tier.planCode,
@@ -232,7 +232,7 @@ class DebugBillingRepository implements BillingRepository {
 
     state.subscription = BillingSubscription(
       id: state.subscription.id,
-      clanId: clanId,
+      clanId: scopeId,
       planCode: state.subscription.planCode,
       status: state.subscription.status,
       memberCount: state.memberCount,
@@ -257,7 +257,7 @@ class DebugBillingRepository implements BillingRepository {
 
     _writeAudit(
       state,
-      clanId: clanId,
+      clanId: scopeId,
       action: 'checkout_created',
       entityType: 'paymentTransaction',
       entityId: transactionId,
@@ -605,6 +605,9 @@ class DebugBillingRepository implements BillingRepository {
   }
 
   int _memberCountForClan(String clanId) {
+    if (clanId.startsWith('user_scope__')) {
+      return 0;
+    }
     return _genealogyStore.members.values
         .where((member) => member.clanId == clanId)
         .length;
@@ -665,11 +668,7 @@ class DebugBillingRepository implements BillingRepository {
     );
   }
 
-  String _clanIdOf(AuthSession session) {
-    final clanId = (session.clanId ?? '').trim();
-    if (clanId.isNotEmpty) {
-      return clanId;
-    }
+  String _billingScopeIdOf(AuthSession session) {
     final uid = session.uid.trim();
     if (uid.isEmpty) {
       throw const BillingRepositoryException(

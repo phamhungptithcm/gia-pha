@@ -84,12 +84,13 @@ void main() {
     expect(find.text('Family updates'), findsOneWidget);
     expect(find.text('Quiet hours'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('AI help this month'),
+      find.text('AI left'),
       240,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('AI help this month'), findsOneWidget);
-    expect(find.text('Change or upgrade plan'), findsOneWidget);
+    expect(find.text('Your plan'), findsOneWidget);
+    expect(find.text('AI left'), findsOneWidget);
+    expect(find.text('Change or upgrade'), findsOneWidget);
     expect(find.text('Test on this device'), findsNothing);
     expect(tester.takeException(), isNull);
   });

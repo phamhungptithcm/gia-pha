@@ -474,7 +474,13 @@ _KinshipSearchIntent? _detectKinshipSearchIntent(String searchQueryHint) {
       requiredAgeDirection: _KinshipAgeDirection.younger,
     );
   }
-  if (_containsAny(normalized, const ['anh chi em', 'sibling'])) {
+  if (_containsAny(normalized, const [
+    'anh chi em',
+    'anh chi em ruot',
+    'anh em ruot',
+    'chi em ruot',
+    'sibling',
+  ])) {
     return const _KinshipSearchIntent(allowedRoles: {KinshipTitleRole.sibling});
   }
   if (_containsAny(normalized, const ['cha', 'bo', 'ba', 'father', 'dad'])) {

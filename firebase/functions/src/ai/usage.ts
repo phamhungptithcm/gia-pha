@@ -12,11 +12,9 @@ import { type BillingPlanCode, hasActiveAccess } from "../billing/pricing";
 import { loadSubscription } from "../billing/store";
 import { db } from "../shared/firestore";
 import { logWarn } from "../shared/logger";
-import { stringOrNull } from "../shared/permissions";
 
 const aiFeatureThrottleCollection = db.collection("aiFeatureThrottle");
 const aiMonthlyUsageCollection = db.collection("aiMonthlyUsage");
-const clansCollection = db.collection("clans");
 
 export type AiFeatureName =
   | "profile_review"
@@ -143,6 +141,17 @@ export function computeAiUsageWindowKey(now: Date = new Date()): string {
   return `${year}-${month}`;
 }
 
+export function resolveAiUsageScopeId(uid: string): string {
+  return `user_scope__${uid.trim()}`;
+}
+
+export function buildAiUsageDocumentId(input: {
+  windowKey: string;
+  uid: string;
+}): string {
+  return `${input.windowKey}_${resolveAiUsageScopeId(input.uid)}`;
+}
+
 export function computeAiQuotaRemainingCredits(input: {
   usedCredits: number;
   quotaCredits: number;
@@ -160,11 +169,20 @@ export async function enforceAiPlanUsageLimit(input: {
   locale: string;
   traceId: string;
 }): Promise<void> {
-  const planCode = await resolveAiPlanCodeForClan(input.clanId);
+  const planCode = await resolveAiPlanCodeForActor({
+    uid: input.uid,
+    clanId: input.clanId,
+  });
   const quotaCredits = resolveAiMonthlyUsageLimit(planCode);
   const requestCost = resolveAiFeatureUsageCost(input.feature);
   const windowKey = computeAiUsageWindowKey();
-  const usageRef = aiMonthlyUsageCollection.doc(`${windowKey}_${input.clanId}`);
+  const usageScopeId = resolveAiUsageScopeId(input.uid);
+  const usageRef = aiMonthlyUsageCollection.doc(
+    buildAiUsageDocumentId({
+      windowKey,
+      uid: input.uid,
+    }),
+  );
   const nowMs = Date.now();
 
   const state = await db.runTransaction(async (transaction) => {
@@ -190,7 +208,9 @@ export async function enforceAiPlanUsageLimit(input: {
         {
           id: usageRef.id,
           windowKey,
-          clanId: input.clanId,
+          billingScopeId: usageScopeId,
+          ownerUid: input.uid,
+          lastRequestedClanId: input.clanId,
           planCode,
           quotaCredits,
           totalRequests: 1,
@@ -218,6 +238,7 @@ export async function enforceAiPlanUsageLimit(input: {
         [`featureCounts.${input.feature}`]: FieldValue.increment(1),
         [`featureCredits.${input.feature}`]: FieldValue.increment(requestCost),
         lastRequestedByUid: input.uid,
+        lastRequestedClanId: input.clanId,
         lastFeature: input.feature,
         lastRequestedAtMs: nowMs,
         updatedAt: FieldValue.serverTimestamp(),
@@ -237,6 +258,7 @@ export async function enforceAiPlanUsageLimit(input: {
 
   logWarn("AI callable quota exceeded", {
     clanId: input.clanId,
+    billingScopeId: usageScopeId,
     uid: input.uid,
     feature: input.feature,
     locale: input.locale,
@@ -253,20 +275,31 @@ export async function enforceAiPlanUsageLimit(input: {
     "resource-exhausted",
     localized(
       input.locale,
-      `Quota AI tháng này của gia phả đã hết cho gói ${planCode}. Hãy chờ sang tháng mới hoặc nâng gói để dùng thêm.`,
-      `This genealogy has reached its monthly AI quota for the ${planCode} plan. Wait until next month or upgrade for more usage.`,
+      `Quota AI tháng này của bạn đã hết cho gói ${planCode}. Hãy chờ sang tháng mới hoặc nâng gói để dùng thêm.`,
+      `You have reached your monthly AI quota for the ${planCode} plan. Wait until next month or upgrade for more usage.`,
     ),
   );
 }
 
-export async function loadAiUsageSummaryForClan(
-  clanId: string,
+export async function loadAiUsageSummaryForUser(
+  uid: string,
+  options?: {
+    clanId?: string;
+  },
 ): Promise<AiUsageSummary> {
-  const planCode = await resolveAiPlanCodeForClan(clanId);
+  const planCode = await resolveAiPlanCodeForActor({
+    uid,
+    clanId: options?.clanId ?? "",
+  });
   const quotaCredits = resolveAiMonthlyUsageLimit(planCode);
   const windowKey = computeAiUsageWindowKey();
   const usageSnapshot = await aiMonthlyUsageCollection
-    .doc(`${windowKey}_${clanId}`)
+    .doc(
+      buildAiUsageDocumentId({
+        windowKey,
+        uid,
+      }),
+    )
     .get();
   const usageData = asRecord(usageSnapshot.data());
   const usedCredits = readPositiveInt(usageData["totalCredits"]);
@@ -287,52 +320,57 @@ export async function loadAiUsageSummaryForClan(
   };
 }
 
-async function resolveAiPlanCodeForClan(
-  clanId: string,
-): Promise<BillingPlanCode> {
+async function resolveAiPlanCodeForActor(input: {
+  uid: string;
+  clanId: string;
+}): Promise<BillingPlanCode> {
   try {
-    const ownerUid = await resolveBillingOwnerUidForScope(clanId);
-    if (ownerUid == null) {
-      return "FREE";
-    }
-    const subscription = await loadSubscription({
-      clanId,
-      ownerUid,
+    const personalScopeId = resolveAiUsageScopeId(input.uid);
+    const personalPlanCode = await loadActiveSubscriptionPlanCode({
+      clanId: personalScopeId,
+      ownerUid: input.uid,
     });
-    if (subscription == null) {
-      return "FREE";
+    if (personalPlanCode != null) {
+      return personalPlanCode;
     }
-    if (!hasActiveAccess(subscription.status)) {
-      return "FREE";
+
+    const currentClanId = input.clanId.trim();
+    if (currentClanId.length > 0 && currentClanId !== personalScopeId) {
+      const legacyClanPlanCode = await loadActiveSubscriptionPlanCode({
+        clanId: currentClanId,
+        ownerUid: input.uid,
+      });
+      if (legacyClanPlanCode != null) {
+        return legacyClanPlanCode;
+      }
     }
-    return subscription.planCode;
+
+    return "FREE";
   } catch (error) {
     logWarn("AI billing plan resolution fell back to FREE", {
-      clanId,
+      uid: input.uid,
+      clanId: input.clanId,
       error: error instanceof Error ? error.message : `${error}`,
     });
     return "FREE";
   }
 }
 
-async function resolveBillingOwnerUidForScope(
-  clanId: string,
-): Promise<string | null> {
-  if (clanId.startsWith("user_scope__")) {
-    const ownerUid = clanId.replace("user_scope__", "").trim();
-    return ownerUid.length == 0 ? null : ownerUid;
-  }
-  return resolveClanOwnerUid(clanId);
-}
-
-async function resolveClanOwnerUid(clanId: string): Promise<string | null> {
-  const snapshot = await clansCollection.doc(clanId).get();
-  if (!snapshot.exists) {
+async function loadActiveSubscriptionPlanCode(input: {
+  clanId: string;
+  ownerUid: string;
+}): Promise<BillingPlanCode | null> {
+  const subscription = await loadSubscription({
+    clanId: input.clanId,
+    ownerUid: input.ownerUid,
+  });
+  if (subscription == null) {
     return null;
   }
-  const data = asRecord(snapshot.data());
-  const ownerUid = stringOrNull(data["ownerUid"]);
-  return ownerUid == null ? null : ownerUid.trim();
+  if (!hasActiveAccess(subscription.status)) {
+    return null;
+  }
+  return subscription.planCode;
 }
 
 function localized(locale: string, vi: string, en: string): string {

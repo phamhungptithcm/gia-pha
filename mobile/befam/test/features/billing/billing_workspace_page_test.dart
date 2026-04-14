@@ -117,35 +117,16 @@ void main() {
     }
   }
 
-  void seedPlusTier() {
-    final store = DebugGenealogyStore.sharedSeeded();
-    for (var index = 0; index < 260; index += 1) {
-      store.members['member_billing_widget_plus_$index'] = store
-          .members['member_demo_parent_001']!
-          .copyWith(
-            id: 'member_billing_widget_plus_$index',
-            fullName: 'Billing Plus Member $index',
-            normalizedFullName: 'billing plus member $index',
-            authUid: null,
-            primaryRole: 'MEMBER',
-          );
-    }
-  }
-
   testWidgets('renders billing workspace summary', (tester) async {
     await pumpBillingPage(tester);
 
-    expect(find.text('Gói dịch vụ'), findsOneWidget);
-    expect(find.textContaining('Số thành viên hiện tại'), findsOneWidget);
+    expect(find.text('Gói của bạn'), findsOneWidget);
     expect(find.byKey(const Key('billing-ai-usage-section')), findsNothing);
-    expect(find.byKey(const Key('billing-payment-history-section')), findsNothing);
-    expect(find.text('Chọn gói phù hợp'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Theo dõi chi tiết trong Hồ sơ'),
-      240,
-      scrollable: find.byType(Scrollable).first,
+    expect(
+      find.byKey(const Key('billing-payment-history-section')),
+      findsNothing,
     );
-    expect(find.text('Theo dõi chi tiết trong Hồ sơ'), findsOneWidget);
+    expect(find.text('Chọn gói tiếp theo'), findsOneWidget);
   });
 
   testWidgets('no-clan user can load personal billing workspace and checkout', (
@@ -153,13 +134,13 @@ void main() {
   ) async {
     await pumpBillingPage(tester, session: buildNoClanSession());
 
-    expect(find.text('Gói cá nhân của bạn'), findsNothing);
+    expect(find.text('Gói của bạn'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('Chọn gói phù hợp'),
+      find.text('Chọn gói tiếp theo'),
       280,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Chọn gói phù hợp'), findsOneWidget);
+    expect(find.text('Chọn gói tiếp theo'), findsOneWidget);
     final selector = find.byKey(const Key('billing-plan-selector'));
     expect(selector, findsOneWidget);
     final baseOption = find.byKey(const Key('billing-plan-option-base'));
@@ -248,12 +229,13 @@ void main() {
 
     final saveAfterPersist = tester.widget<FilledButton>(saveButton);
     expect(saveAfterPersist.onPressed, isNull);
-    expect(find.byKey(const Key('billing-save-success-indicator')), findsOneWidget);
+    expect(
+      find.byKey(const Key('billing-save-success-indicator')),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('viewer mode shows summary only and hides manager actions', (
-    tester,
-  ) async {
+  testWidgets('member role can still manage personal billing', (tester) async {
     final repository = DebugBillingRepository.shared();
     await pumpBillingPage(
       tester,
@@ -262,49 +244,31 @@ void main() {
     );
 
     await tester.scrollUntilVisible(
-      find.text('Chế độ xem'),
+      find.byKey(const Key('billing-open-checkout-button')),
       280,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Chế độ xem'), findsOneWidget);
-    expect(find.byKey(const Key('billing-open-checkout-button')), findsNothing);
+    expect(
+      find.byKey(const Key('billing-open-checkout-button')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('billing-ai-usage-section')), findsNothing);
-    expect(find.byKey(const Key('billing-payment-history-section')), findsNothing);
+    expect(
+      find.byKey(const Key('billing-payment-history-section')),
+      findsNothing,
+    );
   });
 
-  testWidgets(
-    'shows downgrade warning when selected tier is below current member minimum',
-    (tester) async {
-      seedPlusTier(); // member count >= 201, minimum tier PLUS
-      await pumpBillingPage(
-        tester,
-        session: buildSession(uid: 'debug:billing-downgrade-guard'),
-      );
+  testWidgets('pricing quick view uses concise plan guidance', (tester) async {
+    await pumpBillingPage(tester);
 
-      final selector = find.byKey(const Key('billing-plan-selector'));
-      await tester.scrollUntilVisible(
-        selector,
-        280,
-        scrollable: find.byType(Scrollable).first,
-      );
-      expect(selector, findsOneWidget);
-      final baseOption = find.byKey(const Key('billing-plan-option-base'));
-      expect(baseOption, findsOneWidget);
-      expect(find.byKey(const Key('billing-plan-option-plus')), findsOneWidget);
-      expect(find.byKey(const Key('billing-plan-option-pro')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('billing-pricing-quick-action')));
+    await tester.pumpAndSettle();
 
-      await tester.ensureVisible(baseOption);
-      await tester.pumpAndSettle();
-      await tester.tap(baseOption);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Không thể hạ xuống gói này'), findsOneWidget);
-      expect(
-        find.byKey(const Key('billing-open-checkout-button')),
-        findsNothing,
-      );
-    },
-  );
+    expect(find.text('Các gói hiện có'), findsOneWidget);
+    expect(find.textContaining('Gọn nhẹ cho nhu cầu hằng ngày'), findsWidgets);
+    expect(find.textContaining('thành viên'), findsNothing);
+  });
 
   testWidgets('localizes billing details in English', (tester) async {
     seedPaidTier();
@@ -320,6 +284,6 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Payment history'), findsOneWidget);
-    expect(find.text('AI help this month'), findsOneWidget);
+    expect(find.text('Your AI help this month'), findsOneWidget);
   });
 }

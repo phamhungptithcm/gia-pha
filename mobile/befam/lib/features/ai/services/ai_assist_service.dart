@@ -82,11 +82,23 @@ class FirebaseAiAssistService implements AiAssistService {
       });
       return AppAssistantReply.fromMap(_asMap(response.data));
     } on FirebaseFunctionsException catch (error) {
+      if (_shouldUseLocalAssistantFallback(error)) {
+        return _buildLocalAssistantFallback(
+          locale: locale,
+          currentScreenId: currentScreenId,
+          question: question,
+          searchContext: searchContext,
+          activeClanName: activeClanName,
+        );
+      }
       throw _exceptionForFunctionsError(error);
     } on TimeoutException {
-      throw const AiAssistServiceException(
-        'AI assistance took too long. Please try again in a moment.',
-        code: 'deadline-exceeded',
+      return _buildLocalAssistantFallback(
+        locale: locale,
+        currentScreenId: currentScreenId,
+        question: question,
+        searchContext: searchContext,
+        activeClanName: activeClanName,
       );
     }
   }
@@ -430,7 +442,11 @@ List<int> _asIntList(dynamic value) {
 AiAssistServiceException _exceptionForFunctionsError(
   FirebaseFunctionsException error,
 ) {
-  final message = error.message?.trim() ?? '';
+  final rawMessage = error.message?.trim() ?? '';
+  final message = _normalizeAiFunctionsMessage(
+    rawMessage: rawMessage,
+    code: error.code,
+  );
   if (message.isNotEmpty) {
     return AiAssistServiceException(message, code: error.code);
   }
@@ -444,6 +460,195 @@ AiAssistServiceException _exceptionForFunctionsError(
       'AI assistance took too long. Please try again in a moment.',
     _ => 'AI assistance is temporarily unavailable.',
   }, code: error.code);
+}
+
+bool _shouldUseLocalAssistantFallback(FirebaseFunctionsException error) {
+  final code = error.code.trim().toLowerCase();
+  if (code == 'permission-denied' || code == 'resource-exhausted') {
+    return false;
+  }
+  if (code == 'not-found' ||
+      code == 'unavailable' ||
+      code == 'deadline-exceeded' ||
+      code == 'internal' ||
+      code == 'unknown') {
+    return true;
+  }
+  final message = (error.message ?? '').trim().toLowerCase();
+  return message == 'not found' || message.contains('not found');
+}
+
+String _normalizeAiFunctionsMessage({
+  required String rawMessage,
+  required String code,
+}) {
+  final trimmed = rawMessage.trim();
+  if (trimmed.isEmpty) {
+    return '';
+  }
+  final normalized = trimmed.toLowerCase();
+  if (normalized == 'not found' || code.trim().toLowerCase() == 'not-found') {
+    return 'The assistant is still syncing right now. Please try again in a moment.';
+  }
+  return trimmed;
+}
+
+AppAssistantReply _buildLocalAssistantFallback({
+  required String locale,
+  required String currentScreenId,
+  required String question,
+  required AppAssistantSearchContext searchContext,
+  String? activeClanName,
+}) {
+  final isVietnamese = locale.trim().toLowerCase().startsWith('vi');
+  final clanLabel = (searchContext.activeClanName.trim().isNotEmpty
+          ? searchContext.activeClanName
+          : (activeClanName ?? ''))
+      .trim();
+  final matches = searchContext.memberMatches;
+  final queryHint = searchContext.searchQueryHint.trim().isNotEmpty
+      ? searchContext.searchQueryHint.trim()
+      : question.trim();
+
+  if (matches.isNotEmpty) {
+    final firstMatch = matches.first;
+    final answer = matches.length == 1
+        ? (isVietnamese
+              ? 'Mình thấy một hồ sơ khá khớp trong ${clanLabel.isEmpty ? 'gia phả đang mở' : clanLabel}: ${firstMatch.displayName}.'
+              : 'I found one profile that looks like a good match in ${clanLabel.isEmpty ? 'the active family tree' : clanLabel}: ${firstMatch.displayName}.')
+        : (isVietnamese
+              ? 'Mình thấy ${matches.length} người khá khớp với câu hỏi này trong ${clanLabel.isEmpty ? 'gia phả đang mở' : clanLabel}. Mình để ngay bên dưới để bạn đối chiếu nhanh.'
+              : 'I found ${matches.length} people that look close to your question in ${clanLabel.isEmpty ? 'the active family tree' : clanLabel}. I listed them below so you can compare quickly.');
+    return AppAssistantReply(
+      answer: answer,
+      steps: <String>[
+        isVietnamese
+            ? 'Nếu đang tìm đúng người thân của mình, bạn nhìn thêm chi, đời, và năm sinh để chốt nhanh hơn.'
+            : 'If you are looking for your exact relative, compare branch, generation, and birth year to confirm more quickly.',
+      ],
+      quickReplies: <String>[
+        isVietnamese ? 'Mở Tree để xem kỹ hơn' : 'Open Tree',
+        isVietnamese ? 'Tìm người khác' : 'Search another person',
+      ],
+      caution: matches.length > 1
+          ? (isVietnamese
+                ? 'Có vài hồ sơ gần giống nhau, nên mình chưa khẳng định tuyệt đối chỉ từ tên gọi.'
+                : 'There are a few similar profiles, so I would not confirm only from the name.')
+          : '',
+      suggestedDestination: 'tree',
+      usedFallback: true,
+      model: null,
+    );
+  }
+
+  if (queryHint.isNotEmpty) {
+    return AppAssistantReply(
+      answer: isVietnamese
+          ? 'Mình chưa thấy hồ sơ nào khớp rõ với “$queryHint” trong gia phả đang mở.'
+          : 'I could not find a clear profile match for “$queryHint” in the active family tree.',
+      steps: <String>[
+        isVietnamese
+            ? 'Bạn thử nhập tên đầy đủ, tên thường gọi, hoặc hỏi rõ hơn như “anh ruột của tôi”, “chị họ của tôi”.'
+            : 'Try the full name, a common nickname, or a more specific relation such as “my brother” or “my cousin”.',
+        isVietnamese
+            ? 'Nếu muốn chắc hơn, mở Tree để dò theo chi hoặc đời.'
+            : 'If you want a safer check, open Tree and browse by branch or generation.',
+      ],
+      quickReplies: <String>[
+        isVietnamese ? 'Mở Tree để tìm tiếp' : 'Open Tree',
+        isVietnamese ? 'Tìm theo tên đầy đủ' : 'Search by full name',
+      ],
+      caution: '',
+      suggestedDestination: 'tree',
+      usedFallback: true,
+      model: null,
+    );
+  }
+
+  return AppAssistantReply(
+    answer: isVietnamese
+        ? _fallbackAssistantAnswerVi(currentScreenId)
+        : _fallbackAssistantAnswerEn(currentScreenId),
+    steps: <String>[
+      isVietnamese
+          ? 'Bạn cứ hỏi ngắn gọn như đang nhắn tin, mình sẽ gợi đúng chỗ để làm tiếp.'
+          : 'Ask in a short natural way and I will point you to the right place to continue.',
+    ],
+    quickReplies: _defaultAssistantQuickReplies(
+      currentScreenId: currentScreenId,
+      isVietnamese: isVietnamese,
+    ),
+    caution: '',
+    suggestedDestination: _defaultAssistantDestination(currentScreenId),
+    usedFallback: true,
+    model: null,
+  );
+}
+
+String _fallbackAssistantAnswerVi(String currentScreenId) {
+  switch (currentScreenId.trim().toLowerCase()) {
+    case 'tree':
+      return 'Mình có thể giúp bạn tìm người thân trong gia phả hoặc chỉ nhanh nên mở nhánh nào để kiểm tra tiếp.';
+    case 'events':
+      return 'Mình có thể giúp bạn tìm nhanh việc cần làm cho sự kiện, ngày giỗ, hoặc nhắc bạn nên điền gì trước.';
+    case 'billing':
+      return 'Mình có thể giải thích nhanh gói hiện tại của bạn và lúc nào nên nâng cấp.';
+    case 'profile':
+      return 'Mình có thể giúp bạn hoàn thiện hồ sơ và chỉ ra phần nào nên sửa trước.';
+    default:
+      return 'Mình có thể giúp bạn tìm người thân hoặc chỉ nhanh đúng khu vực trong BeFam để làm tiếp.';
+  }
+}
+
+String _fallbackAssistantAnswerEn(String currentScreenId) {
+  switch (currentScreenId.trim().toLowerCase()) {
+    case 'tree':
+      return 'I can help you find a relative in the tree or point to the right branch to inspect next.';
+    case 'events':
+      return 'I can help you move through event setup, memorial tasks, or the next detail to fill in.';
+    case 'billing':
+      return 'I can quickly explain your current plan and when an upgrade would make sense.';
+    case 'profile':
+      return 'I can help you improve the profile and point out what to fix first.';
+    default:
+      return 'I can help you find a relative or move to the right BeFam area to continue.';
+  }
+}
+
+List<String> _defaultAssistantQuickReplies({
+  required String currentScreenId,
+  required bool isVietnamese,
+}) {
+  switch (currentScreenId.trim().toLowerCase()) {
+    case 'tree':
+      return <String>[
+        isVietnamese ? 'Tìm anh chị em của tôi' : 'Find my siblings',
+        isVietnamese ? 'Mở Tree để xem tiếp' : 'Open Tree',
+      ];
+    case 'events':
+      return <String>[
+        isVietnamese ? 'Tạo ngày giỗ' : 'Create a memorial event',
+        isVietnamese ? 'Nhắc tôi nên điền gì trước' : 'What should I fill first?',
+      ];
+    default:
+      return <String>[
+        isVietnamese ? 'Tìm người thân trong gia phả' : 'Find a relative',
+        isVietnamese ? 'Tôi nên bắt đầu từ đâu?' : 'Where should I start?',
+      ];
+  }
+}
+
+String? _defaultAssistantDestination(String currentScreenId) {
+  switch (currentScreenId.trim().toLowerCase()) {
+    case 'tree':
+    case 'events':
+    case 'billing':
+    case 'profile':
+    case 'home':
+      return currentScreenId.trim().toLowerCase();
+    default:
+      return null;
+  }
 }
 
 int _wordCount(String value) {
