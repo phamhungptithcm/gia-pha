@@ -22,6 +22,7 @@ Run from repo root:
 
 ```bash
 python3 scripts/validate_rules_documentation.py
+./scripts/lint_design_md.sh
 ./.venv/bin/mkdocs build --strict
 ```
 

@@ -1,68 +1,248 @@
+---
+version: alpha
+name: BeFam Light Lineage Workspace
+description: A calm, commercial-grade design system for Vietnamese digital genealogy and clan operations.
+colors:
+  primary: "#3155FF"
+  on-primary: "#FFFFFF"
+  primary-container: "#E4EAFF"
+  on-primary-container: "#071338"
+  secondary: "#2FC37D"
+  on-secondary: "#031C12"
+  tertiary: "#8B5CF6"
+  accent-violet: "#E34CFF"
+  surface: "#F8FAFF"
+  surface-raised: "#FFFFFF"
+  surface-container: "#EAF0FA"
+  outline: "#7E8AA3"
+  outline-variant: "#DCE4F2"
+  text-primary: "#0F172A"
+  text-secondary: "#526076"
+  text-muted: "#718096"
+  trust-muted: "#8AA097"
+  error: "#B3261E"
+  on-error: "#FFFFFF"
+  error-container: "#F9DEDC"
+typography:
+  display:
+    fontFamily: system-ui
+    fontSize: 44px
+    fontWeight: 900
+    lineHeight: 1.04
+    letterSpacing: 0px
+  headline-lg:
+    fontFamily: system-ui
+    fontSize: 28px
+    fontWeight: 900
+    lineHeight: 1.12
+    letterSpacing: 0px
+  headline-md:
+    fontFamily: system-ui
+    fontSize: 24px
+    fontWeight: 800
+    lineHeight: 1.16
+    letterSpacing: 0px
+  title-lg:
+    fontFamily: system-ui
+    fontSize: 20px
+    fontWeight: 800
+    lineHeight: 1.22
+    letterSpacing: 0px
+  body-md:
+    fontFamily: system-ui
+    fontSize: 15px
+    fontWeight: 400
+    lineHeight: 1.42
+    letterSpacing: 0px
+  body-sm:
+    fontFamily: system-ui
+    fontSize: 13px
+    fontWeight: 500
+    lineHeight: 1.35
+    letterSpacing: 0px
+  label-lg:
+    fontFamily: system-ui
+    fontSize: 14px
+    fontWeight: 800
+    lineHeight: 1.15
+    letterSpacing: 0px
+  label-sm:
+    fontFamily: system-ui
+    fontSize: 12px
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: 0px
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 12px
+  lg: 16px
+  xl: 22px
+  xxl: 28px
+  section: 40px
+rounded:
+  sm: 8px
+  md: 12px
+  lg: 18px
+  full: 999px
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.label-lg}"
+    rounded: "{rounded.md}"
+    height: 48px
+    padding: 14px
+  button-primary-pressed:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.label-lg}"
+    rounded: "{rounded.md}"
+    height: 48px
+    padding: 14px
+  button-trust:
+    backgroundColor: "{colors.secondary}"
+    textColor: "{colors.on-secondary}"
+    typography: "{typography.label-lg}"
+    rounded: "{rounded.md}"
+    height: 48px
+    padding: 14px
+  button-violet-signal:
+    backgroundColor: "{colors.accent-violet}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.label-sm}"
+    rounded: "{rounded.sm}"
+    size: 9px
+  app-background:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.body-md}"
+    padding: "{spacing.lg}"
+  lineage-outline:
+    backgroundColor: "{colors.outline-variant}"
+    rounded: "{rounded.md}"
+    width: 1px
+  outline-focus-ring:
+    backgroundColor: "{colors.outline}"
+    width: 2px
+  tertiary-focus-ring:
+    backgroundColor: "{colors.tertiary}"
+    width: 2px
+  muted-meta:
+    textColor: "{colors.text-muted}"
+    typography: "{typography.body-sm}"
+  trust-context-mark:
+    backgroundColor: "{colors.trust-muted}"
+    size: 8px
+  input-field:
+    backgroundColor: "{colors.surface-raised}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.md}"
+    padding: 14px
+  input-error:
+    backgroundColor: "{colors.error-container}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.body-sm}"
+    rounded: "{rounded.md}"
+    padding: 12px
+  card-workspace:
+    backgroundColor: "{colors.surface-raised}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.body-md}"
+    rounded: "{rounded.lg}"
+    padding: 16px
+  chip-muted:
+    backgroundColor: "{colors.surface-container}"
+    textColor: "{colors.text-secondary}"
+    typography: "{typography.label-sm}"
+    rounded: "{rounded.full}"
+    padding: 8px
+  navigation-selected:
+    backgroundColor: "{colors.primary-container}"
+    textColor: "{colors.on-primary-container}"
+    typography: "{typography.label-sm}"
+    rounded: "{rounded.full}"
+    padding: 8px
+  status-error:
+    backgroundColor: "{colors.error}"
+    textColor: "{colors.on-error}"
+    typography: "{typography.label-sm}"
+    rounded: "{rounded.md}"
+    padding: 8px
+---
+
 # BeFam Design Direction
 
 _Last updated: May 16, 2026_
 
-This file is the working design contract for the BeFam release-readiness pass.
-It keeps the app focused on real Vietnamese clan workflows while modernizing the
-mobile experience.
+This file follows the Google Labs `design.md` format: machine-readable YAML
+tokens first, then human-readable product guidance. Tokens are normative. Prose
+explains how to apply them across web, iOS, Android, and release docs.
 
-## Product Goal
+## Overview
 
-BeFam should feel like a calm family operations workspace, not a generic social
-feed. The user should always understand:
+BeFam should feel like a calm, premium, commercial-grade family operations
+workspace for Vietnamese clans moving from paper records and chat threads into
+digital genealogy. It is not a generic social feed.
+
+The user should always understand:
 
 - which clan they are viewing
 - what needs attention next
 - which action is safe to take
 - whether a write action affects genealogy, governance, money, or privacy
 
-## Design Principles
+Design principles:
 
-1. Trust first
-   - Keep clan context visible on every workspace.
-   - Make destructive, billing, governance, and relationship writes explicit.
-   - Prefer clear review states over hidden automation.
+- Trust first: keep clan context visible, make destructive and financial writes
+  explicit, and prefer review states over hidden automation.
+- Focus over decoration: show the primary task first, reduce stacked cards, and
+  keep education text short.
+- Mobile-first speed: show useful shell, skeleton, or stable placeholder in
+  under one second whenever network data is still loading.
+- Human warmth: copy should feel natural and respectful, but never verbose.
 
-2. Focus over decoration
-   - Put the primary task first on each screen.
-   - Reduce stacked cards and nested surfaces.
-   - Keep secondary education text short and contextual.
+## Colors
 
-3. Mobile-first speed
-   - Use cached shell data and progressive hydration.
-   - Show skeletons or stable placeholders in under one second.
-   - Avoid blocking the first useful view on location, AI, ads, or large graph
-     work.
+The release direction is light lineage workspace: bright paper, a soft blue
+lineage grid, strong black text, BeFam blue emphasis, and small green trust
+signals.
 
-4. Human warmth
-   - Use softer copy for helper states and AI fallback.
-   - Add small motion moments to confirm progress, success, and context change.
-   - Keep motion respectful and fast; genealogy and financial data should not
-     feel playful at the expense of clarity.
+- `primary` `#3155FF`: primary actions, selected states, focused fields, and
+  commercial product emphasis.
+- `secondary` `#2FC37D`: trust, positive state, verified clan context, and
+  progress confirmation.
+- `tertiary` `#8B5CF6` and `accent-violet` `#E34CFF`: tiny signal accents only.
+  Do not let purple dominate the app.
+- `surface` `#F8FAFF`: app background and web shell foundation.
+- `surface-raised` `#FFFFFF`: cards, sheets, input fields, and primary surfaces.
+- `outline-variant` `#DCE4F2`: quiet borders for tables, cards, maps, and form
+  boundaries.
+- `text-primary` `#0F172A`: headlines and core content.
+- `text-secondary` `#526076`: metadata, secondary labels, and helper text.
+- `error` `#B3261E`: inline field errors and blocking state.
 
-## Visual Language
+Do not use beige wash, decorative orbs, heavy gradients, dark blue/slate
+dominance, or one-note purple palettes.
 
-The new release direction is **light lineage workspace**: bright paper, soft
-blue grid, strong black text, BeFam blue emphasis, and small green trust
-signals. It is inspired by technical product landing pages, but translated for
-Vietnamese family-clan workflows.
+## Typography
 
-- Background: `#F8FAFF` with a very light lineage grid. No beige wash, gradient
-  blobs, decorative orbs, or heavy illustrated backgrounds.
-- Accent: `#3155FF` for primary focus, `#2FC37D` for positive/trust states, and
-  violet only as a tiny emphasis.
-- Surfaces: white, thin `#DCE4F2` borders, low shadows, 8px radius for web
-  marketing cards, 12-18px for native Material workspace surfaces where the
-  app system already expects it.
-- Type: short headings, strong weight, normal letter spacing, tighter line
-  heights. Dense app screens do not use hero-scale text.
-- Copy: short, human, and task-first. Avoid explaining every feature on screen.
-  Longer writing belongs in About, Story, Terms, Privacy, and docs.
-- Icons: Material icons for app surfaces, simple logo/mark treatment for web.
-- Empty states: one short sentence, one primary action, one optional secondary
-  action.
+Use the system font stack so native text feels fast and familiar on iOS,
+Android, and web. Typography must be compact, high-contrast, and scan-friendly.
 
-## Navigation Model
+- Display text is for first-viewport web positioning only, not app dashboards.
+- App screen titles use `headline-lg` or smaller.
+- Compact panels, cards, and sheets use `title-lg`, `body-md`, and `label-*`.
+- Letter spacing stays `0px`; do not use negative tracking.
+- Long explanations belong in About, Story, Privacy, Terms, and docs, not in
+  task screens.
+
+## Layout
+
+BeFam uses mobile-first stacked workflows with full-width workspace bands and
+bounded surface cards. The visual rhythm follows the token scale: 4, 8, 12, 16,
+22, and 28px.
 
 Primary tabs stay focused:
 
@@ -72,17 +252,91 @@ Primary tabs stay focused:
 - Plan/Billing: entitlement, limits, upgrade, invoices
 - Profile: identity, privacy, language, notifications, account deletion
 
-Secondary workspaces should open from contextual actions, not compete with the
-bottom navigation: funds, scholarship, discovery, notifications, branch detail,
-member detail, event detail, and billing detail.
+Secondary workspaces open from contextual actions, not the bottom navigation:
+funds, scholarship, discovery, notifications, branch detail, member detail,
+event detail, and billing detail.
+
+Digital genealogy migration flows should show one concrete next step at a time:
+start clan, add branch, add member, verify relationship, invite relatives, and
+review sensitive changes.
+
+## Elevation & Depth
+
+Depth is quiet. Use borders, tonal layers, and low shadows instead of floating
+cards or decorative depth.
+
+- App backgrounds use `surface`.
+- Primary content uses `surface-raised`.
+- Separators use `outline-variant`.
+- Shadows are reserved for modal sheets, web hero surfaces, and active overlays.
+- Avoid card-inside-card layouts.
+
+## Shapes
+
+Use small-to-medium radius for clarity and commercial polish.
+
+- Web marketing cards: 8px.
+- App buttons and inputs: 12px.
+- App workspace cards and sheets: 18px where Material surfaces need softness.
+- Pills: only for chips, status tags, and compact segmented controls.
+
+Do not mix very sharp and very round shapes on the same surface.
+
+## Components
+
+Inputs:
+
+- Required fields use `AppRequiredFieldLabel` through `appFieldDecoration`.
+- Required state must be visible before submission.
+- Inline validation blocks forward movement before any step transition or write.
+- Error text says exactly what to fix.
+
+Buttons:
+
+- Async actions use `AppActionButton` or `AppAsyncAction`.
+- Buttons show press feedback, loading progress, and repeat-tap protection.
+- The primary button should be visually stronger than the secondary button.
+- Destructive, billing, governance, and relationship writes need explicit copy.
+
+Timers and loading:
+
+- OTP resend and wait states show compact progress plus remaining time.
+- Loading belongs inside the affected content region.
+- Avoid whole-screen spinners after auth/bootstrap unless there is no stable
+  fallback surface.
+
+Motion:
+
+- Button motion is a small press scale plus Material ink/color feedback.
+- Route transitions use BeFam scale-only motion.
+- Do not use slide or fade as the default tap response.
+- Respect platform reduced-motion settings.
+
+## Do's and Don'ts
+
+Do:
+
+- Keep clan context visible.
+- Use one primary action per screen.
+- Keep copy short and human.
+- Show inline required-field errors before moving on.
+- Preserve role, clan, and privacy boundaries in every workflow.
+- Validate UI at mobile and desktop widths.
+
+Don't:
+
+- Do not turn BeFam into a social feed.
+- Do not hide governance, billing, or relationship consequences.
+- Do not animate financial, governance, or genealogy data after it becomes
+  readable.
+- Do not add ambient float, pulse, bokeh, blob, or decorative gradient motion.
+- Do not over-explain task screens.
 
 ## Motion Contract
 
-Motion should make the app feel responsive, not slower. The working rule follows
-[Apple HIG Motion](https://developer.apple.com/design/Human-Interface-Guidelines/motion)
-and [Material motion](https://m1.material.io/motion/material-motion.html)
-guidance: use motion only when it gives feedback, preserves context, or confirms
-status; otherwise keep the interface stable.
+Motion should make the app feel responsive, not slower. Use motion only when it
+gives feedback, preserves context, or confirms status. Otherwise keep the
+interface stable.
 
 BeFam should not use slide or fade as a default click response. Frequent
 workspace clicks, tab changes, shortcut taps, and route navigation should swap
@@ -95,55 +349,24 @@ Context-specific rules:
 - Navigation, bottom tabs, and workspace switches: no route slide, no route
   fade, no page-level entrance animation.
 - Cards and buttons: Material ink plus 120-180ms color, border, or shadow
-  feedback. Do not move the card content.
-- Workspace surfaces: allow decoration interpolation only when density,
-  theme, or state changes. Do not animate text position.
+  feedback. Do not move card content.
+- Workspace surfaces: allow decoration interpolation only when density, theme,
+  or state changes. Do not animate text position.
 - Loading states: use stable skeletons or shimmer inside the content region.
-  Avoid whole-screen spinners after initial auth/bootstrap.
-- Success and save states: use a short icon/state change. Prefer check/status
-  color and label changes over moving the surrounding layout.
+- Success and save states: prefer check/status color and label changes over
+  moving the surrounding layout.
 - Genealogy canvas: pan/zoom is allowed for search focus and relationship
   inspection because it preserves map orientation and explains spatial context.
 - Web landing: no ambient float, pulse, or decorative movement. Hover and focus
   may change color, border, and shadow only.
 - Onboarding spotlight: keep motion optional and short; the highlighted target
   should remain visually anchored.
-- Reduced-motion settings: every custom motion helper must return a stable
-  non-animated state when platform settings request reduced motion.
-
-Avoid decorative background blobs, long bounce effects, generic staged entrances,
-animation that moves financial or governance content after it becomes readable,
-and motion that makes a user wait before acting again.
 
 ## Form, Timer, and Action Contract
 
 Forms are high-trust moments in BeFam because they can change identities,
 relationships, clan operations, funds, or scholarship records. They should feel
 calm, explicit, and hard to misuse.
-
-- Required fields use `AppRequiredFieldLabel` through `appFieldDecoration`.
-  Required state must be visible before submission and must not rely on helper
-  copy hidden lower in the sheet.
-- Validation errors appear inline on the field or immediately beside the step
-  that blocks progress. Snackbars can supplement a failure, but they are not the
-  only required-field feedback.
-- Multi-step editors block forward movement until the current step validates.
-  Users should never reach a later step while a required earlier field is empty
-  or invalid.
-- Form copy is short and human. Labels name the data, helper text explains only
-  unusual rules, and error text says exactly what to fix.
-- Time-sensitive controls, including OTP resend timers, show a compact progress
-  indicator plus remaining time. Do not use a plain countdown sentence when the
-  user is waiting to act.
-- Async link and button actions use `AppActionButton` or `AppAsyncAction`.
-  They show immediate press feedback, expose a slim loading bar when work may
-  take time, and ignore repeat taps while the first request is in flight.
-- Button motion is a small press scale plus Material ink/color feedback. Avoid
-  slide, fade, bounce, or delayed staged motion for button clicks.
-- Route transitions use the BeFam scale-only page transition. It should feel
-  like focus settling into place, not a card sliding across the screen.
-- Reduced motion must still show state changes and loading/progress without
-  movement.
 
 Release-critical forms covered by automated tests:
 
@@ -176,6 +399,8 @@ Release-critical forms covered by automated tests:
 - Large trees need stable dimensions, visible node limits, and clear "show more"
   behavior.
 - Relationship mutations need explicit review and audit-friendly confirmation.
+- Import or migration flows must help families move from paper or spreadsheet
+  records into verified digital relationships step by step.
 
 ### Events and Memorials
 

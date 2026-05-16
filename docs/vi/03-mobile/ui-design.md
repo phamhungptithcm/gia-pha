@@ -8,6 +8,15 @@ BeFam dùng phong cách light lineage workspace: nền sáng, bề mặt rõ, vi
 chữ dễ đọc, xanh BeFam làm điểm nhấn và trạng thái tin cậy màu xanh lá. App cần
 cảm giác như một công cụ vận hành họ tộc bình tĩnh, không giống social app.
 
+`DESIGN.md` là contract thiết kế chính của BeFam và hiện theo format Google
+Labs `design.md`: design token bằng YAML ở đầu file, sau đó là hướng dẫn sản
+phẩm. Khi chỉnh UI, motion, form, hoặc copy ảnh hưởng release, cập nhật file đó
+trước và validate bằng:
+
+```bash
+./scripts/lint_design_md.sh
+```
+
 ## Theme và ngôn ngữ thị giác
 
 - Material 3 color scheme tùy chỉnh tại `app/theme/app_theme.dart`
@@ -16,6 +25,8 @@ cảm giác như một công cụ vận hành họ tộc bình tĩnh, không gi�
 - ưu tiên khoảng trắng và khả năng đọc hơn layout dày đặc
 - tránh gradient trang trí, blob, hiệu ứng vào màn hình theo tầng và bố cục
   marketing nặng trong app shell
+- web, iOS và Android phải dùng chung contract `DESIGN.md` về màu, chữ,
+  spacing, shape, component và motion
 
 ## Cải tiến UX đã phản ánh trong app
 

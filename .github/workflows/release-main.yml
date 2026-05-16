@@ -115,11 +115,19 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-docs.txt
 
+      - name: Set up Node.js for design.md
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "20"
+
       - name: Install docs dependencies
         run: pip install -r requirements-docs.txt
 
       - name: Validate rules documentation
         run: python3 scripts/validate_rules_documentation.py
+
+      - name: Validate DESIGN.md
+        run: ./scripts/lint_design_md.sh
 
       - name: Build docs
         run: mkdocs build --strict

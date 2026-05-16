@@ -8,6 +8,15 @@ BeFam uses a light lineage workspace style: bright surfaces, clear borders,
 strong readable text, BeFam blue emphasis, and small trust signals. The product
 should feel like a calm clan operations tool, not a generic social feed.
 
+`DESIGN.md` is the canonical design contract for BeFam and now follows the
+Google Labs `design.md` format: YAML design tokens first, then product guidance.
+When changing UI, motion, form behavior, or release-facing copy, update that
+file first and validate it with:
+
+```bash
+./scripts/lint_design_md.sh
+```
+
 ## Theme and visual language
 
 - custom Material 3 color scheme in `app/theme/app_theme.dart`
@@ -16,6 +25,8 @@ should feel like a calm clan operations tool, not a generic social feed.
 - cards and sections use clear spacing and high readability over dense layouts
 - avoid decorative gradients, blobs, staged entrance effects, and heavy
   marketing composition inside the app shell
+- keep web, iOS, and Android aligned to the same `DESIGN.md` colors,
+  typography, spacing, shape, component, and motion contracts
 
 ## UX improvements now reflected in app
 
