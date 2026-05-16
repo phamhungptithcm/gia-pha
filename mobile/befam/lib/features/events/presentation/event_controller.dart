@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_environment.dart';
+import '../../../core/services/performance_measurement_logger.dart';
 import '../../auth/models/auth_session.dart';
 import '../../calendar/models/calendar_region.dart';
 import '../../calendar/models/lunar_date.dart';
@@ -115,12 +116,18 @@ class EventController extends ChangeNotifier {
     LunarConversionEngine? lunarConversionEngine,
     DateTime Function()? nowProvider,
     CalendarRegion calendarRegion = CalendarRegion.vietnam,
+    PerformanceMeasurementLogger? performanceLogger,
   }) : _repository = repository,
        _session = session,
        _lunarConversionEngine =
            lunarConversionEngine ?? createDefaultLunarConversionEngine(),
        _nowProvider = nowProvider ?? DateTime.now,
        _calendarRegion = calendarRegion,
+       _performanceLogger =
+           performanceLogger ??
+           PerformanceMeasurementLogger(
+             defaultSlowThreshold: const Duration(milliseconds: 900),
+           ),
        permissions = EventPermissions.forSession(session);
 
   final EventRepository _repository;
@@ -128,6 +135,7 @@ class EventController extends ChangeNotifier {
   final LunarConversionEngine _lunarConversionEngine;
   final DateTime Function() _nowProvider;
   final CalendarRegion _calendarRegion;
+  final PerformanceMeasurementLogger _performanceLogger;
   final EventPermissions permissions;
 
   bool _isLoading = true;
@@ -233,7 +241,12 @@ class EventController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final snapshot = await _repository.loadWorkspace(session: _session);
+      final snapshot = await _performanceLogger.measureAsync(
+        metric: 'events.workspace_refresh',
+        warnAfter: const Duration(milliseconds: 900),
+        dimensions: const {'surface': 'events'},
+        action: () => _repository.loadWorkspace(session: _session),
+      );
       _events = snapshot.events;
       _members = snapshot.members;
       _branches = snapshot.branches;

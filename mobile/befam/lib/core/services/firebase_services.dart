@@ -41,5 +41,6 @@ class FirebaseServices {
     'Storage',
     'Messaging',
     'App Check',
+    'Performance',
   ];
 }

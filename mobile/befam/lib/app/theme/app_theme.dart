@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/widgets/app_motion.dart';
 import 'app_ui_tokens.dart';
 
 abstract final class AppTheme {
@@ -43,6 +44,13 @@ abstract final class AppTheme {
       extensions: const <ThemeExtension<dynamic>>[uiTokens],
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: BeFamPageTransitionsBuilder(),
+          TargetPlatform.iOS: BeFamPageTransitionsBuilder(),
+          TargetPlatform.macOS: BeFamPageTransitionsBuilder(),
+        },
+      ),
       textTheme: textTheme.copyWith(
         headlineLarge: textTheme.headlineLarge?.copyWith(
           fontSize: 28,
@@ -173,6 +181,7 @@ abstract final class AppTheme {
         ),
       ),
       dividerTheme: DividerThemeData(color: colorScheme.outlineVariant),
+      splashFactory: InkSparkle.splashFactory,
       bottomSheetTheme: const BottomSheetThemeData(
         showDragHandle: true,
         shape: RoundedRectangleBorder(

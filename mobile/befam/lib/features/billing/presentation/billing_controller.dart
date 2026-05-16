@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
+import '../../../core/services/performance_measurement_logger.dart';
 import '../../ads/services/ad_conversion_tracker.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
@@ -13,14 +14,21 @@ class BillingController extends ChangeNotifier {
     required BillingRepository repository,
     required AuthSession session,
     AdConversionTracker? adConversionTracker,
+    PerformanceMeasurementLogger? performanceLogger,
   }) : _repository = repository,
        _session = session,
        _adConversionTracker =
-           adConversionTracker ?? createDefaultAdConversionTracker();
+           adConversionTracker ?? createDefaultAdConversionTracker(),
+       _performanceLogger =
+           performanceLogger ??
+           PerformanceMeasurementLogger(
+             defaultSlowThreshold: const Duration(milliseconds: 900),
+           );
 
   final BillingRepository _repository;
   final AuthSession _session;
   final AdConversionTracker _adConversionTracker;
+  final PerformanceMeasurementLogger _performanceLogger;
 
   bool _isLoading = true;
   bool _isSavingPreferences = false;
@@ -66,12 +74,20 @@ class BillingController extends ChangeNotifier {
     try {
       if (canManageBilling) {
         try {
-          _workspace = await _repository.loadWorkspace(session: _session);
+          _workspace = await _performanceLogger.measureAsync(
+            metric: 'billing.workspace_refresh',
+            warnAfter: const Duration(milliseconds: 900),
+            dimensions: const {'surface': 'billing'},
+            action: () => _repository.loadWorkspace(session: _session),
+          );
           _viewerSummary = null;
         } on BillingRepositoryException catch (error) {
           if (_shouldFallbackToViewer(error)) {
-            _viewerSummary = await _repository.loadViewerSummary(
-              session: _session,
+            _viewerSummary = await _performanceLogger.measureAsync(
+              metric: 'billing.viewer_refresh',
+              warnAfter: const Duration(milliseconds: 900),
+              dimensions: const {'surface': 'billing'},
+              action: () => _repository.loadViewerSummary(session: _session),
             );
             _workspace = null;
             _errorMessage = null;
@@ -80,7 +96,12 @@ class BillingController extends ChangeNotifier {
           }
         }
       } else {
-        _viewerSummary = await _repository.loadViewerSummary(session: _session);
+        _viewerSummary = await _performanceLogger.measureAsync(
+          metric: 'billing.viewer_refresh',
+          warnAfter: const Duration(milliseconds: 900),
+          dimensions: const {'surface': 'billing'},
+          action: () => _repository.loadViewerSummary(session: _session),
+        );
         _workspace = null;
       }
     } on BillingRepositoryException catch (error) {

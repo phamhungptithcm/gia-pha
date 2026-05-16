@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/services/app_locale_controller.dart';
 import '../core/services/app_locale_store.dart';
+import '../core/services/app_frame_timing_monitor.dart';
 import '../core/widgets/app_locale_scope.dart';
 import '../features/auth/presentation/auth_experience.dart';
 import '../features/auth/services/auth_analytics_service.dart';
@@ -80,6 +81,7 @@ class BeFamApp extends StatefulWidget {
 class _BeFamAppState extends State<BeFamApp> {
   late final AppLocaleController _localeController;
   late final bool _ownsLocaleController;
+  late final AppFrameTimingMonitor _frameTimingMonitor;
   GoRouter? _webRouter;
 
   @override
@@ -93,6 +95,7 @@ class _BeFamAppState extends State<BeFamApp> {
         );
     _ownsLocaleController = widget.localeController == null;
     _localeController.addListener(_handleLocaleChanged);
+    _frameTimingMonitor = AppFrameTimingMonitor()..start();
     unawaited(_localeController.load());
     if (kIsWeb) {
       _webRouter = _buildWebRouter();
@@ -102,6 +105,7 @@ class _BeFamAppState extends State<BeFamApp> {
   @override
   void dispose() {
     _webRouter?.dispose();
+    _frameTimingMonitor.stop();
     _localeController.removeListener(_handleLocaleChanged);
     if (_ownsLocaleController) {
       _localeController.dispose();
@@ -138,7 +142,8 @@ class _BeFamAppState extends State<BeFamApp> {
           supportedLocales: AppLocalizations.supportedLocales,
           localeResolutionCallback: (deviceLocale, supportedLocales) {
             for (final supportedLocale in supportedLocales) {
-              if (supportedLocale.languageCode == effectiveLocale.languageCode) {
+              if (supportedLocale.languageCode ==
+                  effectiveLocale.languageCode) {
                 return supportedLocale;
               }
             }

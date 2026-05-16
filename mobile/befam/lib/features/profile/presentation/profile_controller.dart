@@ -6,6 +6,7 @@ import '../../member/models/member_draft.dart';
 import '../../member/models/member_profile.dart';
 import '../../member/models/member_social_links.dart';
 import '../../member/services/member_repository.dart';
+import '../../../core/services/performance_measurement_logger.dart';
 import '../models/profile_draft.dart';
 import '../models/profile_notification_preferences.dart';
 import '../services/profile_notification_preferences_repository.dart';
@@ -15,18 +16,21 @@ class ProfileController extends ChangeNotifier {
     required MemberRepository memberRepository,
     required AuthSession session,
     ProfileNotificationPreferencesRepository? notificationPreferencesRepository,
+    PerformanceMeasurementLogger? performanceLogger,
   }) : _memberRepository = memberRepository,
        _session = session,
        _notificationPreferencesRepository =
            notificationPreferencesRepository ??
            createDefaultProfileNotificationPreferencesRepository(
              session: session,
-           );
+           ),
+       _performanceLogger = performanceLogger ?? PerformanceMeasurementLogger();
 
   final MemberRepository _memberRepository;
   final AuthSession _session;
   final ProfileNotificationPreferencesRepository
   _notificationPreferencesRepository;
+  final PerformanceMeasurementLogger _performanceLogger;
 
   bool _isLoading = true;
   bool _isSavingProfile = false;
@@ -72,10 +76,18 @@ class ProfileController extends ChangeNotifier {
     }
 
     String? failureMessage;
-    final preferencesFuture = _notificationPreferencesRepository.load(
-      session: _session,
+    final preferencesFuture = _performanceLogger.measureAsync(
+      metric: 'profile.notification_preferences_refresh',
+      warnAfter: const Duration(milliseconds: 700),
+      dimensions: const {'surface': 'profile'},
+      action: () => _notificationPreferencesRepository.load(session: _session),
     );
-    final workspaceFuture = _memberRepository.loadWorkspace(session: _session);
+    final workspaceFuture = _performanceLogger.measureAsync(
+      metric: 'profile.workspace_refresh',
+      warnAfter: const Duration(milliseconds: 900),
+      dimensions: const {'surface': 'profile'},
+      action: () => _memberRepository.loadWorkspace(session: _session),
+    );
 
     try {
       _notificationPreferences = await preferencesFuture;

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/services/performance_measurement_logger.dart';
 import '../models/calendar_display_mode.dart';
 import '../models/calendar_region.dart';
 import '../models/dual_calendar_event.dart';
@@ -35,6 +36,7 @@ class DualCalendarController extends ChangeNotifier {
     required CalendarSettingsStore settingsStore,
     required LunarConversionCache conversionCache,
     required LunarResolutionCache resolutionCache,
+    PerformanceMeasurementLogger? performanceLogger,
     DateTime? now,
   }) : _eventStore = eventStore,
        _conversionEngine = conversionEngine,
@@ -44,6 +46,7 @@ class DualCalendarController extends ChangeNotifier {
        _settingsStore = settingsStore,
        _conversionCache = conversionCache,
        _resolutionCache = resolutionCache,
+       _performanceLogger = performanceLogger ?? PerformanceMeasurementLogger(),
        _clock = now ?? DateTime.now() {
     final today = _dateOnly(_clock);
     _focusedMonth = DateTime(today.year, today.month);
@@ -58,6 +61,7 @@ class DualCalendarController extends ChangeNotifier {
   final CalendarSettingsStore _settingsStore;
   final LunarConversionCache _conversionCache;
   final LunarResolutionCache _resolutionCache;
+  final PerformanceMeasurementLogger _performanceLogger;
   final DateTime _clock;
 
   bool _initialized = false;
@@ -100,7 +104,12 @@ class DualCalendarController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final settings = await _settingsStore.load();
+      final settings = await _performanceLogger.measureAsync(
+        metric: 'calendar.settings_refresh',
+        warnAfter: const Duration(milliseconds: 500),
+        dimensions: const {'surface': 'calendar'},
+        action: _settingsStore.load,
+      );
       final migratedDisplayMode =
           settings.displayMode == CalendarDisplayMode.solarOnly
           ? CalendarDisplayMode.dual
@@ -113,7 +122,7 @@ class DualCalendarController extends ChangeNotifier {
           CalendarSettings(region: _region, displayMode: _displayMode),
         );
       }
-      await _loadFocusedMonth();
+      await _measureFocusedMonthRefresh();
     } catch (error) {
       _errorMessage = error.toString();
     } finally {
@@ -140,7 +149,7 @@ class DualCalendarController extends ChangeNotifier {
       );
       await _conversionCache.invalidateRegion(previous);
       await _resolutionCache.invalidateRegion(previous);
-      await _loadFocusedMonth();
+      await _measureFocusedMonthRefresh();
     } catch (error) {
       _errorMessage = error.toString();
     } finally {
@@ -261,7 +270,7 @@ class DualCalendarController extends ChangeNotifier {
 
     try {
       await _eventStore.saveEvent(eventId: eventId, event: event);
-      await _loadFocusedMonth();
+      await _measureFocusedMonthRefresh();
     } catch (error) {
       _errorMessage = error.toString();
     } finally {
@@ -277,7 +286,7 @@ class DualCalendarController extends ChangeNotifier {
 
     try {
       await _eventStore.deleteEvent(eventId);
-      await _loadFocusedMonth();
+      await _measureFocusedMonthRefresh();
     } catch (error) {
       _errorMessage = error.toString();
     } finally {
@@ -290,13 +299,26 @@ class DualCalendarController extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      await _loadFocusedMonth();
+      await _measureFocusedMonthRefresh();
     } catch (error) {
       _errorMessage = error.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _measureFocusedMonthRefresh() {
+    return _performanceLogger.measureAsync(
+      metric: 'calendar.month_refresh',
+      warnAfter: const Duration(milliseconds: 900),
+      dimensions: {
+        'surface': 'calendar',
+        'year': _focusedMonth.year,
+        'month': _focusedMonth.month,
+      },
+      action: _loadFocusedMonth,
+    );
   }
 
   Future<void> _loadFocusedMonth() async {

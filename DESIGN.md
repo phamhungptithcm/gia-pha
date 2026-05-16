@@ -74,6 +74,11 @@ member detail, event detail, and billing detail.
 
 Motion should make the app feel responsive, not slower.
 
+- Shared page transitions use short fade/slide motion through
+  `BeFamPageTransitionsBuilder`.
+- Workspace surfaces use `AppPageEntrance` and `RepaintBoundary` so page changes
+  feel lighter without re-laying out unrelated content.
+- Motion helpers must check reduced-motion settings before animating.
 - Page/sheet entrance: 160-220ms, easeOutCubic.
 - Button press/selection: 120-180ms, subtle scale or color transition.
 - Success confirmation: check/status icon with 180-260ms fade/scale.
@@ -148,6 +153,26 @@ network-backed operation fully resolved.
 - Genealogy graph layout for visible subset: under 1000ms for release test data.
 - AI and billing provider calls may exceed one second, but must show immediate
   progress and allow safe retry/fallback.
+
+## Measurement Contract
+
+Release performance claims must come from artifacts, not estimates:
+
+- Flutter profile mode: run `scripts/run_performance_benchmarks.sh` and inspect
+  `mobile/befam/artifacts/performance/flutter-profile-build.log`. Use
+  `flutter run --profile` for an interactive DevTools capture when a
+  profile-capable device/browser session is available.
+- Lighthouse web: use the JSON report generated at
+  `mobile/befam/artifacts/performance/lighthouse-web-release.json`.
+- Firebase Performance: verify custom traces after staging/profile runs for
+  `befam_frames_batch_p95` plus workspace refresh traces for clan, events,
+  funds, billing, profile, calendar, and scholarship.
+- Genealogy render: use the synthetic 200/400/700 member benchmark in
+  `test/features/genealogy/genealogy_workspace_benchmark_test.dart`.
+
+If a local machine lacks an attached native device, the benchmark script still
+builds the web profile target and the report calls out when interactive runtime
+profiling must be captured separately.
 
 ## Release UI Checklist
 

@@ -45,6 +45,24 @@ flutter analyze
 flutter test --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
 ```
 
+Run UI/motion/performance checks:
+
+```bash
+./scripts/run_performance_benchmarks.sh
+```
+
+Expected artifacts:
+
+- `mobile/befam/artifacts/performance/performance-report.md`
+- `mobile/befam/artifacts/performance/genealogy-benchmark.log`
+- `mobile/befam/artifacts/performance/flutter-profile-build.log`
+- `mobile/befam/artifacts/performance/lighthouse-web-release.json`
+
+The report must show Lighthouse results, genealogy benchmark timings, and a
+Flutter profile-mode result or an explicit device availability gap. Firebase
+Performance custom traces must be checked after staging/profile sessions for
+workspace refreshes and `befam_frames_batch_p95`.
+
 Run environment audits:
 
 ```bash
