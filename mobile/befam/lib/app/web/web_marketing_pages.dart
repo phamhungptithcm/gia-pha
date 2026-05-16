@@ -18,6 +18,8 @@ const double _kSectionGap = 18;
 const double _kBlockGap = 16;
 const double _kCardGap = 12;
 const double _kCardPadding = 20;
+const double _kMarketingRadius = 8;
+const double _kAppSurfaceRadius = 18;
 const Color _kLandingCream = Color(0xFFF8FAFF);
 const Color _kLandingPaper = Color(0xFFFFFFFF);
 const Color _kLandingLine = Color(0xFFDCE4F2);
@@ -960,7 +962,7 @@ class _LegalSectionCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(_kAppSurfaceRadius),
         color: Colors.white.withValues(alpha: 0.88),
         border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
@@ -1079,7 +1081,7 @@ class _LegalFactCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
         color: Colors.white.withValues(alpha: 0.7),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
@@ -1621,35 +1623,19 @@ class _LandingCardIllustration extends StatelessWidget {
       width: 122,
       height: 122,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(12),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [backgroundColor, Colors.white.withValues(alpha: 0.82)],
         ),
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: 10,
-            left: 10,
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.55),
-              ),
-            ),
-          ),
-          Center(
-            child: Icon(
-              icon,
-              size: 58,
-              color: _kLandingInk.withValues(alpha: 0.88),
-            ),
-          ),
-        ],
+      child: Center(
+        child: Icon(
+          icon,
+          size: 58,
+          color: _kLandingInk.withValues(alpha: 0.88),
+        ),
       ),
     );
   }
@@ -2050,7 +2036,7 @@ class _HeroIconBubble extends StatelessWidget {
       width: 58,
       height: 58,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(_kMarketingRadius),
         color: Colors.white.withValues(alpha: 0.9),
         border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
@@ -2107,7 +2093,7 @@ class _FeatureCardGrid extends StatelessWidget {
 
         return Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(_kMarketingRadius),
             color: Colors.white.withValues(alpha: 0.84),
             border: Border.all(color: colorScheme.outlineVariant),
             boxShadow: [
@@ -2188,15 +2174,8 @@ class _FeatureCard extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(13),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  colorScheme.primary.withValues(alpha: 0.14),
-                  colorScheme.secondary.withValues(alpha: 0.22),
-                ],
-              ),
+              borderRadius: BorderRadius.circular(12),
+              color: colorScheme.primaryContainer.withValues(alpha: 0.72),
             ),
             child: Icon(item.icon, color: colorScheme.primary, size: 22),
           ),
@@ -2234,7 +2213,7 @@ class _CompactFeatureList extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(_kMarketingRadius),
         color: Colors.white.withValues(alpha: 0.84),
         border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
@@ -2285,15 +2264,8 @@ class _CompactFeatureRow extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(13),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  colorScheme.primary.withValues(alpha: 0.14),
-                  colorScheme.secondary.withValues(alpha: 0.22),
-                ],
-              ),
+              borderRadius: BorderRadius.circular(12),
+              color: colorScheme.primaryContainer.withValues(alpha: 0.72),
             ),
             child: Icon(item.icon, color: colorScheme.primary, size: 22),
           ),
@@ -2415,7 +2387,7 @@ class _JourneyStepCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(_kMarketingRadius),
         border: Border.all(color: colorScheme.outlineVariant),
         color: Colors.white.withValues(alpha: 0.8),
       ),
@@ -2505,7 +2477,7 @@ class _MarketingFaqSection extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(_kMarketingRadius),
                     border: Border.all(color: colorScheme.outlineVariant),
                     color: Colors.white.withValues(alpha: 0.7),
                   ),
@@ -2570,16 +2542,8 @@ class _CtaPanel extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colorScheme.primary.withValues(alpha: 0.18),
-            colorScheme.primaryContainer.withValues(alpha: 0.76),
-            colorScheme.secondaryContainer.withValues(alpha: 0.62),
-          ],
-        ),
+        borderRadius: BorderRadius.circular(_kMarketingRadius),
+        color: Colors.white.withValues(alpha: 0.88),
         border: Border.all(color: colorScheme.primary.withValues(alpha: 0.22)),
         boxShadow: [
           BoxShadow(
@@ -2600,7 +2564,7 @@ class _CtaPanel extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                   color: Colors.white.withValues(alpha: 0.62),
                   border: Border.all(color: colorScheme.outlineVariant),
                 ),
@@ -2687,16 +2651,8 @@ class _SectionCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withValues(alpha: 0.88),
-            colorScheme.surface.withValues(alpha: 0.94),
-            colorScheme.primaryContainer.withValues(alpha: 0.24),
-          ],
-        ),
+        borderRadius: BorderRadius.circular(_kAppSurfaceRadius),
+        color: Colors.white.withValues(alpha: 0.88),
         border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
@@ -2714,7 +2670,7 @@ class _SectionCard extends StatelessWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(12),
               color: colorScheme.primary.withValues(alpha: 0.12),
             ),
             child: Icon(icon, color: colorScheme.primary, size: 28),
@@ -2768,7 +2724,7 @@ class _InfoBulletList extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(_kMarketingRadius),
         color: Colors.white.withValues(alpha: 0.84),
         border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
@@ -2801,7 +2757,7 @@ class _InfoBulletList extends StatelessWidget {
                   vertical: 11,
                 ),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(12),
                   color: colorScheme.surface,
                   border: Border.all(color: colorScheme.outlineVariant),
                 ),
@@ -2886,7 +2842,7 @@ class _HunpeoLabsContactCard extends StatelessWidget {
                 width: 54,
                 height: 54,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(12),
                   color: colorScheme.primary.withValues(alpha: 0.12),
                 ),
                 child: Icon(
@@ -3032,11 +2988,11 @@ class _ContactActionCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return InkWell(
       onTap: () => launchUrl(Uri.parse(href), mode: LaunchMode.platformDefault),
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(_kMarketingRadius),
       child: Ink(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(_kMarketingRadius),
           color: Colors.white.withValues(alpha: 0.76),
           border: Border.all(color: colorScheme.outlineVariant),
         ),
@@ -3047,7 +3003,7 @@ class _ContactActionCard extends StatelessWidget {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 color: colorScheme.primary.withValues(alpha: 0.1),
               ),
               child: Icon(icon, size: 22, color: colorScheme.primary),
@@ -3414,7 +3370,7 @@ class _MarketingLanguageSwitch extends StatelessWidget {
       tooltip: l10n.pick(vi: 'Đổi ngôn ngữ', en: 'Change language'),
       onSelected: (languageCode) => unawaited(selectLanguage(languageCode)),
       offset: const Offset(0, 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       itemBuilder: (context) => [
         for (final option in options)
           PopupMenuItem<String>(
@@ -3530,11 +3486,11 @@ class _StoreDownloadButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: handleTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(12),
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -3609,7 +3565,7 @@ class _StoreBrandTile extends StatelessWidget {
         width: 56,
         height: 56,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(12),
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -3624,7 +3580,7 @@ class _StoreBrandTile extends StatelessWidget {
       width: 56,
       height: 56,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         color: Colors.white.withValues(alpha: 0.06),
         border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),

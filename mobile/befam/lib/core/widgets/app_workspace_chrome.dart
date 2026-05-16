@@ -26,8 +26,8 @@ LinearGradient appWorkspaceHeroGradient(BuildContext context) {
     end: Alignment.bottomRight,
     colors: [
       Colors.white.withValues(alpha: 0.96),
-      colorScheme.primaryContainer.withValues(alpha: 0.58),
-      colorScheme.secondaryContainer.withValues(alpha: 0.36),
+      colorScheme.primaryContainer.withValues(alpha: 0.34),
+      colorScheme.surface.withValues(alpha: 0.96),
     ],
   );
 }
@@ -68,9 +68,7 @@ class AppLineageGridOverlay extends StatelessWidget {
           painter: _LineageGridPainter(
             spacing: spacing,
             lineColor: colorScheme.primary.withValues(alpha: 0.055 * opacity),
-            accentColor: colorScheme.secondary.withValues(
-              alpha: 0.05 * opacity,
-            ),
+            accentColor: colorScheme.secondary.withValues(alpha: 0),
           ),
         ),
       ),
@@ -152,7 +150,7 @@ class AppWorkspaceSurface extends StatelessWidget {
                   painter: _LineageGridPainter(
                     spacing: 28,
                     lineColor: colorScheme.primary.withValues(alpha: 0.04),
-                    accentColor: colorScheme.secondary.withValues(alpha: 0.035),
+                    accentColor: colorScheme.secondary.withValues(alpha: 0),
                   ),
                 ),
               ),
@@ -205,14 +203,8 @@ class _LineageGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
     }
 
-    final accentPaint = Paint()
-      ..color = accentColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final center = Offset(size.width * 0.72, size.height * 0.22);
-    for (final radius in <double>[72, 128, 188]) {
-      canvas.drawCircle(center, radius, accentPaint);
-    }
+    // The shared workspace pattern stays as a quiet grid. Decorative rings or
+    // blobs make dense genealogy and finance screens harder to scan.
   }
 
   @override

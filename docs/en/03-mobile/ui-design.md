@@ -39,6 +39,8 @@ file first and validate it with:
   and lower-end devices
 - required form fields now use a shared label/field decoration pattern
 - async buttons show press feedback, loading progress, and repeat-tap protection
+- web landing, static shell, iOS, and Android now share the same light lineage
+  grid, short copy, 8px web marketing cards, and quiet app surfaces
 
 ## Forms, timers, and actions
 
@@ -55,6 +57,8 @@ file first and validate it with:
   double submits.
 - Screen transitions use BeFam's scale-only transition. Do not use slide or fade
   as a default tap response.
+- Web landing motion is limited to hover, focus, border, color, and shadow
+  feedback. Do not add ambient float, pulse, or decorative movement.
 
 ## Accessibility and resilience
 

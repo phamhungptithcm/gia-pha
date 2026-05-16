@@ -543,6 +543,21 @@
         padding: 14px;
       }
 
+      .befam-static-nav,
+      .befam-static-hero,
+      .befam-static-proof {
+        width: calc(100vw - 28px);
+        max-width: calc(100vw - 28px);
+      }
+
+      .befam-static-nav,
+      .befam-static-copy,
+      .befam-static-visual,
+      .befam-static-proof {
+        width: calc(100% - 14px);
+        max-width: calc(100% - 14px);
+      }
+
       .befam-static-nav {
         min-height: 64px;
         padding: 0 10px;
@@ -554,7 +569,7 @@
       }
 
       .befam-static-actions {
-        flex-shrink: 0;
+        display: none;
       }
 
       .befam-static-brand span,
@@ -603,11 +618,14 @@
       }
 
       .befam-static-cta {
+        width: 100%;
+        max-width: 100%;
         margin-top: 24px;
       }
 
       .befam-static-cta .befam-static-action {
         flex: 1 1 100%;
+        max-width: 100%;
       }
 
       .befam-static-visual {
@@ -623,12 +641,21 @@
       }
 
       .befam-lineage-map {
-        min-height: 330px;
+        min-height: 0;
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .befam-lineage-ring,
+      .befam-lineage-core {
+        display: none;
       }
 
       .befam-lineage-chip {
-        width: 136px;
-        max-width: calc(100% - 24px);
+        position: static;
+        width: 100%;
+        max-width: 100%;
         min-width: 0;
         padding: 11px 12px;
         overflow-wrap: break-word;
@@ -636,28 +663,6 @@
 
       .befam-lineage-chip strong {
         font-size: 13px;
-      }
-
-      .befam-lineage-chip.one {
-        left: 12px;
-        top: 20px;
-      }
-
-      .befam-lineage-chip.two {
-        right: auto;
-        left: 184px;
-        top: 36px;
-      }
-
-      .befam-lineage-chip.three {
-        left: 18px;
-        bottom: 40px;
-      }
-
-      .befam-lineage-chip.four {
-        right: auto;
-        left: 196px;
-        bottom: 24px;
       }
 
       .befam-static-console {
@@ -700,8 +705,8 @@
 </head>
 <body>
   <main id="befam-static-shell" class="befam-static-shell" aria-label="BeFam">
-    <header class="befam-static-nav" aria-label="Điều hướng BeFam">
-      <a class="befam-static-brand" href="/">
+    <header class="befam-static-nav">
+      <a class="befam-static-brand" href="/" aria-label="BeFam trang chủ">
         <img src="icons/Icon-192.png" alt="">
         <span>
           <strong>BeFam</strong>

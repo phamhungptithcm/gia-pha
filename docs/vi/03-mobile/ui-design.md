@@ -37,6 +37,8 @@ trước và validate bằng:
 - dual calendar tối ưu cho chữ lớn và thiết bị cấu hình thấp
 - field bắt buộc dùng chung pattern label/decoration
 - button async có feedback khi nhấn, loading progress và chặn nhấn lặp
+- web landing, static shell, iOS và Android dùng chung lineage grid nhẹ, copy
+  ngắn, web marketing card 8px và surface app yên tĩnh hơn
 
 ## Form, timer và action
 
@@ -52,6 +54,8 @@ trước và validate bằng:
   loading progress khi request đang chạy và chặn double submit.
 - Chuyển màn hình dùng transition scale-only của BeFam. Không dùng slide/fade
   làm phản hồi mặc định khi tap.
+- Motion web landing chỉ dùng hover, focus, viền, màu và shadow nhẹ. Không thêm
+  float, pulse hoặc chuyển động trang trí.
 
 ## Accessibility và độ bền giao diện
 
