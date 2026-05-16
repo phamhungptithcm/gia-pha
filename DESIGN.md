@@ -78,28 +78,42 @@ member detail, event detail, and billing detail.
 
 ## Motion Contract
 
-Motion should make the app feel responsive, not slower.
+Motion should make the app feel responsive, not slower. The working rule follows
+[Apple HIG Motion](https://developer.apple.com/design/Human-Interface-Guidelines/motion)
+and [Material motion](https://m1.material.io/motion/material-motion.html)
+guidance: use motion only when it gives feedback, preserves context, or confirms
+status; otherwise keep the interface stable.
 
-- Shared page transitions use short fade/slide motion through
-  `BeFamPageTransitionsBuilder`.
-- Workspace surfaces use `AppPageEntrance` and `RepaintBoundary` so page changes
-  feel lighter without re-laying out unrelated content.
-- Home shortcut cards use staggered entrance animation so iOS, Android, and web
-  feel alive without delaying interaction.
-- Web landing uses subtle panel float and lineage-ring pulse only. Reduced
-  motion disables these effects.
-- Motion helpers must check reduced-motion settings before animating.
-- Page/sheet entrance: 160-220ms, easeOutCubic.
-- Button press/selection: 120-180ms, subtle scale or color transition.
-- Success confirmation: check/status icon with 180-260ms fade/scale.
-- Genealogy focus jump: pan/zoom animation 260-320ms, preserve orientation.
-- Loading: skeleton or shimmer only for content regions, not whole-screen
-  spinners after initial auth/bootstrap.
-- Respect platform reduced-motion settings where available.
+BeFam should not use slide or fade as a default click response. Frequent
+workspace clicks, tab changes, shortcut taps, and route navigation should swap
+content immediately and rely on selected states, ripples, color, border, or
+focus-ring feedback. This keeps readable clan, money, and governance data from
+moving after a user has started reading it.
 
-Avoid decorative background blobs, long bounce effects, oversized hero cards in
-operational screens, and animation that moves financial or governance content
-after it becomes readable.
+Context-specific rules:
+
+- Navigation, bottom tabs, and workspace switches: no route slide, no route
+  fade, no page-level entrance animation.
+- Cards and buttons: Material ink plus 120-180ms color, border, or shadow
+  feedback. Do not move the card content.
+- Workspace surfaces: allow decoration interpolation only when density,
+  theme, or state changes. Do not animate text position.
+- Loading states: use stable skeletons or shimmer inside the content region.
+  Avoid whole-screen spinners after initial auth/bootstrap.
+- Success and save states: use a short icon/state change. Prefer check/status
+  color and label changes over moving the surrounding layout.
+- Genealogy canvas: pan/zoom is allowed for search focus and relationship
+  inspection because it preserves map orientation and explains spatial context.
+- Web landing: no ambient float, pulse, or decorative movement. Hover and focus
+  may change color, border, and shadow only.
+- Onboarding spotlight: keep motion optional and short; the highlighted target
+  should remain visually anchored.
+- Reduced-motion settings: every custom motion helper must return a stable
+  non-animated state when platform settings request reduced motion.
+
+Avoid decorative background blobs, long bounce effects, generic staged entrances,
+animation that moves financial or governance content after it becomes readable,
+and motion that makes a user wait before acting again.
 
 ## Screen-Level Direction
 

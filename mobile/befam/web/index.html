@@ -199,6 +199,7 @@
       line-height: 1;
       text-decoration: none;
       text-transform: uppercase;
+      transition: color 140ms ease;
     }
 
     .befam-static-actions {
@@ -215,6 +216,31 @@
       font-weight: 850;
       text-decoration: none;
       text-transform: uppercase;
+      transition:
+        background-color 140ms ease,
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        color 140ms ease;
+    }
+
+    .befam-static-links a:hover,
+    .befam-static-auth:hover {
+      color: #3155ff;
+    }
+
+    .befam-static-action:hover,
+    .befam-static-action:focus-visible {
+      border-color: #3155ff;
+      color: #3155ff;
+      outline: none;
+      box-shadow: 0 10px 24px rgba(49, 85, 255, 0.12);
+    }
+
+    .befam-static-action.primary:hover,
+    .befam-static-action.primary:focus-visible {
+      border-color: #3155ff;
+      background: #3155ff;
+      color: #ffffff;
     }
 
     .befam-static-action.primary {
@@ -308,7 +334,6 @@
       border: 1px solid rgba(126, 138, 163, 0.20);
       background: rgba(255, 255, 255, 0.78);
       box-shadow: 0 24px 72px rgba(15, 23, 42, 0.08);
-      animation: befam-panel-float 7s ease-in-out infinite;
       backdrop-filter: blur(16px);
     }
 
@@ -344,21 +369,18 @@
       margin: -80px 0 0 -80px;
       border: 1px solid rgba(47, 195, 125, 0.18);
       border-radius: 50%;
-      animation: befam-ring-pulse 4.8s ease-in-out infinite;
     }
 
     .befam-lineage-ring.two {
       width: 270px;
       height: 270px;
       margin: -135px 0 0 -135px;
-      animation-delay: 0.5s;
     }
 
     .befam-lineage-ring.three {
       width: 390px;
       height: 390px;
       margin: -195px 0 0 -195px;
-      animation-delay: 1s;
     }
 
     .befam-lineage-core,
@@ -500,28 +522,6 @@
       line-height: 1.45;
     }
 
-    @keyframes befam-panel-float {
-      0%,
-      100% {
-        transform: translateY(0);
-      }
-      50% {
-        transform: translateY(-8px);
-      }
-    }
-
-    @keyframes befam-ring-pulse {
-      0%,
-      100% {
-        opacity: 0.55;
-        transform: scale(1);
-      }
-      50% {
-        opacity: 1;
-        transform: scale(1.03);
-      }
-    }
-
     @media (max-width: 1160px) {
       .befam-static-links {
         display: none;
@@ -544,10 +544,15 @@
       .befam-static-nav {
         min-height: 64px;
         padding: 0 10px;
+        gap: 8px;
       }
 
       .befam-static-brand {
         min-width: 0;
+      }
+
+      .befam-static-actions {
+        flex-shrink: 0;
       }
 
       .befam-static-brand span,
@@ -559,6 +564,17 @@
         min-height: 42px;
         padding: 0 13px;
         font-size: 12px;
+      }
+
+      .befam-static-nav .befam-static-action.primary {
+        width: 42px;
+        min-width: 42px;
+        padding: 0;
+        font-size: 0;
+      }
+
+      .befam-static-nav .befam-static-action.primary::before {
+        margin-right: 0;
       }
 
       .befam-static-action.secondary {
@@ -576,9 +592,11 @@
       }
 
       .befam-static-lead {
+        max-width: 100%;
         margin-top: 20px;
         font-size: 16px;
         line-height: 1.55;
+        overflow-wrap: break-word;
       }
 
       .befam-static-cta {
@@ -586,11 +604,16 @@
       }
 
       .befam-static-cta .befam-static-action {
-        flex: 1 1 144px;
+        flex: 1 1 100%;
       }
 
       .befam-static-visual {
         padding: 14px;
+      }
+
+      .befam-static-visual-head {
+        flex-wrap: wrap;
+        row-gap: 6px;
       }
 
       .befam-lineage-map {
@@ -598,8 +621,10 @@
       }
 
       .befam-lineage-chip {
+        max-width: calc(100% - 24px);
         min-width: 118px;
         padding: 11px 12px;
+        overflow-wrap: break-word;
       }
 
       .befam-lineage-chip strong {
@@ -649,8 +674,6 @@
       *,
       *::before,
       *::after {
-        animation-duration: 1ms !important;
-        animation-iteration-count: 1 !important;
         scroll-behavior: auto !important;
         transition-duration: 1ms !important;
       }

@@ -1114,9 +1114,8 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
           }
 
           return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeOutCubic,
+            duration: Duration.zero,
+            transitionBuilder: AppMotion.noSwitcherTransition,
             child: child,
           );
         },
@@ -2352,9 +2351,8 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
             ],
           );
           return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeOutCubic,
+            duration: Duration.zero,
+            transitionBuilder: AppMotion.noSwitcherTransition,
             child: content,
           );
         },
