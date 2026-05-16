@@ -1,5 +1,6 @@
 import '../../support/core/services/debug_genealogy_store.dart';
 import '../../support/features/ai/services/fake_ai_assist_service.dart';
+import 'package:befam/core/widgets/app_form_controls.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
@@ -349,6 +350,41 @@ void main() {
     expect(find.byKey(const Key('calendar-event-save-button')), findsNothing);
   });
 
+  testWidgets('edit form shows required title error before moving on', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    await pumpWorkspace(tester, repository);
+
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
+    );
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.enterText(find.byKey(const Key('event-title-field')), '');
+    await tester.tap(find.byKey(const Key('event-save-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(find.text('Vui lòng nhập tiêu đề sự kiện.'), findsWidgets);
+    expect(find.byKey(const Key('event-title-field')), findsOneWidget);
+    expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
+  });
+
   testWidgets(
     'shows upcoming longevity link and opens member detail for 70+ milestone',
     (tester) async {
@@ -428,11 +464,7 @@ void main() {
     );
     final aiAssistService = FakeAiAssistService(
       onDraftEventCopy:
-          ({
-            required session,
-            required locale,
-            required draft,
-          }) async {
+          ({required session, required locale, required draft}) async {
             return const EventAiSuggestion(
               title: 'Lễ tưởng niệm họ Nguyễn cuối tuần',
               description:
@@ -536,70 +568,64 @@ void main() {
     expect(find.byKey(const Key('event-reminder-chip-30')), findsOneWidget);
   });
 
-  testWidgets('shows AI disclosure and loading copy while generating event suggestions', (
-    tester,
-  ) async {
-    useLargeViewport(tester);
-    final repository = DebugEventRepository(
-      store: DebugGenealogyStore.seeded(),
-    );
-    final aiAssistService = FakeAiAssistService(
-      onDraftEventCopy:
-          ({
-            required session,
-            required locale,
-            required draft,
-          }) async {
-            await Future<void>.delayed(const Duration(milliseconds: 250));
-            return const EventAiSuggestion(
-              title: 'Họp họ cuối tháng',
-              description: 'Nhắc mọi người xác nhận tham gia trước 2 ngày.',
-              recommendedReminderOffsetsMinutes: [2880],
-              rationale: ['Giữ nội dung ngắn để dễ đọc trên thông báo.'],
-              usedFallback: true,
-              model: null,
-            );
-          },
-    );
+  testWidgets(
+    'shows AI disclosure and loading copy while generating event suggestions',
+    (tester) async {
+      useLargeViewport(tester);
+      final repository = DebugEventRepository(
+        store: DebugGenealogyStore.seeded(),
+      );
+      final aiAssistService = FakeAiAssistService(
+        onDraftEventCopy:
+            ({required session, required locale, required draft}) async {
+              await Future<void>.delayed(const Duration(milliseconds: 250));
+              return const EventAiSuggestion(
+                title: 'Họp họ cuối tháng',
+                description: 'Nhắc mọi người xác nhận tham gia trước 2 ngày.',
+                recommendedReminderOffsetsMinutes: [2880],
+                rationale: ['Giữ nội dung ngắn để dễ đọc trên thông báo.'],
+                usedFallback: true,
+                model: null,
+              );
+            },
+      );
 
-    await pumpWorkspace(tester, repository, aiAssistService: aiAssistService);
+      await pumpWorkspace(tester, repository, aiAssistService: aiAssistService);
 
-    final memorialRow = find.byKey(
-      const Key('event-row-event_demo_memorial_001'),
-    );
-    await tester.scrollUntilVisible(
-      memorialRow,
-      260,
-      scrollable: workspaceScroll(),
-    );
-    await tester.tap(memorialRow);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+      final memorialRow = find.byKey(
+        const Key('event-row-event_demo_memorial_001'),
+      );
+      await tester.scrollUntilVisible(
+        memorialRow,
+        260,
+        scrollable: workspaceScroll(),
+      );
+      await tester.tap(memorialRow);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
-    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-    expect(
-      find.text(
-        'AI chỉ dùng dữ liệu sự kiện hiện tại để tạo gợi ý. Bạn vẫn cần xem lại trước khi áp dụng.',
-      ),
-      findsOneWidget,
-    );
+      expect(
+        find.text(
+          'AI chỉ dùng dữ liệu sự kiện hiện tại để tạo gợi ý. Bạn vẫn cần xem lại trước khi áp dụng.',
+        ),
+        findsOneWidget,
+      );
 
-    await tester.tap(find.byKey(const Key('event-ai-suggest-button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 80));
+      await tester.tap(find.byKey(const Key('event-ai-suggest-button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 80));
 
-    expect(find.text('Đang gợi ý...'), findsOneWidget);
-    expect(
-      find.text('Đang tạo gợi ý, thường mất vài giây.'),
-      findsOneWidget,
-    );
+      expect(find.text('Đang gợi ý...'), findsOneWidget);
+      expect(find.text('Đang tạo gợi ý, thường mất vài giây.'), findsOneWidget);
 
-    await tester.pump(const Duration(milliseconds: 260));
-    expect(find.text('Bản gợi ý mới'), findsOneWidget);
-  });
+      await tester.pump(const Duration(milliseconds: 260));
+      expect(find.text('Bản gợi ý mới'), findsOneWidget);
+    },
+  );
 
   testWidgets('shows a friendly message when event AI is throttled', (
     tester,
@@ -610,11 +636,7 @@ void main() {
     );
     final aiAssistService = FakeAiAssistService(
       onDraftEventCopy:
-          ({
-            required session,
-            required locale,
-            required draft,
-          }) async {
+          ({required session, required locale, required draft}) async {
             throw const AiAssistServiceException(
               'Bạn vừa dùng tính năng này. Hãy thử lại sau khoảng 10 giây.',
               code: 'resource-exhausted',

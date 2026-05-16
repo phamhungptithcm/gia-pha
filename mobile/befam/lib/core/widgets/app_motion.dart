@@ -32,8 +32,17 @@ class BeFamPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    // Route clicks should keep clan data stable; use local control feedback.
-    return child;
+    if (AppMotion.isReduced(context)) {
+      return child;
+    }
+
+    final scale = CurvedAnimation(
+      parent: animation,
+      curve: AppMotion.emphasizedCurve,
+      reverseCurve: AppMotion.exitCurve,
+    ).drive(Tween<double>(begin: 0.992, end: 1));
+
+    return ScaleTransition(scale: scale, child: child);
   }
 }
 

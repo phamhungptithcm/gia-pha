@@ -8,9 +8,11 @@ import 'package:printing/printing.dart';
 
 import '../../../app/theme/app_ui_tokens.dart';
 import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_compact_controls.dart';
 import '../../../core/services/kinship_title_resolver.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_form_controls.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -377,6 +379,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           ),
           floatingActionButton: _controller.canManageFunds
               ? FloatingActionButton(
+                  key: const Key('fund-add-fab'),
                   onPressed: () => _openFundEditor(),
                   tooltip: l10n.pick(vi: 'Thêm quỹ', en: 'Add fund'),
                   child: const Icon(Icons.add),
@@ -1566,6 +1569,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                           runSpacing: 10,
                           children: [
                             FilledButton.icon(
+                              key: const Key('fund-add-donation-button'),
                               onPressed: () => _openTransactionEditor(
                                 fund,
                                 FundTransactionType.donation,
@@ -1579,6 +1583,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                               ),
                             ),
                             OutlinedButton.icon(
+                              key: const Key('fund-add-expense-button'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: colorScheme.onPrimary,
                                 side: BorderSide(
@@ -2292,8 +2297,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   TextFormField(
                     key: const Key('fund-name-input'),
                     controller: _nameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Tên quỹ', en: 'Fund name'),
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(vi: 'Tên quỹ', en: 'Fund name'),
+                      required: true,
                       hintText: l10n.pick(
                         vi: 'Quỹ khuyến học',
                         en: 'Scholarship Fund',
@@ -2311,8 +2317,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     initialValue: _fundType,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Loại quỹ', en: 'Fund type'),
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(vi: 'Loại quỹ', en: 'Fund type'),
+                      required: true,
                     ),
                     items: [
                       for (final type in _fundTypes)
@@ -2333,8 +2340,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     initialValue: _currency,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Tiền tệ', en: 'Currency'),
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(vi: 'Tiền tệ', en: 'Currency'),
+                      required: true,
                     ),
                     items: [
                       for (final currency in _currencies)
@@ -2356,8 +2364,8 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   TextFormField(
                     key: const Key('fund-branch-id-input'),
                     controller: _branchIdController,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(
                         vi: 'Chi áp dụng (tuỳ chọn)',
                         en: 'Branch scope (optional)',
                       ),
@@ -2369,8 +2377,8 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                     key: const Key('fund-description-input'),
                     controller: _descriptionController,
                     maxLines: 4,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(vi: 'Mô tả', en: 'Description'),
                       hintText: l10n.pick(
                         vi: 'Mô tả quỹ hỗ trợ ai và cách sử dụng.',
                         en: 'Describe who this fund supports and how it is used.',
@@ -2610,12 +2618,21 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: FilledButton.icon(
-                        key: Key(
+                      child: AppActionButton(
+                        buttonKey: Key(
                           _editorStep == 0
                               ? 'fund-editor-next-step-button'
                               : 'fund-save-button',
                         ),
+                        isLoading: _isSubmitting || widget.isSaving,
+                        icon: _editorStep == 0
+                            ? Icons.arrow_forward_outlined
+                            : Icons.save_outlined,
+                        label: (_isSubmitting || widget.isSaving)
+                            ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
+                            : _editorStep == 0
+                            ? l10n.pick(vi: 'Tiếp tục', en: 'Continue')
+                            : l10n.pick(vi: 'Lưu quỹ', en: 'Save fund'),
                         onPressed: (_isSubmitting || widget.isSaving)
                             ? null
                             : _editorStep == 0
@@ -2625,26 +2642,6 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                                 }
                               }
                             : _submit,
-                        icon: (_isSubmitting || widget.isSaving)
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(
-                                _editorStep == 0
-                                    ? Icons.arrow_forward_outlined
-                                    : Icons.save_outlined,
-                              ),
-                        label: Text(
-                          (_isSubmitting || widget.isSaving)
-                              ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
-                              : _editorStep == 0
-                              ? l10n.pick(vi: 'Tiếp tục', en: 'Continue')
-                              : l10n.pick(vi: 'Lưu quỹ', en: 'Save fund'),
-                        ),
                       ),
                     ),
                   ],
@@ -2830,8 +2827,9 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Số tiền', en: 'Amount'),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Số tiền', en: 'Amount'),
+                    required: true,
                     hintText: widget.initialDraft.currency == 'VND'
                         ? l10n.pick(vi: '500000', en: '500000')
                         : l10n.pick(vi: '50.00', en: '50.00'),
@@ -2851,8 +2849,8 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   key: const Key('fund-transaction-note-input'),
                   controller: _noteController,
                   maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Ghi chú', en: 'Note'),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Ghi chú', en: 'Note'),
                     hintText: l10n.pick(
                       vi: 'Đóng góp Tết',
                       en: 'Tet contribution',
@@ -2863,8 +2861,8 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                 TextFormField(
                   key: const Key('fund-transaction-member-input'),
                   controller: _memberIdController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(
                       vi: 'Thành viên liên quan (tuỳ chọn)',
                       en: 'Linked member (optional)',
                     ),
@@ -2875,8 +2873,8 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                 TextFormField(
                   key: const Key('fund-transaction-reference-input'),
                   controller: _referenceController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(
                       vi: 'Mã tham chiếu (tuỳ chọn)',
                       en: 'Reference (optional)',
                     ),
@@ -2904,30 +2902,24 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                 const SizedBox(height: 22),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.icon(
+                  child: AppActionButton(
+                    buttonKey: const Key('fund-transaction-save-button'),
+                    expand: true,
+                    isLoading: _isSubmitting || widget.isSaving,
+                    icon:
+                        widget.initialDraft.transactionType ==
+                            FundTransactionType.donation
+                        ? Icons.add_circle_outline
+                        : Icons.remove_circle_outline,
+                    label: (_isSubmitting || widget.isSaving)
+                        ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
+                        : widget.initialDraft.transactionType ==
+                              FundTransactionType.donation
+                        ? l10n.pick(vi: 'Lưu đóng góp', en: 'Save donation')
+                        : l10n.pick(vi: 'Lưu chi tiêu', en: 'Save expense'),
                     onPressed: (_isSubmitting || widget.isSaving)
                         ? null
                         : _submit,
-                    icon: (_isSubmitting || widget.isSaving)
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(
-                            widget.initialDraft.transactionType ==
-                                    FundTransactionType.donation
-                                ? Icons.add_circle_outline
-                                : Icons.remove_circle_outline,
-                          ),
-                    label: Text(
-                      (_isSubmitting || widget.isSaving)
-                          ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
-                          : widget.initialDraft.transactionType ==
-                                FundTransactionType.donation
-                          ? l10n.pick(vi: 'Lưu đóng góp', en: 'Save donation')
-                          : l10n.pick(vi: 'Lưu chi tiêu', en: 'Save expense'),
-                    ),
                   ),
                 ),
               ],

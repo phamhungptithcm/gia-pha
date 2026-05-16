@@ -8,6 +8,7 @@ import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_form_controls.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -2413,10 +2414,22 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                           key: const Key('event-title-field'),
                           controller: _titleController,
                           textInputAction: TextInputAction.next,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormTitleLabel,
+                          decoration: appFieldDecoration(
+                            label: l10n.eventFormTitleLabel,
+                            required: true,
                             hintText: l10n.eventFormTitleHint,
+                            errorText:
+                                _validationIssue ==
+                                    EventValidationIssueCode.missingTitle
+                                ? l10n.eventValidationTitleRequired
+                                : null,
                           ),
+                          onChanged: (_) {
+                            if (_validationIssue ==
+                                EventValidationIssueCode.missingTitle) {
+                              setState(() => _validationIssue = null);
+                            }
+                          },
                         ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<EventType>(
@@ -2424,8 +2437,9 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                             'event-type-dropdown-${_selectedType.wireName}',
                           ),
                           initialValue: _selectedType,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormTypeLabel,
+                          decoration: appFieldDecoration(
+                            label: l10n.eventFormTypeLabel,
+                            required: true,
                           ),
                           items: [
                             for (final type in EventType.values)
@@ -2454,8 +2468,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                             'event-branch-dropdown-${_selectedBranchId ?? 'all'}',
                           ),
                           initialValue: _selectedBranchId,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormBranchLabel,
+                          decoration: appFieldDecoration(
+                            label: l10n.eventFormBranchLabel,
                           ),
                           items: [
                             DropdownMenuItem<String?>(
@@ -2481,8 +2495,15 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                               'event-target-member-dropdown-${_selectedTargetMemberId ?? 'unset'}',
                             ),
                             initialValue: _selectedTargetMemberId,
-                            decoration: InputDecoration(
-                              labelText: l10n.eventFormTargetMemberLabel,
+                            decoration: appFieldDecoration(
+                              label: l10n.eventFormTargetMemberLabel,
+                              required: true,
+                              errorText:
+                                  _validationIssue ==
+                                      EventValidationIssueCode
+                                          .memorialRequiresTargetMember
+                                  ? l10n.eventValidationMemorialTarget
+                                  : null,
                             ),
                             items: [
                               DropdownMenuItem<String?>(
@@ -2527,8 +2548,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                           key: const Key('event-description-field'),
                           controller: _descriptionController,
                           maxLines: 3,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormDescriptionLabel,
+                          decoration: appFieldDecoration(
+                            label: l10n.eventFormDescriptionLabel,
                           ),
                         ),
                       ],
@@ -2540,9 +2561,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                 key: const Key('event-start-field'),
                                 controller: _startsAtController,
                                 textInputAction: TextInputAction.next,
-                                decoration: InputDecoration(
-                                  labelText: l10n.eventFormStartsAtLabel,
+                                decoration: appFieldDecoration(
+                                  label: l10n.eventFormStartsAtLabel,
+                                  required: true,
                                   hintText: l10n.eventFormDateTimeHint,
+                                  errorText:
+                                      _validationIssue ==
+                                          EventValidationIssueCode
+                                              .invalidTimeRange
+                                      ? l10n.eventValidationTimeRange
+                                      : null,
                                   suffixIcon: IconButton(
                                     tooltip: l10n.pick(
                                       vi: 'Chọn thời gian bắt đầu',
@@ -2566,8 +2594,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                 key: const Key('event-end-field'),
                                 controller: _endsAtController,
                                 textInputAction: TextInputAction.next,
-                                decoration: InputDecoration(
-                                  labelText: l10n.eventFormEndsAtLabel,
+                                decoration: appFieldDecoration(
+                                  label: l10n.eventFormEndsAtLabel,
                                   hintText: l10n.eventFormDateTimeHint,
                                   suffixIcon: IconButton(
                                     tooltip: l10n.pick(
@@ -2591,16 +2619,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                         TextField(
                           controller: _timezoneController,
                           textInputAction: TextInputAction.next,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormTimezoneLabel,
+                          decoration: appFieldDecoration(
+                            label: l10n.eventFormTimezoneLabel,
                           ),
                         ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: _locationNameController,
                           textInputAction: TextInputAction.next,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormLocationNameLabel,
+                          decoration: appFieldDecoration(
+                            label: l10n.eventFormLocationNameLabel,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -2714,8 +2742,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                 key: const Key('event-reminder-input'),
                                 controller: _reminderInputController,
                                 keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  labelText: l10n.eventFormReminderCustomLabel,
+                                decoration: appFieldDecoration(
+                                  label: l10n.eventFormReminderCustomLabel,
                                   hintText: l10n.eventFormReminderCustomHint,
                                 ),
                               ),
@@ -2825,27 +2853,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: FilledButton.icon(
-                        key: const Key('event-save-button'),
+                      child: AppActionButton(
+                        buttonKey: const Key('event-save-button'),
+                        isLoading: isBusy,
+                        icon: isFinalStep
+                            ? Icons.save_outlined
+                            : Icons.arrow_forward,
+                        label: isFinalStep
+                            ? l10n.eventFormSaveAction
+                            : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
                         onPressed: isBusy ? null : _submitOrContinue,
-                        icon: isBusy
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(
-                                isFinalStep
-                                    ? Icons.save_outlined
-                                    : Icons.arrow_forward,
-                              ),
-                        label: Text(
-                          isFinalStep
-                              ? l10n.eventFormSaveAction
-                              : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                        ),
                       ),
                     ),
                   ],

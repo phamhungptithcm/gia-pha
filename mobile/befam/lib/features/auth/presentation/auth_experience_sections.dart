@@ -514,10 +514,7 @@ class _LoginMethodSelectionCard extends StatelessWidget {
           SizedBox(height: tokens.spaceLg),
           _MethodActionButton(
             buttonKey: const Key('auth-method-phone-button'),
-            title: l10n.pick(
-              vi: 'Dùng số điện thoại',
-              en: 'Use phone number',
-            ),
+            title: l10n.pick(vi: 'Dùng số điện thoại', en: 'Use phone number'),
             icon: Icons.phone_iphone,
             filled: true,
             onPressed: isBusy || !hasAcceptedPrivacyPolicy
@@ -813,6 +810,7 @@ class _PhoneLoginCard extends StatefulWidget {
 class _PhoneLoginCardState extends State<_PhoneLoginCard> {
   late final TextEditingController _controller;
   late String _selectedCountryIsoCode;
+  String? _fieldError;
   bool _resolvedAutoCountry = false;
 
   @override
@@ -852,6 +850,39 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
     _controller
       ..text = normalized
       ..selection = TextSelection.collapsed(offset: normalized.length);
+  }
+
+  Future<void> _submit() async {
+    _normalizePhoneInputForCountry();
+    final l10n = context.l10n;
+    final value = _controller.text.trim();
+    if (value.isEmpty) {
+      setState(() {
+        _fieldError = l10n.pick(
+          vi: 'Hãy nhập số điện thoại.',
+          en: 'Please enter a phone number.',
+        );
+      });
+      return;
+    }
+    try {
+      PhoneNumberFormatter.parse(
+        value,
+        defaultCountryIso: _selectedCountryIsoCode,
+      );
+    } catch (_) {
+      setState(() {
+        _fieldError = l10n.pick(
+          vi: 'Số điện thoại chưa đúng định dạng.',
+          en: 'Invalid phone number format.',
+        );
+      });
+      return;
+    }
+    setState(() {
+      _fieldError = null;
+    });
+    await widget.onSubmit(value, _selectedCountryIsoCode);
   }
 
   @override
@@ -896,19 +927,22 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
                         textInputAction: TextInputAction.done,
                         autofillHints: const [AutofillHints.telephoneNumber],
                         enabled: !widget.isBusy,
-                        decoration: InputDecoration(
-                          labelText: l10n.authPhoneLabel,
+                        decoration: appFieldDecoration(
+                          label: l10n.authPhoneLabel,
+                          required: true,
                           hintText: phoneHint,
+                          errorText: _fieldError,
                         ),
                         onEditingComplete: _normalizePhoneInputForCountry,
+                        onChanged: (_) {
+                          if (_fieldError != null) {
+                            setState(() => _fieldError = null);
+                          }
+                        },
                         onSubmitted: widget.isBusy
                             ? null
                             : (_) {
-                                _normalizePhoneInputForCountry();
-                                widget.onSubmit(
-                                  _controller.text,
-                                  _selectedCountryIsoCode,
-                                );
+                                unawaited(_submit());
                               },
                       ),
                     ),
@@ -926,27 +960,15 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
             ),
           ),
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              key: const Key('auth-send-otp-button'),
-              onPressed: widget.isBusy
-                  ? null
-                  : () {
-                      _normalizePhoneInputForCountry();
-                      widget.onSubmit(
-                        _controller.text,
-                        _selectedCountryIsoCode,
-                      );
-                    },
-              child: _AuthBusyButtonChild(
-                isBusy: widget.isBusy,
-                idleIcon: Icons.send_outlined,
-                label: widget.isBusy
-                    ? l10n.pick(vi: 'Đang gửi mã OTP...', en: 'Sending OTP...')
-                    : l10n.pick(vi: 'Nhận mã OTP', en: 'Get OTP code'),
-              ),
-            ),
+          AppActionButton(
+            buttonKey: const Key('auth-send-otp-button'),
+            expand: true,
+            icon: Icons.send_outlined,
+            label: widget.isBusy
+                ? l10n.pick(vi: 'Đang gửi mã OTP...', en: 'Sending OTP...')
+                : l10n.pick(vi: 'Nhận mã OTP', en: 'Get OTP code'),
+            isLoading: widget.isBusy,
+            onPressed: widget.isBusy ? null : _submit,
           ),
         ],
       ),
@@ -971,6 +993,7 @@ class _ChildIdentifierCard extends StatefulWidget {
 
 class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
   late final TextEditingController _controller;
+  String? _fieldError;
 
   @override
   void initState() {
@@ -982,6 +1005,24 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final l10n = context.l10n;
+    final value = _controller.text.trim();
+    if (value.isEmpty) {
+      setState(() {
+        _fieldError = l10n.pick(
+          vi: 'Hãy nhập mã dành cho bé.',
+          en: 'Please enter the child access code.',
+        );
+      });
+      return;
+    }
+    setState(() {
+      _fieldError = null;
+    });
+    await widget.onSubmit(value);
   }
 
   @override
@@ -1007,35 +1048,34 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
             controller: _controller,
             enabled: !widget.isBusy,
             textInputAction: TextInputAction.done,
-            decoration: InputDecoration(
-              labelText: l10n.authChildLabel,
+            decoration: appFieldDecoration(
+              label: l10n.authChildLabel,
+              required: true,
               hintText: l10n.authChildHint,
               prefixIcon: const Icon(Icons.badge_outlined),
+              errorText: _fieldError,
             ),
             textCapitalization: TextCapitalization.characters,
-            onSubmitted: widget.isBusy
-                ? null
-                : (value) => widget.onSubmit(value),
+            onChanged: (_) {
+              if (_fieldError != null) {
+                setState(() => _fieldError = null);
+              }
+            },
+            onSubmitted: widget.isBusy ? null : (_) => unawaited(_submit()),
           ),
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              key: const Key('auth-child-continue-button'),
-              onPressed: widget.isBusy
-                  ? null
-                  : () => widget.onSubmit(_controller.text),
-              child: _AuthBusyButtonChild(
-                isBusy: widget.isBusy,
-                idleIcon: Icons.arrow_forward,
-                label: widget.isBusy
-                    ? l10n.pick(
-                        vi: 'Đang kiểm tra mã...',
-                        en: 'Checking the code...',
-                      )
-                    : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-              ),
-            ),
+          AppActionButton(
+            buttonKey: const Key('auth-child-continue-button'),
+            expand: true,
+            icon: Icons.arrow_forward,
+            label: widget.isBusy
+                ? l10n.pick(
+                    vi: 'Đang kiểm tra mã...',
+                    en: 'Checking the code...',
+                  )
+                : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+            isLoading: widget.isBusy,
+            onPressed: widget.isBusy ? null : _submit,
           ),
         ],
       ),
@@ -1068,6 +1108,7 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
   String _lastSubmittedCode = '';
+  String? _fieldError;
 
   @override
   void initState() {
@@ -1123,10 +1164,22 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
 
   Future<void> _submitCode(String value) async {
     final sanitized = value.replaceAll(RegExp(r'[^0-9]'), '');
-    if (sanitized.length != 6 || widget.isBusy) {
+    if (widget.isBusy) {
+      return;
+    }
+    if (sanitized.length != 6) {
+      setState(() {
+        _fieldError = context.l10n.pick(
+          vi: 'Nhập đủ 6 số trong mã xác nhận.',
+          en: 'Enter all 6 digits in the verification code.',
+        );
+      });
       return;
     }
 
+    setState(() {
+      _fieldError = null;
+    });
     _lastSubmittedCode = sanitized;
     await widget.onVerify(sanitized);
   }
@@ -1146,6 +1199,9 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
       return;
     }
 
+    if (_fieldError != null) {
+      setState(() => _fieldError = null);
+    }
     if (!widget.isBusy && sanitized != _lastSubmittedCode) {
       unawaited(_submitCode(sanitized));
     }
@@ -1180,6 +1236,7 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
             controller: _controller,
             focusNode: _focusNode,
             enabled: !widget.isBusy,
+            errorText: _fieldError,
             onChanged: _handleCodeChanged,
             onSubmitted: _submitCode,
           ),
@@ -1192,48 +1249,94 @@ class _OtpVerificationCardState extends State<_OtpVerificationCard> {
             ),
           ],
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: widget.isBusy || _controller.text.length < 6
-                  ? null
-                  : () => _submitCode(_controller.text),
-              icon: widget.isBusy
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.arrow_forward),
-              label: Text(
-                widget.isBusy
-                    ? l10n.pick(
-                        vi: 'Đang kiểm tra mã...',
-                        en: 'Checking code...',
-                      )
-                    : l10n.pick(vi: 'Xác nhận mã', en: 'Confirm code'),
-              ),
-            ),
+          AppActionButton(
+            buttonKey: const Key('auth-confirm-otp-button'),
+            expand: true,
+            icon: Icons.arrow_forward,
+            label: widget.isBusy
+                ? l10n.pick(vi: 'Đang kiểm tra mã...', en: 'Checking code...')
+                : l10n.pick(vi: 'Xác nhận mã', en: 'Confirm code'),
+            isLoading: widget.isBusy,
+            onPressed: widget.isBusy
+                ? null
+                : () => _submitCode(_controller.text),
           ),
           const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: widget.isBusy || widget.resendCooldownSeconds > 0
-                  ? null
-                  : widget.onResend,
-              icon: const Icon(Icons.refresh),
-              label: Text(
-                widget.resendCooldownSeconds > 0
-                    ? l10n.pick(
-                        vi: 'Gửi lại sau ${widget.resendCooldownSeconds}s',
-                        en: 'Resend in ${widget.resendCooldownSeconds}s',
-                      )
-                    : l10n.pick(vi: 'Gửi lại mã', en: 'Resend code'),
-              ),
-            ),
+          if (widget.resendCooldownSeconds > 0) ...[
+            _OtpCooldownStatus(seconds: widget.resendCooldownSeconds),
+            const SizedBox(height: 8),
+          ],
+          AppActionButton(
+            icon: Icons.refresh,
+            variant: AppActionButtonVariant.text,
+            enabled: widget.resendCooldownSeconds <= 0,
+            isLoading: widget.isBusy,
+            label: widget.resendCooldownSeconds > 0
+                ? l10n.pick(
+                    vi: 'Gửi lại sau ${widget.resendCooldownSeconds}s',
+                    en: 'Resend in ${widget.resendCooldownSeconds}s',
+                  )
+                : l10n.pick(vi: 'Gửi lại mã', en: 'Resend code'),
+            onPressed: widget.isBusy || widget.resendCooldownSeconds > 0
+                ? null
+                : widget.onResend,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _OtpCooldownStatus extends StatelessWidget {
+  const _OtpCooldownStatus({required this.seconds});
+
+  final int seconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final total = 30.0;
+    final progress = (seconds / total).clamp(0.0, 1.0);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.72,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.timer_outlined,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      context.l10n.pick(
+                        vi: 'Có thể gửi lại mã sau ${seconds}s',
+                        en: 'You can resend the code in ${seconds}s',
+                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            LinearProgressIndicator(value: progress, minHeight: 3),
+          ],
+        ),
       ),
     );
   }
@@ -1654,6 +1757,7 @@ class _OtpCodeField extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.enabled,
+    required this.errorText,
     required this.onChanged,
     required this.onSubmitted,
   });
@@ -1661,6 +1765,7 @@ class _OtpCodeField extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool enabled;
+  final String? errorText;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmitted;
 
@@ -1669,6 +1774,7 @@ class _OtpCodeField extends StatelessWidget {
     final code = controller.text;
     final focusedIndex = code.length >= 6 ? 5 : code.length;
     final l10n = context.l10n;
+    final hasError = errorText != null;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1704,6 +1810,7 @@ class _OtpCodeField extends StatelessWidget {
                                     focusNode.hasFocus && focusedIndex == index,
                                 isFilled: index < code.length,
                                 enabled: enabled,
+                                hasError: hasError,
                               ),
                             ),
                             if (index < 5) SizedBox(width: spacing),
@@ -1747,11 +1854,15 @@ class _OtpCodeField extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                l10n.pick(
-                  vi: 'Mã 6 số có thể tự điền từ SMS hoặc dán trực tiếp.',
-                  en: 'Your 6-digit code supports SMS autofill and paste.',
+                errorText ??
+                    l10n.pick(
+                      vi: 'Mã 6 số có thể tự điền từ SMS hoặc dán trực tiếp.',
+                      en: 'Your 6-digit code supports SMS autofill and paste.',
+                    ),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: hasError ? Theme.of(context).colorScheme.error : null,
+                  fontWeight: hasError ? FontWeight.w700 : null,
                 ),
-                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           );
@@ -1768,6 +1879,7 @@ class _OtpDigitTile extends StatelessWidget {
     required this.isActive,
     required this.isFilled,
     required this.enabled,
+    required this.hasError,
   });
 
   final String digit;
@@ -1775,18 +1887,23 @@ class _OtpDigitTile extends StatelessWidget {
   final bool isActive;
   final bool isFilled;
   final bool enabled;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final borderColor = isActive
+    final borderColor = hasError
+        ? colorScheme.error
+        : isActive
         ? colorScheme.primary
         : isFilled
         ? colorScheme.outline
         : colorScheme.outlineVariant;
-    final backgroundColor = isActive
+    final backgroundColor = hasError
+        ? colorScheme.errorContainer.withValues(alpha: 0.55)
+        : isActive
         ? colorScheme.primaryContainer
         : isFilled
         ? colorScheme.surfaceContainerHighest
@@ -1891,45 +2008,6 @@ class _AuthFormCard extends StatelessWidget {
           child,
         ],
       ),
-    );
-  }
-}
-
-class _AuthBusyButtonChild extends StatelessWidget {
-  const _AuthBusyButtonChild({
-    required this.isBusy,
-    required this.idleIcon,
-    required this.label,
-  });
-
-  final bool isBusy;
-  final IconData idleIcon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (isBusy)
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        else
-          Icon(idleIcon),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            softWrap: false,
-          ),
-        ),
-      ],
     );
   }
 }

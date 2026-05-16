@@ -63,6 +63,18 @@ Flutter profile-mode result or an explicit device availability gap. Firebase
 Performance custom traces must be checked after staging/profile sessions for
 workspace refreshes and `befam_frames_batch_p95`.
 
+Run focused form/action regression checks when a release touches input fields,
+timers, async buttons, or navigation motion:
+
+```bash
+cd mobile/befam
+flutter test test/core/widgets/app_form_controls_test.dart
+flutter test test/widget_test.dart --name "auth phone form|auth child and OTP|clan editor shows|branch editor shows|member add form blocks|filters parent candidates"
+flutter test test/features/events/event_widget_test.dart --name "edit form shows required title error before moving on"
+flutter test test/features/funds/fund_form_validation_widget_test.dart
+flutter test test/features/scholarship/scholarship_flow_widget_test.dart --name "create forms surface required errors before continuing"
+```
+
 Run environment audits:
 
 ```bash
@@ -111,6 +123,9 @@ No required release check may be implemented as a permanent echo/skip step.
 | --- | --- | --- | --- |
 | UX-P1-01 | Mobile widths | Run auth, home, tree, event, billing on small and large devices. | No clipped text, overflows, or nested-card clutter. |
 | UX-P1-02 | Localization | Switch EN/VI and revisit all primary tabs. | No hard-coded mismatched copy on release-critical flows. |
+| UX-P1-03 | Form required states | Try to continue/save empty required fields in auth, clan, branch, member, event, fund, scholarship. | Required fields are visibly marked and block progress with inline errors. |
+| UX-P1-04 | Async button feedback | Tap save/send/upload/link buttons repeatedly during a simulated slow request. | Button shows press feedback/loading progress and accepts only one in-flight action. |
+| UX-P1-05 | Timers and motion | Trigger OTP resend cooldown and move between release-critical screens. | Timer has progress + remaining time; navigation uses stable scale-only motion without slide/fade. |
 | PERF-P1-01 | Startup | Cold start on normal network and warm cache. | First useful shell or stable placeholder appears under one second after bootstrap. |
 | PERF-P1-02 | Tab switch | Switch Home/Tree/Events/Billing/Profile repeatedly. | Cached tab switch stays under 300ms perceived latency. |
 | OFFLINE-P1-01 | Offline | Open app offline after a successful login. | Cached or friendly offline state appears; app does not crash. |

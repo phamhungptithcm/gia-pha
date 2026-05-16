@@ -148,6 +148,20 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.90),
+        floatingLabelStyle: textTheme.labelLarge?.copyWith(
+          color: colorScheme.primary,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+        errorStyle: textTheme.bodySmall?.copyWith(
+          color: colorScheme.error,
+          fontWeight: FontWeight.w700,
+          height: 1.25,
+        ),
+        helperStyle: textTheme.bodySmall?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+          height: 1.25,
+        ),
         contentPadding: EdgeInsets.symmetric(
           horizontal: uiTokens.inputHorizontalPadding,
           vertical: uiTokens.inputVerticalPadding,
@@ -163,6 +177,14 @@ abstract final class AppTheme {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(uiTokens.radiusMd),
           borderSide: BorderSide(color: colorScheme.primary, width: 1.4),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(uiTokens.radiusMd),
+          borderSide: BorderSide(color: colorScheme.error, width: 1.2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(uiTokens.radiusMd),
+          borderSide: BorderSide(color: colorScheme.error, width: 1.6),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(

@@ -115,6 +115,45 @@ Avoid decorative background blobs, long bounce effects, generic staged entrances
 animation that moves financial or governance content after it becomes readable,
 and motion that makes a user wait before acting again.
 
+## Form, Timer, and Action Contract
+
+Forms are high-trust moments in BeFam because they can change identities,
+relationships, clan operations, funds, or scholarship records. They should feel
+calm, explicit, and hard to misuse.
+
+- Required fields use `AppRequiredFieldLabel` through `appFieldDecoration`.
+  Required state must be visible before submission and must not rely on helper
+  copy hidden lower in the sheet.
+- Validation errors appear inline on the field or immediately beside the step
+  that blocks progress. Snackbars can supplement a failure, but they are not the
+  only required-field feedback.
+- Multi-step editors block forward movement until the current step validates.
+  Users should never reach a later step while a required earlier field is empty
+  or invalid.
+- Form copy is short and human. Labels name the data, helper text explains only
+  unusual rules, and error text says exactly what to fix.
+- Time-sensitive controls, including OTP resend timers, show a compact progress
+  indicator plus remaining time. Do not use a plain countdown sentence when the
+  user is waiting to act.
+- Async link and button actions use `AppActionButton` or `AppAsyncAction`.
+  They show immediate press feedback, expose a slim loading bar when work may
+  take time, and ignore repeat taps while the first request is in flight.
+- Button motion is a small press scale plus Material ink/color feedback. Avoid
+  slide, fade, bounce, or delayed staged motion for button clicks.
+- Route transitions use the BeFam scale-only page transition. It should feel
+  like focus settling into place, not a card sliding across the screen.
+- Reduced motion must still show state changes and loading/progress without
+  movement.
+
+Release-critical forms covered by automated tests:
+
+- Auth: phone, child identifier, incomplete OTP, resend cooldown feedback
+- Clan: clan profile and branch required identity fields
+- Members: add/edit first-step required identity fields and parent filter flow
+- Events: required title before moving deeper into the editor
+- Funds: required fund name and transaction amount
+- Scholarship: required program, award, and submission title fields
+
 ## Screen-Level Direction
 
 ### Auth
@@ -204,6 +243,11 @@ profiling must be captured separately.
 - No text clipped inside buttons, chips, navigation labels, or cards.
 - No repeated title text that confuses widget tests or screen readers.
 - All user-facing copy follows the localization pattern used by the screen.
+- Required form fields are visibly marked and block forward movement with
+  inline errors before any write or step transition.
+- Async action buttons show immediate feedback, loading state, and repeat-tap
+  protection.
+- Timers and cooldowns use stable progress UI, not only text.
 - Loading, empty, error, success, and permission-denied states exist for every
   release-critical workspace.
 - Motion is short, purposeful, and does not obscure clan, money, or governance

@@ -268,7 +268,9 @@
     }
 
     .befam-static-copy {
+      width: 100%;
       min-width: 0;
+      max-width: 100%;
       padding-top: 6px;
     }
 
@@ -592,7 +594,8 @@
       }
 
       .befam-static-lead {
-        max-width: 100%;
+        width: 100%;
+        max-width: 31ch;
         margin-top: 20px;
         font-size: 16px;
         line-height: 1.55;
@@ -608,7 +611,10 @@
       }
 
       .befam-static-visual {
+        width: 100%;
+        max-width: 100%;
         padding: 14px;
+        overflow: hidden;
       }
 
       .befam-static-visual-head {
@@ -621,8 +627,9 @@
       }
 
       .befam-lineage-chip {
+        width: 136px;
         max-width: calc(100% - 24px);
-        min-width: 118px;
+        min-width: 0;
         padding: 11px 12px;
         overflow-wrap: break-word;
       }
@@ -637,7 +644,8 @@
       }
 
       .befam-lineage-chip.two {
-        right: 12px;
+        right: auto;
+        left: 184px;
         top: 36px;
       }
 
@@ -647,7 +655,8 @@
       }
 
       .befam-lineage-chip.four {
-        right: 18px;
+        right: auto;
+        left: 196px;
         bottom: 24px;
       }
 
@@ -718,7 +727,7 @@
           <span>Gia phả sống.</span>
           <span class="accent">BeFam giữ ký ức.</span>
         </h1>
-        <p class="befam-static-lead">Một nơi gọn để lưu người thân, ngày giỗ, sự kiện và quỹ họ. Rõ ràng cho hôm nay, dễ trao lại mai sau.</p>
+        <p class="befam-static-lead">Lưu người thân, ngày giỗ, sự kiện và quỹ họ trong một nơi rõ ràng.</p>
         <div class="befam-static-cta">
           <a class="befam-static-action primary" href="/app">Mở ứng dụng</a>
           <a class="befam-static-action secondary" href="/befam-info">Câu chuyện</a>
@@ -727,7 +736,7 @@
       <aside class="befam-static-visual" aria-label="Không gian BeFam">
         <div class="befam-static-visual-head">
           <span>Nhà mình</span>
-          <span>Web + iOS + Android</span>
+          <span>Web + app</span>
         </div>
         <div class="befam-lineage-map">
           <span class="befam-lineage-ring"></span>

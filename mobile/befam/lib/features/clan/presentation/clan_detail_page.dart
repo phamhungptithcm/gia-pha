@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_form_controls.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
@@ -1383,10 +1385,7 @@ class _BranchPreviewCard extends StatelessWidget {
         final header = isCompact
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  headerDetails,
-                  ...?compactHeaderActions,
-                ],
+                children: [headerDetails, ...?compactHeaderActions],
               )
             : Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1719,29 +1718,10 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
   }
 
   bool _validateCurrentStep() {
-    if (_editorStep != 0) {
-      return true;
+    if (_editorStep == 0) {
+      return _formKey.currentState?.validate() ?? false;
     }
-    final l10n = context.l10n;
-    final error = switch ((
-      _nameController.text.trim().isEmpty,
-      _countryController.text.trim().length < 2,
-    )) {
-      (true, _) => l10n.pick(
-        vi: 'Thiếu thông tin: Hãy nhập tên gia phả trước khi tiếp tục.',
-        en: 'Missing info: Please enter the genealogy name before continuing.',
-      ),
-      (_, true) => l10n.pick(
-        vi: 'Thiếu thông tin: Hãy chọn quốc gia trước khi tiếp tục.',
-        en: 'Missing info: Please choose the country before continuing.',
-      ),
-      _ => null,
-    };
-    if (error == null) {
-      return true;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
-    return false;
+    return true;
   }
 
   void _goToStep(int nextStep) {
@@ -1807,8 +1787,9 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                   TextFormField(
                     key: const Key('clan-name-input'),
                     controller: _nameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.clanFieldName,
+                    decoration: appFieldDecoration(
+                      label: l10n.clanFieldName,
+                      required: true,
                       hintText: l10n.clanFieldNameHint,
                     ),
                     textInputAction: TextInputAction.next,
@@ -1822,8 +1803,9 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                   TextFormField(
                     key: const Key('clan-country-input'),
                     controller: _countryController,
-                    decoration: InputDecoration(
-                      labelText: l10n.clanFieldCountry,
+                    decoration: appFieldDecoration(
+                      label: l10n.clanFieldCountry,
+                      required: true,
                       hintText: l10n.pick(vi: 'VN', en: 'VN'),
                     ),
                     textCapitalization: TextCapitalization.characters,
@@ -1838,8 +1820,8 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                   TextFormField(
                     key: const Key('clan-founder-input'),
                     controller: _founderController,
-                    decoration: InputDecoration(
-                      labelText: l10n.clanFieldFounder,
+                    decoration: appFieldDecoration(
+                      label: l10n.clanFieldFounder,
                       hintText: l10n.clanFieldFounderHint,
                     ),
                     textInputAction: TextInputAction.next,
@@ -1862,8 +1844,8 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                   TextFormField(
                     key: const Key('clan-slug-input'),
                     controller: _slugController,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(
                         vi: 'Đường dẫn chia sẻ',
                         en: 'Share link',
                       ),
@@ -1882,8 +1864,8 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                   TextFormField(
                     key: const Key('clan-logo-url-input'),
                     controller: _logoUrlController,
-                    decoration: InputDecoration(
-                      labelText: l10n.clanFieldLogoUrl,
+                    decoration: appFieldDecoration(
+                      label: l10n.clanFieldLogoUrl,
                       hintText: l10n.pick(vi: 'https://...', en: 'https://...'),
                     ),
                     keyboardType: TextInputType.url,
@@ -1893,8 +1875,8 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                   TextFormField(
                     key: const Key('clan-description-input'),
                     controller: _descriptionController,
-                    decoration: InputDecoration(
-                      labelText: l10n.clanFieldDescription,
+                    decoration: appFieldDecoration(
+                      label: l10n.clanFieldDescription,
                       hintText: l10n.clanFieldDescriptionHint,
                     ),
                     maxLines: 4,
@@ -1932,7 +1914,9 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
               ),
             );
             final primaryButton = _editorStep == 0
-                ? FilledButton.icon(
+                ? AppActionButton(
+                    icon: Icons.arrow_forward,
+                    label: l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
                     onPressed: _isSubmitting
                         ? null
                         : () {
@@ -1941,27 +1925,15 @@ class _ClanEditorSheetState extends State<_ClanEditorSheet> {
                             }
                             setState(() => _editorStep = 1);
                           },
-                    icon: const Icon(Icons.arrow_forward),
-                    label: Text(l10n.pick(vi: 'Tiếp tục', en: 'Continue')),
                   )
-                : FilledButton.icon(
-                    key: const Key('clan-save-button'),
+                : AppActionButton(
+                    buttonKey: const Key('clan-save-button'),
+                    isLoading: _isSubmitting,
+                    icon: Icons.save_outlined,
+                    label: isEditing
+                        ? l10n.clanSaveAction
+                        : l10n.pick(vi: 'Tạo gia phả', en: 'Create genealogy'),
                     onPressed: _isSubmitting ? null : _submit,
-                    icon: _isSubmitting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: Text(
-                      isEditing
-                          ? l10n.clanSaveAction
-                          : l10n.pick(
-                              vi: 'Tạo gia phả',
-                              en: 'Create genealogy',
-                            ),
-                    ),
                   );
 
             if (compact) {
@@ -2184,8 +2156,9 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
                   TextFormField(
                     key: const Key('branch-name-input'),
                     controller: _nameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.clanBranchNameLabel,
+                    decoration: appFieldDecoration(
+                      label: l10n.clanBranchNameLabel,
+                      required: true,
                       hintText: l10n.clanBranchNameHint,
                     ),
                     textInputAction: TextInputAction.next,
@@ -2199,8 +2172,9 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
                   TextFormField(
                     key: const Key('branch-code-input'),
                     controller: _codeController,
-                    decoration: InputDecoration(
-                      labelText: l10n.clanBranchCodeLabel,
+                    decoration: appFieldDecoration(
+                      label: l10n.clanBranchCodeLabel,
+                      required: true,
                       hintText: l10n.clanBranchCodeHint,
                     ),
                     textCapitalization: TextCapitalization.characters,
@@ -2215,11 +2189,12 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
                   TextFormField(
                     key: const Key('branch-generation-input'),
                     controller: _generationController,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(
                         vi: 'Đời bắt đầu',
                         en: 'Starting generation',
                       ),
+                      required: true,
                     ),
                     keyboardType: TextInputType.number,
                     textInputAction: TextInputAction.next,
@@ -2246,9 +2221,7 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
                     key: const Key('branch-leader-input'),
                     initialValue: _leaderMemberId,
                     isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: l10n.clanLeaderLabel,
-                    ),
+                    decoration: appFieldDecoration(label: l10n.clanLeaderLabel),
                     items: [
                       DropdownMenuItem<String?>(
                         value: null,
@@ -2275,8 +2248,8 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
                     key: const Key('branch-vice-input'),
                     initialValue: _viceLeaderMemberId,
                     isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: l10n.clanViceLeaderLabel,
+                    decoration: appFieldDecoration(
+                      label: l10n.clanViceLeaderLabel,
                     ),
                     items: [
                       DropdownMenuItem<String?>(
@@ -2330,7 +2303,9 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
               ),
             );
             final primaryButton = _editorStep == 0
-                ? FilledButton.icon(
+                ? AppActionButton(
+                    icon: Icons.arrow_forward,
+                    label: l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
                     onPressed: _isSubmitting
                         ? null
                         : () {
@@ -2339,22 +2314,13 @@ class _BranchEditorSheetState extends State<_BranchEditorSheet> {
                             }
                             setState(() => _editorStep = 1);
                           },
-                    icon: const Icon(Icons.arrow_forward),
-                    label: Text(l10n.pick(vi: 'Tiếp tục', en: 'Continue')),
                   )
-                : FilledButton.icon(
-                    key: const Key('branch-save-button'),
+                : AppActionButton(
+                    buttonKey: const Key('branch-save-button'),
+                    isLoading: _isSubmitting,
+                    icon: Icons.save_outlined,
+                    label: l10n.pick(vi: 'Lưu thay đổi', en: 'Save changes'),
                     onPressed: _isSubmitting ? null : _submit,
-                    icon: _isSubmitting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: Text(
-                      l10n.pick(vi: 'Lưu thay đổi', en: 'Save changes'),
-                    ),
                   );
 
             if (compact) {

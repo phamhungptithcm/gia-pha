@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../../app/theme/app_ui_tokens.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_form_controls.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -2483,8 +2484,9 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                     }
                     return null;
                   },
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Tiêu đề', en: 'Title'),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Tiêu đề', en: 'Title'),
+                    required: true,
                     hintText: l10n.pick(
                       vi: 'Chương trình khuyến học 2026',
                       en: '2026 Scholarship Program',
@@ -2496,8 +2498,8 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                   key: const Key('scholarship-program-description-input'),
                   controller: _descriptionController,
                   maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Mô tả', en: 'Description'),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -2520,8 +2522,9 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                           }
                           return null;
                         },
-                        decoration: InputDecoration(
-                          labelText: l10n.pick(vi: 'Năm', en: 'Year'),
+                        decoration: appFieldDecoration(
+                          label: l10n.pick(vi: 'Năm', en: 'Year'),
+                          required: true,
                         ),
                       ),
                     ),
@@ -2552,8 +2555,9 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                             _status = value;
                           });
                         },
-                        decoration: InputDecoration(
-                          labelText: l10n.pick(vi: 'Trạng thái', en: 'Status'),
+                        decoration: appFieldDecoration(
+                          label: l10n.pick(vi: 'Trạng thái', en: 'Status'),
+                          required: true,
                         ),
                       ),
                     ),
@@ -2576,8 +2580,8 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                   controller: _submissionOpenController,
                   readOnly: true,
                   onTap: () => _pickIsoDate(_submissionOpenController),
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(
                       vi: 'Mở nhận hồ sơ (ISO - tùy chọn)',
                       en: 'Submission open (ISO date optional)',
                     ),
@@ -2591,8 +2595,8 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                   controller: _submissionCloseController,
                   readOnly: true,
                   onTap: () => _pickIsoDate(_submissionCloseController),
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(
                       vi: 'Đóng nhận hồ sơ (ISO - tùy chọn)',
                       en: 'Submission close (ISO date optional)',
                     ),
@@ -2606,8 +2610,8 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                   controller: _reviewCloseController,
                   readOnly: true,
                   onTap: () => _pickIsoDate(_reviewCloseController),
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(
                       vi: 'Hạn xét duyệt (ISO - tùy chọn)',
                       en: 'Review close (ISO date optional)',
                     ),
@@ -2684,20 +2688,16 @@ class _ProgramFormSheetState extends State<_ProgramFormSheet> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton(
-                      key: const Key('scholarship-program-save-button'),
+                    child: AppActionButton(
+                      buttonKey: const Key('scholarship-program-save-button'),
+                      isLoading: _isSubmitting,
+                      icon: isFinalStep
+                          ? Icons.save_outlined
+                          : Icons.arrow_forward,
+                      label: isFinalStep
+                          ? l10n.pick(vi: 'Lưu', en: 'Save')
+                          : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
                       onPressed: _isSubmitting ? null : _submitOrContinue,
-                      child: _isSubmitting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(
-                              isFinalStep
-                                  ? l10n.pick(vi: 'Lưu', en: 'Save')
-                                  : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                            ),
                     ),
                   ),
                 ],
@@ -2930,8 +2930,9 @@ class _AwardLevelFormSheetState extends State<_AwardLevelFormSheet> {
                     return null;
                   },
                   onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Tên mức thưởng', en: 'Name'),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Tên mức thưởng', en: 'Name'),
+                    required: true,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -2939,8 +2940,8 @@ class _AwardLevelFormSheetState extends State<_AwardLevelFormSheet> {
                   key: const Key('scholarship-award-description-input'),
                   controller: _descriptionController,
                   maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Mô tả', en: 'Description'),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -2961,11 +2962,12 @@ class _AwardLevelFormSheetState extends State<_AwardLevelFormSheet> {
                           }
                           return null;
                         },
-                        decoration: InputDecoration(
-                          labelText: l10n.pick(
+                        decoration: appFieldDecoration(
+                          label: l10n.pick(
                             vi: 'Thứ tự hiển thị',
                             en: 'Sort order',
                           ),
+                          required: true,
                         ),
                       ),
                     ),
@@ -2998,11 +3000,12 @@ class _AwardLevelFormSheetState extends State<_AwardLevelFormSheet> {
                             _rewardType = value;
                           });
                         },
-                        decoration: InputDecoration(
-                          labelText: l10n.pick(
+                        decoration: appFieldDecoration(
+                          label: l10n.pick(
                             vi: 'Loại phần thưởng',
                             en: 'Reward type',
                           ),
+                          required: true,
                         ),
                       ),
                     ),
@@ -3025,11 +3028,12 @@ class _AwardLevelFormSheetState extends State<_AwardLevelFormSheet> {
                   controller: _amountController,
                   keyboardType: TextInputType.number,
                   onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(
                       vi: 'Giá trị phần thưởng (đơn vị nhỏ)',
                       en: 'Reward amount (minor)',
                     ),
+                    required: true,
                     hintText: _rewardType == 'cash' ? '500000' : '1',
                   ),
                 ),
@@ -3045,8 +3049,8 @@ class _AwardLevelFormSheetState extends State<_AwardLevelFormSheet> {
                   key: const Key('scholarship-award-criteria-input'),
                   controller: _criteriaController,
                   maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Tiêu chí', en: 'Criteria'),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Tiêu chí', en: 'Criteria'),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -3099,20 +3103,16 @@ class _AwardLevelFormSheetState extends State<_AwardLevelFormSheet> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton(
-                      key: const Key('scholarship-award-save-button'),
+                    child: AppActionButton(
+                      buttonKey: const Key('scholarship-award-save-button'),
+                      isLoading: _isSubmitting,
+                      icon: isFinalStep
+                          ? Icons.save_outlined
+                          : Icons.arrow_forward,
+                      label: isFinalStep
+                          ? l10n.pick(vi: 'Lưu', en: 'Save')
+                          : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
                       onPressed: _isSubmitting ? null : _submitOrContinue,
-                      child: _isSubmitting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(
-                              isFinalStep
-                                  ? l10n.pick(vi: 'Lưu', en: 'Save')
-                                  : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                            ),
                     ),
                   ),
                 ],
@@ -3225,14 +3225,18 @@ class _SubmissionFormSheetState extends State<_SubmissionFormSheet> {
     return true;
   }
 
+  String _achievementTitleValidationMessage() {
+    return context.l10n.pick(
+      vi: 'Vui lòng nhập tiêu đề thành tích.',
+      en: 'Please enter an achievement title.',
+    );
+  }
+
   bool _validateStepOne() {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
       setState(() {
-        _validationMessage = context.l10n.pick(
-          vi: 'Vui lòng nhập tiêu đề thành tích.',
-          en: 'Please enter an achievement title.',
-        );
+        _validationMessage = _achievementTitleValidationMessage();
       });
       return false;
     }
@@ -3376,47 +3380,56 @@ class _SubmissionFormSheetState extends State<_SubmissionFormSheet> {
                         _selectedAwardLevelId = value;
                       });
                     },
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Mức thưởng', en: 'Award level'),
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(vi: 'Mức thưởng', en: 'Award level'),
+                      required: true,
                     ),
                   ),
                 const SizedBox(height: 12),
                 TextField(
                   key: const Key('scholarship-submission-student-input'),
                   controller: _studentNameController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
-                      vi: 'Tên học sinh',
-                      en: 'Student name',
-                    ),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Tên học sinh', en: 'Student name'),
                   ),
                 ),
               ] else if (_step == 1) ...[
                 TextField(
                   key: const Key('scholarship-submission-title-input'),
                   controller: _titleController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(
                       vi: 'Tiêu đề thành tích',
                       en: 'Achievement title',
                     ),
+                    required: true,
+                    errorText:
+                        _validationMessage ==
+                            _achievementTitleValidationMessage()
+                        ? _validationMessage
+                        : null,
                   ),
+                  onChanged: (_) {
+                    if (_validationMessage != null) {
+                      setState(() => _validationMessage = null);
+                    }
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   key: const Key('scholarship-submission-description-input'),
                   controller: _descriptionController,
                   maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Mô tả', en: 'Description'),
                   ),
                 ),
               ] else ...[
                 TextField(
                   key: const Key('scholarship-evidence-file-input'),
                   controller: _evidenceFileNameController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(
                       vi: 'Tên tệp minh chứng',
                       en: 'Evidence file name',
                     ),
@@ -3426,24 +3439,18 @@ class _SubmissionFormSheetState extends State<_SubmissionFormSheet> {
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton.icon(
-                        key: const Key('scholarship-upload-evidence-button'),
-                        onPressed: _isUploading ? null : _uploadEvidence,
-                        icon: _isUploading
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.upload_file_outlined),
-                        label: Text(
-                          l10n.pick(
-                            vi: 'Tải tệp minh chứng',
-                            en: 'Upload evidence file',
-                          ),
+                      child: AppActionButton(
+                        buttonKey: const Key(
+                          'scholarship-upload-evidence-button',
                         ),
+                        variant: AppActionButtonVariant.outlined,
+                        isLoading: _isUploading,
+                        icon: Icons.upload_file_outlined,
+                        label: l10n.pick(
+                          vi: 'Tải tệp minh chứng',
+                          en: 'Upload evidence file',
+                        ),
+                        onPressed: _isUploading ? null : _uploadEvidence,
                       ),
                     ),
                   ],
@@ -3506,20 +3513,19 @@ class _SubmissionFormSheetState extends State<_SubmissionFormSheet> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton(
-                      key: const Key('scholarship-submission-save-button'),
+                    child: AppActionButton(
+                      buttonKey: const Key(
+                        'scholarship-submission-save-button',
+                      ),
+                      isLoading: _isSubmitting,
+                      icon: isFinalStep
+                          ? Icons.send_outlined
+                          : Icons.arrow_forward,
+                      label: isFinalStep
+                          ? l10n.pick(vi: 'Gửi hồ sơ', en: 'Submit')
+                          : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                      enabled: !primaryDisabled,
                       onPressed: primaryDisabled ? null : _submitOrContinue,
-                      child: _isSubmitting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(
-                              isFinalStep
-                                  ? l10n.pick(vi: 'Gửi hồ sơ', en: 'Submit')
-                                  : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                            ),
                     ),
                   ),
                 ],
