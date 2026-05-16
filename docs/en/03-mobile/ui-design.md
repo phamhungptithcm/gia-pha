@@ -41,9 +41,9 @@ file first and validate it with:
 - async buttons show press feedback, loading progress, and repeat-tap protection
 - web landing, static shell, iOS, and Android now share the same light lineage
   grid, short copy, 8px web marketing cards, and quiet app surfaces
-- all public web routes use the same BF brand mark, pinned translucent top
-  navigation, home-style lineage artwork, and responsive desktop/tablet/mobile
-  shell
+- all public web routes use the same BF brand mark, fixed translucent top
+  navigation, compact fixed footer, home-style lineage artwork, and responsive
+  desktop/tablet/mobile shell
 
 ## Forms, timers, and actions
 
@@ -62,8 +62,12 @@ file first and validate it with:
   as a default tap response.
 - Web landing motion is limited to hover, focus, border, color, and shadow
   feedback. Do not add ambient float, pulse, or decorative movement.
-- Public web navigation may shrink or lift on scroll, but it must not slide page
-  content or add route-level fade/slide transitions.
+- Public web navigation and footer stay outside the main scroll container. The
+  content area may scroll, but shell chrome must remain stable and calm.
+- Public web copy should be short, natural, and decision-oriented. Avoid FAQ/CTA
+  duplication on the landing flow unless the page purpose requires it.
+- Public web footers stay compact. Do not place large store-download cards or
+  repeated support blocks in the footer.
 
 ## Accessibility and resilience
 

@@ -260,6 +260,16 @@ Digital genealogy migration flows should show one concrete next step at a time:
 start clan, add branch, add member, verify relationship, invite relatives, and
 review sensitive changes.
 
+Public web shell:
+
+- Top navigation and footer stay outside the main scroll container so page
+  chrome remains fixed and predictable.
+- Footer content must fit in a compact support/legal bar. Do not place large
+  app-store cards, repeated support copy, or secondary marketing blocks there.
+- Landing and info pages should use short, human copy with one clear CTA. Avoid
+  duplicating FAQ, CTA, and explanation sections when the same point is already
+  visible in the first view.
+
 ## Elevation & Depth
 
 Depth is quiet. Use borders, tonal layers, and low shadows instead of floating
@@ -359,6 +369,8 @@ Context-specific rules:
   inspection because it preserves map orientation and explains spatial context.
 - Web landing: no ambient float, pulse, or decorative movement. Hover and focus
   may change color, border, and shadow only.
+- Public web nav/footer: no slide/fade movement on scroll. Keep the shell
+  stable; only subtle color, border, or shadow changes are allowed.
 - Onboarding spotlight: keep motion optional and short; the highlighted target
   should remain visually anchored.
 

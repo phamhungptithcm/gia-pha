@@ -40,7 +40,8 @@ trước và validate bằng:
 - web landing, static shell, iOS và Android dùng chung lineage grid nhẹ, copy
   ngắn, web marketing card 8px và surface app yên tĩnh hơn
 - tất cả route web public dùng chung logo BF, top navigation cố định trong suốt
-  nhẹ, artwork lineage theo home và shell responsive cho desktop/tablet/mobile
+  nhẹ, footer cố định dạng compact, artwork lineage theo home và shell
+  responsive cho desktop/tablet/mobile
 
 ## Form, timer và action
 
@@ -58,8 +59,12 @@ trước và validate bằng:
   làm phản hồi mặc định khi tap.
 - Motion web landing chỉ dùng hover, focus, viền, màu và shadow nhẹ. Không thêm
   float, pulse hoặc chuyển động trang trí.
-- Navigation web public có thể thu gọn hoặc nâng nhẹ khi scroll, nhưng không
-  dùng slide/fade cho chuyển trang hoặc làm nội dung bị giật.
+- Navigation và footer web public nằm ngoài vùng scroll chính. Nội dung có thể
+  scroll, nhưng shell chrome phải ổn định và dễ theo dõi.
+- Copy web public cần ngắn, tự nhiên và hướng vào quyết định chính. Tránh lặp
+  FAQ/CTA trên landing flow nếu page không thật sự cần.
+- Footer web public phải compact. Không đặt store-download card lớn hoặc block
+  hỗ trợ lặp lại trong footer.
 
 ## Accessibility và độ bền giao diện
 

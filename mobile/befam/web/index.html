@@ -128,16 +128,17 @@
 
     .befam-static-shell {
       min-height: 100vh;
-      padding: 22px 24px 44px;
+      padding: 112px 24px 88px;
     }
 
     .befam-static-nav {
-      position: sticky;
-      top: 16px;
+      position: fixed;
+      top: 22px;
+      left: 50%;
       z-index: 20;
-      width: min(1480px, 100%);
+      width: min(1480px, calc(100% - 48px));
       min-height: 72px;
-      margin: 0 auto;
+      margin: 0;
       padding: 0 14px;
       display: flex;
       align-items: center;
@@ -149,14 +150,13 @@
       backdrop-filter: blur(18px);
       transition:
         background-color 180ms ease,
-        box-shadow 180ms ease,
-        transform 180ms ease;
+        box-shadow 180ms ease;
+      transform: translateX(-50%);
     }
 
     .befam-static-nav.is-scrolled {
       background: rgba(255, 255, 255, 0.9);
       box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
-      transform: translateY(-6px);
     }
 
     .befam-static-brand,
@@ -315,10 +315,10 @@
 
     .befam-static-hero {
       width: min(1480px, 100%);
-      margin: 26px auto 0;
+      margin: 10px auto 0;
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(420px, 0.88fr);
-      gap: 46px;
+      gap: 34px;
       align-items: center;
     }
 
@@ -538,7 +538,7 @@
 
     .befam-static-proof {
       width: min(1480px, 100%);
-      margin: 26px auto 0;
+      margin: 16px auto 0;
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       border: 1px solid rgba(126, 138, 163, 0.20);
@@ -579,6 +579,55 @@
       line-height: 1.45;
     }
 
+    .befam-static-footer {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      z-index: 20;
+      width: min(1480px, calc(100% - 48px));
+      min-height: 52px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 1px solid rgba(126, 138, 163, 0.20);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
+      backdrop-filter: blur(18px);
+      transform: translateX(-50%);
+    }
+
+    .befam-static-footer strong {
+      color: #0f172a;
+      font-size: 14px;
+      font-weight: 850;
+    }
+
+    .befam-static-footer small {
+      color: #526076;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .befam-static-footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .befam-static-footer a {
+      color: #526076;
+      font-size: 12px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .befam-static-footer a:hover {
+      color: #3155ff;
+    }
+
     @media (max-width: 1160px) {
       .befam-static-links {
         display: none;
@@ -595,7 +644,7 @@
 
     @media (max-width: 780px) {
       .befam-static-shell {
-        padding: 14px;
+        padding: 92px 14px 96px;
       }
 
       .befam-static-nav,
@@ -615,8 +664,28 @@
 
       .befam-static-nav {
         min-height: 64px;
+        top: 14px;
+        width: calc(100vw - 28px);
         padding: 0 10px;
         gap: 8px;
+      }
+
+      .befam-static-footer {
+        bottom: 14px;
+        width: calc(100vw - 28px);
+        min-height: 0;
+        padding: 8px 10px;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+      }
+
+      .befam-static-footer small {
+        display: none;
+      }
+
+      .befam-static-footer-links {
+        width: 100%;
+        margin-left: 0;
       }
 
       .befam-static-brand {
@@ -858,6 +927,16 @@
         <p>Dữ liệu nhạy cảm luôn theo vai trò.</p>
       </article>
     </section>
+    <footer class="befam-static-footer" aria-label="Thông tin BeFam">
+      <strong>BeFam</strong>
+      <small>© 2026 · rõ người, rõ việc</small>
+      <div class="befam-static-footer-links">
+        <a href="/privacy">Riêng tư</a>
+        <a href="/terms">Điều khoản</a>
+        <a href="/account-deletion">Xóa tài khoản</a>
+        <a href="mailto:hunpeo97@gmail.com?subject=BeFam%20Support%20Request">Hỗ trợ</a>
+      </div>
+    </footer>
   </main>
   <script>
     (function () {
