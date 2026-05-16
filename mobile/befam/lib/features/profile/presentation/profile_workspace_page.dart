@@ -1538,8 +1538,7 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
             data.aiUsageSummary.hasResolvedQuota &&
             data.aiUsageSummary.remainingCredits > 0 &&
             data.aiUsageSummary.usageProgress >= 0.8;
-        final isExhausted =
-            data != null && data.aiUsageSummary.isExhausted;
+        final isExhausted = data != null && data.aiUsageSummary.isExhausted;
         final statusLabel = data == null ? null : _statusLabel(data, l10n);
         final nextCycleLabel = data == null ? null : _expiresLabel(data, l10n);
 
@@ -1612,10 +1611,7 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
                                 vi: '${remainingCredits ?? 0} lượt',
                                 en: '${remainingCredits ?? 0} left',
                               )
-                            : l10n.pick(
-                                vi: 'Đang cập nhật',
-                                en: 'Updating',
-                              ),
+                            : l10n.pick(vi: 'Đang cập nhật', en: 'Updating'),
                         hint: hasResolvedQuota
                             ? l10n.pick(
                                 vi: '/ ${quotaCredits ?? 0} trong tháng',
@@ -2168,7 +2164,7 @@ class _NotificationPreferenceGroup extends StatelessWidget {
             style: theme.textTheme.labelLarge?.copyWith(
               fontWeight: FontWeight.w800,
               color: theme.colorScheme.onSurfaceVariant,
-              letterSpacing: 0.2,
+              letterSpacing: 0,
             ),
           ),
           const SizedBox(height: 8),

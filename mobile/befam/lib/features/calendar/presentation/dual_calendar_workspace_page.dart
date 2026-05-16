@@ -1673,7 +1673,7 @@ class _WeekdayLabel extends StatelessWidget {
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
           fontWeight: FontWeight.w700,
           color: colorScheme.onSurface.withValues(alpha: 0.82),
-          letterSpacing: 0.2,
+          letterSpacing: 0,
         ),
       ),
     );

@@ -857,10 +857,7 @@ class _ScholarshipWorkspacePageState extends State<ScholarshipWorkspacePage> {
             .toList(growable: false);
         final reviewQueue = _controller.reviewQueue;
         final councilStatusLabel = _controller.isCouncilVotingConfigured
-            ? l10n.pick(
-                vi: 'Hội đồng đã sẵn sàng',
-                en: 'Council ready',
-              )
+            ? l10n.pick(vi: 'Hội đồng đã sẵn sàng', en: 'Council ready')
             : l10n.pick(
                 vi: 'Cần đủ 3 trưởng hội đồng',
                 en: '3 council heads needed',
@@ -3648,7 +3645,7 @@ class _SectionCard extends StatelessWidget {
                       title,
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
-                        letterSpacing: -0.3,
+                        letterSpacing: 0,
                       ),
                     ),
                     if (description != null &&
@@ -3767,7 +3764,7 @@ class _WorkspaceHero extends StatelessWidget {
             title,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w900,
-              letterSpacing: -0.4,
+              letterSpacing: 0,
             ),
           ),
           if (hasDescription) ...[
@@ -3809,10 +3806,7 @@ class _WorkspaceHeroHighlight {
 }
 
 class _WorkspaceHeroHighlightChip extends StatelessWidget {
-  const _WorkspaceHeroHighlightChip({
-    required this.icon,
-    required this.label,
-  });
+  const _WorkspaceHeroHighlightChip({required this.icon, required this.label});
 
   final IconData icon;
   final String label;

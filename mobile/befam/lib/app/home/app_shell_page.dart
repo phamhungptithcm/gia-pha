@@ -14,6 +14,8 @@ import '../../core/widgets/member_phone_action.dart';
 import '../../core/widgets/address_action_tools.dart';
 import '../../core/widgets/app_compact_controls.dart';
 import '../../core/widgets/app_loading_skeletons.dart';
+import '../../core/widgets/app_motion.dart';
+import '../../core/widgets/app_workspace_chrome.dart';
 import '../../features/ads/services/ad_controller.dart';
 import '../../features/ai/presentation/app_assistant_launcher.dart';
 import '../../features/billing/presentation/billing_workspace_page.dart';
@@ -1069,6 +1071,7 @@ class _AppShellPageState extends State<AppShellPage>
         Expanded(child: SafeArea(top: false, child: contentStack)),
       ],
     );
+    final contentWithBackdrop = AppLineageBackdrop(child: contentWithBanner);
 
     final scaffold = layout.useRailNavigation
         ? Scaffold(
@@ -1081,7 +1084,7 @@ class _AppShellPageState extends State<AppShellPage>
                   onDestinationSelected: _handleDestinationSelected,
                 ),
                 const VerticalDivider(width: 1),
-                Expanded(child: contentWithBanner),
+                Expanded(child: contentWithBackdrop),
               ],
             ),
             floatingActionButton: assistantLauncher,
@@ -1089,7 +1092,7 @@ class _AppShellPageState extends State<AppShellPage>
           )
         : Scaffold(
             appBar: appBar,
-            body: SafeArea(child: contentStack),
+            body: AppLineageBackdrop(child: SafeArea(child: contentStack)),
             floatingActionButton: assistantLauncher,
             floatingActionButtonLocation: assistantFabLocation,
             bottomNavigationBar: Column(

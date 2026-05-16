@@ -3,9 +3,9 @@
   "short_name": "BeFam",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FAF7EF",
-  "theme_color": "#1F4E5F",
-  "description": "BeFam giúp kết nối gia phả, sự kiện, quỹ họ và vận hành dòng tộc trong một nền tảng thống nhất.",
+  "background_color": "#F8FAFF",
+  "theme_color": "#3155FF",
+  "description": "BeFam giúp lưu gia phả, ngày giỗ, sự kiện và quỹ họ trong một không gian gọn, rõ quyền và dễ dùng.",
   "orientation": "any",
   "prefer_related_applications": false,
   "icons": [

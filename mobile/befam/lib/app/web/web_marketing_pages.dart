@@ -10,6 +10,7 @@ import '../../core/services/app_locale_controller.dart';
 import '../../core/services/app_logger.dart';
 import '../../core/services/firebase_services.dart';
 import '../../core/widgets/app_locale_scope.dart';
+import '../../core/widgets/app_workspace_chrome.dart';
 import '../../l10n/l10n.dart';
 import 'widgets/marketing_ad_slot.dart';
 
@@ -17,16 +18,15 @@ const double _kSectionGap = 18;
 const double _kBlockGap = 16;
 const double _kCardGap = 12;
 const double _kCardPadding = 20;
-const Color _kLandingCream = Color(0xFFF7F0E4);
-const Color _kLandingPaper = Color(0xFFFFFBF4);
-const Color _kLandingLine = Color(0xFFE2D6C2);
-const Color _kLandingInk = Color(0xFF233744);
-const Color _kLandingMuted = Color(0xFF5F717B);
-const Color _kLandingAqua = Color(0xFFD8F0F4);
-const Color _kLandingSky = Color(0xFFA4D5E0);
-const Color _kLandingMint = Color(0xFFE3F3EA);
-const Color _kLandingCoral = Color(0xFFF7CABA);
-const Color _kLandingGold = Color(0xFFF4E7BE);
+const Color _kLandingCream = Color(0xFFF8FAFF);
+const Color _kLandingPaper = Color(0xFFFFFFFF);
+const Color _kLandingLine = Color(0xFFDCE4F2);
+const Color _kLandingInk = Color(0xFF0F172A);
+const Color _kLandingMuted = Color(0xFF526076);
+const Color _kLandingAqua = Color(0xFFE4EAFF);
+const Color _kLandingMint = Color(0xFFE4F8EF);
+const Color _kLandingCoral = Color(0xFFF0EAFF);
+const Color _kLandingGold = Color(0xFFFFF4D8);
 const String _kSupportEmail = 'hunpeo97@gmail.com';
 const String _kFeedbackFormUrl =
     'https://docs.google.com/forms/d/e/1FAIpQLSfMvozcjAeBM4Ln2Ncwr2sTY6RUgwQtdpgefqG8_qeWzcpTBA/viewform?usp=header';
@@ -120,8 +120,8 @@ class WebLandingPage extends StatelessWidget {
     return _WebMarketingLayout(
       currentPath: '/',
       pageTitle: context.l10n.pick(
-        vi: 'BeFam | Gia phả số, lịch giỗ và việc chung dòng họ',
-        en: 'BeFam | Digital lineage platform for modern families',
+        vi: 'BeFam | Gia phả sống cho dòng họ Việt',
+        en: 'BeFam | Living family memory',
       ),
       child: Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 28),
@@ -129,14 +129,17 @@ class WebLandingPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _LandingHeroSection(
-              badge: l10n.webLandingBadge,
+              badge: context.l10n.pick(
+                vi: 'Dòng họ / Gia phả số',
+                en: 'Family / Living lineage',
+              ),
               title: context.l10n.pick(
-                vi: 'Giữ cội nguồn trong đời sống hiện đại.',
-                en: 'Keep family heritage alive in modern life.',
+                vi: 'Gia phả sống. BeFam giữ ký ức.',
+                en: 'Living lineage. BeFam keeps the memory.',
               ),
               subtitle: context.l10n.pick(
-                vi: 'BeFam giúp gia phả, lịch giỗ và các việc chung của dòng họ nằm gọn trong một nơi. Dù ở gần hay ở xa, mọi người vẫn dễ theo dõi và kết nối với nhau.',
-                en: 'BeFam unifies genealogy, memorial calendars, clan funds, and governance workflows so every generation stays connected, wherever they live.',
+                vi: 'Một nơi gọn để lưu người thân, ngày giỗ, sự kiện và quỹ họ. Rõ ràng cho hôm nay, dễ trao lại mai sau.',
+                en: 'One calm place for relatives, memorial days, events, and clan funds.',
               ),
               primaryLabel: l10n.webLandingPrimaryCta,
               secondaryLabel: context.l10n.pick(
@@ -153,45 +156,42 @@ class WebLandingPage extends StatelessWidget {
                 _FeatureItem(
                   icon: Icons.account_tree_rounded,
                   title: context.l10n.pick(
-                    vi: 'Gia phả thống nhất',
-                    en: 'Unified family tree',
+                    vi: 'Rõ quan hệ',
+                    en: 'Clear lineage',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Lưu gia phả rõ ràng, dễ cập nhật.',
-                    en: 'Keep your genealogy clear and easy to update.',
+                    vi: 'Thế hệ và nhánh họ dễ nhìn hơn.',
+                    en: 'See branches and generations faster.',
                   ),
                 ),
                 _FeatureItem(
                   icon: Icons.calendar_month_rounded,
                   title: context.l10n.pick(
-                    vi: 'Hoạt động dòng họ',
-                    en: 'Clan activities',
+                    vi: 'Rõ ngày giỗ',
+                    en: 'Clear dates',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Theo dõi ngày giỗ, họp họ và việc chung.',
-                    en: 'Track memorials, gatherings, and shared tasks.',
+                    vi: 'Việc cần nhớ nằm đúng chỗ.',
+                    en: 'Important days stay visible.',
                   ),
                 ),
                 _FeatureItem(
                   icon: Icons.payments_rounded,
-                  title: context.l10n.pick(
-                    vi: 'Minh bạch tài chính',
-                    en: 'Transparent finance',
-                  ),
+                  title: context.l10n.pick(vi: 'Rõ quỹ họ', en: 'Clear funds'),
                   description: context.l10n.pick(
-                    vi: 'Thu chi quỹ họ gọn, rõ và dễ xem lại.',
-                    en: 'See clan fund income and spending clearly.',
+                    vi: 'Thu chi theo quyền và lịch sử.',
+                    en: 'Role-aware records and history.',
                   ),
                 ),
                 _FeatureItem(
                   icon: Icons.auto_awesome_rounded,
                   title: context.l10n.pick(
-                    vi: 'Mọi thứ cùng một chỗ',
-                    en: 'Why BeFam stands out',
+                    vi: 'Rõ việc chung',
+                    en: 'Clear work',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Gia phả, thành viên và việc chung nằm cùng một nơi.',
-                    en: 'Genealogy, members, and shared work stay in one system.',
+                    vi: 'Ít chữ hơn, tập trung hơn.',
+                    en: 'Less copy, more focus.',
                   ),
                 ),
               ],
@@ -985,7 +985,7 @@ class _LegalSectionCard extends StatelessWidget {
               section.title,
               style: textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                letterSpacing: -0.2,
+                letterSpacing: 0,
                 color: colorScheme.primary,
               ),
             ),
@@ -1099,7 +1099,7 @@ class _LegalFactCard extends StatelessWidget {
             style: textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
               height: 1.35,
-              letterSpacing: -0.2,
+              letterSpacing: 0,
             ),
           ),
         ],
@@ -1126,79 +1126,39 @@ class _WebMarketingLayout extends StatelessWidget {
       title: pageTitle,
       color: _kLandingInk,
       child: Scaffold(
-        body: Stack(
-          children: [
-            DecoratedBox(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    _kLandingCream,
-                    Color(0xFFF9F5EC),
-                    Color(0xFFFFFCF7),
-                  ],
-                ),
-              ),
-              child: const SizedBox.expand(),
-            ),
-            Positioned(
-              top: -60,
-              right: -40,
-              child: _GlowOrb(
-                size: 300,
-                color: _kLandingSky.withValues(alpha: 0.42),
-              ),
-            ),
-            Positioned(
-              top: 210,
-              left: -110,
-              child: _GlowOrb(
-                size: 300,
-                color: _kLandingAqua.withValues(alpha: 0.44),
-              ),
-            ),
-            Positioned(
-              bottom: -80,
-              right: 90,
-              child: _GlowOrb(
-                size: 240,
-                color: _kLandingCoral.withValues(alpha: 0.34),
-              ),
-            ),
-            SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1220),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 12,
-                    ),
-                    child: Column(
-                      children: [
-                        _TopNavigation(currentPath: currentPath),
-                        const SizedBox(height: 10),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                child,
-                                inlineAd,
-                                const SizedBox(height: 8),
-                                _WebFooter(pagePath: currentPath),
-                              ],
-                            ),
+        body: AppLineageBackdrop(
+          child: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1220),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    children: [
+                      _TopNavigation(currentPath: currentPath),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              child,
+                              inlineAd,
+                              const SizedBox(height: 8),
+                              _WebFooter(pagePath: currentPath),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1228,8 +1188,8 @@ class _TopNavigation extends StatelessWidget {
 
         return Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            color: Colors.white.withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.white.withValues(alpha: 0.88),
             border: Border.all(color: _kLandingLine),
             boxShadow: const [
               BoxShadow(
@@ -1251,15 +1211,15 @@ class _TopNavigation extends StatelessWidget {
                     Text(
                       'BeFam',
                       style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.2,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
                       ),
                     ),
                     if (!isCompact)
                       Text(
                         context.l10n.pick(
-                          vi: 'Gia phả số cho dòng tộc hiện đại',
-                          en: 'Digital lineage for modern families',
+                          vi: 'Gia phả sống cho dòng họ Việt',
+                          en: 'Living lineage for families',
                         ),
                         style: textTheme.bodySmall?.copyWith(
                           color: _kLandingMuted,
@@ -1288,9 +1248,7 @@ class _TopNavigation extends StatelessWidget {
                           ),
                         )
                         .toList(growable: false),
-                    style: IconButton.styleFrom(
-                      backgroundColor: _kLandingPaper,
-                    ),
+                    style: IconButton.styleFrom(backgroundColor: Colors.white),
                   ),
                 const SizedBox(width: 8),
                 _MarketingLanguageSwitch(
@@ -1305,12 +1263,12 @@ class _TopNavigation extends StatelessWidget {
                     placement: 'top_nav_open_app',
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF88C4D4),
-                    foregroundColor: _kLandingInk,
+                    backgroundColor: _kLandingInk,
+                    foregroundColor: Colors.white,
                     minimumSize: const Size(0, 46),
                     padding: const EdgeInsets.symmetric(horizontal: 22),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                   child: Row(
@@ -1451,8 +1409,8 @@ class _LandingHeroContent extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            color: Colors.white.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(4),
+            color: Colors.white.withValues(alpha: 0.88),
             border: Border.all(color: _kLandingLine),
           ),
           child: Text(
@@ -1460,7 +1418,7 @@ class _LandingHeroContent extends StatelessWidget {
             style: textTheme.labelLarge?.copyWith(
               color: _kLandingInk,
               fontWeight: FontWeight.w800,
-              letterSpacing: 0.1,
+              letterSpacing: 0,
             ),
           ),
         ),
@@ -1470,10 +1428,11 @@ class _LandingHeroContent extends StatelessWidget {
           child: Text(
             title,
             style: textTheme.headlineLarge?.copyWith(
+              fontSize: 54,
               fontWeight: FontWeight.w900,
               color: _kLandingInk,
-              height: 1.06,
-              letterSpacing: -0.35,
+              height: 1.04,
+              letterSpacing: 0,
             ),
           ),
         ),
@@ -1498,14 +1457,14 @@ class _LandingHeroContent extends StatelessWidget {
               icon: const Icon(Icons.arrow_outward_rounded),
               label: Text(primaryLabel),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF80BFD0),
-                foregroundColor: _kLandingInk,
+                backgroundColor: _kLandingInk,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,
                   vertical: 14,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
             ),
@@ -1522,7 +1481,7 @@ class _LandingHeroContent extends StatelessWidget {
                   vertical: 14,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
             ),
@@ -1594,7 +1553,7 @@ class _LandingQuickCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(8),
         color: Colors.white.withValues(alpha: 0.9),
         border: Border.all(color: _kLandingLine),
         boxShadow: const [
@@ -1618,7 +1577,7 @@ class _LandingQuickCard extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                     color: _kLandingInk,
                     height: 1.05,
-                    letterSpacing: -0.35,
+                    letterSpacing: 0,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -1701,190 +1660,139 @@ class _LandingHeroArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
-        final shortSide = width < height ? width : height;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
-        double px(double fraction) => width * fraction;
-        double py(double fraction) => height * fraction;
-        double ps(double fraction) => shortSide * fraction;
-
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(34),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFFDF6EA), Color(0xFFE6F4F6), Color(0xFFFFE6DD)],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.92),
+          border: Border.all(color: _kLandingLine),
+        ),
+        child: Stack(
+          children: [
+            const Positioned.fill(
+              child: AppLineageGridOverlay(opacity: 0.9, spacing: 28),
             ),
-          ),
-          child: Stack(
-            clipBehavior: Clip.antiAlias,
-            children: [
-              Positioned(
-                top: -height * 0.06,
-                right: -width * 0.02,
-                child: Container(
-                  width: px(0.46),
-                  height: py(0.58),
-                  decoration: const BoxDecoration(
-                    borderRadius: BorderRadius.only(
-                      topRight: Radius.circular(34),
-                      bottomLeft: Radius.circular(84),
-                      bottomRight: Radius.circular(80),
+            const Positioned(
+              left: 24,
+              top: 22,
+              child: _LineageSignalChip(
+                eyebrow: 'Gia phả',
+                label: 'Thế hệ và quan hệ',
+              ),
+            ),
+            const Positioned(
+              right: 22,
+              top: 42,
+              child: _LineageSignalChip(
+                eyebrow: 'Ngày giỗ',
+                label: 'Lịch âm dương',
+              ),
+            ),
+            const Positioned(
+              left: 42,
+              bottom: 34,
+              child: _LineageSignalChip(
+                eyebrow: 'Thành viên',
+                label: 'Quyền theo vai trò',
+              ),
+            ),
+            const Positioned(
+              right: 36,
+              bottom: 22,
+              child: _LineageSignalChip(
+                eyebrow: 'Quỹ họ',
+                label: 'Thu chi minh bạch',
+              ),
+            ),
+            Center(
+              child: Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.92),
+                  border: Border.all(
+                    color: colorScheme.secondary.withValues(alpha: 0.24),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withValues(alpha: 0.08),
+                      blurRadius: 34,
+                      offset: const Offset(0, 16),
                     ),
-                    color: _kLandingSky,
-                  ),
+                  ],
                 ),
-              ),
-              Positioned(
-                right: -width * 0.04,
-                bottom: 0,
-                child: Container(
-                  width: px(0.38),
-                  height: py(0.4),
-                  decoration: const BoxDecoration(
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(80),
-                      topRight: Radius.circular(80),
-                      bottomRight: Radius.circular(34),
+                child: Center(
+                  child: Text(
+                    'BeFam\nrõ người\nrõ việc',
+                    textAlign: TextAlign.center,
+                    style: textTheme.titleMedium?.copyWith(
+                      color: _kLandingInk,
+                      fontWeight: FontWeight.w900,
+                      height: 1.08,
+                      letterSpacing: 0,
                     ),
-                    color: _kLandingCoral,
                   ),
                 ),
               ),
-              Positioned(
-                left: px(0.28),
-                top: py(0.12),
-                child: Container(
-                  width: ps(0.34),
-                  height: ps(0.34),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _kLandingGold.withValues(alpha: 0.78),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x18DDAF61),
-                        blurRadius: 28,
-                        spreadRadius: 8,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.park_rounded,
-                    color: const Color(0xFF789C77),
-                    size: ps(0.18),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: px(0.18),
-                top: py(0.33),
-                child: _HeroPortraitChip(
-                  icon: Icons.man_2_rounded,
-                  iconColor: const Color(0xFF284C63),
-                  backgroundColor: const Color(0xFFF6B08B),
-                  size: ps(0.26),
-                ),
-              ),
-              Positioned(
-                left: px(0.35),
-                top: py(0.27),
-                child: _HeroPortraitChip(
-                  icon: Icons.elderly_rounded,
-                  iconColor: const Color(0xFF3E4B56),
-                  backgroundColor: const Color(0xFFE9D8B4),
-                  size: ps(0.3),
-                ),
-              ),
-              Positioned(
-                left: px(0.54),
-                top: py(0.34),
-                child: _HeroPortraitChip(
-                  icon: Icons.woman_2_rounded,
-                  iconColor: const Color(0xFF4B5D78),
-                  backgroundColor: const Color(0xFFF6C6B4),
-                  size: ps(0.26),
-                ),
-              ),
-              Positioned(
-                left: px(0.12),
-                bottom: py(0.13),
-                child: _HeroPortraitChip(
-                  icon: Icons.girl_rounded,
-                  iconColor: const Color(0xFF405A75),
-                  backgroundColor: const Color(0xFFF7D86F),
-                  size: ps(0.22),
-                ),
-              ),
-              Positioned(
-                left: px(0.31),
-                bottom: py(0.08),
-                child: _HeroPortraitChip(
-                  icon: Icons.elderly_woman_rounded,
-                  iconColor: const Color(0xFF46505A),
-                  backgroundColor: const Color(0xFFF1D7B7),
-                  size: ps(0.28),
-                ),
-              ),
-              Positioned(
-                left: px(0.53),
-                bottom: py(0.12),
-                child: _HeroPortraitChip(
-                  icon: Icons.boy_rounded,
-                  iconColor: const Color(0xFF405A75),
-                  backgroundColor: const Color(0xFFBDE7F1),
-                  size: ps(0.22),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _HeroPortraitChip extends StatelessWidget {
-  const _HeroPortraitChip({
-    required this.icon,
-    required this.iconColor,
-    required this.backgroundColor,
-    required this.size,
-  });
+class _LineageSignalChip extends StatelessWidget {
+  const _LineageSignalChip({required this.eyebrow, required this.label});
 
-  final IconData icon;
-  final Color iconColor;
-  final Color backgroundColor;
-  final double size;
+  final String eyebrow;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Container(
-      width: size,
-      height: size,
+      width: 150,
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.white.withValues(alpha: 0.9), backgroundColor],
-        ),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.8),
-          width: 3,
-        ),
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.white.withValues(alpha: 0.94),
+        border: Border.all(color: _kLandingLine),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x17000000),
-            blurRadius: 18,
+            color: Color(0x100F172A),
+            blurRadius: 16,
             offset: Offset(0, 10),
           ),
         ],
       ),
-      child: Icon(icon, size: size * 0.5, color: iconColor),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            eyebrow,
+            style: textTheme.labelSmall?.copyWith(
+              color: _kLandingMuted,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: textTheme.bodyMedium?.copyWith(
+              color: _kLandingInk,
+              fontWeight: FontWeight.w800,
+              height: 1.18,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1918,11 +1826,11 @@ class _HeroStorySection extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(34),
+        borderRadius: BorderRadius.circular(8),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFFFCF7), Color(0xFFF8F3EA), Color(0xFFF6FBFC)],
+          colors: [_kLandingPaper, _kLandingCream, _kLandingAqua],
         ),
         border: Border.all(color: _kLandingLine),
         boxShadow: const [
@@ -1948,7 +1856,7 @@ class _HeroStorySection extends StatelessWidget {
                 style: textTheme.headlineLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                   height: 1.08,
-                  letterSpacing: -0.45,
+                  letterSpacing: 0,
                 ),
               ),
               const SizedBox(height: 10),
@@ -2041,7 +1949,7 @@ class _HeroArtwork extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(8),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -2053,23 +1961,11 @@ class _HeroArtwork extends StatelessWidget {
         ),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          Positioned(
-            top: -36,
-            right: -16,
-            child: _GlowOrb(
-              size: 150,
-              color: colorScheme.secondary.withValues(alpha: 0.14),
-            ),
-          ),
-          Positioned(
-            bottom: -28,
-            left: -24,
-            child: _GlowOrb(
-              size: 130,
-              color: colorScheme.primary.withValues(alpha: 0.12),
-            ),
+          const Positioned.fill(
+            child: AppLineageGridOverlay(opacity: 0.55, spacing: 26),
           ),
           if (badge.trim().isNotEmpty)
             Positioned(
@@ -2100,6 +1996,9 @@ class _HeroArtwork extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withValues(alpha: 0.82),
+                border: Border.all(
+                  color: colorScheme.secondary.withValues(alpha: 0.24),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: colorScheme.primary.withValues(alpha: 0.1),
@@ -2307,7 +2206,7 @@ class _FeatureCard extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
               height: 1.22,
-              letterSpacing: -0.22,
+              letterSpacing: 0,
             ),
           ),
           const SizedBox(height: 6),
@@ -2408,7 +2307,7 @@ class _CompactFeatureRow extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     height: 1.2,
-                    letterSpacing: -0.18,
+                    letterSpacing: 0,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -2451,7 +2350,7 @@ class _JourneyTimeline extends StatelessWidget {
               style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w900,
                 height: 1.22,
-                letterSpacing: -0.2,
+                letterSpacing: 0,
               ),
             ),
             const SizedBox(height: 14),
@@ -2544,7 +2443,7 @@ class _JourneyStepCard extends StatelessWidget {
             style: textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
               height: 1.24,
-              letterSpacing: -0.15,
+              letterSpacing: 0,
             ),
           ),
           const SizedBox(height: 8),
@@ -2589,7 +2488,7 @@ class _MarketingFaqSection extends StatelessWidget {
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w900,
                 height: 1.2,
-                letterSpacing: -0.2,
+                letterSpacing: 0,
               ),
             ),
             const SizedBox(height: 10),
@@ -2623,7 +2522,7 @@ class _MarketingFaqSection extends StatelessWidget {
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                         height: 1.3,
-                        letterSpacing: -0.15,
+                        letterSpacing: 0,
                       ),
                     ),
                     children: [
@@ -2716,7 +2615,7 @@ class _CtaPanel extends StatelessWidget {
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w900,
                   height: 1.2,
-                  letterSpacing: -0.2,
+                  letterSpacing: 0,
                 ),
               ),
               const SizedBox(height: 8),
@@ -2834,7 +2733,7 @@ class _SectionCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
                     height: 1.18,
-                    letterSpacing: -0.3,
+                    letterSpacing: 0,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -2889,7 +2788,7 @@ class _InfoBulletList extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w900,
               height: 1.22,
-              letterSpacing: -0.2,
+              letterSpacing: 0,
             ),
           ),
           const SizedBox(height: 10),
@@ -3009,7 +2908,7 @@ class _HunpeoLabsContactCard extends StatelessWidget {
                       style: textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
                         height: 1.18,
-                        letterSpacing: -0.25,
+                        letterSpacing: 0,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -3158,7 +3057,7 @@ class _ContactActionCard extends StatelessWidget {
               title,
               style: textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                letterSpacing: -0.2,
+                letterSpacing: 0,
               ),
             ),
             const SizedBox(height: 6),
@@ -3235,7 +3134,7 @@ class _WebFooter extends StatelessWidget {
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: _kLandingInk,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -0.25,
+                          letterSpacing: 0,
                         ),
                       ),
                     ],
@@ -3571,7 +3470,7 @@ class _MarketingLanguageSwitch extends StatelessWidget {
               style: textTheme.labelLarge?.copyWith(
                 color: _kLandingInk,
                 fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
+                letterSpacing: 0,
               ),
             ),
             const SizedBox(width: 4),
@@ -3667,7 +3566,7 @@ class _StoreDownloadButton extends StatelessWidget {
                           fontWeight: FontWeight.w900,
                           color: Colors.white,
                           height: 1.2,
-                          letterSpacing: -0.2,
+                          letterSpacing: 0,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -3887,31 +3786,7 @@ class _EyebrowChip extends StatelessWidget {
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
           color: _kLandingInk,
           fontWeight: FontWeight.w800,
-          letterSpacing: 0.1,
-        ),
-      ),
-    );
-  }
-}
-
-class _GlowOrb extends StatelessWidget {
-  const _GlowOrb({required this.size, required this.color});
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-          boxShadow: [
-            BoxShadow(color: color, blurRadius: 90, spreadRadius: 30),
-          ],
+          letterSpacing: 0,
         ),
       ),
     );
@@ -3927,7 +3802,7 @@ class _BrandMark extends StatelessWidget {
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         color: _kLandingAqua,
       ),
       child: const Icon(Icons.family_restroom_rounded, color: _kLandingInk),

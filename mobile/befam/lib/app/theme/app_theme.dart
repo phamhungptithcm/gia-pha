@@ -8,30 +8,34 @@ abstract final class AppTheme {
     const uiTokens = AppUiTokens.light();
     const colorScheme = ColorScheme(
       brightness: Brightness.light,
-      primary: Color(0xFF1F4E5F),
-      onPrimary: Color(0xFFF6FBFC),
-      primaryContainer: Color(0xFFB8DAE5),
-      onPrimaryContainer: Color(0xFF0C2E38),
-      secondary: Color(0xFFDBB56A),
-      onSecondary: Color(0xFF2E2206),
-      secondaryContainer: Color(0xFFF7E9C6),
-      onSecondaryContainer: Color(0xFF3E3010),
+      primary: Color(0xFF3155FF),
+      onPrimary: Color(0xFFFFFFFF),
+      primaryContainer: Color(0xFFE4EAFF),
+      onPrimaryContainer: Color(0xFF071338),
+      secondary: Color(0xFF2FC37D),
+      onSecondary: Color(0xFF031C12),
+      secondaryContainer: Color(0xFFE4F8EF),
+      onSecondaryContainer: Color(0xFF062416),
+      tertiary: Color(0xFF8B5CF6),
+      onTertiary: Color(0xFFFFFFFF),
+      tertiaryContainer: Color(0xFFF0EAFF),
+      onTertiaryContainer: Color(0xFF1D123C),
       error: Color(0xFFB3261E),
       onError: Color(0xFFFFFFFF),
       errorContainer: Color(0xFFF9DEDC),
       onErrorContainer: Color(0xFF410E0B),
-      surface: Color(0xFFFAF7EF),
-      onSurface: Color(0xFF23303A),
-      surfaceContainerHighest: Color(0xFFF0E5CC),
-      onSurfaceVariant: Color(0xFF4D5A63),
-      outline: Color(0xFF71848F),
-      outlineVariant: Color(0xFFD6CCB6),
-      shadow: Color(0x1F23303A),
-      scrim: Color(0x1F23303A),
-      inverseSurface: Color(0xFF23303A),
-      onInverseSurface: Color(0xFFFAF7EF),
-      inversePrimary: Color(0xFFCBE8F1),
-      surfaceTint: Color(0xFF1F4E5F),
+      surface: Color(0xFFF8FAFF),
+      onSurface: Color(0xFF0F172A),
+      surfaceContainerHighest: Color(0xFFEAF0FA),
+      onSurfaceVariant: Color(0xFF526076),
+      outline: Color(0xFF7E8AA3),
+      outlineVariant: Color(0xFFDCE4F2),
+      shadow: Color(0x260F172A),
+      scrim: Color(0x400F172A),
+      inverseSurface: Color(0xFF0F172A),
+      onInverseSurface: Color(0xFFF8FAFF),
+      inversePrimary: Color(0xFFB8C7FF),
+      surfaceTint: Color(0xFF3155FF),
     );
 
     final textTheme = Typography.material2021().black.apply(
@@ -54,37 +58,42 @@ abstract final class AppTheme {
       textTheme: textTheme.copyWith(
         headlineLarge: textTheme.headlineLarge?.copyWith(
           fontSize: 28,
-          fontWeight: FontWeight.w800,
-          height: 1.28,
+          fontWeight: FontWeight.w900,
+          height: 1.12,
         ),
         headlineMedium: textTheme.headlineMedium?.copyWith(
           fontSize: 24,
           fontWeight: FontWeight.w800,
-          height: 1.3,
+          height: 1.16,
         ),
         displaySmall: textTheme.displaySmall?.copyWith(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w900,
+          height: 1.06,
         ),
         headlineSmall: textTheme.headlineSmall?.copyWith(
           fontSize: 20,
           fontWeight: FontWeight.w800,
-          height: 1.32,
+          height: 1.2,
         ),
         titleLarge: textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
           fontSize: 20,
-          height: 1.35,
+          height: 1.22,
         ),
         titleMedium: textTheme.titleMedium?.copyWith(
-          fontSize: 18,
+          fontSize: 17,
           fontWeight: FontWeight.w700,
-          height: 1.36,
+          height: 1.24,
         ),
-        bodyLarge: textTheme.bodyLarge?.copyWith(fontSize: 16, height: 1.5),
-        bodyMedium: textTheme.bodyMedium?.copyWith(fontSize: 16, height: 1.5),
+        bodyLarge: textTheme.bodyLarge?.copyWith(fontSize: 16, height: 1.44),
+        bodyMedium: textTheme.bodyMedium?.copyWith(fontSize: 15, height: 1.42),
+        labelLarge: textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface.withValues(alpha: 0.97),
+        backgroundColor: Colors.white.withValues(alpha: 0.84),
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -94,7 +103,7 @@ abstract final class AppTheme {
         ),
       ),
       cardTheme: CardThemeData(
-        color: Colors.white.withValues(alpha: 0.78),
+        color: Colors.white.withValues(alpha: 0.88),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
@@ -105,8 +114,11 @@ abstract final class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: Size(0, uiTokens.buttonHeight),
+          foregroundColor: colorScheme.onPrimary,
+          backgroundColor: colorScheme.primary,
           textStyle: textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(uiTokens.radiusMd),
@@ -116,9 +128,10 @@ abstract final class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: Size(0, uiTokens.buttonHeight),
-          side: BorderSide(color: colorScheme.outline),
+          side: BorderSide(color: colorScheme.outlineVariant),
           textStyle: textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(uiTokens.radiusMd),
@@ -134,7 +147,7 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.74),
+        fillColor: Colors.white.withValues(alpha: 0.90),
         contentPadding: EdgeInsets.symmetric(
           horizontal: uiTokens.inputHorizontalPadding,
           vertical: uiTokens.inputVerticalPadding,
@@ -153,14 +166,15 @@ abstract final class AppTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.white.withValues(alpha: 0.92),
-        indicatorColor: colorScheme.secondary,
+        backgroundColor: Colors.white.withValues(alpha: 0.88),
+        indicatorColor: colorScheme.primaryContainer,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final isSelected = states.contains(WidgetState.selected);
           return textTheme.labelMedium?.copyWith(
             color: colorScheme.onSurface,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+            letterSpacing: 0,
           );
         }),
       ),

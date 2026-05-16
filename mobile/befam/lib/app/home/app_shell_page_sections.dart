@@ -283,12 +283,9 @@ class _HomeDashboard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  l10n.pick(
-                    vi: 'Hôm nay trong gia đình',
-                    en: 'Today with your family',
-                  ),
+                  l10n.pick(vi: 'Nhà mình hôm nay', en: 'Family today'),
                   style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 SizedBox(
@@ -316,7 +313,7 @@ class _HomeDashboard extends StatelessWidget {
                             child: Text(
                               l10n.pick(vi: 'Lối tắt', en: 'Shortcuts'),
                               style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w900,
                               ),
                             ),
                           ),
@@ -343,9 +340,12 @@ class _HomeDashboard extends StatelessWidget {
                         ),
                         itemBuilder: (context, index) {
                           final shortcut = _primaryShortcuts[index];
-                          return _ShortcutCard(
-                            shortcut: shortcut,
-                            onTap: _onShortcutTap(context, shortcut.id),
+                          return AppStaggeredEntrance(
+                            index: index,
+                            child: _ShortcutCard(
+                              shortcut: shortcut,
+                              onTap: _onShortcutTap(context, shortcut.id),
+                            ),
                           );
                         },
                       ),
@@ -565,16 +565,16 @@ class _DashboardSectionShell extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
+        color: Colors.white.withValues(alpha: 0.88),
         gradient: gradient,
         borderRadius: radius,
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.92),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.84),
         ),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.08),
-            blurRadius: 32,
+            color: colorScheme.shadow.withValues(alpha: 0.045),
+            blurRadius: 30,
             offset: const Offset(0, 18),
           ),
         ],
@@ -583,30 +583,10 @@ class _DashboardSectionShell extends StatelessWidget {
         borderRadius: radius,
         child: Stack(
           children: [
-            if (showAccentOrbs) ...[
-              Positioned(
-                top: -44,
-                right: -24,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colorScheme.secondary.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const SizedBox(width: 132, height: 132),
-                ),
+            if (showAccentOrbs)
+              const Positioned.fill(
+                child: AppLineageGridOverlay(opacity: 0.55, spacing: 28),
               ),
-              Positioned(
-                bottom: -54,
-                left: -18,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const SizedBox(width: 154, height: 154),
-                ),
-              ),
-            ],
             Padding(padding: resolvedPadding, child: child),
           ],
         ),
@@ -695,21 +675,25 @@ class _ShortcutCard extends StatelessWidget {
     final isEnabled = onTap != null;
     final compactTile = layout.isMobile;
     final statusColor = switch (shortcut.status) {
-      AppShortcutStatus.live => colorScheme.primaryContainer,
-      AppShortcutStatus.bootstrap => colorScheme.secondaryContainer,
+      AppShortcutStatus.live => colorScheme.primary,
+      AppShortcutStatus.bootstrap => colorScheme.secondary,
       AppShortcutStatus.planned => colorScheme.surfaceContainerHighest,
     };
     final showDescription = !compactTile;
-    final tilePadding = compactTile ? tokens.spaceMd : tokens.spaceLg;
-    final avatarRadius = compactTile ? 17.0 : 19.0;
+    final tilePadding = compactTile ? tokens.spaceMd : tokens.spaceLg + 2;
     final titleFontSize = compactTile ? 16.0 : 17.0;
 
     return Material(
-      color: Colors.white.withValues(alpha: isEnabled ? 0.92 : 0.72),
-      borderRadius: BorderRadius.circular(tokens.radiusMd + 4),
+      color: Colors.white.withValues(alpha: isEnabled ? 0.94 : 0.70),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(tokens.radiusMd),
+        side: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.86),
+        ),
+      ),
       child: InkWell(
         key: Key('shortcut-${shortcut.id}'),
-        borderRadius: BorderRadius.circular(tokens.radiusMd + 4),
+        borderRadius: BorderRadius.circular(tokens.radiusMd),
         onTap: onTap,
         onLongPress: onTap,
         child: Opacity(
@@ -722,13 +706,27 @@ class _ShortcutCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: avatarRadius,
-                      backgroundColor: statusColor,
-                      foregroundColor: colorScheme.onSurface,
-                      child: Icon(
-                        _iconFor(shortcut.iconKey),
-                        size: compactTile ? 16 : 18,
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(
+                          alpha: shortcut.status == AppShortcutStatus.planned
+                              ? 1
+                              : 0.12,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: 0.22),
+                        ),
+                      ),
+                      child: SizedBox.square(
+                        dimension: compactTile ? 34 : 38,
+                        child: Icon(
+                          _iconFor(shortcut.iconKey),
+                          color: shortcut.status == AppShortcutStatus.planned
+                              ? colorScheme.onSurfaceVariant
+                              : statusColor,
+                          size: compactTile ? 16 : 18,
+                        ),
                       ),
                     ),
                     const Spacer(),
@@ -745,7 +743,7 @@ class _ShortcutCard extends StatelessWidget {
                 Text(
                   l10n.shortcutTitle(shortcut.id),
                   style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                     fontSize: titleFontSize,
                   ),
                   maxLines: 1,
@@ -757,8 +755,9 @@ class _ShortcutCard extends StatelessWidget {
                     _productionShortcutDescription(context, shortcut.id),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
+                      height: 1.28,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -774,34 +773,19 @@ class _ShortcutCard extends StatelessWidget {
 String _productionShortcutDescription(BuildContext context, String shortcutId) {
   final l10n = context.l10n;
   return switch (shortcutId) {
-    'clan' => l10n.pick(
-      vi: 'Xem thông tin họ tộc và các nhánh trong gia đình.',
-      en: 'View clan details and family branches.',
-    ),
+    'clan' => l10n.pick(vi: 'Thông tin họ tộc.', en: 'Clan details.'),
     'tree' => l10n.pick(
-      vi: 'Xem cây gia phả và các mối quan hệ trong họ.',
-      en: 'Explore the family tree and member relationships.',
+      vi: 'Quan hệ và thế hệ.',
+      en: 'People and generations.',
     ),
-    'members' => l10n.pick(
-      vi: 'Tìm và cập nhật hồ sơ thành viên.',
-      en: 'Search and update member profiles.',
-    ),
-    'events' => l10n.pick(
-      vi: 'Theo dõi lịch họ, giỗ và lời nhắc quan trọng.',
-      en: 'Follow family events, memorial dates, and reminders.',
-    ),
-    'funds' => l10n.pick(
-      vi: 'Theo dõi đóng góp, thu chi và số dư quỹ.',
-      en: 'Track contributions, spending, and fund balance.',
-    ),
+    'members' => l10n.pick(vi: 'Hồ sơ thành viên.', en: 'Member profiles.'),
+    'events' => l10n.pick(vi: 'Giỗ lễ, lịch họ.', en: 'Events and memorials.'),
+    'funds' => l10n.pick(vi: 'Thu chi rõ ràng.', en: 'Clear fund tracking.'),
     'scholarship' => l10n.pick(
-      vi: 'Theo dõi hồ sơ khuyến học của gia đình.',
-      en: 'Review scholarship requests and student support.',
+      vi: 'Khuyến học trong họ.',
+      en: 'Family scholarships.',
     ),
-    'profile' => l10n.pick(
-      vi: 'Cập nhật hồ sơ và thiết lập tài khoản.',
-      en: 'Update your profile and account settings.',
-    ),
+    'profile' => l10n.pick(vi: 'Thông tin của bạn.', en: 'Your information.'),
     _ => l10n.shortcutDescription(shortcutId),
   };
 }

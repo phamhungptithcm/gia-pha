@@ -42,17 +42,23 @@ feed. The user should always understand:
 
 ## Visual Language
 
-The current Material 3 foundation stays. The refresh should adjust hierarchy
-instead of replacing the system.
+The new release direction is **light lineage workspace**: bright paper, soft
+blue grid, strong black text, BeFam blue emphasis, and small green trust
+signals. It is inspired by technical product landing pages, but translated for
+Vietnamese family-clan workflows.
 
-- Surfaces: fewer nested surfaces, lighter shadows, 8-16px practical radii for
-  work cards, pill shapes only for filters/chips/status.
-- Color: warm neutral base, restrained family/trust accent, clear status colors
-  for approval, warning, billing, and privacy.
-- Type: tighter headings inside tool panels, no hero-scale text in dense app
-  screens, no negative letter spacing for new UI.
-- Icons: use Material icons consistently for navigation, actions, filters, and
-  trust/security states.
+- Background: `#F8FAFF` with a very light lineage grid. No beige wash, gradient
+  blobs, decorative orbs, or heavy illustrated backgrounds.
+- Accent: `#3155FF` for primary focus, `#2FC37D` for positive/trust states, and
+  violet only as a tiny emphasis.
+- Surfaces: white, thin `#DCE4F2` borders, low shadows, 8px radius for web
+  marketing cards, 12-18px for native Material workspace surfaces where the
+  app system already expects it.
+- Type: short headings, strong weight, normal letter spacing, tighter line
+  heights. Dense app screens do not use hero-scale text.
+- Copy: short, human, and task-first. Avoid explaining every feature on screen.
+  Longer writing belongs in About, Story, Terms, Privacy, and docs.
+- Icons: Material icons for app surfaces, simple logo/mark treatment for web.
 - Empty states: one short sentence, one primary action, one optional secondary
   action.
 
@@ -78,6 +84,10 @@ Motion should make the app feel responsive, not slower.
   `BeFamPageTransitionsBuilder`.
 - Workspace surfaces use `AppPageEntrance` and `RepaintBoundary` so page changes
   feel lighter without re-laying out unrelated content.
+- Home shortcut cards use staggered entrance animation so iOS, Android, and web
+  feel alive without delaying interaction.
+- Web landing uses subtle panel float and lineage-ring pulse only. Reduced
+  motion disables these effects.
 - Motion helpers must check reduced-motion settings before animating.
 - Page/sheet entrance: 160-220ms, easeOutCubic.
 - Button press/selection: 120-180ms, subtle scale or color transition.

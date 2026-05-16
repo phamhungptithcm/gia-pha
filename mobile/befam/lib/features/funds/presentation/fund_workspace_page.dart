@@ -3139,7 +3139,7 @@ class _SelectedFundSpotlight extends StatelessWidget {
                   fund.name,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -0.4,
+                    letterSpacing: 0,
                   ),
                 ),
                 SizedBox(height: tokens.spaceXs + 2),
@@ -3163,7 +3163,7 @@ class _SelectedFundSpotlight extends StatelessWidget {
                         fund.name,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -0.4,
+                          letterSpacing: 0,
                         ),
                       ),
                     ),
@@ -3316,7 +3316,7 @@ class _SectionCard extends StatelessWidget {
                       title,
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
-                        letterSpacing: -0.3,
+                        letterSpacing: 0,
                       ),
                     ),
                   ],
@@ -3597,10 +3597,7 @@ class _EmptyWorkspace extends StatelessWidget {
 }
 
 class _WorkspaceHero extends StatelessWidget {
-  const _WorkspaceHero({
-    required this.title,
-    required this.highlights,
-  });
+  const _WorkspaceHero({required this.title, required this.highlights});
 
   final String title;
   final List<_WorkspaceHeroHighlight> highlights;
@@ -3622,7 +3619,7 @@ class _WorkspaceHero extends StatelessWidget {
             title,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w900,
-              letterSpacing: -0.4,
+              letterSpacing: 0,
             ),
           ),
           if (highlights.isNotEmpty) ...[
