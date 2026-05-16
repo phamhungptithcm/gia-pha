@@ -125,14 +125,29 @@ accept_android_licenses() {
   fi
 }
 
+install_android_packages() {
+  local sdkmanager_status
+
+  set +e
+  set +o pipefail
+  yes | sdkmanager --sdk_root="$sdk_root" "$@"
+  sdkmanager_status="${PIPESTATUS[1]}"
+  set -o pipefail
+  set -e
+
+  if [ "$sdkmanager_status" -ne 0 ]; then
+    echo "::error::Android SDK package installation failed."
+    exit "$sdkmanager_status"
+  fi
+}
+
 ensure_cmdline_tools
 persist_android_env
 ensure_android_tool sdkmanager
 ensure_android_tool avdmanager
 
 accept_android_licenses
-sdkmanager \
-  --sdk_root="$sdk_root" \
+install_android_packages \
   "platform-tools" \
   "platforms;android-$api_level" \
   "emulator" \
