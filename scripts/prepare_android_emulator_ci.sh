@@ -8,13 +8,16 @@ arch="${BEFAM_ANDROID_ARCH:-x86_64}"
 device="${BEFAM_ANDROID_DEVICE:-pixel_6}"
 temp_root="${RUNNER_TEMP:-/tmp}"
 sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$temp_root/android-sdk}}"
+avd_home="${ANDROID_AVD_HOME:-${HOME:-$temp_root}/.android/avd}"
 cmdline_tools_dir="$sdk_root/cmdline-tools/latest"
 emulator_log="$temp_root/android-emulator.log"
 
 export ANDROID_HOME="$sdk_root"
 export ANDROID_SDK_ROOT="$sdk_root"
+export ANDROID_AVD_HOME="$avd_home"
 
 mkdir -p "$sdk_root"
+mkdir -p "$ANDROID_AVD_HOME"
 
 add_tool_path() {
   case ":$PATH:" in
@@ -31,6 +34,7 @@ persist_android_env() {
     {
       echo "ANDROID_HOME=$ANDROID_HOME"
       echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+      echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME"
     } >> "$GITHUB_ENV"
   fi
 }
@@ -141,6 +145,33 @@ install_android_packages() {
   fi
 }
 
+create_android_avd() {
+  local avdmanager_status
+
+  set +e
+  set +o pipefail
+  printf 'no\n' | avdmanager create avd \
+    --force \
+    --name "$avd_name" \
+    --package "system-images;android-$api_level;$system_image;$arch" \
+    --device "$device"
+  avdmanager_status="${PIPESTATUS[1]}"
+  set -o pipefail
+  set -e
+
+  if [ "$avdmanager_status" -ne 0 ]; then
+    echo "::error::Android AVD creation failed."
+    exit "$avdmanager_status"
+  fi
+
+  if ! emulator -list-avds | grep -Fx "$avd_name" >/dev/null; then
+    echo "::error::Android AVD '$avd_name' was not registered after creation."
+    avdmanager list avd || true
+    find "$ANDROID_AVD_HOME" -maxdepth 2 -type f -print || true
+    exit 1
+  fi
+}
+
 ensure_cmdline_tools
 persist_android_env
 ensure_android_tool sdkmanager
@@ -152,12 +183,9 @@ install_android_packages \
   "platforms;android-$api_level" \
   "emulator" \
   "system-images;android-$api_level;$system_image;$arch"
+ensure_android_tool emulator
 
-echo "no" | avdmanager create avd \
-  --force \
-  --name "$avd_name" \
-  --package "system-images;android-$api_level;$system_image;$arch" \
-  --device "$device"
+create_android_avd
 
 sudo chmod 666 /dev/kvm || true
 nohup emulator \
