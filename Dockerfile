@@ -7,6 +7,7 @@ ARG ANDROID_CMDLINE_TOOLS_VERSION=13114758
 ARG ANDROID_PLATFORM=android-36
 ARG ANDROID_BUILD_TOOLS=36.0.0
 ARG ANDROID_NDK_VERSION=28.2.13676358
+ARG BOUNCY_CASTLE_BCPROV_VERSION=1.84
 
 ENV DEBIAN_FRONTEND=noninteractive \
     FLUTTER_HOME=/opt/flutter \
@@ -49,6 +50,18 @@ RUN curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/st
       -o /tmp/commandlinetools.zip && \
     unzip -q /tmp/commandlinetools.zip -d /tmp/android-cmdline-tools && \
     mv /tmp/android-cmdline-tools/cmdline-tools "${ANDROID_HOME}/cmdline-tools/latest" && \
+    mkdir -p "${ANDROID_HOME}/cmdline-tools/latest/lib/external/org/bouncycastle/bcprov-jdk18on/${BOUNCY_CASTLE_BCPROV_VERSION}" && \
+    curl -fsSL "https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk18on/${BOUNCY_CASTLE_BCPROV_VERSION}/bcprov-jdk18on-${BOUNCY_CASTLE_BCPROV_VERSION}.jar" \
+      -o "${ANDROID_HOME}/cmdline-tools/latest/lib/external/org/bouncycastle/bcprov-jdk18on/${BOUNCY_CASTLE_BCPROV_VERSION}/bcprov-jdk18on-${BOUNCY_CASTLE_BCPROV_VERSION}.jar" && \
+    find "${ANDROID_HOME}/cmdline-tools/latest/lib/external/org/bouncycastle/bcprov-jdk18on" \
+      -type f \
+      -name 'bcprov-jdk18on-*.jar' \
+      ! -name "bcprov-jdk18on-${BOUNCY_CASTLE_BCPROV_VERSION}.jar" \
+      -delete && \
+    find "${ANDROID_HOME}/cmdline-tools/latest/lib/external/org/bouncycastle/bcprov-jdk18on" \
+      -type d \
+      -empty \
+      -delete && \
     rm -rf /tmp/commandlinetools.zip /tmp/android-cmdline-tools && \
     git config --global --add safe.directory "${FLUTTER_HOME}" && \
     yes | sdkmanager --licenses >/dev/null && \
