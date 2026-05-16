@@ -18,13 +18,15 @@ Tài liệu này mô tả mô hình CI/CD an toàn cho production của BeFam.
 - Bắt buộc approval cho lần push cuối.
 - Bắt buộc resolve toàn bộ thread review.
 - Bắt buộc pass các check:
-  - `ci-docs`
-  - `ci-functions`
-  - `ci-mobile`
-  - `security-dependency-review`
-  - `security-trivy-fs`
-  - `security-gitleaks`
-  - `security-trivy-images`
+  - `CI - Docs Validation and Build`
+  - `CI - Functions Build and Test`
+  - `CI - Mobile Build and Test`
+  - `Security - Dependency Review`
+  - `Security - Trivy Filesystem Scan`
+  - `Security - Gitleaks Secret Scan`
+  - `Security - Trivy Container Image Scan`
+  - `E2E - Android Test Run`
+  - `E2E - iOS Test Run`
 - Bắt buộc commit có chữ ký.
 - Không cho bypass rule.
 
@@ -43,8 +45,12 @@ Tài liệu này mô tả mô hình CI/CD an toàn cho production của BeFam.
 
 ### 1) Gate ở PR/Branch
 
-- `CI - Branch Quality Gates`: docs, functions, mobile,
-  dependency review, Trivy (filesystem + image), gitleaks.
+- `CI - Branch Quality Gates`: docs, Functions build/test/audit, Flutter
+  analysis/test/coverage, release catalog contract, web smoke test, Trivy
+  (filesystem + image), và Gitleaks.
+- `CI - Mobile E2E Android` và `CI - Mobile E2E iOS`: smoke integration
+  flow trên emulator/simulator. Không thay các check này bằng bước
+  `echo`/skip dài hạn.
 
 ### 2) Release Production
 

@@ -1,6 +1,6 @@
 # Inventory Dịch Vụ Dự Án BeFam
 
-_Cập nhật quét: 26/03/2026_
+_Cập nhật quét: 16/05/2026_
 
 ## Phạm vi quét
 
@@ -92,8 +92,8 @@ _Rà soát ngày: 04/04/2026_
 - Apple phát hành app qua Apple Developer Program: `$99/năm`.
 - Google Play cần phí đăng ký developer: `$25` một lần, không phải phí lặp lại hàng năm.
 - Code hiện tại có 6 scheduled jobs dùng `onSchedule`, tương ứng 6 Cloud Scheduler jobs:
-  - 5 jobs trong [`firebase/functions/src/scheduled/jobs.ts`](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/firebase/functions/src/scheduled/jobs.ts)
-  - 1 job trong [`firebase/functions/src/events/event-triggers.ts`](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/firebase/functions/src/events/event-triggers.ts)
+  - 5 jobs trong `firebase/functions/src/scheduled/jobs.ts`
+  - 1 job trong `firebase/functions/src/events/event-triggers.ts`
 - Cloud Scheduler tính `$0.10/job/tháng`, miễn phí 3 jobs đầu mỗi billing account.
 - Baseline dưới đây giả định billing account chưa dùng mất free tier 3 jobs ở project khác, nên chỉ còn 3 jobs phải trả phí cho BeFam.
 
