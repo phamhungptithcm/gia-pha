@@ -299,35 +299,7 @@ jobs:
           cache: true
 
       - name: Prepare Android emulator
-        run: |
-          set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager "platform-tools" "platforms;android-35" "emulator" "system-images;android-35;google_apis;x86_64"
-          echo "no" | avdmanager create avd \
-            --force \
-            --name befam_ci_api35 \
-            --package "system-images;android-35;google_apis;x86_64" \
-            --device "pixel_6"
-          sudo chmod 666 /dev/kvm || true
-          nohup emulator \
-            -avd befam_ci_api35 \
-            -no-window \
-            -gpu swiftshader_indirect \
-            -no-audio \
-            -no-boot-anim \
-            -no-snapshot \
-            > "$RUNNER_TEMP/android-emulator.log" 2>&1 &
-          adb wait-for-device
-          for attempt in $(seq 1 90); do
-            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
-              break
-            fi
-            sleep 2
-          done
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb devices
+        run: ./scripts/prepare_android_emulator_ci.sh befam_ci_api35
 
       - name: Install Flutter dependencies
         working-directory: mobile/befam
