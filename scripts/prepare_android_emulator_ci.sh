@@ -109,12 +109,28 @@ ensure_android_tool() {
   fi
 }
 
+accept_android_licenses() {
+  local sdkmanager_status
+
+  set +e
+  set +o pipefail
+  yes | sdkmanager --sdk_root="$sdk_root" --licenses >/dev/null
+  sdkmanager_status="${PIPESTATUS[1]}"
+  set -o pipefail
+  set -e
+
+  if [ "$sdkmanager_status" -ne 0 ]; then
+    echo "::error::Android SDK license acceptance failed."
+    exit "$sdkmanager_status"
+  fi
+}
+
 ensure_cmdline_tools
 persist_android_env
 ensure_android_tool sdkmanager
 ensure_android_tool avdmanager
 
-yes | sdkmanager --sdk_root="$sdk_root" --licenses >/dev/null
+accept_android_licenses
 sdkmanager \
   --sdk_root="$sdk_root" \
   "platform-tools" \
