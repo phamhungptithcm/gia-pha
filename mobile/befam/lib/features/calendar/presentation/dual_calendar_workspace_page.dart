@@ -10,12 +10,12 @@ import '../../../core/widgets/app_feedback_states.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
-import '../../billing/services/billing_repository.dart';
 import '../../events/presentation/event_workspace_page.dart';
 import '../../events/services/event_repository.dart';
 import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/models/clan_context_option.dart';
+import '../../billing/services/billing_repository.dart';
 import '../../clan/models/branch_profile.dart';
 import '../../events/models/event_draft.dart';
 import '../../events/models/event_type.dart';
@@ -443,7 +443,6 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
           return EventWorkspacePage(
             session: session,
             repository: createDefaultEventRepository(session: session),
-            billingRepository: widget.billingRepository,
             availableClanContexts: widget.availableClanContexts,
             onSwitchClanContext: widget.onSwitchClanContext,
           );
@@ -1931,6 +1930,13 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    String joinNonEmptyText(List<String?> values) {
+      return values
+          .map((value) => value?.trim() ?? '')
+          .where((value) => value.isNotEmpty)
+          .join(' • ');
+    }
+
     String branchLabel(String? branchId) {
       final normalized = (branchId ?? '').trim();
       if (normalized.isEmpty) {
@@ -1947,16 +1953,21 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     final sheetTitle = widget.editingEvent == null
         ? l10n.pick(vi: 'Tạo sự kiện', en: 'Create event')
         : l10n.pick(vi: 'Chỉnh sửa sự kiện', en: 'Edit event');
+    final sheetSubtitle = _editorStep == 0
+        ? l10n.pick(
+            vi: 'Gom nội dung chính, nhân vật liên quan và thời gian tổ chức vào một flow ngắn gọn.',
+            en: 'Bring event details, related people, and schedule into one compact flow.',
+          )
+        : l10n.pick(
+            vi: 'Chọn người nhận thật gọn, loại trừ đúng đối tượng và kiểm tra danh sách trước khi lưu.',
+            en: 'Pick recipients compactly, exclude the right members, and review the list before saving.',
+          );
     final recipientsPreview = _resolvedRecipientsPreview();
     final branchSummary = branchLabel(_audienceBranchId);
-    final audienceSummary =
-        [
-              _audienceSummaryLabel(l10n, _buildNotificationAudience()),
-              branchSummary,
-            ]
-            .map((value) => value.trim())
-            .where((value) => value.isNotEmpty)
-            .join(' • ');
+    final audienceSummary = joinNonEmptyText([
+      _audienceSummaryLabel(l10n, _buildNotificationAudience()),
+      branchSummary,
+    ]);
     final sortedReminderOffsets = _reminderOffsets.toList(growable: false)
       ..sort((left, right) => right.compareTo(left));
     final reminderSummaryText = sortedReminderOffsets.isEmpty
@@ -2014,24 +2025,51 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: AppWorkspaceSurface(
-                    padding: const EdgeInsets.all(20),
-                    gradient: appWorkspaceHeroGradient(context),
-                    showAccentOrbs: true,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 88),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          sheetTitle,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                AppWorkspaceSurface(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        sheetTitle,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        sheetSubtitle,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _EventEditorBadge(
+                            icon: widget.editingEvent == null
+                                ? Icons.add_circle_outline
+                                : Icons.edit_outlined,
+                            label: widget.editingEvent == null
+                                ? l10n.pick(vi: 'Tạo mới', en: 'Create')
+                                : l10n.pick(
+                                    vi: 'Đang chỉnh sửa',
+                                    en: 'Editing',
+                                  ),
+                          ),
+                          _EventEditorBadge(
+                            icon: Icons.event_note_outlined,
+                            label: l10n.eventTypeLabel(_eventType),
+                          ),
+                          _EventEditorBadge(
+                            icon: Icons.calendar_today_outlined,
+                            label: l10n.calendarDateModeLabel(_dateMode),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -3816,6 +3854,40 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+}
+
+class _EventEditorBadge extends StatelessWidget {
+  const _EventEditorBadge({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: colorScheme.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

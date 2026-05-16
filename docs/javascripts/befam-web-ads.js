@@ -22,10 +22,9 @@ const BEFAM_WEB_AD_ALLOWLIST = new Set([
   "docs_article",
 ]);
 
-const BEFAM_WEB_AD_STORAGE_NAMESPACE = ["befam", "webAds"].join(".");
-const BEFAM_WEB_AD_PERSISTED_STORAGE_ID =
-  createBefamWebAdsStorageId("persisted");
-const BEFAM_WEB_AD_SESSION_STORAGE_ID = createBefamWebAdsStorageId("session");
+const BEFAM_WEB_AD_STORAGE_KEY_PREFIX = ["befam", "webAds"].join(".");
+const BEFAM_WEB_AD_PERSISTED_KEY = createBefamWebAdsStorageKey("persisted");
+const BEFAM_WEB_AD_SESSION_KEY = createBefamWebAdsStorageKey("session");
 const BEFAM_WEB_AD_REFRESH_MS = 5000;
 const BEFAM_WEB_AD_LOOKBACK_7D_MS = 7 * 24 * 60 * 60 * 1000;
 const BEFAM_WEB_AD_LOOKBACK_24H_MS = 24 * 60 * 60 * 1000;
@@ -61,8 +60,8 @@ function bootstrapBefamWebAds() {
   }
 }
 
-function createBefamWebAdsStorageId(scope) {
-  return `${BEFAM_WEB_AD_STORAGE_NAMESPACE}.${scope}.v1`;
+function createBefamWebAdsStorageKey(scope) {
+  return `${BEFAM_WEB_AD_STORAGE_KEY_PREFIX}.${scope}.v1`;
 }
 
 function initializeBefamWebAds() {
@@ -227,10 +226,7 @@ function startSessionIfNeeded() {
 }
 
 function readPersistedState() {
-  const raw = readJsonStorage(
-    window.localStorage,
-    BEFAM_WEB_AD_PERSISTED_STORAGE_ID,
-  );
+  const raw = readJsonStorage(window.localStorage, BEFAM_WEB_AD_PERSISTED_KEY);
   return {
     firstSeenAt: toFiniteNumber(raw?.firstSeenAt, 0),
     totalSessions: toFiniteNumber(raw?.totalSessions, 0),
@@ -243,10 +239,7 @@ function readPersistedState() {
 }
 
 function readSessionState() {
-  const raw = readJsonStorage(
-    window.sessionStorage,
-    BEFAM_WEB_AD_SESSION_STORAGE_ID,
-  );
+  const raw = readJsonStorage(window.sessionStorage, BEFAM_WEB_AD_SESSION_KEY);
   return {
     startedAt: toFiniteNumber(raw?.startedAt, Number.NaN),
     interactions: toFiniteNumber(raw?.interactions, 0),
@@ -263,7 +256,7 @@ function persistState() {
 function persistPersistentState() {
   writeJsonStorage(
     window.localStorage,
-    BEFAM_WEB_AD_PERSISTED_STORAGE_ID,
+    BEFAM_WEB_AD_PERSISTED_KEY,
     befamWebAdsState.persistent,
   );
 }
@@ -271,7 +264,7 @@ function persistPersistentState() {
 function persistSessionState() {
   writeJsonStorage(
     window.sessionStorage,
-    BEFAM_WEB_AD_SESSION_STORAGE_ID,
+    BEFAM_WEB_AD_SESSION_KEY,
     befamWebAdsState.session,
   );
 }
