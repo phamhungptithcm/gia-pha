@@ -20,8 +20,6 @@ const double _kCardGap = 12;
 const double _kCardPadding = 20;
 const double _kMarketingRadius = 8;
 const double _kAppSurfaceRadius = 18;
-const Color _kLandingCream = Color(0xFFF8FAFF);
-const Color _kLandingPaper = Color(0xFFFFFFFF);
 const Color _kLandingLine = Color(0xFFDCE4F2);
 const Color _kLandingInk = Color(0xFF0F172A);
 const Color _kLandingMuted = Color(0xFF526076);
@@ -352,11 +350,6 @@ class WebAboutUsPage extends StatelessWidget {
               secondaryLabel: null,
               onSecondaryPressed: null,
               focusTags: const [],
-              artworkIcons: const [
-                Icons.groups_2_rounded,
-                Icons.verified_user_rounded,
-                Icons.diversity_3_rounded,
-              ],
             ),
             const SizedBox(height: _kCardGap),
             _CompactFeatureList(
@@ -446,11 +439,6 @@ class WebBeFamInfoPage extends StatelessWidget {
               ),
               onSecondaryPressed: null,
               focusTags: const [],
-              artworkIcons: const [
-                Icons.hub_rounded,
-                Icons.notifications_active_rounded,
-                Icons.payments_rounded,
-              ],
             ),
             const SizedBox(height: _kCardGap),
             _FeatureCardGrid(
@@ -1110,7 +1098,7 @@ class _LegalFactCard extends StatelessWidget {
   }
 }
 
-class _WebMarketingLayout extends StatelessWidget {
+class _WebMarketingLayout extends StatefulWidget {
   const _WebMarketingLayout({
     required this.currentPath,
     required this.pageTitle,
@@ -1122,43 +1110,94 @@ class _WebMarketingLayout extends StatelessWidget {
   final Widget child;
 
   @override
+  State<_WebMarketingLayout> createState() => _WebMarketingLayoutState();
+}
+
+class _WebMarketingLayoutState extends State<_WebMarketingLayout> {
+  late final ScrollController _scrollController;
+  bool _isScrolled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController()..addListener(_handleScroll);
+  }
+
+  void _handleScroll() {
+    final nextIsScrolled = _scrollController.hasClients
+        ? _scrollController.offset > 12
+        : false;
+    if (nextIsScrolled == _isScrolled) {
+      return;
+    }
+    setState(() => _isScrolled = nextIsScrolled);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_handleScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final inlineAd = _buildMarketingInlineAdForPath(currentPath);
+    final inlineAd = _buildMarketingInlineAdForPath(widget.currentPath);
     return Title(
-      title: pageTitle,
+      title: widget.pageTitle,
       color: _kLandingInk,
       child: Scaffold(
         body: AppLineageBackdrop(
           child: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1220),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 12,
-                  ),
-                  child: Column(
-                    children: [
-                      _TopNavigation(currentPath: currentPath),
-                      const SizedBox(height: 10),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              child,
-                              inlineAd,
-                              const SizedBox(height: 8),
-                              _WebFooter(pagePath: currentPath),
-                            ],
-                          ),
-                        ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final shellWidth = constraints.maxWidth > 1220
+                    ? 1220.0
+                    : constraints.maxWidth;
+                final horizontalPadding = shellWidth < 560 ? 14.0 : 22.0;
+
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: SizedBox(
+                    width: shellWidth,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: 12,
                       ),
-                    ],
+                      child: Column(
+                        children: [
+                          AnimatedPadding(
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOutCubic,
+                            padding: EdgeInsets.only(top: _isScrolled ? 0 : 8),
+                            child: _TopNavigation(
+                              currentPath: widget.currentPath,
+                              isScrolled: _isScrolled,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              controller: _scrollController,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  widget.child,
+                                  inlineAd,
+                                  const SizedBox(height: 8),
+                                  _WebFooter(pagePath: widget.currentPath),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
         ),
@@ -1168,9 +1207,10 @@ class _WebMarketingLayout extends StatelessWidget {
 }
 
 class _TopNavigation extends StatelessWidget {
-  const _TopNavigation({required this.currentPath});
+  const _TopNavigation({required this.currentPath, required this.isScrolled});
 
   final String currentPath;
+  final bool isScrolled;
 
   @override
   Widget build(BuildContext context) {
@@ -1178,35 +1218,55 @@ class _TopNavigation extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final localeController = AppLocaleScope.maybeOf(context);
     final navItems = [
-      _NavItem(path: '/', label: l10n.webNavHome),
-      _NavItem(path: '/about-us', label: l10n.webNavAboutUs),
-      _NavItem(path: '/befam-info', label: l10n.webNavBeFamInfo),
+      _NavItem(
+        path: '/befam-info',
+        label: l10n.pick(vi: 'Gia phả', en: 'Lineage'),
+      ),
+      _NavItem(
+        path: '/befam-info',
+        label: l10n.pick(vi: 'Giỗ lễ', en: 'Memorials'),
+      ),
+      _NavItem(
+        path: '/befam-info',
+        label: l10n.pick(vi: 'Quỹ họ', en: 'Funds'),
+      ),
+      _NavItem(
+        path: '/privacy',
+        label: l10n.pick(vi: 'Bảo mật', en: 'Trust'),
+      ),
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final isCompact = width < 1180;
+        final isCompact = width < 900;
+        final isPhone = width < 560;
+        final showBrandSubtitle = width >= 1180;
 
-        return Container(
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            color: Colors.white.withValues(alpha: 0.88),
+            color: Colors.white.withValues(alpha: isScrolled ? 0.9 : 0.78),
             border: Border.all(color: _kLandingLine),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 24,
-                offset: Offset(0, 10),
+                color: Color(isScrolled ? 0x1F0F172A : 0x140F172A),
+                blurRadius: isScrolled ? 28 : 24,
+                offset: Offset(0, isScrolled ? 14 : 10),
               ),
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: isPhone ? 10 : 18,
+              vertical: isPhone ? 10 : 12,
+            ),
             child: Row(
               children: [
                 const _BrandMark(),
-                const SizedBox(width: 12),
+                SizedBox(width: isPhone ? 10 : 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1217,7 +1277,7 @@ class _TopNavigation extends StatelessWidget {
                         letterSpacing: 0,
                       ),
                     ),
-                    if (!isCompact)
+                    if (showBrandSubtitle)
                       Text(
                         context.l10n.pick(
                           vi: 'Gia phả sống cho dòng họ Việt',
@@ -1234,7 +1294,11 @@ class _TopNavigation extends StatelessWidget {
                   ...navItems.map(
                     (item) => _NavButton(
                       label: item.label,
-                      isActive: currentPath == item.path,
+                      isActive:
+                          (currentPath == '/befam-info' &&
+                              item == navItems.first) ||
+                          (currentPath == item.path &&
+                              currentPath != '/befam-info'),
                       onPressed: () => context.go(item.path),
                     ),
                   ),
@@ -1250,14 +1314,39 @@ class _TopNavigation extends StatelessWidget {
                           ),
                         )
                         .toList(growable: false),
-                    style: IconButton.styleFrom(backgroundColor: Colors.white),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: 0.82),
+                    ),
                   ),
-                const SizedBox(width: 8),
-                _MarketingLanguageSwitch(
-                  controller: localeController,
-                  compact: isCompact,
-                ),
-                const SizedBox(width: 10),
+                SizedBox(width: isPhone ? 4 : 8),
+                if (!isPhone) ...[
+                  _MarketingLanguageSwitch(
+                    controller: localeController,
+                    compact: isCompact,
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                if (!isCompact) ...[
+                  TextButton(
+                    onPressed: () => _trackAndOpenApp(
+                      context,
+                      pagePath: currentPath,
+                      placement: 'top_nav_sign_in',
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _kLandingMuted,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                    ),
+                    child: Text(
+                      l10n.pick(vi: 'Đăng nhập', en: 'Sign in').toUpperCase(),
+                      style: textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 FilledButton(
                   onPressed: () => _trackAndOpenApp(
                     context,
@@ -1267,26 +1356,28 @@ class _TopNavigation extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: _kLandingInk,
                     foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 46),
-                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    minimumSize: Size(isPhone ? 42 : 0, isPhone ? 42 : 46),
+                    padding: EdgeInsets.symmetric(horizontal: isPhone ? 0 : 22),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        isCompact
-                            ? context.l10n.pick(vi: 'Mở', en: 'Open')
-                            : l10n.webNavOpenApp,
-                      ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.arrow_forward_rounded, size: 18),
-                    ],
-                  ),
+                  child: isPhone
+                      ? const Icon(Icons.arrow_forward_rounded, size: 18)
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              isCompact
+                                  ? context.l10n.pick(vi: 'Mở', en: 'Open')
+                                  : l10n.webNavOpenApp,
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(Icons.arrow_forward_rounded, size: 18),
+                          ],
+                        ),
                 ),
-                if (isCompact) const SizedBox(width: 8),
+                if (isCompact && !isPhone) const SizedBox(width: 8),
               ],
             ),
           ),
@@ -1648,6 +1739,72 @@ class _LandingHeroArtwork extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final items = [
+      (
+        eyebrow: context.l10n.pick(vi: 'Gia phả', en: 'Lineage'),
+        label: context.l10n.pick(
+          vi: 'Thế hệ và quan hệ',
+          en: 'Generations and relationships',
+        ),
+      ),
+      (
+        eyebrow: context.l10n.pick(vi: 'Ngày giỗ', en: 'Memorials'),
+        label: context.l10n.pick(vi: 'Lịch âm dương', en: 'Lunar calendar'),
+      ),
+      (
+        eyebrow: context.l10n.pick(vi: 'Thành viên', en: 'Members'),
+        label: context.l10n.pick(
+          vi: 'Quyền theo vai trò',
+          en: 'Role-based access',
+        ),
+      ),
+      (
+        eyebrow: context.l10n.pick(vi: 'Quỹ họ', en: 'Clan funds'),
+        label: context.l10n.pick(
+          vi: 'Thu chi minh bạch',
+          en: 'Transparent records',
+        ),
+      ),
+    ];
+    final isPhone = MediaQuery.sizeOf(context).width < 560;
+    if (isPhone) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            border: Border.all(color: _kLandingLine),
+          ),
+          child: Stack(
+            children: [
+              const Positioned.fill(
+                child: AppLineageGridOverlay(opacity: 0.7, spacing: 28),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    for (var index = 0; index < items.length; index++) ...[
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: _LineageSignalChip(
+                            eyebrow: items[index].eyebrow,
+                            label: items[index].label,
+                            width: double.infinity,
+                          ),
+                        ),
+                      ),
+                      if (index < items.length - 1) const SizedBox(height: 8),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
@@ -1733,16 +1890,21 @@ class _LandingHeroArtwork extends StatelessWidget {
 }
 
 class _LineageSignalChip extends StatelessWidget {
-  const _LineageSignalChip({required this.eyebrow, required this.label});
+  const _LineageSignalChip({
+    required this.eyebrow,
+    required this.label,
+    this.width = 150,
+  });
 
   final String eyebrow;
   final String label;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      width: 150,
+      width: width,
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
@@ -1791,7 +1953,6 @@ class _HeroStorySection extends StatelessWidget {
     required this.primaryLabel,
     required this.onPrimaryPressed,
     required this.focusTags,
-    required this.artworkIcons,
     this.secondaryLabel,
     this.onSecondaryPressed,
   });
@@ -1804,70 +1965,74 @@ class _HeroStorySection extends StatelessWidget {
   final VoidCallback onPrimaryPressed;
   final VoidCallback? onSecondaryPressed;
   final List<String> focusTags;
-  final List<IconData> artworkIcons;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_kLandingPaper, _kLandingCream, _kLandingAqua],
-        ),
-        border: Border.all(color: _kLandingLine),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 28,
-            offset: Offset(0, 14),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(20),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 18, 4, 0),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isCompact = constraints.maxWidth < 980;
+          final isPhone = constraints.maxWidth < 560;
 
           final leftPane = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _EyebrowChip(label: badge),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: textTheme.headlineLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  height: 1.08,
-                  letterSpacing: 0,
-                ),
-              ),
-              const SizedBox(height: 10),
+              _StaticHeroKicker(label: badge),
+              const SizedBox(height: 26),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
+                constraints: BoxConstraints(
+                  maxWidth: isPhone ? constraints.maxWidth : 650,
+                ),
                 child: Text(
-                  subtitle,
-                  style: textTheme.titleMedium?.copyWith(
-                    color: _kLandingMuted,
-                    height: 1.5,
+                  title,
+                  style: textTheme.displaySmall?.copyWith(
+                    fontSize: isPhone
+                        ? 36
+                        : isCompact
+                        ? 42
+                        : 64,
+                    fontWeight: FontWeight.w900,
+                    color: _kLandingInk,
+                    height: 1.04,
+                    letterSpacing: 0,
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 18),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: isPhone ? constraints.maxWidth : 620,
+                ),
+                child: Text(
+                  subtitle,
+                  style: textTheme.titleLarge?.copyWith(
+                    color: _kLandingMuted,
+                    fontWeight: FontWeight.w700,
+                    height: 1.48,
+                    fontSize: isPhone ? 17 : null,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
                 children: [
                   FilledButton.icon(
                     onPressed: onPrimaryPressed,
-                    icon: const Icon(Icons.arrow_outward_rounded),
+                    icon: const Icon(Icons.square_rounded, size: 10),
                     label: Text(primaryLabel),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF80BFD0),
-                      foregroundColor: _kLandingInk,
+                      backgroundColor: _kLandingInk,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 22),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
                   ),
                   if (secondaryLabel != null && onSecondaryPressed != null)
@@ -1879,6 +2044,11 @@ class _HeroStorySection extends StatelessWidget {
                         foregroundColor: _kLandingInk,
                         side: const BorderSide(color: _kLandingLine),
                         backgroundColor: Colors.white.withValues(alpha: 0.72),
+                        minimumSize: const Size(0, 48),
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
                     ),
                 ],
@@ -1897,8 +2067,12 @@ class _HeroStorySection extends StatelessWidget {
           );
 
           final rightPane = SizedBox(
-            height: isCompact ? 200 : 228,
-            child: _HeroArtwork(icons: artworkIcons, badge: ''),
+            height: isPhone
+                ? 330
+                : isCompact
+                ? 292
+                : 430,
+            child: const _LandingHeroArtwork(),
           );
 
           if (isCompact) {
@@ -1909,10 +2083,10 @@ class _HeroStorySection extends StatelessWidget {
           }
 
           return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(flex: 6, child: leftPane),
-              const SizedBox(width: 16),
+              const SizedBox(width: 36),
               Expanded(flex: 5, child: rightPane),
             ],
           );
@@ -1922,132 +2096,34 @@ class _HeroStorySection extends StatelessWidget {
   }
 }
 
-class _HeroArtwork extends StatelessWidget {
-  const _HeroArtwork({required this.icons, required this.badge});
+class _StaticHeroKicker extends StatelessWidget {
+  const _StaticHeroKicker({required this.label});
 
-  final List<IconData> icons;
-  final String badge;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final iconItems = icons.take(3).toList(growable: false);
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colorScheme.primaryContainer.withValues(alpha: 0.84),
-            colorScheme.surface,
-            colorScheme.secondaryContainer.withValues(alpha: 0.7),
-          ],
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xFF32C475),
+          ),
         ),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          const Positioned.fill(
-            child: AppLineageGridOverlay(opacity: 0.55, spacing: 26),
+        const SizedBox(width: 12),
+        Text(
+          label.toUpperCase(),
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: const Color(0xFF8AA096),
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
           ),
-          if (badge.trim().isNotEmpty)
-            Positioned(
-              top: 18,
-              left: 18,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  color: Colors.white.withValues(alpha: 0.75),
-                  border: Border.all(color: colorScheme.outlineVariant),
-                ),
-                child: Text(
-                  badge,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          Center(
-            child: Container(
-              width: 152,
-              height: 152,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.82),
-                border: Border.all(
-                  color: colorScheme.secondary.withValues(alpha: 0.24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: colorScheme.primary.withValues(alpha: 0.1),
-                    blurRadius: 34,
-                    offset: const Offset(0, 14),
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.family_restroom_rounded,
-                size: 84,
-                color: colorScheme.primary,
-              ),
-            ),
-          ),
-          if (iconItems.isNotEmpty)
-            Positioned(
-              top: 78,
-              right: 24,
-              child: _HeroIconBubble(icon: iconItems[0]),
-            ),
-          if (iconItems.length > 1)
-            Positioned(
-              bottom: 34,
-              right: 72,
-              child: _HeroIconBubble(icon: iconItems[1]),
-            ),
-          if (iconItems.length > 2)
-            Positioned(
-              bottom: 52,
-              left: 28,
-              child: _HeroIconBubble(icon: iconItems[2]),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeroIconBubble extends StatelessWidget {
-  const _HeroIconBubble({required this.icon});
-
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      width: 58,
-      height: 58,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_kMarketingRadius),
-        color: Colors.white.withValues(alpha: 0.9),
-        border: Border.all(color: colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Icon(icon, color: colorScheme.primary, size: 28),
+        ),
+      ],
     );
   }
 }
@@ -2812,16 +2888,8 @@ class _HunpeoLabsContactCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withValues(alpha: 0.9),
-            colorScheme.surface.withValues(alpha: 0.94),
-            colorScheme.secondaryContainer.withValues(alpha: 0.2),
-          ],
-        ),
+        borderRadius: BorderRadius.circular(_kMarketingRadius),
+        color: Colors.white.withValues(alpha: 0.88),
         border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
@@ -3056,12 +3124,8 @@ class _WebFooter extends StatelessWidget {
       margin: const EdgeInsets.only(top: 14, bottom: 22),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFFBF5), Color(0xFFF7F0E4), Color(0xFFF8F4EC)],
-        ),
+        borderRadius: BorderRadius.circular(_kMarketingRadius),
+        color: Colors.white.withValues(alpha: 0.88),
         border: Border.all(color: _kLandingLine),
         boxShadow: const [
           BoxShadow(
@@ -3315,7 +3379,7 @@ class _FooterLinkButton extends StatelessWidget {
         side: const BorderSide(color: _kLandingLine),
         backgroundColor: Colors.white.withValues(alpha: 0.68),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         minimumSize: Size.zero,
       ),
       child: Text(label),
@@ -3688,37 +3752,21 @@ class _NavButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
-      fontWeight: FontWeight.w700,
-      color: _kLandingInk,
+      fontWeight: FontWeight.w900,
+      color: isActive ? const Color(0xFF3155FF) : _kLandingMuted,
+      letterSpacing: 0,
     );
-    if (isActive) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: TextButton(
-          onPressed: onPressed,
-          style: TextButton.styleFrom(
-            backgroundColor: _kLandingAqua,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(999),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
-          child: Text(label, style: textStyle),
-        ),
-      );
-    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: TextButton(
         onPressed: onPressed,
         style: TextButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(999),
-          ),
+          foregroundColor: isActive ? const Color(0xFF3155FF) : _kLandingMuted,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
-        child: Text(label, style: textStyle),
+        child: Text(label.toUpperCase(), style: textStyle),
       ),
     );
   }
@@ -3754,14 +3802,68 @@ class _BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
+    return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: _kLandingAqua,
+        color: _kLandingInk,
+        border: Border.all(color: const Color(0x383155FF)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x263155FF),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
-      child: const Icon(Icons.family_restroom_rounded, color: _kLandingInk),
+      child: SizedBox(
+        width: 38,
+        height: 38,
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            Positioned(
+              right: -5,
+              top: -5,
+              child: Transform.rotate(
+                angle: 0.314,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3155FF),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -4,
+              bottom: -4,
+              child: Transform.rotate(
+                angle: 0.314,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE34CFF),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+            Center(
+              child: Text(
+                'BF',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

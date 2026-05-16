@@ -132,6 +132,9 @@
     }
 
     .befam-static-nav {
+      position: sticky;
+      top: 16px;
+      z-index: 20;
       width: min(1480px, 100%);
       min-height: 72px;
       margin: 0 auto;
@@ -141,9 +144,19 @@
       justify-content: space-between;
       gap: 20px;
       border: 1px solid rgba(126, 138, 163, 0.20);
-      background: rgba(255, 255, 255, 0.86);
+      background: rgba(255, 255, 255, 0.78);
       box-shadow: 0 16px 48px rgba(15, 23, 42, 0.08);
       backdrop-filter: blur(18px);
+      transition:
+        background-color 180ms ease,
+        box-shadow 180ms ease,
+        transform 180ms ease;
+    }
+
+    .befam-static-nav.is-scrolled {
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+      transform: translateY(-6px);
     }
 
     .befam-static-brand,
@@ -161,23 +174,65 @@
       text-decoration: none;
     }
 
-    .befam-static-brand img {
+    .befam-static-logo {
+      position: relative;
       width: 38px;
       height: 38px;
       border-radius: 8px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      border: 1px solid rgba(49, 85, 255, 0.22);
+      background: #0f172a;
+      color: #ffffff;
+      box-shadow: 0 12px 24px rgba(49, 85, 255, 0.16);
     }
 
-    .befam-static-brand strong,
-    .befam-static-brand span {
+    .befam-static-logo::before,
+    .befam-static-logo::after {
+      position: absolute;
+      content: "";
+      border-radius: 2px;
+    }
+
+    .befam-static-logo::before {
+      right: -5px;
+      top: -5px;
+      width: 22px;
+      height: 22px;
+      background: #3155ff;
+      transform: rotate(18deg);
+    }
+
+    .befam-static-logo::after {
+      left: -4px;
+      bottom: -4px;
+      width: 18px;
+      height: 18px;
+      background: #e34cff;
+      transform: rotate(18deg);
+    }
+
+    .befam-static-logo b {
+      position: relative;
+      z-index: 1;
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: 0;
+    }
+
+    .befam-static-brand-copy,
+    .befam-static-brand-copy strong,
+    .befam-static-brand-copy span {
       display: block;
     }
 
-    .befam-static-brand strong {
+    .befam-static-brand-copy strong {
       font-size: 18px;
       line-height: 1.05;
     }
 
-    .befam-static-brand span {
+    .befam-static-brand-copy span {
       margin-top: 2px;
       color: #526076;
       font-size: 13px;
@@ -572,7 +627,7 @@
         display: none;
       }
 
-      .befam-static-brand span,
+      .befam-static-brand-copy,
       .befam-static-auth {
         display: none;
       }
@@ -695,6 +750,14 @@
   </style>
 
   <script>
+    window.addEventListener('scroll', function () {
+      var nav = document.querySelector('.befam-static-nav');
+      if (!nav) {
+        return;
+      }
+      nav.classList.toggle('is-scrolled', window.scrollY > 12);
+    }, { passive: true });
+
     window.addEventListener('flutter-first-frame', function () {
       var shell = document.getElementById('befam-static-shell');
       if (shell) {
@@ -707,8 +770,8 @@
   <main id="befam-static-shell" class="befam-static-shell" aria-label="BeFam">
     <header class="befam-static-nav">
       <a class="befam-static-brand" href="/" aria-label="BeFam trang chủ">
-        <img src="icons/Icon-192.png" alt="">
-        <span>
+        <span class="befam-static-logo" aria-hidden="true"><b>BF</b></span>
+        <span class="befam-static-brand-copy">
           <strong>BeFam</strong>
           <span>Gia phả sống cho dòng họ Việt</span>
         </span>
