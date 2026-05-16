@@ -80,7 +80,15 @@ class FirebaseAiAssistService implements AiAssistService {
             .toList(growable: false),
         'searchContext': searchContext.toMap(),
       });
-      return AppAssistantReply.fromMap(_asMap(response.data));
+      final parsed = AppAssistantReply.fromMap(_asMap(response.data));
+      return _normalizeAssistantReply(
+        locale: locale,
+        currentScreenId: currentScreenId,
+        question: question,
+        searchContext: searchContext,
+        activeClanName: activeClanName,
+        reply: parsed,
+      );
     } on FirebaseFunctionsException catch (error) {
       if (_shouldUseLocalAssistantFallback(error)) {
         return _buildLocalAssistantFallback(
@@ -512,10 +520,14 @@ AppAssistantReply _buildLocalAssistantFallback({
 
   if (matches.isNotEmpty) {
     final firstMatch = matches.first;
+    final relationshipLabel = _assistantRelationshipLabel(
+      code: firstMatch.relationshipCode,
+      isVietnamese: isVietnamese,
+    );
     final answer = matches.length == 1
         ? (isVietnamese
-              ? 'Mình thấy một hồ sơ khá khớp trong ${clanLabel.isEmpty ? 'gia phả đang mở' : clanLabel}: ${firstMatch.displayName}.'
-              : 'I found one profile that looks like a good match in ${clanLabel.isEmpty ? 'the active family tree' : clanLabel}: ${firstMatch.displayName}.')
+              ? 'Mình thấy ${firstMatch.displayName} khá khớp trong ${clanLabel.isEmpty ? 'gia phả đang mở' : clanLabel}.${relationshipLabel == null ? '' : ' Có vẻ đây là $relationshipLabel mà bạn đang tìm.'}'
+              : 'I found ${firstMatch.displayName}, which looks like a good match in ${clanLabel.isEmpty ? 'the active family tree' : clanLabel}.${relationshipLabel == null ? '' : ' This looks like the $relationshipLabel you asked about.'}')
         : (isVietnamese
               ? 'Mình thấy ${matches.length} người khá khớp với câu hỏi này trong ${clanLabel.isEmpty ? 'gia phả đang mở' : clanLabel}. Mình để ngay bên dưới để bạn đối chiếu nhanh.'
               : 'I found ${matches.length} people that look close to your question in ${clanLabel.isEmpty ? 'the active family tree' : clanLabel}. I listed them below so you can compare quickly.');
@@ -583,6 +595,85 @@ AppAssistantReply _buildLocalAssistantFallback({
     usedFallback: true,
     model: null,
   );
+}
+
+AppAssistantReply _normalizeAssistantReply({
+  required String locale,
+  required String currentScreenId,
+  required String question,
+  required AppAssistantSearchContext searchContext,
+  required AppAssistantReply reply,
+  String? activeClanName,
+}) {
+  final answer = reply.answer.trim();
+  final normalized = answer.toLowerCase();
+  if (normalized.isEmpty ||
+      normalized == 'not found' ||
+      normalized == 'no result' ||
+      normalized == 'no results') {
+    return _buildLocalAssistantFallback(
+      locale: locale,
+      currentScreenId: currentScreenId,
+      question: question,
+      searchContext: searchContext,
+      activeClanName: activeClanName,
+    );
+  }
+
+  if (!reply.hasStructuredGuidance && searchContext.memberMatches.isNotEmpty) {
+    return _buildLocalAssistantFallback(
+      locale: locale,
+      currentScreenId: currentScreenId,
+      question: question,
+      searchContext: searchContext,
+      activeClanName: activeClanName,
+    );
+  }
+
+  return AppAssistantReply(
+    answer: _softenAssistantAnswer(answer),
+    steps: reply.steps,
+    quickReplies: reply.quickReplies,
+    caution: reply.caution.trim(),
+    suggestedDestination: reply.suggestedDestination,
+    usedFallback: reply.usedFallback,
+    model: reply.model,
+  );
+}
+
+String _softenAssistantAnswer(String answer) {
+  final trimmed = answer.trim();
+  if (trimmed.isEmpty) {
+    return trimmed;
+  }
+  final normalized = trimmed.toLowerCase();
+  if (normalized.startsWith('the closest matching profile is ')) {
+    return trimmed.replaceFirst(
+      RegExp(r'^The closest matching profile is ', caseSensitive: false),
+      'I found ',
+    );
+  }
+  return trimmed;
+}
+
+String? _assistantRelationshipLabel({
+  required String code,
+  required bool isVietnamese,
+}) {
+  switch (code.trim().toLowerCase()) {
+    case 'sibling':
+      return isVietnamese ? 'anh chị em ruột' : 'sibling';
+    case 'cousin':
+      return isVietnamese ? 'anh chị em họ' : 'cousin';
+    case 'parent':
+      return isVietnamese ? 'cha mẹ' : 'parent';
+    case 'child':
+      return isVietnamese ? 'con' : 'child';
+    case 'spouse':
+      return isVietnamese ? 'vợ/chồng' : 'spouse';
+    default:
+      return null;
+  }
 }
 
 String _fallbackAssistantAnswerVi(String currentScreenId) {

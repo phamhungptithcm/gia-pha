@@ -425,7 +425,10 @@ class _AiAssistantSheetState extends State<_AiAssistantSheet> {
         ),
       );
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = context.l10n.pick(
+          vi: 'Mình chưa trả lời được ngay lúc này. Bạn thử hỏi lại giúp mình sau một lát nhé.',
+          en: 'I could not answer right away. Please try again in a moment.',
+        );
       });
     } finally {
       if (mounted) {
@@ -749,11 +752,13 @@ class _AssistantReplyBody extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      '${index + 1}.',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                    padding: const EdgeInsets.only(top: 7),
+                    child: Container(
+                      width: 5,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        shape: BoxShape.circle,
                       ),
                     ),
                   ),
@@ -761,7 +766,10 @@ class _AssistantReplyBody extends StatelessWidget {
                   Expanded(
                     child: Text(
                       reply.steps[index],
-                      style: theme.textTheme.bodySmall?.copyWith(height: 1.3),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        height: 1.35,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ],
@@ -1029,7 +1037,10 @@ class _AssistantTypingBubble extends StatelessWidget {
               ),
               SizedBox(width: tokens.spaceSm),
               Text(
-                context.l10n.pick(vi: 'Đang trả lời...', en: 'Thinking...'),
+                context.l10n.pick(
+                  vi: 'Mình đang tìm giúp bạn...',
+                  en: 'Let me check that for you...',
+                ),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
@@ -1056,18 +1067,18 @@ class _AssistantErrorBanner extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(tokens.spaceMd),
       decoration: BoxDecoration(
-        color: colorScheme.errorContainer.withValues(alpha: 0.72),
+        color: colorScheme.tertiaryContainer.withValues(alpha: 0.62),
         borderRadius: BorderRadius.circular(tokens.radiusMd),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
+          Icon(Icons.info_outline, color: colorScheme.onTertiaryContainer),
           SizedBox(width: tokens.spaceSm),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: colorScheme.onErrorContainer),
+              style: TextStyle(color: colorScheme.onTertiaryContainer),
             ),
           ),
         ],
@@ -1191,11 +1202,13 @@ class _AiTranscriptEntry {
     if (response == null) {
       return text;
     }
-    return [
-      response.answer.trim(),
-      ...response.steps.map((step) => '- $step'),
-      if (response.caution.trim().isNotEmpty) response.caution.trim(),
-    ].where((line) => line.trim().isNotEmpty).join('\n');
+    final answer = response.answer.trim();
+    final followUp = response.steps.isNotEmpty
+        ? response.steps.first.trim()
+        : response.caution.trim();
+    return [answer, followUp]
+        .where((line) => line.trim().isNotEmpty)
+        .join('\n');
   }
 }
 
@@ -1258,17 +1271,17 @@ _AssistantScreenConfig _assistantScreenConfig(
         en: 'Who would you like to find or ask about in this tree?',
       ),
       composerHint: l10n.pick(
-        vi: 'Ví dụ: tìm Nguyễn Minh, người này thuộc chi nào...',
-        en: 'For example: find Nguyen Minh, which branch is this person in...',
+        vi: 'Ví dụ: anh em ruột của tôi là ai, tìm Nguyễn Minh...',
+        en: 'For example: who are my siblings, find Nguyen Minh...',
       ),
       starterPrompts: [
         l10n.pick(
-          vi: 'Tìm Nguyễn Minh trong gia phả này',
-          en: 'Find Nguyen Minh in this clan',
+          vi: 'Anh em ruột của tôi là ai?',
+          en: 'Who are my siblings?',
         ),
         l10n.pick(
-          vi: 'Nguyễn Minh thuộc chi nào và đời thứ mấy?',
-          en: 'Which branch and generation is Nguyen Minh in?',
+          vi: 'Tìm người thân tên Nguyễn Minh',
+          en: 'Find a relative named Nguyen Minh',
         ),
       ],
     ),
@@ -1292,8 +1305,8 @@ _AssistantScreenConfig _assistantScreenConfig(
         en: 'How would you like to set up this event?',
       ),
       composerHint: l10n.pick(
-        vi: 'Ví dụ: cách tạo ngày giỗ, nhắc lịch trước 3 ngày...',
-        en: 'For example: create a memorial event, remind me 3 days before...',
+        vi: 'Ví dụ: tạo ngày giỗ, nên nhắc trước mấy ngày...',
+        en: 'For example: create a memorial event, when should I remind people...',
       ),
       starterPrompts: [
         l10n.pick(
@@ -1326,8 +1339,8 @@ _AssistantScreenConfig _assistantScreenConfig(
         en: 'What would you like to understand about your current plan?',
       ),
       composerHint: l10n.pick(
-        vi: 'Ví dụ: gói nào hợp, quyền lợi khác nhau thế nào...',
-        en: 'For example: which plan fits, how entitlements differ...',
+        vi: 'Ví dụ: khi nào nên nâng gói, gói nào hợp hơn...',
+        en: 'For example: when should I upgrade, which plan fits better...',
       ),
       starterPrompts: [
         l10n.pick(
@@ -1360,8 +1373,8 @@ _AssistantScreenConfig _assistantScreenConfig(
         en: 'What would you like to adjust in your profile or personal settings?',
       ),
       composerHint: l10n.pick(
-        vi: 'Ví dụ: đổi ngôn ngữ, hoàn thiện hồ sơ, chỉnh thông báo...',
-        en: 'For example: change language, complete my profile, adjust notifications...',
+        vi: 'Ví dụ: hoàn thiện hồ sơ, đổi ngôn ngữ, chỉnh thông báo...',
+        en: 'For example: complete my profile, change language, adjust notifications...',
       ),
       starterPrompts: [
         l10n.pick(

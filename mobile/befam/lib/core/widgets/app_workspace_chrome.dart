@@ -24,9 +24,9 @@ LinearGradient appWorkspaceHeroGradient(BuildContext context) {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      colorScheme.primaryContainer.withValues(alpha: 0.94),
-      colorScheme.secondaryContainer.withValues(alpha: 0.82),
-      Colors.white.withValues(alpha: 0.96),
+      colorScheme.primaryContainer.withValues(alpha: 0.90),
+      colorScheme.tertiaryContainer.withValues(alpha: 0.68),
+      colorScheme.surface.withValues(alpha: 0.98),
     ],
   );
 }
@@ -76,17 +76,17 @@ class AppWorkspaceSurface extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color ?? Colors.white.withValues(alpha: 0.88),
+        color: color ?? Colors.white.withValues(alpha: 0.92),
         gradient: gradient,
         borderRadius: resolvedRadius,
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.92),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.78),
         ),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.08),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
+            color: colorScheme.shadow.withValues(alpha: 0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),

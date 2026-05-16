@@ -472,60 +472,73 @@ class _LoginMethodSelectionCard extends StatelessWidget {
     final l10n = context.l10n;
     final tokens = context.uiTokens;
 
-    return Column(
-      children: [
-        AppWorkspaceSurface(
-          showAccentOrbs: false,
-          padding: EdgeInsets.all(tokens.spaceLg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.pick(
-                  vi: 'Chọn cách đăng nhập',
-                  en: 'Choose your sign-in method',
-                ),
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              SizedBox(height: tokens.spaceLg),
-              _MethodActionButton(
-                buttonKey: const Key('auth-method-phone-button'),
-                title: l10n.pick(
-                  vi: 'Dùng số điện thoại',
-                  en: 'Use phone number',
-                ),
-                icon: Icons.phone_iphone,
-                filled: true,
-                onPressed: isBusy || !hasAcceptedPrivacyPolicy
-                    ? null
-                    : onPhoneSelected,
-              ),
-              SizedBox(height: tokens.spaceSm),
-              _MethodActionButton(
-                buttonKey: const Key('auth-method-child-button'),
-                title: l10n.pick(
-                  vi: 'Dùng mã dành cho bé',
-                  en: 'Use child access code',
-                ),
-                icon: Icons.child_care,
-                filled: false,
-                onPressed: isBusy || !hasAcceptedPrivacyPolicy
-                    ? null
-                    : onChildSelected,
-              ),
-            ],
+    return AppWorkspaceSurface(
+      showAccentOrbs: false,
+      padding: EdgeInsets.all(tokens.spaceLg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.pick(
+              vi: 'Chọn cách vào BeFam',
+              en: 'Choose how to enter BeFam',
+            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
-        ),
-        SizedBox(height: tokens.spaceSm),
-        _PrivacyPolicyConsentCard(
-          isBusy: isBusy,
-          hasAcceptedPrivacyPolicy: hasAcceptedPrivacyPolicy,
-          onChanged: onPrivacyConsentChanged,
-          onViewPrivacyPolicy: onViewPrivacyPolicy,
-        ),
-      ],
+          SizedBox(height: tokens.spaceXs),
+          Text(
+            hasAcceptedPrivacyPolicy
+                ? l10n.pick(
+                    vi: 'Chọn cách phù hợp nhất với bạn để tiếp tục.',
+                    en: 'Choose the option that fits you best to continue.',
+                  )
+                : l10n.pick(
+                    vi: 'Đồng ý chính sách riêng tư trước để mở các lựa chọn đăng nhập.',
+                    en: 'Agree to the privacy policy first to unlock the sign-in options.',
+                  ),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
+          ),
+          SizedBox(height: tokens.spaceLg),
+          _PrivacyPolicyConsentCard(
+            isBusy: isBusy,
+            hasAcceptedPrivacyPolicy: hasAcceptedPrivacyPolicy,
+            onChanged: onPrivacyConsentChanged,
+            onViewPrivacyPolicy: onViewPrivacyPolicy,
+            embedded: true,
+          ),
+          SizedBox(height: tokens.spaceLg),
+          _MethodActionButton(
+            buttonKey: const Key('auth-method-phone-button'),
+            title: l10n.pick(
+              vi: 'Dùng số điện thoại',
+              en: 'Use phone number',
+            ),
+            icon: Icons.phone_iphone,
+            filled: true,
+            onPressed: isBusy || !hasAcceptedPrivacyPolicy
+                ? null
+                : onPhoneSelected,
+          ),
+          SizedBox(height: tokens.spaceSm),
+          _MethodActionButton(
+            buttonKey: const Key('auth-method-child-button'),
+            title: l10n.pick(
+              vi: 'Dùng mã dành cho bé',
+              en: 'Use child access code',
+            ),
+            icon: Icons.child_care,
+            filled: false,
+            onPressed: isBusy || !hasAcceptedPrivacyPolicy
+                ? null
+                : onChildSelected,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -570,11 +583,11 @@ class _MethodActionButton extends StatelessWidget {
         SizedBox(width: tokens.spaceMd),
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                textAlign: TextAlign.center,
+                textAlign: TextAlign.left,
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ],
@@ -633,12 +646,14 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
     required this.hasAcceptedPrivacyPolicy,
     required this.onChanged,
     required this.onViewPrivacyPolicy,
+    this.embedded = false,
   });
 
   final bool isBusy;
   final bool hasAcceptedPrivacyPolicy;
   final ValueChanged<bool> onChanged;
   final VoidCallback onViewPrivacyPolicy;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
@@ -648,117 +663,134 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final isAccepted = hasAcceptedPrivacyPolicy;
 
-    return AppWorkspaceSurface(
-      color: colorScheme.surface.withValues(alpha: 0.94),
-      padding: EdgeInsets.all(tokens.spaceMd),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(tokens.radiusMd),
-                ),
-                child: Icon(
-                  Icons.shield_outlined,
-                  color: colorScheme.primary,
-                  size: 18,
-                ),
-              ),
-              SizedBox(width: tokens.spaceSm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.pick(
-                        vi: 'Bảo vệ tài khoản của bạn',
-                        en: 'Protect your account',
-                      ),
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              AppCompactTextButton(
-                onPressed: onViewPrivacyPolicy,
-                child: Text(l10n.pick(vi: 'Xem chính sách', en: 'View policy')),
-              ),
-            ],
-          ),
-          SizedBox(height: tokens.spaceMd),
-          InkWell(
-            borderRadius: BorderRadius.circular(tokens.radiusMd),
-            onTap: isBusy ? null : () => onChanged(!isAccepted),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOut,
-              padding: EdgeInsets.symmetric(
-                horizontal: tokens.spaceMd,
-                vertical: tokens.spaceSm,
-              ),
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                color: isAccepted
-                    ? colorScheme.primaryContainer.withValues(alpha: 0.5)
-                    : colorScheme.surfaceContainerLowest.withValues(alpha: 0.8),
+                color: colorScheme.primaryContainer.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(tokens.radiusMd),
-                border: Border.all(
-                  color: isAccepted
-                      ? colorScheme.primary.withValues(alpha: 0.32)
-                      : colorScheme.outlineVariant,
-                ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              child: Icon(
+                Icons.shield_outlined,
+                color: colorScheme.primary,
+                size: 18,
+              ),
+            ),
+            SizedBox(width: tokens.spaceSm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Checkbox(
-                    key: const Key('auth-privacy-checkbox'),
-                    value: isAccepted,
-                    onChanged: isBusy
-                        ? null
-                        : (value) => onChanged(value ?? false),
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+                  Text(
+                    l10n.pick(
+                      vi: 'Bảo vệ tài khoản của bạn',
+                      en: 'Protect your account',
+                    ),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  SizedBox(width: tokens.spaceXs),
-                  Expanded(
-                    child: Text(
-                      isAccepted
-                          ? l10n.pick(
-                              vi: 'Bạn đã đồng ý với chính sách riêng tư.',
-                              en: 'You agreed to the Privacy Policy.',
-                            )
-                          : l10n.pick(
-                              vi: 'Tôi đồng ý với chính sách riêng tư của BeFam.',
-                              en: 'I agree to BeFam’s Privacy Policy.',
-                            ),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                  SizedBox(height: tokens.spaceXs / 2),
+                  Text(
+                    l10n.pick(
+                      vi: 'BeFam chỉ mở các lựa chọn đăng nhập sau khi bạn đồng ý chính sách riêng tư.',
+                      en: 'BeFam unlocks sign-in options after you agree to the privacy policy.',
+                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      height: 1.3,
                     ),
                   ),
-                  if (isAccepted)
-                    Icon(
-                      Icons.check_circle_rounded,
-                      color: colorScheme.primary,
-                      size: 18,
-                    ),
                 ],
               ),
             ),
+            AppCompactTextButton(
+              onPressed: onViewPrivacyPolicy,
+              child: Text(l10n.pick(vi: 'Xem chính sách', en: 'View policy')),
+            ),
+          ],
+        ),
+        SizedBox(height: tokens.spaceMd),
+        InkWell(
+          borderRadius: BorderRadius.circular(tokens.radiusMd),
+          onTap: isBusy ? null : () => onChanged(!isAccepted),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: EdgeInsets.symmetric(
+              horizontal: tokens.spaceMd,
+              vertical: tokens.spaceSm,
+            ),
+            decoration: BoxDecoration(
+              color: isAccepted
+                  ? colorScheme.primaryContainer.withValues(alpha: 0.5)
+                  : colorScheme.surfaceContainerLowest.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(tokens.radiusMd),
+              border: Border.all(
+                color: isAccepted
+                    ? colorScheme.primary.withValues(alpha: 0.32)
+                    : colorScheme.outlineVariant,
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Checkbox(
+                  key: const Key('auth-privacy-checkbox'),
+                  value: isAccepted,
+                  onChanged: isBusy
+                      ? null
+                      : (value) => onChanged(value ?? false),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                SizedBox(width: tokens.spaceXs),
+                Expanded(
+                  child: Text(
+                    isAccepted
+                        ? l10n.pick(
+                            vi: 'Bạn đã đồng ý với chính sách riêng tư.',
+                            en: 'You agreed to the Privacy Policy.',
+                          )
+                        : l10n.pick(
+                            vi: 'Tôi đồng ý với chính sách riêng tư của BeFam.',
+                            en: 'I agree to BeFam’s Privacy Policy.',
+                          ),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (isAccepted)
+                  Icon(
+                    Icons.check_circle_rounded,
+                    color: colorScheme.primary,
+                    size: 18,
+                  ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+
+    if (embedded) {
+      return content;
+    }
+
+    return AppWorkspaceSurface(
+      color: colorScheme.surface.withValues(alpha: 0.94),
+      padding: EdgeInsets.all(tokens.spaceMd),
+      child: content,
     );
   }
 }

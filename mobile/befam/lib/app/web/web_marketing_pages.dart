@@ -1224,7 +1224,7 @@ class _TopNavigation extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final isCompact = width < 920;
+        final isCompact = width < 1180;
 
         return Container(
           decoration: BoxDecoration(
@@ -3279,10 +3279,7 @@ class _WebFooter extends StatelessWidget {
                       vi: 'Tải trên App Store',
                       en: 'Download on App Store',
                     ),
-                    subtitle: l10n.pick(
-                      vi: 'Ứng dụng iPhone',
-                      en: 'iOS app',
-                    ),
+                    subtitle: l10n.pick(vi: 'Ứng dụng iPhone', en: 'iOS app'),
                     url: iosStoreUrl,
                   ),
                   _StoreDownloadButton(

@@ -676,6 +676,10 @@ class DebugBillingRepository implements BillingRepository {
         'Missing authenticated user for billing scope.',
       );
     }
+    final clanId = session.clanId?.trim();
+    if (clanId != null && clanId.isNotEmpty) {
+      return clanId;
+    }
     return 'user_scope__$uid';
   }
 }
