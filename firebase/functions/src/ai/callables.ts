@@ -11,7 +11,6 @@ import {
   getAiApiKey,
 } from "../config/runtime";
 import {
-  type AiFeatureName,
   enforceAiFeatureThrottle,
   enforceAiPlanUsageLimit,
 } from "./usage";
