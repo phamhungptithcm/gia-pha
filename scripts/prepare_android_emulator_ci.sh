@@ -168,8 +168,14 @@ nohup emulator \
   -no-boot-anim \
   -no-snapshot \
   > "$emulator_log" 2>&1 &
+emulator_pid="$!"
 
-adb wait-for-device
+if ! timeout 180 adb wait-for-device; then
+  echo "::error::Android emulator was not visible to adb within the timeout."
+  ps -p "$emulator_pid" -o pid,stat,command || true
+  tail -n 200 "$emulator_log" || true
+  exit 1
+fi
 
 boot_completed=0
 for _ in $(seq 1 90); do
