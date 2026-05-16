@@ -24,32 +24,197 @@ jobs:
   deep-android-debug-full:
     name: Deep E2E - Android Debug Full
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - name: Temporarily skip Android debug deep E2E
-        run: echo "::notice::Temporarily skipping Android debug deep E2E while CI is focused on build and release."
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare Android emulator
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-35" "emulator" "system-images;android-35;google_apis;x86_64"
+          echo "no" | avdmanager create avd \
+            --force \
+            --name befam_ci_api35 \
+            --package "system-images;android-35;google_apis;x86_64" \
+            --device "pixel_6"
+          sudo chmod 666 /dev/kvm || true
+          nohup emulator \
+            -avd befam_ci_api35 \
+            -no-window \
+            -gpu swiftshader_indirect \
+            -no-audio \
+            -no-boot-anim \
+            -no-snapshot \
+            > "$RUNNER_TEMP/android-emulator.log" 2>&1 &
+          adb wait-for-device
+          for attempt in $(seq 1 90); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              break
+            fi
+            sleep 2
+          done
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb devices
+
+      - name: Install Flutter dependencies
+        working-directory: mobile/befam
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Run Android full debug E2E
+        env:
+          BEFAM_E2E_FAST_MODE: "true"
+          BEFAM_E2E_SKIP_SCREENSHOTS: "true"
+        run: ./scripts/run_mobile_e2e.sh debug android full
+
+      - name: Upload Android deep E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-deep-e2e-artifacts
+          path: mobile/befam/artifacts/
 
   deep-ios-debug-full:
     name: Deep E2E - iOS Debug Full
     runs-on: macos-latest
-    timeout-minutes: 5
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - name: Temporarily skip iOS debug deep E2E
-        run: echo "::notice::Temporarily skipping iOS debug deep E2E while CI is focused on build and release."
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare iOS simulator
+        run: |
+          set -euo pipefail
+          runtime="$(
+            xcrun simctl list runtimes -j \
+              | jq -r '.runtimes[] | select(.platform == "iOS" and .isAvailable == true) | .identifier' \
+              | tail -n 1
+          )"
+          device_type="$(
+            xcrun simctl list devicetypes -j \
+              | jq -r '.devicetypes[] | select(.name == "iPhone 16" or .name == "iPhone 15" or .name == "iPhone 14") | .identifier' \
+              | tail -n 1
+          )"
+          if [ -z "$runtime" ] || [ -z "$device_type" ]; then
+            echo "::error::Could not resolve an available iOS runtime/device type."
+            exit 1
+          fi
+          simulator_id="$(xcrun simctl create befam-ci-ios "$device_type" "$runtime")"
+          xcrun simctl boot "$simulator_id"
+          xcrun simctl bootstatus "$simulator_id" -b
+          echo "BEFAM_E2E_IOS_DEVICE=$simulator_id" >> "$GITHUB_ENV"
+
+      - name: Install Flutter dependencies
+        working-directory: mobile/befam
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Run iOS full debug E2E
+        env:
+          BEFAM_E2E_FAST_MODE: "true"
+          BEFAM_E2E_SKIP_SCREENSHOTS: "true"
+          BEFAM_E2E_IOS_MAX_ATTEMPTS: "2"
+        run: ./scripts/run_mobile_e2e.sh debug ios full
+
+      - name: Upload iOS deep E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ios-deep-e2e-artifacts
+          path: mobile/befam/artifacts/
 
   deep-android-live-full:
     name: Deep E2E - Android Live Full
+    if: ${{ vars.BEFAM_E2E_LIVE_ENABLED == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 90
+    environment:
+      name: staging
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - name: Temporarily skip Android live deep E2E
-        run: echo "::notice::Temporarily skipping Android live deep E2E while CI is focused on build and release."
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare Android emulator
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-35" "emulator" "system-images;android-35;google_apis;x86_64"
+          echo "no" | avdmanager create avd \
+            --force \
+            --name befam_ci_api35_live \
+            --package "system-images;android-35;google_apis;x86_64" \
+            --device "pixel_6"
+          sudo chmod 666 /dev/kvm || true
+          nohup emulator \
+            -avd befam_ci_api35_live \
+            -no-window \
+            -gpu swiftshader_indirect \
+            -no-audio \
+            -no-boot-anim \
+            -no-snapshot \
+            > "$RUNNER_TEMP/android-live-emulator.log" 2>&1 &
+          adb wait-for-device
+          for attempt in $(seq 1 90); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              break
+            fi
+            sleep 2
+          done
+          adb devices
+
+      - name: Install Flutter dependencies
+        working-directory: mobile/befam
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Run Android full live E2E
+        env:
+          BEFAM_E2E_FAST_MODE: "false"
+          BEFAM_E2E_SKIP_SCREENSHOTS: "true"
+          BEFAM_E2E_TEST_PHONE: ${{ secrets.BEFAM_E2E_TEST_PHONE }}
+          BEFAM_E2E_TEST_OTP: ${{ secrets.BEFAM_E2E_TEST_OTP }}
+        run: ./scripts/run_mobile_e2e.sh live android full
+
+      - name: Upload Android live E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-live-e2e-artifacts
+          path: mobile/befam/artifacts/

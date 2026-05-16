@@ -17,10 +17,69 @@ jobs:
   e2e-android:
     name: E2E - Android Test Run
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - name: Temporarily skip Android E2E
-        run: echo "::notice::Temporarily skipping Android E2E while CI is focused on build and release."
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare Android emulator
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-35" "emulator" "system-images;android-35;google_apis;x86_64"
+          echo "no" | avdmanager create avd \
+            --force \
+            --name befam_ci_api35 \
+            --package "system-images;android-35;google_apis;x86_64" \
+            --device "pixel_6"
+          sudo chmod 666 /dev/kvm || true
+          nohup emulator \
+            -avd befam_ci_api35 \
+            -no-window \
+            -gpu swiftshader_indirect \
+            -no-audio \
+            -no-boot-anim \
+            -no-snapshot \
+            > "$RUNNER_TEMP/android-emulator.log" 2>&1 &
+          adb wait-for-device
+          for attempt in $(seq 1 90); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              break
+            fi
+            sleep 2
+          done
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb devices
+
+      - name: Install Flutter dependencies
+        working-directory: mobile/befam
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Run Android smoke E2E
+        env:
+          BEFAM_E2E_FAST_MODE: "true"
+          BEFAM_E2E_SKIP_SCREENSHOTS: "true"
+        run: ./scripts/run_mobile_e2e.sh debug android smoke
+
+      - name: Upload Android E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-e2e-artifacts
+          path: mobile/befam/artifacts/

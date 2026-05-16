@@ -17,10 +17,55 @@ jobs:
   e2e-ios:
     name: E2E - iOS Test Run
     runs-on: macos-latest
-    timeout-minutes: 5
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - name: Temporarily skip iOS E2E
-        run: echo "::notice::Temporarily skipping iOS E2E while CI is focused on build and release."
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare iOS simulator
+        run: |
+          set -euo pipefail
+          runtime="$(
+            xcrun simctl list runtimes -j \
+              | jq -r '.runtimes[] | select(.platform == "iOS" and .isAvailable == true) | .identifier' \
+              | tail -n 1
+          )"
+          device_type="$(
+            xcrun simctl list devicetypes -j \
+              | jq -r '.devicetypes[] | select(.name == "iPhone 16" or .name == "iPhone 15" or .name == "iPhone 14") | .identifier' \
+              | tail -n 1
+          )"
+          if [ -z "$runtime" ] || [ -z "$device_type" ]; then
+            echo "::error::Could not resolve an available iOS runtime/device type."
+            exit 1
+          fi
+          simulator_id="$(xcrun simctl create befam-ci-ios "$device_type" "$runtime")"
+          xcrun simctl boot "$simulator_id"
+          xcrun simctl bootstatus "$simulator_id" -b
+          echo "BEFAM_E2E_IOS_DEVICE=$simulator_id" >> "$GITHUB_ENV"
+
+      - name: Install Flutter dependencies
+        working-directory: mobile/befam
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Run iOS smoke E2E
+        env:
+          BEFAM_E2E_FAST_MODE: "true"
+          BEFAM_E2E_SKIP_SCREENSHOTS: "true"
+          BEFAM_E2E_IOS_MAX_ATTEMPTS: "1"
+        run: ./scripts/run_mobile_e2e.sh debug ios smoke
+
+      - name: Upload iOS E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ios-e2e-artifacts
+          path: mobile/befam/artifacts/

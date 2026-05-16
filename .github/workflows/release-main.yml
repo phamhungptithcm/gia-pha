@@ -147,6 +147,9 @@ jobs:
       - name: Install Functions dependencies
         run: npm ci
 
+      - name: Audit Functions dependencies
+        run: npm audit --audit-level=high
+
       - name: Build Functions
         run: npm run build
 
@@ -154,7 +157,7 @@ jobs:
         run: npx tsc --noEmit --noUnusedLocals --noUnusedParameters
 
       - name: Run Functions contract tests
-        run: echo "::notice::Temporarily skipping Functions contract tests while release is focused on build and publishing."
+        run: npm test
 
   quality-gate-security:
     name: Quality Gate - Security
@@ -237,17 +240,42 @@ jobs:
       - name: Enforce Dart dead-code gate
         run: dart analyze --fatal-infos --fatal-warnings
 
-      - name: Run Flutter tests
-        run: echo "::notice::Temporarily skipping Flutter tests while release is focused on build and publishing."
+      - name: Run Flutter tests with coverage
+        run: |
+          flutter test \
+            --coverage \
+            --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true \
+            --dart-define=BEFAM_OTP_PROVIDER=firebase \
+            --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
+            --dart-define=BEFAM_ENABLE_APP_CHECK=false
 
       - name: Enforce Flutter coverage gate
-        run: echo "::notice::Temporarily skipping Flutter coverage enforcement while release is focused on build and publishing."
+        env:
+          MIN_LINE_COVERAGE: "20.0"
+        run: |
+          set -euo pipefail
+          if [ ! -s coverage/lcov.info ]; then
+            echo "::error::Missing coverage/lcov.info"
+            exit 1
+          fi
+          lines="$(awk -F: '/^LF:/{total += $2} END {print total + 0}' coverage/lcov.info)"
+          hits="$(awk -F: '/^LH:/{total += $2} END {print total + 0}' coverage/lcov.info)"
+          if [ "$lines" -le 0 ]; then
+            echo "::error::Coverage file does not contain executable lines."
+            exit 1
+          fi
+          coverage="$(awk -v hits="$hits" -v lines="$lines" 'BEGIN { printf "%.2f", (hits / lines) * 100 }')"
+          echo "Flutter line coverage: ${coverage}%"
+          awk -v coverage="$coverage" -v minimum="$MIN_LINE_COVERAGE" 'BEGIN { exit coverage + 0 >= minimum + 0 ? 0 : 1 }' || {
+            echo "::error::Flutter line coverage ${coverage}% is below ${MIN_LINE_COVERAGE}%."
+            exit 1
+          }
 
       - name: Run Flutter release catalog integration contract
-        run: echo "::notice::Temporarily skipping Flutter release catalog contract while release is focused on build and publishing."
+        run: flutter test test/release/release_catalog_contract_test.dart
 
       - name: Run Flutter web smoke tests
-        run: echo "::notice::Temporarily skipping Flutter web smoke tests while release is focused on build and publishing."
+        run: flutter test test/app/web/web_marketing_pages_test.dart
 
   quality-gate-mobile-e2e-android:
     name: Quality Gate - Mobile E2E Android
@@ -258,8 +286,60 @@ jobs:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - name: Temporarily skip Android E2E quality gate
-        run: echo "::notice::Temporarily skipping Android E2E quality gate while release is focused on build and publishing."
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare Android emulator
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-35" "emulator" "system-images;android-35;google_apis;x86_64"
+          echo "no" | avdmanager create avd \
+            --force \
+            --name befam_ci_api35 \
+            --package "system-images;android-35;google_apis;x86_64" \
+            --device "pixel_6"
+          sudo chmod 666 /dev/kvm || true
+          nohup emulator \
+            -avd befam_ci_api35 \
+            -no-window \
+            -gpu swiftshader_indirect \
+            -no-audio \
+            -no-boot-anim \
+            -no-snapshot \
+            > "$RUNNER_TEMP/android-emulator.log" 2>&1 &
+          adb wait-for-device
+          for attempt in $(seq 1 90); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              break
+            fi
+            sleep 2
+          done
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb devices
+
+      - name: Install Flutter dependencies
+        working-directory: mobile/befam
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Run Android smoke E2E
+        env:
+          BEFAM_E2E_FAST_MODE: "true"
+          BEFAM_E2E_SKIP_SCREENSHOTS: "true"
+        run: ./scripts/run_mobile_e2e.sh debug android smoke
 
   preflight-production-readiness:
     name: Preflight - Production Readiness
