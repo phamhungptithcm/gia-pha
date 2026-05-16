@@ -4,7 +4,7 @@ import '../../core/widgets/app_motion.dart';
 import 'app_ui_tokens.dart';
 
 abstract final class AppTheme {
-  static ThemeData light() {
+  static ThemeData light({bool transparentScaffold = false}) {
     const uiTokens = AppUiTokens.light();
     const colorScheme = ColorScheme(
       brightness: Brightness.light,
@@ -47,7 +47,9 @@ abstract final class AppTheme {
       useMaterial3: true,
       extensions: const <ThemeExtension<dynamic>>[uiTokens],
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: colorScheme.surface,
+      scaffoldBackgroundColor: transparentScaffold
+          ? Colors.transparent
+          : colorScheme.surface,
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: BeFamPageTransitionsBuilder(),

@@ -39,6 +39,8 @@ trước và validate bằng:
 - button async có feedback khi nhấn, loading progress và chặn nhấn lặp
 - web landing, static shell, iOS và Android dùng chung lineage grid nhẹ, copy
   ngắn, web marketing card 8px và surface app yên tĩnh hơn
+- mobile route, detail page mở bằng push và secondary workspace dùng chung
+  lineage backdrop qua app shell và route scaffold trong suốt
 - tất cả route web public dùng chung logo BF, top navigation cố định trong suốt
   nhẹ, footer cố định dạng compact, artwork lineage theo home và shell
   responsive cho desktop/tablet/mobile
@@ -57,6 +59,8 @@ trước và validate bằng:
   loading progress khi request đang chạy và chặn double submit.
 - Chuyển màn hình dùng transition scale-only của BeFam. Không dùng slide/fade
   làm phản hồi mặc định khi tap.
+- Route scaffold trên iOS và Android dùng mobile theme trong suốt để màn hình
+  mở sau vẫn giữ cùng nền app như home shell.
 - Motion web landing chỉ dùng hover, focus, viền, màu và shadow nhẹ. Không thêm
   float, pulse hoặc chuyển động trang trí.
 - Navigation và footer web public nằm ngoài vùng scroll chính. Nội dung có thể

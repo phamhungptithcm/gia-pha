@@ -9,6 +9,7 @@ import '../core/services/app_locale_controller.dart';
 import '../core/services/app_locale_store.dart';
 import '../core/services/app_frame_timing_monitor.dart';
 import '../core/widgets/app_locale_scope.dart';
+import '../core/widgets/app_workspace_chrome.dart';
 import '../features/auth/presentation/auth_experience.dart';
 import '../features/auth/services/auth_analytics_service.dart';
 import '../features/auth/services/auth_gateway.dart';
@@ -160,7 +161,7 @@ class _BeFamAppState extends State<BeFamApp> {
       child: MaterialApp(
         onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(),
+        theme: AppTheme.light(transparentScaffold: true),
         locale: effectiveLocale,
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -169,6 +170,9 @@ class _BeFamAppState extends State<BeFamApp> {
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) {
+          return AppLineageBackdrop(child: child ?? authExperience);
+        },
         localeResolutionCallback: (deviceLocale, supportedLocales) {
           for (final supportedLocale in supportedLocales) {
             if (supportedLocale.languageCode == effectiveLocale.languageCode) {

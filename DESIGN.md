@@ -260,6 +260,18 @@ Digital genealogy migration flows should show one concrete next step at a time:
 start clan, add branch, add member, verify relationship, invite relatives, and
 review sensitive changes.
 
+Mobile app shell:
+
+- Every mobile route, pushed detail page, and secondary workspace must sit on
+  the shared light lineage backdrop. Route-specific `Scaffold` widgets should
+  stay transparent through `AppTheme.light(transparentScaffold: true)` so the
+  shell stays visually consistent.
+- Feature pages should prefer `AppWorkspaceViewport` and `AppWorkspaceSurface`
+  for bounded content instead of creating one-off page backgrounds.
+- Primary shell tabs keep the same bottom navigation language on iOS and
+  Android; secondary workflows open from contextual actions inside the current
+  task.
+
 Public web shell:
 
 - Top navigation and footer stay outside the main scroll container so page

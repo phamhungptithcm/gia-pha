@@ -41,6 +41,8 @@ file first and validate it with:
 - async buttons show press feedback, loading progress, and repeat-tap protection
 - web landing, static shell, iOS, and Android now share the same light lineage
   grid, short copy, 8px web marketing cards, and quiet app surfaces
+- mobile routes, pushed detail pages, and secondary workspaces inherit the
+  shared lineage backdrop through the app shell and transparent route scaffolds
 - all public web routes use the same BF brand mark, fixed translucent top
   navigation, compact fixed footer, home-style lineage artwork, and responsive
   desktop/tablet/mobile shell
@@ -60,6 +62,8 @@ file first and validate it with:
   double submits.
 - Screen transitions use BeFam's scale-only transition. Do not use slide or fade
   as a default tap response.
+- iOS and Android route scaffolds use the transparent mobile theme so pushed
+  screens keep the same app background as the home shell.
 - Web landing motion is limited to hover, focus, border, color, and shadow
   feedback. Do not add ambient float, pulse, or decorative movement.
 - Public web navigation and footer stay outside the main scroll container. The
