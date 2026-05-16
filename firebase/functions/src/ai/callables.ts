@@ -1,7 +1,6 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-import { genkit, z } from "genkit";
-import { googleAI } from "@genkit-ai/google-genai";
+import { z } from "zod";
 
 import {
   AI_ASSIST_ENABLED,
@@ -181,7 +180,21 @@ type AiFallbackReason =
   | "invalid_output"
   | "generation_error";
 
-let cachedAiClient: ReturnType<typeof genkit> | null = null;
+type GeminiClient = {
+  apiKey: string;
+};
+
+type GeminiGenerateResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+      }>;
+    };
+  }>;
+};
+
+let cachedAiClient: GeminiClient | null = null;
 let cachedAiApiKey = "";
 
 export const reviewProfileDraftAi = onCall(
@@ -428,18 +441,18 @@ export const chatWithAppAssistantAi = onCall(
       prompt: [
         localized(
           locale,
-          "Bạn là trợ lý tìm kiếm và hỗ trợ trong app BeFam. Nhiệm vụ của bạn là giúp người dùng: 1) tìm nhanh người thân/thành viên trong gia phả đang mở, 2) hiểu nên vào khu nào của app để làm việc, 3) tóm tắt vài bước thao tác ngắn gọn. Không hứa tính năng chưa có, không bịa dữ liệu, và không trả lời như chatbot chung chung.",
-          "You are the BeFam in-app search and help assistant. Your job is to help the user: 1) quickly find relatives or members in the active genealogy, 2) understand which app area fits the task, and 3) summarize a few short action steps. Never promise unavailable features, invent data, or answer like a generic chatbot.",
+          "Bạn là trợ lý trong app BeFam. Hãy trả lời như một người hỗ trợ đang nhắn lại cho người dùng: tự nhiên, thân thiện, ngắn gọn, đúng câu hỏi. Luôn trả lời trực tiếp ý chính trước trong 1-2 câu, rồi mới thêm tối đa 2-3 gợi ý ngắn nếu thật sự cần. Không hứa tính năng chưa có, không bịa dữ liệu, và không trả lời kiểu máy móc.",
+          "You are the BeFam in-app assistant. Reply like a helpful person chatting back to the user: natural, warm, concise, and directly on point. Always answer the main question first in 1-2 sentences, then add at most 2-3 short next suggestions only when needed. Never promise unavailable features, invent data, or sound mechanical.",
         ),
         localized(
           locale,
-          "Nếu SEARCH_CONTEXT_JSON có memberMatches và câu hỏi liên quan người trong gia phả, hãy ưu tiên dùng chính dữ liệu đó làm căn cứ. Nếu có nhiều kết quả gần đúng, nói rõ là có nhiều ứng viên và nêu cách xác minh. Nếu không có kết quả rõ ràng, nói thẳng là chưa tìm thấy chắc chắn trong gia phả hiện tại và hướng người dùng sang Tree để kiểm tra thêm.",
-          "If SEARCH_CONTEXT_JSON contains memberMatches and the question is about people in the genealogy, treat that data as the source of truth. If there are multiple close matches, say so clearly and explain how to verify them. If there is no clear match, say that you could not confidently find one in the active clan and direct the user to Tree for a manual check.",
+          "Nếu SEARCH_CONTEXT_JSON có memberMatches và câu hỏi liên quan người trong gia phả, hãy dùng chính dữ liệu đó làm căn cứ. Khi có kết quả, nêu luôn người phù hợp nhất hoặc nói rõ đang có vài ứng viên gần giống nhau. Khi chưa có kết quả chắc chắn, nói mềm và rõ: chưa thấy ai khớp rõ trong gia phả hiện tại, rồi gợi ý cách tìm tiếp.",
+          "If SEARCH_CONTEXT_JSON contains memberMatches and the question is about people in the genealogy, use that data as the source of truth. When there are matches, lead with the best match or explain clearly that there are several close candidates. When there is no confident match, say that gently and clearly, then suggest the best next way to search.",
         ),
         localized(
           locale,
-          "Trả lời ngắn, thực dụng, ưu tiên 2-4 bước thao tác. Nếu cần điều hướng, chỉ chọn một đích trong home/tree/events/billing/profile hoặc none. Khi dùng dữ liệu người thân, chỉ dựa trên JSON đã được gửi lên, không bịa thêm số điện thoại, địa chỉ, quan hệ hay lịch sử gia đình.",
-          "Keep the answer concise and practical, prioritizing 2-4 actionable steps. If navigation would help, choose exactly one destination from home/tree/events/billing/profile or none. When using relative/member data, rely only on the provided JSON and never invent phone numbers, addresses, relationships, or family history.",
+          "Ưu tiên câu trả lời hữu ích hơn là nhiều mục liệt kê. Chỉ dùng steps khi nó thực sự giúp người dùng làm tiếp nhanh hơn. Chỉ chọn một suggestedDestination nếu điều đó giúp người dùng chuyển đúng màn. Khi dùng dữ liệu người thân, chỉ dựa trên JSON đã gửi lên, không bịa thêm số điện thoại, địa chỉ, quan hệ hay lịch sử gia đình.",
+          "Prefer a useful direct answer over a long checklist. Only use steps when they genuinely help the user move faster. Choose only one suggestedDestination if it clearly helps. When using relative/member data, rely only on the provided JSON and never invent phone numbers, addresses, relationships, or family history.",
         ),
         `APP_CONTEXT_JSON:\n${JSON.stringify(
           {
@@ -552,24 +565,12 @@ async function maybeGenerateStructured<T>(input: {
   const runtimeResult = await runAiTaskWithFallback<T>({
     fallback: input.fallback,
     timeoutMs: AI_ASSIST_TIMEOUT_MS,
-    task: async () => {
-      const response = await aiClient.generate({
-        model: `googleai/${AI_ASSIST_MODEL}`,
-        system: input.system,
-        prompt: input.prompt,
-        output: { schema: input.schema },
-        config: {
-          temperature: 0.25,
-          maxOutputTokens: 750,
-        },
-      });
-
-      if (response.output == null) {
-        throw new Error("AI response did not match the expected schema.");
-      }
-
-      return response.output;
-    },
+    task: () => generateStructuredOutput({
+      client: aiClient,
+      schema: input.schema,
+      system: input.system,
+      prompt: input.prompt,
+    }),
   });
 
   const result: StructuredAiResult<T> = {
@@ -641,7 +642,97 @@ function logAiExecution(input: {
   logInfo("AI callable completed", payload);
 }
 
-function getAiClient(): ReturnType<typeof genkit> | null {
+async function generateStructuredOutput<T>(input: {
+  client: GeminiClient;
+  schema: z.ZodType<T>;
+  system: string;
+  prompt: string;
+}): Promise<T> {
+  const model = AI_ASSIST_MODEL.trim();
+  if (model.length === 0) {
+    throw new Error("AI model is not configured.");
+  }
+
+  const modelName = model.startsWith("models/")
+    ? model.slice("models/".length)
+    : model;
+  const endpoint =
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      modelName,
+    )}:generateContent?key=${encodeURIComponent(input.client.apiKey)}`;
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: input.system }],
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: [
+                input.prompt,
+                "Return only a valid JSON object matching the requested shape.",
+              ].join("\n\n"),
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.25,
+        maxOutputTokens: 750,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`AI generation failed with status ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as GeminiGenerateResponse;
+  const text =
+    payload.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text ?? "")
+      .join("\n")
+      .trim() ?? "";
+  if (text.length === 0) {
+    throw new Error("AI response did not include text output.");
+  }
+
+  const parsed = parseAiJsonObject(text);
+  const result = input.schema.safeParse(parsed);
+  if (!result.success) {
+    throw new Error("AI response did not match the expected schema.");
+  }
+  return result.data;
+}
+
+function parseAiJsonObject(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    try {
+      const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+      if (fenced?.[1] != null) {
+        return JSON.parse(fenced[1]);
+      }
+      const start = text.indexOf("{");
+      const end = text.lastIndexOf("}");
+      if (start >= 0 && end > start) {
+        return JSON.parse(text.slice(start, end + 1));
+      }
+    } catch {
+      // Normalize all malformed JSON cases to the same safe fallback reason.
+    }
+    throw new Error("AI response did not match the expected schema.");
+  }
+}
+
+function getAiClient(): GeminiClient | null {
   const apiKey = getAiApiKey();
   if (!AI_ASSIST_ENABLED || apiKey.length === 0) {
     return null;
@@ -652,9 +743,7 @@ function getAiClient(): ReturnType<typeof genkit> | null {
   }
 
   cachedAiApiKey = apiKey;
-  cachedAiClient = genkit({
-    plugins: [googleAI({ apiKey })],
-  });
+  cachedAiClient = { apiKey };
   return cachedAiClient;
 }
 
@@ -1220,16 +1309,12 @@ function buildAppAssistantFallback(
   return {
     answer: localized(
       locale,
-      "Mình có thể giúp bạn đi đúng chỗ trong BeFam và rút gọn các bước thao tác cần làm.",
-      "I can help you move to the right BeFam area and shorten the steps you need to take.",
+      "Bạn cứ hỏi như đang nhắn tin với mình. Mình sẽ trả lời ngắn gọn và chỉ đúng chỗ cần vào trong BeFam.",
+      "Ask me as if you were texting a helper. I will keep it short and point you to the right place in BeFam.",
     ),
     steps: defaultAssistantSteps(locale, screenId),
     quickReplies: buildDefaultQuickReplies(locale, screenId),
-    caution: localized(
-      locale,
-      "Nếu bạn nói rõ mục tiêu hơn, mình sẽ chỉ đúng màn và đúng thứ tự thao tác.",
-      "If you tell me the goal more clearly, I can point you to the exact screen and action order.",
-    ),
+    caution: "",
     suggestedDestination: screenId,
   };
 }
@@ -1251,21 +1336,21 @@ function buildAppAssistantMemberSearchFallback(
   const summary = matches.length === 1
     ? localized(
         locale,
-        `Mình tìm thấy hồ sơ gần nhất là ${topMatch.displayName} trong ${
-          clanLabel.length > 0 ? clanLabel : "gia phả hiện tại"
+        `Mình thấy ${topMatch.displayName} khá khớp với câu hỏi của bạn trong ${
+          clanLabel.length > 0 ? clanLabel : "gia phả đang mở"
         }.`,
-        `The closest matching profile is ${topMatch.displayName} in ${
-          clanLabel.length > 0 ? clanLabel : "the active clan"
+        `I found ${topMatch.displayName}, which looks like a good match for your question in ${
+          clanLabel.length > 0 ? clanLabel : "the active family tree"
         }.`,
       )
     : localized(
         locale,
-        `Mình tìm thấy ${matches.length} hồ sơ gần với “${
+        `Mình thấy ${matches.length} hồ sơ khá gần với “${
           input.searchContext.searchQueryHint || input.question.trim()
-        }” trong ${clanLabel.length > 0 ? clanLabel : "gia phả hiện tại"}.`,
-        `I found ${matches.length} close matches for “${
+        }” trong ${clanLabel.length > 0 ? clanLabel : "gia phả đang mở"}.`,
+        `I found ${matches.length} close profiles for “${
           input.searchContext.searchQueryHint || input.question.trim()
-        }” in ${clanLabel.length > 0 ? clanLabel : "the active clan"}.`,
+        }” in ${clanLabel.length > 0 ? clanLabel : "the active family tree"}.`,
       );
   const steps = [
     describeAssistantMemberMatch(locale, topMatch),
@@ -1273,16 +1358,11 @@ function buildAppAssistantMemberSearchFallback(
       ? [
           localized(
             locale,
-            "Có nhiều hồ sơ gần giống nhau, nên đối chiếu thêm chi, đời và mốc sinh/mất trước khi kết luận.",
-            "There are multiple close matches, so compare branch, generation, and birth/death clues before deciding.",
+            "Có vài người khá giống nhau, nên bạn nhìn thêm chi, đời và năm sinh để chốt đúng người.",
+            "There are a few similar people, so compare branch, generation, and birth year before deciding.",
           ),
         ]
       : []),
-    localized(
-      locale,
-      "Mở Tree để kiểm tra đúng hồ sơ và xem tiếp các quan hệ trong gia phả.",
-      "Open Tree to verify the right profile and inspect relationships in the genealogy.",
-    ),
   ];
 
   return {
@@ -1293,11 +1373,13 @@ function buildAppAssistantMemberSearchFallback(
       localized(locale, "Tìm người khác", "Search another person"),
       localized(locale, "Cách thêm thành viên?", "How do I add a member?"),
     ],
-    caution: localized(
-      locale,
-      "Kết quả này dựa trên các hồ sơ gần nhất trong gia phả đang mở, không phải xác nhận tuyệt đối nếu có nhiều người trùng tên.",
-      "This is based on the closest profiles in the active genealogy and is not an absolute identity confirmation when names overlap.",
-    ),
+    caution: matches.length > 1
+      ? localized(
+          locale,
+          "Mình chưa khẳng định tuyệt đối nếu trong cây đang có nhiều người trùng hoặc gần giống tên.",
+          "I would not confirm with full certainty when several people have the same or very similar names.",
+        )
+      : "",
     suggestedDestination: "tree",
   };
 }
@@ -1635,11 +1717,11 @@ function buildDefaultQuickReplies(
   switch (screenId) {
     case "tree":
       return [
-        localized(locale, "Cách thêm thành viên?", "How do I add a member?"),
+        localized(locale, "Tìm người thân của tôi", "Find my relatives"),
         localized(
           locale,
-          "Cách nối quan hệ?",
-          "How do I connect relationships?",
+          "Cách thêm thành viên?",
+          "How do I add a member?",
         ),
         localized(
           locale,
@@ -1671,8 +1753,8 @@ function buildDefaultQuickReplies(
       ];
     default:
       return [
-        localized(locale, "Bắt đầu từ đâu?", "Where should I start?"),
         localized(locale, "Tìm người thân", "Find a relative"),
+        localized(locale, "Bắt đầu từ đâu?", "Where should I start?"),
         localized(locale, "Tạo sự kiện", "Create an event"),
       ];
   }
