@@ -9,6 +9,12 @@ class _AuthScaffold extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final l10n = context.l10n;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final useCompactKeyboardLayout =
+        keyboardInset > 0 &&
+        (controller.step == AuthStep.phoneNumber ||
+            controller.step == AuthStep.childIdentifier ||
+            controller.step == AuthStep.otp);
     controller.setPreferredLanguageCode(
       Localizations.localeOf(context).languageCode,
     );
@@ -29,17 +35,24 @@ class _AuthScaffold extends StatelessWidget {
         child: SafeArea(
           child: AppWorkspaceViewport(
             child: ListView(
-              padding: appWorkspacePagePadding(context, top: 20, bottom: 32),
+              padding: appWorkspacePagePadding(
+                context,
+                top: 20,
+                bottom: 32 + keyboardInset,
+              ),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               children: [
-                _AuthHero(
-                  step: controller.step,
-                  challenge: controller.pendingChallenge,
-                  resolution: controller.pendingPhoneResolution,
-                  verificationChallenge: controller.verificationChallenge,
-                ),
-                const SizedBox(height: 16),
-                _AuthStepProgress(step: controller.step),
-                const SizedBox(height: 16),
+                if (!useCompactKeyboardLayout) ...[
+                  _AuthHero(
+                    step: controller.step,
+                    challenge: controller.pendingChallenge,
+                    resolution: controller.pendingPhoneResolution,
+                    verificationChallenge: controller.verificationChallenge,
+                  ),
+                  const SizedBox(height: 16),
+                  _AuthStepProgress(step: controller.step),
+                  const SizedBox(height: 16),
+                ],
                 if (controller.error case final issue?) ...[
                   _AuthMessageCard(
                     title: l10n.authSignInNeedsAttention,
@@ -854,6 +867,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
 
   Future<void> _submit() async {
     _normalizePhoneInputForCountry();
+    FocusScope.of(context).unfocus();
     final l10n = context.l10n;
     final value = _controller.text.trim();
     if (value.isEmpty) {
@@ -942,6 +956,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
                         onSubmitted: widget.isBusy
                             ? null
                             : (_) {
+                                FocusScope.of(context).unfocus();
                                 unawaited(_submit());
                               },
                       ),
@@ -969,6 +984,9 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
                 : l10n.pick(vi: 'Nhận mã OTP', en: 'Get OTP code'),
             isLoading: widget.isBusy,
             onPressed: widget.isBusy ? null : _submit,
+          ),
+          SizedBox(
+            height: MediaQuery.viewInsetsOf(context).bottom > 0 ? 24 : 0,
           ),
         ],
       ),

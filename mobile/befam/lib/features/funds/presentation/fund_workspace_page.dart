@@ -347,7 +347,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         final currentFund = _controller.selectedFund;
         final hasFunds = _controller.funds.isNotEmpty;
         final listBottomPadding =
-            (_controller.canManageFunds ? 120.0 : 32.0) +
+            (_controller.canManageFunds ? 176.0 : 96.0) +
             MediaQuery.paddingOf(context).bottom;
         final displayCurrency =
             currentFund?.currency ??
@@ -1751,9 +1751,11 @@ class _FundEditorSheet extends StatefulWidget {
 
 class _FundEditorSheetState extends State<_FundEditorSheet> {
   final _formKey = GlobalKey<FormState>();
+  final _nameFieldScrollKey = GlobalKey();
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _branchIdController;
+  late final FocusNode _nameFocusNode;
 
   late String _fundType;
   late String _currency;
@@ -1765,6 +1767,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
   String? _memberLoadError;
   FundRepositoryErrorCode? _submitError;
   bool _isSubmitting = false;
+  bool _showValidationErrors = false;
   int _editorStep = 0;
 
   static const _fundTypes = [
@@ -1780,6 +1783,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialDraft.name);
+    _nameFocusNode = FocusNode();
     _descriptionController = TextEditingController(
       text: widget.initialDraft.description,
     );
@@ -1811,6 +1815,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
   @override
   void dispose() {
     _nameController.dispose();
+    _nameFocusNode.dispose();
     _descriptionController.dispose();
     _branchIdController.dispose();
     super.dispose();
@@ -1836,6 +1841,12 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
 
     final formIsValid = _formKey.currentState?.validate() ?? false;
     if (!formIsValid) {
+      if (!_showValidationErrors) {
+        setState(() {
+          _showValidationErrors = true;
+        });
+      }
+      _focusFirstInvalidStepOneField();
       if (showSnackBar) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1853,8 +1864,29 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
     return true;
   }
 
+  void _focusFirstInvalidStepOneField() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _nameFocusNode.requestFocus();
+      final fieldContext = _nameFieldScrollKey.currentContext;
+      if (fieldContext == null) {
+        return;
+      }
+      unawaited(
+        Scrollable.ensureVisible(
+          fieldContext,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: 0.08,
+        ),
+      );
+    });
+  }
+
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!_validateStepOne(showSnackBar: true)) {
       return;
     }
 
@@ -2229,6 +2261,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
           child: Form(
             key: _formKey,
+            autovalidateMode: _showValidationErrors
+                ? AutovalidateMode.onUserInteraction
+                : AutovalidateMode.disabled,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2296,25 +2331,29 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
-                    key: const Key('fund-name-input'),
-                    controller: _nameController,
-                    decoration: appFieldDecoration(
-                      label: l10n.pick(vi: 'Tên quỹ', en: 'Fund name'),
-                      required: true,
-                      hintText: l10n.pick(
-                        vi: 'Quỹ khuyến học',
-                        en: 'Scholarship Fund',
+                  KeyedSubtree(
+                    key: _nameFieldScrollKey,
+                    child: TextFormField(
+                      key: const Key('fund-name-input'),
+                      controller: _nameController,
+                      focusNode: _nameFocusNode,
+                      decoration: appFieldDecoration(
+                        label: l10n.pick(vi: 'Tên quỹ', en: 'Fund name'),
+                        required: true,
+                        hintText: l10n.pick(
+                          vi: 'Quỹ khuyến học',
+                          en: 'Scholarship Fund',
+                        ),
                       ),
+                      validator: (value) {
+                        return value == null || value.trim().isEmpty
+                            ? l10n.pick(
+                                vi: 'Tên quỹ là bắt buộc.',
+                                en: 'Fund name is required.',
+                              )
+                            : null;
+                      },
                     ),
-                    validator: (value) {
-                      return value == null || value.trim().isEmpty
-                          ? l10n.pick(
-                              vi: 'Tên quỹ là bắt buộc.',
-                              en: 'Fund name is required.',
-                            )
-                          : null;
-                    },
                   ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(

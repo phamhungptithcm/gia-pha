@@ -878,6 +878,18 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         final languageLabel = selectedLanguageCode == 'vi'
             ? l10n.profileLanguageVietnamese
             : l10n.profileLanguageEnglish;
+        final settingsSection = _ProfileSectionCard(
+          title: l10n.pick(vi: 'Tùy chọn', en: 'Preferences'),
+          child: _ProfileCompactMenuTile(
+            icon: Icons.tune_rounded,
+            title: l10n.pick(vi: 'Mở cài đặt', en: 'Open settings'),
+            subtitle: l10n.pick(
+              vi: 'Ngôn ngữ: $languageLabel',
+              en: 'Language: $languageLabel',
+            ),
+            onTap: _openSettings,
+          ),
+        );
 
         return Scaffold(
           appBar: widget.showAppBar
@@ -962,6 +974,8 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                             ),
                             const SizedBox(height: 16),
                           ],
+                          settingsSection,
+                          const SizedBox(height: 16),
                           _ProfileSectionCard(
                             title: l10n.pick(
                               vi: 'Thông tin chính',
@@ -1064,22 +1078,6 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                                       ),
                                     ],
                                   ),
-                          ),
-                          const SizedBox(height: 16),
-                          _ProfileSectionCard(
-                            title: l10n.pick(vi: 'Tùy chọn', en: 'Preferences'),
-                            child: _ProfileCompactMenuTile(
-                              icon: Icons.tune_rounded,
-                              title: l10n.pick(
-                                vi: 'Mở cài đặt',
-                                en: 'Open settings',
-                              ),
-                              subtitle: l10n.pick(
-                                vi: 'Ngôn ngữ: $languageLabel',
-                                en: 'Language: $languageLabel',
-                              ),
-                              onTap: _openSettings,
-                            ),
                           ),
                         ],
                       ),
@@ -2311,54 +2309,75 @@ class _ProfileCompactMenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    void effectiveOnTap() {
+      FocusManager.instance.primaryFocus?.unfocus();
+      onTap();
+    }
 
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: AppWorkspaceSurface(
-          color: Colors.white.withValues(alpha: 0.76),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer.withValues(alpha: 0.82),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, color: colorScheme.onPrimaryContainer),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: effectiveOnTap,
+        child: Semantics(
+          button: true,
+          label: '$title, $subtitle',
+          onTap: effectiveOnTap,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: effectiveOnTap,
+            child: AppWorkspaceSurface(
+              color: Colors.white.withValues(alpha: 0.76),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer.withValues(
+                        alpha: 0.82,
                       ),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                    alignment: Alignment.center,
+                    child: Icon(icon, color: colorScheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: effectiveOnTap,
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                    style: IconButton.styleFrom(
+                      tapTargetSize: MaterialTapTargetSize.padded,
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: colorScheme.onSecondaryContainer,
+                      backgroundColor: colorScheme.secondaryContainer,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -2925,7 +2944,12 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
           ],
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            14,
+            20,
+            28 + MediaQuery.paddingOf(context).bottom,
+          ),
           child: Form(
             key: _formKey,
             child: Column(

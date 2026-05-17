@@ -1206,9 +1206,10 @@ class _AiTranscriptEntry {
     final followUp = response.steps.isNotEmpty
         ? response.steps.first.trim()
         : response.caution.trim();
-    return [answer, followUp]
-        .where((line) => line.trim().isNotEmpty)
-        .join('\n');
+    return [
+      answer,
+      followUp,
+    ].where((line) => line.trim().isNotEmpty).join('\n');
   }
 }
 
@@ -1216,6 +1217,7 @@ IconData _iconForScreen(String screenId) {
   return switch (screenId) {
     'tree' => Icons.account_tree_outlined,
     'events' => Icons.event_outlined,
+    'funds' => Icons.volunteer_activism_outlined,
     'billing' => Icons.workspace_premium_outlined,
     'profile' => Icons.person_outline,
     _ => Icons.space_dashboard_outlined,
@@ -1275,10 +1277,7 @@ _AssistantScreenConfig _assistantScreenConfig(
         en: 'For example: who are my siblings, find Nguyen Minh...',
       ),
       starterPrompts: [
-        l10n.pick(
-          vi: 'Anh em ruột của tôi là ai?',
-          en: 'Who are my siblings?',
-        ),
+        l10n.pick(vi: 'Anh em ruột của tôi là ai?', en: 'Who are my siblings?'),
         l10n.pick(
           vi: 'Tìm người thân tên Nguyễn Minh',
           en: 'Find a relative named Nguyen Minh',
@@ -1316,6 +1315,40 @@ _AssistantScreenConfig _assistantScreenConfig(
         l10n.pick(
           vi: 'Nên dùng lịch âm hay dương cho sự kiện này?',
           en: 'Should I use the lunar or solar calendar for this event?',
+        ),
+      ],
+    ),
+    'funds' => _AssistantScreenConfig(
+      launcherLabel: l10n.pick(
+        vi: 'Mở trợ lý cho quỹ',
+        en: 'Open helper for funds',
+      ),
+      launcherTooltip: l10n.pick(vi: 'Hỏi về quỹ', en: 'Ask about funds'),
+      launcherIcon: Icons.volunteer_activism_outlined,
+      panelTitle: l10n.pick(
+        vi: 'Hỏi nhanh về quỹ',
+        en: 'Ask quickly about funds',
+      ),
+      panelSubtitle: l10n.pick(
+        vi: 'Tôi chỉ nhắc bạn kiểm tra vai trò, số dư và ghi chú. Mọi thay đổi tiền cần bạn tự xác nhận.',
+        en: 'I only help check roles, balance, and notes. Money changes need your confirmation.',
+      ),
+      promptIntro: l10n.pick(
+        vi: 'Bạn cần kiểm tra gì trong sổ quỹ?',
+        en: 'What do you need to check in funds?',
+      ),
+      composerHint: l10n.pick(
+        vi: 'Ví dụ: trước khi ghi khoản chi cần kiểm tra gì...',
+        en: 'For example: what should I check before recording an expense...',
+      ),
+      starterPrompts: [
+        l10n.pick(
+          vi: 'Trước khi ghi khoản thu chi cần kiểm tra gì?',
+          en: 'What should I check before recording money?',
+        ),
+        l10n.pick(
+          vi: 'Ai nên thấy báo cáo quỹ?',
+          en: 'Who should see fund reports?',
         ),
       ],
     ),

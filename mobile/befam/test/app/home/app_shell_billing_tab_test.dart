@@ -120,6 +120,11 @@ void main() {
       await tester.tap(find.text('Funds'));
       await pumpUi(tester);
 
+      expect(find.byKey(const Key('shell-ai-assistant-button')), findsNothing);
+
+      await tester.tap(find.text('Events'));
+      await pumpUi(tester);
+
       expect(
         find.byKey(const Key('shell-ai-assistant-button')),
         findsOneWidget,

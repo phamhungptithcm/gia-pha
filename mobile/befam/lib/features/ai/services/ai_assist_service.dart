@@ -333,7 +333,12 @@ class AppAssistantReply {
       quickReplies: _asStringList(data['quickReplies']),
       caution: (data['caution'] as String? ?? '').trim(),
       suggestedDestination: switch (destination) {
-        'home' || 'tree' || 'events' || 'billing' || 'profile' => destination,
+        'home' ||
+        'tree' ||
+        'events' ||
+        'funds' ||
+        'billing' ||
+        'profile' => destination,
         _ => null,
       },
       usedFallback: data['usedFallback'] as bool? ?? false,
@@ -509,10 +514,11 @@ AppAssistantReply _buildLocalAssistantFallback({
   String? activeClanName,
 }) {
   final isVietnamese = locale.trim().toLowerCase().startsWith('vi');
-  final clanLabel = (searchContext.activeClanName.trim().isNotEmpty
-          ? searchContext.activeClanName
-          : (activeClanName ?? ''))
-      .trim();
+  final clanLabel =
+      (searchContext.activeClanName.trim().isNotEmpty
+              ? searchContext.activeClanName
+              : (activeClanName ?? ''))
+          .trim();
   final matches = searchContext.memberMatches;
   final queryHint = searchContext.searchQueryHint.trim().isNotEmpty
       ? searchContext.searchQueryHint.trim()
@@ -682,6 +688,8 @@ String _fallbackAssistantAnswerVi(String currentScreenId) {
       return 'Mình có thể giúp bạn tìm người thân trong gia phả hoặc chỉ nhanh nên mở nhánh nào để kiểm tra tiếp.';
     case 'events':
       return 'Mình có thể giúp bạn tìm nhanh việc cần làm cho sự kiện, ngày giỗ, hoặc nhắc bạn nên điền gì trước.';
+    case 'funds':
+      return 'Mình có thể nhắc bạn kiểm tra vai trò, số dư và ghi chú giao dịch. Mọi thay đổi quỹ vẫn cần bạn tự xác nhận.';
     case 'billing':
       return 'Mình có thể giải thích nhanh gói hiện tại của bạn và lúc nào nên nâng cấp.';
     case 'profile':
@@ -697,6 +705,8 @@ String _fallbackAssistantAnswerEn(String currentScreenId) {
       return 'I can help you find a relative in the tree or point to the right branch to inspect next.';
     case 'events':
       return 'I can help you move through event setup, memorial tasks, or the next detail to fill in.';
+    case 'funds':
+      return 'I can help you check roles, balance, and transaction notes. Fund changes still need your confirmation.';
     case 'billing':
       return 'I can quickly explain your current plan and when an upgrade would make sense.';
     case 'profile':
@@ -719,7 +729,16 @@ List<String> _defaultAssistantQuickReplies({
     case 'events':
       return <String>[
         isVietnamese ? 'Tạo ngày giỗ' : 'Create a memorial event',
-        isVietnamese ? 'Nhắc tôi nên điền gì trước' : 'What should I fill first?',
+        isVietnamese
+            ? 'Nhắc tôi nên điền gì trước'
+            : 'What should I fill first?',
+      ];
+    case 'funds':
+      return <String>[
+        isVietnamese ? 'Kiểm tra số dư quỹ' : 'Check fund balance',
+        isVietnamese
+            ? 'Ghi khoản thu chi cần chú ý gì?'
+            : 'What should I check before recording money?',
       ];
     default:
       return <String>[
@@ -733,6 +752,7 @@ String? _defaultAssistantDestination(String currentScreenId) {
   switch (currentScreenId.trim().toLowerCase()) {
     case 'tree':
     case 'events':
+    case 'funds':
     case 'billing':
     case 'profile':
     case 'home':

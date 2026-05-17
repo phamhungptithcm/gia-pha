@@ -1151,7 +1151,12 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
           ],
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            14,
+            20,
+            28 + MediaQuery.paddingOf(context).bottom,
+          ),
           child: Form(
             key: _formKey,
             child: Column(

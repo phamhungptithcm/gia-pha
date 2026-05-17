@@ -474,21 +474,25 @@ class _AppShellPageState extends State<AppShellPage>
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (context) {
-            return BillingWorkspacePage(
-              session: _session,
-              repository: _billingRepository,
-            );
-          },
-        ),
-      );
+      _pushBillingWorkspace();
     });
+  }
+
+  void _pushBillingWorkspace() {
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return BillingWorkspacePage(
+            session: _session,
+            repository: _billingRepository,
+          );
+        },
+      ),
+    );
   }
 
   String? _normalizeNotificationReferenceId(String? value) {
@@ -557,7 +561,11 @@ class _AppShellPageState extends State<AppShellPage>
   }
 
   bool _screenHasTrailingFloatingActions(String screenId) {
-    return screenId == 'tree' || screenId == 'events' || screenId == 'funds';
+    return screenId == 'tree' || screenId == 'events';
+  }
+
+  bool _screenAllowsPersistentAiAssistant(String screenId) {
+    return screenId == 'tree' || screenId == 'events';
   }
 
   FloatingActionButtonLocation _assistantFabLocation({
@@ -581,7 +589,6 @@ class _AppShellPageState extends State<AppShellPage>
     setState(() {
       _selectedIndex = index;
       _visitedDestinationIndexes.add(index);
-      _dismissAdBannerForSession = false;
     });
     _adController.recordNavigationTransition(
       fromScreenId: _screenIdForIndex(previousIndex),
@@ -1067,7 +1074,7 @@ class _AppShellPageState extends State<AppShellPage>
         _hasClanContext &&
         _session.accessMode != AuthMemberAccessMode.unlinked &&
         (_session.clanId ?? '').trim().isNotEmpty &&
-        currentScreenId != 'home';
+        _screenAllowsPersistentAiAssistant(currentScreenId);
     final assistantFabLocation = _assistantFabLocation(
       useRailNavigation: layout.useRailNavigation,
       screenId: currentScreenId,
@@ -1082,8 +1089,13 @@ class _AppShellPageState extends State<AppShellPage>
             memberRepository: widget.memberRepository,
             billingRepository: _billingRepository,
             onOpenDestinationRequested: (destinationId) {
+              final normalizedDestinationId = destinationId.trim();
+              if (normalizedDestinationId == 'billing') {
+                _pushBillingWorkspace();
+                return;
+              }
               final index = destinations.indexWhere(
-                (destination) => destination.id == destinationId,
+                (destination) => destination.id == normalizedDestinationId,
               );
               if (index >= 0) {
                 _selectDestination(index);
