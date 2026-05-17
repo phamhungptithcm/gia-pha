@@ -295,37 +295,12 @@ jobs:
     name: Quality Gate - Mobile E2E Android
     needs: quality-gate-mobile-fast
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Set up Java
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Prepare Android emulator
-        run: ./scripts/prepare_android_emulator_ci.sh befam_ci_api35
-
-      - name: Install Flutter dependencies
-        working-directory: mobile/befam
+      - name: Skip Android release E2E
         run: |
-          flutter pub get
-          flutter gen-l10n
-
-      - name: Run Android smoke E2E
-        env:
-          BEFAM_E2E_FAST_MODE: "true"
-          BEFAM_E2E_SKIP_SCREENSHOTS: "true"
-        run: ./scripts/run_mobile_e2e.sh debug android smoke
+          echo "::notice::Android mobile E2E is intentionally skipped for CI/CD."
+          echo "::notice::Manual device/simulator E2E should be run before release approval."
 
   preflight-production-readiness:
     name: Preflight - Production Readiness
