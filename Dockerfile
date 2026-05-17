@@ -16,6 +16,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PUB_CACHE=/opt/.pub-cache
 
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
       bash \
       ca-certificates \
