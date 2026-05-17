@@ -126,6 +126,11 @@ class AppEnvironment {
       !kReleaseMode &&
       bool.fromEnvironment('BEFAM_USE_MOCK_AUTH', defaultValue: false);
 
+  static const String mockAuthOtpCode = String.fromEnvironment(
+    'BEFAM_MOCK_AUTH_OTP',
+    defaultValue: '123456',
+  );
+
   static const bool allowFirebasePhoneAuthFallback =
       !kReleaseMode &&
       bool.fromEnvironment(

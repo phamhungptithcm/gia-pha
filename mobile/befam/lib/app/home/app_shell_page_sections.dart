@@ -1672,9 +1672,15 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
 
   late Future<_NearbyRelativeLoadResult> _future;
   _NearbyRelativeLoadResult? _cachedResult;
+  bool _hasScheduledInitialLoad = false;
   bool _isRefreshing = false;
   String _lastNearbyAlertSignature = '';
   DateTime? _lastNearbyAlertAt;
+
+  bool get _usesLocalSandboxData =>
+      widget.session.isSandbox ||
+      widget.memberRepository.isSandbox ||
+      AppEnvironment.useMockAuth;
 
   CollectionReference<Map<String, dynamic>> get _membersCollection =>
       FirebaseServices.firestore.collection('members');
@@ -1682,6 +1688,15 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_hasScheduledInitialLoad) {
+      return;
+    }
+    _hasScheduledInitialLoad = true;
     _future = _loadNearbyRelativesAndCache();
   }
 
@@ -1758,6 +1773,17 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
         message: l10n.pick(
           vi: 'Tham gia gia phả để biết ai trong gia đình đang ở gần bạn.',
           en: 'Join a genealogy first to see nearby relatives.',
+        ),
+      );
+    }
+    if (_usesLocalSandboxData) {
+      return _NearbyRelativeLoadResult(
+        items: const [],
+        canRetry: false,
+        emptyStateType: _NearbyEmptyStateType.noSharedMembers,
+        message: l10n.pick(
+          vi: 'Bản kiểm thử chưa có dữ liệu vị trí chia sẻ. Khi người thân bật vị trí, danh sách sẽ hiện ở đây.',
+          en: 'This test workspace has no shared location data yet. Relatives will appear here once they share location.',
         ),
       );
     }
@@ -2256,6 +2282,24 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
     final l10n = context.l10n;
     final tokens = context.uiTokens;
     final layout = ResponsiveLayout.of(context);
+    if (_usesLocalSandboxData) {
+      return _DashboardSectionShell(
+        padding: EdgeInsets.all(tokens.spaceLg),
+        child: _NearbyRelativesEmpty(
+          key: const ValueKey<String>('nearby-sandbox-empty'),
+          emptyStateType: _NearbyEmptyStateType.noSharedMembers,
+          message: l10n.pick(
+            vi: 'Bản kiểm thử chưa có dữ liệu vị trí chia sẻ.',
+            en: 'This test workspace has no shared location data yet.',
+          ),
+          canRetry: false,
+          retryAction: _NearbyRetryAction.reload,
+          onRetry: _reload,
+          onRadarScan: null,
+          onOpenSettings: _openNearbySettings,
+        ),
+      );
+    }
     return _DashboardSectionShell(
       padding: EdgeInsets.all(tokens.spaceLg),
       child: FutureBuilder<_NearbyRelativeLoadResult>(
@@ -2386,7 +2430,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
 class _NearbySectionHeader extends StatelessWidget {
   const _NearbySectionHeader({
     required this.title,
-    required this.onRefresh,
+    this.onRefresh,
     this.badgeLabel,
     this.isRefreshing = false,
   });
@@ -2394,7 +2438,7 @@ class _NearbySectionHeader extends StatelessWidget {
   final String title;
   final String? badgeLabel;
   final bool isRefreshing;
-  final VoidCallback onRefresh;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -2439,18 +2483,20 @@ class _NearbySectionHeader extends StatelessWidget {
             ),
           ),
         ],
-        SizedBox(width: tokens.spaceSm),
-        AppCompactIconButton(
-          tooltip: context.l10n.pick(vi: 'Làm mới', en: 'Refresh'),
-          onPressed: isRefreshing ? null : onRefresh,
-          icon: isRefreshing
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.radar_rounded),
-        ),
+        if (onRefresh != null) ...[
+          SizedBox(width: tokens.spaceSm),
+          AppCompactIconButton(
+            tooltip: context.l10n.pick(vi: 'Làm mới', en: 'Refresh'),
+            onPressed: isRefreshing ? null : onRefresh,
+            icon: isRefreshing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.radar_rounded),
+          ),
+        ],
       ],
     );
   }
@@ -2766,7 +2812,7 @@ class _NearbyRelativesEmpty extends StatelessWidget {
     required this.canRetry,
     required this.retryAction,
     required this.onRetry,
-    required this.onRadarScan,
+    this.onRadarScan,
     this.settingsTarget,
     this.onOpenSettings,
   });
@@ -2776,7 +2822,7 @@ class _NearbyRelativesEmpty extends StatelessWidget {
   final bool canRetry;
   final _NearbyRetryAction retryAction;
   final VoidCallback onRetry;
-  final VoidCallback onRadarScan;
+  final VoidCallback? onRadarScan;
   final _NearbySettingsTarget? settingsTarget;
   final Future<void> Function(_NearbySettingsTarget target)? onOpenSettings;
 

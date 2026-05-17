@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../theme/app_ui_tokens.dart';
+import '../../core/services/app_environment.dart';
 import '../../core/services/firebase_services.dart';
 import '../../core/services/performance_measurement_logger.dart';
 import '../../core/widgets/member_phone_action.dart';
@@ -132,6 +133,7 @@ class _AppShellPageState extends State<AppShellPage>
   late final PushNotificationService _pushNotificationService;
   late final ClanContextService _clanContextService;
   late final OnboardingCoordinator _onboardingCoordinator;
+  Timer? _deferredShellWarmupTimer;
   final AuthSessionStore _sessionStore = SharedPrefsAuthSessionStore();
   String? _lastOpenedNotificationMessageId;
   bool _showAdBanner = false;
@@ -242,7 +244,10 @@ class _AppShellPageState extends State<AppShellPage>
     );
     unawaited(_loadClanContexts());
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_scheduleDeferredShellWarmup());
+      if (!mounted) {
+        return;
+      }
+      _scheduleDeferredShellWarmup();
       unawaited(
         _onboardingCoordinator.scheduleTrigger(
           const OnboardingTrigger(
@@ -263,7 +268,7 @@ class _AppShellPageState extends State<AppShellPage>
       unawaited(_loadClanContexts());
       _dismissAdBannerForSession = false;
       _adController.updateCurrentScreen(_screenIdForIndex(_selectedIndex));
-      unawaited(_scheduleDeferredShellWarmup());
+      _scheduleDeferredShellWarmup();
     }
   }
 
@@ -281,6 +286,8 @@ class _AppShellPageState extends State<AppShellPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _deferredShellWarmupTimer?.cancel();
+    _deferredShellWarmupTimer = null;
     _adController.dispose();
     unawaited(_onboardingCoordinator.interrupt());
     _onboardingCoordinator.dispose();
@@ -309,16 +316,19 @@ class _AppShellPageState extends State<AppShellPage>
     });
   }
 
-  Future<void> _scheduleDeferredShellWarmup() async {
-    await Future<void>.delayed(const Duration(milliseconds: 180));
-    if (!mounted) {
-      return;
-    }
-    unawaited(_startPushNotificationsForActiveSession());
-    if (_session.loginMethod == AuthEntryMethod.child) {
-      unawaited(_ensureActiveClanDisplayNameResolved());
-      unawaited(_refreshBillingEntitlement());
-    }
+  void _scheduleDeferredShellWarmup() {
+    _deferredShellWarmupTimer?.cancel();
+    _deferredShellWarmupTimer = Timer(const Duration(milliseconds: 180), () {
+      _deferredShellWarmupTimer = null;
+      if (!mounted) {
+        return;
+      }
+      unawaited(_startPushNotificationsForActiveSession());
+      if (_session.loginMethod == AuthEntryMethod.child) {
+        unawaited(_ensureActiveClanDisplayNameResolved());
+        unawaited(_refreshBillingEntitlement());
+      }
+    });
   }
 
   Future<void> _startPushNotificationsForActiveSession() {
@@ -519,6 +529,7 @@ class _AppShellPageState extends State<AppShellPage>
 
   bool get _isAdBannerVisible =>
       _showAdBanner &&
+      !_session.isSandbox &&
       !_dismissAdBannerForSession &&
       _adController.isBannerPlacementVisible;
 
@@ -569,6 +580,19 @@ class _AppShellPageState extends State<AppShellPage>
 
   Future<void> _refreshBillingEntitlement() async {
     if (_isResolvingBillingEntitlement) {
+      return;
+    }
+    if (_session.isSandbox) {
+      _adController.updateAdPolicy(
+        subscriptionTier: 'FREE',
+        backendShowAds: false,
+      );
+      if (mounted) {
+        setState(() {
+          _showAdBanner = false;
+        });
+        _adController.updateCurrentScreen(_screenIdForIndex(_selectedIndex));
+      }
       return;
     }
     if (!_hasBillingContext(_session)) {
@@ -1016,11 +1040,12 @@ class _AppShellPageState extends State<AppShellPage>
       title: Text(_activeClanAppBarTitle(l10n)),
       actions: _buildAppBarActions(l10n: l10n, sessionTooltip: sessionTooltip),
     );
+    final currentScreenId = _screenIdForIndex(_selectedIndex);
     final showAiAssistant =
         _hasClanContext &&
         _session.accessMode != AuthMemberAccessMode.unlinked &&
-        (_session.clanId ?? '').trim().isNotEmpty;
-    final currentScreenId = _screenIdForIndex(_selectedIndex);
+        (_session.clanId ?? '').trim().isNotEmpty &&
+        currentScreenId != 'home';
     final assistantFabLocation = _assistantFabLocation(
       useRailNavigation: layout.useRailNavigation,
       screenId: currentScreenId,

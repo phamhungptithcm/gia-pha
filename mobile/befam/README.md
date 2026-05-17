@@ -135,6 +135,7 @@ The app now opens into an authentication-first BeFam flow:
 For local UI testing in debug builds:
 
 - OTP: `123456`
+- Custom local OTP: `--dart-define=BEFAM_MOCK_AUTH_OTP=220197`
 - child IDs: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
 - live Firebase auth can be forced with `--dart-define=BEFAM_USE_LIVE_AUTH=true`
 - functions region can be overridden with

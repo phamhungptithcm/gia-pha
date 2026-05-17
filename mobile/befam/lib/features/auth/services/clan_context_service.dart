@@ -5,6 +5,7 @@ import '../../../core/services/firebase_services.dart';
 import '../models/auth_member_access_mode.dart';
 import '../models/auth_session.dart';
 import '../models/clan_context_option.dart';
+import 'debug_clan_context_service.dart';
 
 class ClanContextSnapshot {
   const ClanContextSnapshot({
@@ -158,5 +159,8 @@ class FirebaseClanContextService implements ClanContextService {
 }
 
 ClanContextService createDefaultClanContextService({AuthSession? session}) {
+  if (session?.isSandbox == true) {
+    return const DebugClanContextService();
+  }
   return FirebaseClanContextService();
 }

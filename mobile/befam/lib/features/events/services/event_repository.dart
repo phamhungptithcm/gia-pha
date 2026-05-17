@@ -2,6 +2,7 @@ import '../../auth/models/auth_session.dart';
 import '../models/event_draft.dart';
 import '../models/event_record.dart';
 import '../models/event_workspace_snapshot.dart';
+import 'debug_event_repository.dart';
 import 'firebase_event_repository.dart';
 
 enum EventRepositoryErrorCode {
@@ -42,5 +43,8 @@ abstract interface class EventRepository {
 }
 
 EventRepository createDefaultEventRepository({AuthSession? session}) {
+  if (session?.isSandbox == true) {
+    return DebugEventRepository.shared();
+  }
   return FirebaseEventRepository();
 }

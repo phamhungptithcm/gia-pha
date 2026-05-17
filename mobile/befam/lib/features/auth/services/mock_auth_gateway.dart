@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../core/services/app_environment.dart';
 import '../models/auth_entry_method.dart';
 import '../models/auth_member_access_mode.dart';
 import '../models/auth_otp_request_result.dart';
@@ -18,7 +19,11 @@ import 'phone_number_formatter.dart';
 class MockAuthGateway implements AuthGateway {
   MockAuthGateway({FirebaseFirestore? firestore}) : _firestore = firestore;
 
-  static const String _debugOtp = '123456';
+  static String get _debugOtp {
+    final configured = AppEnvironment.mockAuthOtpCode.trim();
+    return configured.isEmpty ? '123456' : configured;
+  }
+
   static const Duration _debugDelay = Duration(milliseconds: 450);
   final FirebaseFirestore? _firestore;
 
@@ -168,7 +173,7 @@ class MockAuthGateway implements AuthGateway {
     if (smsCode != _debugOtp) {
       throw FirebaseAuthException(
         code: 'invalid-verification-code',
-        message: 'Ma OTP thu nghiem cho moi truong local la 123456.',
+        message: 'Ma OTP thu nghiem cho moi truong local la $_debugOtp.',
       );
     }
 

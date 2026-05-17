@@ -1,5 +1,6 @@
 import '../../auth/models/auth_session.dart';
 import '../models/treasurer_dashboard_snapshot.dart';
+import 'debug_treasurer_dashboard_repository.dart';
 import 'firebase_treasurer_dashboard_repository.dart';
 
 enum TreasurerDashboardRepositoryErrorCode { permissionDenied, fetchFailed }
@@ -25,5 +26,8 @@ abstract interface class TreasurerDashboardRepository {
 TreasurerDashboardRepository createDefaultTreasurerDashboardRepository({
   AuthSession? session,
 }) {
+  if (session?.isSandbox == true) {
+    return DebugTreasurerDashboardRepository.shared();
+  }
   return FirebaseTreasurerDashboardRepository();
 }

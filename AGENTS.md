@@ -238,7 +238,7 @@ If any of the above is not true, stop and resolve that gap before merging.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **gia-pha** (5972 symbols, 9272 relationships, 294 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **gia-pha** (6002 symbols, 9302 relationships, 294 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

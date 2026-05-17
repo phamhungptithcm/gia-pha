@@ -9,6 +9,7 @@ import '../models/scholarship_disbursement_fund.dart';
 import '../models/scholarship_program.dart';
 import '../models/scholarship_program_draft.dart';
 import '../models/scholarship_workspace_snapshot.dart';
+import 'debug_scholarship_repository.dart';
 import 'firebase_scholarship_repository.dart';
 
 enum ScholarshipRepositoryErrorCode {
@@ -88,5 +89,8 @@ abstract interface class ScholarshipRepository {
 ScholarshipRepository createDefaultScholarshipRepository({
   AuthSession? session,
 }) {
+  if (session?.isSandbox == true) {
+    return DebugScholarshipRepository.shared();
+  }
   return FirebaseScholarshipRepository();
 }
