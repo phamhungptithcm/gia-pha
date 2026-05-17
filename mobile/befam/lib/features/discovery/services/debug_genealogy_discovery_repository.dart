@@ -33,16 +33,6 @@ class DebugGenealogyDiscoveryRepository
           memberCount: 34,
           branchCount: 6,
         ),
-        GenealogyDiscoveryResult(
-          id: 'clan_demo_002',
-          clanId: 'clan_demo_002',
-          genealogyName: 'Trần tộc Quảng Nam',
-          leaderName: 'Trần Văn Long',
-          provinceCity: 'Quảng Nam',
-          summary: 'Nhánh gia phả tập trung theo từng chi vùng duyên hải.',
-          memberCount: 21,
-          branchCount: 4,
-        ),
       ],
       joinRequests: const [],
     );

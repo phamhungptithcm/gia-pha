@@ -1440,6 +1440,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
             transactionType: type,
             currency: fund.currency,
           ),
+          currentBalanceMinor: fund.balanceMinor,
           isSaving: widget.controller.isSavingTransaction,
           onSubmit: (draft) {
             return widget.controller.recordTransaction(draft: draft);
@@ -1833,14 +1834,15 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
       return false;
     }
 
-    if (_nameController.text.trim().isEmpty) {
+    final formIsValid = _formKey.currentState?.validate() ?? false;
+    if (!formIsValid) {
       if (showSnackBar) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               l10n.pick(
-                vi: 'Tên quỹ là bắt buộc.',
-                en: 'Fund name is required.',
+                vi: 'Kiểm tra lại các trường bắt buộc.',
+                en: 'Check the required fields.',
               ),
             ),
           ),
@@ -2659,12 +2661,14 @@ class _TransactionEditorSheet extends StatefulWidget {
   const _TransactionEditorSheet({
     required this.title,
     required this.initialDraft,
+    required this.currentBalanceMinor,
     required this.isSaving,
     required this.onSubmit,
   });
 
   final String title;
   final FundTransactionDraft initialDraft;
+  final int currentBalanceMinor;
   final bool isSaving;
   final Future<FundRepositoryErrorCode?> Function(FundTransactionDraft draft)
   onSubmit;
@@ -2683,6 +2687,7 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
   late DateTime _occurredAt;
 
   FundRepositoryErrorCode? _submitError;
+  String? _dateError;
   bool _isSubmitting = false;
 
   @override
@@ -2730,17 +2735,33 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
         _occurredAt.hour,
         _occurredAt.minute,
       );
+      _dateError = null;
     });
   }
 
   Future<void> _submit() async {
+    if (_isSubmitting || widget.isSaving) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_occurredAt.toUtc().isAfter(
+      DateTime.now().toUtc().add(const Duration(minutes: 5)),
+    )) {
+      setState(() {
+        _dateError = context.l10n.pick(
+          vi: 'Ngày phát sinh không được ở tương lai.',
+          en: 'Occurred date cannot be in the future.',
+        );
+      });
       return;
     }
 
     setState(() {
       _isSubmitting = true;
       _submitError = null;
+      _dateError = null;
     });
 
     final error = await widget.onSubmit(
@@ -2835,14 +2856,7 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                         : l10n.pick(vi: '50.00', en: '50.00'),
                     suffixText: widget.initialDraft.currency,
                   ),
-                  validator: (value) {
-                    return value == null || value.trim().isEmpty
-                        ? l10n.pick(
-                            vi: 'Số tiền là bắt buộc.',
-                            en: 'Amount is required.',
-                          )
-                        : null;
-                  },
+                  validator: _validateAmount,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
@@ -2856,6 +2870,7 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                       en: 'Tet contribution',
                     ),
                   ),
+                  validator: _validateNote,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
@@ -2899,6 +2914,16 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                     child: Text(_formatDate(context, _occurredAt)),
                   ),
                 ),
+                if (_dateError != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _dateError!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 22),
                 SizedBox(
                   width: double.infinity,
@@ -2928,6 +2953,55 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
         ),
       ),
     );
+  }
+
+  String? _validateAmount(String? value) {
+    final l10n = context.l10n;
+    final amountInput = value?.trim() ?? '';
+    if (amountInput.isEmpty) {
+      return l10n.pick(vi: 'Số tiền là bắt buộc.', en: 'Amount is required.');
+    }
+
+    final amountMinor = _parseAmountMinorOrNull(amountInput);
+    if (amountMinor == null) {
+      return l10n.pick(vi: 'Nhập số tiền hợp lệ.', en: 'Enter a valid amount.');
+    }
+    if (amountMinor <= 0) {
+      return l10n.pick(
+        vi: 'Số tiền phải lớn hơn 0.',
+        en: 'Amount must be greater than 0.',
+      );
+    }
+    if (widget.initialDraft.transactionType == FundTransactionType.expense &&
+        amountMinor > widget.currentBalanceMinor) {
+      return l10n.pick(
+        vi: 'Khoản chi không được vượt số dư hiện tại.',
+        en: 'Expense cannot exceed the current balance.',
+      );
+    }
+    return null;
+  }
+
+  String? _validateNote(String? value) {
+    final noteLength = (value ?? '').trim().length;
+    if (noteLength <= 280) {
+      return null;
+    }
+    return context.l10n.pick(
+      vi: 'Ghi chú tối đa 280 ký tự.',
+      en: 'Note must be 280 characters or fewer.',
+    );
+  }
+
+  int? _parseAmountMinorOrNull(String amountInput) {
+    try {
+      return CurrencyMinorUnits.toMinorUnits(
+        currency: widget.initialDraft.currency,
+        amountInput: amountInput,
+      );
+    } on FormatException {
+      return null;
+    }
   }
 }
 

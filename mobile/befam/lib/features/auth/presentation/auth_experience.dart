@@ -114,6 +114,11 @@ class _AuthExperienceState extends State<AuthExperience> {
         final session = _controller.session;
         if (session != null) {
           return AppShellPage(
+            key: ValueKey<String>(
+              'shell-${session.uid}-${session.clanId ?? 'none'}-'
+              '${session.memberId ?? 'none'}-${session.accessMode.name}-'
+              '${session.isSandbox}-${session.linkedAuthUid}',
+            ),
             status: widget.status,
             session: session,
             clanContextService: widget.clanContextService,

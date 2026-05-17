@@ -141,7 +141,6 @@ class _AppShellPageState extends State<AppShellPage>
   bool _dismissAdBannerForSession = false;
   bool _isLoadingClanContexts = false;
   bool _isSwitchingClanContext = false;
-  AsyncCallback? _billingPricingQuickAction;
   List<ClanContextOption> _clanContexts = const [];
   final Map<String, String> _resolvedClanNamesById = <String, String>{};
   bool _isResolvingActiveClanName = false;
@@ -167,9 +166,9 @@ class _AppShellPageState extends State<AppShellPage>
       selectedIcon: Icons.event,
     ),
     _ShellDestination(
-      id: 'billing',
-      icon: Icons.workspace_premium_outlined,
-      selectedIcon: Icons.workspace_premium,
+      id: 'funds',
+      icon: Icons.volunteer_activism_outlined,
+      selectedIcon: Icons.volunteer_activism,
     ),
     _ShellDestination(
       id: 'profile',
@@ -194,9 +193,9 @@ class _AppShellPageState extends State<AppShellPage>
       selectedIcon: Icons.event,
     ),
     _ShellDestination(
-      id: 'billing',
-      icon: Icons.workspace_premium_outlined,
-      selectedIcon: Icons.workspace_premium,
+      id: 'funds',
+      icon: Icons.volunteer_activism_outlined,
+      selectedIcon: Icons.volunteer_activism,
     ),
     _ShellDestination(
       id: 'profile',
@@ -307,15 +306,6 @@ class _AppShellPageState extends State<AppShellPage>
     setState(() {});
   }
 
-  void _handleBillingPricingQuickActionChanged(AsyncCallback? action) {
-    if (_billingPricingQuickAction == action || !mounted) {
-      return;
-    }
-    setState(() {
-      _billingPricingQuickAction = action;
-    });
-  }
-
   void _scheduleDeferredShellWarmup() {
     _deferredShellWarmupTimer?.cancel();
     _deferredShellWarmupTimer = Timer(const Duration(milliseconds: 180), () {
@@ -380,7 +370,7 @@ class _AppShellPageState extends State<AppShellPage>
         );
         return;
       case NotificationTargetType.billing:
-        _selectDestination(3);
+        _openBillingNotificationDestination(messageId: deepLink.messageId);
         return;
       case NotificationTargetType.authRefresh:
       case NotificationTargetType.unknown:
@@ -478,6 +468,29 @@ class _AppShellPageState extends State<AppShellPage>
     });
   }
 
+  void _openBillingNotificationDestination({required String? messageId}) {
+    if (!_shouldOpenNotificationMessage(messageId)) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) {
+            return BillingWorkspacePage(
+              session: _session,
+              repository: _billingRepository,
+            );
+          },
+        ),
+      );
+    });
+  }
+
   String? _normalizeNotificationReferenceId(String? value) {
     final normalized = value?.trim() ?? '';
     if (normalized.isEmpty) {
@@ -544,7 +557,7 @@ class _AppShellPageState extends State<AppShellPage>
   }
 
   bool _screenHasTrailingFloatingActions(String screenId) {
-    return screenId == 'tree' || screenId == 'events';
+    return screenId == 'tree' || screenId == 'events' || screenId == 'funds';
   }
 
   FloatingActionButtonLocation _assistantFabLocation({
@@ -568,9 +581,7 @@ class _AppShellPageState extends State<AppShellPage>
     setState(() {
       _selectedIndex = index;
       _visitedDestinationIndexes.add(index);
-      if (_screenIdForIndex(index) == 'billing') {
-        _dismissAdBannerForSession = false;
-      }
+      _dismissAdBannerForSession = false;
     });
     _adController.recordNavigationTransition(
       fromScreenId: _screenIdForIndex(previousIndex),
@@ -1004,14 +1015,12 @@ class _AppShellPageState extends State<AppShellPage>
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(3))
-        BillingWorkspacePage(
-          key: ValueKey<String>(
-            'billing-${_session.clanId ?? 'none'}-${_session.uid}',
-          ),
+        FundWorkspacePage(
+          key: ValueKey<String>('funds-${_session.clanId ?? 'none'}'),
           session: _session,
-          repository: _billingRepository,
-          embeddedInShell: true,
-          onPricingQuickActionChanged: _handleBillingPricingQuickActionChanged,
+          repository: _fundRepository,
+          memberRepository: widget.memberRepository,
+          availableClanContexts: _clanContexts,
         )
       else
         const SizedBox.shrink(),
@@ -1037,7 +1046,20 @@ class _AppShellPageState extends State<AppShellPage>
     ];
 
     final appBar = AppBar(
-      title: Text(_activeClanAppBarTitle(l10n)),
+      titleSpacing: 16,
+      title: Row(
+        children: [
+          const _BfMark(size: 32),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _activeClanAppBarTitle(l10n),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
       actions: _buildAppBarActions(l10n: l10n, sessionTooltip: sessionTooltip),
     );
     final currentScreenId = _screenIdForIndex(_selectedIndex);
@@ -1135,7 +1157,7 @@ class _AppShellPageState extends State<AppShellPage>
                   ),
                 MediaQuery.withClampedTextScaling(
                   minScaleFactor: 1,
-                  maxScaleFactor: 1,
+                  maxScaleFactor: 1.25,
                   child: NavigationBar(
                     selectedIndex: _selectedIndex,
                     onDestinationSelected: _handleDestinationSelected,
@@ -1312,21 +1334,6 @@ class _AppShellPageState extends State<AppShellPage>
           ),
           onPressed: _openSubmittedJoinRequests,
           icon: const Icon(Icons.list_alt_outlined),
-        ),
-      if (_selectedIndex == 3 && _billingPricingQuickAction != null)
-        IconButton(
-          key: const Key('billing-pricing-quick-action'),
-          tooltip: l10n.pick(
-            vi: 'Xem nhanh bảng giá',
-            en: 'Quick pricing view',
-          ),
-          onPressed: () {
-            final action = _billingPricingQuickAction;
-            if (action != null) {
-              unawaited(action());
-            }
-          },
-          icon: const Icon(Icons.sell_outlined),
         ),
       if (canSwitchClan || canLogout)
         PopupMenuButton<_ShellOverflowAction>(

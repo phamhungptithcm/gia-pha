@@ -3472,6 +3472,83 @@ class _ShellDestination {
   final IconData selectedIcon;
 }
 
+class _BfMark extends StatelessWidget {
+  const _BfMark({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFF12182F),
+          borderRadius: BorderRadius.circular(size * 0.22),
+          border: Border.all(
+            color: Theme.of(
+              context,
+            ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(
+                context,
+              ).colorScheme.shadow.withValues(alpha: 0.08),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              right: -size * 0.08,
+              top: -size * 0.08,
+              child: Transform.rotate(
+                angle: 0.32,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3155FF),
+                    borderRadius: BorderRadius.circular(size * 0.05),
+                  ),
+                  child: SizedBox.square(dimension: size * 0.34),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -size * 0.07,
+              bottom: -size * 0.07,
+              child: Transform.rotate(
+                angle: 0.32,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE34CFF),
+                    borderRadius: BorderRadius.circular(size * 0.05),
+                  ),
+                  child: SizedBox.square(dimension: size * 0.28),
+                ),
+              ),
+            ),
+            Center(
+              child: Text(
+                'BF',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: size * 0.42,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 IconData _iconFor(String iconKey) {
   return switch (iconKey) {
     'clan' => Icons.apartment_outlined,

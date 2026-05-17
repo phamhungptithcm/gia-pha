@@ -1443,6 +1443,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
 
   EventValidationIssueCode? _validationIssue;
   EventRepositoryErrorCode? _submitError;
+  String? _reminderInputError;
   EventAiSuggestion? _aiSuggestion;
 
   @override
@@ -1882,6 +1883,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     }
 
     setState(() {
+      _reminderInputError = null;
       _reminderOffsets = EventValidation.sanitizeReminderOffsets([
         ..._reminderOffsets,
         offsetMinutes,
@@ -1890,8 +1892,34 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   }
 
   void _addReminderOffsetFromInput() {
-    final parsed = int.tryParse(_reminderInputController.text.trim());
-    if (parsed == null) {
+    final l10n = context.l10n;
+    final input = _reminderInputController.text.trim();
+    final parsed = int.tryParse(input);
+    if (input.isEmpty || parsed == null) {
+      setState(() {
+        _reminderInputError = l10n.pick(
+          vi: 'Nhập số phút hợp lệ.',
+          en: 'Enter valid minutes.',
+        );
+      });
+      return;
+    }
+    if (parsed <= 0) {
+      setState(() {
+        _reminderInputError = l10n.pick(
+          vi: 'Mốc nhắc phải lớn hơn 0 phút.',
+          en: 'Reminder must be greater than 0 minutes.',
+        );
+      });
+      return;
+    }
+    if (_reminderOffsets.contains(parsed)) {
+      setState(() {
+        _reminderInputError = l10n.pick(
+          vi: 'Mốc nhắc này đã có.',
+          en: 'This reminder already exists.',
+        );
+      });
       return;
     }
 
@@ -2745,6 +2773,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                 decoration: appFieldDecoration(
                                   label: l10n.eventFormReminderCustomLabel,
                                   hintText: l10n.eventFormReminderCustomHint,
+                                  errorText: _reminderInputError,
                                 ),
                               ),
                             ),

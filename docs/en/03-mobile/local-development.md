@@ -209,4 +209,6 @@ Important behavior for local real-data testing:
 - Post-login feature data (clan/member/tree/events/etc.) is loaded from Firebase repositories,
   matching production data flow.
 - Mock auth backend is enabled only when `BEFAM_USE_MOCK_AUTH=true` (or widget tests),
-  so normal local runs use real Firebase auth/session flow.
+  so normal local runs use real Firebase auth/session flow. Mock auth uses local
+  fixture profiles by default; set `BEFAM_USE_REMOTE_DEBUG_LOGIN_PROFILES=true`
+  only when a QA run intentionally needs `debug_login_profiles` from Firestore.

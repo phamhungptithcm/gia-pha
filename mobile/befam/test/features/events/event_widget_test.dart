@@ -122,35 +122,6 @@ void main() {
     expect(find.byType(Scrollable), findsWidgets);
   }
 
-  Future<void> createEvent(
-    WidgetTester tester, {
-    required String title,
-    required String startAt,
-    required String endAt,
-  }) async {
-    await tester.tap(find.byKey(const Key('event-create-button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-
-    await tester.enterText(find.byKey(const Key('event-title-field')), title);
-    await tester.tap(find.byKey(const Key('event-save-button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-
-    await tester.enterText(find.byKey(const Key('event-start-field')), startAt);
-    await tester.enterText(find.byKey(const Key('event-end-field')), endAt);
-
-    final saveButton = find.byKey(const Key('event-save-button'));
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-  }
-
   void useLargeViewport(WidgetTester tester) {
     tester.view.physicalSize = const Size(1080, 2200);
     tester.view.devicePixelRatio = 1.0;
@@ -568,6 +539,76 @@ void main() {
     expect(find.byKey(const Key('event-reminder-chip-30')), findsOneWidget);
   });
 
+  testWidgets('shows inline error for invalid custom reminder input', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    await pumpWorkspace(tester, repository);
+
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
+    );
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const Key('event-title-field')), findsOneWidget);
+    final saveButton = find.byKey(const Key('event-save-button'));
+    await tester.tap(saveButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    await tester.enterText(
+      find.byKey(const Key('event-start-field')),
+      '2026-09-12 18:00',
+    );
+    await tester.enterText(
+      find.byKey(const Key('event-end-field')),
+      '2026-09-12 20:00',
+    );
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    for (var attempt = 0; attempt < 6; attempt += 1) {
+      if (find.byKey(const Key('event-reminder-input')).evaluate().isNotEmpty) {
+        break;
+      }
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(find.byKey(const Key('event-reminder-input')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('event-reminder-input')), '0');
+    await tester.tap(find.byKey(const Key('event-reminder-add-button')));
+    await tester.pump();
+
+    expect(find.text('Mốc nhắc phải lớn hơn 0 phút.'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('event-reminder-input')),
+      'abc',
+    );
+    await tester.tap(find.byKey(const Key('event-reminder-add-button')));
+    await tester.pump();
+
+    expect(find.text('Nhập số phút hợp lệ.'), findsOneWidget);
+  });
+
   testWidgets(
     'shows AI disclosure and loading copy while generating event suggestions',
     (tester) async {
@@ -679,16 +720,17 @@ void main() {
     );
     await pumpWorkspace(tester, repository);
 
-    await createEvent(
-      tester,
-      title: 'Sự kiện cần chỉnh sửa',
-      startAt: '2026-09-12 18:00',
-      endAt: '2026-09-12 20:00',
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
     );
-
-    await tester.tap(find.text('Sự kiện cần chỉnh sửa').first);
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 400));
 
     await tester.tap(find.byKey(const Key('event-detail-edit-button')));
     await tester.pump();
@@ -701,17 +743,30 @@ void main() {
 
     final saveButton = find.byKey(const Key('event-save-button'));
     await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(saveButton);
-    await tester.pump();
+    for (var attempt = 0; attempt < 6; attempt += 1) {
+      if (find.text('Đã lưu sự kiện thành công.').evaluate().isNotEmpty) {
+        break;
+      }
+      if (saveButton.evaluate().isEmpty) {
+        await tester.pump(const Duration(milliseconds: 240));
+        continue;
+      }
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 360));
+    }
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Đã lưu sự kiện thành công.'), findsOneWidget);
-    expect(find.text('Giỗ cụ tổ mùa xuân (cập nhật)'), findsOneWidget);
-  }, skip: true);
+    final snapshot = (await tester.runAsync(
+      () => repository.loadWorkspace(session: buildClanAdminSession()),
+    ))!;
+    expect(
+      snapshot.events.any(
+        (event) => event.title == 'Giỗ cụ tổ mùa xuân (cập nhật)',
+      ),
+      isTrue,
+    );
+  });
 }

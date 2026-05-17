@@ -147,7 +147,7 @@ class _DualCalendarWorkspacePageState extends State<DualCalendarWorkspacePage>
                     ? null
                     : () => unawaited(_openMemorialChecklistWorkspace()),
                 tooltip: l10n.pick(
-                  vi: 'Mở giỗ kỵ và dỗ trạp',
+                  vi: 'Mở danh sách giỗ chạp',
                   en: 'Open memorial checklist',
                 ),
                 child: const Icon(Icons.history_edu_outlined, size: 20),

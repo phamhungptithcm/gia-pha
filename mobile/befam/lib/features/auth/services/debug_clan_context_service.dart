@@ -79,14 +79,6 @@ class DebugClanContextService implements ClanContextService {
           branchId: session.branchId,
           displayName: displayName.isEmpty ? null : displayName,
         ),
-        ClanContextOption(
-          clanId: 'clan_demo_002',
-          clanName: 'Gia phả vệ tinh',
-          memberId: memberId,
-          primaryRole: role,
-          branchId: session.branchId,
-          displayName: displayName.isEmpty ? null : displayName,
-        ),
       ];
     }
 

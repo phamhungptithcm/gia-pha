@@ -126,6 +126,13 @@ class AppEnvironment {
       !kReleaseMode &&
       bool.fromEnvironment('BEFAM_USE_MOCK_AUTH', defaultValue: false);
 
+  static const bool useRemoteDebugLoginProfiles =
+      !kReleaseMode &&
+      bool.fromEnvironment(
+        'BEFAM_USE_REMOTE_DEBUG_LOGIN_PROFILES',
+        defaultValue: false,
+      );
+
   static const String mockAuthOtpCode = String.fromEnvironment(
     'BEFAM_MOCK_AUTH_OTP',
     defaultValue: '123456',

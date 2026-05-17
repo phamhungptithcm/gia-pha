@@ -72,6 +72,19 @@ void main() {
     expect(find.byKey(const Key('fund-add-fab')), findsOneWidget);
   }
 
+  Future<void> openScholarshipFund(WidgetTester tester) async {
+    for (var i = 0; i < 40; i += 1) {
+      if (find
+          .byKey(const Key('fund-row-fund_demo_scholarship'))
+          .evaluate()
+          .isNotEmpty) {
+        break;
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tapByKey(tester, const Key('fund-row-fund_demo_scholarship'));
+  }
+
   testWidgets('fund editor shows required name before member assignment', (
     tester,
   ) async {
@@ -89,21 +102,63 @@ void main() {
     tester,
   ) async {
     await pumpFunds(tester);
-    for (var i = 0; i < 40; i += 1) {
-      if (find
-          .byKey(const Key('fund-row-fund_demo_scholarship'))
-          .evaluate()
-          .isNotEmpty) {
-        break;
-      }
-      await tester.pump(const Duration(milliseconds: 100));
-    }
-
-    await tapByKey(tester, const Key('fund-row-fund_demo_scholarship'));
+    await openScholarshipFund(tester);
     await tapByKey(tester, const Key('fund-add-donation-button'));
     await tapByKey(tester, const Key('fund-transaction-save-button'));
 
     expect(find.text('Số tiền là bắt buộc.'), findsOneWidget);
     expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
+  });
+
+  testWidgets('transaction editor validates bad amount, zero, and long note', (
+    tester,
+  ) async {
+    await pumpFunds(tester);
+    await openScholarshipFund(tester);
+    await tapByKey(tester, const Key('fund-add-donation-button'));
+
+    await tester.enterText(
+      find.byKey(const Key('fund-transaction-amount-input')),
+      'abc',
+    );
+    await tapByKey(tester, const Key('fund-transaction-save-button'));
+    expect(find.text('Nhập số tiền hợp lệ.'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('fund-transaction-amount-input')),
+      '0',
+    );
+    await tapByKey(tester, const Key('fund-transaction-save-button'));
+    expect(find.text('Số tiền phải lớn hơn 0.'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('fund-transaction-amount-input')),
+      '100000',
+    );
+    await tester.enterText(
+      find.byKey(const Key('fund-transaction-note-input')),
+      List.filled(281, 'a').join(),
+    );
+    await tapByKey(tester, const Key('fund-transaction-save-button'));
+    expect(find.text('Ghi chú tối đa 280 ký tự.'), findsOneWidget);
+  });
+
+  testWidgets('expense editor blocks amount above current balance', (
+    tester,
+  ) async {
+    await pumpFunds(tester);
+    await openScholarshipFund(tester);
+    await tapByKey(tester, const Key('fund-add-expense-button'));
+
+    await tester.enterText(
+      find.byKey(const Key('fund-transaction-amount-input')),
+      '999999999',
+    );
+    await tapByKey(tester, const Key('fund-transaction-save-button'));
+
+    expect(
+      find.text('Khoản chi không được vượt số dư hiện tại.'),
+      findsOneWidget,
+    );
   });
 }

@@ -67,6 +67,15 @@ class MockAuthGateway implements AuthGateway {
       accessMode: AuthMemberAccessMode.claimed,
       linkedAuthUid: true,
     ),
+    '+84906660001': MemberAccessContext(
+      memberId: 'member_demo_parent_001',
+      displayName: 'Nguyen Minh',
+      clanId: 'clan_demo_001',
+      branchId: 'branch_demo_001',
+      primaryRole: 'CLAN_ADMIN',
+      accessMode: AuthMemberAccessMode.claimed,
+      linkedAuthUid: true,
+    ),
     '+84908886655': MemberAccessContext(
       memberId: 'member_demo_parent_002',
       displayName: 'Tran Van Long',
@@ -390,7 +399,10 @@ class MockAuthGateway implements AuthGateway {
       final variants = PhoneNumberFormatter.lookupVariants(phoneE164);
       Map<String, dynamic>? data;
       for (final variant in variants) {
-        final snapshot = await profiles.doc(variant).get();
+        final snapshot = await profiles
+            .doc(variant)
+            .get()
+            .timeout(const Duration(milliseconds: 700));
         final candidate = snapshot.data();
         if (candidate == null) {
           continue;
