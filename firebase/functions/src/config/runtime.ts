@@ -271,6 +271,10 @@ export const NOTIFICATION_ALLOW_NON_OTP_SMS = readEnvBoolean(
   'NOTIFICATION_ALLOW_NON_OTP_SMS',
   false,
 );
+export const QA_SELF_TEST_ENABLED = readEnvBoolean(
+  'QA_SELF_TEST_ENABLED',
+  false,
+);
 export const NOTIFICATION_EVENT_MAX_AUDIENCE = readEnvInt(
   'NOTIFICATION_EVENT_MAX_AUDIENCE',
   5000,
@@ -282,6 +286,48 @@ export const BILLING_CONTACT_SMS_WEBHOOK_URL = readEnvString(
 export const BILLING_CONTACT_EMAIL_WEBHOOK_URL = readEnvString(
   'BILLING_CONTACT_EMAIL_WEBHOOK_URL',
 );
+export const AI_ASSIST_ENABLED = readEnvBoolean(
+  'AI_ASSIST_ENABLED',
+  true,
+);
+export const AI_ASSIST_MODEL = readEnvString(
+  'AI_ASSIST_MODEL',
+  'gemini-2.5-flash-lite',
+);
+export const AI_ASSIST_TIMEOUT_MS = readEnvInt(
+  'AI_ASSIST_TIMEOUT_MS',
+  4500,
+  { min: 500, max: 30000 },
+);
+export const AI_FEATURE_COOLDOWN_MS = readEnvInt(
+  'AI_FEATURE_COOLDOWN_MS',
+  10000,
+  { min: 1000, max: 300000 },
+);
+export const AI_USAGE_LIMIT_FREE = readEnvInt(
+  'AI_USAGE_LIMIT_FREE',
+  30,
+  { min: 1, max: 100000 },
+);
+export const AI_USAGE_LIMIT_BASE = readEnvInt(
+  'AI_USAGE_LIMIT_BASE',
+  120,
+  { min: 1, max: 100000 },
+);
+export const AI_USAGE_LIMIT_PLUS = readEnvInt(
+  'AI_USAGE_LIMIT_PLUS',
+  360,
+  { min: 1, max: 100000 },
+);
+export const AI_USAGE_LIMIT_PRO = readEnvInt(
+  'AI_USAGE_LIMIT_PRO',
+  1200,
+  { min: 1, max: 100000 },
+);
+
+export function getAiApiKey(): string {
+  return readEnvString('GOOGLE_GENAI_API_KEY');
+}
 
 export function getBillingContactNoticeWebhookToken(): string {
   return readEnvString('BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN');

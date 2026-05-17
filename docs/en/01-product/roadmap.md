@@ -32,7 +32,7 @@ _Last reviewed: April 2, 2026_
 
 ### M5 - Billing and subscription lifecycle (Completed baseline)
 - tiered plans
-- VNPay-first checkout flow
+- Store IAP purchase flow
 - payment state handling and reminder logic
 
 ### M6 - Profile and settings baseline (Completed)

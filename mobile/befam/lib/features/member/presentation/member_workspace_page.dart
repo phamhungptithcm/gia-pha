@@ -4,8 +4,10 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/firebase_services.dart';
+import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_compact_controls.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_form_controls.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
@@ -1149,7 +1151,12 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
           ],
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            14,
+            20,
+            28 + MediaQuery.paddingOf(context).bottom,
+          ),
           child: Form(
             key: _formKey,
             child: Column(
@@ -1218,8 +1225,8 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.done,
-                          decoration: InputDecoration(
-                            labelText: l10n.memberPhoneLabel,
+                          decoration: appFieldDecoration(
+                            label: l10n.memberPhoneLabel,
                             hintText: phoneHint,
                           ),
                           onEditingComplete: _normalizePhoneInputForCountry,
@@ -1270,11 +1277,11 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
                           ),
                         ),
                       );
-                      final continueButton = FilledButton.icon(
-                        key: const Key('member-phone-lookup-continue'),
+                      final continueButton = AppActionButton(
+                        buttonKey: const Key('member-phone-lookup-continue'),
+                        icon: Icons.search,
+                        label: l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
                         onPressed: _submit,
-                        icon: const Icon(Icons.search),
-                        label: Text(l10n.pick(vi: 'Tiếp tục', en: 'Continue')),
                       );
 
                       if (compact) {
@@ -1657,6 +1664,10 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                       l10n.pick(vi: 'Bổ sung', en: 'More'),
                     ],
                     onStepSelected: (step) {
+                      if (step > _editorStep &&
+                          !_formKey.currentState!.validate()) {
+                        return;
+                      }
                       setState(() => _editorStep = step);
                     },
                   ),
@@ -1673,8 +1684,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                         TextFormField(
                           key: const Key('member-full-name-input'),
                           controller: _fullNameController,
-                          decoration: InputDecoration(
-                            labelText: l10n.memberFullNameLabel,
+                          decoration: appFieldDecoration(
+                            label: l10n.memberFullNameLabel,
+                            required: true,
                             hintText: l10n.memberFullNameHint,
                           ),
                           textInputAction: TextInputAction.next,
@@ -1701,8 +1713,8 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                             final birthDateField = TextFormField(
                               key: const Key('member-birth-date-input'),
                               controller: _birthDateController,
-                              decoration: InputDecoration(
-                                labelText: l10n.memberBirthDateLabel,
+                              decoration: appFieldDecoration(
+                                label: l10n.memberBirthDateLabel,
                                 hintText: l10n.pick(
                                   vi: 'YYYY-MM-DD',
                                   en: 'YYYY-MM-DD',
@@ -1730,8 +1742,8 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                             final deathDateField = TextFormField(
                               key: const Key('member-death-date-input'),
                               controller: _deathDateController,
-                              decoration: InputDecoration(
-                                labelText: l10n.memberDeathDateLabel,
+                              decoration: appFieldDecoration(
+                                label: l10n.memberDeathDateLabel,
                                 hintText: l10n.pick(
                                   vi: 'YYYY-MM-DD',
                                   en: 'YYYY-MM-DD',
@@ -1790,8 +1802,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                               child: TextFormField(
                                 key: const Key('member-phone-input'),
                                 controller: _phoneController,
-                                decoration: InputDecoration(
-                                  labelText: l10n.memberPhoneLabel,
+                                decoration: appFieldDecoration(
+                                  label: l10n.memberPhoneLabel,
+                                  required: true,
                                   hintText: phoneHint,
                                 ),
                                 keyboardType: TextInputType.phone,
@@ -1836,8 +1849,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                             key: const Key('member-branch-input'),
                             isExpanded: true,
                             initialValue: _branchId,
-                            decoration: InputDecoration(
-                              labelText: l10n.memberBranchLabel,
+                            decoration: appFieldDecoration(
+                              label: l10n.memberBranchLabel,
+                              required: true,
                             ),
                             items: [
                               for (final branch in widget.branches)
@@ -1878,15 +1892,13 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                               final father = _selectedFather;
                               final mother = _selectedMother;
                               return InputDecorator(
-                                decoration: InputDecoration(
-                                  labelText: l10n.pick(
+                                decoration: appFieldDecoration(
+                                  label: l10n.pick(
                                     vi: 'Con của',
                                     en: 'Child of',
                                   ),
+                                  required: _parentCandidates.isNotEmpty,
                                   errorText: field.errorText,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1968,7 +1980,7 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                             fontWeight: FontWeight.w400,
                           ),
                           decoration: InputDecoration(
-                            labelText: l10n.memberGenderLabel,
+                            label: Text(l10n.memberGenderLabel),
                           ),
                           items: [
                             DropdownMenuItem<String?>(
@@ -1999,7 +2011,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                           InputDecorator(
                             key: const Key('member-branch-auto-input'),
                             decoration: InputDecoration(
-                              labelText: l10n.memberBranchLabel,
+                              label: AppRequiredFieldLabel(
+                                l10n.memberBranchLabel,
+                              ),
                             ),
                             child: Text(
                               selectedParent == null
@@ -2020,7 +2034,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                                 fontWeight: FontWeight.w400,
                               ),
                               decoration: InputDecoration(
-                                labelText: l10n.pick(vi: 'Vai trò', en: 'Role'),
+                                label: AppRequiredFieldLabel(
+                                  l10n.pick(vi: 'Vai trò', en: 'Role'),
+                                ),
                               ),
                               items: [
                                 for (final role in widget.assignableRoles)
@@ -2047,7 +2063,9 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                             InputDecorator(
                               key: const Key('member-role-auto-input'),
                               decoration: InputDecoration(
-                                labelText: l10n.pick(vi: 'Vai trò', en: 'Role'),
+                                label: AppRequiredFieldLabel(
+                                  l10n.pick(vi: 'Vai trò', en: 'Role'),
+                                ),
                               ),
                               child: Text(
                                 l10n.roleLabel(_autoResolvedRole),
@@ -2256,27 +2274,17 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                         ),
                       );
                       final continueOrSaveButton = _editorStep < 2
-                          ? FilledButton.icon(
+                          ? AppActionButton(
+                              icon: Icons.arrow_forward,
+                              label: l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
                               onPressed: (_isSubmitting || widget.isSaving)
                                   ? null
                                   : () {
-                                      if (_editorStep == 0 &&
-                                          _fullNameController.text
-                                              .trim()
-                                              .isEmpty) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              l10n.pick(
-                                                vi: 'Thiếu thông tin: Cần nhập họ và tên.',
-                                                en: 'Missing info: Please enter full name.',
-                                              ),
-                                            ),
-                                          ),
-                                        );
+                                      if (!_formKey.currentState!.validate()) {
                                         return;
+                                      }
+                                      if (_editorStep == 0) {
+                                        _normalizePhoneInputForCountry();
                                       }
                                       setState(() {
                                         _editorStep = (_editorStep + 1).clamp(
@@ -2285,26 +2293,15 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
                                         );
                                       });
                                     },
-                              icon: const Icon(Icons.arrow_forward),
-                              label: Text(
-                                l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
-                              ),
                             )
-                          : FilledButton.icon(
-                              key: const Key('member-save-button'),
+                          : AppActionButton(
+                              buttonKey: const Key('member-save-button'),
+                              isLoading: _isSubmitting || widget.isSaving,
+                              icon: Icons.save_outlined,
+                              label: l10n.memberSaveAction,
                               onPressed: (_isSubmitting || widget.isSaving)
                                   ? null
                                   : _submit,
-                              icon: (_isSubmitting || widget.isSaving)
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.save_outlined),
-                              label: Text(l10n.memberSaveAction),
                             );
 
                       if (compact) {

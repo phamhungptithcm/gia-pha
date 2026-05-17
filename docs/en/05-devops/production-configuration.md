@@ -79,6 +79,8 @@ Required vars (Functions runtime):
 - `BILLING_CONTACT_SMS_WEBHOOK_URL`
 - `BILLING_CONTACT_EMAIL_WEBHOOK_URL`
 - `CALLABLE_ENFORCE_APP_CHECK`
+- `AI_ASSIST_ENABLED`
+- `AI_ASSIST_MODEL`
 - `OTP_PROVIDER`
 - `OTP_ALLOWED_DIAL_CODES`
 - `OTP_TWILIO_VERIFY_SERVICE_SID`
@@ -113,6 +115,9 @@ Optional secrets:
 - `APPLE_IAP_WEBHOOK_BEARER_TOKEN`
 - `GOOGLE_IAP_WEBHOOK_BEARER_TOKEN`
 
+Required when `AI_ASSIST_ENABLED=true`:
+- `GOOGLE_GENAI_API_KEY`
+
 Required release signing secrets:
 - `ANDROID_RELEASE_KEYSTORE_BASE64`
 - `ANDROID_RELEASE_KEYSTORE_PASSWORD`
@@ -140,6 +145,41 @@ Mobile/Web build vars (GitHub vars, optional):
 - `BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK` (must stay `false` in production)
 - `BEFAM_BILLING_PENDING_TIMEOUT_MINUTES`
 
+## Gemini Key Setup via GitHub Secrets
+
+Where to create the key:
+- open [Google AI Studio](https://aistudio.google.com/app/apikey)
+- pick the Google project used for BeFam
+- create a Gemini Developer API key
+- copy the value immediately after creation
+
+Where to store it:
+- go to GitHub repository `Settings` -> `Environments` -> `production`
+- add an environment secret named `GOOGLE_GENAI_API_KEY`
+- if staging AI is enabled, add the same secret name under the `staging` environment too
+
+Where to store non-sensitive AI config:
+- add GitHub environment var `AI_ASSIST_ENABLED=true`
+- add GitHub environment var `AI_ASSIST_MODEL=gemini-2.5-flash-lite`
+
+Production deploy flow after setup:
+1. `CD - Deploy Firebase (Production)` reads `GOOGLE_GENAI_API_KEY` from the GitHub Environment secret
+2. the workflow syncs that value into Firebase Functions Secret Manager with `firebase functions:secrets:set`
+3. AI Functions bind the secret at runtime and do not write the key into repo-tracked config or production `.env` files
+
+Equivalent CLI commands for manual verification:
+
+```bash
+cd firebase/functions
+firebase functions:secrets:set GOOGLE_GENAI_API_KEY
+firebase functions:secrets:access GOOGLE_GENAI_API_KEY
+```
+
+Operational guidance:
+- use a GitHub **environment secret**, not a shared repository secret, for production
+- rotate the key by updating the GitHub secret and re-running the deploy workflow
+- do not place `GOOGLE_GENAI_API_KEY` inside production `.env.<project>` files
+
 ## Key Release Checks
 
 Before production deploy:
@@ -150,6 +190,7 @@ Before production deploy:
 - verify `BILLING_IAP_ALLOW_TEST_MOCK=false` in production
 - verify `BILLING_ENABLE_LEGACY_CARD_FLOW=false` in production
 - verify `CALLABLE_ENFORCE_APP_CHECK=true` in production
+- if `AI_ASSIST_ENABLED=true`, verify `GOOGLE_GENAI_API_KEY` exists in the `production` GitHub Environment secrets
 - verify branch protection is enabled on `staging` and `main` with required checks
 - rotate any leaked secret immediately (especially `APPLE_SHARED_SECRET`) before release
 - keep manual settlement disabled unless explicitly needed
@@ -157,6 +198,7 @@ Before production deploy:
 
 After deploy:
 - verify runtime env file step succeeded
+- verify the `GOOGLE_GENAI_API_KEY` secret sync step succeeded
 - verify runtime override sync succeeded
 - verify subscription package catalog sync succeeded
 - run auth + billing smoke tests on real devices

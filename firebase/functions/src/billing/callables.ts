@@ -2,6 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 
 import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from "../config/runtime";
 import { loadBillingRuntimeConfig } from "../config/runtime-overrides";
+import { loadAiUsageSummaryForUser } from "../ai/usage";
 import {
   applyPaymentResult,
   cancelStalePendingTransactionsRun,
@@ -257,6 +258,9 @@ export const resolveBillingEntitlement = onCall(
       now,
     });
     const entitlement = buildEntitlementFromSubscription(ensured.subscription);
+    const aiUsageSummary = await loadAiUsageSummaryForUser(auth.uid, {
+      clanId: scope.clanId,
+    });
 
     return {
       clanId: scope.clanId,
@@ -269,6 +273,7 @@ export const resolveBillingEntitlement = onCall(
       pricingTiers: BILLING_PRICING_TIERS,
       settings: ensured.settings,
       memberCount: resolvedMemberCount,
+      aiUsageSummary,
     };
   },
 );
@@ -285,6 +290,7 @@ export const loadBillingWorkspace = onCall(
       token: auth.token,
       data: request.data,
       requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const runtimeConfig = await loadBillingRuntimeConfig();
@@ -325,6 +331,9 @@ export const loadBillingWorkspace = onCall(
           .limit(40)
           .get(),
       ]);
+    const aiUsageSummary = await loadAiUsageSummaryForUser(auth.uid, {
+      clanId: scope.clanId,
+    });
 
     return {
       clanId: scope.clanId,
@@ -338,6 +347,7 @@ export const loadBillingWorkspace = onCall(
       checkoutFlow: buildCheckoutFlowConfig(),
       pricingTiers: BILLING_PRICING_TIERS,
       memberCount: resolvedMemberCount,
+      aiUsageSummary,
       transactions: transactionsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...normalizeFirestoreJson(doc.data()),
@@ -363,6 +373,7 @@ export const updateBillingPreferences = onCall(
       token: auth.token,
       data: request.data,
       requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const paymentMode = normalizePaymentModeFromInput(request.data);
@@ -572,17 +583,24 @@ export const verifyInAppPurchase = onCall(
     }
 
     try {
-      const ownerPolicy = await resolveOwnerBillingPolicy({
-        ownerUid: scope.ownerUid,
-        now,
-      });
+      const policyMemberCount = isPersonalBillingScope(
+        scope.clanId,
+        scope.ownerUid,
+      )
+        ? undefined
+        : (
+            await resolveOwnerBillingPolicy({
+              ownerUid: scope.ownerUid,
+              now,
+            })
+          ).totalMemberCount;
       const checkout = await createPendingCheckout({
         clanId: scope.clanId,
         ownerUid: scope.ownerUid,
         actorUid: auth.uid,
         paymentMethod: iapPlatformToPaymentMethod(platform),
         requestedPlanCode: productPlanCode,
-        policyMemberCount: ownerPolicy.totalMemberCount,
+        policyMemberCount,
         now,
       });
 
@@ -911,14 +929,9 @@ async function resolveWorkspaceMemberCount({
   fallbackMemberCount: number;
   now: Date;
 }): Promise<number> {
-  if (!isPersonalBillingScope(scope.clanId, scope.ownerUid)) {
-    return fallbackMemberCount;
-  }
-  const policy = await resolveOwnerBillingPolicy({
-    ownerUid: scope.ownerUid,
-    now,
-  });
-  return policy.totalMemberCount;
+  void scope;
+  void now;
+  return fallbackMemberCount;
 }
 
 function serializeSubscription(

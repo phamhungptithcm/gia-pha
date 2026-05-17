@@ -8,9 +8,11 @@ import 'package:printing/printing.dart';
 
 import '../../../app/theme/app_ui_tokens.dart';
 import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_compact_controls.dart';
 import '../../../core/services/kinship_title_resolver.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_form_controls.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/l10n.dart';
 import '../../auth/models/auth_session.dart';
@@ -345,7 +347,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
         final currentFund = _controller.selectedFund;
         final hasFunds = _controller.funds.isNotEmpty;
         final listBottomPadding =
-            (_controller.canManageFunds ? 120.0 : 32.0) +
+            (_controller.canManageFunds ? 176.0 : 96.0) +
             MediaQuery.paddingOf(context).bottom;
         final displayCurrency =
             currentFund?.currency ??
@@ -377,6 +379,7 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
           ),
           floatingActionButton: _controller.canManageFunds
               ? FloatingActionButton(
+                  key: const Key('fund-add-fab'),
                   onPressed: () => _openFundEditor(),
                   tooltip: l10n.pick(vi: 'Thêm quỹ', en: 'Add fund'),
                   child: const Icon(Icons.add),
@@ -1437,6 +1440,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
             transactionType: type,
             currency: fund.currency,
           ),
+          currentBalanceMinor: fund.balanceMinor,
           isSaving: widget.controller.isSavingTransaction,
           onSubmit: (draft) {
             return widget.controller.recordTransaction(draft: draft);
@@ -1566,6 +1570,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                           runSpacing: 10,
                           children: [
                             FilledButton.icon(
+                              key: const Key('fund-add-donation-button'),
                               onPressed: () => _openTransactionEditor(
                                 fund,
                                 FundTransactionType.donation,
@@ -1579,6 +1584,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                               ),
                             ),
                             OutlinedButton.icon(
+                              key: const Key('fund-add-expense-button'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: colorScheme.onPrimary,
                                 side: BorderSide(
@@ -1745,9 +1751,11 @@ class _FundEditorSheet extends StatefulWidget {
 
 class _FundEditorSheetState extends State<_FundEditorSheet> {
   final _formKey = GlobalKey<FormState>();
+  final _nameFieldScrollKey = GlobalKey();
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _branchIdController;
+  late final FocusNode _nameFocusNode;
 
   late String _fundType;
   late String _currency;
@@ -1759,6 +1767,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
   String? _memberLoadError;
   FundRepositoryErrorCode? _submitError;
   bool _isSubmitting = false;
+  bool _showValidationErrors = false;
   int _editorStep = 0;
 
   static const _fundTypes = [
@@ -1774,6 +1783,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialDraft.name);
+    _nameFocusNode = FocusNode();
     _descriptionController = TextEditingController(
       text: widget.initialDraft.description,
     );
@@ -1805,6 +1815,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
   @override
   void dispose() {
     _nameController.dispose();
+    _nameFocusNode.dispose();
     _descriptionController.dispose();
     _branchIdController.dispose();
     super.dispose();
@@ -1828,14 +1839,21 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
       return false;
     }
 
-    if (_nameController.text.trim().isEmpty) {
+    final formIsValid = _formKey.currentState?.validate() ?? false;
+    if (!formIsValid) {
+      if (!_showValidationErrors) {
+        setState(() {
+          _showValidationErrors = true;
+        });
+      }
+      _focusFirstInvalidStepOneField();
       if (showSnackBar) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               l10n.pick(
-                vi: 'Tên quỹ là bắt buộc.',
-                en: 'Fund name is required.',
+                vi: 'Kiểm tra lại các trường bắt buộc.',
+                en: 'Check the required fields.',
               ),
             ),
           ),
@@ -1846,8 +1864,29 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
     return true;
   }
 
+  void _focusFirstInvalidStepOneField() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _nameFocusNode.requestFocus();
+      final fieldContext = _nameFieldScrollKey.currentContext;
+      if (fieldContext == null) {
+        return;
+      }
+      unawaited(
+        Scrollable.ensureVisible(
+          fieldContext,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: 0.08,
+        ),
+      );
+    });
+  }
+
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!_validateStepOne(showSnackBar: true)) {
       return;
     }
 
@@ -2222,6 +2261,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
           child: Form(
             key: _formKey,
+            autovalidateMode: _showValidationErrors
+                ? AutovalidateMode.onUserInteraction
+                : AutovalidateMode.disabled,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2289,30 +2331,36 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
-                    key: const Key('fund-name-input'),
-                    controller: _nameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Tên quỹ', en: 'Fund name'),
-                      hintText: l10n.pick(
-                        vi: 'Quỹ khuyến học',
-                        en: 'Scholarship Fund',
+                  KeyedSubtree(
+                    key: _nameFieldScrollKey,
+                    child: TextFormField(
+                      key: const Key('fund-name-input'),
+                      controller: _nameController,
+                      focusNode: _nameFocusNode,
+                      decoration: appFieldDecoration(
+                        label: l10n.pick(vi: 'Tên quỹ', en: 'Fund name'),
+                        required: true,
+                        hintText: l10n.pick(
+                          vi: 'Quỹ khuyến học',
+                          en: 'Scholarship Fund',
+                        ),
                       ),
+                      validator: (value) {
+                        return value == null || value.trim().isEmpty
+                            ? l10n.pick(
+                                vi: 'Tên quỹ là bắt buộc.',
+                                en: 'Fund name is required.',
+                              )
+                            : null;
+                      },
                     ),
-                    validator: (value) {
-                      return value == null || value.trim().isEmpty
-                          ? l10n.pick(
-                              vi: 'Tên quỹ là bắt buộc.',
-                              en: 'Fund name is required.',
-                            )
-                          : null;
-                    },
                   ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     initialValue: _fundType,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Loại quỹ', en: 'Fund type'),
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(vi: 'Loại quỹ', en: 'Fund type'),
+                      required: true,
                     ),
                     items: [
                       for (final type in _fundTypes)
@@ -2333,8 +2381,9 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     initialValue: _currency,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Tiền tệ', en: 'Currency'),
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(vi: 'Tiền tệ', en: 'Currency'),
+                      required: true,
                     ),
                     items: [
                       for (final currency in _currencies)
@@ -2356,8 +2405,8 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                   TextFormField(
                     key: const Key('fund-branch-id-input'),
                     controller: _branchIdController,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(
                         vi: 'Chi áp dụng (tuỳ chọn)',
                         en: 'Branch scope (optional)',
                       ),
@@ -2369,8 +2418,8 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                     key: const Key('fund-description-input'),
                     controller: _descriptionController,
                     maxLines: 4,
-                    decoration: InputDecoration(
-                      labelText: l10n.pick(vi: 'Mô tả', en: 'Description'),
+                    decoration: appFieldDecoration(
+                      label: l10n.pick(vi: 'Mô tả', en: 'Description'),
                       hintText: l10n.pick(
                         vi: 'Mô tả quỹ hỗ trợ ai và cách sử dụng.',
                         en: 'Describe who this fund supports and how it is used.',
@@ -2610,12 +2659,21 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: FilledButton.icon(
-                        key: Key(
+                      child: AppActionButton(
+                        buttonKey: Key(
                           _editorStep == 0
                               ? 'fund-editor-next-step-button'
                               : 'fund-save-button',
                         ),
+                        isLoading: _isSubmitting || widget.isSaving,
+                        icon: _editorStep == 0
+                            ? Icons.arrow_forward_outlined
+                            : Icons.save_outlined,
+                        label: (_isSubmitting || widget.isSaving)
+                            ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
+                            : _editorStep == 0
+                            ? l10n.pick(vi: 'Tiếp tục', en: 'Continue')
+                            : l10n.pick(vi: 'Lưu quỹ', en: 'Save fund'),
                         onPressed: (_isSubmitting || widget.isSaving)
                             ? null
                             : _editorStep == 0
@@ -2625,26 +2683,6 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
                                 }
                               }
                             : _submit,
-                        icon: (_isSubmitting || widget.isSaving)
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(
-                                _editorStep == 0
-                                    ? Icons.arrow_forward_outlined
-                                    : Icons.save_outlined,
-                              ),
-                        label: Text(
-                          (_isSubmitting || widget.isSaving)
-                              ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
-                              : _editorStep == 0
-                              ? l10n.pick(vi: 'Tiếp tục', en: 'Continue')
-                              : l10n.pick(vi: 'Lưu quỹ', en: 'Save fund'),
-                        ),
                       ),
                     ),
                   ],
@@ -2662,12 +2700,14 @@ class _TransactionEditorSheet extends StatefulWidget {
   const _TransactionEditorSheet({
     required this.title,
     required this.initialDraft,
+    required this.currentBalanceMinor,
     required this.isSaving,
     required this.onSubmit,
   });
 
   final String title;
   final FundTransactionDraft initialDraft;
+  final int currentBalanceMinor;
   final bool isSaving;
   final Future<FundRepositoryErrorCode?> Function(FundTransactionDraft draft)
   onSubmit;
@@ -2686,6 +2726,7 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
   late DateTime _occurredAt;
 
   FundRepositoryErrorCode? _submitError;
+  String? _dateError;
   bool _isSubmitting = false;
 
   @override
@@ -2733,17 +2774,33 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
         _occurredAt.hour,
         _occurredAt.minute,
       );
+      _dateError = null;
     });
   }
 
   Future<void> _submit() async {
+    if (_isSubmitting || widget.isSaving) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_occurredAt.toUtc().isAfter(
+      DateTime.now().toUtc().add(const Duration(minutes: 5)),
+    )) {
+      setState(() {
+        _dateError = context.l10n.pick(
+          vi: 'Ngày phát sinh không được ở tương lai.',
+          en: 'Occurred date cannot be in the future.',
+        );
+      });
       return;
     }
 
     setState(() {
       _isSubmitting = true;
       _submitError = null;
+      _dateError = null;
     });
 
     final error = await widget.onSubmit(
@@ -2830,41 +2887,36 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Số tiền', en: 'Amount'),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Số tiền', en: 'Amount'),
+                    required: true,
                     hintText: widget.initialDraft.currency == 'VND'
                         ? l10n.pick(vi: '500000', en: '500000')
                         : l10n.pick(vi: '50.00', en: '50.00'),
                     suffixText: widget.initialDraft.currency,
                   ),
-                  validator: (value) {
-                    return value == null || value.trim().isEmpty
-                        ? l10n.pick(
-                            vi: 'Số tiền là bắt buộc.',
-                            en: 'Amount is required.',
-                          )
-                        : null;
-                  },
+                  validator: _validateAmount,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   key: const Key('fund-transaction-note-input'),
                   controller: _noteController,
                   maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(vi: 'Ghi chú', en: 'Note'),
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(vi: 'Ghi chú', en: 'Note'),
                     hintText: l10n.pick(
                       vi: 'Đóng góp Tết',
                       en: 'Tet contribution',
                     ),
                   ),
+                  validator: _validateNote,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   key: const Key('fund-transaction-member-input'),
                   controller: _memberIdController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(
                       vi: 'Thành viên liên quan (tuỳ chọn)',
                       en: 'Linked member (optional)',
                     ),
@@ -2875,8 +2927,8 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                 TextFormField(
                   key: const Key('fund-transaction-reference-input'),
                   controller: _referenceController,
-                  decoration: InputDecoration(
-                    labelText: l10n.pick(
+                  decoration: appFieldDecoration(
+                    label: l10n.pick(
                       vi: 'Mã tham chiếu (tuỳ chọn)',
                       en: 'Reference (optional)',
                     ),
@@ -2901,33 +2953,37 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                     child: Text(_formatDate(context, _occurredAt)),
                   ),
                 ),
+                if (_dateError != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _dateError!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 22),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.icon(
+                  child: AppActionButton(
+                    buttonKey: const Key('fund-transaction-save-button'),
+                    expand: true,
+                    isLoading: _isSubmitting || widget.isSaving,
+                    icon:
+                        widget.initialDraft.transactionType ==
+                            FundTransactionType.donation
+                        ? Icons.add_circle_outline
+                        : Icons.remove_circle_outline,
+                    label: (_isSubmitting || widget.isSaving)
+                        ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
+                        : widget.initialDraft.transactionType ==
+                              FundTransactionType.donation
+                        ? l10n.pick(vi: 'Lưu đóng góp', en: 'Save donation')
+                        : l10n.pick(vi: 'Lưu chi tiêu', en: 'Save expense'),
                     onPressed: (_isSubmitting || widget.isSaving)
                         ? null
                         : _submit,
-                    icon: (_isSubmitting || widget.isSaving)
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(
-                            widget.initialDraft.transactionType ==
-                                    FundTransactionType.donation
-                                ? Icons.add_circle_outline
-                                : Icons.remove_circle_outline,
-                          ),
-                    label: Text(
-                      (_isSubmitting || widget.isSaving)
-                          ? l10n.pick(vi: 'Đang lưu...', en: 'Saving...')
-                          : widget.initialDraft.transactionType ==
-                                FundTransactionType.donation
-                          ? l10n.pick(vi: 'Lưu đóng góp', en: 'Save donation')
-                          : l10n.pick(vi: 'Lưu chi tiêu', en: 'Save expense'),
-                    ),
                   ),
                 ),
               ],
@@ -2936,6 +2992,55 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
         ),
       ),
     );
+  }
+
+  String? _validateAmount(String? value) {
+    final l10n = context.l10n;
+    final amountInput = value?.trim() ?? '';
+    if (amountInput.isEmpty) {
+      return l10n.pick(vi: 'Số tiền là bắt buộc.', en: 'Amount is required.');
+    }
+
+    final amountMinor = _parseAmountMinorOrNull(amountInput);
+    if (amountMinor == null) {
+      return l10n.pick(vi: 'Nhập số tiền hợp lệ.', en: 'Enter a valid amount.');
+    }
+    if (amountMinor <= 0) {
+      return l10n.pick(
+        vi: 'Số tiền phải lớn hơn 0.',
+        en: 'Amount must be greater than 0.',
+      );
+    }
+    if (widget.initialDraft.transactionType == FundTransactionType.expense &&
+        amountMinor > widget.currentBalanceMinor) {
+      return l10n.pick(
+        vi: 'Khoản chi không được vượt số dư hiện tại.',
+        en: 'Expense cannot exceed the current balance.',
+      );
+    }
+    return null;
+  }
+
+  String? _validateNote(String? value) {
+    final noteLength = (value ?? '').trim().length;
+    if (noteLength <= 280) {
+      return null;
+    }
+    return context.l10n.pick(
+      vi: 'Ghi chú tối đa 280 ký tự.',
+      en: 'Note must be 280 characters or fewer.',
+    );
+  }
+
+  int? _parseAmountMinorOrNull(String amountInput) {
+    try {
+      return CurrencyMinorUnits.toMinorUnits(
+        currency: widget.initialDraft.currency,
+        amountInput: amountInput,
+      );
+    } on FormatException {
+      return null;
+    }
   }
 }
 
@@ -3139,7 +3244,7 @@ class _SelectedFundSpotlight extends StatelessWidget {
                   fund.name,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -0.4,
+                    letterSpacing: 0,
                   ),
                 ),
                 SizedBox(height: tokens.spaceXs + 2),
@@ -3163,7 +3268,7 @@ class _SelectedFundSpotlight extends StatelessWidget {
                         fund.name,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -0.4,
+                          letterSpacing: 0,
                         ),
                       ),
                     ),
@@ -3316,7 +3421,7 @@ class _SectionCard extends StatelessWidget {
                       title,
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
-                        letterSpacing: -0.3,
+                        letterSpacing: 0,
                       ),
                     ),
                   ],
@@ -3597,10 +3702,7 @@ class _EmptyWorkspace extends StatelessWidget {
 }
 
 class _WorkspaceHero extends StatelessWidget {
-  const _WorkspaceHero({
-    required this.title,
-    required this.highlights,
-  });
+  const _WorkspaceHero({required this.title, required this.highlights});
 
   final String title;
   final List<_WorkspaceHeroHighlight> highlights;
@@ -3622,7 +3724,7 @@ class _WorkspaceHero extends StatelessWidget {
             title,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w900,
-              letterSpacing: -0.4,
+              letterSpacing: 0,
             ),
           ),
           if (highlights.isNotEmpty) ...[

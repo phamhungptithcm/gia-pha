@@ -49,8 +49,21 @@ service firebase.storage {
         : '';
     }
 
+    function memberAccessModeClaim() {
+      return signedIn() && request.auth.token.memberAccessMode is string
+        ? request.auth.token.memberAccessMode
+        : hasUserDoc() &&
+          get(/databases/(default)/documents/users/$(request.auth.uid)).data.accessMode is string
+        ? get(/databases/(default)/documents/users/$(request.auth.uid)).data.accessMode
+        : 'unlinked';
+    }
+
+    function isClaimedSession() {
+      return memberAccessModeClaim() == 'claimed';
+    }
+
     function isClanAdmin() {
-      return signedIn() && primaryRole() in [
+      return isClaimedSession() && primaryRole() in [
         'SUPER_ADMIN',
         'CLAN_ADMIN',
         'BRANCH_ADMIN'
@@ -58,7 +71,7 @@ service firebase.storage {
     }
 
     function isScholarshipCouncilHead() {
-      return signedIn() && primaryRole() == 'SCHOLARSHIP_COUNCIL_HEAD';
+      return isClaimedSession() && primaryRole() == 'SCHOLARSHIP_COUNCIL_HEAD';
     }
 
     function isScholarshipReviewerOrAdmin() {
@@ -82,7 +95,7 @@ service firebase.storage {
       allow read: if hasClanAccess(clanId);
       allow write: if
         hasClanAccess(clanId) &&
-        (isClanAdmin() || memberId == memberIdClaim()) &&
+        (isClanAdmin() || (isClaimedSession() && memberId == memberIdClaim())) &&
         (
           request.resource == null ||
           (
@@ -117,6 +130,7 @@ service firebase.storage {
         );
       allow write: if
         hasClanAccess(clanId) &&
+        isClaimedSession() &&
         memberId == memberIdClaim() &&
         isValidWritePayload(20 * 1024 * 1024);
     }

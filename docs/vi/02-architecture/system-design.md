@@ -1,6 +1,6 @@
 # Thiết kế hệ thống
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 17/05/2026_
 
 ## Kiến trúc tổng thể
 
@@ -11,10 +11,10 @@ flowchart TD
     A --> D["Firebase Storage"]
     A --> E["Cloud Functions v2 (asia-southeast1)"]
     A --> F["Firebase Cloud Messaging"]
-    A --> K["Luồng thanh toán VNPay"]
+    A --> K["Mua gói App Store / Google Play"]
     E --> C
     E --> F
-    K --> L["Payment Gateway"]
+    K --> L["Nền tảng subscription store"]
     L --> E
     G["GitHub Actions CI/CD"] --> H["Nhánh bảo vệ staging/main"]
     G --> I["GitHub Releases + GHCR images"]

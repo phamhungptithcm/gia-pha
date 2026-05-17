@@ -1,17 +1,32 @@
 # UI Design
 
-_Last reviewed: March 15, 2026_
+_Last reviewed: May 16, 2026_
 
 ## Design direction
 
-BeFam uses a warm light theme with strong contrast and large rounded surfaces
-to keep the app approachable for both younger and older users.
+BeFam uses a light lineage workspace style: bright surfaces, clear borders,
+strong readable text, BeFam blue emphasis, and small trust signals. The product
+should feel like a calm clan operations tool, not a generic social feed.
+
+`DESIGN.md` is the canonical design contract for BeFam and now follows the
+Google Labs `design.md` format: YAML design tokens first, then product guidance.
+When changing UI, motion, form behavior, or release-facing copy, update that
+file first and validate it with:
+
+```bash
+./scripts/lint_design_md.sh
+```
 
 ## Theme and visual language
 
 - custom Material 3 color scheme in `app/theme/app_theme.dart`
-- primary tones: deep blue with cream/beige support surfaces
+- primary tones: BeFam blue, green trust states, white workspace surfaces, and
+  subtle blue-gray borders
 - cards and sections use clear spacing and high readability over dense layouts
+- avoid decorative gradients, blobs, staged entrance effects, and heavy
+  marketing composition inside the app shell
+- keep web, iOS, and Android aligned to the same `DESIGN.md` colors,
+  typography, spacing, shape, component, and motion contracts
 
 ## UX improvements now reflected in app
 
@@ -22,6 +37,41 @@ to keep the app approachable for both younger and older users.
 - member and genealogy screens prioritize human-readable copy and relationships
 - dual calendar card, month grid, and day tile layouts are tuned for large text
   and lower-end devices
+- required form fields now use a shared label/field decoration pattern
+- async buttons show press feedback, loading progress, and repeat-tap protection
+- web landing, static shell, iOS, and Android now share the same light lineage
+  grid, short copy, 8px web marketing cards, and quiet app surfaces
+- mobile routes, pushed detail pages, and secondary workspaces inherit the
+  shared lineage backdrop through the app shell and transparent route scaffolds
+- all public web routes use the same BF brand mark, fixed translucent top
+  navigation, compact fixed footer, home-style lineage artwork, and responsive
+  desktop/tablet/mobile shell
+
+## Forms, timers, and actions
+
+- Required fields must be visibly marked and must show an inline error before
+  the user can move forward.
+- Multi-step editors validate the current step before navigation. This applies
+  to auth, clan, branch, member, event, fund, and scholarship flows.
+- Error copy is short and specific: tell the user which field to fix, not a
+  generic failure state.
+- Timers such as OTP resend cooldowns use a compact progress indicator and
+  remaining time.
+- Async buttons use `AppActionButton` or `AppAsyncAction` so the button gives
+  immediate feedback, shows progress when a request is in flight, and blocks
+  double submits.
+- Screen transitions use BeFam's scale-only transition. Do not use slide or fade
+  as a default tap response.
+- iOS and Android route scaffolds use the transparent mobile theme so pushed
+  screens keep the same app background as the home shell.
+- Web landing motion is limited to hover, focus, border, color, and shadow
+  feedback. Do not add ambient float, pulse, or decorative movement.
+- Public web navigation and footer stay outside the main scroll container. The
+  content area may scroll, but shell chrome must remain stable and calm.
+- Public web copy should be short, natural, and decision-oriented. Avoid FAQ/CTA
+  duplication on the landing flow unless the page purpose requires it.
+- Public web footers stay compact. Do not place large store-download cards or
+  repeated support blocks in the footer.
 
 ## Accessibility and resilience
 
@@ -41,6 +91,21 @@ to keep the app approachable for both younger and older users.
 - no-context and empty states provide user-facing guidance in each module
 - retry actions are available on recoverable error states
 - runtime widget crashes show a fallback card UI instead of a broken frame
+
+## Form validation test matrix
+
+Run these targeted checks when touching form, timer, action, or navigation
+motion behavior:
+
+```bash
+cd mobile/befam
+flutter analyze
+flutter test test/core/widgets/app_form_controls_test.dart
+flutter test test/widget_test.dart --name "auth phone form|auth child and OTP|clan editor shows|branch editor shows|member add form blocks|filters parent candidates"
+flutter test test/features/events/event_widget_test.dart --name "edit form shows required title error before moving on"
+flutter test test/features/funds/fund_form_validation_widget_test.dart
+flutter test test/features/scholarship/scholarship_flow_widget_test.dart --name "create forms surface required errors before continuing"
+```
 
 ## Content style
 

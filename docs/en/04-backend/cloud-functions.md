@@ -84,12 +84,15 @@ and TypeScript.
 - `updateBillingPreferences`:
   - persists auto/manual renewal mode and reminder schedule
 - `createSubscriptionCheckout`:
-  - computes tier from current member count and creates transaction + invoice
-    baseline for Card/VNPay
+  - computes tier from current member count and keeps a legacy checkout
+    compatibility path for non-store payment experiments
   - resolves checkout URL and pending-timeout policy from runtime config/env
+- `verifyInAppPurchase`:
+  - verifies App Store / Google Play purchase payloads before entitlement changes
+  - requires owner mutation access for clan billing scopes
 - `completeCardCheckout` and `simulateVnpaySettlement`:
   - finalize payment settlement in callable-driven testing/dev flows
-- `cardPaymentCallback` and `vnpayPaymentCallback`:
+- `cardPaymentCallback` and `vnpayPaymentCallback` (legacy compatibility):
   - validate callback signatures
   - webhook secrets/signing keys are read from runtime env getters (no hard-coded key)
   - enforce idempotency via `paymentWebhookEvents`

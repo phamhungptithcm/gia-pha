@@ -45,6 +45,13 @@ BEFAM_E2E_TEST_OTP="123456" \
 ./scripts/run_mobile_e2e.sh live ios smoke
 ```
 
+For local mock-auth walkthroughs with a reviewer-provided OTP, pass:
+
+```bash
+--dart-define=BEFAM_USE_MOCK_AUTH=true \
+--dart-define=BEFAM_MOCK_AUTH_OTP=220197
+```
+
 Generated artifacts (per platform/mode):
 
 - `mobile/befam/artifacts/e2e-<mode>-<platform>-<suite>-machine.jsonl`

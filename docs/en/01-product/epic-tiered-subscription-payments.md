@@ -1,6 +1,6 @@
 # Tiered Subscription and Payments Epic
 
-_Last reviewed: March 17, 2026_
+_Last reviewed: May 17, 2026_
 
 Source issue: [#213](https://github.com/phamhungptithcm/gia-pha/issues/213)
 
@@ -20,13 +20,14 @@ clear entitlement behavior and secure payment confirmation.
 
 - tiered pricing engine and validation
 - subscription status and lifecycle handling
-- VNPay-first checkout flow for user-facing payment journey
+- Store IAP-first purchase flow for iOS/Android
 - webhook/callback validation and idempotent processing
 - reminders, history, and audit traces
 
 ## Current Product Behavior
 
-- backend creates checkout order before app opens payment URL
+- app starts Store IAP purchase on iOS/Android
+- backend verifies Store IAP receipt before entitlement changes
 - plan activates only after confirmed successful payment
 - pending or failed/canceled payment does not grant upgraded plan
 - user-facing payment states are explicit and actionable
@@ -36,7 +37,7 @@ clear entitlement behavior and secure payment confirmation.
 - BILL-001 pricing engine
 - BILL-002 lifecycle model
 - BILL-003 billing workspace UI
-- BILL-004 VNPay checkout integration
+- BILL-004 App Store / Google Play purchase integration
 - BILL-005 webhook/callback validation
 - BILL-006 renewal preferences
 - BILL-007 reminder scheduler

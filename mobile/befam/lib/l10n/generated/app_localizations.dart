@@ -2855,7 +2855,7 @@ abstract class AppLocalizations {
   /// No description provided for @authIssueNetworkRequestFailed.
   ///
   /// In vi, this message translates to:
-  /// **'Kết nối mạng thất bại. Hãy kiểm tra internet và thử lại.'**
+  /// **'Chưa thể kết nối tới dịch vụ xác thực. Hãy kiểm tra mạng và thử lại sau ít phút.'**
   String get authIssueNetworkRequestFailed;
 
   /// No description provided for @authIssueTooManyRequests.
@@ -2921,7 +2921,7 @@ abstract class AppLocalizations {
   /// No description provided for @authIssueAuthUnavailable.
   ///
   /// In vi, this message translates to:
-  /// **'Hiện chưa thể hoàn tất xác thực.'**
+  /// **'Hiện chưa thể hoàn tất xác thực trên môi trường này. Hãy thử lại sau ít phút.'**
   String get authIssueAuthUnavailable;
 
   /// No description provided for @authIssuePreparationFailed.

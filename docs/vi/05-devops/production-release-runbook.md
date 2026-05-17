@@ -1,6 +1,6 @@
 # Production Release Runbook
 
-_Cập nhật: 04/04/2026_
+_Cập nhật: 16/05/2026_
 
 Tài liệu này là runbook ngắn để team kiểm tra mọi cấu hình production trước khi promote BeFam từ `main`.
 
@@ -15,6 +15,7 @@ Chạy audit:
 
 ```bash
 ./scripts/audit_github_environment.sh --repo phamhungptithcm/gia-pha --env production --strict
+./scripts/audit_github_environment.sh --repo phamhungptithcm/gia-pha --env staging --strict
 ```
 
 Script sẽ kiểm tra:
@@ -30,8 +31,8 @@ Nếu script fail, không promote production.
 
 Nguồn template:
 
-- [scripts/github-production.env.example](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/scripts/github-production.env.example)
-- [scripts/setup_github_production_config.sh](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/scripts/setup_github_production_config.sh)
+- `scripts/github-production.env.example`
+- `scripts/setup_github_production_config.sh`
 
 Thiết lập:
 
@@ -54,7 +55,7 @@ Các nhóm phải có đủ:
 
 File cần điền:
 
-- [app-ads.txt](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/web/app-ads.txt)
+- `mobile/befam/web/app-ads.txt`
 
 Format:
 
@@ -73,8 +74,9 @@ Yêu cầu:
 Điều kiện:
 
 - Branch CI xanh
-- Không còn `Blocker` trong [production-readiness-checklist.md](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/production-readiness-checklist.md)
+- Không còn `Blocker` trong `production-readiness-checklist.md`
 - Audit GitHub production env pass
+- Bộ test trong `TEST_CASES.md` đã được chạy và ghi nhận evidence
 
 Sau đó:
 

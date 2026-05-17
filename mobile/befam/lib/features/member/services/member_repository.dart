@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../../auth/models/auth_session.dart';
+import 'debug_member_repository.dart';
 import 'firebase_member_repository.dart';
 import '../models/member_draft.dart';
 import '../models/member_profile.dart';
@@ -62,5 +63,8 @@ abstract interface class MemberRepository {
 }
 
 MemberRepository createDefaultMemberRepository({AuthSession? session}) {
+  if (session?.isSandbox == true) {
+    return DebugMemberRepository.shared();
+  }
   return FirebaseMemberRepository();
 }

@@ -1,6 +1,6 @@
 # Inventory Dịch Vụ Dự Án BeFam
 
-_Cập nhật quét: 26/03/2026_
+_Cập nhật quét: 16/05/2026_
 
 ## Phạm vi quét
 
@@ -92,8 +92,8 @@ _Rà soát ngày: 04/04/2026_
 - Apple phát hành app qua Apple Developer Program: `$99/năm`.
 - Google Play cần phí đăng ký developer: `$25` một lần, không phải phí lặp lại hàng năm.
 - Code hiện tại có 6 scheduled jobs dùng `onSchedule`, tương ứng 6 Cloud Scheduler jobs:
-  - 5 jobs trong [`firebase/functions/src/scheduled/jobs.ts`](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/firebase/functions/src/scheduled/jobs.ts)
-  - 1 job trong [`firebase/functions/src/events/event-triggers.ts`](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/firebase/functions/src/events/event-triggers.ts)
+  - 5 jobs trong `firebase/functions/src/scheduled/jobs.ts`
+  - 1 job trong `firebase/functions/src/events/event-triggers.ts`
 - Cloud Scheduler tính `$0.10/job/tháng`, miễn phí 3 jobs đầu mỗi billing account.
 - Baseline dưới đây giả định billing account chưa dùng mất free tier 3 jobs ở project khác, nên chỉ còn 3 jobs phải trả phí cho BeFam.
 
@@ -154,6 +154,6 @@ Các khoản dưới đây đã được codebase xác nhận là có thể phá
 
 ## Ghi chú quan trọng
 
-- Tài liệu sản phẩm cũ còn nhắc `VNPay/Card`, nhưng code runtime hiện tại đang ưu tiên Store IAP (Apple/Google) cho payment flow.
+- Payment runtime hiện tại ưu tiên Store IAP (Apple/Google) cho payment flow; nhánh callback cũ chỉ còn là tương thích backend.
 - Một số dịch vụ là `tùy chọn theo env` (đặc biệt Twilio, email/sms webhook ngoài hệ thống).
 - Chi phí ở bảng là mức phân loại vận hành; con số thực tế phụ thuộc plan account và mức traffic giao dịch thật.

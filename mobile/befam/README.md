@@ -73,6 +73,7 @@ Run the app:
 ../../run_flutter_targets.sh android-usb-release-ci
 ../../run_flutter_targets.sh android-doctor
 ../../run_flutter_targets.sh ios-sim
+../../run_flutter_targets.sh ios-device-staging-release
 ../../run_flutter_targets.sh web-chrome
 ```
 
@@ -134,6 +135,10 @@ The app now opens into an authentication-first BeFam flow:
 For local UI testing in debug builds:
 
 - OTP: `123456`
+- Custom local OTP: `--dart-define=BEFAM_MOCK_AUTH_OTP=220197`
+- Mock auth uses local fixture profiles by default. Remote debug login profiles
+  must be explicitly enabled with
+  `--dart-define=BEFAM_USE_REMOTE_DEBUG_LOGIN_PROFILES=true`.
 - child IDs: `BEFAM-CHILD-001`, `BEFAM-CHILD-002`
 - live Firebase auth can be forced with `--dart-define=BEFAM_USE_LIVE_AUTH=true`
 - functions region can be overridden with

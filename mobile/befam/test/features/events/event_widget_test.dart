@@ -1,7 +1,10 @@
 import '../../support/core/services/debug_genealogy_store.dart';
+import '../../support/features/ai/services/fake_ai_assist_service.dart';
+import 'package:befam/core/widgets/app_form_controls.dart';
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/features/ai/services/ai_assist_service.dart';
 import 'package:befam/features/calendar/models/calendar_region.dart';
 import 'package:befam/features/calendar/models/lunar_date.dart';
 import 'package:befam/features/calendar/services/lunar_conversion_engine.dart';
@@ -82,6 +85,7 @@ void main() {
     DebugEventRepository repository, {
     DateTime Function()? nowProvider,
     LunarConversionEngine? lunarConversionEngine,
+    FakeAiAssistService? aiAssistService,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -99,6 +103,7 @@ void main() {
             repository: repository,
             nowProvider: nowProvider,
             lunarConversionEngine: lunarConversionEngine,
+            aiAssistService: aiAssistService,
           ),
         ),
       ),
@@ -115,35 +120,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 120));
     }
     expect(find.byType(Scrollable), findsWidgets);
-  }
-
-  Future<void> createEvent(
-    WidgetTester tester, {
-    required String title,
-    required String startAt,
-    required String endAt,
-  }) async {
-    await tester.tap(find.byKey(const Key('event-create-button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-
-    await tester.enterText(find.byKey(const Key('event-title-field')), title);
-    await tester.tap(find.byKey(const Key('event-save-button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-
-    await tester.enterText(find.byKey(const Key('event-start-field')), startAt);
-    await tester.enterText(find.byKey(const Key('event-end-field')), endAt);
-
-    final saveButton = find.byKey(const Key('event-save-button'));
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
   }
 
   void useLargeViewport(WidgetTester tester) {
@@ -345,6 +321,41 @@ void main() {
     expect(find.byKey(const Key('calendar-event-save-button')), findsNothing);
   });
 
+  testWidgets('edit form shows required title error before moving on', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    await pumpWorkspace(tester, repository);
+
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
+    );
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.enterText(find.byKey(const Key('event-title-field')), '');
+    await tester.tap(find.byKey(const Key('event-save-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+
+    expect(find.text('Vui lòng nhập tiêu đề sự kiện.'), findsWidgets);
+    expect(find.byKey(const Key('event-title-field')), findsOneWidget);
+    expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
+  });
+
   testWidgets(
     'shows upcoming longevity link and opens member detail for 70+ milestone',
     (tester) async {
@@ -415,6 +426,293 @@ void main() {
     },
   );
 
+  testWidgets('keeps event suggestions as preview until each part is applied', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    final aiAssistService = FakeAiAssistService(
+      onDraftEventCopy:
+          ({required session, required locale, required draft}) async {
+            return const EventAiSuggestion(
+              title: 'Lễ tưởng niệm họ Nguyễn cuối tuần',
+              description:
+                  'Chuẩn bị hoa hương, phân công tiếp đón họ hàng, và nhắc mọi người có mặt sớm 30 phút.',
+              recommendedReminderOffsetsMinutes: [4320, 30],
+              rationale: [
+                'Giữ tiêu đề rõ loại sự kiện và thời điểm.',
+                'Mô tả ngắn gọn để người tham dự biết cần chuẩn bị gì.',
+              ],
+              usedFallback: false,
+              model: null,
+            );
+          },
+    );
+
+    await pumpWorkspace(tester, repository, aiAssistService: aiAssistService);
+
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
+    );
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final titleFieldFinder = find.byKey(const Key('event-title-field'));
+    final descriptionFieldFinder = find.byKey(
+      const Key('event-description-field'),
+    );
+
+    expect(titleFieldFinder, findsOneWidget);
+    expect(descriptionFieldFinder, findsOneWidget);
+    expect(
+      tester.widget<TextField>(titleFieldFinder).controller?.text,
+      'Giỗ cụ tổ mùa xuân',
+    );
+    expect(
+      tester.widget<TextField>(descriptionFieldFinder).controller?.text,
+      'Lễ giỗ thường niên tại từ đường chi trưởng, chuẩn bị lễ vật trước 2 giờ.',
+    );
+
+    await tester.tap(find.byKey(const Key('event-ai-suggest-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('Bản gợi ý mới'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(titleFieldFinder).controller?.text,
+      'Giỗ cụ tổ mùa xuân',
+    );
+    expect(
+      tester.widget<TextField>(descriptionFieldFinder).controller?.text,
+      'Lễ giỗ thường niên tại từ đường chi trưởng, chuẩn bị lễ vật trước 2 giờ.',
+    );
+
+    await tester.tap(find.byKey(const Key('event-ai-apply-title-button')));
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(titleFieldFinder).controller?.text,
+      'Lễ tưởng niệm họ Nguyễn cuối tuần',
+    );
+    expect(
+      tester.widget<TextField>(descriptionFieldFinder).controller?.text,
+      'Lễ giỗ thường niên tại từ đường chi trưởng, chuẩn bị lễ vật trước 2 giờ.',
+    );
+
+    await tester.tap(
+      find.byKey(const Key('event-ai-apply-description-button')),
+    );
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(descriptionFieldFinder).controller?.text,
+      'Chuẩn bị hoa hương, phân công tiếp đón họ hàng, và nhắc mọi người có mặt sớm 30 phút.',
+    );
+
+    await tester.tap(find.byKey(const Key('event-save-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byKey(const Key('event-save-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.byKey(const Key('event-reminder-chip-4320')), findsNothing);
+    expect(
+      find.byKey(const Key('event-ai-apply-reminders-button')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('event-ai-apply-reminders-button')));
+    await tester.pump();
+
+    expect(find.byKey(const Key('event-reminder-chip-4320')), findsOneWidget);
+    expect(find.byKey(const Key('event-reminder-chip-30')), findsOneWidget);
+  });
+
+  testWidgets('shows inline error for invalid custom reminder input', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    await pumpWorkspace(tester, repository);
+
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
+    );
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const Key('event-title-field')), findsOneWidget);
+    final saveButton = find.byKey(const Key('event-save-button'));
+    await tester.tap(saveButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    await tester.enterText(
+      find.byKey(const Key('event-start-field')),
+      '2026-09-12 18:00',
+    );
+    await tester.enterText(
+      find.byKey(const Key('event-end-field')),
+      '2026-09-12 20:00',
+    );
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    for (var attempt = 0; attempt < 6; attempt += 1) {
+      if (find.byKey(const Key('event-reminder-input')).evaluate().isNotEmpty) {
+        break;
+      }
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(find.byKey(const Key('event-reminder-input')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('event-reminder-input')), '0');
+    await tester.tap(find.byKey(const Key('event-reminder-add-button')));
+    await tester.pump();
+
+    expect(find.text('Mốc nhắc phải lớn hơn 0 phút.'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('event-reminder-input')),
+      'abc',
+    );
+    await tester.tap(find.byKey(const Key('event-reminder-add-button')));
+    await tester.pump();
+
+    expect(find.text('Nhập số phút hợp lệ.'), findsOneWidget);
+  });
+
+  testWidgets(
+    'shows AI disclosure and loading copy while generating event suggestions',
+    (tester) async {
+      useLargeViewport(tester);
+      final repository = DebugEventRepository(
+        store: DebugGenealogyStore.seeded(),
+      );
+      final aiAssistService = FakeAiAssistService(
+        onDraftEventCopy:
+            ({required session, required locale, required draft}) async {
+              await Future<void>.delayed(const Duration(milliseconds: 250));
+              return const EventAiSuggestion(
+                title: 'Họp họ cuối tháng',
+                description: 'Nhắc mọi người xác nhận tham gia trước 2 ngày.',
+                recommendedReminderOffsetsMinutes: [2880],
+                rationale: ['Giữ nội dung ngắn để dễ đọc trên thông báo.'],
+                usedFallback: true,
+                model: null,
+              );
+            },
+      );
+
+      await pumpWorkspace(tester, repository, aiAssistService: aiAssistService);
+
+      final memorialRow = find.byKey(
+        const Key('event-row-event_demo_memorial_001'),
+      );
+      await tester.scrollUntilVisible(
+        memorialRow,
+        260,
+        scrollable: workspaceScroll(),
+      );
+      await tester.tap(memorialRow);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(
+        find.text(
+          'AI chỉ dùng dữ liệu sự kiện hiện tại để tạo gợi ý. Bạn vẫn cần xem lại trước khi áp dụng.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('event-ai-suggest-button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 80));
+
+      expect(find.text('Đang gợi ý...'), findsOneWidget);
+      expect(find.text('Đang tạo gợi ý, thường mất vài giây.'), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 260));
+      expect(find.text('Bản gợi ý mới'), findsOneWidget);
+    },
+  );
+
+  testWidgets('shows a friendly message when event AI is throttled', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    final aiAssistService = FakeAiAssistService(
+      onDraftEventCopy:
+          ({required session, required locale, required draft}) async {
+            throw const AiAssistServiceException(
+              'Bạn vừa dùng tính năng này. Hãy thử lại sau khoảng 10 giây.',
+              code: 'resource-exhausted',
+            );
+          },
+    );
+
+    await pumpWorkspace(tester, repository, aiAssistService: aiAssistService);
+
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
+    );
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(find.byKey(const Key('event-ai-suggest-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(
+      find.text('Bạn vừa dùng tính năng này. Hãy thử lại sau khoảng 10 giây.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('edits an existing event from detail screen', (tester) async {
     useLargeViewport(tester);
     final repository = DebugEventRepository(
@@ -422,16 +720,17 @@ void main() {
     );
     await pumpWorkspace(tester, repository);
 
-    await createEvent(
-      tester,
-      title: 'Sự kiện cần chỉnh sửa',
-      startAt: '2026-09-12 18:00',
-      endAt: '2026-09-12 20:00',
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
     );
-
-    await tester.tap(find.text('Sự kiện cần chỉnh sửa').first);
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 400));
 
     await tester.tap(find.byKey(const Key('event-detail-edit-button')));
     await tester.pump();
@@ -444,17 +743,30 @@ void main() {
 
     final saveButton = find.byKey(const Key('event-save-button'));
     await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(saveButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(saveButton);
-    await tester.pump();
+    for (var attempt = 0; attempt < 6; attempt += 1) {
+      if (find.text('Đã lưu sự kiện thành công.').evaluate().isNotEmpty) {
+        break;
+      }
+      if (saveButton.evaluate().isEmpty) {
+        await tester.pump(const Duration(milliseconds: 240));
+        continue;
+      }
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 360));
+    }
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Đã lưu sự kiện thành công.'), findsOneWidget);
-    expect(find.text('Giỗ cụ tổ mùa xuân (cập nhật)'), findsOneWidget);
-  }, skip: true);
+    final snapshot = (await tester.runAsync(
+      () => repository.loadWorkspace(session: buildClanAdminSession()),
+    ))!;
+    expect(
+      snapshot.events.any(
+        (event) => event.title == 'Giỗ cụ tổ mùa xuân (cập nhật)',
+      ),
+      isTrue,
+    );
+  });
 }

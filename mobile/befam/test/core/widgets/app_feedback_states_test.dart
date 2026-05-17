@@ -1,4 +1,5 @@
 import 'package:befam/core/widgets/app_feedback_states.dart';
+import 'package:befam/core/widgets/app_loading_skeletons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,6 +13,31 @@ void main() {
 
     expect(find.text('Loading workspace...'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('AppLoadingState can show retry action without skeleton', (
+    tester,
+  ) async {
+    var retryCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppLoadingState(
+            message: 'Still syncing...',
+            showSkeleton: false,
+            actionLabel: 'Retry',
+            onAction: () => retryCount += 1,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Still syncing...'), findsOneWidget);
+    expect(find.byType(AppSkeletonBox), findsNothing);
+    expect(find.text('Retry'), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
+    expect(retryCount, 1);
   });
 
   testWidgets('AppInlineProgressIndicator exposes semantic label', (
