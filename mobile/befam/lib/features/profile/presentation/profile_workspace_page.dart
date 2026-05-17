@@ -1474,9 +1474,9 @@ class _BillingSettingsHubState extends State<_BillingSettingsHub> {
 
   String _planLabel(_BillingSettingsSnapshot snapshot, AppLocalizations l10n) {
     return switch (snapshot.planCode.trim().toUpperCase()) {
-      'BASE' => l10n.pick(vi: 'Gói Cơ bản', en: 'Base plan'),
-      'PLUS' => l10n.pick(vi: 'Gói Plus', en: 'Plus plan'),
-      'PRO' => l10n.pick(vi: 'Gói Pro', en: 'Pro plan'),
+      'BASE' => l10n.pick(vi: 'Gói Tiêu chuẩn', en: 'Standard plan'),
+      'PLUS' => l10n.pick(vi: 'Gói Nâng cao', en: 'Advanced plan'),
+      'PRO' => l10n.pick(vi: 'Gói Toàn diện', en: 'Pro plan'),
       _ => l10n.pick(vi: 'Gói Miễn phí', en: 'Free plan'),
     };
   }

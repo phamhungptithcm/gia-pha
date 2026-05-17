@@ -131,6 +131,10 @@ jobs:
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@14.19.1
 
+      - name: Run Firebase rules emulator tests
+        working-directory: firebase/functions
+        run: npm run test:rules
+
       - name: Sync AI secret to Firebase Secret Manager
         env:
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}

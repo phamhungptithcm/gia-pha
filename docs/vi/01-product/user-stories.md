@@ -47,6 +47,6 @@ _Cập nhật gần nhất: 12/04/2026_
 ## Nhóm gói dịch vụ và thanh toán
 
 - Là chủ/đại diện dòng họ, tôi xem gói hiện tại, hạn dùng và điều kiện nâng cấp/gia hạn.
-- Là người thanh toán, tôi đi theo luồng VNPay 3 bước rõ ràng.
+- Là người thanh toán, tôi mua gói qua App Store hoặc Google Play trong app mobile.
 - Là người thanh toán, tôi hiểu được trạng thái kết quả: thành công, chờ đối soát, thất bại/hủy.
 - Là hệ thống, chỉ kích hoạt gói mới khi thanh toán được xác nhận thành công.

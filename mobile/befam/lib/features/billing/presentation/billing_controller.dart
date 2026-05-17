@@ -52,7 +52,9 @@ class BillingController extends ChangeNotifier {
   }
 
   bool get canMutateBilling {
-    return canManageBilling;
+    return (_workspace?.scope.viewerIsOwner ??
+            _viewerSummary?.scope.viewerIsOwner) ==
+        true;
   }
 
   bool get shouldShowAds {

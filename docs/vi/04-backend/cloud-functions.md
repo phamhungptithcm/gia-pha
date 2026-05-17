@@ -60,6 +60,7 @@ Thứ tự ưu tiên runtime config billing:
 - `resolveBillingEntitlement`
 - `loadBillingWorkspace`
 - `updateBillingPreferences`
+- `verifyInAppPurchase`
 - `createSubscriptionCheckout`
 - `completeCardCheckout` (nhánh tương thích)
 - `simulateVnpaySettlement` (dev/testing)
@@ -72,8 +73,9 @@ Thứ tự ưu tiên runtime config billing:
 
 - signature secret được đọc qua runtime getter, không hard-code
 - webhook idempotency theo `paymentWebhookEvents`
+- `verifyInAppPurchase` xác minh Store IAP trước khi đổi quyền gói
 - timeout và limit cho pending checkout đọc từ env/runtime override
-- flow người dùng mobile đi theo VNPay-first
+- flow người dùng mobile đi theo App Store / Google Play
 
 ## Hành vi auth runtime
 

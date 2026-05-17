@@ -486,9 +486,8 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
     final useStoreCheckout = _shouldUseStoreCheckout;
     final hasStoreProductConfig =
         _iapProductIdForPlan(workspace, selectedTier.planCode) != null;
-    final supportsSelectedCheckoutPath = useStoreCheckout
-        ? hasStoreProductConfig
-        : true;
+    final supportsSelectedCheckoutPath =
+        useStoreCheckout && hasStoreProductConfig;
     final isBelowMinimumForMemberCount = selectedPlanRank < minimumPlanRank;
     final canCheckoutSelectedPlan =
         selectedTier.priceVndYear > 0 &&
@@ -588,6 +587,16 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    l10n.pick(
+                      vi: 'Hiện có ${workspace.memberCount} thành viên. BeFam chỉ hiện gói phù hợp.',
+                      en: '${workspace.memberCount} members now. BeFam only shows eligible plans.',
+                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   if (hasSelectablePlans)
                     Column(
                       key: const Key('billing-plan-selector'),
@@ -672,16 +681,24 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
                       ),
                       tone: colorScheme.tertiaryContainer,
                     )
-                  else if (!hasStoreProductConfig)
+                  else if (!supportsSelectedCheckoutPath)
                     _InfoCard(
                       icon: Icons.warning_amber_rounded,
                       title: l10n.pick(
-                        vi: 'Gói này chưa sẵn sàng để thanh toán',
-                        en: 'This plan is not ready for checkout',
+                        vi: useStoreCheckout
+                            ? 'Gói này chưa sẵn sàng để thanh toán'
+                            : 'Mua gói trên iOS hoặc Android',
+                        en: useStoreCheckout
+                            ? 'This plan is not ready for checkout'
+                            : 'Buy this plan on iOS or Android',
                       ),
                       description: l10n.pick(
-                        vi: 'Vui lòng thử lại sau.',
-                        en: 'Please try again later.',
+                        vi: useStoreCheckout
+                            ? 'Vui lòng thử lại sau.'
+                            : 'Mở BeFam trên điện thoại để nâng cấp qua App Store hoặc Google Play.',
+                        en: useStoreCheckout
+                            ? 'Please try again later.'
+                            : 'Open BeFam on your phone to upgrade through the App Store or Google Play.',
                       ),
                       tone: colorScheme.errorContainer,
                     )
@@ -1044,8 +1061,30 @@ class _BillingWorkspacePageState extends State<BillingWorkspacePage> {
         en: 'Try the essential features',
       ),
     };
+    final memberLabel = _memberRangeLabel(tier, l10n);
     final adsLabel = _adsExperienceLabel(tier, l10n);
-    return '$baseLabel • $adsLabel';
+    return '$memberLabel • $baseLabel • $adsLabel';
+  }
+
+  String _memberRangeLabel(BillingPlanPricing tier, AppLocalizations l10n) {
+    final minMembers = tier.minMembers <= 1 ? 1 : tier.minMembers;
+    final maxMembers = tier.maxMembers;
+    if (maxMembers == null) {
+      return l10n.pick(
+        vi: 'Từ $minMembers thành viên',
+        en: '$minMembers+ members',
+      );
+    }
+    if (minMembers <= 1) {
+      return l10n.pick(
+        vi: 'Đến $maxMembers thành viên',
+        en: 'Up to $maxMembers members',
+      );
+    }
+    return l10n.pick(
+      vi: '$minMembers-$maxMembers thành viên',
+      en: '$minMembers-$maxMembers members',
+    );
   }
 }
 

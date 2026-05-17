@@ -167,6 +167,12 @@ jobs:
       - name: Run Functions contract tests
         run: npm test
 
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Run Firebase rules emulator tests
+        run: npm run test:rules
+
   quality-gate-security:
     name: Quality Gate - Security
     if: ${{ github.ref == 'refs/heads/main' }}
@@ -1005,7 +1011,7 @@ jobs:
           export FLUTTER_XCODE_CODE_SIGN_STYLE=Manual
           export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
           export FLUTTER_XCODE_DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
-          
+
           echo "Injecting AdMob App ID into Info.plist..."
 
           plist="ios/Runner/Info.plist"

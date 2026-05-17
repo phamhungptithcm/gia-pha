@@ -1,6 +1,6 @@
 # Feature Spec
 
-_Last reviewed: March 17, 2026_
+_Last reviewed: May 17, 2026_
 
 ## Feature Status Matrix
 
@@ -20,7 +20,7 @@ _Last reviewed: March 17, 2026_
 | Profile and settings | Live (baseline) | Profile shell, edit profile, notification preference placeholders, logout confirmation |
 | Notification inbox | Live (baseline) | Inbox list/read-state and destination placeholders |
 | Billing plans | Live | Tier model by member count with entitlement rules |
-| Billing checkout UX | Live | VNPay-first 3-step flow (Select -> Confirm -> Pay) |
+| Billing checkout UX | Live | Store IAP-first flow on iOS/Android; web shows mobile purchase guidance |
 | Billing payment states | Live | Success / Pending settlement / Failed or canceled |
 | Billing activation policy | Live | New plan activates only after confirmed successful payment |
 
@@ -32,13 +32,13 @@ _Last reviewed: March 17, 2026_
 - Downgrade is blocked if current member count exceeds target tier limits.
 
 ### System guarantees
-- Checkout order is created on backend before opening payment URL.
+- Store purchase is verified by backend before entitlement changes.
 - Pending or failed payments do not activate upgraded entitlement.
 - The active plan card reflects only truly active entitlement.
 
 ### Payment channels
-- Mobile UX is VNPay-first for checkout.
-- Card callback compatibility remains in backend processing paths.
+- Mobile UX uses App Store / Google Play subscription purchase.
+- Legacy checkout/callback compatibility remains in backend processing paths.
 
 ## Discovery & Duplicate Guard (Current)
 

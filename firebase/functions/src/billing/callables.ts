@@ -290,6 +290,7 @@ export const loadBillingWorkspace = onCall(
       token: auth.token,
       data: request.data,
       requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const runtimeConfig = await loadBillingRuntimeConfig();
@@ -372,6 +373,7 @@ export const updateBillingPreferences = onCall(
       token: auth.token,
       data: request.data,
       requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const paymentMode = normalizePaymentModeFromInput(request.data);

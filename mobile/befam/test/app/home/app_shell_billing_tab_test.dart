@@ -90,7 +90,7 @@ void main() {
   }
 
   testWidgets(
-    'linked shell exposes funds before profile in bottom navigation',
+    'linked shell exposes billing before profile in bottom navigation',
     (tester) async {
       setMobileViewport(tester);
       await tester.pumpWidget(
@@ -113,13 +113,14 @@ void main() {
           .toList(growable: false);
 
       expect(destinations.length, 5);
-      expect(destinations[3].label, 'Funds');
+      expect(destinations[3].label, 'Billing');
       expect(destinations[4].label, 'Profile');
       expect(find.byKey(const Key('shell-ai-assistant-button')), findsNothing);
 
-      await tester.tap(find.text('Funds'));
+      await tester.tap(find.text('Billing'));
       await pumpUi(tester);
 
+      expect(find.text('Choose your next plan'), findsOneWidget);
       expect(find.byKey(const Key('shell-ai-assistant-button')), findsNothing);
 
       await tester.tap(find.text('Events'));
@@ -151,18 +152,18 @@ void main() {
     );
     await pumpUi(tester);
 
-    expect(find.text('Funds'), findsOneWidget);
+    expect(find.text('Billing'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 11));
     await pumpUi(tester);
 
-    expect(find.text('Funds'), findsOneWidget);
+    expect(find.text('Billing'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('unlinked shell keeps clan operations layout in funds tab', (
+  testWidgets('unlinked shell keeps subscription layout in billing tab', (
     tester,
   ) async {
     setMobileViewport(tester);
@@ -185,13 +186,14 @@ void main() {
         .widgetList<NavigationDestination>(find.byType(NavigationDestination))
         .toList(growable: false);
     expect(destinations.length, 5);
-    expect(destinations[3].label, 'Funds');
+    expect(destinations[3].label, 'Billing');
     expect(destinations[4].label, 'Profile');
     expect(find.byKey(const Key('shell-ai-assistant-button')), findsNothing);
 
-    await tester.tap(find.text('Funds'));
+    await tester.tap(find.text('Billing'));
     await pumpUi(tester, frames: 96);
 
+    expect(find.text('Choose your next plan'), findsOneWidget);
     expect(find.text('Discover genealogies'), findsNothing);
     expect(find.text('Create clan workspace'), findsNothing);
     expect(tester.takeException(), isNull);

@@ -1,6 +1,6 @@
 # Mobile Architecture
 
-_Last reviewed: March 15, 2026_
+_Last reviewed: May 17, 2026_
 
 ## App layout
 
@@ -34,6 +34,7 @@ lib/
   - Home
   - Tree
   - Events (dual calendar workspace)
+  - Billing (plan purchase and entitlement workspace)
   - Profile (workspace)
 - push deep-link handler can redirect users to relevant destination context
 - notification inbox and target pages are accessible through profile/events
@@ -47,9 +48,9 @@ lib/
 - responsive cards and list patterns optimized for both older and younger users
 - calendar and profile surfaces tuned for text scaling and overflow resilience
 
-## Planned mobile addition
+## Billing runtime
 
-- subscription management and checkout UX (card + VNPay) for clan owner/admin
-  users (Epic #213)
+- subscription management and Store IAP purchase UX for clan owner/admin users
+  (Epic #213)
 - plan-based ad entitlement rendering (show ads on Free/Base, suppress ads on
   Plus/Pro)

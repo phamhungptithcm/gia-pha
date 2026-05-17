@@ -78,6 +78,12 @@ jobs:
       - name: Run Functions contract tests
         run: npm test
 
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Run Firebase rules emulator tests
+        run: npm run test:rules
+
       - name: Prepare Docker auth for public registry pulls
         working-directory: ${{ github.workspace }}
         run: |

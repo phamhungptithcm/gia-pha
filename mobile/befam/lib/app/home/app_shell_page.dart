@@ -166,9 +166,9 @@ class _AppShellPageState extends State<AppShellPage>
       selectedIcon: Icons.event,
     ),
     _ShellDestination(
-      id: 'funds',
-      icon: Icons.volunteer_activism_outlined,
-      selectedIcon: Icons.volunteer_activism,
+      id: 'billing',
+      icon: Icons.workspace_premium_outlined,
+      selectedIcon: Icons.workspace_premium,
     ),
     _ShellDestination(
       id: 'profile',
@@ -193,9 +193,9 @@ class _AppShellPageState extends State<AppShellPage>
       selectedIcon: Icons.event,
     ),
     _ShellDestination(
-      id: 'funds',
-      icon: Icons.volunteer_activism_outlined,
-      selectedIcon: Icons.volunteer_activism,
+      id: 'billing',
+      icon: Icons.workspace_premium_outlined,
+      selectedIcon: Icons.workspace_premium,
     ),
     _ShellDestination(
       id: 'profile',
@@ -1022,12 +1022,12 @@ class _AppShellPageState extends State<AppShellPage>
       else
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(3))
-        FundWorkspacePage(
-          key: ValueKey<String>('funds-${_session.clanId ?? 'none'}'),
+        BillingWorkspacePage(
+          key: ValueKey<String>('billing-${_session.clanId ?? 'none'}'),
           session: _session,
-          repository: _fundRepository,
-          memberRepository: widget.memberRepository,
-          availableClanContexts: _clanContexts,
+          repository: _billingRepository,
+          embeddedInShell: true,
+          onPricingQuickActionChanged: (_) {},
         )
       else
         const SizedBox.shrink(),

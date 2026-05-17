@@ -271,6 +271,10 @@ export const NOTIFICATION_ALLOW_NON_OTP_SMS = readEnvBoolean(
   'NOTIFICATION_ALLOW_NON_OTP_SMS',
   false,
 );
+export const QA_SELF_TEST_ENABLED = readEnvBoolean(
+  'QA_SELF_TEST_ENABLED',
+  false,
+);
 export const NOTIFICATION_EVENT_MAX_AUDIENCE = readEnvInt(
   'NOTIFICATION_EVENT_MAX_AUDIENCE',
   5000,

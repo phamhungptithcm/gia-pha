@@ -6,6 +6,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/firebase_services.dart';
 import '../../../core/services/firebase_session_access_sync.dart';
+import '../../auth/models/auth_member_access_mode.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
 import 'billing_repository.dart';
@@ -134,7 +135,12 @@ class FirebaseBillingRepository implements BillingRepository {
     Map<String, dynamic>? payload,
   ]) {
     final uid = session.uid.trim();
+    final clanId = (session.clanId ?? '').trim();
     final base = <String, dynamic>{...?payload};
+    if (clanId.isNotEmpty &&
+        session.accessMode != AuthMemberAccessMode.unlinked) {
+      return <String, dynamic>{'clanId': clanId, ...base};
+    }
     return <String, dynamic>{'ownerUid': uid, ...base};
   }
 
@@ -413,6 +419,11 @@ class FirebaseBillingRepository implements BillingRepository {
   }
 
   String _sessionBillingScopeId(AuthSession session) {
+    final clanId = (session.clanId ?? '').trim();
+    if (clanId.isNotEmpty &&
+        session.accessMode != AuthMemberAccessMode.unlinked) {
+      return clanId;
+    }
     final uid = session.uid.trim();
     if (uid.isEmpty) {
       throw const BillingRepositoryException(

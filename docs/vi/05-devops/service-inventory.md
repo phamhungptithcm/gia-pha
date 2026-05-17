@@ -154,6 +154,6 @@ Các khoản dưới đây đã được codebase xác nhận là có thể phá
 
 ## Ghi chú quan trọng
 
-- Tài liệu sản phẩm cũ còn nhắc `VNPay/Card`, nhưng code runtime hiện tại đang ưu tiên Store IAP (Apple/Google) cho payment flow.
+- Payment runtime hiện tại ưu tiên Store IAP (Apple/Google) cho payment flow; nhánh callback cũ chỉ còn là tương thích backend.
 - Một số dịch vụ là `tùy chọn theo env` (đặc biệt Twilio, email/sms webhook ngoài hệ thống).
 - Chi phí ở bảng là mức phân loại vận hành; con số thực tế phụ thuộc plan account và mức traffic giao dịch thật.

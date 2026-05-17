@@ -31,7 +31,7 @@ _Cập nhật gần nhất: 12/04/2026_
 
 ### M5 - Gói dịch vụ và thanh toán (Hoàn thành nền tảng)
 - gói bậc thang theo quy mô thành viên
-- luồng thanh toán VNPay-first
+- luồng mua gói App Store / Google Play
 - xử lý trạng thái thanh toán và nhắc gia hạn
 
 ### M6 - Hồ sơ và cài đặt (Hoàn thành nền tảng)
