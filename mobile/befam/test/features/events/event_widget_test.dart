@@ -318,6 +318,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byKey(const Key('calendar-event-title-field')), findsOneWidget);
+    expect(find.text('Tiêu đề *'), findsOneWidget);
+    expect(find.text('Cần nhập tiêu đề sự kiện.'), findsOneWidget);
     expect(find.byKey(const Key('calendar-event-save-button')), findsNothing);
   });
 
@@ -354,6 +356,88 @@ void main() {
     expect(find.text('Vui lòng nhập tiêu đề sự kiện.'), findsWidgets);
     expect(find.byKey(const Key('event-title-field')), findsOneWidget);
     expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
+  });
+
+  testWidgets('edit form focuses required title before moving on', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    await pumpWorkspace(tester, repository);
+
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
+    );
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.enterText(find.byKey(const Key('event-title-field')), '');
+    await tester.tap(find.byKey(const Key('event-save-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+
+    final titleField = tester.widget<TextField>(
+      find.byKey(const Key('event-title-field')),
+    );
+    expect(titleField.focusNode?.hasFocus, isTrue);
+    expect(find.text('Vui lòng nhập tiêu đề sự kiện.'), findsWidgets);
+  });
+
+  testWidgets('event editor snackbars are scoped to the editor route', (
+    tester,
+  ) async {
+    useLargeViewport(tester);
+    final repository = DebugEventRepository(
+      store: DebugGenealogyStore.seeded(),
+    );
+    await pumpWorkspace(tester, repository);
+
+    final memorialRow = find.byKey(
+      const Key('event-row-event_demo_memorial_001'),
+    );
+    await tester.scrollUntilVisible(
+      memorialRow,
+      260,
+      scrollable: workspaceScroll(),
+    );
+    await tester.tap(memorialRow);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-detail-edit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('event-save-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+
+    final fieldContext = tester.element(
+      find.byKey(const Key('event-start-field')),
+    );
+    ScaffoldMessenger.of(fieldContext).showSnackBar(
+      const SnackBar(content: Text('event editor scoped snackbar')),
+    );
+    await tester.pump();
+    expect(find.text('event editor scoped snackbar'), findsOneWidget);
+
+    Navigator.of(fieldContext).pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('event editor scoped snackbar'), findsNothing);
   });
 
   testWidgets(

@@ -2,7 +2,7 @@
 
 Date: 2026-05-17
 Reviewer role: UI/UX Manager
-Scope: Android QA screenshots/XML under `/tmp/befam-final-mobile-qa/android-device/0906660001/`, plus targeted Flutter UI code read-only review.
+Scope: Android QA screenshots/XML under `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/`, plus targeted Flutter UI code read-only review.
 
 ## Executive Summary
 
@@ -25,8 +25,8 @@ No P0 blockers found from the provided screenshots/XML.
 
 Evidence:
 
-- Screenshot: `/tmp/befam-final-mobile-qa/android-device/0906660001/17-events-tab.png`
-- XML/summary: `/tmp/befam-final-mobile-qa/android-device/0906660001/17-events-tab.xml`
+- Screenshot: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/17-events-tab.png`
+- XML/summary: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/17-events-tab.xml`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/features/calendar/presentation/dual_calendar_workspace_page.dart:166`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/core/widgets/app_feedback_states.dart:5`
 
@@ -51,11 +51,11 @@ Recommendation:
 
 Evidence:
 
-- No visible inline error: `/tmp/befam-final-mobile-qa/android-device/0906660001/23-add-fund-required-error.png`
-- Still no visible inline error after retap: `/tmp/befam-final-mobile-qa/android-device/0906660001/24-add-fund-required-error-retap.png`
-- Inline error finally visible: `/tmp/befam-final-mobile-qa/android-device/0906660001/31-add-fund-inline-required.png`
-- XML without error node: `/tmp/befam-final-mobile-qa/android-device/0906660001/23-add-fund-required-error.xml`
-- XML with `Tên quỹ là bắt buộc.`: `/tmp/befam-final-mobile-qa/android-device/0906660001/31-add-fund-inline-required.xml`
+- No visible inline error: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/23-add-fund-required-error.png`
+- Still no visible inline error after retap: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/24-add-fund-required-error-retap.png`
+- Inline error finally visible: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/31-add-fund-inline-required.png`
+- XML without error node: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/23-add-fund-required-error.xml`
+- XML with `Tên quỹ là bắt buộc.`: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/31-add-fund-inline-required.xml`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/features/funds/presentation/fund_workspace_page.dart:1819`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/features/funds/presentation/fund_workspace_page.dart:2636`
 
@@ -82,9 +82,9 @@ Recommendation:
 
 Evidence:
 
-- Home overlay: `/tmp/befam-final-mobile-qa/android-device/0906660001/14-after-otp-submit.png`
-- Tree overlay: `/tmp/befam-final-mobile-qa/android-device/0906660001/16-tree-tab.png`
-- XML: `/tmp/befam-final-mobile-qa/android-device/0906660001/16-tree-tab.xml`
+- Home overlay: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/14-after-otp-submit.png`
+- Tree overlay: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/16-tree-tab.png`
+- XML: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/16-tree-tab.xml`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/app/home/app_shell_page.dart:233`
 
 Observed:
@@ -105,9 +105,9 @@ Recommendation:
 
 Evidence:
 
-- Funds: `/tmp/befam-final-mobile-qa/android-device/0906660001/21-funds-tab-fixed.png`
-- Profile: `/tmp/befam-final-mobile-qa/android-device/0906660001/19-profile-tab.png`
-- XML: `/tmp/befam-final-mobile-qa/android-device/0906660001/21-funds-tab-fixed.xml`
+- Funds: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/21-funds-tab-fixed.png`
+- Profile: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/19-profile-tab.png`
+- XML: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/21-funds-tab-fixed.xml`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/app/home/app_shell_page.dart:560`
 
 Observed:
@@ -126,7 +126,7 @@ Recommendation:
 
 Evidence:
 
-- Screenshot: `/tmp/befam-final-mobile-qa/android-device/0906660001/21-funds-tab-fixed.png`
+- Screenshot: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/21-funds-tab-fixed.png`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/app/home/app_shell_page.dart:1318`
 
 Observed:
@@ -144,8 +144,8 @@ Recommendation:
 
 Evidence:
 
-- Summary shows `Gói Tab 4`: `/tmp/befam-final-mobile-qa/android-device/0906660001/07-home-after-notification-summary.txt`
-- Later summaries show `Quỹ Tab 4`: `/tmp/befam-final-mobile-qa/android-device/0906660001/14-after-otp-submit-summary.txt`
+- Summary shows `Gói Tab 4`: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/07-home-after-notification-summary.txt`
+- Later summaries show `Quỹ Tab 4`: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/14-after-otp-submit-summary.txt`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/app/home/app_shell_page.dart:1161`
 
 Observed:
@@ -163,9 +163,9 @@ Recommendation:
 
 Evidence:
 
-- Login: `/tmp/befam-final-mobile-qa/android-device/0906660001/01-login-start.png`
-- Phone form: `/tmp/befam-final-mobile-qa/android-device/0906660001/02-phone-form.png`
-- Home: `/tmp/befam-final-mobile-qa/android-device/0906660001/15-home-linked.png`
+- Login: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/01-login-start.png`
+- Phone form: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/02-phone-form.png`
+- Home: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/15-home-linked.png`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/core/widgets/app_workspace_chrome.dart:35`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/core/widgets/app_workspace_chrome.dart:101`
 
@@ -185,8 +185,8 @@ Recommendation:
 
 Evidence:
 
-- Screenshot: `/tmp/befam-final-mobile-qa/android-device/0906660001/21-funds-tab-fixed.png`
-- XML: `/tmp/befam-final-mobile-qa/android-device/0906660001/21-funds-tab-fixed.xml`
+- Screenshot: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/21-funds-tab-fixed.png`
+- XML: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/21-funds-tab-fixed.xml`
 - Code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/features/funds/presentation/fund_workspace_page.dart:2211`
 
 Observed:
@@ -206,7 +206,7 @@ Evidence:
 
 - Motion code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/core/widgets/app_motion.dart:3`
 - Loading code: `/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/mobile/befam/lib/core/widgets/app_feedback_states.dart:46`
-- Screenshot: `/tmp/befam-final-mobile-qa/android-device/0906660001/17-events-tab.png`
+- Screenshot: `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/17-events-tab.png`
 
 Observed:
 

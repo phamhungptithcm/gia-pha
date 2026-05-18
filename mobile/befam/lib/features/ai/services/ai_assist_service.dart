@@ -232,6 +232,142 @@ AiAssistService createDefaultAiAssistService() {
   return FirebaseAiAssistService();
 }
 
+AiAssistService createLocalAiAssistService() {
+  return const LocalAiAssistService();
+}
+
+class LocalAiAssistService implements AiAssistService {
+  const LocalAiAssistService();
+
+  @override
+  Future<AppAssistantReply> askAppAssistant({
+    required AuthSession session,
+    required String locale,
+    required String currentScreenId,
+    required String currentScreenTitle,
+    required String question,
+    required List<AppAssistantConversationMessage> history,
+    required AppAssistantSearchContext searchContext,
+    String? activeClanName,
+  }) async {
+    return _buildLocalAssistantFallback(
+      locale: locale,
+      currentScreenId: currentScreenId,
+      question: question,
+      searchContext: searchContext,
+      activeClanName: activeClanName,
+    );
+  }
+
+  @override
+  Future<ProfileAiReview> reviewProfileDraft({
+    required AuthSession session,
+    required String locale,
+    required ProfileDraft draft,
+  }) async {
+    final isVietnamese = locale.trim().toLowerCase().startsWith('vi');
+    final missing = <String>[
+      if (draft.fullName.trim().isEmpty)
+        isVietnamese ? 'Thêm họ tên đầy đủ.' : 'Add a full name.',
+      if (draft.bio.trim().isEmpty)
+        isVietnamese
+            ? 'Thêm 1-2 câu giới thiệu ngắn.'
+            : 'Add a short 1-2 sentence introduction.',
+      if (draft.phoneInput.trim().isEmpty && draft.email.trim().isEmpty)
+        isVietnamese
+            ? 'Thêm ít nhất một cách liên hệ.'
+            : 'Add at least one contact method.',
+    ];
+    final strengths = <String>[
+      if (draft.fullName.trim().isNotEmpty)
+        isVietnamese ? 'Tên hiển thị rõ ràng.' : 'Clear display name.',
+      if (draft.addressText.trim().isNotEmpty)
+        isVietnamese
+            ? 'Có thông tin nơi ở để dòng họ dễ nhận diện.'
+            : 'Location helps the clan recognize this profile.',
+    ];
+    return ProfileAiReview(
+      summary: missing.isEmpty
+          ? (isVietnamese
+                ? 'Hồ sơ đã đủ rõ cho người thân nhận diện.'
+                : 'This profile is clear enough for relatives to recognize.')
+          : (isVietnamese
+                ? 'Hồ sơ dùng được, nên bổ sung vài điểm ngắn để rõ hơn.'
+                : 'The profile works, with a few short details worth adding.'),
+      strengths: strengths,
+      missingImportant: missing,
+      risks: const [],
+      nextActions: missing.take(3).toList(growable: false),
+      usedFallback: true,
+      model: null,
+    );
+  }
+
+  @override
+  Future<EventAiSuggestion> draftEventCopy({
+    required AuthSession session,
+    required String locale,
+    required EventDraft draft,
+  }) async {
+    final isVietnamese = locale.trim().toLowerCase().startsWith('vi');
+    return EventAiSuggestion(
+      title: draft.title.trim().isNotEmpty
+          ? draft.title.trim()
+          : (isVietnamese ? 'Sự kiện dòng họ' : 'Clan event'),
+      description: draft.description.trim().isNotEmpty
+          ? draft.description.trim()
+          : (isVietnamese
+                ? 'Cập nhật thông tin để mọi người cùng nắm lịch và chuẩn bị.'
+                : 'Add the details so everyone can follow the schedule and prepare.'),
+      recommendedReminderOffsetsMinutes: const [1440, 120],
+      rationale: <String>[
+        isVietnamese
+            ? 'Gợi ý local dùng khi AI cloud chưa sẵn sàng.'
+            : 'Local suggestion used while cloud AI is unavailable.',
+      ],
+      usedFallback: true,
+      model: null,
+    );
+  }
+
+  @override
+  Future<DuplicateGenealogyExplanation> explainDuplicateGenealogy({
+    required AuthSession session,
+    required String locale,
+    required String genealogyName,
+    required String founderName,
+    required String countryCode,
+    required String description,
+    required List<Map<String, dynamic>> candidates,
+  }) async {
+    final isVietnamese = locale.trim().toLowerCase().startsWith('vi');
+    return DuplicateGenealogyExplanation(
+      summary: isVietnamese
+          ? 'Nên kiểm tra lại tên gia phả, thủy tổ và khu vực trước khi tạo mới.'
+          : 'Review the genealogy name, founder, and location before creating a new record.',
+      topSignals: <String>[
+        if (genealogyName.trim().isNotEmpty)
+          isVietnamese ? 'Tên gia phả đã có.' : 'Genealogy name is present.',
+        if (founderName.trim().isNotEmpty)
+          isVietnamese
+              ? 'Có tên thủy tổ để đối chiếu.'
+              : 'Founder name can be compared.',
+      ],
+      reviewChecklist: <String>[
+        isVietnamese
+            ? 'So sánh tên, quê quán và chi nhánh gần giống.'
+            : 'Compare similar names, origin places, and branches.',
+        isVietnamese
+            ? 'Nếu chưa chắc, ưu tiên gửi yêu cầu xem xét.'
+            : 'If uncertain, prefer a review request.',
+      ],
+      recommendedAction: DuplicateExplanationAction.reviewFirst,
+      usedFallback: true,
+      model: null,
+    );
+  }
+}
+
 class AiAssistServiceException implements Exception {
   const AiAssistServiceException(this.message, {this.code});
 

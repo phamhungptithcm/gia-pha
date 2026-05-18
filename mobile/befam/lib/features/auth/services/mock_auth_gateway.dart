@@ -67,7 +67,7 @@ class MockAuthGateway implements AuthGateway {
       accessMode: AuthMemberAccessMode.claimed,
       linkedAuthUid: true,
     ),
-    '+84906660001': MemberAccessContext(
+    '+84905550123': MemberAccessContext(
       memberId: 'member_demo_parent_001',
       displayName: 'Nguyen Minh',
       clanId: 'clan_demo_001',

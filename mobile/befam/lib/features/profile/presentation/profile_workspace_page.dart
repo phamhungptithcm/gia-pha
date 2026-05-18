@@ -117,7 +117,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         createDefaultAccountDeletionRequestService(session: widget.session);
     _adConsentService =
         widget.adConsentService ?? createDefaultAdConsentService();
-    _aiAssistService = widget.aiAssistService ?? createDefaultAiAssistService();
+    _aiAssistService = widget.aiAssistService ?? _createAiAssistService();
     _ownsLocaleController = widget.localeController == null;
     unawaited(_localeController.load());
     unawaited(_controller.initialize());
@@ -134,6 +134,13 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       unawaited(_loadUnlinkedDraft());
       unawaited(_loadAccountDeletionRequestStatus());
     }
+  }
+
+  AiAssistService _createAiAssistService() {
+    if (widget.session.isSandbox) {
+      return createLocalAiAssistService();
+    }
+    return createDefaultAiAssistService();
   }
 
   @override
@@ -881,6 +888,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         final settingsSection = _ProfileSectionCard(
           title: l10n.pick(vi: 'Tùy chọn', en: 'Preferences'),
           child: _ProfileCompactMenuTile(
+            key: const Key('profile-open-settings-tile'),
             icon: Icons.tune_rounded,
             title: l10n.pick(vi: 'Mở cài đặt', en: 'Open settings'),
             subtitle: l10n.pick(
@@ -1903,6 +1911,7 @@ class _NotificationSettingsPanel extends StatelessWidget {
             children: [
               _NotificationPreferenceTile(
                 icon: Icons.event_note_outlined,
+                switchKey: const Key('notification-setting-event-updates'),
                 title: l10n.notificationSettingsEventUpdates,
                 subtitle: l10n.notificationSettingsEventUpdatesHint,
                 value: prefs.eventReminders,
@@ -2051,6 +2060,7 @@ class _NotificationSettingsHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Switch.adaptive(
+                  key: const Key('notification-setting-push-enabled'),
                   value: prefs.pushEnabled,
                   onChanged: controller.isSavingNotificationPreferences
                       ? null
@@ -2181,9 +2191,11 @@ class _NotificationPreferenceTile extends StatelessWidget {
     required this.value,
     required this.onChanged,
     required this.isLast,
+    this.switchKey,
   });
 
   final IconData icon;
+  final Key? switchKey;
   final String title;
   final String subtitle;
   final bool value;
@@ -2239,7 +2251,11 @@ class _NotificationPreferenceTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Switch.adaptive(value: value, onChanged: onChanged),
+              Switch.adaptive(
+                key: switchKey,
+                value: value,
+                onChanged: onChanged,
+              ),
             ],
           ),
         ),
@@ -2294,6 +2310,7 @@ class _InlineStatusBadge extends StatelessWidget {
 
 class _ProfileCompactMenuTile extends StatelessWidget {
   const _ProfileCompactMenuTile({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,

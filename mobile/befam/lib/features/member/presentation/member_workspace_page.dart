@@ -1115,10 +1115,6 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
     }
     _normalizePhoneInputForCountry();
     final trimmed = _phoneController.text.trim();
-    if (trimmed.isEmpty) {
-      Navigator.of(context).pop('');
-      return;
-    }
     final normalized = PhoneNumberFormatter.parse(
       trimmed,
       defaultCountryIso: _selectedCountryIsoCode,
@@ -1234,7 +1230,10 @@ class _MemberPhoneLookupSheetState extends State<_MemberPhoneLookupSheet> {
                           validator: (value) {
                             final trimmed = value?.trim() ?? '';
                             if (trimmed.isEmpty) {
-                              return null;
+                              return l10n.pick(
+                                vi: 'Hãy nhập số điện thoại hoặc chọn Tạo mới thủ công.',
+                                en: 'Enter a phone number or choose Create manually.',
+                              );
                             }
                             try {
                               PhoneNumberFormatter.parse(
@@ -1597,7 +1596,12 @@ class _MemberEditorSheetState extends State<_MemberEditorSheet> {
           ],
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            14,
+            20,
+            28 + MediaQuery.paddingOf(context).bottom,
+          ),
           child: Form(
             key: _formKey,
             child: Column(

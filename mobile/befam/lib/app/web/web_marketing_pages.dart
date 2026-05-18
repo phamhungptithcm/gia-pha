@@ -165,11 +165,11 @@ class WebLandingPage extends StatelessWidget {
                   ),
                 ),
                 _FeatureItem(
-                  icon: Icons.auto_awesome_rounded,
-                  title: context.l10n.pick(vi: 'Rõ quyền', en: 'Clear access'),
+                  icon: Icons.workspace_premium_rounded,
+                  title: context.l10n.pick(vi: 'Gói dịch vụ', en: 'Plans'),
                   description: context.l10n.pick(
-                    vi: 'Ai xem, ai sửa đều rõ.',
-                    en: 'View and edit roles are clear.',
+                    vi: 'Mua và nâng cấp trong app.',
+                    en: 'Compare and upgrade in app.',
                   ),
                 ),
               ],
@@ -378,11 +378,11 @@ class WebBeFamInfoPage extends StatelessWidget {
                 _FeatureItem(
                   icon: Icons.payments_rounded,
                   title: context.l10n.pick(
-                    vi: 'Quỹ và quyền dùng',
+                    vi: 'Gói dịch vụ',
                     en: 'Plans and billing',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Trạng thái gói, thanh toán và quyền dùng.',
+                    vi: 'Trạng thái gói, thanh toán và quyền sử dụng.',
                     en: 'Plans, payments, and access status.',
                   ),
                 ),
@@ -1073,10 +1073,14 @@ class _WebMarketingLayoutState extends State<_WebMarketingLayout> {
                         vertical: 12,
                       ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _TopNavigation(
-                            currentPath: widget.currentPath,
-                            isScrolled: _isScrolled,
+                          SizedBox(
+                            width: double.infinity,
+                            child: _TopNavigation(
+                              currentPath: widget.currentPath,
+                              isScrolled: _isScrolled,
+                            ),
                           ),
                           const SizedBox(height: 10),
                           Expanded(
@@ -1093,7 +1097,10 @@ class _WebMarketingLayoutState extends State<_WebMarketingLayout> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          _WebFooter(pagePath: widget.currentPath),
+                          SizedBox(
+                            width: double.infinity,
+                            child: _WebFooter(pagePath: widget.currentPath),
+                          ),
                         ],
                       ),
                     ),
@@ -1133,6 +1140,10 @@ class _TopNavigation extends StatelessWidget {
         label: l10n.pick(vi: 'Quỹ họ', en: 'Funds'),
       ),
       _NavItem(
+        path: '/app',
+        label: l10n.pick(vi: 'Gói dịch vụ', en: 'Plans'),
+      ),
+      _NavItem(
         path: '/privacy',
         label: l10n.pick(vi: 'Bảo mật', en: 'Trust'),
       ),
@@ -1144,8 +1155,51 @@ class _TopNavigation extends StatelessWidget {
         final isCompact = width < 900;
         final isPhone = width < 560;
         final showBrandSubtitle = width >= 1180;
+        final mobileHeaderWidth = (MediaQuery.sizeOf(context).width - 48).clamp(
+          272.0,
+          420.0,
+        );
+        final openAppButton = FilledButton(
+          key: const Key('web-marketing-top-open-app'),
+          onPressed: () => _trackAndOpenApp(
+            context,
+            pagePath: currentPath,
+            placement: 'top_nav_open_app',
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: _kLandingInk,
+            foregroundColor: Colors.white,
+            minimumSize: Size(isPhone ? 76 : 0, isPhone ? 42 : 46),
+            padding: EdgeInsets.symmetric(horizontal: isPhone ? 12 : 22),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          child: isPhone
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(context.l10n.pick(vi: 'Mở', en: 'Open')),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_forward_rounded, size: 18),
+                  ],
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      isCompact
+                          ? context.l10n.pick(vi: 'Mở', en: 'Open')
+                          : l10n.webNavOpenApp,
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.arrow_forward_rounded, size: 18),
+                  ],
+                ),
+        );
 
         return AnimatedContainer(
+          width: double.infinity,
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
@@ -1165,123 +1219,106 @@ class _TopNavigation extends StatelessWidget {
               horizontal: isPhone ? 10 : 18,
               vertical: isPhone ? 10 : 12,
             ),
-            child: Row(
-              children: [
-                const _BrandMark(),
-                SizedBox(width: isPhone ? 10 : 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'BeFam',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    if (showBrandSubtitle)
-                      Text(
-                        context.l10n.pick(
-                          vi: 'Gia phả sống cho dòng họ Việt',
-                          en: 'Living lineage for families',
-                        ),
-                        style: textTheme.bodySmall?.copyWith(
-                          color: _kLandingMuted,
-                        ),
-                      ),
-                  ],
-                ),
-                const Spacer(),
-                if (!isCompact)
-                  ...navItems.map(
-                    (item) => _NavButton(
-                      label: item.label,
-                      isActive:
-                          (currentPath == '/befam-info' &&
-                              item == navItems.first) ||
-                          (currentPath == item.path &&
-                              currentPath != '/befam-info'),
-                      onPressed: () => context.go(item.path),
-                    ),
-                  ),
-                if (isCompact)
-                  PopupMenuButton<_NavItem>(
-                    tooltip: l10n.webNavMenuTooltip,
-                    onSelected: (item) => context.go(item.path),
-                    itemBuilder: (context) => navItems
-                        .map(
-                          (item) => PopupMenuItem<_NavItem>(
-                            value: item,
-                            child: Text(item.label),
+            child: isPhone
+                ? SizedBox(
+                    width: mobileHeaderWidth,
+                    height: 42,
+                    child: Row(
+                      children: [
+                        const _BrandMark(),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'BeFam',
+                            key: const Key('web-marketing-brand-name'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0,
+                            ),
                           ),
-                        )
-                        .toList(growable: false),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.82),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(width: 84, child: openAppButton),
+                      ],
                     ),
-                  ),
-                SizedBox(width: isPhone ? 4 : 8),
-                if (!isPhone) ...[
-                  _MarketingLanguageSwitch(
-                    controller: localeController,
-                    compact: isCompact,
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                if (!isCompact) ...[
-                  TextButton(
-                    onPressed: () => _trackAndOpenApp(
-                      context,
-                      pagePath: currentPath,
-                      placement: 'top_nav_sign_in',
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: _kLandingMuted,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                    ),
-                    child: Text(
-                      l10n.pick(vi: 'Đăng nhập', en: 'Sign in').toUpperCase(),
-                      style: textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                FilledButton(
-                  onPressed: () => _trackAndOpenApp(
-                    context,
-                    pagePath: currentPath,
-                    placement: 'top_nav_open_app',
-                  ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _kLandingInk,
-                    foregroundColor: Colors.white,
-                    minimumSize: Size(isPhone ? 42 : 0, isPhone ? 42 : 46),
-                    padding: EdgeInsets.symmetric(horizontal: isPhone ? 0 : 22),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  child: isPhone
-                      ? const Icon(Icons.arrow_forward_rounded, size: 18)
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
+                  )
+                : Row(
+                    children: [
+                      const _BrandMark(),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isCompact
-                                  ? context.l10n.pick(vi: 'Mở', en: 'Open')
-                                  : l10n.webNavOpenApp,
+                              'BeFam',
+                              key: const Key('web-marketing-brand-name'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0,
+                              ),
                             ),
-                            const SizedBox(width: 6),
-                            const Icon(Icons.arrow_forward_rounded, size: 18),
+                            if (showBrandSubtitle)
+                              Text(
+                                context.l10n.pick(
+                                  vi: 'Gia phả sống cho dòng họ Việt',
+                                  en: 'Living lineage for families',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: _kLandingMuted,
+                                ),
+                              ),
                           ],
                         ),
-                ),
-                if (isCompact && !isPhone) const SizedBox(width: 8),
-              ],
-            ),
+                      ),
+                      const Spacer(),
+                      if (!isCompact)
+                        ...navItems.map(
+                          (item) => _NavButton(
+                            label: item.label,
+                            isActive:
+                                (currentPath == '/befam-info' &&
+                                    item == navItems.first) ||
+                                (currentPath == item.path &&
+                                    currentPath != '/befam-info'),
+                            onPressed: () => context.go(item.path),
+                          ),
+                        ),
+                      if (isCompact)
+                        PopupMenuButton<_NavItem>(
+                          tooltip: l10n.webNavMenuTooltip,
+                          onSelected: (item) => context.go(item.path),
+                          itemBuilder: (context) => navItems
+                              .map(
+                                (item) => PopupMenuItem<_NavItem>(
+                                  value: item,
+                                  child: Text(item.label),
+                                ),
+                              )
+                              .toList(growable: false),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.82,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                      _MarketingLanguageSwitch(
+                        controller: localeController,
+                        compact: isCompact,
+                      ),
+                      const SizedBox(width: 10),
+                      openAppButton,
+                      if (isCompact) const SizedBox(width: 8),
+                    ],
+                  ),
           ),
         );
       },
@@ -1510,7 +1547,7 @@ class _LandingQuickCardGrid extends StatelessWidget {
             ? 130.0
             : width >= 720
             ? 136.0
-            : 118.0;
+            : 128.0;
         final itemWidth =
             ((width - (spacing * (columns - 1))).clamp(0.0, double.infinity) /
                     columns)
@@ -2772,13 +2809,18 @@ class _WebFooter extends StatelessWidget {
                       children: [
                         brand,
                         const Spacer(),
-                        copyright,
+                        Flexible(child: copyright),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(child: links),
                         const SizedBox(width: 8),
                         openButton,
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    links,
                   ],
                 )
               : Row(

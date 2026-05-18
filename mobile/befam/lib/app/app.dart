@@ -239,7 +239,13 @@ class _BeFamAppState extends State<BeFamApp> {
           builder: (context, state) => _buildAuthExperience(),
         ),
       ],
-      errorBuilder: (context, state) => const WebLandingPage(),
+      errorBuilder: (context, state) {
+        final path = state.uri.path;
+        if (path == '/app' || path.startsWith('/app/')) {
+          return _buildAuthExperience();
+        }
+        return const WebLandingPage();
+      },
     );
   }
 }

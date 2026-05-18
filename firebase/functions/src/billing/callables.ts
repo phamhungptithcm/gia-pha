@@ -174,13 +174,12 @@ async function resolveBillingScopeContext({
     };
   }
   const clanScope = await resolveClanBillingScopeMetadata(scopeId);
-  if (requireOwnerMutationAccess && uid !== clanScope.ownerUid) {
-    const ownerLabel = clanScope.ownerDisplayName ?? clanScope.ownerUid;
-    throw new HttpsError(
-      "permission-denied",
-      `Only clan owner ${ownerLabel} can perform this billing action.`,
-    );
-  }
+  ensureBillingOwnerMutationAccess({
+    requireOwnerMutationAccess,
+    uid,
+    ownerUid: clanScope.ownerUid,
+    ownerDisplayName: clanScope.ownerDisplayName,
+  });
   return {
     clanId: scopeId,
     ownerUid: clanScope.ownerUid,
@@ -431,6 +430,7 @@ export const verifyInAppPurchase = onCall(
       token: auth.token,
       data: request.data,
       requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const platform = normalizeIapPlatform(readString(request.data, "platform"));
@@ -908,6 +908,27 @@ function normalizeClanStatus(value: unknown): string {
   return normalized.length > 0 ? normalized : "active";
 }
 
+function ensureBillingOwnerMutationAccess({
+  requireOwnerMutationAccess,
+  uid,
+  ownerUid,
+  ownerDisplayName,
+}: {
+  requireOwnerMutationAccess: boolean;
+  uid: string;
+  ownerUid: string;
+  ownerDisplayName: string | null;
+}): void {
+  if (!requireOwnerMutationAccess || uid === ownerUid) {
+    return;
+  }
+  const ownerLabel = ownerDisplayName ?? ownerUid;
+  throw new HttpsError(
+    "permission-denied",
+    `Only clan owner ${ownerLabel} can perform this billing action.`,
+  );
+}
+
 function serializeBillingScope(
   scope: BillingScopeContext,
 ): Record<string, unknown> {
@@ -1014,3 +1035,7 @@ function buildCheckoutFlowConfig(): Record<string, unknown> {
     storeProductIdsByPlanByPlatform,
   };
 }
+
+export const __testOnly = {
+  ensureBillingOwnerMutationAccess,
+};

@@ -20,6 +20,12 @@ from pathlib import Path
 from typing import Dict, Iterable, List
 
 CASE_ID_PATTERN = re.compile(r"\[([A-Z]+-\d{3})\]")
+AUTH_GATE_BLOCKER_CASE_ID = "AUTH-001"
+AUTH_GATE_BLOCKER_PATTERNS = (
+    "Live smoke gate",
+    "Không vào được AppShell",
+    "Authentication flow failed",
+)
 
 STATUS_PRIORITY = {
     "FAIL": 4,
@@ -56,7 +62,24 @@ def _status_from_machine_result(result: str, skipped: bool) -> str:
 def _clean_message(value: str) -> str:
     text = (value or "").strip().replace("\n", " ")
     text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"(phone=)[^,\s)]+", r"\1<redacted>", text)
+    text = re.sub(r"(verificationId=)[^,\s)]+", r"\1<redacted>", text)
+    text = re.sub(r"debug-phone-[^,\s)]+", "debug-phone-<redacted>", text)
+    text = re.sub(r"\+[0-9]{8,15}", "<redacted-phone>", text)
     return text
+
+
+def detect_live_auth_gate_blocker(machine_paths: Iterable[Path]) -> str:
+    for path in machine_paths:
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if all(pattern in text for pattern in AUTH_GATE_BLOCKER_PATTERNS):
+            return (
+                "Live Android staging auth gate blocked before AppShell; "
+                f"see {path.name}."
+            )
+    return ""
 
 
 def _is_real_test_name(name: str) -> bool:
@@ -401,6 +424,12 @@ def main() -> None:
             parsed_records.extend(parse_machine_file(path))
 
     case_results = collapse_records(parsed_records)
+    auth_gate_blocker = detect_live_auth_gate_blocker(machine_paths)
+    if auth_gate_blocker:
+        case_results[AUTH_GATE_BLOCKER_CASE_ID] = {
+            "status": "BLOCKED",
+            "actual_result": auth_gate_blocker,
+        }
 
     template_execution_path = Path(args.template_execution).resolve()
     execution_rows = read_csv_rows(template_execution_path)
@@ -438,7 +467,21 @@ def main() -> None:
 
         record = case_results.get(case_id)
         if record is None:
-            row["status"] = row.get("status") or "NOT_RUN"
+            if auth_gate_blocker:
+                row["status"] = "BLOCKED"
+                row["actual_result"] = (
+                    "Not executable because the live Android staging auth gate "
+                    f"`{AUTH_GATE_BLOCKER_CASE_ID}` is blocked before AppShell."
+                )
+                if args.evidence_link.strip():
+                    row["evidence_link"] = args.evidence_link.strip()
+                note_prefix = row.get("notes", "").strip()
+                auto_note = (
+                    f"blocked by {AUTH_GATE_BLOCKER_CASE_ID} live-auth gate"
+                )
+                row["notes"] = f"{note_prefix} | {auto_note}".strip(" |")
+            else:
+                row["status"] = row.get("status") or "NOT_RUN"
             continue
 
         row["status"] = record["status"]

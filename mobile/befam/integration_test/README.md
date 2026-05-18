@@ -49,7 +49,7 @@ For local mock-auth walkthroughs with a reviewer-provided OTP, pass:
 
 ```bash
 --dart-define=BEFAM_USE_MOCK_AUTH=true \
---dart-define=BEFAM_MOCK_AUTH_OTP=220197
+--dart-define=BEFAM_MOCK_AUTH_OTP=123456
 ```
 
 Generated artifacts (per platform/mode):

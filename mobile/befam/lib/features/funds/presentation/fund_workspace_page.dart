@@ -254,12 +254,26 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
     return members;
   }
 
-  void _openFundDetail(FundProfile fund) {
+  Future<void> _openFundDetail(FundProfile fund) async {
+    final activeClanId = (_session.clanId ?? '').trim();
+    final members =
+        _cachedMembersClanId == activeClanId && _cachedMembers.isNotEmpty
+        ? _cachedMembers
+        : await _loadMembersForClan(activeClanId);
+    if (!mounted) {
+      return;
+    }
     _controller.selectFund(fund.id);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
-          return _FundDetailPage(controller: _controller, fundId: fund.id);
+          return _FundDetailPage(
+            controller: _controller,
+            fundId: fund.id,
+            members: members,
+            clanId: activeClanId,
+            loadMembersForClan: _loadMembersForClan,
+          );
         },
       ),
     );
@@ -578,8 +592,8 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
                                                   context,
                                                   visibleFunds[i],
                                                 ),
-                                            onTap: () => _openFundDetail(
-                                              visibleFunds[i],
+                                            onTap: () => unawaited(
+                                              _openFundDetail(visibleFunds[i]),
                                             ),
                                             onEdit: _controller.canManageFunds
                                                 ? () => _openFundEditor(
@@ -1394,10 +1408,19 @@ class _FundWorkspacePageState extends State<FundWorkspacePage> {
 }
 
 class _FundDetailPage extends StatefulWidget {
-  const _FundDetailPage({required this.controller, required this.fundId});
+  const _FundDetailPage({
+    required this.controller,
+    required this.fundId,
+    required this.members,
+    required this.clanId,
+    required this.loadMembersForClan,
+  });
 
   final FundController controller;
   final String fundId;
+  final List<MemberProfile> members;
+  final String clanId;
+  final Future<List<MemberProfile>> Function(String clanId) loadMembersForClan;
 
   @override
   State<_FundDetailPage> createState() => _FundDetailPageState();
@@ -1405,6 +1428,8 @@ class _FundDetailPage extends StatefulWidget {
 
 class _FundDetailPageState extends State<_FundDetailPage> {
   late final TextEditingController _queryController;
+  late List<MemberProfile> _members;
+  bool _isLoadingMembers = false;
 
   @override
   void initState() {
@@ -1412,6 +1437,35 @@ class _FundDetailPageState extends State<_FundDetailPage> {
     _queryController = TextEditingController(
       text: widget.controller.filters.query,
     );
+    _members = widget.members;
+    if (_members.isEmpty) {
+      unawaited(_refreshMembers());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _FundDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.members != widget.members && widget.members.isNotEmpty) {
+      _members = widget.members;
+    }
+  }
+
+  Future<void> _refreshMembers() async {
+    if (_isLoadingMembers || widget.clanId.trim().isEmpty) {
+      return;
+    }
+    setState(() {
+      _isLoadingMembers = true;
+    });
+    final members = await widget.loadMembersForClan(widget.clanId);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _members = members;
+      _isLoadingMembers = false;
+    });
   }
 
   @override
@@ -1424,6 +1478,12 @@ class _FundDetailPageState extends State<_FundDetailPage> {
     FundProfile fund,
     FundTransactionType type,
   ) async {
+    if (_members.isEmpty && !_isLoadingMembers) {
+      await _refreshMembers();
+      if (!mounted) {
+        return;
+      }
+    }
     final l10n = context.l10n;
     final didSave = await showModalBottomSheet<bool>(
       context: context,
@@ -1435,6 +1495,7 @@ class _FundDetailPageState extends State<_FundDetailPage> {
           title: type == FundTransactionType.donation
               ? l10n.pick(vi: 'Ghi nhận đóng góp', en: 'Record donation')
               : l10n.pick(vi: 'Ghi nhận chi tiêu', en: 'Record expense'),
+          members: _members,
           initialDraft: FundTransactionDraft.empty(
             fundId: fund.id,
             transactionType: type,
@@ -1571,9 +1632,11 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                           children: [
                             FilledButton.icon(
                               key: const Key('fund-add-donation-button'),
-                              onPressed: () => _openTransactionEditor(
-                                fund,
-                                FundTransactionType.donation,
+                              onPressed: () => unawaited(
+                                _openTransactionEditor(
+                                  fund,
+                                  FundTransactionType.donation,
+                                ),
                               ),
                               icon: const Icon(Icons.add_circle_outline),
                               label: Text(
@@ -1593,9 +1656,11 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                                   ),
                                 ),
                               ),
-                              onPressed: () => _openTransactionEditor(
-                                fund,
-                                FundTransactionType.expense,
+                              onPressed: () => unawaited(
+                                _openTransactionEditor(
+                                  fund,
+                                  FundTransactionType.expense,
+                                ),
                               ),
                               icon: const Icon(Icons.remove_circle_outline),
                               label: Text(
@@ -1688,9 +1753,11 @@ class _FundDetailPageState extends State<_FundDetailPage> {
                       ? l10n.pick(vi: 'Đóng góp', en: 'Donation')
                       : null,
                   onAction: widget.controller.canManageFunds
-                      ? () => _openTransactionEditor(
-                          fund,
-                          FundTransactionType.donation,
+                      ? () => unawaited(
+                          _openTransactionEditor(
+                            fund,
+                            FundTransactionType.donation,
+                          ),
                         )
                       : null,
                   child: transactions.isEmpty
@@ -2699,6 +2766,7 @@ class _FundEditorSheetState extends State<_FundEditorSheet> {
 class _TransactionEditorSheet extends StatefulWidget {
   const _TransactionEditorSheet({
     required this.title,
+    required this.members,
     required this.initialDraft,
     required this.currentBalanceMinor,
     required this.isSaving,
@@ -2706,6 +2774,7 @@ class _TransactionEditorSheet extends StatefulWidget {
   });
 
   final String title;
+  final List<MemberProfile> members;
   final FundTransactionDraft initialDraft;
   final int currentBalanceMinor;
   final bool isSaving;
@@ -2718,11 +2787,13 @@ class _TransactionEditorSheet extends StatefulWidget {
 }
 
 class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
+  static const String _unlinkedMemberValue = '__unlinked_member__';
+
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _amountController;
   late final TextEditingController _noteController;
-  late final TextEditingController _memberIdController;
   late final TextEditingController _referenceController;
+  late String _selectedMemberId;
   late DateTime _occurredAt;
 
   FundRepositoryErrorCode? _submitError;
@@ -2736,12 +2807,16 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
       text: widget.initialDraft.amountInput,
     );
     _noteController = TextEditingController(text: widget.initialDraft.note);
-    _memberIdController = TextEditingController(
-      text: widget.initialDraft.memberId ?? '',
-    );
     _referenceController = TextEditingController(
       text: widget.initialDraft.externalReference ?? '',
     );
+    final initialMemberId = (widget.initialDraft.memberId ?? '').trim();
+    final hasInitialMember = widget.members.any(
+      (member) => member.id == initialMemberId,
+    );
+    _selectedMemberId = hasInitialMember
+        ? initialMemberId
+        : _unlinkedMemberValue;
     _occurredAt = widget.initialDraft.occurredAt;
   }
 
@@ -2749,7 +2824,6 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
   void dispose() {
     _amountController.dispose();
     _noteController.dispose();
-    _memberIdController.dispose();
     _referenceController.dispose();
     super.dispose();
   }
@@ -2811,7 +2885,9 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
         currency: widget.initialDraft.currency,
         occurredAt: _occurredAt,
         note: _noteController.text.trim(),
-        memberId: _nullIfBlank(_memberIdController.text),
+        memberId: _selectedMemberId == _unlinkedMemberValue
+            ? null
+            : _selectedMemberId,
         externalReference: _nullIfBlank(_referenceController.text),
       ),
     );
@@ -2912,16 +2988,40 @@ class _TransactionEditorSheetState extends State<_TransactionEditorSheet> {
                   validator: _validateNote,
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
-                  key: const Key('fund-transaction-member-input'),
-                  controller: _memberIdController,
+                DropdownButtonFormField<String>(
+                  key: const Key('fund-transaction-member-picker'),
+                  initialValue: _selectedMemberId,
+                  isExpanded: true,
                   decoration: appFieldDecoration(
                     label: l10n.pick(
                       vi: 'Thành viên liên quan (tuỳ chọn)',
                       en: 'Linked member (optional)',
                     ),
-                    hintText: l10n.pick(vi: 'nguyen-minh', en: 'nguyen-minh'),
                   ),
+                  items: [
+                    DropdownMenuItem<String>(
+                      value: _unlinkedMemberValue,
+                      child: Text(
+                        l10n.pick(
+                          vi: 'Không gắn với thành viên',
+                          en: 'Not linked to a member',
+                        ),
+                      ),
+                    ),
+                    for (final member in widget.members)
+                      DropdownMenuItem<String>(
+                        value: member.id,
+                        child: Text(member.fullName),
+                      ),
+                  ],
+                  onChanged: widget.isSaving || _isSubmitting
+                      ? null
+                      : (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() => _selectedMemberId = value);
+                        },
                 ),
                 const SizedBox(height: 14),
                 TextFormField(

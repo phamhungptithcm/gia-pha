@@ -79,7 +79,9 @@ class _AuthScaffold extends StatelessWidget {
                     onViewPrivacyPolicy: () => _showPrivacyPolicy(context),
                   ),
                   AuthStep.phoneNumber => _PhoneLoginCard(
+                    key: const ValueKey('auth-step-phone-number'),
                     isBusy: controller.isBusy,
+                    compactForKeyboard: useCompactKeyboardLayout,
                     onBack: controller.navigateBack,
                     onSubmit: (value, countryIsoCode) {
                       return controller.submitPhoneNumber(
@@ -89,11 +91,13 @@ class _AuthScaffold extends StatelessWidget {
                     },
                   ),
                   AuthStep.childIdentifier => _ChildIdentifierCard(
+                    key: const ValueKey('auth-step-child-identifier'),
                     isBusy: controller.isBusy,
                     onBack: controller.navigateBack,
                     onSubmit: controller.submitChildIdentifier,
                   ),
                   AuthStep.otp => _OtpVerificationCard(
+                    key: const ValueKey('auth-step-otp'),
                     challenge: controller.pendingChallenge,
                     isBusy: controller.isBusy,
                     resendCooldownSeconds: controller.resendCooldownSeconds,
@@ -109,6 +113,7 @@ class _AuthScaffold extends StatelessWidget {
                     onSelectMember: controller.chooseMemberCandidate,
                   ),
                   AuthStep.memberVerification => _MemberVerificationCard(
+                    key: const ValueKey('auth-step-member-verification'),
                     challenge: controller.verificationChallenge,
                     isBusy: controller.isBusy,
                     onBack: controller.navigateBack,
@@ -728,6 +733,7 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
         ),
         SizedBox(height: tokens.spaceMd),
         InkWell(
+          key: const Key('auth-privacy-consent-control'),
           borderRadius: BorderRadius.circular(tokens.radiusMd),
           onTap: isBusy ? null : () => onChanged(!isAccepted),
           child: AnimatedContainer(
@@ -807,12 +813,15 @@ class _PrivacyPolicyConsentCard extends StatelessWidget {
 
 class _PhoneLoginCard extends StatefulWidget {
   const _PhoneLoginCard({
+    super.key,
     required this.isBusy,
+    required this.compactForKeyboard,
     required this.onBack,
     required this.onSubmit,
   });
 
   final bool isBusy;
+  final bool compactForKeyboard;
   final VoidCallback onBack;
   final Future<void> Function(String value, String countryIsoCode) onSubmit;
 
@@ -822,6 +831,7 @@ class _PhoneLoginCard extends StatefulWidget {
 
 class _PhoneLoginCardState extends State<_PhoneLoginCard> {
   late final TextEditingController _controller;
+  late final FocusNode _focusNode;
   late String _selectedCountryIsoCode;
   String? _fieldError;
   bool _resolvedAutoCountry = false;
@@ -830,7 +840,11 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
   void initState() {
     super.initState();
     _controller = TextEditingController();
+    _focusNode = FocusNode(debugLabel: 'auth-phone-input');
     _selectedCountryIsoCode = PhoneNumberFormatter.defaultCountryIsoCode;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestPhoneInputFocus();
+    });
   }
 
   @override
@@ -849,7 +863,15 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  void _requestPhoneInputFocus() {
+    if (!mounted || widget.isBusy || !_focusNode.canRequestFocus) {
+      return;
+    }
+    _focusNode.requestFocus();
   }
 
   void _normalizePhoneInputForCountry() {
@@ -867,7 +889,6 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
 
   Future<void> _submit() async {
     _normalizePhoneInputForCountry();
-    FocusScope.of(context).unfocus();
     final l10n = context.l10n;
     final value = _controller.text.trim();
     if (value.isEmpty) {
@@ -877,6 +898,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
           en: 'Please enter a phone number.',
         );
       });
+      _requestPhoneInputFocus();
       return;
     }
     try {
@@ -891,11 +913,13 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
           en: 'Invalid phone number format.',
         );
       });
+      _requestPhoneInputFocus();
       return;
     }
     setState(() {
       _fieldError = null;
     });
+    FocusScope.of(context).unfocus();
     await widget.onSubmit(value, _selectedCountryIsoCode);
   }
 
@@ -913,6 +937,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
       ),
       isBusy: widget.isBusy,
       onBack: widget.onBack,
+      compactForKeyboard: widget.compactForKeyboard,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -937,6 +962,8 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
                       child: TextField(
                         key: const Key('auth-phone-input'),
                         controller: _controller,
+                        focusNode: _focusNode,
+                        autofocus: true,
                         keyboardType: TextInputType.phone,
                         textInputAction: TextInputAction.done,
                         autofillHints: const [AutofillHints.telephoneNumber],
@@ -955,10 +982,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
                         },
                         onSubmitted: widget.isBusy
                             ? null
-                            : (_) {
-                                FocusScope.of(context).unfocus();
-                                unawaited(_submit());
-                              },
+                            : (_) => unawaited(_submit()),
                       ),
                     ),
                   ],
@@ -966,28 +990,33 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          _AuthInlineInfo(
-            icon: Icons.sms_outlined,
-            text: l10n.pick(
-              vi: 'Mã xác nhận sẽ được gửi đến số bạn vừa nhập.',
-              en: 'The verification code will be sent to this number.',
+          SizedBox(height: widget.compactForKeyboard ? 10 : 16),
+          if (!widget.compactForKeyboard) ...[
+            _AuthInlineInfo(
+              icon: Icons.sms_outlined,
+              text: l10n.pick(
+                vi: 'Mã xác nhận sẽ được gửi đến số bạn vừa nhập.',
+                en: 'The verification code will be sent to this number.',
+              ),
+            ),
+            const SizedBox(height: 20),
+          ] else
+            const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: AppActionButton(
+              buttonKey: const Key('auth-send-otp-button'),
+              expand: true,
+              icon: Icons.send_outlined,
+              label: widget.isBusy
+                  ? l10n.pick(vi: 'Đang gửi mã OTP...', en: 'Sending OTP...')
+                  : l10n.pick(vi: 'Nhận mã OTP', en: 'Get OTP code'),
+              isLoading: widget.isBusy,
+              onPressed: widget.isBusy ? null : _submit,
             ),
           ),
-          const SizedBox(height: 20),
-          AppActionButton(
-            buttonKey: const Key('auth-send-otp-button'),
-            expand: true,
-            icon: Icons.send_outlined,
-            label: widget.isBusy
-                ? l10n.pick(vi: 'Đang gửi mã OTP...', en: 'Sending OTP...')
-                : l10n.pick(vi: 'Nhận mã OTP', en: 'Get OTP code'),
-            isLoading: widget.isBusy,
-            onPressed: widget.isBusy ? null : _submit,
-          ),
-          SizedBox(
-            height: MediaQuery.viewInsetsOf(context).bottom > 0 ? 24 : 0,
-          ),
+          SizedBox(height: MediaQuery.viewInsetsOf(context).bottom > 0 ? 8 : 0),
         ],
       ),
     );
@@ -996,6 +1025,7 @@ class _PhoneLoginCardState extends State<_PhoneLoginCard> {
 
 class _ChildIdentifierCard extends StatefulWidget {
   const _ChildIdentifierCard({
+    super.key,
     required this.isBusy,
     required this.onBack,
     required this.onSubmit,
@@ -1103,6 +1133,7 @@ class _ChildIdentifierCardState extends State<_ChildIdentifierCard> {
 
 class _OtpVerificationCard extends StatefulWidget {
   const _OtpVerificationCard({
+    super.key,
     required this.challenge,
     required this.isBusy,
     required this.resendCooldownSeconds,
@@ -1543,6 +1574,7 @@ class _MemberSelectionCard extends StatelessWidget {
 
 class _MemberVerificationCard extends StatefulWidget {
   const _MemberVerificationCard({
+    super.key,
     required this.challenge,
     required this.isBusy,
     required this.onBack,
@@ -1968,6 +2000,7 @@ class _AuthFormCard extends StatelessWidget {
     required this.onBack,
     required this.child,
     this.description,
+    this.compactForKeyboard = false,
   });
 
   final String title;
@@ -1975,6 +2008,7 @@ class _AuthFormCard extends StatelessWidget {
   final bool isBusy;
   final VoidCallback onBack;
   final Widget child;
+  final bool compactForKeyboard;
 
   @override
   Widget build(BuildContext context) {
@@ -1983,7 +2017,9 @@ class _AuthFormCard extends StatelessWidget {
 
     return AppWorkspaceSurface(
       showAccentOrbs: true,
-      padding: EdgeInsets.all(tokens.spaceXl),
+      padding: EdgeInsets.all(
+        compactForKeyboard ? tokens.spaceLg : tokens.spaceXl,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2022,7 +2058,9 @@ class _AuthFormCard extends StatelessWidget {
             SizedBox(height: tokens.spaceSm),
             Text(description!, style: theme.textTheme.bodyLarge),
           ],
-          SizedBox(height: tokens.spaceXl),
+          SizedBox(
+            height: compactForKeyboard ? tokens.spaceMd : tokens.spaceXl,
+          ),
           child,
         ],
       ),

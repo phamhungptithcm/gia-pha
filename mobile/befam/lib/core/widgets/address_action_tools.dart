@@ -717,17 +717,33 @@ class AddressActionTools {
     }
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        action: (actionLabel == null || onAction == null)
-            ? null
-            : SnackBarAction(
-                label: actionLabel,
-                onPressed: () {
-                  unawaited(onAction());
-                },
-              ),
+      buildFeedbackSnackBar(
+        message: message,
+        actionLabel: actionLabel,
+        onAction: onAction,
       ),
+    );
+  }
+
+  @visibleForTesting
+  static SnackBar buildFeedbackSnackBar({
+    required String message,
+    String? actionLabel,
+    Future<bool> Function()? onAction,
+  }) {
+    return SnackBar(
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+      duration: const Duration(seconds: 3),
+      content: Text(message),
+      action: (actionLabel == null || onAction == null)
+          ? null
+          : SnackBarAction(
+              label: actionLabel,
+              onPressed: () {
+                unawaited(onAction());
+              },
+            ),
     );
   }
 }

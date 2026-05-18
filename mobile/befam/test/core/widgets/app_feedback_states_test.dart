@@ -40,6 +40,26 @@ void main() {
     expect(retryCount, 1);
   });
 
+  testWidgets('AppSkeletonBox respects reduced motion', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: Scaffold(body: AppSkeletonBox(height: 24)),
+        ),
+      ),
+    );
+
+    expect(find.byType(AppSkeletonBox), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AppSkeletonBox),
+        matching: find.byType(AnimatedBuilder),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('AppInlineProgressIndicator exposes semantic label', (
     tester,
   ) async {

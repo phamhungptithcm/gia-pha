@@ -281,6 +281,74 @@ void main() {
     expect(find.text('Số điện thoại chưa đúng định dạng.'), findsOneWidget);
   });
 
+  testWidgets('auth phone CTA remains tappable above Android keyboard', (
+    tester,
+  ) async {
+    await pumpAuthApp(
+      tester,
+      locale: const Locale('vi'),
+      viewportSize: const Size(390, 760),
+    );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -700));
+    await safePumpAndSettle(tester);
+    await tester.tap(find.byKey(const Key('auth-privacy-consent-control')));
+    await safePumpAndSettle(tester);
+
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -320));
+    await safePumpAndSettle(tester);
+    await tester.tap(find.byKey(const Key('auth-method-phone-button')));
+    await safePumpAndSettle(tester);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pump();
+
+    await tester.enterText(
+      find.byKey(const Key('auth-phone-input')),
+      '0901234567',
+    );
+    await tester.pump();
+
+    final sendOtpButton = find.byKey(const Key('auth-send-otp-button'));
+    final buttonRect = tester.getRect(sendOtpButton);
+    final visibleBottom =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio -
+        tester.view.viewInsets.bottom / tester.view.devicePixelRatio;
+
+    expect(buttonRect.height, greaterThanOrEqualTo(48));
+    expect(buttonRect.bottom, lessThanOrEqualTo(visibleBottom));
+    expect(tester.widget<FilledButton>(sendOtpButton).onPressed, isNotNull);
+  });
+
+  testWidgets('auth phone input survives compact keyboard layout switch', (
+    tester,
+  ) async {
+    await pumpAuthApp(tester, locale: const Locale('vi'));
+    await acceptPrivacyPolicy(tester);
+
+    await tester.tap(find.byKey(const Key('auth-method-phone-button')));
+    await safePumpAndSettle(tester);
+
+    await tester.enterText(
+      find.byKey(const Key('auth-phone-input')),
+      '0901234567',
+    );
+    await tester.pump();
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('auth-send-otp-button')));
+    await waitFor(
+      tester,
+      condition: () =>
+          find.byKey(const Key('otp-code-input')).evaluate().isNotEmpty,
+    );
+
+    expect(find.text('Hãy nhập số điện thoại.'), findsNothing);
+    expect(find.byKey(const Key('otp-code-input')), findsOneWidget);
+  });
+
   testWidgets('auth child and OTP forms show inline required errors', (
     tester,
   ) async {
@@ -747,6 +815,35 @@ void main() {
 
     expect(find.text('Hãy nhập số điện thoại.'), findsOneWidget);
     expect(find.byKey(const Key('member-parent-picker-button')), findsNothing);
+  });
+
+  testWidgets('member phone lookup requires a phone before continue', (
+    tester,
+  ) async {
+    await pumpAuthApp(
+      tester,
+      locale: const Locale('vi'),
+      clanRepository: DebugClanRepository.seeded(),
+      memberRepository: DebugMemberRepository.seeded(),
+    );
+
+    await loginWithPhone(tester);
+    await openMembersWorkspace(tester);
+
+    await tester.tap(find.byKey(const Key('member-add-fab')));
+    await safePumpAndSettle(tester);
+    await tester.tap(find.byKey(const Key('member-phone-lookup-continue')));
+    await safePumpAndSettle(tester);
+
+    expect(
+      find.text('Hãy nhập số điện thoại hoặc chọn Tạo mới thủ công.'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('member-full-name-input')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('member-phone-lookup-skip')));
+    await safePumpAndSettle(tester);
+    expect(find.byKey(const Key('member-full-name-input')), findsOneWidget);
   });
 
   testWidgets(

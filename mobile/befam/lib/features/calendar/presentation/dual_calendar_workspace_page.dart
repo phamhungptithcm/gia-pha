@@ -2160,7 +2160,10 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                             controller: _titleController,
                             focusNode: _titleFocusNode,
                             decoration: InputDecoration(
-                              labelText: l10n.pick(vi: 'Tiêu đề', en: 'Title'),
+                              labelText: l10n.pick(
+                                vi: 'Tiêu đề *',
+                                en: 'Title *',
+                              ),
                               errorText: _titleErrorText,
                               border: const OutlineInputBorder(),
                             ),
@@ -2234,8 +2237,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                               children: [
                                 Text(
                                   l10n.pick(
-                                    vi: 'Người được giỗ',
-                                    en: 'Memorial subject',
+                                    vi: 'Người được giỗ *',
+                                    en: 'Memorial subject *',
                                   ),
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.w700,
@@ -2549,17 +2552,6 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                         const SizedBox(height: 16),
                         SizedBox(
                           width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _isSubmitting
-                                ? null
-                                : () => Navigator.of(context).pop(false),
-                            icon: const Icon(Icons.close),
-                            label: Text(l10n.pick(vi: 'Đóng', en: 'Close')),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
                           child: FilledButton.icon(
                             key: const Key('calendar-event-continue-button'),
                             onPressed: _isSubmitting
@@ -2575,6 +2567,17 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                             label: Text(
                               l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
                             ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _isSubmitting
+                                ? null
+                                : () => Navigator.of(context).pop(false),
+                            icon: const Icon(Icons.close),
+                            label: Text(l10n.pick(vi: 'Đóng', en: 'Close')),
                           ),
                         ),
                       ],

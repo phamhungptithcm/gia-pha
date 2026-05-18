@@ -135,7 +135,7 @@ The app now opens into an authentication-first BeFam flow:
 For local UI testing in debug builds:
 
 - OTP: `123456`
-- Custom local OTP: `--dart-define=BEFAM_MOCK_AUTH_OTP=220197`
+- Custom local OTP: `--dart-define=BEFAM_MOCK_AUTH_OTP=654321`
 - Mock auth uses local fixture profiles by default. Remote debug login profiles
   must be explicitly enabled with
   `--dart-define=BEFAM_USE_REMOTE_DEBUG_LOGIN_PROFILES=true`.

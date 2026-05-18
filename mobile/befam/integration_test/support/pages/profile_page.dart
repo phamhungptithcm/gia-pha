@@ -8,6 +8,27 @@ class ProfilePageObject {
 
   final WidgetTester tester;
 
+  Future<void> openSettings() async {
+    final settingsTile = find.byKey(const Key('profile-open-settings-tile'));
+    await revealFinder(tester, settingsTile);
+    await tapFinderSafely(
+      tester,
+      settingsTile,
+      reason: 'Không thể mở màn cài đặt hồ sơ.',
+      dismissKeyboardBeforeTap: false,
+    );
+    await waitForFinder(
+      tester,
+      find.byKey(const Key('notification-setting-push-enabled')),
+      reason: 'Màn cài đặt hồ sơ chưa hiển thị phần thông báo.',
+    );
+  }
+
+  Future<void> closeSettings() async {
+    await tester.pageBack();
+    await safePumpAndSettle(tester);
+  }
+
   Future<void> switchLanguageToEnglish() async {
     await _tapLanguageOption(
       primaryFinder: find.byKey(const Key('profile-language-option-en')),
@@ -31,8 +52,21 @@ class ProfilePageObject {
       reason: 'Ngôn ngữ chưa chuyển sang English.',
       condition: () =>
           find.text('English').evaluate().isNotEmpty ||
+          find.text('Settings').evaluate().isNotEmpty ||
+          find.text('Notifications').evaluate().isNotEmpty ||
           find.text('Profile').evaluate().isNotEmpty ||
           find.text('Notification settings').evaluate().isNotEmpty,
+    );
+  }
+
+  Future<void> expectProfileLanguageSummaryEnglish() async {
+    await waitFor(
+      tester,
+      maxFrames: 600,
+      reason: 'Tóm tắt ngôn ngữ hồ sơ chưa giữ English sau khi chuyển tab.',
+      condition: () =>
+          find.textContaining('English').evaluate().isNotEmpty ||
+          find.textContaining('Language: English').evaluate().isNotEmpty,
     );
   }
 

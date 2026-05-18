@@ -22,8 +22,8 @@ Primary blocker: both debug and live Android E2E smoke fail before the OTP scree
 | `adb devices` | PASS: Android device `34171FDH20027M` detected. | terminal output |
 | `flutter devices` | PASS: Pixel 7 detected as Android target. | terminal output |
 | `BEFAM_E2E_ANDROID_DEVICE=34171FDH20027M BEFAM_E2E_FAST_MODE=true BEFAM_E2E_ANDROID_MAX_ATTEMPTS=1 ./scripts/run_mobile_e2e.sh debug android smoke` | FAIL: `AUTH-001` and `TREE-001` failed at OTP transition. | `/tmp/befam-android-qa-full-pass-2026-05-17/e2e-debug-android-smoke-machine.jsonl` |
-| `flutter test integration_test/e2e_smoke_ci_test.dart -d 34171FDH20027M ... BEFAM_USE_MOCK_AUTH=true BEFAM_MOCK_AUTH_OTP=220197 ... --machine` | FAIL: same OTP transition failure with mock auth defines. | terminal output, screenshot/XML evidence |
-| `BEFAM_E2E_ANDROID_DEVICE=34171FDH20027M BEFAM_E2E_TEST_PHONE=0906660001 BEFAM_E2E_TEST_OTP=220197 BEFAM_E2E_FAST_MODE=true BEFAM_E2E_ANDROID_MAX_ATTEMPTS=1 BEFAM_E2E_SKIP_DEP_PREP=true ./scripts/run_mobile_e2e.sh live android smoke` | FAIL: same OTP transition failure using provided phone/MFA. Test harness then hung in cleanup and was terminated. | `/tmp/befam-android-qa-full-pass-2026-05-17/e2e-live-android-smoke-machine.jsonl` |
+| `flutter test integration_test/e2e_smoke_ci_test.dart -d 34171FDH20027M ... BEFAM_USE_MOCK_AUTH=true BEFAM_MOCK_AUTH_OTP=<staging-otp-redacted> ... --machine` | FAIL: same OTP transition failure with mock auth defines. | terminal output, screenshot/XML evidence |
+| `BEFAM_E2E_ANDROID_DEVICE=34171FDH20027M BEFAM_E2E_TEST_PHONE=<staging-phone-redacted> BEFAM_E2E_TEST_OTP=<staging-otp-redacted> BEFAM_E2E_FAST_MODE=true BEFAM_E2E_ANDROID_MAX_ATTEMPTS=1 BEFAM_E2E_SKIP_DEP_PREP=true ./scripts/run_mobile_e2e.sh live android smoke` | FAIL: same OTP transition failure using provided phone/MFA. Test harness then hung in cleanup and was terminated. | `/tmp/befam-android-qa-full-pass-2026-05-17/e2e-live-android-smoke-machine.jsonl` |
 | `flutter test test/features/billing test/features/funds test/features/security test/app/home/app_shell_billing_tab_test.dart test/app/web/web_marketing_pages_test.dart test/core/widgets/app_form_controls_test.dart` | PASS: 51 host-side tests passed. | terminal output |
 
 ## Execution Result
@@ -31,7 +31,7 @@ Primary blocker: both debug and live Android E2E smoke fail before the OTP scree
 | Area | Status | Notes |
 | --- | --- | --- |
 | Android auth OTP smoke | **FAIL** | App did not transition to OTP screen or AppShell after sending OTP. |
-| Provided credential path `0906660001` / `220197` | **FAIL** | Live smoke reproduced same OTP transition failure. |
+| Provided credential path `<staging-phone-redacted>` / `<staging-otp-redacted>` | **FAIL** | Live smoke reproduced same OTP transition failure. |
 | Android tree smoke | **BLOCKED/FAIL** | `TREE-001` failed because auth never reached AppShell. |
 | Android billing workspace smoke | **BLOCKED** | Live smoke includes billing workspace, but auth failure blocked it. |
 | Android navigation home/tree/events/funds/profile/billing | **BLOCKED** | Could not reach authenticated shell on this pass. |
@@ -53,7 +53,7 @@ Primary blocker: both debug and live Android E2E smoke fail before the OTP scree
   1. Connect Pixel 7 `34171FDH20027M`.
   2. Run debug smoke command above.
   3. Observe failure in `loginWithPhone` at `integration_test/support/e2e_test_harness.dart:461`.
-  4. Repeat with live command using phone `0906660001` and OTP/MFA `220197`.
+  4. Repeat with live command using phone `<staging-phone-redacted>` and OTP/MFA `<staging-otp-redacted>`.
 - Evidence:
   - `/tmp/befam-android-qa-full-pass-2026-05-17/e2e-debug-android-smoke-machine.jsonl`
   - `/tmp/befam-android-qa-full-pass-2026-05-17/e2e-live-android-smoke-machine.jsonl`
@@ -119,7 +119,7 @@ Additional web readiness cases to keep in the release sheet:
 | --- | --- | --- |
 | Billing/Subscription, not Funds | Run `BILL-001` to `BILL-012`; verify package plan, entitlement, checkout, pending/success/failure, role access; do not treat `FUND-*` as billing evidence. | **Blocked on Android**. Host billing tests passed. |
 | Funds/Quy | Run `FUND-001` to `FUND-009`; verify ledger, transaction validation, treasurer, member denial, clan switch. | **Blocked on Android**. Host funds tests passed. |
-| Auth OTP phone `0906660001`, MFA `220197` | Live Android smoke with provided values. | **Failed** at OTP transition. |
+| Auth OTP phone `<staging-phone-redacted>`, MFA `<staging-otp-redacted>` | Live Android smoke with provided values. | **Failed** at OTP transition. |
 | Navigation | Verify Home, Tree, Events, Funds, Profile, Billing workspace/deep-link. | **Blocked** after auth failure. |
 | Required validation | Phone, OTP, member, event, fund, transaction, billing contact forms. | **Blocked on Android**; host form controls/funds tests passed. |
 | Double-tap/loading prevention | OTP send/verify, checkout, save forms, refresh, ledger transaction submit. | **Blocked on Android**; not signed off. |

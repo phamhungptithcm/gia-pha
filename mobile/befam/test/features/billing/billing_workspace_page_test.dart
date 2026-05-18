@@ -286,6 +286,37 @@ void main() {
     });
   });
 
+  testWidgets('non-owner billing viewer cannot start store checkout', (
+    tester,
+  ) async {
+    await withAndroidStorePlatform(() async {
+      seedPaidTier();
+      final repository = _NonOwnerStoreReadyBillingRepository(
+        DebugBillingRepository.shared(),
+      );
+      await pumpBillingPage(
+        tester,
+        session: buildSession(
+          uid: 'debug:billing-admin-not-owner',
+          primaryRole: 'CLAN_ADMIN',
+        ),
+        repository: repository,
+        storeIapGateway: const _FakeStoreIapGateway(),
+      );
+
+      expect(find.text('Cần đúng tài khoản đang sở hữu gói'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('billing-plan-selector')),
+        280,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        find.byKey(const Key('billing-open-checkout-button')),
+        findsNothing,
+      );
+    });
+  });
+
   testWidgets('pricing quick view uses concise plan guidance', (tester) async {
     await pumpBillingPage(tester);
 
@@ -371,6 +402,38 @@ class _StoreReadyBillingRepository implements BillingRepository {
       platform: platform,
       productId: productId,
       payload: payload,
+    );
+  }
+}
+
+class _NonOwnerStoreReadyBillingRepository
+    extends _StoreReadyBillingRepository {
+  const _NonOwnerStoreReadyBillingRepository(super._delegate);
+
+  @override
+  Future<BillingWorkspaceSnapshot> loadWorkspace({
+    required AuthSession session,
+  }) async {
+    final snapshot = await super.loadWorkspace(session: session);
+    return BillingWorkspaceSnapshot(
+      clanId: snapshot.clanId,
+      scope: BillingScopeContext(
+        clanId: snapshot.scope.clanId,
+        ownerUid: 'debug:billing-owner',
+        ownerDisplayName: 'Chủ gói',
+        clanStatus: snapshot.scope.clanStatus,
+        viewerIsOwner: false,
+      ),
+      subscription: snapshot.subscription,
+      entitlement: snapshot.entitlement,
+      aiUsageSummary: snapshot.aiUsageSummary,
+      settings: snapshot.settings,
+      checkoutFlow: snapshot.checkoutFlow,
+      pricingTiers: snapshot.pricingTiers,
+      memberCount: snapshot.memberCount,
+      transactions: snapshot.transactions,
+      invoices: snapshot.invoices,
+      auditLogs: snapshot.auditLogs,
     );
   }
 }

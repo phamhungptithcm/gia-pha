@@ -110,6 +110,34 @@ void main() {
     expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
   });
 
+  testWidgets('transaction editor uses member picker with unlinked option', (
+    tester,
+  ) async {
+    await pumpFunds(tester);
+    await openScholarshipFund(tester);
+    await tapByKey(tester, const Key('fund-add-donation-button'));
+
+    expect(
+      find.byKey(const Key('fund-transaction-member-input')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('fund-transaction-member-picker')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('fund-transaction-member-picker')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Không gắn với thành viên'), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.text('Nguyễn Minh'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Nguyễn Minh'), findsWidgets);
+  });
+
   testWidgets('transaction editor validates bad amount, zero, and long note', (
     tester,
   ) async {

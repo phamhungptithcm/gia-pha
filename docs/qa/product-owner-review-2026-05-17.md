@@ -24,7 +24,7 @@ Decision: **NO-GO for production release until blocker evidence gaps are closed.
 - Graph context:
   - `graphify-out/GRAPH_REPORT.md` shows core communities around auth/session, genealogy, calendar/events, funds, scholarship, billing, notifications, and Firebase rules/functions.
 - Manual Android QA evidence:
-  - `/tmp/befam-final-mobile-qa/android-device/0906660001/`
+  - `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/`
   - 31 screenshot/XML/summary steps covering phone OTP, home, tree, events tab, funds tab, profile tab, and add-fund validation.
 
 No filled release execution sheet or final QA report was found in the screenshot folder. The checked-in release execution template still contains `NOT_RUN` statuses.
@@ -49,7 +49,7 @@ The release is **not ready for production sign-off** because the evidence does n
 | PO-P1-07 | P1 | Blocker under release policy | Notifications | Android system notification permission prompt appears after OTP, but there is no evidence for token registration, inbox pagination/read state, event/scholarship/billing deep-links, foreground/background behavior, or invalid token cleanup. | Screens `06`, `13`, `20`; release plan NOTIF-001 through NOTIF-008. | Complete notification smoke on a real device with backend-triggered push and inbox/deep-link evidence. |
 | PO-P2-01 | P2 | Non-blocker if recaptured | Visual QA evidence | Some screenshots are not final-state evidence: the event screenshot shows a loading spinner while XML summary shows a loaded calendar; tree screenshot is partly blocked by onboarding; earlier funds evidence showed overlapping quick-action buttons before a later fixed capture. | `16-tree-tab.png`, `17-events-tab.png`, `18-funds-tab-summary.txt`, `21-funds-tab-fixed.png`. | Recapture final steady-state screens after overlays are dismissed and loading has completed. |
 | PO-P2-02 | P2 | Non-blocker | Permission UX | Notification permission is requested immediately after OTP via native English copy. The app is otherwise Vietnamese. This is not a correctness blocker, but it may reduce opt-in clarity for Vietnamese users. | `06-after-otp-summary.txt`, `13-otp-entered-summary.txt`. | Consider an in-app Vietnamese rationale before the system prompt, or document why the current timing is acceptable. |
-| PO-P3-01 | P3 | Non-blocker | Traceability | The screenshot folder is useful but lacks an index tying each image to release test case IDs and expected/actual outcomes. | `/tmp/befam-final-mobile-qa/android-device/0906660001/` contains step files only. | Add a short QA index/report mapping evidence files to AUTH/CTX/TREE/EVT/FUND/PRO/etc. cases. |
+| PO-P3-01 | P3 | Non-blocker | Traceability | The screenshot folder is useful but lacks an index tying each image to release test case IDs and expected/actual outcomes. | `/tmp/befam-final-mobile-qa/android-device/<staging-phone-redacted>/` contains step files only. | Add a short QA index/report mapping evidence files to AUTH/CTX/TREE/EVT/FUND/PRO/etc. cases. |
 
 ## Workflow Assessment
 

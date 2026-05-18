@@ -136,7 +136,7 @@ Ghi chú mức ưu tiên:
 | CTX-005 | P0 | user có quyền hạn khác nhau theo clan | 1) Clan A (admin), clan B (member).<br>2) Switch qua lại và thử action write. | Permission thay đổi đúng theo clan hiện tại. |
 | CTX-006 | P1 | logout từ menu | 1) Mở menu ba chấm.<br>2) Chọn logout.<br>3) Mở lại app. | Logout sạch session + token context local. |
 | CTX-007 | P1 | localization EN/VI | 1) Đổi language trong profile.<br>2) Kiểm tra labels header/menu/action. | Chuỗi UI đổi đúng theo ngôn ngữ, không hardcode còn sót. |
-| CTX-008 | P0 | app startup | 1) Cold start app.<br>2) Quan sát tab đáy. | Tab label đúng UX thống nhất (`Nhà`, `Gia phả`, `Sự kiện`, `Gói`, `Hồ sơ`). |
+| CTX-008 | P0 | app startup | 1) Cold start app.<br>2) Quan sát tab đáy. | Tab label đúng UX thống nhất (`Nhà`, `Gia phả`, `Sự kiện`, `Quỹ`, `Hồ sơ`). `Quỹ` là quỹ họ, không phải gói BeFam. |
 
 ### 7.3) Member, Relationship, Genealogy
 
@@ -214,7 +214,7 @@ Ghi chú mức ưu tiên:
 
 | ID | Mức | Tiền điều kiện | Bước test (step-by-step) | Kỳ vọng |
 | --- | --- | --- | --- | --- |
-| BILL-001 | P0 | owner/admin clan | 1) Mở trang Gói.<br>2) Kiểm tra plan hiện tại + member count. | Entitlement phản ánh đúng plan thực tế đang hiệu lực. |
+| BILL-001 | P0 | owner/admin clan | 1) Mở `Gói dịch vụ` từ web CTA hoặc Profile trong app.<br>2) Kiểm tra plan hiện tại + member count. | Entitlement phản ánh đúng plan thực tế đang hiệu lực. Không nhầm với tab `Quỹ` của dòng họ. |
 | BILL-002 | P0 | clan có 0-10 member | 1) Resolve entitlement.<br>2) Kiểm tra plan tối thiểu. | Mặc định `FREE`. |
 | BILL-003 | P0 | clan có 11-200 member | 1) Resolve entitlement.<br>2) Kiểm tra minimum tier. | Clan phải ở mức tối thiểu `BASE`. |
 | BILL-004 | P0 | đang ở plan cao | 1) Chọn hạ gói dưới mức tối thiểu theo member count.<br>2) Continue checkout. | Hệ thống chặn downgrade không hợp lệ, báo lỗi rõ ràng. |

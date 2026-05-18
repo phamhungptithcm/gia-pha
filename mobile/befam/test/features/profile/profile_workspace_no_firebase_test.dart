@@ -95,6 +95,46 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('opens settings when tapping the visible settings row', (
+    tester,
+  ) async {
+    configureMobileViewport(tester);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('vi'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: ProfileWorkspacePage(
+          session: buildSession(),
+          memberRepository: DebugMemberRepository.seeded(),
+          billingRepository: DebugBillingRepository.shared(),
+          notificationPreferencesRepository:
+              DebugProfileNotificationPreferencesRepository.shared(),
+          showAppBar: true,
+        ),
+      ),
+    );
+    await pumpUi(tester, frames: 120);
+
+    await tester.tap(find.text('Mở cài đặt'));
+    await pumpUi(tester, frames: 36);
+
+    expect(find.text('Cài đặt'), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('profile-language-option-vi')),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pump(const Duration(milliseconds: 160));
+    expect(find.byKey(const Key('profile-language-option-vi')), findsOneWidget);
+  });
+
   testWidgets('shows AI disclosure and loading copy in the profile quick check', (
     tester,
   ) async {

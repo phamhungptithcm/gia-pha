@@ -7,7 +7,7 @@
 - Scope: Android device QA only. No source code changes were made.
 - Device: Pixel 7, serial `34171FDH20027M`, Android 16.
 - Package: `com.familyclanapp.befam`.
-- Auth: phone `0906660001`, OTP/MFA `220197`.
+- Auth: phone `<staging-phone-redacted>`, OTP/MFA `<staging-otp-redacted>`.
 - App state: `adb shell pm clear com.familyclanapp.befam` before test, then login from clean state.
 - Evidence folder: `/tmp/befam-subagent-qa/android-production-qa-2026-05-17/`.
 - Crash check: `/tmp/befam-subagent-qa/android-production-qa-2026-05-17/logcat_crash.txt` has 0 lines. No app crash observed.
@@ -90,7 +90,7 @@
 - Steps:
   1. From clean auth screen, accept privacy.
   2. Open phone login.
-  3. Enter `0906660001`.
+  3. Enter `<staging-phone-redacted>`.
   4. Attempt to tap `Nhận mã OTP` without dismissing keyboard.
 - Expected: submit button remains comfortably tappable above keyboard or keyboard action submits.
 - Actual: UI tree shows `Nhận mã OTP` compressed to bounds `[113,1441][513,1447]` in the visible scroll area while keyboard is open; taps did not advance until keyboard was dismissed.

@@ -39,6 +39,8 @@ Environment:
   BEFAM_E2E_SKIP_DEP_PREP       true/false. If true, skip flutter pub get/gen-l10n pre-step in this script.
   BEFAM_E2E_FAST_MODE           true/false. If true, pass fast-mode test defines to integration tests.
   BEFAM_E2E_SKIP_SCREENSHOTS    true/false. If true, integration tests skip screenshot capture.
+  BEFAM_E2E_USE_MOCK_AUTH       true/false. Defaults to true in debug mode so local device E2E does not depend on live OTP.
+  BEFAM_E2E_MOCK_AUTH_OTP       Mock OTP for debug E2E when BEFAM_E2E_USE_MOCK_AUTH=true (default: 123456).
   BEFAM_E2E_ANDROID_MAX_ATTEMPTS Optional integer override for Android retry attempts (default: 2).
   BEFAM_E2E_IOS_MAX_ATTEMPTS    Optional integer override for iOS retry attempts (default: smoke=1, full=2).
   BEFAM_E2E_SEED_DEBUG_PROFILES true/false. If true, run Firebase debug profile seed script first.
@@ -307,8 +309,20 @@ run_suite_on_device() {
       "--dart-define=BEFAM_E2E_TEST_OTP=${BEFAM_E2E_TEST_OTP}"
     )
   elif [[ "${SUITE}" == "smoke" ]]; then
+    if [[ "${BEFAM_E2E_USE_MOCK_AUTH:-true}" == "true" ]]; then
+      defines+=(
+        "--dart-define=BEFAM_USE_MOCK_AUTH=true"
+        "--dart-define=BEFAM_MOCK_AUTH_OTP=${BEFAM_E2E_MOCK_AUTH_OTP:-123456}"
+      )
+    fi
     tests=("integration_test/e2e_smoke_ci_test.dart")
   else
+    if [[ "${BEFAM_E2E_USE_MOCK_AUTH:-true}" == "true" ]]; then
+      defines+=(
+        "--dart-define=BEFAM_USE_MOCK_AUTH=true"
+        "--dart-define=BEFAM_MOCK_AUTH_OTP=${BEFAM_E2E_MOCK_AUTH_OTP:-123456}"
+      )
+    fi
     tests=(
       "integration_test/e2e_auth_and_role_matrix_test.dart"
       "integration_test/e2e_feature_journeys_test.dart"
