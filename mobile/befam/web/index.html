@@ -175,7 +175,6 @@
     }
 
     .befam-static-logo {
-      position: relative;
       width: 38px;
       height: 38px;
       border-radius: 8px;
@@ -183,42 +182,14 @@
       place-items: center;
       overflow: hidden;
       border: 1px solid rgba(49, 85, 255, 0.22);
-      background: #0f172a;
-      color: #ffffff;
+      background: linear-gradient(135deg, #ffffff, #f4f8ff);
       box-shadow: 0 12px 24px rgba(49, 85, 255, 0.16);
     }
 
-    .befam-static-logo::before,
-    .befam-static-logo::after {
-      position: absolute;
-      content: "";
-      border-radius: 2px;
-    }
-
-    .befam-static-logo::before {
-      right: -5px;
-      top: -5px;
-      width: 22px;
-      height: 22px;
-      background: #3155ff;
-      transform: rotate(18deg);
-    }
-
-    .befam-static-logo::after {
-      left: -4px;
-      bottom: -4px;
-      width: 18px;
-      height: 18px;
-      background: #e34cff;
-      transform: rotate(18deg);
-    }
-
-    .befam-static-logo b {
-      position: relative;
-      z-index: 1;
-      font-size: 13px;
-      font-weight: 950;
-      letter-spacing: 0;
+    .befam-static-logo svg {
+      width: 30px;
+      height: 30px;
+      display: block;
     }
 
     .befam-static-brand-copy,
@@ -617,6 +588,23 @@
       margin-left: auto;
     }
 
+    .befam-static-store-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .befam-static-store-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 8px;
+      border: 1px solid rgba(220, 228, 242, 0.92);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.74);
+      color: #0f172a;
+    }
+
     .befam-static-footer a {
       color: #526076;
       font-size: 12px;
@@ -689,6 +677,10 @@
       .befam-static-footer-links {
         width: 100%;
         margin-left: 0;
+      }
+
+      .befam-static-store-links {
+        order: 3;
       }
 
       .befam-static-brand {
@@ -857,22 +849,29 @@
   <main id="befam-static-shell" class="befam-static-shell" aria-label="BeFam">
     <header class="befam-static-nav">
       <a class="befam-static-brand" href="/" aria-label="BeFam trang chủ">
-        <span class="befam-static-logo" aria-hidden="true"><b>BF</b></span>
+        <span class="befam-static-logo" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img">
+            <g fill="none" stroke-linecap="round" stroke-width="3.6">
+              <ellipse cx="24" cy="24" rx="14" ry="5.5" stroke="#3155ff" transform="rotate(14 24 24)"/>
+              <ellipse cx="24" cy="24" rx="14" ry="5.5" stroke="#32c6b8" transform="rotate(62 24 24)"/>
+              <ellipse cx="24" cy="24" rx="14" ry="5.5" stroke="#f4b740" transform="rotate(118 24 24)"/>
+              <ellipse cx="24" cy="24" rx="14" ry="5.5" stroke="#e34cff" transform="rotate(166 24 24)"/>
+            </g>
+            <polygon points="24,18.8 28.4,21.4 28.4,26.6 24,29.2 19.6,26.6 19.6,21.4" fill="#0f172a"/>
+          </svg>
+        </span>
         <span class="befam-static-brand-copy">
           <strong>BeFam</strong>
           <span>Gia phả sống cho dòng họ Việt</span>
         </span>
       </a>
       <nav class="befam-static-links" aria-label="Liên kết chính">
-        <a href="/befam-info">Gia phả</a>
-        <a href="/befam-info">Giỗ lễ</a>
-        <a href="/befam-info">Quỹ họ</a>
-        <a href="/app">Gói dịch vụ</a>
-        <a href="/privacy">Bảo mật</a>
+        <a href="/">Trang Chủ</a>
+        <a href="/about-us">Câu Chuyện</a>
+        <a href="/befam-info">Về Chúng tôi</a>
       </nav>
       <div class="befam-static-actions">
-        <a class="befam-static-auth" href="/app">Đăng nhập</a>
-        <a class="befam-static-action primary" href="/app">Mở BeFam</a>
+        <a class="befam-static-action primary" href="/app">Mở App</a>
       </div>
     </header>
 
@@ -886,7 +885,7 @@
         <p class="befam-static-lead">Lưu người thân, ngày giỗ, sự kiện và quỹ họ trong một nơi rõ ràng.</p>
         <div class="befam-static-cta">
           <a class="befam-static-action primary" href="/app">Mở ứng dụng</a>
-          <a class="befam-static-action secondary" href="/befam-info">Câu chuyện</a>
+          <a class="befam-static-action secondary" href="/about-us">Câu chuyện</a>
         </div>
       </div>
       <aside class="befam-static-visual" aria-label="Không gian BeFam">
@@ -954,6 +953,10 @@
     <footer class="befam-static-footer" aria-label="Thông tin BeFam">
       <strong>BeFam</strong>
       <small>© 2026 · rõ người, rõ việc</small>
+      <div class="befam-static-store-links" aria-label="Tải ứng dụng BeFam">
+        <a href="https://apps.apple.com/app/id6760909593" rel="noopener">iOS</a>
+        <a href="https://play.google.com/store/apps/details?id=com.familyclanapp.befam" rel="noopener">Android</a>
+      </div>
       <div class="befam-static-footer-links">
         <a href="/privacy">Riêng tư</a>
         <a href="/terms">Điều khoản</a>

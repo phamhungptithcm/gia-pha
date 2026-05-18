@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -71,6 +72,21 @@ void _trackAndOpenApp(
     ),
   );
   context.go('/app');
+}
+
+Future<void> _trackAndOpenExternalUrl({
+  required String ctaType,
+  required String placement,
+  required String pagePath,
+  required String url,
+}) async {
+  await _trackMarketingCtaClick(
+    ctaType: ctaType,
+    placement: placement,
+    pagePath: pagePath,
+    destination: url,
+  );
+  await launchUrl(Uri.parse(url), mode: LaunchMode.platformDefault);
 }
 
 Widget _buildMarketingInlineAdForPath(String currentPath) {
@@ -316,8 +332,8 @@ class WebBeFamInfoPage extends StatelessWidget {
     return _WebMarketingLayout(
       currentPath: '/befam-info',
       pageTitle: context.l10n.pick(
-        vi: 'Thông tin BeFam | Tính năng, đối tượng dùng và nền tảng',
-        en: 'BeFam Information | Features and capabilities',
+        vi: 'Về chúng tôi | BeFam và Hunpeo Labs',
+        en: 'About Us | BeFam and Hunpeo Labs',
       ),
       child: Padding(
         padding: const EdgeInsets.only(top: 12, bottom: 24),
@@ -325,17 +341,14 @@ class WebBeFamInfoPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _HeroStorySection(
-              badge: context.l10n.pick(
-                vi: 'BeFam có gì?',
-                en: 'Product overview',
-              ),
+              badge: context.l10n.pick(vi: 'Về chúng tôi', en: 'About us'),
               title: context.l10n.pick(
-                vi: 'Mọi việc chính của dòng họ trong một nơi.',
-                en: 'The core family-clan workflows in one place.',
+                vi: 'BeFam được làm cho những dòng họ cần rõ người, rõ việc.',
+                en: 'BeFam is built for families that need clear people and clear work.',
               ),
               subtitle: context.l10n.pick(
-                vi: 'Xem người thân, ngày giỗ, quỹ họ và quyền truy cập rõ hơn.',
-                en: 'Lineage, memorials, funds, and access stay clear.',
+                vi: 'Chúng tôi xây BeFam như một sản phẩm vận hành gia đình: tôn trọng ký ức, quyền truy cập và dữ liệu riêng của từng dòng họ.',
+                en: 'We build BeFam as a family operations product: respectful of memory, access, and each clan’s private data.',
               ),
               primaryLabel: context.l10n.pick(
                 vi: 'Mở ứng dụng',
@@ -354,36 +367,36 @@ class WebBeFamInfoPage extends StatelessWidget {
             _FeatureCardGrid(
               items: [
                 _FeatureItem(
-                  icon: Icons.hub_rounded,
+                  icon: Icons.favorite_rounded,
                   title: context.l10n.pick(
-                    vi: 'Gia phả',
-                    en: 'Genealogy workspace',
+                    vi: 'Làm từ nhu cầu thật',
+                    en: 'Built from real needs',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Cây nhà, hồ sơ và nhánh chi ở cùng một chỗ.',
-                    en: 'Members, branches, and relationships together.',
+                    vi: 'Gia phả, ngày giỗ, quỹ họ và việc chung cần một nơi gọn, đáng tin.',
+                    en: 'Lineage, memorials, funds, and shared work need one trusted place.',
                   ),
                 ),
                 _FeatureItem(
-                  icon: Icons.notifications_active_rounded,
+                  icon: Icons.verified_user_rounded,
                   title: context.l10n.pick(
-                    vi: 'Lịch và thông báo',
-                    en: 'Notifications and reminders',
+                    vi: 'Ưu tiên niềm tin',
+                    en: 'Trust first',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Ngày giỗ, họp họ và mốc quan trọng.',
-                    en: 'Memorials, gatherings, and key dates.',
+                    vi: 'Quyền xem, quyền sửa và dữ liệu nhạy cảm luôn được đặt trong bối cảnh dòng họ.',
+                    en: 'Viewing, editing, and sensitive data stay in the family governance context.',
                   ),
                 ),
                 _FeatureItem(
-                  icon: Icons.payments_rounded,
+                  icon: Icons.handshake_rounded,
                   title: context.l10n.pick(
-                    vi: 'Gói dịch vụ',
-                    en: 'Plans and billing',
+                    vi: 'Đồng hành lâu dài',
+                    en: 'Built for continuity',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Trạng thái gói, thanh toán và quyền sử dụng.',
-                    en: 'Plans, payments, and access status.',
+                    vi: 'Sản phẩm được thiết kế để các thế hệ sau vẫn hiểu được người, việc và ký ức.',
+                    en: 'The product is designed so later generations can still understand people, work, and memory.',
                   ),
                 ),
               ],
@@ -394,34 +407,34 @@ class WebBeFamInfoPage extends StatelessWidget {
                 _FeatureItem(
                   icon: Icons.admin_panel_settings_rounded,
                   title: context.l10n.pick(
-                    vi: 'Ban điều hành họ tộc',
-                    en: 'Clan governance team',
+                    vi: 'Dành cho ban điều hành họ tộc',
+                    en: 'For clan governance teams',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Duyệt yêu cầu và phân quyền theo từng chi.',
-                    en: 'Review requests and assign branch access.',
+                    vi: 'Duyệt yêu cầu, phân quyền và vận hành việc chung minh bạch.',
+                    en: 'Review requests, assign access, and operate shared work clearly.',
                   ),
                 ),
                 _FeatureItem(
-                  icon: Icons.account_balance_wallet_rounded,
+                  icon: Icons.account_tree_rounded,
                   title: context.l10n.pick(
-                    vi: 'Người phụ trách quỹ',
-                    en: 'Fund and scholarship operators',
+                    vi: 'Dành cho thành viên trong gia đình',
+                    en: 'For family members',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Ghi nhận thu chi và xem lại lịch sử.',
-                    en: 'Record funds and review history.',
+                    vi: 'Xem gia phả, theo dõi ngày quan trọng và hiểu vai vế rõ hơn.',
+                    en: 'View lineage, follow important dates, and understand relationships more clearly.',
                   ),
                 ),
                 _FeatureItem(
-                  icon: Icons.person_search_rounded,
+                  icon: Icons.business_rounded,
                   title: context.l10n.pick(
-                    vi: 'Con cháu ở xa',
-                    en: 'Members and descendants abroad',
+                    vi: 'Hunpeo Labs',
+                    en: 'Hunpeo Labs',
                   ),
                   description: context.l10n.pick(
-                    vi: 'Xem gia phả và theo dõi lịch quan trọng.',
-                    en: 'View lineage and key dates from afar.',
+                    vi: 'Đội ngũ xây sản phẩm tập trung vào ứng dụng gia đình, dữ liệu và vận hành thực tế.',
+                    en: 'A product team focused on family apps, data, and practical operations.',
                   ),
                 ),
               ],
@@ -1128,24 +1141,16 @@ class _TopNavigation extends StatelessWidget {
     final localeController = AppLocaleScope.maybeOf(context);
     final navItems = [
       _NavItem(
-        path: '/befam-info',
-        label: l10n.pick(vi: 'Gia phả', en: 'Lineage'),
+        path: '/',
+        label: l10n.pick(vi: 'Trang chủ', en: 'Home'),
+      ),
+      _NavItem(
+        path: '/about-us',
+        label: l10n.pick(vi: 'Câu chuyện', en: 'Story'),
       ),
       _NavItem(
         path: '/befam-info',
-        label: l10n.pick(vi: 'Giỗ lễ', en: 'Memorials'),
-      ),
-      _NavItem(
-        path: '/befam-info',
-        label: l10n.pick(vi: 'Quỹ họ', en: 'Funds'),
-      ),
-      _NavItem(
-        path: '/app',
-        label: l10n.pick(vi: 'Gói dịch vụ', en: 'Plans'),
-      ),
-      _NavItem(
-        path: '/privacy',
-        label: l10n.pick(vi: 'Bảo mật', en: 'Trust'),
+        label: l10n.pick(vi: 'Về chúng tôi', en: 'About us'),
       ),
     ];
 
@@ -1283,11 +1288,7 @@ class _TopNavigation extends StatelessWidget {
                         ...navItems.map(
                           (item) => _NavButton(
                             label: item.label,
-                            isActive:
-                                (currentPath == '/befam-info' &&
-                                    item == navItems.first) ||
-                                (currentPath == item.path &&
-                                    currentPath != '/befam-info'),
+                            isActive: currentPath == item.path,
                             onPressed: () => context.go(item.path),
                           ),
                         ),
@@ -2709,9 +2710,11 @@ class _WebFooter extends StatelessWidget {
     final year = DateTime.now().year;
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final iosStoreUrl = AppEnvironment.iosAppStoreUrl.trim();
+    final androidStoreUrl = AppEnvironment.androidPlayStoreUrl.trim();
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 760;
+        final isCompact = constraints.maxWidth < 1180;
         final brand = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2752,6 +2755,37 @@ class _WebFooter extends StatelessWidget {
                 ),
                 mode: LaunchMode.platformDefault,
               ),
+            ),
+          ],
+        );
+
+        final storeLinks = Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            _MiniStoreLink(
+              ctaType: 'app_store',
+              placement: 'footer_app_store',
+              pagePath: pagePath,
+              label: l10n.pick(vi: 'iOS', en: 'iOS'),
+              title: l10n.pick(
+                vi: 'Tải BeFam trên App Store',
+                en: 'Download BeFam on the App Store',
+              ),
+              icon: Icons.phone_iphone_rounded,
+              url: iosStoreUrl,
+            ),
+            _MiniStoreLink(
+              ctaType: 'google_play',
+              placement: 'footer_google_play',
+              pagePath: pagePath,
+              label: l10n.pick(vi: 'Android', en: 'Android'),
+              title: l10n.pick(
+                vi: 'Tải BeFam trên Google Play',
+                en: 'Get BeFam on Google Play',
+              ),
+              icon: Icons.android_rounded,
+              url: androidStoreUrl,
             ),
           ],
         );
@@ -2821,6 +2855,8 @@ class _WebFooter extends StatelessWidget {
                         openButton,
                       ],
                     ),
+                    const SizedBox(height: 6),
+                    storeLinks,
                   ],
                 )
               : Row(
@@ -2829,6 +2865,8 @@ class _WebFooter extends StatelessWidget {
                     const SizedBox(width: 14),
                     copyright,
                     const Spacer(),
+                    storeLinks,
+                    const SizedBox(width: 10),
                     links,
                     const SizedBox(width: 10),
                     openButton,
@@ -2836,6 +2874,71 @@ class _WebFooter extends StatelessWidget {
                 ),
         );
       },
+    );
+  }
+}
+
+class _MiniStoreLink extends StatelessWidget {
+  const _MiniStoreLink({
+    required this.ctaType,
+    required this.placement,
+    required this.pagePath,
+    required this.label,
+    required this.title,
+    required this.icon,
+    required this.url,
+  });
+
+  final String ctaType;
+  final String placement;
+  final String pagePath;
+  final String label;
+  final String title;
+  final IconData icon;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasStoreUrl = url.trim().isNotEmpty;
+
+    Future<void> handleTap() async {
+      if (hasStoreUrl) {
+        await _trackAndOpenExternalUrl(
+          ctaType: ctaType,
+          placement: placement,
+          pagePath: pagePath,
+          url: url,
+        );
+        return;
+      }
+
+      _trackAndOpenApp(
+        context,
+        pagePath: pagePath,
+        placement: '${placement}_fallback_open_app',
+      );
+    }
+
+    return Tooltip(
+      message: title,
+      child: OutlinedButton.icon(
+        onPressed: () => unawaited(handleTap()),
+        icon: Icon(icon, size: 14),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _kLandingInk,
+          side: const BorderSide(color: _kLandingLine),
+          backgroundColor: Colors.white.withValues(alpha: 0.82),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          textStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -3054,67 +3157,85 @@ class _BrandMark extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: _kLandingInk,
-        border: Border.all(color: const Color(0x383155FF)),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFFFF), Color(0xFFF4F8FF)],
+        ),
+        border: Border.all(color: const Color(0x263155FF)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x263155FF),
-            blurRadius: 18,
-            offset: Offset(0, 10),
+            color: Color(0x1F3155FF),
+            blurRadius: 16,
+            offset: Offset(0, 8),
           ),
         ],
       ),
       child: SizedBox(
         width: 38,
         height: 38,
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            Positioned(
-              right: -5,
-              top: -5,
-              child: Transform.rotate(
-                angle: 0.314,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3155FF),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: -4,
-              bottom: -4,
-              child: Transform.rotate(
-                angle: 0.314,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE34CFF),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ),
-            Center(
-              child: Text(
-                'BF',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-          ],
-        ),
+        child: const CustomPaint(painter: _BeFamOrbitMarkPainter()),
       ),
     );
   }
+}
+
+class _BeFamOrbitMarkPainter extends CustomPainter {
+  const _BeFamOrbitMarkPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final strokeWidth = size.width * 0.08;
+    final orbitRect = Rect.fromCenter(
+      center: center,
+      width: size.width * 0.58,
+      height: size.height * 0.23,
+    );
+    final orbitColors = [
+      const Color(0xFF3155FF),
+      const Color(0xFF32C6B8),
+      const Color(0xFFF4B740),
+      const Color(0xFFE34CFF),
+    ];
+    final orbitAngles = [14.0, 62.0, 118.0, 166.0];
+
+    for (var index = 0; index < orbitColors.length; index++) {
+      final paint = Paint()
+        ..color = orbitColors[index]
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
+      canvas
+        ..save()
+        ..translate(center.dx, center.dy)
+        ..rotate(orbitAngles[index] * math.pi / 180)
+        ..translate(-center.dx, -center.dy)
+        ..drawOval(orbitRect, paint)
+        ..restore();
+    }
+
+    final corePaint = Paint()..color = _kLandingInk;
+    final coreRadius = size.width * 0.12;
+    final core = Path();
+    for (var index = 0; index < 6; index++) {
+      final angle = -math.pi / 2 + index * math.pi / 3;
+      final point = Offset(
+        center.dx + coreRadius * math.cos(angle),
+        center.dy + coreRadius * math.sin(angle),
+      );
+      if (index == 0) {
+        core.moveTo(point.dx, point.dy);
+      } else {
+        core.lineTo(point.dx, point.dy);
+      }
+    }
+    core.close();
+    canvas.drawPath(core, corePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _NavItem {

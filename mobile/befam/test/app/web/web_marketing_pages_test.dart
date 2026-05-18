@@ -85,13 +85,31 @@ void main() {
     expect(find.byType(WebAccountDeletionPage), findsOneWidget);
   });
 
-  testWidgets('navigates from landing CTA to about page', (tester) async {
+  testWidgets('public nav stays marketing-only before app entry', (
+    tester,
+  ) async {
     await pumpWebRouter(tester, initialLocation: '/');
 
-    await tester.tap(find.byType(OutlinedButton).first);
+    expect(find.text('TRANG CHỦ'), findsOneWidget);
+    expect(find.text('CÂU CHUYỆN'), findsOneWidget);
+    expect(find.text('VỀ CHÚNG TÔI'), findsWidgets);
+    expect(find.text('GIA PHẢ'), findsNothing);
+    expect(find.text('GIỖ LỄ'), findsNothing);
+    expect(find.text('QUỸ HỌ'), findsNothing);
+    expect(find.text('GÓI DỊCH VỤ'), findsNothing);
+    expect(find.text('BẢO MẬT'), findsNothing);
+
+    await tester.tap(find.text('CÂU CHUYỆN'));
     await tester.pumpAndSettle();
 
     expect(find.byType(WebAboutUsPage), findsOneWidget);
+    expect(find.byKey(const Key('web-app-entry-smoke')), findsNothing);
+
+    await tester.tap(find.text('VỀ CHÚNG TÔI'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(WebBeFamInfoPage), findsOneWidget);
+    expect(find.byKey(const Key('web-app-entry-smoke')), findsNothing);
   });
 
   testWidgets('landing primary CTA opens app entry instead of marketing loop', (
@@ -106,7 +124,7 @@ void main() {
     expect(find.byType(WebLandingPage), findsNothing);
   });
 
-  testWidgets('separates clan funds from service plans across web pages', (
+  testWidgets('keeps public marketing content and footer store links visible', (
     tester,
   ) async {
     await pumpWebRouter(tester, initialLocation: '/');
@@ -114,17 +132,18 @@ void main() {
     expect(find.text('Quỹ họ'), findsWidgets);
     expect(find.text('Gói dịch vụ'), findsWidgets);
     expect(find.text('Mua và nâng cấp trong app.'), findsOneWidget);
+    expect(find.text('iOS'), findsOneWidget);
+    expect(find.text('Android'), findsOneWidget);
     expect(find.text('Quỹ và quyền dùng'), findsNothing);
 
     await pumpWebRouter(tester, initialLocation: '/befam-info');
 
-    expect(find.text('Quỹ họ'), findsWidgets);
-    expect(find.text('Gói dịch vụ'), findsOneWidget);
-    expect(find.text('Quỹ và quyền dùng'), findsNothing);
+    expect(find.text('VỀ CHÚNG TÔI'), findsWidgets);
     expect(
-      find.text('Trạng thái gói, thanh toán và quyền sử dụng.'),
+      find.text('BeFam được làm cho những dòng họ cần rõ người, rõ việc.'),
       findsOneWidget,
     );
+    expect(find.byKey(const Key('web-app-entry-smoke')), findsNothing);
   });
 
   testWidgets('shows compact navigation on narrow width', (tester) async {
