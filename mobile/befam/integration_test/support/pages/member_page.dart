@@ -48,6 +48,17 @@ class MemberPageObject {
     );
     await safePumpAndSettle(tester);
 
+    final phoneInput = find.byKey(const Key('member-phone-input'));
+    await waitForFinder(
+      tester,
+      phoneInput,
+      reason: 'Không thấy ô nhập số điện thoại thành viên.',
+    );
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final phoneSuffix = timestamp.substring(timestamp.length - 8);
+    await tester.enterText(phoneInput, '09$phoneSuffix');
+    await safePumpAndSettle(tester);
+
     await tapText(tester, 'Tiếp tục');
 
     final parentPicker = find.byKey(const Key('member-parent-picker-button'));

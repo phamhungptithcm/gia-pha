@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "mobile/befam/**"
+      - "scripts/prepare_android_emulator_ci.sh"
       - "scripts/run_mobile_e2e.sh"
       - ".github/workflows/mobile-e2e.yml"
       - ".github/workflows/mobile-e2e-ios.yml"
@@ -26,30 +27,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Temporarily skip Android debug deep E2E
-        run: echo "::notice::Temporarily skipping Android debug deep E2E while CI is focused on build and release."
+      - name: Skip Android deep E2E
+        run: |
+          echo "::notice::Android deep mobile E2E is intentionally skipped for CI/CD."
+          echo "::notice::Manual device/simulator E2E should be run before release approval."
 
   deep-ios-debug-full:
     name: Deep E2E - iOS Debug Full
     runs-on: macos-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Temporarily skip iOS debug deep E2E
-        run: echo "::notice::Temporarily skipping iOS debug deep E2E while CI is focused on build and release."
+      - name: Skip iOS deep E2E
+        run: |
+          echo "::notice::iOS deep mobile E2E is intentionally skipped for CI/CD."
+          echo "::notice::Manual device/simulator E2E should be run before release approval."
 
   deep-android-live-full:
     name: Deep E2E - Android Live Full
+    if: ${{ vars.BEFAM_E2E_LIVE_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    environment:
+      name: staging
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Temporarily skip Android live deep E2E
-        run: echo "::notice::Temporarily skipping Android live deep E2E while CI is focused on build and release."
+      - name: Skip Android live E2E
+        run: |
+          echo "::notice::Android live mobile E2E is intentionally skipped for CI/CD."
+          echo "::notice::Manual device/simulator E2E should be run before release approval."

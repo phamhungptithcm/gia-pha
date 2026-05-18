@@ -42,7 +42,8 @@ _Last reviewed: March 15, 2026_
   calculation by `member_count`
 - card details are collected by payment provider UI/SDK; BeFam stores provider
   token/reference only
-- VNPay and card callbacks require signature verification before state changes
+- App Store / Google Play purchases require backend verification before state changes
+- Legacy VNPay/card callbacks require signature verification before state changes
 - webhook processing is idempotent to prevent duplicate charging side effects
 - billing audit logs record actor, action, and transaction reference for
   investigation

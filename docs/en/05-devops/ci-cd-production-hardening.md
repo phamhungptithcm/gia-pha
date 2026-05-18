@@ -18,13 +18,15 @@ For both `staging` and `main` rulesets:
 - Last push approval required.
 - Conversation resolution required.
 - Required status checks:
-  - `ci-docs`
-  - `ci-functions`
-  - `ci-mobile`
-  - `security-dependency-review`
-  - `security-trivy-fs`
-  - `security-gitleaks`
-  - `security-trivy-images`
+  - `CI - Docs Validation and Build`
+  - `CI - Functions Build and Test`
+  - `CI - Mobile Build and Test`
+  - `Security - Dependency Review`
+  - `Security - Trivy Filesystem Scan`
+  - `Security - Gitleaks Secret Scan`
+  - `Security - Trivy Container Image Scan`
+  - `E2E - Android Test Run`
+  - `E2E - iOS Test Run`
 - Commit signatures required.
 - No bypass actors.
 
@@ -43,8 +45,12 @@ For both `staging` and `main` rulesets:
 
 ### 1) PR/Branch Quality Gates
 
-- `CI - Branch Quality Gates`: docs, functions, mobile checks,
-  dependency review, Trivy (filesystem + images), and gitleaks.
+- `CI - Branch Quality Gates`: docs, Functions build/test/audit, Flutter
+  analysis/test/coverage, release catalog contract, web smoke tests, Trivy
+  (filesystem + images), and Gitleaks.
+- `CI - Mobile E2E Android` and `CI - Mobile E2E iOS`: smoke integration
+  flows on emulator/simulator. These checks must not be replaced with
+  permanent echo/skip steps.
 
 ### 2) Production Release
 

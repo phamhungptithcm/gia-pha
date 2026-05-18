@@ -1,0 +1,14 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "Allow public CocoaPods auth pod checksums in the iOS lockfile"
+  condition = "AND"
+  regexTarget = "line"
+  paths = ['''^mobile/befam/ios/Podfile\.lock$''']
+  regexes = [
+    '''^\s+(firebase_auth|FirebaseAuth|FirebaseAuthInterop):\s+[0-9a-f]{40}$''',
+  ]

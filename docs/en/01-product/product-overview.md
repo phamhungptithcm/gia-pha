@@ -1,6 +1,6 @@
 # Product Overview
 
-_Last reviewed: March 17, 2026_
+_Last reviewed: May 17, 2026_
 
 BeFam is a mobile-first genealogy and clan operations platform designed for
 Vietnamese family clans that need both cultural continuity and practical daily
@@ -45,7 +45,7 @@ BeFam addresses this gap by combining:
 
 ### Billing and subscription lifecycle
 - annual tiered plans by member count
-- VNPay-first checkout flow in mobile UX
+- Store IAP purchase flow in iOS/Android UX
 - explicit payment states: success, pending settlement, failed/canceled
 - entitlement activation only after confirmed successful payment processing
 

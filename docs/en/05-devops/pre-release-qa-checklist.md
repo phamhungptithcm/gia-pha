@@ -24,7 +24,8 @@ _Last reviewed: March 17, 2026_
 
 - [ ] active plan card reflects truly active entitlement only
 - [ ] upgrade/renew constraints are correct
-- [ ] VNPay 3-step flow is understandable
+- [ ] App Store / Google Play purchase flow is understandable
+- [ ] web billing screen explains that purchase happens in the mobile app
 - [ ] payment outcome states are clear
 - [ ] pending/failed payments do not activate upgraded plan
 

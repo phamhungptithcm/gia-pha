@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
-
-<g transform="rotate(14 800 235)"><ellipse cx="800" cy="235" rx="158" ry="58" fill="none" stroke="#30364F" stroke-width="24" /></g>
-<g transform="rotate(62 800 235)"><ellipse cx="800" cy="235" rx="158" ry="58" fill="none" stroke="#ACBAC4" stroke-width="24" /></g>
-<g transform="rotate(118 800 235)"><ellipse cx="800" cy="235" rx="158" ry="58" fill="none" stroke="#E1D9BC" stroke-width="24" /></g>
-<g transform="rotate(166 800 235)"><ellipse cx="800" cy="235" rx="158" ry="58" fill="none" stroke="#30364F" stroke-width="24" /></g>
-<polygon points="800,196 835,216 835,256 800,276 765,256 765,216" fill="#30364F" />
-<text x="682" y="550" font-family="New York, Georgia, serif" font-size="136" fill="#ACBAC4">Be</text>
-<text x="846" y="540" font-family="New York, Georgia, serif" font-size="160" font-weight="700" fill="#30364F">Fam</text>
-<text x="800" y="650" font-family="Avenir Next, Helvetica, sans-serif" font-size="34" fill="#7E889B" text-anchor="middle" letter-spacing="0.08em">Family roots, beautifully connected.</text>
+  <rect width="1600" height="900" rx="48" fill="#F7FAFF"/>
+  <g transform="translate(522 214)">
+    <rect width="156" height="156" rx="34" fill="#111827"/>
+    <path d="M104 0h52v74h-52z" fill="#3155FF"/>
+    <path d="M0 106l64 14-14 36H0z" fill="#E545FF"/>
+    <text x="78" y="100" text-anchor="middle" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="58" font-weight="800" fill="#FFFFFF">BF</text>
+  </g>
+  <text x="716" y="306" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="82" font-weight="800" fill="#111827">BeFam</text>
+  <text x="716" y="374" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="34" font-weight="600" fill="#5F6C84">Gia phả sống cho dòng họ Việt</text>
+  <path d="M522 474h556" stroke="#D7E2F3" stroke-width="4" stroke-linecap="round"/>
 </svg>

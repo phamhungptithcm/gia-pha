@@ -8,11 +8,17 @@ class AppLoadingState extends StatelessWidget {
     required this.message,
     this.semanticLabel,
     this.padding = const EdgeInsets.all(24),
+    this.showSkeleton = true,
+    this.actionLabel,
+    this.onAction,
   });
 
   final String message;
   final String? semanticLabel;
   final EdgeInsetsGeometry padding;
+  final bool showSkeleton;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -29,20 +35,22 @@ class AppLoadingState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 320),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    AppSkeletonBox(width: 210, height: 16),
-                    SizedBox(height: 10),
-                    AppSkeletonBox(width: 260, height: 14),
-                    SizedBox(height: 8),
-                    AppSkeletonBox(width: 180, height: 14),
-                  ],
+              if (showSkeleton) ...[
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppSkeletonBox(width: 210, height: 16),
+                      SizedBox(height: 10),
+                      AppSkeletonBox(width: 260, height: 14),
+                      SizedBox(height: 8),
+                      AppSkeletonBox(width: 180, height: 14),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -64,6 +72,14 @@ class AppLoadingState extends StatelessWidget {
                   ),
                 ],
               ),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(height: 14),
+                TextButton.icon(
+                  onPressed: onAction,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(actionLabel!),
+                ),
+              ],
             ],
           ),
         ),

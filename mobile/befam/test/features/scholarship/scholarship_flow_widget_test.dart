@@ -1,6 +1,7 @@
 import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/models/auth_session.dart';
+import 'package:befam/core/widgets/app_form_controls.dart';
 import 'package:befam/features/scholarship/presentation/scholarship_workspace_page.dart';
 import '../../support/features/scholarship/services/debug_scholarship_repository.dart';
 import 'package:befam/l10n/generated/app_localizations.dart';
@@ -11,6 +12,17 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   Future<void> tapButtonByKey(WidgetTester tester, Key key) async {
     final finder = find.byKey(key);
+    await tester.ensureVisible(finder);
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> tapLastButtonWithText(
+    WidgetTester tester,
+    Type buttonType,
+    String text,
+  ) async {
+    final finder = find.widgetWithText(buttonType, text).last;
     await tester.ensureVisible(finder);
     await tester.tap(finder);
     await tester.pumpAndSettle();
@@ -199,6 +211,66 @@ void main() {
     expect(
       find.byKey(const Key('scholarship-detail-submission-sub_demo_1000')),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('create forms surface required errors before continuing', (
+    tester,
+  ) async {
+    await pumpScholarshipWorkspace(tester);
+
+    await tester.tap(find.byKey(const Key('scholarship-main-add-fab')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('scholarship-create-program-fab')));
+    await tester.pumpAndSettle();
+
+    await tapButtonByKey(tester, const Key('scholarship-program-save-button'));
+    expect(find.text('Please enter a program title.'), findsOneWidget);
+    expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
+    expect(
+      find.byKey(const Key('scholarship-program-open-date-input')),
+      findsNothing,
+    );
+
+    await tapLastButtonWithText(tester, OutlinedButton, 'Cancel');
+
+    final openDetailFinder = find.byKey(
+      const Key('scholarship-open-program-detail-sp_demo_2026'),
+    );
+    tester.widget<IconButton>(openDetailFinder).onPressed!.call();
+    await tester.pumpAndSettle();
+
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-detail-open-award-form-button'),
+    );
+
+    await tapButtonByKey(tester, const Key('scholarship-award-save-button'));
+    expect(find.text('Please enter an award level name.'), findsOneWidget);
+    expect(
+      find.byKey(const Key('scholarship-award-amount-input')),
+      findsNothing,
+    );
+
+    await tapLastButtonWithText(tester, OutlinedButton, 'Cancel');
+
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-detail-open-submission-form-button'),
+    );
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-submission-save-button'),
+    );
+    await tapButtonByKey(
+      tester,
+      const Key('scholarship-submission-save-button'),
+    );
+
+    expect(find.text('Please enter an achievement title.'), findsWidgets);
+    expect(
+      find.byKey(const Key('scholarship-evidence-file-input')),
+      findsNothing,
     );
   });
 

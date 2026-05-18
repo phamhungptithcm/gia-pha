@@ -79,6 +79,8 @@ Biến bắt buộc (runtime Functions):
 - `BILLING_CONTACT_SMS_WEBHOOK_URL`
 - `BILLING_CONTACT_EMAIL_WEBHOOK_URL`
 - `CALLABLE_ENFORCE_APP_CHECK`
+- `AI_ASSIST_ENABLED`
+- `AI_ASSIST_MODEL`
 - `OTP_PROVIDER`
 - `OTP_ALLOWED_DIAL_CODES`
 - `OTP_TWILIO_VERIFY_SERVICE_SID`
@@ -113,6 +115,9 @@ Secret tùy chọn:
 - `APPLE_IAP_WEBHOOK_BEARER_TOKEN`
 - `GOOGLE_IAP_WEBHOOK_BEARER_TOKEN`
 
+Secret bắt buộc khi `AI_ASSIST_ENABLED=true`:
+- `GOOGLE_GENAI_API_KEY`
+
 Secret ký build release bắt buộc:
 - `ANDROID_RELEASE_KEYSTORE_BASE64`
 - `ANDROID_RELEASE_KEYSTORE_PASSWORD`
@@ -140,6 +145,41 @@ Biến build Mobile/Web (GitHub vars, tùy chọn):
 - `BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK` (bắt buộc `false` ở production)
 - `BEFAM_BILLING_PENDING_TIMEOUT_MINUTES`
 
+## Thiết lập Gemini key qua GitHub Secrets
+
+Nguồn tạo key:
+- mở [Google AI Studio](https://aistudio.google.com/app/apikey)
+- chọn đúng Google project dùng cho BeFam
+- tạo API key cho Gemini Developer API
+- copy key ngay sau khi tạo
+
+Nơi lưu key:
+- vào GitHub repository `Settings` -> `Environments` -> `production`
+- thêm environment secret tên `GOOGLE_GENAI_API_KEY`
+- nếu staging cũng bật AI, thêm cùng tên secret trong environment `staging`
+
+Nơi lưu config không nhạy cảm:
+- thêm GitHub environment var `AI_ASSIST_ENABLED=true`
+- thêm GitHub environment var `AI_ASSIST_MODEL=gemini-2.5-flash-lite`
+
+Luồng deploy production sau khi cấu hình:
+1. workflow `CD - Deploy Firebase (Production)` lấy `GOOGLE_GENAI_API_KEY` từ GitHub Environment secret
+2. workflow sync secret này vào Firebase Functions Secret Manager bằng `firebase functions:secrets:set`
+3. Functions AI chỉ bind secret đó ở runtime, không ghi key vào repo hoặc `.env` production
+
+Lệnh CLI tương đương để kiểm tra/thao tác tay:
+
+```bash
+cd firebase/functions
+firebase functions:secrets:set GOOGLE_GENAI_API_KEY
+firebase functions:secrets:access GOOGLE_GENAI_API_KEY
+```
+
+Khuyến nghị vận hành:
+- dùng GitHub **environment secret**, không dùng repository secret chung cho production
+- rotate key bằng cách update secret trên GitHub rồi chạy lại workflow deploy
+- không đưa `GOOGLE_GENAI_API_KEY` vào `.env.<project>` production
+
 ## Checklist trước khi release production
 
 - xác nhận đủ biến và secret bắt buộc
@@ -149,6 +189,7 @@ Biến build Mobile/Web (GitHub vars, tùy chọn):
 - xác nhận `BILLING_IAP_ALLOW_TEST_MOCK=false` ở production
 - xác nhận `BILLING_ENABLE_LEGACY_CARD_FLOW=false` ở production
 - xác nhận `CALLABLE_ENFORCE_APP_CHECK=true` ở production
+- nếu `AI_ASSIST_ENABLED=true`, xác nhận `GOOGLE_GENAI_API_KEY` đã có trong GitHub environment secret `production`
 - xác nhận đã bật branch protection cho `staging` và `main` với required checks
 - nếu secret từng bị lộ (đặc biệt `APPLE_SHARED_SECRET`) phải rotate ngay trước khi release
 - giữ `BILLING_ALLOW_MANUAL_SETTLEMENT=false` nếu không có nhu cầu vận hành đặc biệt
@@ -157,6 +198,7 @@ Biến build Mobile/Web (GitHub vars, tùy chọn):
 ## Checklist sau khi deploy
 
 - kiểm tra log CI: tạo `.env.<projectId>` thành công
+- kiểm tra log CI: bước sync `GOOGLE_GENAI_API_KEY` vào Firebase Secret Manager thành công
 - kiểm tra log sync runtime config thành công
 - kiểm tra log sync `subscriptionPackages` thành công
 - smoke test luồng auth và billing trên máy thật

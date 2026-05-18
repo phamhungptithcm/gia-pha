@@ -23,7 +23,23 @@ class _AppSkeletonBoxState extends State<AppSkeletonBox>
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
+  );
+  bool _disableAnimations = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _disableAnimations = MediaQuery.of(context).disableAnimations;
+    if (_disableAnimations) {
+      _controller
+        ..stop()
+        ..value = 0;
+      return;
+    }
+    if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
+  }
 
   @override
   void dispose() {
@@ -40,18 +56,26 @@ class _AppSkeletonBoxState extends State<AppSkeletonBox>
     final pulseColor = colorScheme.surfaceContainerHighest.withValues(
       alpha: 0.28,
     );
-    final box = AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            color: Color.lerp(baseColor, pulseColor, _controller.value),
-            borderRadius: widget.borderRadius,
-          ),
-          child: SizedBox(width: widget.width, height: widget.height),
-        );
-      },
-    );
+    final box = _disableAnimations
+        ? DecoratedBox(
+            decoration: BoxDecoration(
+              color: baseColor,
+              borderRadius: widget.borderRadius,
+            ),
+            child: SizedBox(width: widget.width, height: widget.height),
+          )
+        : AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Color.lerp(baseColor, pulseColor, _controller.value),
+                  borderRadius: widget.borderRadius,
+                ),
+                child: SizedBox(width: widget.width, height: widget.height),
+              );
+            },
+          );
     final margin = widget.margin;
     if (margin == null) {
       return box;

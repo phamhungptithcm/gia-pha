@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/services/performance_measurement_logger.dart';
 import '../../auth/models/auth_session.dart';
 import '../../../core/services/governance_role_matrix.dart';
 import '../models/achievement_submission.dart';
@@ -17,12 +18,19 @@ class ScholarshipController extends ChangeNotifier {
   ScholarshipController({
     required ScholarshipRepository repository,
     required AuthSession session,
+    PerformanceMeasurementLogger? performanceLogger,
   }) : _repository = repository,
        _session = session,
+       _performanceLogger =
+           performanceLogger ??
+           PerformanceMeasurementLogger(
+             defaultSlowThreshold: const Duration(milliseconds: 900),
+           ),
        permissions = ScholarshipPermissions.forSession(session);
 
   final ScholarshipRepository _repository;
   final AuthSession _session;
+  final PerformanceMeasurementLogger _performanceLogger;
   final ScholarshipPermissions permissions;
 
   bool _isLoading = true;
@@ -161,7 +169,12 @@ class ScholarshipController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final snapshot = await _repository.loadWorkspace(session: _session);
+      final snapshot = await _performanceLogger.measureAsync(
+        metric: 'scholarship.workspace_refresh',
+        warnAfter: const Duration(milliseconds: 900),
+        dimensions: const {'surface': 'scholarship'},
+        action: () => _repository.loadWorkspace(session: _session),
+      );
       _programs = snapshot.programs;
       _awardLevels = snapshot.awardLevels;
       _submissions = snapshot.submissions;

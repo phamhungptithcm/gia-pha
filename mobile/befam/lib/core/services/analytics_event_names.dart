@@ -62,6 +62,21 @@ abstract final class AnalyticsEventNames {
       'genealogy_discovery_reward_prompt_dismissed';
   static const genealogyDiscoveryRewardUnlocked =
       'genealogy_discovery_reward_unlocked';
+  static const aiProfileCheckRequested = 'ai_profile_check_requested';
+  static const aiProfileCheckCompleted = 'ai_profile_check_completed';
+  static const aiProfileCheckFailed = 'ai_profile_check_failed';
+  static const aiProfileQuickFixSelected = 'ai_profile_quick_fix_selected';
+  static const aiEventSuggestionRequested = 'ai_event_suggestion_requested';
+  static const aiEventSuggestionCompleted = 'ai_event_suggestion_completed';
+  static const aiEventSuggestionFailed = 'ai_event_suggestion_failed';
+  static const aiEventSuggestionApplied = 'ai_event_suggestion_applied';
+  static const aiDuplicateReviewOpened = 'ai_duplicate_review_opened';
+  static const aiDuplicateReviewDecision = 'ai_duplicate_review_decision';
+  static const aiAssistantOpened = 'ai_assistant_opened';
+  static const aiAssistantQuerySubmitted = 'ai_assistant_query_submitted';
+  static const aiAssistantQueryCompleted = 'ai_assistant_query_completed';
+  static const aiAssistantQueryFailed = 'ai_assistant_query_failed';
+  static const aiAssistantDestinationOpened = 'ai_assistant_destination_opened';
 
   static const values = <String>[
     authMethodSelected,
@@ -110,6 +125,21 @@ abstract final class AnalyticsEventNames {
     genealogyDiscoveryRewardPromptOpened,
     genealogyDiscoveryRewardPromptDismissed,
     genealogyDiscoveryRewardUnlocked,
+    aiProfileCheckRequested,
+    aiProfileCheckCompleted,
+    aiProfileCheckFailed,
+    aiProfileQuickFixSelected,
+    aiEventSuggestionRequested,
+    aiEventSuggestionCompleted,
+    aiEventSuggestionFailed,
+    aiEventSuggestionApplied,
+    aiDuplicateReviewOpened,
+    aiDuplicateReviewDecision,
+    aiAssistantOpened,
+    aiAssistantQuerySubmitted,
+    aiAssistantQueryCompleted,
+    aiAssistantQueryFailed,
+    aiAssistantDestinationOpened,
   ];
 }
 

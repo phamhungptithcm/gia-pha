@@ -16,10 +16,12 @@ import '../../../core/widgets/social_link_actions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
 import '../../ads/services/ad_consent_service.dart';
+import '../../ai/services/ai_product_analytics_service.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/services/auth_session_store.dart';
 import '../../auth/services/phone_number_formatter.dart';
 import '../../auth/widgets/phone_country_selector_field.dart';
+import '../../billing/models/billing_workspace_snapshot.dart';
 import '../../billing/presentation/billing_workspace_page.dart';
 import '../../billing/services/billing_repository.dart';
 import '../../member/models/member_profile.dart';
@@ -27,8 +29,11 @@ import '../../member/models/member_social_links.dart';
 import '../../member/services/member_avatar_picker.dart';
 import '../../member/services/member_repository.dart';
 import '../../notifications/services/notification_test_service.dart';
+import '../../ai/services/ai_assist_service.dart';
+import '../../ai/presentation/ai_usage_quota_notice.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/profile_draft.dart';
+import '../services/profile_quality_check_actions.dart';
 import '../services/account_deletion_request_service.dart';
 import '../services/profile_notification_preferences_repository.dart';
 import 'profile_controller.dart';
@@ -47,6 +52,7 @@ class ProfileWorkspacePage extends StatefulWidget {
     this.onSessionUpdated,
     this.accountDeletionRequestService,
     this.adConsentService,
+    this.aiAssistService,
     this.showAppBar = false,
   });
 
@@ -62,6 +68,7 @@ class ProfileWorkspacePage extends StatefulWidget {
   final ValueChanged<AuthSession>? onSessionUpdated;
   final AccountDeletionRequestService? accountDeletionRequestService;
   final AdConsentService? adConsentService;
+  final AiAssistService? aiAssistService;
   final bool showAppBar;
 
   @override
@@ -77,6 +84,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
   late final NotificationTestService _notificationTestService;
   late final AccountDeletionRequestService _accountDeletionRequestService;
   late final AdConsentService _adConsentService;
+  late final AiAssistService _aiAssistService;
   late final bool _ownsLocaleController;
   ProfileDraft? _unlinkedDraft;
   bool _isSavingUnlinkedProfile = false;
@@ -109,6 +117,7 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         createDefaultAccountDeletionRequestService(session: widget.session);
     _adConsentService =
         widget.adConsentService ?? createDefaultAdConsentService();
+    _aiAssistService = widget.aiAssistService ?? _createAiAssistService();
     _ownsLocaleController = widget.localeController == null;
     unawaited(_localeController.load());
     unawaited(_controller.initialize());
@@ -125,6 +134,13 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       unawaited(_loadUnlinkedDraft());
       unawaited(_loadAccountDeletionRequestStatus());
     }
+  }
+
+  AiAssistService _createAiAssistService() {
+    if (widget.session.isSandbox) {
+      return createLocalAiAssistService();
+    }
+    return createDefaultAiAssistService();
   }
 
   @override
@@ -145,9 +161,12 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return _ProfileEditorSheet(
+          session: widget.session,
           initialDraft: ProfileDraft.fromMember(profile),
           isSaving: _controller.isSavingProfile,
           onSubmit: _controller.saveProfile,
+          aiAssistService: _aiAssistService,
+          billingRepository: widget.billingRepository,
         );
       },
     );
@@ -195,10 +214,13 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return _ProfileEditorSheet(
+          session: widget.session,
           initialDraft:
               _unlinkedDraft ?? _fallbackUnlinkedDraft(widget.session),
           isSaving: _isSavingUnlinkedProfile,
           onSubmit: _saveUnlinkedProfileDraft,
+          aiAssistService: _aiAssistService,
+          billingRepository: widget.billingRepository,
         );
       },
     );
@@ -863,6 +885,19 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
         final languageLabel = selectedLanguageCode == 'vi'
             ? l10n.profileLanguageVietnamese
             : l10n.profileLanguageEnglish;
+        final settingsSection = _ProfileSectionCard(
+          title: l10n.pick(vi: 'Tùy chọn', en: 'Preferences'),
+          child: _ProfileCompactMenuTile(
+            key: const Key('profile-open-settings-tile'),
+            icon: Icons.tune_rounded,
+            title: l10n.pick(vi: 'Mở cài đặt', en: 'Open settings'),
+            subtitle: l10n.pick(
+              vi: 'Ngôn ngữ: $languageLabel',
+              en: 'Language: $languageLabel',
+            ),
+            onTap: _openSettings,
+          ),
+        );
 
         return Scaffold(
           appBar: widget.showAppBar
@@ -947,6 +982,8 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                             ),
                             const SizedBox(height: 16),
                           ],
+                          settingsSection,
+                          const SizedBox(height: 16),
                           _ProfileSectionCard(
                             title: l10n.pick(
                               vi: 'Thông tin chính',
@@ -1049,22 +1086,6 @@ class _ProfileWorkspacePageState extends State<ProfileWorkspacePage> {
                                       ),
                                     ],
                                   ),
-                          ),
-                          const SizedBox(height: 16),
-                          _ProfileSectionCard(
-                            title: l10n.pick(vi: 'Tùy chọn', en: 'Preferences'),
-                            child: _ProfileCompactMenuTile(
-                              icon: Icons.tune_rounded,
-                              title: l10n.pick(
-                                vi: 'Mở cài đặt',
-                                en: 'Open settings',
-                              ),
-                              subtitle: l10n.pick(
-                                vi: 'Ngôn ngữ: $languageLabel',
-                                en: 'Language: $languageLabel',
-                              ),
-                              onTap: _openSettings,
-                            ),
                           ),
                         ],
                       ),
@@ -1219,44 +1240,11 @@ class _SettingsScreenShell extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   _ProfileSectionCard(
-                    title: l10n.pick(
-                      vi: 'Gói dịch vụ và thanh toán',
-                      en: 'Subscription & billing',
-                    ),
-                    child: AppWorkspaceSurface(
-                      padding: const EdgeInsets.all(16),
-                      color: Colors.white.withValues(alpha: 0.76),
-                      child: AppAsyncAction(
-                        onPressed: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (context) => BillingWorkspacePage(
-                                session: session,
-                                repository: billingRepository,
-                              ),
-                            ),
-                          );
-                          onBillingStateChanged?.call();
-                        },
-                        builder: (context, onPressed, isLoading) {
-                          return SizedBox(
-                            width: double.infinity,
-                            child: FilledButton.tonalIcon(
-                              onPressed: onPressed,
-                              icon: const Icon(Icons.open_in_new_rounded),
-                              label: AppStableLoadingChild(
-                                isLoading: isLoading,
-                                child: Text(
-                                  l10n.pick(
-                                    vi: 'Mở quản lý gói',
-                                    en: 'Open billing',
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                    title: l10n.pick(vi: 'Gói của bạn', en: 'Your plan'),
+                    child: _BillingSettingsHub(
+                      session: session,
+                      billingRepository: billingRepository,
+                      onBillingStateChanged: onBillingStateChanged,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1396,6 +1384,471 @@ class _SettingsScreenShell extends StatelessWidget {
   }
 }
 
+class _BillingSettingsHub extends StatefulWidget {
+  const _BillingSettingsHub({
+    required this.session,
+    this.billingRepository,
+    this.onBillingStateChanged,
+  });
+
+  final AuthSession session;
+  final BillingRepository? billingRepository;
+  final VoidCallback? onBillingStateChanged;
+
+  @override
+  State<_BillingSettingsHub> createState() => _BillingSettingsHubState();
+}
+
+class _BillingSettingsHubState extends State<_BillingSettingsHub> {
+  late final BillingRepository _billingRepository;
+  late Future<_BillingSettingsSnapshot> _snapshotFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _billingRepository =
+        widget.billingRepository ??
+        createDefaultBillingRepository(session: widget.session);
+    _snapshotFuture = _loadSnapshot();
+  }
+
+  Future<_BillingSettingsSnapshot> _loadSnapshot() async {
+    try {
+      final workspace = await _billingRepository.loadWorkspace(
+        session: widget.session,
+      );
+      return _BillingSettingsSnapshot.fromWorkspace(workspace);
+    } on BillingRepositoryException catch (error) {
+      if (_shouldFallbackToViewer(error)) {
+        final summary = await _billingRepository.loadViewerSummary(
+          session: widget.session,
+        );
+        return _BillingSettingsSnapshot.fromViewerSummary(summary);
+      }
+      rethrow;
+    }
+  }
+
+  bool _shouldFallbackToViewer(BillingRepositoryException error) {
+    if (error.code == BillingRepositoryErrorCode.permissionDenied) {
+      return true;
+    }
+    if (error.code == BillingRepositoryErrorCode.failedPrecondition) {
+      final lower = (error.message ?? '').toLowerCase();
+      if (lower.contains('owner') ||
+          lower.contains('billing scope') ||
+          lower.contains('clan billing')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _openBillingWorkspace() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => BillingWorkspacePage(
+          session: widget.session,
+          repository: _billingRepository,
+        ),
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    widget.onBillingStateChanged?.call();
+    setState(() {
+      _snapshotFuture = _loadSnapshot();
+    });
+  }
+
+  Future<void> _openBillingDetails() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => BillingDetailsPage(
+          session: widget.session,
+          repository: _billingRepository,
+        ),
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    widget.onBillingStateChanged?.call();
+    setState(() {
+      _snapshotFuture = _loadSnapshot();
+    });
+  }
+
+  String _planLabel(_BillingSettingsSnapshot snapshot, AppLocalizations l10n) {
+    return switch (snapshot.planCode.trim().toUpperCase()) {
+      'BASE' => l10n.pick(vi: 'Gói Tiêu chuẩn', en: 'Standard plan'),
+      'PLUS' => l10n.pick(vi: 'Gói Nâng cao', en: 'Advanced plan'),
+      'PRO' => l10n.pick(vi: 'Gói Toàn diện', en: 'Pro plan'),
+      _ => l10n.pick(vi: 'Gói Miễn phí', en: 'Free plan'),
+    };
+  }
+
+  String _statusLabel(
+    _BillingSettingsSnapshot snapshot,
+    AppLocalizations l10n,
+  ) {
+    return switch (snapshot.status.trim().toLowerCase()) {
+      'active' => l10n.pick(vi: 'Đang hoạt động', en: 'Active'),
+      'grace_period' => l10n.pick(vi: 'Ân hạn', en: 'Grace period'),
+      'pending_payment' => l10n.pick(vi: 'Chờ thanh toán', en: 'Pending'),
+      'expired' => l10n.pick(vi: 'Hết hạn', en: 'Expired'),
+      _ => snapshot.status,
+    };
+  }
+
+  String _expiresLabel(
+    _BillingSettingsSnapshot snapshot,
+    AppLocalizations l10n,
+  ) {
+    final iso = snapshot.expiresAtIso;
+    if (iso == null || iso.trim().isEmpty) {
+      return l10n.pick(vi: 'Chưa có mốc', en: 'No date yet');
+    }
+    final parsed = DateTime.tryParse(iso)?.toLocal();
+    if (parsed == null) {
+      return iso;
+    }
+    final day = '${parsed.day}'.padLeft(2, '0');
+    final month = '${parsed.month}'.padLeft(2, '0');
+    return '$day/$month/${parsed.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return FutureBuilder<_BillingSettingsSnapshot>(
+      future: _snapshotFuture,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        final hasResolvedQuota = data?.aiUsageSummary.hasResolvedQuota ?? false;
+        final progress = hasResolvedQuota
+            ? (data?.aiUsageSummary.usageProgress ?? 0.0)
+            : 0.0;
+        final remainingCredits = hasResolvedQuota
+            ? data?.aiUsageSummary.remainingCredits
+            : null;
+        final quotaCredits = hasResolvedQuota
+            ? data?.aiUsageSummary.quotaCredits
+            : null;
+        final isNearLimit =
+            data != null &&
+            data.aiUsageSummary.hasResolvedQuota &&
+            data.aiUsageSummary.remainingCredits > 0 &&
+            data.aiUsageSummary.usageProgress >= 0.8;
+        final isExhausted = data != null && data.aiUsageSummary.isExhausted;
+        final statusLabel = data == null ? null : _statusLabel(data, l10n);
+        final nextCycleLabel = data == null ? null : _expiresLabel(data, l10n);
+
+        return AppWorkspaceSurface(
+          padding: const EdgeInsets.all(14),
+          color: Colors.white.withValues(alpha: 0.82),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (data != null) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _planLabel(data, l10n),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            data.canManage
+                                ? l10n.pick(
+                                    vi: 'Đang áp dụng cho tài khoản này.',
+                                    en: 'Currently applied to this account.',
+                                  )
+                                : l10n.pick(
+                                    vi: 'Thông tin gói hiện tại.',
+                                    en: 'Current plan information.',
+                                  ),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _statusLabel(data, l10n),
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _BillingSettingsMiniStat(
+                        label: l10n.pick(vi: 'AI còn lại', en: 'AI left'),
+                        value: hasResolvedQuota
+                            ? l10n.pick(
+                                vi: '${remainingCredits ?? 0} lượt',
+                                en: '${remainingCredits ?? 0} left',
+                              )
+                            : l10n.pick(vi: 'Đang cập nhật', en: 'Updating'),
+                        hint: hasResolvedQuota
+                            ? l10n.pick(
+                                vi: '/ ${quotaCredits ?? 0} trong tháng',
+                                en: '/ ${quotaCredits ?? 0} this month',
+                              )
+                            : l10n.pick(
+                                vi: 'Lượt AI sẽ hiện sau khi đồng bộ',
+                                en: 'AI usage will appear after sync',
+                              ),
+                        accentColor: isExhausted
+                            ? colorScheme.error
+                            : isNearLimit
+                            ? colorScheme.tertiary
+                            : colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _BillingSettingsMiniStat(
+                        label: l10n.pick(vi: 'Kỳ tiếp theo', en: 'Next cycle'),
+                        value: nextCycleLabel ?? '',
+                        hint: statusLabel ?? '',
+                        accentColor: colorScheme.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+                if (hasResolvedQuota) ...[
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      minHeight: 6,
+                      value: progress,
+                      backgroundColor: colorScheme.surfaceContainerHighest,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        isExhausted
+                            ? colorScheme.error
+                            : isNearLimit
+                            ? colorScheme.tertiary
+                            : colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+                if (isExhausted || isNearLimit) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    isExhausted
+                        ? l10n.pick(
+                            vi: 'Bạn đã dùng hết lượt AI tháng này. Nâng gói để dùng tiếp ngay.',
+                            en: 'You have used up this month’s AI help. Upgrade to continue right away.',
+                          )
+                        : l10n.pick(
+                            vi: 'Bạn sắp chạm giới hạn tháng này.',
+                            en: 'You are getting close to this month’s limit.',
+                          ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ] else if (snapshot.hasError) ...[
+                Text(
+                  l10n.pick(
+                    vi: 'Không tải được tóm tắt gói lúc này.',
+                    en: 'Unable to load the plan summary right now.',
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ] else ...[
+                Row(
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l10n.pick(
+                          vi: 'Đang tải gói của bạn...',
+                          en: 'Loading your plan...',
+                        ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _openBillingWorkspace,
+                  icon: const Icon(Icons.workspace_premium_outlined),
+                  label: Text(
+                    data?.canManage == false
+                        ? l10n.pick(
+                            vi: 'Xem gói hiện tại',
+                            en: 'View current plan',
+                          )
+                        : l10n.pick(
+                            vi: 'Đổi hoặc nâng cấp',
+                            en: 'Change or upgrade',
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _openBillingDetails,
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: Text(
+                    l10n.pick(vi: 'AI và thanh toán', en: 'AI and billing'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BillingSettingsSnapshot {
+  const _BillingSettingsSnapshot({
+    required this.planCode,
+    required this.status,
+    required this.expiresAtIso,
+    required this.aiUsageSummary,
+    required this.canManage,
+  });
+
+  factory _BillingSettingsSnapshot.fromWorkspace(
+    BillingWorkspaceSnapshot workspace,
+  ) {
+    return _BillingSettingsSnapshot(
+      planCode: workspace.entitlement.planCode,
+      status: workspace.entitlement.status,
+      expiresAtIso:
+          workspace.entitlement.expiresAtIso ??
+          workspace.subscription.expiresAtIso,
+      aiUsageSummary: workspace.aiUsageSummary,
+      canManage: true,
+    );
+  }
+
+  factory _BillingSettingsSnapshot.fromViewerSummary(
+    BillingViewerSummary summary,
+  ) {
+    return _BillingSettingsSnapshot(
+      planCode: summary.entitlement.planCode,
+      status: summary.entitlement.status,
+      expiresAtIso:
+          summary.entitlement.expiresAtIso ?? summary.subscription.expiresAtIso,
+      aiUsageSummary: summary.aiUsageSummary,
+      canManage: false,
+    );
+  }
+
+  final String planCode;
+  final String status;
+  final String? expiresAtIso;
+  final BillingAiUsageSummary aiUsageSummary;
+  final bool canManage;
+}
+
+class _BillingSettingsMiniStat extends StatelessWidget {
+  const _BillingSettingsMiniStat({
+    required this.label,
+    required this.value,
+    required this.hint,
+    required this.accentColor,
+  });
+
+  final String label;
+  final String value;
+  final String hint;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: accentColor,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            hint,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NotificationSettingsPanel extends StatelessWidget {
   const _NotificationSettingsPanel({required this.controller});
 
@@ -1458,6 +1911,7 @@ class _NotificationSettingsPanel extends StatelessWidget {
             children: [
               _NotificationPreferenceTile(
                 icon: Icons.event_note_outlined,
+                switchKey: const Key('notification-setting-event-updates'),
                 title: l10n.notificationSettingsEventUpdates,
                 subtitle: l10n.notificationSettingsEventUpdatesHint,
                 value: prefs.eventReminders,
@@ -1606,6 +2060,7 @@ class _NotificationSettingsHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Switch.adaptive(
+                  key: const Key('notification-setting-push-enabled'),
                   value: prefs.pushEnabled,
                   onChanged: controller.isSavingNotificationPreferences
                       ? null
@@ -1717,7 +2172,7 @@ class _NotificationPreferenceGroup extends StatelessWidget {
             style: theme.textTheme.labelLarge?.copyWith(
               fontWeight: FontWeight.w800,
               color: theme.colorScheme.onSurfaceVariant,
-              letterSpacing: 0.2,
+              letterSpacing: 0,
             ),
           ),
           const SizedBox(height: 8),
@@ -1736,9 +2191,11 @@ class _NotificationPreferenceTile extends StatelessWidget {
     required this.value,
     required this.onChanged,
     required this.isLast,
+    this.switchKey,
   });
 
   final IconData icon;
+  final Key? switchKey;
   final String title;
   final String subtitle;
   final bool value;
@@ -1794,7 +2251,11 @@ class _NotificationPreferenceTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Switch.adaptive(value: value, onChanged: onChanged),
+              Switch.adaptive(
+                key: switchKey,
+                value: value,
+                onChanged: onChanged,
+              ),
             ],
           ),
         ),
@@ -1849,6 +2310,7 @@ class _InlineStatusBadge extends StatelessWidget {
 
 class _ProfileCompactMenuTile extends StatelessWidget {
   const _ProfileCompactMenuTile({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -1864,54 +2326,75 @@ class _ProfileCompactMenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    void effectiveOnTap() {
+      FocusManager.instance.primaryFocus?.unfocus();
+      onTap();
+    }
 
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: AppWorkspaceSurface(
-          color: Colors.white.withValues(alpha: 0.76),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer.withValues(alpha: 0.82),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, color: colorScheme.onPrimaryContainer),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: effectiveOnTap,
+        child: Semantics(
+          button: true,
+          label: '$title, $subtitle',
+          onTap: effectiveOnTap,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: effectiveOnTap,
+            child: AppWorkspaceSurface(
+              color: Colors.white.withValues(alpha: 0.76),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer.withValues(
+                        alpha: 0.82,
                       ),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                    alignment: Alignment.center,
+                    child: Icon(icon, color: colorScheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: effectiveOnTap,
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                    style: IconButton.styleFrom(
+                      tapTargetSize: MaterialTapTargetSize.padded,
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: colorScheme.onSecondaryContainer,
+                      backgroundColor: colorScheme.secondaryContainer,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -2068,15 +2551,21 @@ enum _AvatarAction { view, upload }
 
 class _ProfileEditorSheet extends StatefulWidget {
   const _ProfileEditorSheet({
+    required this.session,
     required this.initialDraft,
     required this.isSaving,
     required this.onSubmit,
+    required this.aiAssistService,
+    this.billingRepository,
   });
 
+  final AuthSession session;
   final ProfileDraft initialDraft;
   final bool isSaving;
   final Future<MemberRepositoryErrorCode?> Function(ProfileDraft draft)
   onSubmit;
+  final AiAssistService aiAssistService;
+  final BillingRepository? billingRepository;
 
   @override
   State<_ProfileEditorSheet> createState() => _ProfileEditorSheetState();
@@ -2094,11 +2583,21 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
   late final TextEditingController _facebookController;
   late final TextEditingController _zaloController;
   late final TextEditingController _linkedinController;
+  late final FocusNode _nickNameFocusNode;
+  late final FocusNode _phoneFocusNode;
+  late final FocusNode _emailFocusNode;
+  late final FocusNode _addressFocusNode;
+  late final FocusNode _jobTitleFocusNode;
+  late final FocusNode _bioFocusNode;
+  late final FocusNode _facebookFocusNode;
+  late final AiProductAnalyticsService _aiAnalyticsService;
   late String _phoneCountryIsoCode;
   bool _resolvedAutoPhoneCountry = false;
 
   MemberRepositoryErrorCode? _submitError;
+  ProfileAiReview? _aiReview;
   bool _isSubmitting = false;
+  bool _isReviewingWithAi = false;
 
   @override
   void initState() {
@@ -2133,6 +2632,14 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     _linkedinController = TextEditingController(
       text: widget.initialDraft.linkedin,
     );
+    _nickNameFocusNode = FocusNode();
+    _phoneFocusNode = FocusNode();
+    _emailFocusNode = FocusNode();
+    _addressFocusNode = FocusNode();
+    _jobTitleFocusNode = FocusNode();
+    _bioFocusNode = FocusNode();
+    _facebookFocusNode = FocusNode();
+    _aiAnalyticsService = createDefaultAiProductAnalyticsService();
   }
 
   @override
@@ -2147,6 +2654,13 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     _facebookController.dispose();
     _zaloController.dispose();
     _linkedinController.dispose();
+    _nickNameFocusNode.dispose();
+    _phoneFocusNode.dispose();
+    _emailFocusNode.dispose();
+    _addressFocusNode.dispose();
+    _jobTitleFocusNode.dispose();
+    _bioFocusNode.dispose();
+    _facebookFocusNode.dispose();
     super.dispose();
   }
 
@@ -2174,6 +2688,97 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     _phoneController
       ..text = normalized
       ..selection = TextSelection.collapsed(offset: normalized.length);
+  }
+
+  ProfileDraft _currentDraft() {
+    final trimmedPhone = _phoneController.text.trim();
+    final normalizedPhone = trimmedPhone.isEmpty
+        ? ''
+        : PhoneNumberFormatter.tryParseE164(
+                trimmedPhone,
+                defaultCountryIso: _phoneCountryIsoCode,
+              ) ??
+              trimmedPhone;
+    return ProfileDraft(
+      fullName: _fullNameController.text.trim(),
+      nickName: _nickNameController.text.trim(),
+      phoneInput: normalizedPhone,
+      email: _emailController.text.trim(),
+      addressText: _addressController.text.trim(),
+      jobTitle: _jobTitleController.text.trim(),
+      bio: _bioController.text.trim(),
+      facebook: _facebookController.text.trim(),
+      zalo: _zaloController.text.trim(),
+      linkedin: _linkedinController.text.trim(),
+    );
+  }
+
+  List<ProfileQualityCheckActionTarget> _qualityCheckActions() {
+    return buildProfileQualityCheckActions(_currentDraft());
+  }
+
+  String _quickFixLabel(
+    BuildContext context,
+    ProfileQualityCheckActionTarget target,
+  ) {
+    final l10n = context.l10n;
+    return switch (target) {
+      ProfileQualityCheckActionTarget.nickname => l10n.pick(
+        vi: 'Thêm tên thường gọi',
+        en: 'Add a familiar nickname',
+      ),
+      ProfileQualityCheckActionTarget.jobTitle => l10n.pick(
+        vi: 'Thêm nghề nghiệp hiện tại',
+        en: 'Add your current role',
+      ),
+      ProfileQualityCheckActionTarget.bio => l10n.pick(
+        vi: 'Thêm vài dòng giới thiệu',
+        en: 'Add a short intro',
+      ),
+      ProfileQualityCheckActionTarget.contact => l10n.pick(
+        vi: 'Thêm cách liên hệ',
+        en: 'Add a contact method',
+      ),
+      ProfileQualityCheckActionTarget.address => l10n.pick(
+        vi: 'Thêm khu vực đang sống',
+        en: 'Add your area',
+      ),
+      ProfileQualityCheckActionTarget.social => l10n.pick(
+        vi: 'Thêm một mạng xã hội',
+        en: 'Add one social link',
+      ),
+    };
+  }
+
+  String _quickFixTargetId(ProfileQualityCheckActionTarget target) {
+    return switch (target) {
+      ProfileQualityCheckActionTarget.nickname => 'nickname',
+      ProfileQualityCheckActionTarget.jobTitle => 'job_title',
+      ProfileQualityCheckActionTarget.bio => 'bio',
+      ProfileQualityCheckActionTarget.contact => 'contact',
+      ProfileQualityCheckActionTarget.address => 'address',
+      ProfileQualityCheckActionTarget.social => 'social',
+    };
+  }
+
+  void _applyQuickFix(ProfileQualityCheckActionTarget target) {
+    final focusNode = switch (target) {
+      ProfileQualityCheckActionTarget.nickname => _nickNameFocusNode,
+      ProfileQualityCheckActionTarget.jobTitle => _jobTitleFocusNode,
+      ProfileQualityCheckActionTarget.bio => _bioFocusNode,
+      ProfileQualityCheckActionTarget.contact =>
+        _phoneController.text.trim().isEmpty
+            ? _phoneFocusNode
+            : _emailFocusNode,
+      ProfileQualityCheckActionTarget.address => _addressFocusNode,
+      ProfileQualityCheckActionTarget.social => _facebookFocusNode,
+    };
+    unawaited(
+      _aiAnalyticsService.trackProfileQuickFixSelected(
+        target: _quickFixTargetId(target),
+      ),
+    );
+    FocusScope.of(context).requestFocus(focusNode);
   }
 
   Future<void> _submit() async {
@@ -2240,6 +2845,91 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
     });
   }
 
+  Future<void> _reviewWithAi() async {
+    if (_isSubmitting || widget.isSaving || _isReviewingWithAi) {
+      return;
+    }
+
+    final locale = Localizations.localeOf(context).languageCode;
+    final l10n = context.l10n;
+    final draft = _currentDraft();
+    final aiStopwatch = Stopwatch()..start();
+    unawaited(
+      _aiAnalyticsService.trackProfileCheckRequested(
+        hasPhone: draft.phoneInput.trim().isNotEmpty,
+        hasEmail: draft.email.trim().isNotEmpty,
+        hasBio: draft.bio.trim().isNotEmpty,
+        socialLinkCount: [
+          draft.facebook,
+          draft.zalo,
+          draft.linkedin,
+        ].where((value) => value.trim().isNotEmpty).length,
+      ),
+    );
+    setState(() {
+      _isReviewingWithAi = true;
+    });
+
+    try {
+      final review = await widget.aiAssistService.reviewProfileDraft(
+        session: widget.session,
+        locale: locale,
+        draft: ProfileDraft(
+          fullName: draft.fullName.trim().isEmpty
+              ? l10n.pick(vi: 'Hồ sơ chưa có tên', en: 'Unnamed profile')
+              : draft.fullName.trim(),
+          nickName: draft.nickName,
+          phoneInput: draft.phoneInput,
+          email: draft.email,
+          addressText: draft.addressText,
+          jobTitle: draft.jobTitle,
+          bio: draft.bio,
+          facebook: draft.facebook,
+          zalo: draft.zalo,
+          linkedin: draft.linkedin,
+        ),
+      );
+      aiStopwatch.stop();
+      if (!mounted) {
+        return;
+      }
+      unawaited(
+        _aiAnalyticsService.trackProfileCheckCompleted(
+          usedFallback: review.usedFallback,
+          missingCount: review.missingImportant.length,
+          riskCount: review.risks.length,
+          nextActionCount: review.nextActions.length,
+          elapsedMs: aiStopwatch.elapsedMilliseconds,
+        ),
+      );
+      setState(() {
+        _aiReview = review;
+      });
+    } on AiAssistServiceException catch (error) {
+      aiStopwatch.stop();
+      if (!mounted) {
+        return;
+      }
+      unawaited(
+        _aiAnalyticsService.trackProfileCheckFailed(
+          reason: error.code ?? 'unknown',
+          elapsedMs: aiStopwatch.elapsedMilliseconds,
+        ),
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isReviewingWithAi = false;
+        });
+      } else {
+        _isReviewingWithAi = false;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final insets = MediaQuery.viewInsetsOf(context);
@@ -2254,6 +2944,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
       _zaloController.text,
       _linkedinController.text,
     ].where((value) => value.trim().isNotEmpty).length;
+    final quickFixActions = _qualityCheckActions();
 
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -2270,7 +2961,12 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
           ],
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            14,
+            20,
+            28 + MediaQuery.paddingOf(context).bottom,
+          ),
           child: Form(
             key: _formKey,
             child: Column(
@@ -2287,44 +2983,234 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                AppWorkspaceSurface(
-                  padding: const EdgeInsets.all(20),
-                  gradient: appWorkspaceHeroGradient(context),
-                  showAccentOrbs: true,
+                SizedBox(
+                  width: double.infinity,
+                  child: AppWorkspaceSurface(
+                    padding: const EdgeInsets.all(20),
+                    gradient: appWorkspaceHeroGradient(context),
+                    showAccentOrbs: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.profileEditSheetTitle,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _EditorBadge(
+                              icon: Icons.badge_outlined,
+                              label: l10n.pick(
+                                vi: 'Thông tin chính',
+                                en: 'Core info',
+                              ),
+                            ),
+                            _EditorBadge(
+                              icon: Icons.call_outlined,
+                              label: l10n.pick(vi: 'Liên hệ', en: 'Contact'),
+                            ),
+                            _EditorBadge(
+                              icon: Icons.share_outlined,
+                              label: l10n.pick(
+                                vi: '$socialLinkCount mạng xã hội',
+                                en: '$socialLinkCount socials',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _EditorSectionCard(
+                  title: l10n.pick(
+                    vi: 'Kiểm tra nhanh hồ sơ',
+                    en: 'Quick profile check',
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        l10n.profileEditSheetTitle,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
+                        l10n.pick(
+                          vi: 'Rà nhanh các chi tiết còn thiếu để người thân nhận ra bạn dễ hơn và hồ sơ đáng tin hơn.',
+                          en: 'Run a quick check for the details that make your profile easier to recognize and trust.',
+                        ),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        l10n.pick(
+                          vi: 'AI chỉ dùng các tín hiệu cần thiết của hồ sơ nháp để kiểm tra, không dùng toàn bộ dữ liệu liên hệ thô.',
+                          en: 'AI only uses the draft signals needed for this check, not the full raw contact details.',
+                        ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _EditorBadge(
-                            icon: Icons.badge_outlined,
-                            label: l10n.pick(
-                              vi: 'Thông tin chính',
-                              en: 'Core info',
-                            ),
-                          ),
-                          _EditorBadge(
-                            icon: Icons.call_outlined,
-                            label: l10n.pick(vi: 'Liên hệ', en: 'Contact'),
-                          ),
-                          _EditorBadge(
-                            icon: Icons.share_outlined,
-                            label: l10n.pick(
-                              vi: '$socialLinkCount mạng xã hội',
-                              en: '$socialLinkCount socials',
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 10),
+                      AiUsageQuotaNotice(
+                        session: widget.session,
+                        billingRepository: widget.billingRepository,
+                        requestCost: 1,
+                        compact: true,
+                        usageHint: l10n.pick(
+                          vi: 'Lượt kiểm tra này dùng 1 credit AI.',
+                          en: 'This profile check uses 1 AI credit.',
+                        ),
                       ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.tonalIcon(
+                          key: const Key('profile-quality-check-button'),
+                          onPressed:
+                              (_isSubmitting ||
+                                  widget.isSaving ||
+                                  _isReviewingWithAi)
+                              ? null
+                              : _reviewWithAi,
+                          icon: _isReviewingWithAi
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.auto_awesome_outlined),
+                          label: Text(
+                            _isReviewingWithAi
+                                ? l10n.pick(
+                                    vi: 'Đang phân tích...',
+                                    en: 'Checking...',
+                                  )
+                                : l10n.pick(
+                                    vi: 'Kiểm tra hồ sơ này',
+                                    en: 'Check this profile',
+                                  ),
+                          ),
+                        ),
+                      ),
+                      if (_isReviewingWithAi) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.pick(
+                            vi: 'Đang tạo gợi ý, thường mất vài giây.',
+                            en: 'Checking the draft now. This usually takes a few seconds.',
+                          ),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      if (_aiReview != null) ...[
+                        const SizedBox(height: 14),
+                        AppWorkspaceSurface(
+                          padding: const EdgeInsets.all(14),
+                          color: Colors.white.withValues(alpha: 0.76),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _aiReview!.summary,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (_aiReview!.usedFallback) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  l10n.pick(
+                                    vi: 'Hôm nay đang dùng chế độ kiểm tra nội bộ để giữ kết quả ổn định.',
+                                    en: 'Using the built-in quality check mode to keep the guidance stable today.',
+                                  ),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                              if (quickFixActions.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  l10n.pick(
+                                    vi: 'Sửa nhanh các chỗ dễ thiếu',
+                                    en: 'Quick fixes',
+                                  ),
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final action in quickFixActions)
+                                      OutlinedButton.icon(
+                                        key: Key(
+                                          'profile-quick-fix-${_quickFixTargetId(action)}',
+                                        ),
+                                        onPressed: () => _applyQuickFix(action),
+                                        icon: const Icon(
+                                          Icons.edit_note_outlined,
+                                        ),
+                                        label: Text(
+                                          _quickFixLabel(context, action),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                              if (_aiReview!.strengths.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _AiAdviceGroup(
+                                  title: l10n.pick(
+                                    vi: 'Điểm đã ổn',
+                                    en: 'What already works',
+                                  ),
+                                  items: _aiReview!.strengths,
+                                ),
+                              ],
+                              if (_aiReview!.missingImportant.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _AiAdviceGroup(
+                                  title: l10n.pick(
+                                    vi: 'Nên bổ sung',
+                                    en: 'Worth adding',
+                                  ),
+                                  items: _aiReview!.missingImportant,
+                                ),
+                              ],
+                              if (_aiReview!.risks.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _AiAdviceGroup(
+                                  title: l10n.pick(
+                                    vi: 'Chỗ cần lưu ý',
+                                    en: 'Watchouts',
+                                  ),
+                                  items: _aiReview!.risks,
+                                ),
+                              ],
+                              if (_aiReview!.nextActions.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _AiAdviceGroup(
+                                  title: l10n.pick(
+                                    vi: 'Bước tiếp theo',
+                                    en: 'Next steps',
+                                  ),
+                                  items: _aiReview!.nextActions,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -2343,6 +3229,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                   child: Column(
                     children: [
                       TextFormField(
+                        key: const Key('profile-full-name-field'),
                         controller: _fullNameController,
                         decoration: InputDecoration(
                           labelText: l10n.memberFullNameLabel,
@@ -2355,6 +3242,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-nickname-field'),
+                        focusNode: _nickNameFocusNode,
                         controller: _nickNameController,
                         decoration: InputDecoration(
                           labelText: l10n.memberNicknameLabel,
@@ -2362,6 +3251,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-job-title-field'),
+                        focusNode: _jobTitleFocusNode,
                         controller: _jobTitleController,
                         decoration: InputDecoration(
                           labelText: l10n.memberJobTitleLabel,
@@ -2369,6 +3260,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-bio-field'),
+                        focusNode: _bioFocusNode,
                         controller: _bioController,
                         maxLines: 3,
                         decoration: InputDecoration(
@@ -2399,6 +3292,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: TextFormField(
+                              key: const Key('profile-phone-field'),
+                              focusNode: _phoneFocusNode,
                               controller: _phoneController,
                               decoration: InputDecoration(
                                 labelText: l10n.memberPhoneLabel,
@@ -2427,6 +3322,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-email-field'),
+                        focusNode: _emailFocusNode,
                         controller: _emailController,
                         decoration: InputDecoration(
                           labelText: l10n.memberEmailLabel,
@@ -2434,7 +3331,9 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       AddressAutocompleteField(
+                        key: const Key('profile-address-field'),
                         controller: _addressController,
+                        focusNode: _addressFocusNode,
                         maxLines: 2,
                         labelText: l10n.memberAddressLabel,
                         hintText: l10n.pick(
@@ -2452,6 +3351,8 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       TextFormField(
+                        key: const Key('profile-facebook-field'),
+                        focusNode: _facebookFocusNode,
                         controller: _facebookController,
                         decoration: InputDecoration(
                           labelText: l10n.profileFacebookUrlLabel,
@@ -2469,6 +3370,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-zalo-field'),
                         controller: _zaloController,
                         decoration: InputDecoration(
                           labelText: l10n.profileZaloUrlLabel,
@@ -2486,6 +3388,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
+                        key: const Key('profile-linkedin-field'),
                         controller: _linkedinController,
                         decoration: InputDecoration(
                           labelText: l10n.profileLinkedinUrlLabel,
@@ -2572,6 +3475,49 @@ class _ProfileSectionCard extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+class _AiAdviceGroup extends StatelessWidget {
+  const _AiAdviceGroup({required this.title, required this.items});
+
+  final String title;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final item in items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(item)),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

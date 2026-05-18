@@ -32,6 +32,6 @@ _Last reviewed: March 17, 2026_
 ## Billing and Subscription
 
 - As a clan owner/admin, I can view active plan, expiry, and eligibility to upgrade or renew.
-- As a payer, I can complete VNPay checkout via a clear step-by-step flow.
+- As a payer, I can buy a plan through App Store or Google Play from the mobile app.
 - As a payer, I can understand payment outcome states: success, pending, failed/canceled.
 - As a clan, upgraded entitlement is granted only after confirmed successful payment.

@@ -1,5 +1,6 @@
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
+import 'debug_billing_repository.dart';
 import 'firebase_billing_repository.dart';
 
 enum BillingRepositoryErrorCode {
@@ -50,5 +51,8 @@ abstract interface class BillingRepository {
 }
 
 BillingRepository createDefaultBillingRepository({AuthSession? session}) {
+  if (session?.isSandbox == true) {
+    return DebugBillingRepository.shared();
+  }
   return FirebaseBillingRepository();
 }

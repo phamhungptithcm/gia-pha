@@ -1,6 +1,6 @@
 # Epic gói dịch vụ và thanh toán
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 17/05/2026_
 
 Issue theo dõi: [#213](https://github.com/phamhungptithcm/gia-pha/issues/213)
 
@@ -20,14 +20,14 @@ xác nhận thanh toán an toàn phía máy chủ.
 
 - engine tính gói theo số thành viên
 - trạng thái thuê bao và vòng đời gói
-- luồng checkout ưu tiên VNPay cho người dùng mobile
+- luồng mua gói qua App Store / Google Play cho người dùng mobile
 - xác thực callback/webhook và xử lý idempotent
 - nhắc gia hạn, lịch sử thanh toán, audit log
 
 ## Hành vi sản phẩm hiện tại
 
-- backend tạo order checkout trước
-- app mở URL checkout do backend trả về
+- app mở luồng mua gói qua App Store / Google Play
+- backend xác minh giao dịch Store IAP trước khi đổi quyền gói
 - gói mới chỉ hiệu lực sau khi xác nhận thanh toán thành công
 - thanh toán chờ hoặc thất bại/hủy không cấp quyền gói mới
 - trạng thái kết quả thể hiện rõ cho người dùng
@@ -37,7 +37,7 @@ xác nhận thanh toán an toàn phía máy chủ.
 - BILL-001 engine giá theo số thành viên
 - BILL-002 mô hình vòng đời thuê bao
 - BILL-003 giao diện workspace thanh toán
-- BILL-004 tích hợp checkout VNPay
+- BILL-004 tích hợp mua gói App Store / Google Play
 - BILL-005 xác thực callback/webhook
 - BILL-006 cài đặt gia hạn
 - BILL-007 scheduler nhắc gia hạn

@@ -8,13 +8,17 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../theme/app_ui_tokens.dart';
+import '../../core/services/app_environment.dart';
 import '../../core/services/firebase_services.dart';
 import '../../core/services/performance_measurement_logger.dart';
 import '../../core/widgets/member_phone_action.dart';
 import '../../core/widgets/address_action_tools.dart';
 import '../../core/widgets/app_compact_controls.dart';
 import '../../core/widgets/app_loading_skeletons.dart';
+import '../../core/widgets/app_motion.dart';
+import '../../core/widgets/app_workspace_chrome.dart';
 import '../../features/ads/services/ad_controller.dart';
+import '../../features/ai/presentation/app_assistant_launcher.dart';
 import '../../features/billing/presentation/billing_workspace_page.dart';
 import '../../features/billing/services/billing_repository.dart';
 import '../../features/clan/presentation/clan_detail_page.dart';
@@ -129,6 +133,7 @@ class _AppShellPageState extends State<AppShellPage>
   late final PushNotificationService _pushNotificationService;
   late final ClanContextService _clanContextService;
   late final OnboardingCoordinator _onboardingCoordinator;
+  Timer? _deferredShellWarmupTimer;
   final AuthSessionStore _sessionStore = SharedPrefsAuthSessionStore();
   String? _lastOpenedNotificationMessageId;
   bool _showAdBanner = false;
@@ -136,7 +141,6 @@ class _AppShellPageState extends State<AppShellPage>
   bool _dismissAdBannerForSession = false;
   bool _isLoadingClanContexts = false;
   bool _isSwitchingClanContext = false;
-  AsyncCallback? _billingPricingQuickAction;
   List<ClanContextOption> _clanContexts = const [];
   final Map<String, String> _resolvedClanNamesById = <String, String>{};
   bool _isResolvingActiveClanName = false;
@@ -239,7 +243,10 @@ class _AppShellPageState extends State<AppShellPage>
     );
     unawaited(_loadClanContexts());
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_scheduleDeferredShellWarmup());
+      if (!mounted) {
+        return;
+      }
+      _scheduleDeferredShellWarmup();
       unawaited(
         _onboardingCoordinator.scheduleTrigger(
           const OnboardingTrigger(
@@ -260,7 +267,7 @@ class _AppShellPageState extends State<AppShellPage>
       unawaited(_loadClanContexts());
       _dismissAdBannerForSession = false;
       _adController.updateCurrentScreen(_screenIdForIndex(_selectedIndex));
-      unawaited(_scheduleDeferredShellWarmup());
+      _scheduleDeferredShellWarmup();
     }
   }
 
@@ -278,6 +285,8 @@ class _AppShellPageState extends State<AppShellPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _deferredShellWarmupTimer?.cancel();
+    _deferredShellWarmupTimer = null;
     _adController.dispose();
     unawaited(_onboardingCoordinator.interrupt());
     _onboardingCoordinator.dispose();
@@ -297,25 +306,19 @@ class _AppShellPageState extends State<AppShellPage>
     setState(() {});
   }
 
-  void _handleBillingPricingQuickActionChanged(AsyncCallback? action) {
-    if (_billingPricingQuickAction == action || !mounted) {
-      return;
-    }
-    setState(() {
-      _billingPricingQuickAction = action;
+  void _scheduleDeferredShellWarmup() {
+    _deferredShellWarmupTimer?.cancel();
+    _deferredShellWarmupTimer = Timer(const Duration(milliseconds: 180), () {
+      _deferredShellWarmupTimer = null;
+      if (!mounted) {
+        return;
+      }
+      unawaited(_startPushNotificationsForActiveSession());
+      if (_session.loginMethod == AuthEntryMethod.child) {
+        unawaited(_ensureActiveClanDisplayNameResolved());
+        unawaited(_refreshBillingEntitlement());
+      }
     });
-  }
-
-  Future<void> _scheduleDeferredShellWarmup() async {
-    await Future<void>.delayed(const Duration(milliseconds: 180));
-    if (!mounted) {
-      return;
-    }
-    unawaited(_startPushNotificationsForActiveSession());
-    if (_session.loginMethod == AuthEntryMethod.child) {
-      unawaited(_ensureActiveClanDisplayNameResolved());
-      unawaited(_refreshBillingEntitlement());
-    }
   }
 
   Future<void> _startPushNotificationsForActiveSession() {
@@ -367,7 +370,7 @@ class _AppShellPageState extends State<AppShellPage>
         );
         return;
       case NotificationTargetType.billing:
-        _selectDestination(3);
+        _openBillingNotificationDestination(messageId: deepLink.messageId);
         return;
       case NotificationTargetType.authRefresh:
       case NotificationTargetType.unknown:
@@ -421,6 +424,7 @@ class _AppShellPageState extends State<AppShellPage>
             return EventWorkspacePage(
               session: _session,
               repository: _eventRepository,
+              billingRepository: _billingRepository,
               availableClanContexts: _clanContexts,
               onSwitchClanContext: _switchClanContext,
               initialEventId: normalizedEventId,
@@ -462,6 +466,33 @@ class _AppShellPageState extends State<AppShellPage>
         ),
       );
     });
+  }
+
+  void _openBillingNotificationDestination({required String? messageId}) {
+    if (!_shouldOpenNotificationMessage(messageId)) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pushBillingWorkspace();
+    });
+  }
+
+  void _pushBillingWorkspace() {
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return BillingWorkspacePage(
+            session: _session,
+            repository: _billingRepository,
+          );
+        },
+      ),
+    );
   }
 
   String? _normalizeNotificationReferenceId(String? value) {
@@ -515,6 +546,7 @@ class _AppShellPageState extends State<AppShellPage>
 
   bool get _isAdBannerVisible =>
       _showAdBanner &&
+      !_session.isSandbox &&
       !_dismissAdBannerForSession &&
       _adController.isBannerPlacementVisible;
 
@@ -528,6 +560,27 @@ class _AppShellPageState extends State<AppShellPage>
     return destinations[index].id;
   }
 
+  bool _screenHasTrailingFloatingActions(String screenId) {
+    return screenId == 'tree' || screenId == 'events';
+  }
+
+  bool _screenAllowsPersistentAiAssistant(String screenId) {
+    return screenId == 'tree' || screenId == 'events';
+  }
+
+  FloatingActionButtonLocation _assistantFabLocation({
+    required bool useRailNavigation,
+    required String screenId,
+  }) {
+    if (useRailNavigation) {
+      return FloatingActionButtonLocation.endFloat;
+    }
+    if (_screenHasTrailingFloatingActions(screenId)) {
+      return FloatingActionButtonLocation.startFloat;
+    }
+    return FloatingActionButtonLocation.endFloat;
+  }
+
   void _selectDestination(int index) {
     if (index == _selectedIndex) {
       return;
@@ -536,9 +589,6 @@ class _AppShellPageState extends State<AppShellPage>
     setState(() {
       _selectedIndex = index;
       _visitedDestinationIndexes.add(index);
-      if (_screenIdForIndex(index) == 'billing') {
-        _dismissAdBannerForSession = false;
-      }
     });
     _adController.recordNavigationTransition(
       fromScreenId: _screenIdForIndex(previousIndex),
@@ -548,6 +598,19 @@ class _AppShellPageState extends State<AppShellPage>
 
   Future<void> _refreshBillingEntitlement() async {
     if (_isResolvingBillingEntitlement) {
+      return;
+    }
+    if (_session.isSandbox) {
+      _adController.updateAdPolicy(
+        subscriptionTier: 'FREE',
+        backendShowAds: false,
+      );
+      if (mounted) {
+        setState(() {
+          _showAdBanner = false;
+        });
+        _adController.updateCurrentScreen(_screenIdForIndex(_selectedIndex));
+      }
       return;
     }
     if (!_hasBillingContext(_session)) {
@@ -951,6 +1014,7 @@ class _AppShellPageState extends State<AppShellPage>
           child: DualCalendarWorkspacePage(
             session: _session,
             memberRepository: widget.memberRepository,
+            billingRepository: _billingRepository,
             availableClanContexts: _clanContexts,
             onSwitchClanContext: _switchClanContext,
           ),
@@ -959,13 +1023,11 @@ class _AppShellPageState extends State<AppShellPage>
         const SizedBox.shrink(),
       if (_visitedDestinationIndexes.contains(3))
         BillingWorkspacePage(
-          key: ValueKey<String>(
-            'billing-${_session.clanId ?? 'none'}-${_session.uid}',
-          ),
+          key: ValueKey<String>('billing-${_session.clanId ?? 'none'}'),
           session: _session,
           repository: _billingRepository,
           embeddedInShell: true,
-          onPricingQuickActionChanged: _handleBillingPricingQuickActionChanged,
+          onPricingQuickActionChanged: (_) {},
         )
       else
         const SizedBox.shrink(),
@@ -991,9 +1053,56 @@ class _AppShellPageState extends State<AppShellPage>
     ];
 
     final appBar = AppBar(
-      title: Text(_activeClanAppBarTitle(l10n)),
+      titleSpacing: 16,
+      title: Row(
+        children: [
+          const _BfMark(size: 32),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _activeClanAppBarTitle(l10n),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
       actions: _buildAppBarActions(l10n: l10n, sessionTooltip: sessionTooltip),
     );
+    final currentScreenId = _screenIdForIndex(_selectedIndex);
+    final showAiAssistant =
+        _hasClanContext &&
+        _session.accessMode != AuthMemberAccessMode.unlinked &&
+        (_session.clanId ?? '').trim().isNotEmpty &&
+        _screenAllowsPersistentAiAssistant(currentScreenId);
+    final assistantFabLocation = _assistantFabLocation(
+      useRailNavigation: layout.useRailNavigation,
+      screenId: currentScreenId,
+    );
+    final assistantLauncher = showAiAssistant
+        ? AiAssistantLauncher(
+            session: _session,
+            currentScreenId: currentScreenId,
+            currentScreenTitle: l10n.shellDestinationTitle(currentScreenId),
+            activeClanName: _activeClanDisplayName(),
+            availableClanContexts: _clanContexts,
+            memberRepository: widget.memberRepository,
+            billingRepository: _billingRepository,
+            onOpenDestinationRequested: (destinationId) {
+              final normalizedDestinationId = destinationId.trim();
+              if (normalizedDestinationId == 'billing') {
+                _pushBillingWorkspace();
+                return;
+              }
+              final index = destinations.indexWhere(
+                (destination) => destination.id == normalizedDestinationId,
+              );
+              if (index >= 0) {
+                _selectDestination(index);
+              }
+            },
+          )
+        : null;
 
     Widget contentStack = IndexedStack(index: _selectedIndex, children: pages);
     if (layout.useRailNavigation) {
@@ -1021,6 +1130,7 @@ class _AppShellPageState extends State<AppShellPage>
         Expanded(child: SafeArea(top: false, child: contentStack)),
       ],
     );
+    final contentWithBackdrop = AppLineageBackdrop(child: contentWithBanner);
 
     final scaffold = layout.useRailNavigation
         ? Scaffold(
@@ -1033,13 +1143,17 @@ class _AppShellPageState extends State<AppShellPage>
                   onDestinationSelected: _handleDestinationSelected,
                 ),
                 const VerticalDivider(width: 1),
-                Expanded(child: contentWithBanner),
+                Expanded(child: contentWithBackdrop),
               ],
             ),
+            floatingActionButton: assistantLauncher,
+            floatingActionButtonLocation: assistantFabLocation,
           )
         : Scaffold(
             appBar: appBar,
-            body: SafeArea(child: contentStack),
+            body: AppLineageBackdrop(child: SafeArea(child: contentStack)),
+            floatingActionButton: assistantLauncher,
+            floatingActionButtonLocation: assistantFabLocation,
             bottomNavigationBar: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1055,7 +1169,7 @@ class _AppShellPageState extends State<AppShellPage>
                   ),
                 MediaQuery.withClampedTextScaling(
                   minScaleFactor: 1,
-                  maxScaleFactor: 1,
+                  maxScaleFactor: 1.25,
                   child: NavigationBar(
                     selectedIndex: _selectedIndex,
                     onDestinationSelected: _handleDestinationSelected,
@@ -1233,21 +1347,6 @@ class _AppShellPageState extends State<AppShellPage>
           onPressed: _openSubmittedJoinRequests,
           icon: const Icon(Icons.list_alt_outlined),
         ),
-      if (_selectedIndex == 3 && _billingPricingQuickAction != null)
-        IconButton(
-          key: const Key('billing-pricing-quick-action'),
-          tooltip: l10n.pick(
-            vi: 'Xem nhanh bảng giá',
-            en: 'Quick pricing view',
-          ),
-          onPressed: () {
-            final action = _billingPricingQuickAction;
-            if (action != null) {
-              unawaited(action());
-            }
-          },
-          icon: const Icon(Icons.sell_outlined),
-        ),
       if (canSwitchClan || canLogout)
         PopupMenuButton<_ShellOverflowAction>(
           tooltip: l10n.pick(vi: 'Tùy chọn', en: 'Options'),
@@ -1325,6 +1424,7 @@ class _AppShellPageState extends State<AppShellPage>
           return EventWorkspacePage(
             session: _session,
             repository: _eventRepository,
+            billingRepository: _billingRepository,
             availableClanContexts: _clanContexts,
             onSwitchClanContext: _switchClanContext,
           );
@@ -1347,6 +1447,7 @@ class _AppShellPageState extends State<AppShellPage>
           return EventWorkspacePage(
             session: _session,
             repository: _eventRepository,
+            billingRepository: _billingRepository,
             availableClanContexts: _clanContexts,
             onSwitchClanContext: _switchClanContext,
             initialEventId: event.id,

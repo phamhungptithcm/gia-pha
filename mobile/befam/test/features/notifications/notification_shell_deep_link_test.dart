@@ -129,7 +129,13 @@ void main() {
       find.byKey(const Key('event-detail-page-event_demo_memorial_001')),
       findsOneWidget,
     );
-    expect(find.text('Giỗ cụ tổ mùa xuân'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('event-detail-page-event_demo_memorial_001')),
+        matching: find.text('Giỗ cụ tổ mùa xuân'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('opens scholarship destination page from opened-app deep link', (

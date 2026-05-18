@@ -26,6 +26,7 @@ import {
   OTP_TWILIO_MAX_RETRIES,
   OTP_TWILIO_TIMEOUT_MS,
   OTP_TWILIO_VERIFY_SERVICE_SID,
+  QA_SELF_TEST_ENABLED,
   getOtpReviewBypassCode,
   getOtpTwilioAuthToken,
 } from "../config/runtime";
@@ -300,10 +301,6 @@ const APP_CHECK_CALLABLE_OPTIONS = {
   region: APP_REGION,
   enforceAppCheck: CALLABLE_ENFORCE_APP_CHECK,
 } as const;
-const SELF_TEST_NOTIFICATION_CALLABLE_OPTIONS = {
-  region: APP_REGION,
-  enforceAppCheck: false,
-} as const;
 const SUPPORTED_PHONE_DIAL_CODES = [
   "886",
   "84",
@@ -453,8 +450,8 @@ export const requestOtpChallenge = onCall(
       maskedDestination: maskPhone(phoneE164),
       loginMethod,
       childIdentifier,
-      memberId,
-      displayName,
+      memberId: loginMethod === "child" ? null : memberId,
+      displayName: loginMethod === "child" ? null : displayName,
       expiresInSeconds: Math.floor(OTP_CHALLENGE_TTL_MS / 1000),
     };
   },
@@ -2046,12 +2043,11 @@ export const registerDeviceToken = onCall(
   },
 );
 
-// Intentionally skips App Check so QA and debug builds can verify
-// real-device push delivery even when App Check is not wired yet.
 export const sendSelfTestNotification = onCall(
-  SELF_TEST_NOTIFICATION_CALLABLE_OPTIONS,
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
+    ensureQaSelfTestAccess(auth);
     const delaySeconds = readSelfTestDelaySeconds(request.data);
     const title = sanitizeSelfTestText(
       optionalString(request.data, "title"),
@@ -2202,9 +2198,10 @@ export const sendSelfTestNotification = onCall(
 );
 
 export const sendSelfTestEventReminder = onCall(
-  SELF_TEST_NOTIFICATION_CALLABLE_OPTIONS,
+  APP_CHECK_CALLABLE_OPTIONS,
   async (request) => {
     const auth = requireAuth(request);
+    ensureQaSelfTestAccess(auth);
     const delaySeconds = readSelfTestDelaySeconds(request.data);
     const title = sanitizeSelfTestText(
       optionalString(request.data, "title"),
@@ -3976,19 +3973,6 @@ async function findChildLoginContext(
     );
   }
 
-  const memberSnapshot = await membersCollection.doc(childIdentifier).get();
-  if (memberSnapshot.exists) {
-    const member = memberSnapshot.data() as MemberRecord;
-    const phoneE164 = member.phoneE164?.trim();
-    if (phoneE164 != null && phoneE164.length > 0) {
-      return buildResolvedChildContext(
-        childIdentifier,
-        phoneE164,
-        memberSnapshot,
-      );
-    }
-  }
-
   throw new HttpsError(
     "not-found",
     "No child login context matches that identifier.",
@@ -4072,7 +4056,7 @@ function buildResolvedChildContext(
     displayName: member.fullName ?? member.nickName ?? "BeFam Member",
     clanId: member.clanId,
     branchId: member.branchId,
-    primaryRole: member.primaryRole ?? "MEMBER",
+    primaryRole: "MEMBER",
   };
 }
 
@@ -4994,7 +4978,7 @@ function buildMemberSessionContext(
       displayName: source.displayName,
       clanId: source.clanId,
       branchId: source.branchId,
-      primaryRole: source.primaryRole,
+      primaryRole: "MEMBER",
       accessMode,
       linkedAuthUid,
     };
@@ -5409,6 +5393,34 @@ async function resolveSelfTestMemberContext({
     memberId: tokenMemberId.length > 0 ? tokenMemberId : null,
     clanId: tokenClanIds.length > 0 ? tokenClanIds[0] : null,
   };
+}
+
+const QA_SELF_TEST_ROLES = new Set([
+  "SUPER_ADMIN",
+  "CLAN_ADMIN",
+  "CLAN_OWNER",
+  "CLAN_LEADER",
+  "ADMIN_SUPPORT",
+]);
+
+function ensureQaSelfTestAccess(auth: ReturnType<typeof requireAuth>): void {
+  if (!QA_SELF_TEST_ENABLED) {
+    throw new HttpsError(
+      "failed-precondition",
+      "QA notification self-tests are disabled for this environment.",
+    );
+  }
+  const token = auth.token as Record<string, unknown>;
+  const accessMode = optionalString(token, "memberAccessMode")
+    ?.trim()
+    .toLowerCase();
+  const role = optionalString(token, "primaryRole")?.trim().toUpperCase() ?? "";
+  if (accessMode !== "claimed" || !QA_SELF_TEST_ROLES.has(role)) {
+    throw new HttpsError(
+      "permission-denied",
+      "Only claimed clan administrators can run QA notification self-tests.",
+    );
+  }
 }
 
 function readSelfTestDelaySeconds(data: unknown): number {

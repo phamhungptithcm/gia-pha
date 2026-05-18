@@ -1525,7 +1525,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get authIssueNetworkRequestFailed =>
-      'Kết nối mạng thất bại. Hãy kiểm tra internet và thử lại.';
+      'Chưa thể kết nối tới dịch vụ xác thực. Hãy kiểm tra mạng và thử lại sau ít phút.';
 
   @override
   String get authIssueTooManyRequests =>
@@ -1568,7 +1568,8 @@ class AppLocalizationsVi extends AppLocalizations {
       'Xác minh reCAPTCHA chưa thành công. Hãy tải lại trang và thử lại.';
 
   @override
-  String get authIssueAuthUnavailable => 'Hiện chưa thể hoàn tất xác thực.';
+  String get authIssueAuthUnavailable =>
+      'Hiện chưa thể hoàn tất xác thực trên môi trường này. Hãy thử lại sau ít phút.';
 
   @override
   String get authIssuePreparationFailed =>

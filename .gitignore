@@ -20,3 +20,9 @@ artifacts/
 mobile/befam/artifacts/
 mobile/befam/integration_test/screenshots/
 scripts/local-release.env
+.claude/worktrees/
+.gitnexus
+graphify-out/
+.graphify_*
+.cocoindex/
+cocoindex-out/

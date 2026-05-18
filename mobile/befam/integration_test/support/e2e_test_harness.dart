@@ -432,7 +432,24 @@ Future<void> loginWithPhone(
   );
   await tester.enterText(phoneInputFinder.first, phoneInput);
   await safePumpAndSettle(tester);
+  final phoneField = tester.widget<TextField>(phoneInputFinder.first);
+  final capturedPhoneInput = phoneField.controller?.text ?? '';
+  expect(
+    capturedPhoneInput,
+    phoneInput,
+    reason:
+        'Ô nhập số điện thoại không giữ được giá trị E2E đã nhập. '
+        'captured="$capturedPhoneInput" expected="$phoneInput".',
+  );
   await dismissKeyboardIfVisible(tester);
+  final phoneFieldAfterKeyboardDismiss = tester.widget<TextField>(
+    phoneInputFinder.first,
+  );
+  expect(
+    phoneFieldAfterKeyboardDismiss.controller?.text ?? '',
+    phoneInput,
+    reason: 'Ô nhập số điện thoại không được reset sau khi keyboard đóng/mở.',
+  );
 
   final sendOtpButton = await waitForFinderOrOtpOrShell(
     tester,
@@ -450,11 +467,10 @@ Future<void> loginWithPhone(
     );
     if (!_isOtpOrShellVisible(tester) &&
         _isFinderEnabledButton(tester, sendOtpButton)) {
-      await tapFinderSafely(
-        tester,
-        sendOtpButton,
-        reason: 'Không thể bấm nút gửi OTP.',
-      );
+      await revealFinder(tester, sendOtpButton);
+      await tester.tap(sendOtpButton.first);
+      await tester.pump(const Duration(milliseconds: 80));
+      await safePumpAndSettle(tester);
     }
   }
 

@@ -8,11 +8,16 @@ import '../../../core/widgets/address_autocomplete_field.dart';
 import '../../../core/widgets/address_action_tools.dart';
 import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_feedback_states.dart';
+import '../../../core/widgets/app_form_controls.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../l10n/l10n.dart';
+import '../../ai/presentation/ai_usage_quota_notice.dart';
 import '../../auth/models/auth_session.dart';
 import '../../auth/models/clan_context_option.dart';
+import '../../ai/services/ai_assist_service.dart';
+import '../../ai/services/ai_product_analytics_service.dart';
+import '../../billing/services/billing_repository.dart';
 import '../../calendar/services/lunar_conversion_engine.dart';
 import '../../calendar/presentation/dual_calendar_workspace_page.dart';
 import '../../clan/models/branch_profile.dart';
@@ -38,6 +43,8 @@ class EventWorkspacePage extends StatefulWidget {
     this.initialEventId,
     this.nowProvider,
     this.lunarConversionEngine,
+    this.aiAssistService,
+    this.billingRepository,
   });
 
   final AuthSession session;
@@ -47,6 +54,8 @@ class EventWorkspacePage extends StatefulWidget {
   final String? initialEventId;
   final DateTime Function()? nowProvider;
   final LunarConversionEngine? lunarConversionEngine;
+  final AiAssistService? aiAssistService;
+  final BillingRepository? billingRepository;
 
   @override
   State<EventWorkspacePage> createState() => _EventWorkspacePageState();
@@ -58,6 +67,8 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
 
   late EventController _controller;
   late AuthSession _activeSession;
+  late final AiAssistService _aiAssistService;
+  BillingRepository? _billingRepository;
   late final TextEditingController _searchController;
   late final ScrollController _workspaceScrollController;
   int _visibleEventCount = _eventBatchSize;
@@ -72,12 +83,21 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
   void initState() {
     super.initState();
     _activeSession = widget.session;
+    _aiAssistService = widget.aiAssistService ?? _createAiAssistService();
+    _billingRepository = widget.billingRepository;
     _controller = _buildController(_session);
     _searchController = TextEditingController();
     _workspaceScrollController = ScrollController()
       ..addListener(_handleWorkspaceScroll);
     _pendingInitialEventId = _normalizeInitialEventId(widget.initialEventId);
     unawaited(_controller.initialize().then((_) => _tryOpenInitialEvent()));
+  }
+
+  AiAssistService _createAiAssistService() {
+    if (widget.session.isSandbox) {
+      return createLocalAiAssistService();
+    }
+    return createDefaultAiAssistService();
   }
 
   @override
@@ -88,13 +108,17 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     final nowProviderChanged = oldWidget.nowProvider != widget.nowProvider;
     final lunarEngineChanged =
         oldWidget.lunarConversionEngine != widget.lunarConversionEngine;
+    final billingRepositoryChanged =
+        oldWidget.billingRepository != widget.billingRepository;
     if (!sessionChanged &&
         !repositoryChanged &&
         !nowProviderChanged &&
-        !lunarEngineChanged) {
+        !lunarEngineChanged &&
+        !billingRepositoryChanged) {
       return;
     }
     _activeSession = widget.session;
+    _billingRepository = widget.billingRepository;
     _controller.dispose();
     _controller = _buildController(_session);
     final incomingInitialEventId = _normalizeInitialEventId(
@@ -218,10 +242,13 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return _EventEditorSheet(
+          session: _session,
           title: context.l10n.eventFormEditTitle,
           initialDraft: EventDraft.fromRecord(event),
           branches: _controller.branches,
           members: _controller.members,
+          aiAssistService: _aiAssistService,
+          billingRepository: _billingRepository,
           isSaving: _controller.isSaving,
           onSubmit: (draft) {
             return _controller.saveEvent(eventId: event.id, draft: draft);
@@ -241,16 +268,19 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
     final didSave = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (context) {
-          return DualCalendarWorkspacePage(
-            session: _session,
-            availableClanContexts: widget.availableClanContexts,
-            onSwitchClanContext: widget.onSwitchClanContext,
-            memberRepository: _EventWorkspaceMemberRepositoryAdapter(
-              members: _controller.members,
-              branches: _controller.branches,
+          return ScaffoldMessenger(
+            child: DualCalendarWorkspacePage(
+              session: _session,
+              availableClanContexts: widget.availableClanContexts,
+              onSwitchClanContext: widget.onSwitchClanContext,
+              billingRepository: _billingRepository,
+              memberRepository: _EventWorkspaceMemberRepositoryAdapter(
+                members: _controller.members,
+                branches: _controller.branches,
+              ),
+              autoOpenCreateEditor: true,
+              initialCreateDraft: initialDraft,
             ),
-            autoOpenCreateEditor: true,
-            initialCreateDraft: initialDraft,
           );
         },
       ),
@@ -599,303 +629,313 @@ class _EventWorkspacePageState extends State<EventWorkspacePage> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final l10n = context.l10n;
-        final colorScheme = Theme.of(context).colorScheme;
-        final nowLocal = _nowLocal();
-        final hasActiveFilters =
-            _controller.query.trim().isNotEmpty ||
-            _controller.typeFilter != null;
-        final filteredEvents = _controller.filteredEvents;
-        _syncVisibleEventState(filteredEvents);
-        final visibleEvents = filteredEvents
-            .take(_visibleEventCount)
-            .toList(growable: false);
-        final groupedVisibleEvents = _groupEventsByMonth(
-          context,
-          visibleEvents,
-          nowLocal: nowLocal,
-        );
-        void clearFilters() {
-          _searchController.clear();
-          _controller.updateQuery('');
-          _controller.updateTypeFilter(null);
-        }
+    return ScaffoldMessenger(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final l10n = context.l10n;
+          final colorScheme = Theme.of(context).colorScheme;
+          final nowLocal = _nowLocal();
+          final hasActiveFilters =
+              _controller.query.trim().isNotEmpty ||
+              _controller.typeFilter != null;
+          final filteredEvents = _controller.filteredEvents;
+          _syncVisibleEventState(filteredEvents);
+          final visibleEvents = filteredEvents
+              .take(_visibleEventCount)
+              .toList(growable: false);
+          final groupedVisibleEvents = _groupEventsByMonth(
+            context,
+            visibleEvents,
+            nowLocal: nowLocal,
+          );
+          void clearFilters() {
+            _searchController.clear();
+            _controller.updateQuery('');
+            _controller.updateTypeFilter(null);
+          }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(l10n.eventWorkspaceTitle),
-            actions: [
-              IconButton(
-                tooltip: l10n.eventRefreshAction,
-                onPressed: _controller.isLoading ? null : _controller.refresh,
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
-          floatingActionButton: _controller.permissions.canManageEvents
-              ? FloatingActionButton.extended(
-                  key: const Key('event-create-button'),
-                  onPressed: () => _openEventEditor(),
-                  tooltip: l10n.eventCreateAction,
-                  icon: const Icon(Icons.add),
-                  label: Text(l10n.pick(vi: 'Thêm sự kiện', en: 'Add event')),
-                )
-              : null,
-          body: SafeArea(
-            child: _controller.isLoading
-                ? AppLoadingState(
-                    message: l10n.pick(
-                      vi: 'Đang tải sự kiện...',
-                      en: 'Loading events...',
-                    ),
+          return Scaffold(
+            appBar: AppBar(
+              title: Text(l10n.eventWorkspaceTitle),
+              actions: [
+                IconButton(
+                  tooltip: l10n.eventRefreshAction,
+                  onPressed: _controller.isLoading ? null : _controller.refresh,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            floatingActionButton: _controller.permissions.canManageEvents
+                ? FloatingActionButton.extended(
+                    key: const Key('event-create-button'),
+                    onPressed: () => _openEventEditor(),
+                    tooltip: l10n.eventCreateAction,
+                    icon: const Icon(Icons.add),
+                    label: Text(l10n.pick(vi: 'Thêm sự kiện', en: 'Add event')),
                   )
-                : !_controller.hasClanContext
-                ? _WorkspaceEmptyState(
-                    icon: Icons.lock_outline,
-                    title: l10n.eventNoContextTitle,
-                    description: l10n.eventNoContextDescription,
-                  )
-                : RefreshIndicator(
-                    onRefresh: _controller.refresh,
-                    child: AppWorkspaceViewport(
-                      child: ListView(
-                        controller: _workspaceScrollController,
-                        key: const Key('event-workspace-scroll'),
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        padding: appWorkspacePagePadding(
-                          context,
-                          top: 16,
-                          bottom: 32,
-                        ),
-                        children: [
-                          if (_controller.permissions.isReadOnly) ...[
-                            _MessageCard(
-                              icon: Icons.visibility_outlined,
-                              title: l10n.eventReadOnlyTitle,
-                              description: l10n.eventReadOnlyDescription,
-                              tone: colorScheme.secondaryContainer,
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          if (_controller.errorMessage != null) ...[
-                            _MessageCard(
-                              icon: Icons.error_outline,
-                              title: l10n.eventLoadErrorTitle,
-                              description: l10n.eventLoadErrorDescription,
-                              tone: colorScheme.errorContainer,
-                            ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton.icon(
-                                onPressed: _controller.refresh,
-                                icon: const Icon(Icons.refresh),
-                                label: Text(l10n.eventRefreshAction),
+                : null,
+            body: SafeArea(
+              child: _controller.isLoading
+                  ? AppLoadingState(
+                      message: l10n.pick(
+                        vi: 'Đang tải sự kiện...',
+                        en: 'Loading events...',
+                      ),
+                    )
+                  : !_controller.hasClanContext
+                  ? _WorkspaceEmptyState(
+                      icon: Icons.lock_outline,
+                      title: l10n.eventNoContextTitle,
+                      description: l10n.eventNoContextDescription,
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _controller.refresh,
+                      child: AppWorkspaceViewport(
+                        child: ListView(
+                          controller: _workspaceScrollController,
+                          key: const Key('event-workspace-scroll'),
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: appWorkspacePagePadding(
+                            context,
+                            top: 16,
+                            bottom: 32,
+                          ),
+                          children: [
+                            if (_controller.permissions.isReadOnly) ...[
+                              _MessageCard(
+                                icon: Icons.visibility_outlined,
+                                title: l10n.eventReadOnlyTitle,
+                                description: l10n.eventReadOnlyDescription,
+                                tone: colorScheme.secondaryContainer,
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          AppWorkspaceSurface(
-                            padding: const EdgeInsets.all(16),
-                            child: _FilterPanel(
-                              searchController: _searchController,
-                              selectedType: _controller.typeFilter,
-                              totalEventCount: _controller.events.length,
-                              filteredEventCount: filteredEvents.length,
-                              upcomingCount: _controller.upcomingCount,
-                              memorialCount: _controller.memorialCount,
-                              onQueryChanged: _controller.updateQuery,
-                              onTypeChanged: _controller.updateTypeFilter,
-                              onClear: clearFilters,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          _MemorialQuickAccessCard(
-                            prayerPendingCount: _controller
-                                .memorialRitualChecklistItems
-                                .expand((item) => item.milestones)
-                                .where(
-                                  (milestone) =>
-                                      milestone.milestone.type ==
-                                          MemorialRitualMilestoneType
-                                              .first49Days ||
-                                      milestone.milestone.type ==
-                                          MemorialRitualMilestoneType
-                                              .first50Days ||
-                                      milestone.milestone.type ==
-                                          MemorialRitualMilestoneType.day100,
-                                )
-                                .where(
-                                  (milestone) =>
-                                      milestone.isMissing ||
-                                      milestone.hasDateMismatch,
-                                )
-                                .length,
-                            year1PendingCount: _controller
-                                .memorialRitualChecklistItems
-                                .expand((item) => item.milestones)
-                                .where(
-                                  (milestone) =>
-                                      milestone.milestone.type ==
-                                      MemorialRitualMilestoneType.year1,
-                                )
-                                .where(
-                                  (milestone) =>
-                                      milestone.isMissing ||
-                                      milestone.hasDateMismatch,
-                                )
-                                .length,
-                            year2PendingCount: _controller
-                                .memorialRitualChecklistItems
-                                .expand((item) => item.milestones)
-                                .where(
-                                  (milestone) =>
-                                      milestone.milestone.type ==
-                                      MemorialRitualMilestoneType.year2,
-                                )
-                                .where(
-                                  (milestone) =>
-                                      milestone.isMissing ||
-                                      milestone.hasDateMismatch,
-                                )
-                                .length,
-                            annualMemorialPendingCount: _controller
-                                .memorialChecklistItems
-                                .where(
-                                  (item) =>
-                                      item.deathDate != null &&
-                                      _yearsSince(
-                                            deathDate: item.deathDate!,
-                                            now: nowLocal,
-                                          ) >=
-                                          3 &&
-                                      (!item.hasMemorialEvent ||
-                                          item.hasDateMismatch),
-                                )
-                                .length,
-                            onOpenPrayer: () => _openMemorialChecklistCenter(
-                              initialCategory:
-                                  _MemorialChecklistCategory.prayer,
-                            ),
-                            onOpenYear1: () => _openMemorialChecklistCenter(
-                              initialCategory: _MemorialChecklistCategory.year1,
-                            ),
-                            onOpenYear2: () => _openMemorialChecklistCenter(
-                              initialCategory: _MemorialChecklistCategory.year2,
-                            ),
-                            onOpenAnniversary: () =>
-                                _openMemorialChecklistCenter(
-                                  initialCategory:
-                                      _MemorialChecklistCategory.anniversary,
+                              const SizedBox(height: 16),
+                            ],
+                            if (_controller.errorMessage != null) ...[
+                              _MessageCard(
+                                icon: Icons.error_outline,
+                                title: l10n.eventLoadErrorTitle,
+                                description: l10n.eventLoadErrorDescription,
+                                tone: colorScheme.errorContainer,
+                              ),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: _controller.refresh,
+                                  icon: const Icon(Icons.refresh),
+                                  label: Text(l10n.eventRefreshAction),
                                 ),
-                          ),
-                          const SizedBox(height: 16),
-                          if (_controller.showLongevityReminderLink) ...[
+                              ),
+                              const SizedBox(height: 16),
+                            ],
                             AppWorkspaceSurface(
                               padding: const EdgeInsets.all(16),
-                              child: _LongevityReminderLinkCard(
-                                key: const Key(
-                                  'event-longevity-reminder-link-card',
-                                ),
-                                candidates:
-                                    _controller.longevityCelebrationCandidates,
-                                celebrationDate:
-                                    _controller.longevityCelebrationDate,
-                                onOpenList: _openLongevityCelebrationList,
+                              child: _FilterPanel(
+                                searchController: _searchController,
+                                selectedType: _controller.typeFilter,
+                                totalEventCount: _controller.events.length,
+                                filteredEventCount: filteredEvents.length,
+                                upcomingCount: _controller.upcomingCount,
+                                memorialCount: _controller.memorialCount,
+                                onQueryChanged: _controller.updateQuery,
+                                onTypeChanged: _controller.updateTypeFilter,
+                                onClear: clearFilters,
                               ),
                             ),
                             const SizedBox(height: 16),
-                          ],
-                          Text(
-                            l10n.pick(
-                              vi: 'Sự kiện sắp tới gần nhất',
-                              en: 'Nearest upcoming events',
-                            ),
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 10),
-                          if (filteredEvents.isEmpty)
-                            _WorkspaceEmptyState(
-                              icon: Icons.event_busy_outlined,
-                              title: hasActiveFilters
-                                  ? l10n.pick(
-                                      vi: 'Không tìm thấy sự kiện phù hợp',
-                                      en: 'No events match these filters',
-                                    )
-                                  : l10n.eventListEmptyTitle,
-                              description: hasActiveFilters
-                                  ? l10n.pick(
-                                      vi: 'Thử từ khóa hoặc loại sự kiện khác.',
-                                      en: 'Try a different query or event type.',
-                                    )
-                                  : l10n.eventListEmptyDescription,
-                            )
-                          else
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                for (final bucket in groupedVisibleEvents) ...[
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Text(
-                                      bucket.label,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            color: colorScheme.onSurfaceVariant,
-                                          ),
-                                    ),
+                            _MemorialQuickAccessCard(
+                              prayerPendingCount: _controller
+                                  .memorialRitualChecklistItems
+                                  .expand((item) => item.milestones)
+                                  .where(
+                                    (milestone) =>
+                                        milestone.milestone.type ==
+                                            MemorialRitualMilestoneType
+                                                .first49Days ||
+                                        milestone.milestone.type ==
+                                            MemorialRitualMilestoneType
+                                                .first50Days ||
+                                        milestone.milestone.type ==
+                                            MemorialRitualMilestoneType.day100,
+                                  )
+                                  .where(
+                                    (milestone) =>
+                                        milestone.isMissing ||
+                                        milestone.hasDateMismatch,
+                                  )
+                                  .length,
+                              year1PendingCount: _controller
+                                  .memorialRitualChecklistItems
+                                  .expand((item) => item.milestones)
+                                  .where(
+                                    (milestone) =>
+                                        milestone.milestone.type ==
+                                        MemorialRitualMilestoneType.year1,
+                                  )
+                                  .where(
+                                    (milestone) =>
+                                        milestone.isMissing ||
+                                        milestone.hasDateMismatch,
+                                  )
+                                  .length,
+                              year2PendingCount: _controller
+                                  .memorialRitualChecklistItems
+                                  .expand((item) => item.milestones)
+                                  .where(
+                                    (milestone) =>
+                                        milestone.milestone.type ==
+                                        MemorialRitualMilestoneType.year2,
+                                  )
+                                  .where(
+                                    (milestone) =>
+                                        milestone.isMissing ||
+                                        milestone.hasDateMismatch,
+                                  )
+                                  .length,
+                              annualMemorialPendingCount: _controller
+                                  .memorialChecklistItems
+                                  .where(
+                                    (item) =>
+                                        item.deathDate != null &&
+                                        _yearsSince(
+                                              deathDate: item.deathDate!,
+                                              now: nowLocal,
+                                            ) >=
+                                            3 &&
+                                        (!item.hasMemorialEvent ||
+                                            item.hasDateMismatch),
+                                  )
+                                  .length,
+                              onOpenPrayer: () => _openMemorialChecklistCenter(
+                                initialCategory:
+                                    _MemorialChecklistCategory.prayer,
+                              ),
+                              onOpenYear1: () => _openMemorialChecklistCenter(
+                                initialCategory:
+                                    _MemorialChecklistCategory.year1,
+                              ),
+                              onOpenYear2: () => _openMemorialChecklistCenter(
+                                initialCategory:
+                                    _MemorialChecklistCategory.year2,
+                              ),
+                              onOpenAnniversary: () =>
+                                  _openMemorialChecklistCenter(
+                                    initialCategory:
+                                        _MemorialChecklistCategory.anniversary,
                                   ),
-                                  for (var i = 0; i < bucket.events.length; i++)
+                            ),
+                            const SizedBox(height: 16),
+                            if (_controller.showLongevityReminderLink) ...[
+                              AppWorkspaceSurface(
+                                padding: const EdgeInsets.all(16),
+                                child: _LongevityReminderLinkCard(
+                                  key: const Key(
+                                    'event-longevity-reminder-link-card',
+                                  ),
+                                  candidates: _controller
+                                      .longevityCelebrationCandidates,
+                                  celebrationDate:
+                                      _controller.longevityCelebrationDate,
+                                  onOpenList: _openLongevityCelebrationList,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                            Text(
+                              l10n.pick(
+                                vi: 'Sự kiện sắp tới gần nhất',
+                                en: 'Nearest upcoming events',
+                              ),
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 10),
+                            if (filteredEvents.isEmpty)
+                              _WorkspaceEmptyState(
+                                icon: Icons.event_busy_outlined,
+                                title: hasActiveFilters
+                                    ? l10n.pick(
+                                        vi: 'Không tìm thấy sự kiện phù hợp',
+                                        en: 'No events match these filters',
+                                      )
+                                    : l10n.eventListEmptyTitle,
+                                description: hasActiveFilters
+                                    ? l10n.pick(
+                                        vi: 'Thử từ khóa hoặc loại sự kiện khác.',
+                                        en: 'Try a different query or event type.',
+                                      )
+                                    : l10n.eventListEmptyDescription,
+                              )
+                            else
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  for (final bucket
+                                      in groupedVisibleEvents) ...[
                                     Padding(
-                                      padding: EdgeInsets.only(
-                                        bottom: i == bucket.events.length - 1
-                                            ? 12
-                                            : 10,
-                                      ),
-                                      child: _EventSummaryCard(
-                                        key: Key(
-                                          'event-row-${bucket.events[i].id}',
-                                        ),
-                                        event: bucket.events[i],
-                                        displayStartsAt: _controller
-                                            .displayStartsAt(
-                                              bucket.events[i],
-                                              now: nowLocal,
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Text(
+                                        bucket.label,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
                                             ),
-                                        displayEndsAt: _controller
-                                            .displayEndsAt(
-                                              bucket.events[i],
-                                              now: nowLocal,
-                                            ),
-                                        branchName: _controller.branchName(
-                                          bucket.events[i].branchId,
-                                        ),
-                                        targetMemberName: _controller
-                                            .memberName(
-                                              bucket.events[i].targetMemberId,
-                                            ),
-                                        onTap: () =>
-                                            _openDetail(bucket.events[i]),
                                       ),
                                     ),
+                                    for (
+                                      var i = 0;
+                                      i < bucket.events.length;
+                                      i++
+                                    )
+                                      Padding(
+                                        padding: EdgeInsets.only(
+                                          bottom: i == bucket.events.length - 1
+                                              ? 12
+                                              : 10,
+                                        ),
+                                        child: _EventSummaryCard(
+                                          key: Key(
+                                            'event-row-${bucket.events[i].id}',
+                                          ),
+                                          event: bucket.events[i],
+                                          displayStartsAt: _controller
+                                              .displayStartsAt(
+                                                bucket.events[i],
+                                                now: nowLocal,
+                                              ),
+                                          displayEndsAt: _controller
+                                              .displayEndsAt(
+                                                bucket.events[i],
+                                                now: nowLocal,
+                                              ),
+                                          branchName: _controller.branchName(
+                                            bucket.events[i].branchId,
+                                          ),
+                                          targetMemberName: _controller
+                                              .memberName(
+                                                bucket.events[i].targetMemberId,
+                                              ),
+                                          onTap: () =>
+                                              _openDetail(bucket.events[i]),
+                                        ),
+                                      ),
+                                  ],
                                 ],
-                              ],
-                            ),
-                        ],
+                              ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -937,11 +977,7 @@ class _EventDetailPage extends StatelessWidget {
     return Scaffold(
       key: Key('event-detail-page-$eventId'),
       appBar: AppBar(
-        title: Text(
-          event?.title.trim().isNotEmpty == true
-              ? event!.title
-              : l10n.eventDetailTitle,
-        ),
+        title: Text(l10n.eventDetailTitle),
         actions: [
           if (event != null && controller.permissions.canManageEvents)
             if (!event.isAutoGenerated)
@@ -1379,19 +1415,25 @@ class _LongevityMemberDetailPage extends StatelessWidget {
 
 class _EventEditorSheet extends StatefulWidget {
   const _EventEditorSheet({
+    required this.session,
     required this.title,
     required this.initialDraft,
     required this.branches,
     required this.members,
+    required this.aiAssistService,
     required this.onSubmit,
     required this.isSaving,
+    this.billingRepository,
   });
 
+  final AuthSession session;
   final String title;
   final EventDraft initialDraft;
   final List<BranchProfile> branches;
   final List<MemberProfile> members;
+  final AiAssistService aiAssistService;
   final bool isSaving;
+  final BillingRepository? billingRepository;
   final Future<EventRepositoryErrorCode?> Function(EventDraft draft) onSubmit;
 
   @override
@@ -1399,6 +1441,9 @@ class _EventEditorSheet extends StatefulWidget {
 }
 
 class _EventEditorSheetState extends State<_EventEditorSheet> {
+  final _titleFieldScrollKey = GlobalKey();
+  final _targetMemberFieldScrollKey = GlobalKey();
+  final _startFieldScrollKey = GlobalKey();
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _locationNameController;
@@ -1407,6 +1452,9 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   late final TextEditingController _endsAtController;
   late final TextEditingController _timezoneController;
   late final TextEditingController _reminderInputController;
+  late final FocusNode _titleFocusNode;
+  late final FocusNode _startsAtFocusNode;
+  late final AiProductAnalyticsService _aiAnalyticsService;
 
   late EventType _selectedType;
   String? _selectedBranchId;
@@ -1415,9 +1463,12 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   late List<int> _reminderOffsets;
   int _step = 0;
   bool _isSubmitting = false;
+  bool _isGeneratingAiCopy = false;
 
   EventValidationIssueCode? _validationIssue;
   EventRepositoryErrorCode? _submitError;
+  String? _reminderInputError;
+  EventAiSuggestion? _aiSuggestion;
 
   @override
   void initState() {
@@ -1439,6 +1490,9 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     );
     _timezoneController = TextEditingController(text: draft.timezone);
     _reminderInputController = TextEditingController();
+    _titleFocusNode = FocusNode();
+    _startsAtFocusNode = FocusNode();
+    _aiAnalyticsService = createDefaultAiProductAnalyticsService();
 
     _selectedType = draft.eventType;
     _selectedBranchId = draft.branchId;
@@ -1459,7 +1513,30 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     _endsAtController.dispose();
     _timezoneController.dispose();
     _reminderInputController.dispose();
+    _titleFocusNode.dispose();
+    _startsAtFocusNode.dispose();
     super.dispose();
+  }
+
+  void _focusInvalidField(GlobalKey fieldKey, {FocusNode? focusNode}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      focusNode?.requestFocus();
+      final fieldContext = fieldKey.currentContext;
+      if (fieldContext == null) {
+        return;
+      }
+      unawaited(
+        Scrollable.ensureVisible(
+          fieldContext,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: 0.08,
+        ),
+      );
+    });
   }
 
   bool _validateStepZero() {
@@ -1467,6 +1544,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       setState(() {
         _validationIssue = EventValidationIssueCode.missingTitle;
       });
+      _focusInvalidField(_titleFieldScrollKey, focusNode: _titleFocusNode);
       return false;
     }
     if (_selectedType.isMemorial &&
@@ -1476,6 +1554,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         _validationIssue =
             EventValidationIssueCode.memorialRequiresTargetMember;
       });
+      _focusInvalidField(_targetMemberFieldScrollKey);
       return false;
     }
     return true;
@@ -1487,6 +1566,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       setState(() {
         _validationIssue = EventValidationIssueCode.invalidTimeRange;
       });
+      _focusInvalidField(_startFieldScrollKey, focusNode: _startsAtFocusNode);
       return false;
     }
 
@@ -1500,6 +1580,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       setState(() {
         _validationIssue = EventValidationIssueCode.invalidTimeRange;
       });
+      _focusInvalidField(_startFieldScrollKey, focusNode: _startsAtFocusNode);
       return false;
     }
     return true;
@@ -1536,6 +1617,205 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       isAutoGenerated:
           _selectedType.isMemorial && widget.initialDraft.isAutoGenerated,
     );
+  }
+
+  bool get _canGenerateAiSuggestion {
+    if (_isGeneratingAiCopy || _isSubmitting || widget.isSaving) {
+      return false;
+    }
+    if (!_selectedType.isMemorial) {
+      return true;
+    }
+    return (_selectedTargetMemberId?.trim().isNotEmpty ?? false);
+  }
+
+  Future<void> _suggestWithAi() async {
+    if (!_canGenerateAiSuggestion) {
+      return;
+    }
+
+    final locale = Localizations.localeOf(context).languageCode;
+    final startsAt =
+        _parseDateTimeInput(_startsAtController.text.trim()) ??
+        widget.initialDraft.startsAt;
+    final endInput = _endsAtController.text.trim();
+    final endsAt = endInput.isEmpty ? null : _parseDateTimeInput(endInput);
+    final draft = _buildDraft(startsAt: startsAt, endsAt: endsAt);
+    final aiStopwatch = Stopwatch()..start();
+    unawaited(
+      _aiAnalyticsService.trackEventSuggestionRequested(
+        eventType: draft.eventType.wireName,
+        hasTitle: draft.title.trim().isNotEmpty,
+        hasDescription: draft.description.trim().isNotEmpty,
+        hasLocation:
+            draft.locationName.trim().isNotEmpty ||
+            draft.locationAddress.trim().isNotEmpty,
+        hasTargetMember: (draft.targetMemberId ?? '').trim().isNotEmpty,
+        hasSchedule: draft.startsAt.toString().trim().isNotEmpty,
+      ),
+    );
+
+    setState(() {
+      _isGeneratingAiCopy = true;
+    });
+
+    try {
+      final suggestion = await widget.aiAssistService.draftEventCopy(
+        session: widget.session,
+        locale: locale,
+        draft: draft,
+      );
+      aiStopwatch.stop();
+      if (!mounted) {
+        return;
+      }
+      unawaited(
+        _aiAnalyticsService.trackEventSuggestionCompleted(
+          eventType: draft.eventType.wireName,
+          usedFallback: suggestion.usedFallback,
+          hasTitleSuggestion: suggestion.title.trim().isNotEmpty,
+          hasDescriptionSuggestion: suggestion.description.trim().isNotEmpty,
+          reminderSuggestionCount:
+              suggestion.recommendedReminderOffsetsMinutes.length,
+          elapsedMs: aiStopwatch.elapsedMilliseconds,
+        ),
+      );
+      setState(() {
+        _aiSuggestion = suggestion;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Bản gợi ý đã sẵn sàng. Chọn từng phần bạn muốn áp dụng.',
+              en: 'Suggestions are ready. Apply only the parts you want.',
+            ),
+          ),
+        ),
+      );
+    } on AiAssistServiceException catch (error) {
+      aiStopwatch.stop();
+      if (!mounted) {
+        return;
+      }
+      unawaited(
+        _aiAnalyticsService.trackEventSuggestionFailed(
+          eventType: draft.eventType.wireName,
+          reason: error.code ?? 'unknown',
+          elapsedMs: aiStopwatch.elapsedMilliseconds,
+        ),
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingAiCopy = false;
+        });
+      } else {
+        _isGeneratingAiCopy = false;
+      }
+    }
+  }
+
+  void _applySuggestedTitle() {
+    final suggestion = _aiSuggestion;
+    if (suggestion == null || suggestion.title.trim().isEmpty) {
+      return;
+    }
+    setState(() {
+      _titleController.text = suggestion.title;
+    });
+    unawaited(
+      _aiAnalyticsService.trackEventSuggestionApplied(
+        eventType: _selectedType.wireName,
+        section: 'title',
+      ),
+    );
+  }
+
+  void _applySuggestedDescription() {
+    final suggestion = _aiSuggestion;
+    if (suggestion == null || suggestion.description.trim().isEmpty) {
+      return;
+    }
+    setState(() {
+      _descriptionController.text = suggestion.description;
+    });
+    unawaited(
+      _aiAnalyticsService.trackEventSuggestionApplied(
+        eventType: _selectedType.wireName,
+        section: 'description',
+      ),
+    );
+  }
+
+  void _applySuggestedText() {
+    final suggestion = _aiSuggestion;
+    if (suggestion == null) {
+      return;
+    }
+    setState(() {
+      if (suggestion.title.trim().isNotEmpty) {
+        _titleController.text = suggestion.title;
+      }
+      if (suggestion.description.trim().isNotEmpty) {
+        _descriptionController.text = suggestion.description;
+      }
+    });
+    unawaited(
+      _aiAnalyticsService.trackEventSuggestionApplied(
+        eventType: _selectedType.wireName,
+        section: 'text',
+      ),
+    );
+  }
+
+  void _applySuggestedReminders() {
+    final suggestion = _aiSuggestion;
+    if (suggestion == null ||
+        suggestion.recommendedReminderOffsetsMinutes.isEmpty) {
+      return;
+    }
+    setState(() {
+      _reminderOffsets = EventValidation.sanitizeReminderOffsets(
+        suggestion.recommendedReminderOffsetsMinutes,
+      );
+    });
+    unawaited(
+      _aiAnalyticsService.trackEventSuggestionApplied(
+        eventType: _selectedType.wireName,
+        section: 'reminders',
+      ),
+    );
+  }
+
+  void _openReminderReview() {
+    if (!_validateStepZero()) {
+      return;
+    }
+    if (!_validateStepOne()) {
+      setState(() {
+        _step = 1;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              vi: 'Điền thời gian và địa điểm trước khi áp dụng mốc nhắc gợi ý.',
+              en: 'Add the schedule first before applying suggested reminders.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _validationIssue = null;
+      _submitError = null;
+      _step = 2;
+    });
   }
 
   void _moveToStep(int targetStep) {
@@ -1656,6 +1936,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     }
 
     setState(() {
+      _reminderInputError = null;
       _reminderOffsets = EventValidation.sanitizeReminderOffsets([
         ..._reminderOffsets,
         offsetMinutes,
@@ -1664,8 +1945,34 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   }
 
   void _addReminderOffsetFromInput() {
-    final parsed = int.tryParse(_reminderInputController.text.trim());
-    if (parsed == null) {
+    final l10n = context.l10n;
+    final input = _reminderInputController.text.trim();
+    final parsed = int.tryParse(input);
+    if (input.isEmpty || parsed == null) {
+      setState(() {
+        _reminderInputError = l10n.pick(
+          vi: 'Nhập số phút hợp lệ.',
+          en: 'Enter valid minutes.',
+        );
+      });
+      return;
+    }
+    if (parsed <= 0) {
+      setState(() {
+        _reminderInputError = l10n.pick(
+          vi: 'Mốc nhắc phải lớn hơn 0 phút.',
+          en: 'Reminder must be greater than 0 minutes.',
+        );
+      });
+      return;
+    }
+    if (_reminderOffsets.contains(parsed)) {
+      setState(() {
+        _reminderInputError = l10n.pick(
+          vi: 'Mốc nhắc này đã có.',
+          en: 'This reminder already exists.',
+        );
+      });
       return;
     }
 
@@ -1717,6 +2024,193 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     }
 
     return null;
+  }
+
+  Widget _buildTextSuggestionCard(BuildContext context) {
+    final suggestion = _aiSuggestion;
+    if (suggestion == null) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    final l10n = context.l10n;
+    final hasTitleSuggestion = suggestion.title.trim().isNotEmpty;
+    final hasDescriptionSuggestion = suggestion.description.trim().isNotEmpty;
+    final hasReminderSuggestion =
+        suggestion.recommendedReminderOffsetsMinutes.isNotEmpty;
+    if (!hasTitleSuggestion &&
+        !hasDescriptionSuggestion &&
+        !hasReminderSuggestion &&
+        suggestion.rationale.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return AppWorkspaceSurface(
+      color: theme.colorScheme.surface,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.pick(vi: 'Bản gợi ý mới', en: 'Suggested draft'),
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            suggestion.usedFallback
+                ? l10n.pick(
+                    vi: 'Đang dùng chế độ gợi ý nội bộ để giữ kết quả ổn định.',
+                    en: 'Using the built-in suggestion mode to keep the guidance stable.',
+                  )
+                : l10n.pick(
+                    vi: 'Xem trước từng phần rồi áp dụng đúng chỗ bạn cần.',
+                    en: 'Preview each part before applying it.',
+                  ),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          if (hasTitleSuggestion) ...[
+            const SizedBox(height: 12),
+            _EventSuggestionPreviewRow(
+              label: l10n.pick(vi: 'Tiêu đề', en: 'Title'),
+              value: suggestion.title,
+            ),
+          ],
+          if (hasDescriptionSuggestion) ...[
+            const SizedBox(height: 10),
+            _EventSuggestionPreviewRow(
+              label: l10n.pick(vi: 'Mô tả', en: 'Description'),
+              value: suggestion.description,
+            ),
+          ],
+          if (hasReminderSuggestion) ...[
+            const SizedBox(height: 10),
+            _EventSuggestionPreviewRow(
+              label: l10n.pick(vi: 'Mốc nhắc gợi ý', en: 'Suggested reminders'),
+              value: suggestion.recommendedReminderOffsetsMinutes
+                  .map(_humanizeOffset)
+                  .join(', '),
+            ),
+          ],
+          if (suggestion.rationale.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            for (final item in suggestion.rationale)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Icon(
+                        Icons.circle,
+                        size: 8,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(item)),
+                  ],
+                ),
+              ),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (hasTitleSuggestion)
+                OutlinedButton(
+                  key: const Key('event-ai-apply-title-button'),
+                  onPressed: _applySuggestedTitle,
+                  child: Text(
+                    l10n.pick(vi: 'Áp dụng tiêu đề', en: 'Apply title'),
+                  ),
+                ),
+              if (hasDescriptionSuggestion)
+                OutlinedButton(
+                  key: const Key('event-ai-apply-description-button'),
+                  onPressed: _applySuggestedDescription,
+                  child: Text(
+                    l10n.pick(vi: 'Áp dụng mô tả', en: 'Apply description'),
+                  ),
+                ),
+              if (hasTitleSuggestion || hasDescriptionSuggestion)
+                FilledButton.tonal(
+                  key: const Key('event-ai-apply-text-button'),
+                  onPressed: _applySuggestedText,
+                  child: Text(
+                    l10n.pick(vi: 'Áp dụng phần chữ', en: 'Apply text'),
+                  ),
+                ),
+              if (hasReminderSuggestion)
+                FilledButton.tonalIcon(
+                  key: const Key('event-ai-open-reminders-button'),
+                  onPressed: _openReminderReview,
+                  icon: const Icon(Icons.schedule_outlined),
+                  label: Text(
+                    l10n.pick(
+                      vi: 'Xem mốc nhắc ở bước sau',
+                      en: 'Review reminders next',
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReminderSuggestionCard(BuildContext context) {
+    final suggestion = _aiSuggestion;
+    if (suggestion == null ||
+        suggestion.recommendedReminderOffsetsMinutes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    final l10n = context.l10n;
+    return AppWorkspaceSurface(
+      color: theme.colorScheme.surface,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.pick(
+              vi: 'Mốc nhắc gợi ý đã sẵn sàng',
+              en: 'Suggested reminders are ready',
+            ),
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final offset in suggestion.recommendedReminderOffsetsMinutes)
+                Chip(label: Text(_humanizeOffset(offset))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          FilledButton.tonalIcon(
+            key: const Key('event-ai-apply-reminders-button'),
+            onPressed: _applySuggestedReminders,
+            icon: const Icon(Icons.alarm_on_outlined),
+            label: Text(
+              l10n.pick(
+                vi: 'Áp dụng mốc nhắc gợi ý',
+                en: 'Apply suggested reminders',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1785,543 +2279,716 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
       ),
     };
 
-    return SafeArea(
-      child: Material(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                AppWorkspaceSurface(
-                  gradient: appWorkspaceHeroGradient(context),
-                  showAccentOrbs: true,
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.title,
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        l10n.pick(
-                          vi: 'Điền từng phần ngắn để không bị rối khi tạo hoặc cập nhật sự kiện.',
-                          en: 'Complete one short section at a time to keep event setup clear.',
-                        ),
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _ContextBadge(
-                            icon: Icons.event_note_outlined,
-                            label: l10n.eventTypeLabel(_selectedType),
-                          ),
-                          if (branchSummary.isNotEmpty)
-                            _ContextBadge(
-                              icon: Icons.account_tree_outlined,
-                              label: branchSummary,
-                            ),
-                          if (targetSummary.isNotEmpty)
-                            _ContextBadge(
-                              icon: Icons.person_outline,
-                              label: targetSummary,
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                AppWorkspaceSurface(
-                  padding: const EdgeInsets.all(12),
-                  child: _EventEditorStepIndicator(
-                    currentStep: _step,
-                    labels: [
-                      l10n.pick(vi: 'Thông tin', en: 'Info'),
-                      l10n.pick(vi: 'Thời gian', en: 'Schedule'),
-                      l10n.pick(vi: 'Nhắc lịch', en: 'Reminders'),
-                    ],
-                    onStepSelected: (step) => _moveToStep(step),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (errorText != null) ...[
-                  _MessageCard(
-                    icon: Icons.error_outline,
-                    title: l10n.eventLoadErrorTitle,
-                    description: errorText,
-                    tone: theme.colorScheme.errorContainer,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                AppWorkspaceSurface(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _EditorSectionLead(
-                        title: stepTitle,
-                        description: stepDescription,
-                      ),
-                      if (_step == 0) ...[
-                        TextField(
-                          key: const Key('event-title-field'),
-                          controller: _titleController,
-                          textInputAction: TextInputAction.next,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormTitleLabel,
-                            hintText: l10n.eventFormTitleHint,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<EventType>(
-                          key: Key(
-                            'event-type-dropdown-${_selectedType.wireName}',
-                          ),
-                          initialValue: _selectedType,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormTypeLabel,
-                          ),
-                          items: [
-                            for (final type in EventType.values)
-                              DropdownMenuItem<EventType>(
-                                value: type,
-                                child: Text(l10n.eventTypeLabel(type)),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            if (value == null) {
-                              return;
-                            }
-
-                            setState(() {
-                              _selectedType = value;
-                              if (!_selectedType.isMemorial) {
-                                _selectedTargetMemberId = null;
-                                _isRecurring = false;
-                              }
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String?>(
-                          key: Key(
-                            'event-branch-dropdown-${_selectedBranchId ?? 'all'}',
-                          ),
-                          initialValue: _selectedBranchId,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormBranchLabel,
-                          ),
-                          items: [
-                            DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text(l10n.eventFilterTypeAll),
-                            ),
-                            for (final branch in widget.branches)
-                              DropdownMenuItem<String?>(
-                                value: branch.id,
-                                child: Text(branch.name),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedBranchId = value;
-                            });
-                          },
-                        ),
-                        if (_selectedType.isMemorial) ...[
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String?>(
-                            key: Key(
-                              'event-target-member-dropdown-${_selectedTargetMemberId ?? 'unset'}',
-                            ),
-                            initialValue: _selectedTargetMemberId,
-                            decoration: InputDecoration(
-                              labelText: l10n.eventFormTargetMemberLabel,
-                            ),
-                            items: [
-                              DropdownMenuItem<String?>(
-                                value: null,
-                                child: Text(l10n.eventFieldUnset),
-                              ),
-                              for (final member in widget.members)
-                                DropdownMenuItem<String?>(
-                                  value: member.id,
-                                  child: Text(member.fullName),
-                                ),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedTargetMemberId = value;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          SwitchListTile.adaptive(
-                            key: const Key('event-recurring-switch'),
-                            value: _isRecurring,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(l10n.eventFormRecurringMemorialLabel),
-                            subtitle: _isRecurring
-                                ? Text(
-                                    l10n.pick(
-                                      vi: 'Lặp lại hằng năm',
-                                      en: 'Repeats yearly',
-                                    ),
-                                  )
-                                : Text(l10n.eventRecurringNo),
-                            onChanged: (value) {
-                              setState(() {
-                                _isRecurring = value;
-                              });
-                            },
-                          ),
-                        ],
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _descriptionController,
-                          maxLines: 3,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormDescriptionLabel,
-                          ),
-                        ),
-                      ],
-                      if (_step == 1) ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                key: const Key('event-start-field'),
-                                controller: _startsAtController,
-                                textInputAction: TextInputAction.next,
-                                decoration: InputDecoration(
-                                  labelText: l10n.eventFormStartsAtLabel,
-                                  hintText: l10n.eventFormDateTimeHint,
-                                  suffixIcon: IconButton(
-                                    tooltip: l10n.pick(
-                                      vi: 'Chọn thời gian bắt đầu',
-                                      en: 'Pick start date and time',
-                                    ),
-                                    onPressed: isBusy
-                                        ? null
-                                        : () => _pickDateTime(
-                                            _startsAtController,
-                                          ),
-                                    icon: const Icon(
-                                      Icons.calendar_today_outlined,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: TextField(
-                                key: const Key('event-end-field'),
-                                controller: _endsAtController,
-                                textInputAction: TextInputAction.next,
-                                decoration: InputDecoration(
-                                  labelText: l10n.eventFormEndsAtLabel,
-                                  hintText: l10n.eventFormDateTimeHint,
-                                  suffixIcon: IconButton(
-                                    tooltip: l10n.pick(
-                                      vi: 'Chọn thời gian kết thúc',
-                                      en: 'Pick end date and time',
-                                    ),
-                                    onPressed: isBusy
-                                        ? null
-                                        : () =>
-                                              _pickDateTime(_endsAtController),
-                                    icon: const Icon(
-                                      Icons.calendar_today_outlined,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _timezoneController,
-                          textInputAction: TextInputAction.next,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormTimezoneLabel,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _locationNameController,
-                          textInputAction: TextInputAction.next,
-                          decoration: InputDecoration(
-                            labelText: l10n.eventFormLocationNameLabel,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        AddressAutocompleteField(
-                          controller: _locationAddressController,
-                          textInputAction: TextInputAction.next,
-                          labelText: l10n.eventFormLocationAddressLabel,
-                          hintText: l10n.pick(
-                            vi: 'Số nhà, đường, phường/xã, quận/huyện...',
-                            en: 'Street, ward, district...',
-                          ),
-                          maxLines: 2,
-                        ),
-                        const SizedBox(height: 14),
-                        AppWorkspaceSurface(
-                          color: theme.colorScheme.surfaceContainerHighest,
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.pick(vi: 'Xem nhanh', en: 'Quick check'),
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              _SummaryRow(
-                                label: l10n.pick(
-                                  vi: 'Lịch diễn ra',
-                                  en: 'Schedule',
-                                ),
-                                value: schedulePreview.isEmpty
-                                    ? l10n.eventFieldUnset
-                                    : schedulePreview,
-                              ),
-                              _SummaryRow(
-                                label: l10n.pick(
-                                  vi: 'Địa điểm',
-                                  en: 'Location',
-                                ),
-                                value: locationPreview.isEmpty
-                                    ? l10n.eventFieldUnset
-                                    : locationPreview,
-                                isLast: true,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      if (_step == 2) ...[
-                        Text(
-                          l10n.eventFormReminderSectionTitle,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          l10n.pick(
-                            vi: 'Giữ ít mốc nhắc nhưng đủ để không bỏ sót việc quan trọng.',
-                            en: 'Keep reminders focused so important follow-ups are not missed.',
-                          ),
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final offset in _reminderOffsets)
-                              InputChip(
-                                key: Key('event-reminder-chip-$offset'),
-                                label: Text(_humanizeOffset(offset)),
-                                onDeleted: () => _removeReminderOffset(offset),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            OutlinedButton(
-                              onPressed: () => _addReminderOffset(10080),
-                              child: Text(l10n.eventFormReminderPresetWeek),
-                            ),
-                            OutlinedButton(
-                              onPressed: () => _addReminderOffset(1440),
-                              child: Text(l10n.eventFormReminderPresetDay),
-                            ),
-                            OutlinedButton(
-                              onPressed: () => _addReminderOffset(120),
-                              child: Text(l10n.eventFormReminderPresetHours),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                key: const Key('event-reminder-input'),
-                                controller: _reminderInputController,
-                                keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  labelText: l10n.eventFormReminderCustomLabel,
-                                  hintText: l10n.eventFormReminderCustomHint,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            FilledButton.tonalIcon(
-                              key: const Key('event-reminder-add-button'),
-                              onPressed: _addReminderOffsetFromInput,
-                              icon: const Icon(Icons.add_alert_outlined),
-                              label: Text(l10n.eventFormReminderAddAction),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        AppWorkspaceSurface(
-                          color: theme.colorScheme.surfaceContainerHighest,
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.pick(
-                                  vi: 'Tóm tắt trước khi lưu',
-                                  en: 'Review before saving',
-                                ),
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              _SummaryRow(
-                                label: l10n.eventFieldType,
-                                value: l10n.eventTypeLabel(_selectedType),
-                              ),
-                              _SummaryRow(
-                                label: l10n.pick(
-                                  vi: 'Chi hoặc người liên quan',
-                                  en: 'Branch or related member',
-                                ),
-                                value:
-                                    _joinNonEmptyText([
-                                      branchSummary,
-                                      targetSummary,
-                                    ]).isEmpty
-                                    ? l10n.eventFieldUnset
-                                    : _joinNonEmptyText([
-                                        branchSummary,
-                                        targetSummary,
-                                      ]),
-                              ),
-                              _SummaryRow(
-                                label: l10n.pick(
-                                  vi: 'Lịch diễn ra',
-                                  en: 'Schedule',
-                                ),
-                                value: schedulePreview.isEmpty
-                                    ? l10n.eventFieldUnset
-                                    : schedulePreview,
-                              ),
-                              _SummaryRow(
-                                label: l10n.pick(
-                                  vi: 'Địa điểm',
-                                  en: 'Location',
-                                ),
-                                value: locationPreview.isEmpty
-                                    ? l10n.eventFieldUnset
-                                    : locationPreview,
-                              ),
-                              _SummaryRow(
-                                label: l10n.pick(
-                                  vi: 'Nhắc trước',
-                                  en: 'Reminders',
-                                ),
-                                value: reminderPreview,
-                                isLast: true,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
+    return ScaffoldMessenger(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        resizeToAvoidBottomInset: false,
+        body: SafeArea(
+          child: Material(
+            color: theme.colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: isBusy
-                            ? null
-                            : _step == 0
-                            ? () => Navigator.of(context).pop()
-                            : () {
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.outlineVariant,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    AppWorkspaceSurface(
+                      gradient: appWorkspaceHeroGradient(context),
+                      showAccentOrbs: true,
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.title,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.pick(
+                              vi: 'Điền từng phần ngắn để không bị rối khi tạo hoặc cập nhật sự kiện.',
+                              en: 'Complete one short section at a time to keep event setup clear.',
+                            ),
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _ContextBadge(
+                                icon: Icons.event_note_outlined,
+                                label: l10n.eventTypeLabel(_selectedType),
+                              ),
+                              if (branchSummary.isNotEmpty)
+                                _ContextBadge(
+                                  icon: Icons.account_tree_outlined,
+                                  label: branchSummary,
+                                ),
+                              if (targetSummary.isNotEmpty)
+                                _ContextBadge(
+                                  icon: Icons.person_outline,
+                                  label: targetSummary,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    AppWorkspaceSurface(
+                      padding: const EdgeInsets.all(12),
+                      child: _EventEditorStepIndicator(
+                        currentStep: _step,
+                        labels: [
+                          l10n.pick(vi: 'Thông tin', en: 'Info'),
+                          l10n.pick(vi: 'Thời gian', en: 'Schedule'),
+                          l10n.pick(vi: 'Nhắc lịch', en: 'Reminders'),
+                        ],
+                        onStepSelected: (step) => _moveToStep(step),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (errorText != null) ...[
+                      _MessageCard(
+                        icon: Icons.error_outline,
+                        title: l10n.eventLoadErrorTitle,
+                        description: errorText,
+                        tone: theme.colorScheme.errorContainer,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    AppWorkspaceSurface(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _EditorSectionLead(
+                            title: stepTitle,
+                            description: stepDescription,
+                          ),
+                          if (_step == 0) ...[
+                            AppWorkspaceSurface(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.pick(
+                                      vi: 'Gợi ý nội dung nhanh',
+                                      en: 'Quick content suggestions',
+                                    ),
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    l10n.pick(
+                                      vi: 'Tạo bản nháp tiêu đề và mô tả theo loại sự kiện hiện tại. Mốc nhắc chỉ được áp dụng khi bạn xác nhận ở bước nhắc lịch.',
+                                      en: 'Generate a first-draft title and description for this event type. Reminder suggestions are only applied after you confirm them in the reminder step.',
+                                    ),
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    l10n.pick(
+                                      vi: 'AI chỉ dùng dữ liệu sự kiện hiện tại để tạo gợi ý. Bạn vẫn cần xem lại trước khi áp dụng.',
+                                      en: 'AI only uses the current event details to draft suggestions. Review each suggestion before applying it.',
+                                    ),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  AiUsageQuotaNotice(
+                                    session: widget.session,
+                                    billingRepository: widget.billingRepository,
+                                    requestCost: 1,
+                                    compact: true,
+                                    usageHint: l10n.pick(
+                                      vi: 'Lượt gợi ý này dùng 1 credit AI.',
+                                      en: 'This suggestion uses 1 AI credit.',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: FilledButton.tonalIcon(
+                                      key: const Key('event-ai-suggest-button'),
+                                      onPressed: _canGenerateAiSuggestion
+                                          ? _suggestWithAi
+                                          : null,
+                                      icon: _isGeneratingAiCopy
+                                          ? const SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.auto_awesome_outlined,
+                                            ),
+                                      label: Text(
+                                        _isGeneratingAiCopy
+                                            ? l10n.pick(
+                                                vi: 'Đang gợi ý...',
+                                                en: 'Generating...',
+                                              )
+                                            : l10n.pick(
+                                                vi: 'Tạo bản nháp gợi ý',
+                                                en: 'Generate suggestions',
+                                              ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (_isGeneratingAiCopy) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      l10n.pick(
+                                        vi: 'Đang tạo gợi ý, thường mất vài giây.',
+                                        en: 'Generating suggestions. This usually takes a few seconds.',
+                                      ),
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
+                                  if (_selectedType.isMemorial &&
+                                      (_selectedTargetMemberId
+                                              ?.trim()
+                                              .isEmpty ??
+                                          true)) ...[
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      l10n.pick(
+                                        vi: 'Chọn người được tưởng niệm trước để gợi ý bám đúng ngữ cảnh.',
+                                        en: 'Select the memorial member first so the suggestion stays specific.',
+                                      ),
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
+                                  if (_aiSuggestion != null) ...[
+                                    const SizedBox(height: 10),
+                                    _buildTextSuggestionCard(context),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            KeyedSubtree(
+                              key: _titleFieldScrollKey,
+                              child: TextField(
+                                key: const Key('event-title-field'),
+                                controller: _titleController,
+                                focusNode: _titleFocusNode,
+                                textInputAction: TextInputAction.next,
+                                decoration: appFieldDecoration(
+                                  label: l10n.eventFormTitleLabel,
+                                  required: true,
+                                  hintText: l10n.eventFormTitleHint,
+                                  errorText:
+                                      _validationIssue ==
+                                          EventValidationIssueCode.missingTitle
+                                      ? l10n.eventValidationTitleRequired
+                                      : null,
+                                ),
+                                onChanged: (_) {
+                                  if (_validationIssue ==
+                                      EventValidationIssueCode.missingTitle) {
+                                    setState(() => _validationIssue = null);
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<EventType>(
+                              key: Key(
+                                'event-type-dropdown-${_selectedType.wireName}',
+                              ),
+                              initialValue: _selectedType,
+                              decoration: appFieldDecoration(
+                                label: l10n.eventFormTypeLabel,
+                                required: true,
+                              ),
+                              items: [
+                                for (final type in EventType.values)
+                                  DropdownMenuItem<EventType>(
+                                    value: type,
+                                    child: Text(l10n.eventTypeLabel(type)),
+                                  ),
+                              ],
+                              onChanged: (value) {
+                                if (value == null) {
+                                  return;
+                                }
+
                                 setState(() {
-                                  _validationIssue = null;
-                                  _submitError = null;
-                                  _step -= 1;
+                                  _selectedType = value;
+                                  if (!_selectedType.isMemorial) {
+                                    _selectedTargetMemberId = null;
+                                    _isRecurring = false;
+                                  }
                                 });
                               },
-                        icon: Icon(_step == 0 ? Icons.close : Icons.arrow_back),
-                        label: Text(
-                          _step == 0
-                              ? l10n.profileCancelAction
-                              : l10n.pick(vi: 'Quay lại', en: 'Back'),
-                        ),
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<String?>(
+                              key: Key(
+                                'event-branch-dropdown-${_selectedBranchId ?? 'all'}',
+                              ),
+                              initialValue: _selectedBranchId,
+                              decoration: appFieldDecoration(
+                                label: l10n.eventFormBranchLabel,
+                              ),
+                              items: [
+                                DropdownMenuItem<String?>(
+                                  value: null,
+                                  child: Text(l10n.eventFilterTypeAll),
+                                ),
+                                for (final branch in widget.branches)
+                                  DropdownMenuItem<String?>(
+                                    value: branch.id,
+                                    child: Text(branch.name),
+                                  ),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedBranchId = value;
+                                });
+                              },
+                            ),
+                            if (_selectedType.isMemorial) ...[
+                              const SizedBox(height: 12),
+                              KeyedSubtree(
+                                key: _targetMemberFieldScrollKey,
+                                child: DropdownButtonFormField<String?>(
+                                  key: Key(
+                                    'event-target-member-dropdown-${_selectedTargetMemberId ?? 'unset'}',
+                                  ),
+                                  initialValue: _selectedTargetMemberId,
+                                  decoration: appFieldDecoration(
+                                    label: l10n.eventFormTargetMemberLabel,
+                                    required: true,
+                                    errorText:
+                                        _validationIssue ==
+                                            EventValidationIssueCode
+                                                .memorialRequiresTargetMember
+                                        ? l10n.eventValidationMemorialTarget
+                                        : null,
+                                  ),
+                                  items: [
+                                    DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text(l10n.eventFieldUnset),
+                                    ),
+                                    for (final member in widget.members)
+                                      DropdownMenuItem<String?>(
+                                        value: member.id,
+                                        child: Text(member.fullName),
+                                      ),
+                                  ],
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedTargetMemberId = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              SwitchListTile.adaptive(
+                                key: const Key('event-recurring-switch'),
+                                value: _isRecurring,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                  l10n.eventFormRecurringMemorialLabel,
+                                ),
+                                subtitle: _isRecurring
+                                    ? Text(
+                                        l10n.pick(
+                                          vi: 'Lặp lại hằng năm',
+                                          en: 'Repeats yearly',
+                                        ),
+                                      )
+                                    : Text(l10n.eventRecurringNo),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _isRecurring = value;
+                                  });
+                                },
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            TextField(
+                              key: const Key('event-description-field'),
+                              controller: _descriptionController,
+                              maxLines: 3,
+                              decoration: appFieldDecoration(
+                                label: l10n.eventFormDescriptionLabel,
+                              ),
+                            ),
+                          ],
+                          if (_step == 1) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: KeyedSubtree(
+                                    key: _startFieldScrollKey,
+                                    child: TextField(
+                                      key: const Key('event-start-field'),
+                                      controller: _startsAtController,
+                                      focusNode: _startsAtFocusNode,
+                                      textInputAction: TextInputAction.next,
+                                      decoration: appFieldDecoration(
+                                        label: l10n.eventFormStartsAtLabel,
+                                        required: true,
+                                        hintText: l10n.eventFormDateTimeHint,
+                                        errorText:
+                                            _validationIssue ==
+                                                EventValidationIssueCode
+                                                    .invalidTimeRange
+                                            ? l10n.eventValidationTimeRange
+                                            : null,
+                                        suffixIcon: IconButton(
+                                          tooltip: l10n.pick(
+                                            vi: 'Chọn thời gian bắt đầu',
+                                            en: 'Pick start date and time',
+                                          ),
+                                          onPressed: isBusy
+                                              ? null
+                                              : () => _pickDateTime(
+                                                  _startsAtController,
+                                                ),
+                                          icon: const Icon(
+                                            Icons.calendar_today_outlined,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextField(
+                                    key: const Key('event-end-field'),
+                                    controller: _endsAtController,
+                                    textInputAction: TextInputAction.next,
+                                    decoration: appFieldDecoration(
+                                      label: l10n.eventFormEndsAtLabel,
+                                      hintText: l10n.eventFormDateTimeHint,
+                                      suffixIcon: IconButton(
+                                        tooltip: l10n.pick(
+                                          vi: 'Chọn thời gian kết thúc',
+                                          en: 'Pick end date and time',
+                                        ),
+                                        onPressed: isBusy
+                                            ? null
+                                            : () => _pickDateTime(
+                                                _endsAtController,
+                                              ),
+                                        icon: const Icon(
+                                          Icons.calendar_today_outlined,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _timezoneController,
+                              textInputAction: TextInputAction.next,
+                              decoration: appFieldDecoration(
+                                label: l10n.eventFormTimezoneLabel,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _locationNameController,
+                              textInputAction: TextInputAction.next,
+                              decoration: appFieldDecoration(
+                                label: l10n.eventFormLocationNameLabel,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            AddressAutocompleteField(
+                              controller: _locationAddressController,
+                              textInputAction: TextInputAction.next,
+                              labelText: l10n.eventFormLocationAddressLabel,
+                              hintText: l10n.pick(
+                                vi: 'Số nhà, đường, phường/xã, quận/huyện...',
+                                en: 'Street, ward, district...',
+                              ),
+                              maxLines: 2,
+                            ),
+                            const SizedBox(height: 14),
+                            AppWorkspaceSurface(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.pick(
+                                      vi: 'Xem nhanh',
+                                      en: 'Quick check',
+                                    ),
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _SummaryRow(
+                                    label: l10n.pick(
+                                      vi: 'Lịch diễn ra',
+                                      en: 'Schedule',
+                                    ),
+                                    value: schedulePreview.isEmpty
+                                        ? l10n.eventFieldUnset
+                                        : schedulePreview,
+                                  ),
+                                  _SummaryRow(
+                                    label: l10n.pick(
+                                      vi: 'Địa điểm',
+                                      en: 'Location',
+                                    ),
+                                    value: locationPreview.isEmpty
+                                        ? l10n.eventFieldUnset
+                                        : locationPreview,
+                                    isLast: true,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          if (_step == 2) ...[
+                            Text(
+                              l10n.eventFormReminderSectionTitle,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              l10n.pick(
+                                vi: 'Giữ ít mốc nhắc nhưng đủ để không bỏ sót việc quan trọng.',
+                                en: 'Keep reminders focused so important follow-ups are not missed.',
+                              ),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            if (_aiSuggestion != null &&
+                                _aiSuggestion!
+                                    .recommendedReminderOffsetsMinutes
+                                    .isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              _buildReminderSuggestionCard(context),
+                              const SizedBox(height: 10),
+                            ],
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final offset in _reminderOffsets)
+                                  InputChip(
+                                    key: Key('event-reminder-chip-$offset'),
+                                    label: Text(_humanizeOffset(offset)),
+                                    onDeleted: () =>
+                                        _removeReminderOffset(offset),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton(
+                                  onPressed: () => _addReminderOffset(10080),
+                                  child: Text(l10n.eventFormReminderPresetWeek),
+                                ),
+                                OutlinedButton(
+                                  onPressed: () => _addReminderOffset(1440),
+                                  child: Text(l10n.eventFormReminderPresetDay),
+                                ),
+                                OutlinedButton(
+                                  onPressed: () => _addReminderOffset(120),
+                                  child: Text(
+                                    l10n.eventFormReminderPresetHours,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    key: const Key('event-reminder-input'),
+                                    controller: _reminderInputController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: appFieldDecoration(
+                                      label: l10n.eventFormReminderCustomLabel,
+                                      hintText:
+                                          l10n.eventFormReminderCustomHint,
+                                      errorText: _reminderInputError,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                FilledButton.tonalIcon(
+                                  key: const Key('event-reminder-add-button'),
+                                  onPressed: _addReminderOffsetFromInput,
+                                  icon: const Icon(Icons.add_alert_outlined),
+                                  label: Text(l10n.eventFormReminderAddAction),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            AppWorkspaceSurface(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.pick(
+                                      vi: 'Tóm tắt trước khi lưu',
+                                      en: 'Review before saving',
+                                    ),
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _SummaryRow(
+                                    label: l10n.eventFieldType,
+                                    value: l10n.eventTypeLabel(_selectedType),
+                                  ),
+                                  _SummaryRow(
+                                    label: l10n.pick(
+                                      vi: 'Chi hoặc người liên quan',
+                                      en: 'Branch or related member',
+                                    ),
+                                    value:
+                                        _joinNonEmptyText([
+                                          branchSummary,
+                                          targetSummary,
+                                        ]).isEmpty
+                                        ? l10n.eventFieldUnset
+                                        : _joinNonEmptyText([
+                                            branchSummary,
+                                            targetSummary,
+                                          ]),
+                                  ),
+                                  _SummaryRow(
+                                    label: l10n.pick(
+                                      vi: 'Lịch diễn ra',
+                                      en: 'Schedule',
+                                    ),
+                                    value: schedulePreview.isEmpty
+                                        ? l10n.eventFieldUnset
+                                        : schedulePreview,
+                                  ),
+                                  _SummaryRow(
+                                    label: l10n.pick(
+                                      vi: 'Địa điểm',
+                                      en: 'Location',
+                                    ),
+                                    value: locationPreview.isEmpty
+                                        ? l10n.eventFieldUnset
+                                        : locationPreview,
+                                  ),
+                                  _SummaryRow(
+                                    label: l10n.pick(
+                                      vi: 'Nhắc trước',
+                                      en: 'Reminders',
+                                    ),
+                                    value: reminderPreview,
+                                    isLast: true,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        key: const Key('event-save-button'),
-                        onPressed: isBusy ? null : _submitOrContinue,
-                        icon: isBusy
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(
-                                isFinalStep
-                                    ? Icons.save_outlined
-                                    : Icons.arrow_forward,
-                              ),
-                        label: Text(
-                          isFinalStep
-                              ? l10n.eventFormSaveAction
-                              : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: isBusy
+                                ? null
+                                : _step == 0
+                                ? () => Navigator.of(context).pop()
+                                : () {
+                                    setState(() {
+                                      _validationIssue = null;
+                                      _submitError = null;
+                                      _step -= 1;
+                                    });
+                                  },
+                            icon: Icon(
+                              _step == 0 ? Icons.close : Icons.arrow_back,
+                            ),
+                            label: Text(
+                              _step == 0
+                                  ? l10n.profileCancelAction
+                                  : l10n.pick(vi: 'Quay lại', en: 'Back'),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: AppActionButton(
+                            buttonKey: const Key('event-save-button'),
+                            isLoading: isBusy,
+                            icon: isFinalStep
+                                ? Icons.save_outlined
+                                : Icons.arrow_forward,
+                            label: isFinalStep
+                                ? l10n.eventFormSaveAction
+                                : l10n.pick(vi: 'Tiếp tục', en: 'Continue'),
+                            onPressed: isBusy ? null : _submitOrContinue,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -3430,6 +4097,31 @@ class _MessageCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _EventSuggestionPreviewRow extends StatelessWidget {
+  const _EventSuggestionPreviewRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(value, style: theme.textTheme.bodyMedium),
+      ],
     );
   }
 }

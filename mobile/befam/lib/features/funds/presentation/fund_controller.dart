@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/services/performance_measurement_logger.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/fund_draft.dart';
 import '../models/fund_profile.dart';
@@ -16,15 +17,22 @@ class FundController extends ChangeNotifier {
     required FundRepository repository,
     required AuthSession session,
     TreasurerDashboardRepository? treasurerDashboardRepository,
+    PerformanceMeasurementLogger? performanceLogger,
   }) : _repository = repository,
        _session = session,
        _treasurerDashboardRepository =
            treasurerDashboardRepository ??
-           createDefaultTreasurerDashboardRepository(session: session);
+           createDefaultTreasurerDashboardRepository(session: session),
+       _performanceLogger =
+           performanceLogger ??
+           PerformanceMeasurementLogger(
+             defaultSlowThreshold: const Duration(milliseconds: 900),
+           );
 
   final FundRepository _repository;
   final AuthSession _session;
   final TreasurerDashboardRepository _treasurerDashboardRepository;
+  final PerformanceMeasurementLogger _performanceLogger;
 
   bool _isLoading = true;
   bool _isLoadingTreasurerDashboard = false;
@@ -101,9 +109,20 @@ class FundController extends ChangeNotifier {
 
     _treasurerDashboardErrorMessage = null;
     _isLoadingTreasurerDashboard = hasClanContext;
-    final workspaceFuture = _repository.loadWorkspace(session: _session);
+    final workspaceFuture = _performanceLogger.measureAsync(
+      metric: 'funds.workspace_refresh',
+      warnAfter: const Duration(milliseconds: 900),
+      dimensions: const {'surface': 'funds'},
+      action: () => _repository.loadWorkspace(session: _session),
+    );
     final dashboardFuture = hasClanContext
-        ? _treasurerDashboardRepository.loadDashboard(session: _session)
+        ? _performanceLogger.measureAsync(
+            metric: 'funds.treasurer_dashboard_refresh',
+            warnAfter: const Duration(milliseconds: 900),
+            dimensions: const {'surface': 'funds'},
+            action: () =>
+                _treasurerDashboardRepository.loadDashboard(session: _session),
+          )
         : Future<TreasurerDashboardSnapshot>.value(
             TreasurerDashboardSnapshot.empty(clanId: _session.clanId ?? ''),
           );
