@@ -146,6 +146,36 @@ void main() {
     expect(find.byKey(const Key('web-app-entry-smoke')), findsNothing);
   });
 
+  testWidgets('landing primary CTA opens app entry instead of marketing loop', (
+    tester,
+  ) async {
+    await pumpWebRouter(tester, initialLocation: '/');
+
+    await tester.tap(find.text('Mở ứng dụng').first);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('web-app-entry-smoke')), findsOneWidget);
+    expect(find.byType(WebLandingPage), findsNothing);
+  });
+
+  testWidgets('separates clan funds from service plans across web pages', (
+    tester,
+  ) async {
+    await pumpWebRouter(tester, initialLocation: '/');
+
+    expect(find.text('Quỹ họ'), findsWidgets);
+    expect(find.text('Gói dịch vụ'), findsWidgets);
+    expect(find.text('Mua và nâng cấp trong app.'), findsOneWidget);
+    expect(find.text('Quỹ và quyền dùng'), findsNothing);
+
+    await pumpWebRouter(tester, initialLocation: '/befam-info');
+
+    expect(find.text('Quỹ họ'), findsWidgets);
+    expect(find.text('Gói dịch vụ'), findsNothing);
+    expect(find.text('Quỹ và quyền dùng'), findsNothing);
+    expect(find.text('Dành cho ban điều hành họ tộc'), findsOneWidget);
+  });
+
   testWidgets('shows compact navigation on narrow width', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
