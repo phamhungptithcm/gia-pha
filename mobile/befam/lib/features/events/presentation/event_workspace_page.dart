@@ -2627,26 +2627,29 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              SwitchListTile.adaptive(
-                                key: const Key('event-recurring-switch'),
-                                value: _isRecurring,
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(
-                                  l10n.eventFormRecurringMemorialLabel,
+                              Material(
+                                type: MaterialType.transparency,
+                                child: SwitchListTile.adaptive(
+                                  key: const Key('event-recurring-switch'),
+                                  value: _isRecurring,
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    l10n.eventFormRecurringMemorialLabel,
+                                  ),
+                                  subtitle: _isRecurring
+                                      ? Text(
+                                          l10n.pick(
+                                            vi: 'Lặp lại hằng năm',
+                                            en: 'Repeats yearly',
+                                          ),
+                                        )
+                                      : Text(l10n.eventRecurringNo),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _isRecurring = value;
+                                    });
+                                  },
                                 ),
-                                subtitle: _isRecurring
-                                    ? Text(
-                                        l10n.pick(
-                                          vi: 'Lặp lại hằng năm',
-                                          en: 'Repeats yearly',
-                                        ),
-                                      )
-                                    : Text(l10n.eventRecurringNo),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _isRecurring = value;
-                                  });
-                                },
                               ),
                             ],
                             const SizedBox(height: 12),
