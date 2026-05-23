@@ -1303,35 +1303,37 @@ class _LongevityCelebrationListPage extends StatelessWidget {
                   en: '${candidate.milestoneAge} years',
                 );
                 return Card(
-                  child: ListTile(
-                    key: Key('event-longevity-member-row-${member.id}'),
-                    onTap: () => onOpenMemberDetail(candidate),
-                    title: Text(
-                      member.fullName,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: ListTile(
+                      key: Key('event-longevity-member-row-${member.id}'),
+                      onTap: () => onOpenMemberDetail(candidate),
+                      title: Text(
+                        member.fullName,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (branchName.isNotEmpty)
-                            Text(
-                              branchName,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          if (address.isNotEmpty)
-                            Text(
-                              address,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: Colors.black54),
-                            ),
-                        ],
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (branchName.isNotEmpty)
+                              Text(
+                                branchName,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            if (address.isNotEmpty)
+                              Text(
+                                address,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.black54),
+                              ),
+                          ],
+                        ),
                       ),
+                      trailing: Chip(label: Text(ageLabel)),
                     ),
-                    trailing: Chip(label: Text(ageLabel)),
                   ),
                 );
               },

@@ -34,7 +34,7 @@ jobs:
 
   deep-ios-debug-full:
     name: Deep E2E - iOS Debug Full
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Skip iOS deep E2E
