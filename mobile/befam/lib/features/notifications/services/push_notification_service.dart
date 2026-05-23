@@ -130,6 +130,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 void configurePushBackgroundHandler() {
+  if (kIsWeb) {
+    AppLogger.info(
+      'FCM background handler is managed by the web service worker.',
+    );
+    return;
+  }
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 }
 

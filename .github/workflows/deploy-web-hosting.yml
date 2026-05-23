@@ -165,6 +165,41 @@ jobs:
             firebase deploy --project "$project" --config "$firebase_config" --non-interactive --only hosting
           fi
 
+      - name: Smoke test deployed web hosting
+        env:
+          BEFAM_WEB_BASE_URL: ${{ vars.BEFAM_WEB_BASE_URL }}
+        run: |
+          set -euo pipefail
+          base_url="${BEFAM_WEB_BASE_URL%/}"
+          if [ -z "$base_url" ]; then
+            echo "::error::BEFAM_WEB_BASE_URL is required for production hosting smoke tests."
+            exit 1
+          fi
+          routes=("/" "/app" "/privacy" "/terms" "/account-deletion" "/manifest.json")
+          for route in "${routes[@]}"; do
+            url="${base_url}${route}"
+            status="$(curl -L -sS -o /tmp/befam-web-smoke-body -w "%{http_code}" "$url")"
+            if [ "$status" != "200" ]; then
+              echo "::error::Expected HTTP 200 for ${url}; got ${status}."
+              exit 1
+            fi
+          done
+
+          headers="$(curl -L -sSI "${base_url}/")"
+          required_headers=(
+            "content-security-policy:"
+            "x-content-type-options: nosniff"
+            "x-frame-options: DENY"
+            "referrer-policy: strict-origin-when-cross-origin"
+            "permissions-policy:"
+          )
+          for header in "${required_headers[@]}"; do
+            if ! grep -qi "$header" <<<"$headers"; then
+              echo "::error::Missing required hosting security header: ${header}"
+              exit 1
+            fi
+          done
+
   notify-deploy-hosting-failure:
     name: Notify Hosting Deploy Failure
     if: ${{ always() && contains(join(needs.*.result, ','), 'failure') }}

@@ -133,6 +133,7 @@ case "$ENV_NAME" in
       GOOGLE_PLAY_PACKAGE_NAME
       BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS
       BEFAM_ENABLE_APP_CHECK
+      BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
       BEFAM_FIREBASE_PROJECT_ID
       BEFAM_FIREBASE_STORAGE_BUCKET
       BEFAM_FIREBASE_ANDROID_API_KEY
@@ -163,9 +164,7 @@ case "$ENV_NAME" in
       BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
       BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
     )
-    recommended_vars=(
-      BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
-    )
+    recommended_vars=()
     required_secrets=(
       GCP_WORKLOAD_IDENTITY_PROVIDER
       GCP_SERVICE_ACCOUNT_EMAIL
@@ -253,6 +252,8 @@ if [[ "$ENV_NAME" == "production" ]]; then
   otp_provider="$(get_var_value OTP_PROVIDER)"
   callable_enforce_app_check="$(get_var_value CALLABLE_ENFORCE_APP_CHECK)"
   befam_web_base_url="$(get_var_value BEFAM_WEB_BASE_URL)"
+  befam_enable_app_check="$(get_var_value BEFAM_ENABLE_APP_CHECK)"
+  befam_app_check_web_key="$(get_var_value BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY)"
   befam_ios_store_url="$(get_var_value BEFAM_IOS_APP_STORE_URL)"
   befam_android_store_url="$(get_var_value BEFAM_ANDROID_PLAY_STORE_URL)"
   firebase_project_id="$(get_var_value FIREBASE_PROJECT_ID)"
@@ -274,6 +275,14 @@ if [[ "$ENV_NAME" == "production" ]]; then
 
   if [[ -n "$callable_enforce_app_check" && "$callable_enforce_app_check" != "true" ]]; then
     invalid_required_values+=("CALLABLE_ENFORCE_APP_CHECK must be true for production")
+  fi
+
+  if [[ -n "$befam_enable_app_check" && "$befam_enable_app_check" != "true" ]]; then
+    invalid_required_values+=("BEFAM_ENABLE_APP_CHECK must be true for production")
+  fi
+
+  if [[ "$befam_enable_app_check" == "true" && -z "$befam_app_check_web_key" ]]; then
+    invalid_required_values+=("BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY is required when production App Check is enabled")
   fi
 
   if [[ -n "$befam_web_base_url" && ! "$befam_web_base_url" =~ ^https:// ]]; then
