@@ -231,11 +231,13 @@ for key in "${required_vars[@]}"; do
 done
 
 missing_recommended_vars=()
-for key in "${recommended_vars[@]}"; do
-  if ! contains_name "$vars_json" "$key"; then
-    missing_recommended_vars+=("$key")
-  fi
-done
+if [[ ${#recommended_vars[@]} -gt 0 ]]; then
+  for key in "${recommended_vars[@]}"; do
+    if ! contains_name "$vars_json" "$key"; then
+      missing_recommended_vars+=("$key")
+    fi
+  done
+fi
 
 missing_required_secrets=()
 for key in "${required_secrets[@]}"; do
