@@ -340,6 +340,18 @@ jobs:
           BEFAM_ADMOB_IOS_BANNER_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_BANNER_UNIT_ID }}
           BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID }}
           BEFAM_ADMOB_IOS_REWARDED_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_REWARDED_UNIT_ID }}
+          BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
+          BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
+          BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY: ${{ vars.BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY }}
+          BEFAM_FIREBASE_PROJECT_ID: ${{ vars.BEFAM_FIREBASE_PROJECT_ID }}
+          BEFAM_FIREBASE_STORAGE_BUCKET: ${{ vars.BEFAM_FIREBASE_STORAGE_BUCKET }}
+          BEFAM_FIREBASE_WEB_API_KEY: ${{ vars.BEFAM_FIREBASE_WEB_API_KEY }}
+          BEFAM_FIREBASE_WEB_APP_ID: ${{ vars.BEFAM_FIREBASE_WEB_APP_ID }}
+          BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
+          BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_WEB_BASE_URL: ${{ vars.BEFAM_WEB_BASE_URL }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BILLING_WEBHOOK_SECRET: ${{ secrets.BILLING_WEBHOOK_SECRET }}
           APPLE_SHARED_SECRET: ${{ secrets.APPLE_SHARED_SECRET }}
         run: |
@@ -363,6 +375,18 @@ jobs:
             BEFAM_ADMOB_IOS_BANNER_UNIT_ID
             BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
             BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
+            BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS
+            BEFAM_ENABLE_APP_CHECK
+            BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_STORAGE_BUCKET
+            BEFAM_FIREBASE_WEB_API_KEY
+            BEFAM_FIREBASE_WEB_APP_ID
+            BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_WEB_AUTH_DOMAIN
+            BEFAM_FIREBASE_WEB_MEASUREMENT_ID
+            BEFAM_WEB_BASE_URL
+            BEFAM_OTP_PROVIDER
             BILLING_WEBHOOK_SECRET
             APPLE_SHARED_SECRET
           )
@@ -387,6 +411,30 @@ jobs:
           fi
           if [ "$CALLABLE_ENFORCE_APP_CHECK" != "true" ]; then
             echo "::error::Production environment must set CALLABLE_ENFORCE_APP_CHECK=true. Current: ${CALLABLE_ENFORCE_APP_CHECK}."
+            exit 1
+          fi
+          if [ "$BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS" != "false" ]; then
+            echo "::error::Production web must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS}."
+            exit 1
+          fi
+          if [ "$BEFAM_ENABLE_APP_CHECK" != "true" ]; then
+            echo "::error::Production web must set BEFAM_ENABLE_APP_CHECK=true. Current: ${BEFAM_ENABLE_APP_CHECK}."
+            exit 1
+          fi
+          if [ -z "${BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY:-}" ]; then
+            echo "::error::Production web App Check requires BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY."
+            exit 1
+          fi
+          if [ "$BEFAM_OTP_PROVIDER" != "twilio" ]; then
+            echo "::error::Production web must set BEFAM_OTP_PROVIDER=twilio. Current: ${BEFAM_OTP_PROVIDER}."
+            exit 1
+          fi
+          if [[ "$BEFAM_WEB_BASE_URL" != https://* ]]; then
+            echo "::error::Production web must set BEFAM_WEB_BASE_URL to an https:// URL."
+            exit 1
+          fi
+          if [ "$BEFAM_FIREBASE_PROJECT_ID" != "$FIREBASE_PROJECT_ID" ]; then
+            echo "::error::BEFAM_FIREBASE_PROJECT_ID must match FIREBASE_PROJECT_ID for production web."
             exit 1
           fi
 
@@ -1135,9 +1183,12 @@ jobs:
           fi
           required_web_keys=(
             BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_STORAGE_BUCKET
             BEFAM_FIREBASE_WEB_API_KEY
             BEFAM_FIREBASE_WEB_APP_ID
             BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_WEB_AUTH_DOMAIN
+            BEFAM_WEB_BASE_URL
           )
           for key in "${required_web_keys[@]}"; do
             if [ -z "${!key:-}" ]; then
@@ -1145,6 +1196,10 @@ jobs:
               exit 1
             fi
           done
+          if [ "$enable_app_check" = "true" ] && [ -z "${BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY:-}" ]; then
+            echo "::error::Production web App Check is enabled but BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY is missing."
+            exit 1
+          fi
           web_base_url="${BEFAM_WEB_BASE_URL:-}"
           if [ -z "$web_base_url" ] && [ -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]; then
             web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"

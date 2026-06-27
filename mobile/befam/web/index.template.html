@@ -6,6 +6,9 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 
   <title>BeFam | Gia phả sống cho dòng họ Việt</title>
@@ -80,7 +83,7 @@
         "name": "Khi nào gói dịch vụ được kích hoạt sau thanh toán?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Gói chỉ được kích hoạt sau khi hệ thống nhận callback hoặc webhook thanh toán thành công. Trạng thái chờ hoặc thất bại sẽ không cấp quyền mới."
+          "text": "Gói chỉ được kích hoạt sau khi giao dịch trong App Store hoặc Google Play được xác minh thành công. Trạng thái chờ hoặc thất bại sẽ không cấp quyền mới."
         }
       },
       {
@@ -128,7 +131,7 @@
 
     .befam-static-shell {
       min-height: 100vh;
-      padding: 112px 24px 88px;
+      padding: 112px 24px 32px;
     }
 
     .befam-static-nav {
@@ -175,7 +178,6 @@
     }
 
     .befam-static-logo {
-      position: relative;
       width: 38px;
       height: 38px;
       border-radius: 8px;
@@ -183,42 +185,14 @@
       place-items: center;
       overflow: hidden;
       border: 1px solid rgba(49, 85, 255, 0.22);
-      background: #0f172a;
-      color: #ffffff;
+      background: linear-gradient(135deg, #ffffff, #f4f8ff);
       box-shadow: 0 12px 24px rgba(49, 85, 255, 0.16);
     }
 
-    .befam-static-logo::before,
-    .befam-static-logo::after {
-      position: absolute;
-      content: "";
-      border-radius: 2px;
-    }
-
-    .befam-static-logo::before {
-      right: -5px;
-      top: -5px;
-      width: 22px;
-      height: 22px;
-      background: #3155ff;
-      transform: rotate(18deg);
-    }
-
-    .befam-static-logo::after {
-      left: -4px;
-      bottom: -4px;
-      width: 18px;
-      height: 18px;
-      background: #e34cff;
-      transform: rotate(18deg);
-    }
-
-    .befam-static-logo b {
-      position: relative;
-      z-index: 1;
-      font-size: 13px;
-      font-weight: 950;
-      letter-spacing: 0;
+    .befam-static-logo svg {
+      width: 30px;
+      height: 30px;
+      display: block;
     }
 
     .befam-static-brand-copy,
@@ -243,7 +217,7 @@
     .befam-static-links {
       flex: 1;
       justify-content: center;
-      gap: 28px;
+      gap: 22px;
     }
 
     .befam-static-links a,
@@ -279,7 +253,8 @@
     }
 
     .befam-static-links a:hover,
-    .befam-static-auth:hover {
+    .befam-static-auth:hover,
+    .befam-static-links a[aria-current="page"] {
       color: #3155ff;
     }
 
@@ -477,9 +452,12 @@
     }
 
     .befam-lineage-chip {
-      min-width: 152px;
-      padding: 15px 17px;
+      min-width: 144px;
+      max-width: 190px;
+      padding: 14px 15px;
       border-radius: 8px;
+      animation: befam-bubble-bounce 5.4s ease-in-out infinite;
+      will-change: transform;
     }
 
     .befam-lineage-chip span {
@@ -493,30 +471,73 @@
 
     .befam-lineage-chip strong {
       display: block;
-      margin-top: 8px;
+      margin-top: 0;
       color: #0f172a;
-      font-size: 15px;
+      font-size: 14px;
       line-height: 1.18;
     }
 
     .befam-lineage-chip.one {
-      left: 34px;
+      left: 24px;
       top: 30px;
+      animation-delay: 0ms;
     }
 
     .befam-lineage-chip.two {
-      right: 26px;
+      right: 18px;
       top: 44px;
+      animation-delay: 620ms;
     }
 
     .befam-lineage-chip.three {
-      left: 58px;
-      bottom: 54px;
+      left: 24px;
+      top: 178px;
+      animation-delay: 1180ms;
     }
 
     .befam-lineage-chip.four {
-      right: 40px;
-      bottom: 34px;
+      right: 24px;
+      top: 188px;
+      animation-delay: 1740ms;
+    }
+
+    .befam-lineage-chip.five {
+      left: 78px;
+      bottom: 28px;
+      animation-delay: 2360ms;
+    }
+
+    .befam-lineage-chip.six {
+      right: 78px;
+      bottom: 24px;
+      animation-delay: 2960ms;
+    }
+
+    .befam-lineage-chip.seven {
+      left: calc(50% - 98px);
+      top: 50px;
+      min-width: 196px;
+      max-width: 196px;
+      animation-delay: 3580ms;
+    }
+
+    @keyframes befam-bubble-bounce {
+      0%,
+      100% {
+        transform: translate3d(0, 0, 0);
+      }
+      18% {
+        transform: translate3d(0, -9px, 0);
+      }
+      34% {
+        transform: translate3d(0, 3px, 0);
+      }
+      52% {
+        transform: translate3d(0, -5px, 0);
+      }
+      70% {
+        transform: translate3d(0, 1px, 0);
+      }
     }
 
     .befam-static-console {
@@ -580,22 +601,28 @@
     }
 
     .befam-static-footer {
-      position: fixed;
-      left: 50%;
-      bottom: 22px;
+      position: sticky;
+      bottom: 18px;
       z-index: 20;
       width: min(1480px, calc(100% - 48px));
-      min-height: 52px;
-      padding: 8px 14px;
+      min-height: 64px;
+      padding: 10px 14px 10px 18px;
+      margin: 20px auto 0;
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 20px;
       border: 1px solid rgba(126, 138, 163, 0.20);
       border-radius: 8px;
       background: rgba(255, 255, 255, 0.9);
       box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
       backdrop-filter: blur(18px);
-      transform: translateX(-50%);
+    }
+
+    .befam-static-footer-brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-width: 230px;
     }
 
     .befam-static-footer strong {
@@ -613,7 +640,7 @@
     .befam-static-footer-links {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 10px;
       margin-left: auto;
     }
 
@@ -622,15 +649,87 @@
       font-size: 12px;
       font-weight: 800;
       text-decoration: none;
+      transition:
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        color 140ms ease,
+        transform 140ms ease;
     }
 
     .befam-static-footer a:hover {
       color: #3155ff;
     }
 
+    .befam-static-store-links {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .befam-static-store-links a {
+      min-width: 138px;
+      min-height: 42px;
+      padding: 7px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 8px;
+      background: #0f172a;
+      color: #ffffff;
+      box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+    }
+
+    .befam-static-store-links a:hover,
+    .befam-static-store-links a:focus-visible {
+      border-color: rgba(49, 85, 255, 0.42);
+      color: #ffffff;
+      outline: none;
+      transform: translateY(-1px);
+      box-shadow: 0 16px 30px rgba(15, 23, 42, 0.18);
+    }
+
+    .befam-store-icon {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .befam-store-copy {
+      display: grid;
+      gap: 2px;
+    }
+
+    .befam-store-copy span,
+    .befam-store-copy strong {
+      display: block;
+      line-height: 1;
+    }
+
+    .befam-store-copy span {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .befam-store-copy strong {
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
     @media (max-width: 1160px) {
       .befam-static-links {
-        display: none;
+        gap: 16px;
       }
 
       .befam-static-hero {
@@ -644,7 +743,7 @@
 
     @media (max-width: 780px) {
       .befam-static-shell {
-        padding: 92px 14px 96px;
+        padding: 92px 14px 28px;
       }
 
       .befam-static-nav,
@@ -654,12 +753,10 @@
         max-width: calc(100vw - 28px);
       }
 
-      .befam-static-nav,
       .befam-static-copy,
-      .befam-static-visual,
-      .befam-static-proof {
-        width: calc(100% - 14px);
-        max-width: calc(100% - 14px);
+      .befam-static-visual {
+        width: 100%;
+        max-width: 100%;
       }
 
       .befam-static-nav {
@@ -677,18 +774,30 @@
         transform: none;
         bottom: auto;
         min-height: 0;
-        padding: 8px 10px;
+        padding: 12px;
         flex-wrap: wrap;
-        gap: 6px 10px;
+        gap: 10px 12px;
       }
 
-      .befam-static-footer small {
-        display: none;
+      .befam-static-footer-brand {
+        width: 100%;
+        min-width: 0;
       }
 
       .befam-static-footer-links {
         width: 100%;
         margin-left: 0;
+      }
+
+      .befam-static-store-links {
+        width: 100%;
+        justify-content: stretch;
+        order: 3;
+      }
+
+      .befam-static-store-links a {
+        flex: 1 1 0;
+        min-width: 0;
       }
 
       .befam-static-brand {
@@ -700,6 +809,10 @@
         display: flex;
         flex: 0 0 auto;
         gap: 0;
+      }
+
+      .befam-static-links {
+        display: none;
       }
 
       .befam-static-auth {
@@ -746,8 +859,8 @@
       }
 
       .befam-static-title {
-        max-width: 9ch;
-        font-size: 43px;
+        max-width: 12ch;
+        font-size: 40px;
       }
 
       .befam-static-lead {
@@ -801,6 +914,8 @@
         min-width: 0;
         padding: 11px 12px;
         overflow-wrap: break-word;
+        animation-name: befam-bubble-bounce-mobile;
+        animation-duration: 5.8s;
       }
 
       .befam-lineage-chip strong {
@@ -830,8 +945,25 @@
       *,
       *::before,
       *::after {
+        animation: none !important;
         scroll-behavior: auto !important;
         transition-duration: 1ms !important;
+      }
+    }
+
+    @keyframes befam-bubble-bounce-mobile {
+      0%,
+      100% {
+        transform: translate3d(0, 0, 0);
+      }
+      24% {
+        transform: translate3d(0, -3px, 0);
+      }
+      48% {
+        transform: translate3d(0, 1px, 0);
+      }
+      72% {
+        transform: translate3d(0, -2px, 0);
       }
     }
   </style>
@@ -857,42 +989,48 @@
   <main id="befam-static-shell" class="befam-static-shell" aria-label="BeFam">
     <header class="befam-static-nav">
       <a class="befam-static-brand" href="/" aria-label="BeFam trang chủ">
-        <span class="befam-static-logo" aria-hidden="true"><b>BF</b></span>
+        <span class="befam-static-logo" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img">
+            <g fill="none" stroke-linecap="round" stroke-width="3.6">
+              <ellipse cx="24" cy="24" rx="14" ry="5.5" stroke="#3155ff" transform="rotate(14 24 24)"/>
+              <ellipse cx="24" cy="24" rx="14" ry="5.5" stroke="#32c6b8" transform="rotate(62 24 24)"/>
+              <ellipse cx="24" cy="24" rx="14" ry="5.5" stroke="#f4b740" transform="rotate(118 24 24)"/>
+              <ellipse cx="24" cy="24" rx="14" ry="5.5" stroke="#e34cff" transform="rotate(166 24 24)"/>
+            </g>
+            <polygon points="24,18.8 28.4,21.4 28.4,26.6 24,29.2 19.6,26.6 19.6,21.4" fill="#0f172a"/>
+          </svg>
+        </span>
         <span class="befam-static-brand-copy">
           <strong>BeFam</strong>
           <span>Gia phả sống cho dòng họ Việt</span>
         </span>
       </a>
       <nav class="befam-static-links" aria-label="Liên kết chính">
-        <a href="/befam-info">Gia phả</a>
-        <a href="/befam-info">Giỗ lễ</a>
-        <a href="/befam-info">Quỹ họ</a>
-        <a href="/app">Gói dịch vụ</a>
-        <a href="/privacy">Bảo mật</a>
+        <a href="/" data-static-nav="/">Trang Chủ</a>
+        <a href="/about-us" data-static-nav="/about-us">Câu Chuyện</a>
+        <a href="/befam-info" data-static-nav="/befam-info">Về Chúng tôi</a>
       </nav>
       <div class="befam-static-actions">
-        <a class="befam-static-auth" href="/app">Đăng nhập</a>
-        <a class="befam-static-action primary" href="/app">Mở BeFam</a>
+        <a class="befam-static-action primary" href="/app">Mở ứng dụng</a>
       </div>
     </header>
 
     <section class="befam-static-hero">
       <div class="befam-static-copy">
-        <p class="befam-static-kicker">Dòng họ / Gia phả số</p>
-        <h1 class="befam-static-title">
+        <p class="befam-static-kicker" data-static-kicker>Dòng họ / Gia phả số</p>
+        <h1 class="befam-static-title" data-static-title>
           <span>Gia phả sống.</span>
           <span class="accent">BeFam giữ ký ức.</span>
         </h1>
-        <p class="befam-static-lead">Lưu người thân, ngày giỗ, sự kiện và quỹ họ trong một nơi rõ ràng.</p>
+        <p class="befam-static-lead" data-static-lead>Lưu người thân, ngày giỗ, sự kiện và quỹ họ trong một nơi rõ ràng.</p>
         <div class="befam-static-cta">
-          <a class="befam-static-action primary" href="/app">Mở ứng dụng</a>
-          <a class="befam-static-action secondary" href="/befam-info">Câu chuyện</a>
+          <a class="befam-static-action primary" href="/app" data-static-primary>Mở ứng dụng</a>
+          <a class="befam-static-action secondary" href="/about-us" data-static-secondary>Câu chuyện</a>
         </div>
       </div>
       <aside class="befam-static-visual" aria-label="Không gian BeFam">
         <div class="befam-static-visual-head">
           <span>Nhà mình</span>
-          <span>Web + app</span>
         </div>
         <div class="befam-lineage-map">
           <span class="befam-lineage-ring"></span>
@@ -905,68 +1043,231 @@
             </div>
           </div>
           <div class="befam-lineage-chip one">
-            <span>Gia phả</span>
-            <strong>Thế hệ và quan hệ</strong>
+            <strong>Sơ đồ phả hệ</strong>
           </div>
           <div class="befam-lineage-chip two">
-            <span>Ngày giỗ</span>
-            <strong>Lịch âm dương</strong>
+            <strong>Lịch Âm Dương</strong>
+          </div>
+          <div class="befam-lineage-chip seven">
+            <strong>Sự kiện giỗ chạp, mừng thọ</strong>
           </div>
           <div class="befam-lineage-chip three">
-            <span>Thành viên</span>
-            <strong>Quyền theo vai trò</strong>
+            <strong>Quản lý quỹ</strong>
           </div>
           <div class="befam-lineage-chip four">
-            <span>Quỹ họ</span>
-            <strong>Thu chi minh bạch</strong>
+            <strong>Thông tin họ hàng</strong>
+          </div>
+          <div class="befam-lineage-chip five">
+            <strong>Xem người thân xung quanh</strong>
+          </div>
+          <div class="befam-lineage-chip six">
+            <strong>Liên hệ dễ dàng</strong>
           </div>
         </div>
         <div class="befam-static-console" aria-label="Tác vụ mẫu">
-          <div><i>$</i> befam mở cây nhà</div>
-          <div><i>$</i> befam nhắc ngày giỗ</div>
-          <div><i>$</i> befam kiểm tra quỹ họ</div>
+          <div><i>$</i> befam mở sơ đồ phả hệ</div>
+          <div><i>$</i> befam tạo sự kiện mừng thọ</div>
+          <div><i>$</i> befam xem người thân xung quanh</div>
         </div>
       </aside>
     </section>
 
     <section class="befam-static-proof" aria-label="BeFam tập trung vào">
-      <article>
-        <span>Cây gia phả</span>
-        <strong>Rõ quan hệ</strong>
-        <p>Nhìn thế hệ và nhánh họ nhanh hơn.</p>
+      <article data-static-proof="0">
+        <span data-static-proof-label>Cây gia phả</span>
+        <strong data-static-proof-title>Rõ quan hệ</strong>
+        <p data-static-proof-copy>Nhìn thế hệ và nhánh họ nhanh hơn.</p>
       </article>
-      <article>
-        <span>Giỗ lễ</span>
-        <strong>Rõ việc cần làm</strong>
-        <p>Ngày quan trọng không bị trôi mất.</p>
+      <article data-static-proof="1">
+        <span data-static-proof-label>Giỗ lễ</span>
+        <strong data-static-proof-title>Rõ việc cần làm</strong>
+        <p data-static-proof-copy>Ngày quan trọng không bị trôi mất.</p>
       </article>
-      <article>
-        <span>Quỹ họ</span>
-        <strong>Rõ quyền hạn</strong>
-        <p>Dữ liệu nhạy cảm luôn theo vai trò.</p>
+      <article data-static-proof="2">
+        <span data-static-proof-label>Quỹ họ</span>
+        <strong data-static-proof-title>Rõ quyền hạn</strong>
+        <p data-static-proof-copy>Dữ liệu nhạy cảm luôn theo vai trò.</p>
       </article>
-      <article>
-        <span>Gói dịch vụ</span>
-        <strong>Mua trong app</strong>
-        <p>So sánh gói và nâng cấp khi dòng họ cần.</p>
+      <article data-static-proof="3">
+        <span data-static-proof-label>Gói dịch vụ</span>
+        <strong data-static-proof-title>Mua trong app</strong>
+        <p data-static-proof-copy>So sánh gói và nâng cấp khi dòng họ cần.</p>
       </article>
     </section>
     <footer class="befam-static-footer" aria-label="Thông tin BeFam">
-      <strong>BeFam</strong>
-      <small>© 2026 · rõ người, rõ việc</small>
+      <div class="befam-static-footer-brand">
+        <strong>BeFam</strong>
+        <small>© 2026 · rõ người, rõ việc</small>
+      </div>
       <div class="befam-static-footer-links">
         <a href="/privacy">Riêng tư</a>
         <a href="/terms">Điều khoản</a>
         <a href="/account-deletion">Xóa tài khoản</a>
         <a href="mailto:hunpeo97@gmail.com?subject=BeFam%20Support%20Request">Hỗ trợ</a>
       </div>
+      <div class="befam-static-store-links" aria-label="Tải ứng dụng BeFam">
+        <a href="https://apps.apple.com/app/id6760909593" rel="noopener">
+          <span class="befam-store-icon" aria-hidden="true">iOS</span>
+          <span class="befam-store-copy">
+            <span>Tải trên</span>
+            <strong>App Store</strong>
+          </span>
+        </a>
+        <a href="https://play.google.com/store/apps/details?id=com.familyclanapp.befam" rel="noopener">
+          <span class="befam-store-icon" aria-hidden="true">A</span>
+          <span class="befam-store-copy">
+            <span>Tải trên</span>
+            <strong>Google Play</strong>
+          </span>
+        </a>
+      </div>
     </footer>
   </main>
   <script>
     (function () {
-      if (window.location.pathname === '/' || window.location.pathname === '') {
+      var pages = {
+        '/': {
+          title: 'BeFam | Gia phả sống cho dòng họ Việt',
+          kicker: 'Dòng họ / Gia phả số',
+          titleLines: ['Gia phả sống.', 'BeFam giữ ký ức.'],
+          lead: 'Lưu người thân, ngày giỗ, sự kiện và quỹ họ trong một nơi rõ ràng.',
+          primary: ['Mở ứng dụng', '/app'],
+          secondary: ['Câu chuyện', '/about-us'],
+          proof: [
+            ['Cây gia phả', 'Rõ quan hệ', 'Nhìn thế hệ và nhánh họ nhanh hơn.'],
+            ['Giỗ lễ', 'Rõ việc cần làm', 'Ngày quan trọng không bị trôi mất.'],
+            ['Quỹ họ', 'Rõ quyền hạn', 'Dữ liệu nhạy cảm luôn theo vai trò.'],
+            ['Gói dịch vụ', 'Mua trong app', 'So sánh gói và nâng cấp khi dòng họ cần.']
+          ]
+        },
+        '/about-us': {
+          title: 'Câu chuyện BeFam | Gia phả sống cho dòng họ Việt',
+          kicker: 'Câu chuyện BeFam',
+          titleLines: ['Có những điều trong nhà.', 'Không nên bị quên.'],
+          lead: 'BeFam được làm để mỗi dòng họ giữ lại tên người thân, ngày giỗ, câu chuyện và việc chung bằng một cách nhẹ nhàng, rõ ràng.',
+          primary: ['Gặp đội ngũ BeFam', '/befam-info'],
+          secondary: ['Mở ứng dụng', '/app'],
+          proof: [
+            ['Ký ức có chỗ ở', 'Không còn rải rác', 'Tên người thân, vai vế và ngày quan trọng được giữ trong một mạch dễ nhớ.'],
+            ['Người ở xa vẫn gần', 'Cùng nhìn một nhà', 'Con cháu ở nhiều nơi vẫn biết ai là ai, hôm nào cần có mặt.'],
+            ['Việc chung bớt nặng', 'Rõ ai phụ trách', 'Giỗ lễ, họp họ và quỹ họ được giao việc, theo dõi nhẹ hơn.'],
+            ['Giữ sự tin cậy', 'Tôn trọng riêng tư', 'Dữ liệu gia đình được đặt trong quyền vai trò, không mở bừa bãi.']
+          ]
+        },
+        '/befam-info': {
+          title: 'Về Hunpeo Labs | Đội ngũ phát triển BeFam',
+          kicker: 'Hunpeo Labs / BeFam',
+          titleLines: ['Hunpeo Labs xây BeFam.', 'Cho gia đình Việt.'],
+          lead: 'Hunpeo Labs là đội ngũ phát triển BeFam, tập trung vào sản phẩm gia đình, dữ liệu riêng tư và công cụ vận hành thực tế cho họ tộc Việt.',
+          primary: ['Mở ứng dụng', '/app'],
+          secondary: ['Câu chuyện', '/about-us'],
+          proof: [
+            ['Đội ngũ sản phẩm', 'Làm gần người dùng', 'Thiết kế, kỹ thuật và QA cùng bám vào việc thật của dòng họ.'],
+            ['Tập trung dữ liệu', 'Riêng tư trước tiên', 'Mỗi thay đổi đều ưu tiên quyền truy cập, bảo mật và ranh giới từng gia đình.'],
+            ['Vận hành thực tế', 'Không chỉ trang trí', 'BeFam được xây để quản lý thành viên, ngày giỗ, quỹ họ và việc chung.'],
+            ['Kênh kết nối', 'Hunpeo Labs', 'Góp ý và hỗ trợ qua email, fanpage hoặc form phản hồi chính thức.']
+          ]
+        }
+      };
+
+      var setText = function (selector, text) {
+        var element = document.querySelector(selector);
+        if (element) {
+          element.textContent = text;
+        }
+      };
+
+      var normalizePath = function (path) {
+        if (!path || path === '') {
+          return '/';
+        }
+        return path.length > 1 ? path.replace(/\/+$/, '') : path;
+      };
+
+      var applyStaticPage = function (path, options) {
+        var route = normalizePath(path);
+        var page = pages[route] || pages['/'];
+        document.title = page.title;
+        setText('[data-static-kicker]', page.kicker);
+        setText('[data-static-lead]', page.lead);
+
+        var title = document.querySelector('[data-static-title]');
+        if (title) {
+          title.innerHTML = '<span>' + page.titleLines[0] + '</span><span class="accent">' + page.titleLines[1] + '</span>';
+        }
+
+        var primary = document.querySelector('[data-static-primary]');
+        if (primary) {
+          primary.textContent = page.primary[0];
+          primary.href = page.primary[1];
+        }
+        var secondary = document.querySelector('[data-static-secondary]');
+        if (secondary) {
+          secondary.textContent = page.secondary[0];
+          secondary.href = page.secondary[1];
+        }
+
+        page.proof.forEach(function (item, index) {
+          var proof = document.querySelector('[data-static-proof="' + index + '"]');
+          if (!proof) {
+            return;
+          }
+          setText('[data-static-proof="' + index + '"] [data-static-proof-label]', item[0]);
+          setText('[data-static-proof="' + index + '"] [data-static-proof-title]', item[1]);
+          setText('[data-static-proof="' + index + '"] [data-static-proof-copy]', item[2]);
+        });
+
+        document.querySelectorAll('[data-static-nav]').forEach(function (link) {
+          if (normalizePath(link.getAttribute('data-static-nav')) === route) {
+            link.setAttribute('aria-current', 'page');
+          } else {
+            link.removeAttribute('aria-current');
+          }
+        });
+
+        if (!options || options.scroll !== false) {
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+          window.scrollTo(0, 0);
+        }
+        var nav = document.querySelector('.befam-static-nav');
+        if (nav) {
+          nav.classList.toggle('is-scrolled', window.scrollY > 12);
+        }
+      };
+
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+      }
+
+      var initialPath = normalizePath(window.location.pathname);
+      if (pages[initialPath]) {
+        applyStaticPage(initialPath, { scroll: false });
+        document.addEventListener('click', function (event) {
+          var link = event.target.closest('a[href]');
+          if (!link) {
+            return;
+          }
+          var url = new URL(link.href, window.location.href);
+          var route = normalizePath(url.pathname);
+          if (url.origin !== window.location.origin || !pages[route]) {
+            return;
+          }
+          event.preventDefault();
+          if (normalizePath(window.location.pathname) !== route) {
+            window.history.pushState({ befamStaticRoute: route }, '', url.pathname);
+          }
+          applyStaticPage(route);
+        });
+        window.addEventListener('popstate', function () {
+          var route = normalizePath(window.location.pathname);
+          if (pages[route]) {
+            applyStaticPage(route);
+          }
+        });
         return;
       }
+
       var script = document.createElement('script');
       script.src = 'flutter_bootstrap.js';
       script.async = true;

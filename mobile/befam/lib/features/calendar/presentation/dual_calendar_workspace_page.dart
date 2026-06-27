@@ -2501,18 +2501,21 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                             },
                           ),
                         const SizedBox(height: 12),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            l10n.pick(
-                              vi: 'Lặp lại hằng năm',
-                              en: 'Repeat annually',
+                        Material(
+                          type: MaterialType.transparency,
+                          child: SwitchListTile.adaptive(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              l10n.pick(
+                                vi: 'Lặp lại hằng năm',
+                                en: 'Repeat annually',
+                              ),
                             ),
+                            value: _isAnnualRecurring,
+                            onChanged: (value) {
+                              setState(() => _isAnnualRecurring = value);
+                            },
                           ),
-                          value: _isAnnualRecurring,
-                          onChanged: (value) {
-                            setState(() => _isAnnualRecurring = value);
-                          },
                         ),
                         const SizedBox(height: 16),
                         AppWorkspaceSurface(
@@ -3721,62 +3724,64 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                       member,
                                       context.l10n,
                                     );
-                                return CheckboxListTile(
-                                  value: isChecked,
-                                  controlAffinity:
-                                      ListTileControlAffinity.trailing,
-                                  title: Text(member.fullName),
-                                  subtitle: Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.secondaryContainer,
-                                            borderRadius: BorderRadius.circular(
-                                              999,
+                                return Material(
+                                  type: MaterialType.transparency,
+                                  child: CheckboxListTile(
+                                    value: isChecked,
+                                    controlAffinity:
+                                        ListTileControlAffinity.trailing,
+                                    title: Text(member.fullName),
+                                    subtitle: Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.secondaryContainer,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              kinshipBadge,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
                                             ),
                                           ),
-                                          child: Text(
-                                            kinshipBadge,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelMedium
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                          ),
-                                        ),
-                                        if (deathDateCaption != null) ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            deathDateCaption,
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
-                                          ),
+                                          if (deathDateCaption != null) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              deathDateCaption,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall,
+                                            ),
+                                          ],
                                         ],
-                                      ],
+                                      ),
                                     ),
+                                    onChanged: (value) {
+                                      setModalState(() {
+                                        if (value == true) {
+                                          selected.add(member.id);
+                                        } else {
+                                          selected.remove(member.id);
+                                        }
+                                      });
+                                    },
                                   ),
-                                  onChanged: (value) {
-                                    setModalState(() {
-                                      if (value == true) {
-                                        selected.add(member.id);
-                                      } else {
-                                        selected.remove(member.id);
-                                      }
-                                    });
-                                  },
                                 );
                               },
                             ),
@@ -4403,11 +4408,14 @@ class _LunarDateEditor extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.pick(vi: 'Tháng nhuận', en: 'Leap month')),
-          value: isLeapMonth,
-          onChanged: onLeapChanged,
+        Material(
+          type: MaterialType.transparency,
+          child: SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.pick(vi: 'Tháng nhuận', en: 'Leap month')),
+            value: isLeapMonth,
+            onChanged: onLeapChanged,
+          ),
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<LunarRecurrencePolicy>(

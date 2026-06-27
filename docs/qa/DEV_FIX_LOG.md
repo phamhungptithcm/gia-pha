@@ -1,98 +1,66 @@
-# BeFam Dev Fix Log
+# BeFam Website Dev Fix Log
 
-Date: 2026-05-17  
-Role: Dev Lead Agent  
-Scope: Android staging real-device QA fixes and release-loop report update
+Date: 2026-05-18
+Owner role: Dev Lead Agent
+Scope: Website/browser release pass
 
-No raw staging phone number, OTP, verification ID, or profile-sensitive value is
-recorded in this log.
+## Fix Summary
 
-## Fixes Completed In This Pass
+| Issue | Status | Fix |
+| --- | --- | --- |
+| `WEB-QA-001` / `WEB-UIUX-001` | Fixed | Reworked static web footer from fixed overlay to compact page-flow/sticky behavior. |
+| `WEB-UIUX-002` | Fixed | Adjusted tablet breakpoint so primary navigation stays visible longer. |
+| `WEB-UIUX-003` | Fixed | Tuned mobile hero width and font size for better readability. |
+| `WEB-UIUX-004` | Fixed | Normalized app entry CTA wording. |
+| `WEB-QA-002` | Fixed | Added Firebase Hosting security headers and CSP allowances required by Flutter/Firebase web. |
+| `WEB-QA-003` | Fixed/verified | Verified SPA rewrites through Firebase Hosting emulator instead of a plain static server. |
+| `WEB-QA-004` | Fixed | Re-rendered public web metadata with production base URL. |
+| `WEB-QA-005` | Open | Browser QA reached Firebase reCAPTCHA; needs human/test-bypass verification before production approval. |
 
-### DEV-001 - Member Phone Lookup Required Error
+## Files Changed
 
-- Issue: Empty `Tiếp tục` on the member phone lookup sheet could advance into
-  manual creation.
-- Files changed:
-  - `mobile/befam/lib/features/member/presentation/member_workspace_page.dart`
-  - `mobile/befam/test/widget_test.dart`
-- Fix: `_MemberPhoneLookupSheetState._submit` now validates the phone field and
-  keeps manual creation behind the explicit `Tạo mới thủ công` action.
-- Test added: `member phone lookup requires a phone before continue`.
-- Verification:
-  - Targeted widget test passed.
-  - Full Flutter test suite passed.
-  - Pixel 7 retest passed with inline error.
+- `mobile/befam/web/index.template.html`
+- `mobile/befam/web/index.html`
+- `mobile/befam/web/robots.txt`
+- `mobile/befam/web/sitemap.xml`
+- `mobile/befam/lib/app/bootstrap/app_bootstrap.dart`
+- `mobile/befam/lib/features/notifications/services/push_notification_service.dart`
+- `mobile/befam/test/app/web/web_live_smoke_gate_test.dart`
+- `mobile/befam/test/app/web/web_live_smoke_base_href_stub.dart`
+- `mobile/befam/test/app/web/web_live_smoke_base_href_web.dart`
+- `firebase.json`
+- `.github/workflows/release-main.yml`
+- `.github/workflows/deploy-staging.yml`
+- `.github/workflows/deploy-web-hosting.yml`
+- `scripts/audit_github_environment.sh`
 
-### DEV-002 - Event Create CTA Order And Required Validation
+## Implementation Notes
 
-- Issue: Event create sheet had weaker required treatment and the visible bottom
-  action order made `Đóng` more prominent than `Tiếp tục`.
-- Files changed:
-  - `mobile/befam/lib/features/calendar/presentation/dual_calendar_workspace_page.dart`
-  - `mobile/befam/test/features/events/event_widget_test.dart`
-- Fix: Added required markers for title/memorial subject and placed the primary
-  `Tiếp tục` action before secondary `Đóng`.
-- Test updated: Event create validation test now asserts required labels/errors.
-- Verification:
-  - Targeted event widget tests passed.
-  - Full Flutter test suite passed.
-  - Pixel 7 retest passed with bottom CTA order and required error.
+- Firebase bootstrap now reuses an already initialized default app only when the existing project matches the expected project. A mismatched project still fails closed.
+- Web push background handler registration now no-ops on web because background handling belongs to the service worker.
+- Production release workflows now require safer web config gates, including App Check site key when App Check is enabled.
+- Web hosting deploy workflow now includes production route and header smoke checks.
+- The optional live web smoke test is gated by dart-defines and avoids committing QA credentials.
 
-## Commands Run
+## Verification Run
 
 ```bash
-npx gitnexus impact --repo gia-pha _MemberPhoneLookupSheetState --direction upstream
-npx gitnexus impact --repo gia-pha _MemberEditorSheetState --direction upstream
-npx gitnexus impact --repo gia-pha _EventEditorSheetState --direction upstream
-dart format mobile/befam/lib/features/member/presentation/member_workspace_page.dart mobile/befam/lib/features/calendar/presentation/dual_calendar_workspace_page.dart mobile/befam/test/widget_test.dart mobile/befam/test/features/events/event_widget_test.dart
+jq empty firebase.json
+bash -n scripts/audit_github_environment.sh scripts/render_web_metadata.sh
+ruby -e 'require "yaml"; %w[.github/workflows/release-main.yml .github/workflows/deploy-staging.yml .github/workflows/deploy-web-hosting.yml].each { |f| YAML.load_file(f); puts "OK #{f}" }'
 ```
 
 ```bash
 cd mobile/befam
-flutter test test/widget_test.dart --name "member phone lookup requires a phone before continue|member add form blocks next step until required fields pass" --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
-flutter test test/features/events/event_widget_test.dart --name "validates required title in unified create form|creates a new event from the create form" --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
 flutter analyze
-flutter test --coverage --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
-flutter build apk --debug --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true --dart-define=BEFAM_OTP_PROVIDER=firebase --dart-define=BEFAM_ENABLE_APP_CHECK=true
+flutter test test/app/web/web_marketing_pages_test.dart --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true
+flutter test --platform=chrome test/app/web/web_live_smoke_gate_test.dart --dart-define=BEFAM_E2E_RUN_LIVE=false
+flutter build web --release --no-wasm-dry-run --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true --dart-define=BEFAM_OTP_PROVIDER=firebase --dart-define=BEFAM_FIREBASE_FUNCTIONS_REGION=asia-southeast1 --dart-define=BEFAM_DEFAULT_TIMEZONE=Asia/Ho_Chi_Minh
+uv run --with-requirements requirements-docs.txt mkdocs build --strict
 ```
 
-```bash
-adb -s 34171FDH20027M install -r build/app/outputs/flutter-apk/app-debug.apk
-adb -s 34171FDH20027M shell monkey -p com.familyclanapp.befam 1
-adb -s 34171FDH20027M exec-out screencap -p
-adb -s 34171FDH20027M exec-out uiautomator dump /dev/tty
-adb -s 34171FDH20027M shell dumpsys gfxinfo com.familyclanapp.befam
-```
+## Remaining Blocker
 
-## Verification Results
-
-| Gate | Result |
-| --- | --- |
-| GitNexus impact lookups | Targets not indexed; impacted count `0`, risk `UNKNOWN`. |
-| Dart format | Pass |
-| Targeted member tests | Pass |
-| Targeted event tests | Pass |
-| Flutter analyze | Pass |
-| Full Flutter tests | Pass, `270` passed / `1` skipped |
-| Android debug APK build | Pass |
-| Android install/launch on Pixel 7 | Pass |
-| Member phone required retest | Pass |
-| Event required/CTA retest | Pass |
-| Funds required validation retest | Pass |
-| Scholarship required validation retest | Pass |
-
-## Open Items Not Fixed In Code
-
-| ID | Status | Reason |
-| --- | --- | --- |
-| `QA-ANDROID-006` | Open / external | Store purchase/provider states require sandbox products, signed artifacts, and backend callback evidence. |
-| `QA-ANDROID-007` | Open | Fresh clean-session OTP login was not rerun in this pass; existing authenticated session was preserved for screen testing. |
-| `UIUX-ANDROID-003` | Deferred | Current plan shows ads; clean store screenshots require no-ad account/build or ad gating. |
-| `UIUX-ANDROID-005` | Open | Full profile/release-mode performance pass is still needed. |
-
-## Dev Lead Decision
-
-The two code issues found in this pass are fixed and verified. Production
-release remains blocked by external/provider evidence and incomplete full-matrix
-QA, not by these two source fixes.
+`WEB-QA-005` remains open. The app reached Firebase reCAPTCHA in a real
+browser, but the image challenge prevents automated OTP completion without a
+human/manual QA step or staging test bypass.

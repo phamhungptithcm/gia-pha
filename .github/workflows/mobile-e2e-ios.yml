@@ -16,7 +16,7 @@ concurrency:
 jobs:
   e2e-ios:
     name: E2E - iOS Test Run
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Skip iOS E2E

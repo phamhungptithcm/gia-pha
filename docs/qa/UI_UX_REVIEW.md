@@ -1,127 +1,93 @@
-# BeFam UI/UX Release Gate Review
+# BeFam Website UI/UX QA Review
 
-Date: 2026-05-17  
-Reviewer role: Senior UI/UX QA Agent  
-Branch: `hunpeolabs/staging-ai-production-ux-pass-linear`  
-Primary evidence: Android real device, Pixel 7, staging session
+Date: 2026-05-18
+Reviewer role: Senior UI/UX QA Agent
+Scope: Website/browser only
+Environment: Staging emulator
 
 ## Decision
 
 UI/UX status: **PARTIAL APPROVAL / PRODUCTION NOT APPROVED**.
 
-The new BeFam direction is visible on the authenticated Android app: lighter
-surface, BF identity, compact navigation, calmer Vietnamese copy, consistent
-bottom tabs, and focused task screens for family tree, events, package, funds,
-scholarship, and profile. The two highest-impact form issues found in the
-latest device pass were fixed and retested on Pixel 7.
+The public website now matches the cleaner BeFam direction more closely:
+compact content, lighter language, BF branding, stable navigation, improved
+footer behavior, desktop/tablet/mobile screenshots, and consistent page rhythm.
+The authenticated `/app` entry also renders the refreshed auth surface.
 
-Production UI/UX is still not final because the pass was not a full release
-matrix, store purchase states were not reviewed, store screenshots still need a
-clean no-ad/sanitized account, and a fresh login journey was not re-executed.
-
-## Evidence Reviewed
-
-| Surface | Result | Evidence |
-| --- | --- | --- |
-| Home | Pass with ad caveat | `screens/48-home-post-rebuild.png` |
-| Genealogy | Pass with onboarding overlay | `screens/49-genealogy-post-rebuild.png` |
-| Events | Pass | `screens/50-events-post-rebuild.png` |
-| Package catalog | Pass for catalog display | `screens/53-package-steady-post-rebuild.png` |
-| Profile/settings | Pass | `screens/52-profile-post-rebuild.png`, `screens/54-profile-settings-post-rebuild.png` |
-| Members | Fixed / verified | `screens/35-member-phone-required-fixed.png` |
-| Funds | Pass | `screens/56-funds-post-rebuild.png`, `screens/58-fund-required-error-post-rebuild.png` |
-| Scholarship | Pass | `screens/61-scholarship-post-rebuild.png`, `screens/64-scholarship-program-required-post-rebuild.png` |
-| Motion/transition comfort | Acceptable in focused pass | No harsh slide transition observed during tab/sheet sweep; full motion audit still pending. |
-| Accessibility/semantics | Needs polish | Some semantic labels expose implementation wording, and profile evidence contains sensitive values that must be redacted for public use. |
-
-Artifact folder:
-
-`artifacts/qa/android-staging-real-device-2026-05-17/`
+Production UI/UX cannot be fully approved until the post-login website flow is
+reviewed after a completed staging login. Automated QA reached the reCAPTCHA
+challenge but not AppShell.
 
 ## Feedback
 
-### UIUX-ANDROID-001
+### WEB-UIUX-001
 
-- ID: `UIUX-ANDROID-001`
+- ID: `WEB-UIUX-001`
 - Severity: `P1`
-- Screen/component: Member add lookup sheet
-- Problem: Empty `Tiếp tục` could move users into the manual creation flow.
-- Why it matters: Users can accidentally enter a different flow without knowing
-  whether they should search by phone or create manually.
-- Recommended fix: Keep users on the lookup sheet and show explicit required
-  guidance.
-- Evidence: `screens/35-member-phone-required-fixed.png`
+- Page/component: Footer
+- Viewport: Desktop/tablet/mobile
+- Problem: Footer behaved like a large fixed overlay and could cover content.
+- Why it matters: Users lose context when persistent chrome competes with the main page.
+- Recommended fix: Make footer compact and let it live in page flow while keeping the visual language.
+- Evidence: `screens/web-home-after-csp-1440x900.png`
 - Status: `Verified`
-- Retest result: Fixed on Pixel 7. The sheet now shows
-  `Hãy nhập số điện thoại hoặc chọn Tạo mới thủ công.`
+- Retest result: Footer is compact and no longer blocks content.
 
-### UIUX-ANDROID-002
+### WEB-UIUX-002
 
-- ID: `UIUX-ANDROID-002`
+- ID: `WEB-UIUX-002`
+- Severity: `P2`
+- Page/component: Header navigation
+- Viewport: Tablet
+- Problem: Tablet nav collapsed too early and made the website feel less complete.
+- Why it matters: Tablet users have enough width for primary links and should not get unnecessary hiding.
+- Recommended fix: Keep primary nav visible until mobile breakpoint.
+- Evidence: `screens/web-home-tablet-after-csp-834x1112.png`
+- Status: `Verified`
+- Retest result: Tablet layout keeps a stronger brand/navigation structure.
+
+### WEB-UIUX-003
+
+- ID: `WEB-UIUX-003`
+- Severity: `P2`
+- Page/component: Mobile hero
+- Viewport: Mobile 390x844
+- Problem: Hero type and line breaks were too aggressive.
+- Why it matters: The first viewport should feel calm and readable, not cramped.
+- Recommended fix: Increase usable line width and tune mobile hero size.
+- Evidence: `screens/web-home-mobile-after-csp-390x844.png`
+- Status: `Verified`
+- Retest result: Mobile hero is more readable and balanced.
+
+### WEB-UIUX-004
+
+- ID: `WEB-UIUX-004`
+- Severity: `P2`
+- Page/component: CTA copy
+- Viewport: Desktop/tablet/mobile
+- Problem: CTA labels were not fully consistent across public pages.
+- Why it matters: Clear repeated actions reduce hesitation.
+- Recommended fix: Normalize primary app entry copy to `Mở ứng dụng`.
+- Evidence: web marketing widget tests.
+- Status: `Verified`
+- Retest result: Tests confirm the expected CTA copy.
+
+### WEB-UIUX-005
+
+- ID: `WEB-UIUX-005`
 - Severity: `P1`
-- Screen/component: Event create sheet
-- Problem: Bottom action hierarchy favored `Đóng`; primary `Tiếp tục` was less
-  visible, and required fields needed clearer treatment.
-- Why it matters: Creating events and memorial dates is a core clan workflow.
-  Invalid submit must be easy to recover from.
-- Recommended fix: Put primary `Tiếp tục` first, add required markers, and
-  scroll/focus the invalid field.
-- Evidence: `screens/39-event-form-bottom-cta-fixed.png`,
-  `screens/40-event-required-error-fixed.png`
-- Status: `Verified`
-- Retest result: Fixed on Pixel 7.
-
-### UIUX-ANDROID-003
-
-- ID: `UIUX-ANDROID-003`
-- Severity: `P2`
-- Screen/component: Home / ad layer / store screenshots
-- Problem: A test ad banner appears on Home after relaunch for the current
-  ad-supported package state.
-- Why it matters: It is expected for a plan with ads, but it is poor evidence
-  for App Store / Play Store screenshots and can obscure lower content.
-- Recommended fix: Capture store screenshots with a no-ad QA account or
-  screenshot build. Update the Google Mobile Ads SDK in a dependency-hardening
-  pass.
-- Evidence: `screens/31-post-install-current.png`,
-  `screens/47-relaunch-after-back.png`
-- Status: `Deferred`
-- Retest result: Not fixed in this pass.
-
-### UIUX-ANDROID-004
-
-- ID: `UIUX-ANDROID-004`
-- Severity: `P2`
-- Screen/component: Package / purchase states
-- Problem: Package catalog is clear, but purchase, pending, failure, restore,
-  receipt, and entitlement states were not reviewed visually.
-- Why it matters: Package purchase is a high-trust payment workflow and must be
-  visually distinct from `Quỹ họ`.
-- Recommended fix: Run store sandbox flows and capture each state after signed
-  artifacts are ready.
-- Evidence: `screens/53-package-steady-post-rebuild.png`
-- Status: `Open / external evidence`
-- Retest result: Catalog only; provider states not executed.
-
-### UIUX-ANDROID-005
-
-- ID: `UIUX-ANDROID-005`
-- Severity: `P2`
-- Screen/component: Full mobile motion/performance
-- Problem: Focused device usage felt usable, but the only fresh frame snapshot
-  is a short debug sample with 15.49% janky frames.
-- Why it matters: Final release needs profile/release-mode motion evidence on
-  representative flows, not only debug-mode screenshots.
-- Recommended fix: Capture profile/release frame data for home -> members,
-  events create, funds create, scholarship create, and package catalog.
-- Evidence: `logs/02-gfxinfo-after-retest.txt`
+- Page/component: Auth/AppShell after login
+- Viewport: Desktop browser
+- Problem: Full post-login website UX could not be reviewed because Firebase reCAPTCHA required human interaction.
+- Why it matters: Release approval requires evidence for authenticated navigation, forms, empty states, and permission states.
+- Recommended fix: Complete a redacted manual staging login pass or configure a staging QA bypass that still preserves production security.
+- Evidence: `logs/web-live-login-coordinate-run.txt`
 - Status: `Open`
-- Retest result: Not complete.
+- Retest result: Pending.
 
 ## UI/UX Sign-Off
 
-- Android post-login visual sweep: **partial pass**
-- Critical form UX fixes: **verified**
-- Store screenshot readiness: **not ready**
-- Package purchase UI states: **not reviewed**
-- Production UI/UX approval: **not final**
+- Public website visual QA: **approved for release candidate**
+- Responsive public pages: **approved**
+- Auth entry before OTP: **approved**
+- Authenticated website after login: **not approved yet**

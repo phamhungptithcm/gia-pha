@@ -487,9 +487,11 @@ jobs:
           fi
           required_web_keys=(
             BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_STORAGE_BUCKET
             BEFAM_FIREBASE_WEB_API_KEY
             BEFAM_FIREBASE_WEB_APP_ID
             BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_WEB_AUTH_DOMAIN
           )
           for key in "${required_web_keys[@]}"; do
             if [ -z "${!key:-}" ]; then
@@ -497,6 +499,10 @@ jobs:
               exit 1
             fi
           done
+          if [ "$enable_app_check" = "true" ] && [ -z "${BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY:-}" ]; then
+            echo "::error::Staging web App Check is enabled but BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY is missing."
+            exit 1
+          fi
           web_base_url="${BEFAM_WEB_BASE_URL:-}"
           if [ -z "$web_base_url" ] && [ -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]; then
             web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"

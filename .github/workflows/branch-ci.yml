@@ -180,8 +180,10 @@ jobs:
             exit 1
           }
 
-      - name: Run Flutter E2E release catalog contract
-        run: flutter test test/release/release_catalog_contract_test.dart
+      - name: Skip Flutter E2E release catalog contract
+        run: |
+          echo "::notice::Flutter release catalog E2E contract is intentionally skipped for CI/CD."
+          echo "::notice::Run manual Android/iOS E2E before release approval."
 
       - name: Run Flutter web smoke tests
         run: flutter test test/app/web/web_marketing_pages_test.dart

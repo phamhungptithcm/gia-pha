@@ -1,80 +1,53 @@
-# BeFam Product Release Gate Review
+# BeFam Website Product Owner Review
 
-Date: 2026-05-17  
-Reviewer role: Product Owner Agent  
-Environment: staging Android real device
+Date: 2026-05-18
+Reviewer role: Product Owner Agent
+Scope: Website/browser only
 
-## Decision
+## Product Decision
 
-Product Owner status: **NOT READY FOR REAL-USER RELEASE**.
+Product Owner decision: **NOT READY FOR PRODUCTION RELEASE**.
 
-The product is closer than the previous report indicated: Android staging is no
-longer blocked before AppShell on the attached Pixel 7 session. The app can
-reach and use the main clan workflows after login: Home, genealogy, events,
-package, profile/settings, members, funds, and scholarship.
+The public website now explains BeFam more clearly and supports the expected
+marketing/legal entry points. The distinction between clan funds and service
+plans is clearer, and the public pages feel closer to the intended modern,
+focused BeFam direction.
 
-PO still cannot approve production today because the release matrix is
-incomplete, fresh clean-session OTP login was not rerun, signed store artifacts
-are not proven, and package purchase/provider flows remain untested.
+The website cannot be released as production-ready because the required login
+journey and authenticated product surface were not verified end-to-end on
+staging.
 
-## Product Readiness Summary
+## Product Coverage
 
-| Area | Product assessment | PO status |
+| Flow | Status | Notes |
 | --- | --- | --- |
-| Android AppShell | Existing staging session reaches AppShell and main workflows. | Pass for focused QA |
-| Member workflow | Empty phone lookup now gives clear required guidance. | Fixed / verified |
-| Event workflow | Required validation and primary action order are clear. | Fixed / verified |
-| Funds workflow | Funds are separate from packages and required validation works. | Verified spot-check |
-| Scholarship workflow | Program create validation works. | Verified spot-check |
-| Package catalog | Current plan and eligible packages are visible; copy is clearer. | Catalog pass |
-| Package purchase | Store/provider purchase proof is missing. | Blocker |
-| Fresh login | Existing session was used; clean OTP login was not rerun. | Blocker |
-| Security/privacy | Role/clan/storage/billing boundaries still need live matrix proof. | Blocker |
-| Store readiness | Store screenshots and signed artifacts are not final. | Blocker |
+| Landing / value proposition | Approved | Clearer, shorter, more focused. |
+| Story/about pages | Approved | Public context is reachable. |
+| Privacy / terms / account deletion | Approved | Required support/legal flows render. |
+| App entry | Approved to phone form | Privacy gate and phone form reachable. |
+| Login to AppShell | Blocked | reCAPTCHA challenge prevented OTP verification. |
+| Authenticated dashboard and workflows | Not reviewed | Requires successful staging login. |
+| Production release checklist | Partial | Build/config checks pass; auth proof missing. |
 
-## Product Issues
+## Open Product Feedback
 
-### PO-ANDROID-001
+### PO-WEB-001
 
 - Severity: `P1`
-- Area: Fresh staging login
-- Blocker: A real authenticated session exists, but a fresh OTP login from a
-  clean session was not retested in this pass.
-- Release-safe next action: Run a clean-session login with sanitized evidence.
+- Area: Login and authenticated website flow
+- Feedback: Product readiness requires proof that a real staging user can sign in and reach the app shell.
+- Required change: Complete manual or supported automated staging login with redacted evidence.
 - Status: `Open`
 
-### PO-ANDROID-002
-
-- Severity: `P2-critical`
-- Area: Package purchase
-- Blocker: Package purchase, restore, pending, failure, receipt validation,
-  callback, and entitlement activation were not proven.
-- Release-safe next action: Configure sandbox store/provider flows and run the
-  purchase matrix on signed artifacts.
-- Status: `Open / external`
-
-### PO-ANDROID-003
-
-- Severity: `P1`
-- Area: Full release QA
-- Blocker: This was a focused screen/form pass, not the full 106-case release
-  matrix.
-- Release-safe next action: Execute the full matrix with sanitized evidence.
-- Status: `Open`
-
-### PO-ANDROID-004
+### PO-WEB-002
 
 - Severity: `P2`
-- Area: Store screenshot readiness
-- Blocker: Current ad-supported account can show a test ad banner and profile
-  captures contain sensitive staging profile data.
-- Release-safe next action: Use no-ad/sanitized screenshot data for App Store
-  and Google Play assets.
-- Status: `Deferred`
+- Area: Post-login product flow
+- Feedback: After login is verified, review dashboard, genealogy, calendar, funds, package/service plan, profile, permissions, empty states, and errors in browser.
+- Required change: Run a post-login website QA pass.
+- Status: `Open`
 
-## Product Owner Conclusion
+## Product Owner Sign-Off
 
-BeFam is usable enough for continued staging RC validation, but it is **not
-ready** for production release. The next product gate is clean login, full
-release matrix, store purchase proof, signed artifacts, and sanitized store
-screenshots.
+Public website: **approved as release candidate**
+Full production website: **not approved**

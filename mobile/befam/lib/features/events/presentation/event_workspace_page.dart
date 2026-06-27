@@ -1303,35 +1303,37 @@ class _LongevityCelebrationListPage extends StatelessWidget {
                   en: '${candidate.milestoneAge} years',
                 );
                 return Card(
-                  child: ListTile(
-                    key: Key('event-longevity-member-row-${member.id}'),
-                    onTap: () => onOpenMemberDetail(candidate),
-                    title: Text(
-                      member.fullName,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: ListTile(
+                      key: Key('event-longevity-member-row-${member.id}'),
+                      onTap: () => onOpenMemberDetail(candidate),
+                      title: Text(
+                        member.fullName,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (branchName.isNotEmpty)
-                            Text(
-                              branchName,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          if (address.isNotEmpty)
-                            Text(
-                              address,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: Colors.black54),
-                            ),
-                        ],
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (branchName.isNotEmpty)
+                              Text(
+                                branchName,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            if (address.isNotEmpty)
+                              Text(
+                                address,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.black54),
+                              ),
+                          ],
+                        ),
                       ),
+                      trailing: Chip(label: Text(ageLabel)),
                     ),
-                    trailing: Chip(label: Text(ageLabel)),
                   ),
                 );
               },
@@ -2625,26 +2627,29 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              SwitchListTile.adaptive(
-                                key: const Key('event-recurring-switch'),
-                                value: _isRecurring,
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(
-                                  l10n.eventFormRecurringMemorialLabel,
+                              Material(
+                                type: MaterialType.transparency,
+                                child: SwitchListTile.adaptive(
+                                  key: const Key('event-recurring-switch'),
+                                  value: _isRecurring,
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    l10n.eventFormRecurringMemorialLabel,
+                                  ),
+                                  subtitle: _isRecurring
+                                      ? Text(
+                                          l10n.pick(
+                                            vi: 'Lặp lại hằng năm',
+                                            en: 'Repeats yearly',
+                                          ),
+                                        )
+                                      : Text(l10n.eventRecurringNo),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _isRecurring = value;
+                                    });
+                                  },
                                 ),
-                                subtitle: _isRecurring
-                                    ? Text(
-                                        l10n.pick(
-                                          vi: 'Lặp lại hằng năm',
-                                          en: 'Repeats yearly',
-                                        ),
-                                      )
-                                    : Text(l10n.eventRecurringNo),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _isRecurring = value;
-                                  });
-                                },
                               ),
                             ],
                             const SizedBox(height: 12),
