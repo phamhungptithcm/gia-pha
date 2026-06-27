@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/services/app_logger.dart';
-import '../../../core/services/governance_role_matrix.dart';
+import '../../../core/services/performance_measurement_logger.dart';
 import '../../ads/services/ad_conversion_tracker.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/billing_workspace_snapshot.dart';
@@ -14,14 +14,21 @@ class BillingController extends ChangeNotifier {
     required BillingRepository repository,
     required AuthSession session,
     AdConversionTracker? adConversionTracker,
+    PerformanceMeasurementLogger? performanceLogger,
   }) : _repository = repository,
        _session = session,
        _adConversionTracker =
-           adConversionTracker ?? createDefaultAdConversionTracker();
+           adConversionTracker ?? createDefaultAdConversionTracker(),
+       _performanceLogger =
+           performanceLogger ??
+           PerformanceMeasurementLogger(
+             defaultSlowThreshold: const Duration(milliseconds: 900),
+           );
 
   final BillingRepository _repository;
   final AuthSession _session;
   final AdConversionTracker _adConversionTracker;
+  final PerformanceMeasurementLogger _performanceLogger;
 
   bool _isLoading = true;
   bool _isSavingPreferences = false;
@@ -41,35 +48,13 @@ class BillingController extends ChangeNotifier {
   bool get hasClanContext => (_session.clanId ?? '').trim().isNotEmpty;
 
   bool get canManageBilling {
-    if (_session.uid.trim().isEmpty) {
-      return false;
-    }
-    if (!hasClanContext) {
-      // Personal billing scope: authenticated users can manage their own plan
-      // before joining any clan.
-      return true;
-    }
-    if (!GovernanceRoleMatrix.isClaimedClanSession(_session)) {
-      return false;
-    }
-    final role = (_session.primaryRole ?? '').trim().toUpperCase();
-    return role == 'SUPER_ADMIN' ||
-        role == 'CLAN_ADMIN' ||
-        role == 'BRANCH_ADMIN' ||
-        role == 'CLAN_OWNER' ||
-        role == 'CLAN_LEADER' ||
-        role == 'VICE_LEADER' ||
-        role == 'SUPPORTER_OF_LEADER';
+    return _session.uid.trim().isNotEmpty;
   }
 
   bool get canMutateBilling {
-    if (_session.uid.trim().isEmpty) {
-      return false;
-    }
-    if (!hasClanContext) {
-      return true;
-    }
-    return canManageBilling;
+    return (_workspace?.scope.viewerIsOwner ??
+            _viewerSummary?.scope.viewerIsOwner) ==
+        true;
   }
 
   bool get shouldShowAds {
@@ -91,12 +76,20 @@ class BillingController extends ChangeNotifier {
     try {
       if (canManageBilling) {
         try {
-          _workspace = await _repository.loadWorkspace(session: _session);
+          _workspace = await _performanceLogger.measureAsync(
+            metric: 'billing.workspace_refresh',
+            warnAfter: const Duration(milliseconds: 900),
+            dimensions: const {'surface': 'billing'},
+            action: () => _repository.loadWorkspace(session: _session),
+          );
           _viewerSummary = null;
         } on BillingRepositoryException catch (error) {
           if (_shouldFallbackToViewer(error)) {
-            _viewerSummary = await _repository.loadViewerSummary(
-              session: _session,
+            _viewerSummary = await _performanceLogger.measureAsync(
+              metric: 'billing.viewer_refresh',
+              warnAfter: const Duration(milliseconds: 900),
+              dimensions: const {'surface': 'billing'},
+              action: () => _repository.loadViewerSummary(session: _session),
             );
             _workspace = null;
             _errorMessage = null;
@@ -105,7 +98,12 @@ class BillingController extends ChangeNotifier {
           }
         }
       } else {
-        _viewerSummary = await _repository.loadViewerSummary(session: _session);
+        _viewerSummary = await _performanceLogger.measureAsync(
+          metric: 'billing.viewer_refresh',
+          warnAfter: const Duration(milliseconds: 900),
+          dimensions: const {'surface': 'billing'},
+          action: () => _repository.loadViewerSummary(session: _session),
+        );
         _workspace = null;
       }
     } on BillingRepositoryException catch (error) {
@@ -213,6 +211,7 @@ class BillingController extends ChangeNotifier {
           scope: current.scope,
           subscription: current.subscription,
           entitlement: entitlement,
+          aiUsageSummary: current.aiUsageSummary,
           settings: current.settings,
           checkoutFlow: current.checkoutFlow,
           pricingTiers: current.pricingTiers,

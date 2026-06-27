@@ -4,6 +4,7 @@ import '../models/branch_profile.dart';
 import '../models/clan_draft.dart';
 import '../models/clan_profile.dart';
 import '../models/clan_workspace_snapshot.dart';
+import 'debug_clan_repository.dart';
 import 'firebase_clan_repository.dart';
 
 abstract interface class ClanRepository {
@@ -26,5 +27,8 @@ abstract interface class ClanRepository {
 }
 
 ClanRepository createDefaultClanRepository({AuthSession? session}) {
+  if (session?.isSandbox == true) {
+    return DebugClanRepository.seeded();
+  }
   return FirebaseClanRepository();
 }

@@ -69,8 +69,12 @@ service cloud.firestore {
         : 'unlinked';
     }
 
+    function isClaimedSession() {
+      return memberAccessModeClaim() == 'claimed';
+    }
+
     function isClanAdmin() {
-      return primaryRole() in [
+      return isClaimedSession() && primaryRole() in [
         'SUPER_ADMIN',
         'CLAN_ADMIN',
         'CLAN_OWNER',
@@ -81,7 +85,7 @@ service cloud.firestore {
     }
 
     function isBillingAdmin() {
-      return primaryRole() in [
+      return isClaimedSession() && primaryRole() in [
         'SUPER_ADMIN',
         'CLAN_ADMIN',
         'BRANCH_ADMIN',
@@ -99,7 +103,7 @@ service cloud.firestore {
     }
 
     function isClanSettingsAdmin() {
-      return primaryRole() in [
+      return isClaimedSession() && primaryRole() in [
         'SUPER_ADMIN',
         'CLAN_ADMIN',
         'CLAN_OWNER',
@@ -109,11 +113,11 @@ service cloud.firestore {
     }
 
     function isBranchAdmin() {
-      return primaryRole() == 'BRANCH_ADMIN';
+      return isClaimedSession() && primaryRole() == 'BRANCH_ADMIN';
     }
 
     function isScholarshipCouncilHead() {
-      return primaryRole() == 'SCHOLARSHIP_COUNCIL_HEAD';
+      return isClaimedSession() && primaryRole() == 'SCHOLARSHIP_COUNCIL_HEAD';
     }
 
     function isScholarshipReviewerOrAdmin() {
@@ -121,15 +125,17 @@ service cloud.firestore {
     }
 
     function isFinanceViewer() {
-      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN', 'TREASURER'];
+      return isClaimedSession() &&
+        primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'BRANCH_ADMIN', 'TREASURER'];
     }
 
     function isFinanceManager() {
-      return primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'TREASURER'];
+      return isClaimedSession() &&
+        primaryRole() in ['SUPER_ADMIN', 'CLAN_ADMIN', 'TREASURER'];
     }
 
     function isGovernanceJoinReviewer() {
-      return primaryRole() in [
+      return isClaimedSession() && primaryRole() in [
         'SUPER_ADMIN',
         'CLAN_ADMIN',
         'BRANCH_ADMIN',
@@ -149,7 +155,7 @@ service cloud.firestore {
     }
 
     function isSelfMember(memberData) {
-      return signedIn() && memberData.authUid == request.auth.uid;
+      return isClaimedSession() && memberData.authUid == request.auth.uid;
     }
 
     function safeProfileUpdate() {
@@ -157,6 +163,30 @@ service cloud.firestore {
         'fullName',
         'normalizedFullName',
         'nickName',
+        'birthDate',
+        'deathDate',
+        'email',
+        'addressText',
+        'jobTitle',
+        'avatarUrl',
+        'bio',
+        'socialLinks',
+        'locationSharingEnabled',
+        'locationLatitude',
+        'locationLongitude',
+        'locationAccuracyMeters',
+        'locationUpdatedAt',
+        'updatedAt',
+        'updatedBy'
+      ]);
+    }
+
+    function safeDirectMemberAdminUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'fullName',
+        'normalizedFullName',
+        'nickName',
+        'gender',
         'birthDate',
         'deathDate',
         'phoneE164',
@@ -171,6 +201,7 @@ service cloud.firestore {
         'locationLongitude',
         'locationAccuracyMeters',
         'locationUpdatedAt',
+        'isMinor',
         'updatedAt',
         'updatedBy'
       ]);
@@ -266,11 +297,23 @@ service cloud.firestore {
           )
         ) &&
         (
-          !request.resource.data.keys().hasAny(['normalizedPhone', 'subscription', 'entitlements']) ||
+          !request.resource.data.keys().hasAny(['normalizedPhone']) ||
           resource == null ||
           (
-            request.resource.data.normalizedPhone == resource.data.normalizedPhone &&
-            request.resource.data.subscription == resource.data.subscription &&
+            request.resource.data.normalizedPhone == resource.data.normalizedPhone
+          )
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(['subscription']) ||
+          (
+            resource != null &&
+            request.resource.data.subscription == resource.data.subscription
+          )
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(['entitlements']) ||
+          (
+            resource != null &&
             request.resource.data.entitlements == resource.data.entitlements
           )
         );
@@ -457,6 +500,7 @@ service cloud.firestore {
       allow update: if hasClanAccess(resource.data.clanId) && (
         (
           isClanSettingsAdmin() &&
+          safeDirectMemberAdminUpdate() &&
           request.resource.data.clanId == resource.data.clanId
         ) ||
         (
@@ -464,6 +508,7 @@ service cloud.firestore {
             resource.data.branchId,
             request.resource.data.branchId
           ) &&
+          safeDirectMemberAdminUpdate() &&
           request.resource.data.clanId == resource.data.clanId
         ) ||
         (
@@ -481,15 +526,7 @@ service cloud.firestore {
 
     match /relationships/{relationshipId} {
       allow read: if hasClanAccess(resource.data.clanId);
-      allow create, update: if
-        request.resource.data.id == relationshipId &&
-        (
-          (
-            isClanSettingsAdmin() &&
-            hasClanAccess(request.resource.data.clanId)
-          ) ||
-          branchScopedRelationshipWrite()
-        );
+      allow create, update: if false;
       allow delete: if false;
     }
 

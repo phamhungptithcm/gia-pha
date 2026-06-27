@@ -1531,7 +1531,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authIssueNetworkRequestFailed =>
-      'Network connection failed. Check your internet connection and try again.';
+      'The verification service could not be reached. Check your connection and try again in a moment.';
 
   @override
   String get authIssueTooManyRequests =>
@@ -1575,7 +1575,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authIssueAuthUnavailable =>
-      'Authentication could not be completed right now.';
+      'Authentication could not be completed in this environment right now. Please try again in a moment.';
 
   @override
   String get authIssuePreparationFailed =>

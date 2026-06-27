@@ -1,6 +1,6 @@
 # Lộ trình phát triển
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 12/04/2026_
 
 ## Mô hình phát hành
 
@@ -31,7 +31,7 @@ _Cập nhật gần nhất: 17/03/2026_
 
 ### M5 - Gói dịch vụ và thanh toán (Hoàn thành nền tảng)
 - gói bậc thang theo quy mô thành viên
-- luồng thanh toán VNPay-first
+- luồng mua gói App Store / Google Play
 - xử lý trạng thái thanh toán và nhắc gia hạn
 
 ### M6 - Hồ sơ và cài đặt (Hoàn thành nền tảng)
@@ -47,3 +47,9 @@ _Cập nhật gần nhất: 17/03/2026_
 - tăng chiều sâu phân tích và quan sát hệ thống
 - mở rộng điều hướng đích của thông báo
 - tối ưu hiệu năng cho dòng họ quy mô lớn
+
+### M9 - Lớp cộng đồng và memorial (Đề xuất)
+- chuẩn hóa `nguyên quán` và auto-match vào cộng đồng thôn/làng
+- event/thông báo theo audience `community`
+- memorial space để lưu recap, ảnh, ghi chú, và tri thức cộng đồng
+- growth loop dựa trên invite, share, và community retention

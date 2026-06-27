@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'app_logger.dart';
+import 'performance_trace_reporter.dart';
 
 typedef PerformanceLogWriter = void Function(String message);
 
@@ -7,12 +10,16 @@ class PerformanceMeasurementLogger {
     this.defaultSlowThreshold = const Duration(milliseconds: 120),
     PerformanceLogWriter? infoLogger,
     PerformanceLogWriter? warningLogger,
+    PerformanceTraceReporter? traceReporter,
   }) : _infoLogger = infoLogger ?? AppLogger.info,
-       _warningLogger = warningLogger ?? AppLogger.warning;
+       _warningLogger = warningLogger ?? AppLogger.warning,
+       _traceReporter =
+           traceReporter ?? FirebasePerformanceTraceReporter.instance;
 
   final Duration defaultSlowThreshold;
   final PerformanceLogWriter _infoLogger;
   final PerformanceLogWriter _warningLogger;
+  final PerformanceTraceReporter? _traceReporter;
 
   Future<T> measureAsync<T>({
     required String metric,
@@ -25,11 +32,13 @@ class PerformanceMeasurementLogger {
       return await action();
     } finally {
       stopwatch.stop();
-      logDuration(
-        metric: metric,
-        elapsed: stopwatch.elapsed,
-        warnAfter: warnAfter,
-        dimensions: dimensions,
+      unawaited(
+        recordDuration(
+          metric: metric,
+          elapsed: stopwatch.elapsed,
+          warnAfter: warnAfter,
+          dimensions: dimensions,
+        ),
       );
     }
   }
@@ -45,11 +54,13 @@ class PerformanceMeasurementLogger {
       return action();
     } finally {
       stopwatch.stop();
-      logDuration(
-        metric: metric,
-        elapsed: stopwatch.elapsed,
-        warnAfter: warnAfter,
-        dimensions: dimensions,
+      unawaited(
+        recordDuration(
+          metric: metric,
+          elapsed: stopwatch.elapsed,
+          warnAfter: warnAfter,
+          dimensions: dimensions,
+        ),
       );
     }
   }
@@ -73,6 +84,25 @@ class PerformanceMeasurementLogger {
     }
 
     _infoLogger(message);
+  }
+
+  Future<void> recordDuration({
+    required String metric,
+    required Duration elapsed,
+    Duration? warnAfter,
+    Map<String, Object?> dimensions = const {},
+  }) async {
+    logDuration(
+      metric: metric,
+      elapsed: elapsed,
+      warnAfter: warnAfter,
+      dimensions: dimensions,
+    );
+    await _traceReporter?.recordDuration(
+      metric: metric,
+      elapsed: elapsed,
+      dimensions: dimensions,
+    );
   }
 
   String _formatDimensions(Map<String, Object?> dimensions) {

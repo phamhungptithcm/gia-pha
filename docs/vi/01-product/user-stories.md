@@ -1,6 +1,6 @@
 # User stories
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 12/04/2026_
 
 ## Nhóm nhận diện và truy cập
 
@@ -24,6 +24,21 @@ _Cập nhật gần nhất: 17/03/2026_
 - Là thành viên, tôi theo dõi sự kiện âm và dương lịch trong cùng một nơi.
 - Là người dùng, tôi nhận nhắc lịch và đọc thông báo trong hộp thư.
 
+## Nhóm cộng đồng thôn/làng
+
+- Là trưởng thôn/làng, tôi tạo cộng đồng của mình và quản lý thông tin chung.
+- Là hệ thống, tôi tự thêm thành viên vào cộng đồng khi nguyên quán khớp.
+- Là thành viên, tôi nhận thông báo về họp, phát quà, lễ, hoặc sự kiện của
+  thôn/làng mình.
+- Là thành viên, tôi mở đúng community event/thông báo khi chạm vào notification.
+
+## Nhóm memorial
+
+- Là thành viên, tôi đăng memorial recap để lưu lại ảnh, ghi chú, và ký ức của
+  một dịp gặp mặt.
+- Là thành viên, tôi xem lại memorial theo năm, sự kiện, hoặc cộng đồng.
+- Là thành viên, tôi bổ sung bình luận hoặc tư liệu để ký ức chung không bị mất.
+
 ## Nhóm quỹ và khuyến học
 
 - Là người vận hành, tôi ghi nhận giao dịch quỹ với ảnh hưởng số dư minh bạch.
@@ -32,6 +47,6 @@ _Cập nhật gần nhất: 17/03/2026_
 ## Nhóm gói dịch vụ và thanh toán
 
 - Là chủ/đại diện dòng họ, tôi xem gói hiện tại, hạn dùng và điều kiện nâng cấp/gia hạn.
-- Là người thanh toán, tôi đi theo luồng VNPay 3 bước rõ ràng.
+- Là người thanh toán, tôi mua gói qua App Store hoặc Google Play trong app mobile.
 - Là người thanh toán, tôi hiểu được trạng thái kết quả: thành công, chờ đối soát, thất bại/hủy.
 - Là hệ thống, chỉ kích hoạt gói mới khi thanh toán được xác nhận thành công.

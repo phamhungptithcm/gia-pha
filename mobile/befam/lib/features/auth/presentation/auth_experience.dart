@@ -8,7 +8,9 @@ import '../../../app/home/app_shell_page.dart';
 import '../../../app/theme/app_ui_tokens.dart';
 import '../../../core/services/app_logger.dart';
 import '../../../core/services/app_locale_controller.dart';
+import '../../../core/widgets/app_async_action.dart';
 import '../../../core/widgets/app_compact_controls.dart';
+import '../../../core/widgets/app_form_controls.dart';
 import '../../../core/widgets/app_workspace_chrome.dart';
 import '../../../l10n/l10n.dart';
 import '../../billing/services/billing_repository.dart';
@@ -112,6 +114,11 @@ class _AuthExperienceState extends State<AuthExperience> {
         final session = _controller.session;
         if (session != null) {
           return AppShellPage(
+            key: ValueKey<String>(
+              'shell-${session.uid}-${session.clanId ?? 'none'}-'
+              '${session.memberId ?? 'none'}-${session.accessMode.name}-'
+              '${session.isSandbox}-${session.linkedAuthUid}',
+            ),
             status: widget.status,
             session: session,
             clanContextService: widget.clanContextService,

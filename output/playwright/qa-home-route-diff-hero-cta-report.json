@@ -1,0 +1,394 @@
+{
+  "flow": [
+    "goto /",
+    "click hero CTA .befam-static-cta a[href=\"/about-us\"]",
+    "click nav .befam-static-links a[href=\"/\"]"
+  ],
+  "heroStoryCount": 1,
+  "sequence": [
+    "http://127.0.0.1:8088/",
+    "http://127.0.0.1:8088/about-us",
+    "http://127.0.0.1:8088/"
+  ],
+  "screenshots": {
+    "fresh": "/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/output/playwright/qa-home-fresh-before-hero-story-2048.png",
+    "story": "/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/output/playwright/qa-after-hero-story-2048.png",
+    "returnedHome": "/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/output/playwright/qa-home-after-hero-story-click-home-2048.png"
+  },
+  "freshVsBack": {
+    "sameHref": true,
+    "sameTitle": true,
+    "sameHeroTitle": true,
+    "diffs": {
+      "shell": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dh": 0,
+        "textChanged": false,
+        "textA": "BeFam Gia phả sống cho dòng họ Việt TRANG CHỦ CÂU CHUYỆN VỀ CHÚNG TÔI MỞ ỨNG DỤN",
+        "textB": "BeFam Gia phả sống cho dòng họ Việt TRANG CHỦ CÂU CHUYỆN VỀ CHÚNG TÔI MỞ ỨNG DỤN"
+      },
+      "nav": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dh": 0,
+        "textChanged": false,
+        "textA": "BeFam Gia phả sống cho dòng họ Việt TRANG CHỦ CÂU CHUYỆN VỀ CHÚNG TÔI MỞ ỨNG DỤN",
+        "textB": "BeFam Gia phả sống cho dòng họ Việt TRANG CHỦ CÂU CHUYỆN VỀ CHÚNG TÔI MỞ ỨNG DỤN"
+      },
+      "hero": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dh": 0,
+        "textChanged": false,
+        "textA": "DÒNG HỌ / GIA PHẢ SỐ Gia phả sống. BeFam giữ ký ức. Lưu người thân, ngày giỗ, sự",
+        "textB": "DÒNG HỌ / GIA PHẢ SỐ Gia phả sống. BeFam giữ ký ức. Lưu người thân, ngày giỗ, sự"
+      },
+      "title": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dh": 0,
+        "textChanged": false,
+        "textA": "Gia phả sống. BeFam giữ ký ức.",
+        "textB": "Gia phả sống. BeFam giữ ký ức."
+      },
+      "footer": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dh": 0,
+        "textChanged": false,
+        "textA": "BeFam © 2026 · rõ người, rõ việc Riêng tư Điều khoản Xóa tài khoản Hỗ trợ iOS TẢ",
+        "textB": "BeFam © 2026 · rõ người, rõ việc Riêng tư Điều khoản Xóa tài khoản Hỗ trợ iOS TẢ"
+      },
+      "storeLinks": {
+        "dx": 0,
+        "dy": 0,
+        "dw": 0,
+        "dh": 0,
+        "textChanged": false,
+        "textA": "iOS TẢI TRÊN App Store A TẢI TRÊN Google Play",
+        "textB": "iOS TẢI TRÊN App Store A TẢI TRÊN Google Play"
+      }
+    }
+  },
+  "story": {
+    "label": "after-hero-story",
+    "href": "http://127.0.0.1:8088/about-us",
+    "title": "Câu chuyện BeFam | Gia phả sống cho dòng họ Việt",
+    "heroTitle": "Giữ liên kết gia đình. Rõ người, rõ việc.",
+    "active": [
+      {
+        "text": "CÂU CHUYỆN",
+        "href": "/about-us",
+        "parentClass": "befam-static-links"
+      }
+    ],
+    "rects": {
+      "shell": {
+        "tag": "main",
+        "id": "befam-static-shell",
+        "className": "befam-static-shell",
+        "text": "BeFam Gia phả sống cho dòng họ Việt TRANG CHỦ CÂU CHUYỆN VỀ CHÚNG TÔI MỞ ỨNG DỤNG CÂU CHUYỆN BEFAM Giữ liên kết gia đình. Rõ người, rõ việc.",
+        "x": 0,
+        "y": 0,
+        "width": 2048,
+        "height": 1127,
+        "display": "block",
+        "position": "static",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "normal"
+      },
+      "nav": {
+        "tag": "header",
+        "id": "",
+        "className": "befam-static-nav",
+        "text": "BeFam Gia phả sống cho dòng họ Việt TRANG CHỦ CÂU CHUYỆN VỀ CHÚNG TÔI MỞ ỨNG DỤNG",
+        "x": 284,
+        "y": 22,
+        "width": 1480,
+        "height": 72,
+        "display": "flex",
+        "position": "fixed",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "20px"
+      },
+      "hero": {
+        "tag": "section",
+        "id": "",
+        "className": "befam-static-hero",
+        "text": "CÂU CHUYỆN BEFAM Giữ liên kết gia đình. Rõ người, rõ việc. BeFam gom gia phả, ngày giỗ, việc chung và hỗ trợ vào một mạch dễ theo dõi. XEM B",
+        "x": 284,
+        "y": 122,
+        "width": 1480,
+        "height": 656,
+        "display": "grid",
+        "position": "static",
+        "margin": "10px 260px 0px 260px",
+        "gridTemplateColumns": "769.141px 676.859px",
+        "gap": "34px"
+      },
+      "title": {
+        "tag": "h1",
+        "id": "",
+        "className": "befam-static-title",
+        "text": "Giữ liên kết gia đình. Rõ người, rõ việc.",
+        "x": 284,
+        "y": 281,
+        "width": 769,
+        "height": 251,
+        "display": "block",
+        "position": "static",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "normal"
+      },
+      "footer": {
+        "tag": "footer",
+        "id": "",
+        "className": "befam-static-footer",
+        "text": "BeFam © 2026 · rõ người, rõ việc Riêng tư Điều khoản Xóa tài khoản Hỗ trợ iOS TẢI TRÊN App Store A TẢI TRÊN Google Play",
+        "x": 284,
+        "y": 968,
+        "width": 1480,
+        "height": 64,
+        "display": "flex",
+        "position": "sticky",
+        "margin": "20px 260px 0px 260px",
+        "gridTemplateColumns": "none",
+        "gap": "20px"
+      },
+      "storeLinks": {
+        "tag": "div",
+        "id": "",
+        "className": "befam-static-store-links",
+        "text": "iOS TẢI TRÊN App Store A TẢI TRÊN Google Play",
+        "x": 1465,
+        "y": 979,
+        "width": 284,
+        "height": 42,
+        "display": "flex",
+        "position": "static",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "8px"
+      }
+    }
+  },
+  "fresh": {
+    "label": "home-fresh",
+    "href": "http://127.0.0.1:8088/",
+    "title": "BeFam | Gia phả sống cho dòng họ Việt",
+    "heroTitle": "Gia phả sống. BeFam giữ ký ức.",
+    "active": [
+      {
+        "text": "TRANG CHỦ",
+        "href": "/",
+        "parentClass": "befam-static-links"
+      }
+    ],
+    "rects": {
+      "shell": {
+        "tag": "main",
+        "id": "befam-static-shell",
+        "className": "befam-static-shell",
+        "text": "BeFam Gia phả sống cho dòng họ Việt TRANG CHỦ CÂU CHUYỆN VỀ CHÚNG TÔI MỞ ỨNG DỤNG DÒNG HỌ / GIA PHẢ SỐ Gia phả sống. BeFam giữ ký ức. Lưu ng",
+        "x": 0,
+        "y": 0,
+        "width": 2048,
+        "height": 1127,
+        "display": "block",
+        "position": "static",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "normal"
+      },
+      "nav": {
+        "tag": "header",
+        "id": "",
+        "className": "befam-static-nav",
+        "text": "BeFam Gia phả sống cho dòng họ Việt TRANG CHỦ CÂU CHUYỆN VỀ CHÚNG TÔI MỞ ỨNG DỤNG",
+        "x": 284,
+        "y": 22,
+        "width": 1480,
+        "height": 72,
+        "display": "flex",
+        "position": "fixed",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "20px"
+      },
+      "hero": {
+        "tag": "section",
+        "id": "",
+        "className": "befam-static-hero",
+        "text": "DÒNG HỌ / GIA PHẢ SỐ Gia phả sống. BeFam giữ ký ức. Lưu người thân, ngày giỗ, sự kiện và quỹ họ trong một nơi rõ ràng. MỞ ỨNG DỤNG CÂU CHUYỆ",
+        "x": 284,
+        "y": 122,
+        "width": 1480,
+        "height": 656,
+        "display": "grid",
+        "position": "static",
+        "margin": "10px 260px 0px 260px",
+        "gridTemplateColumns": "769.141px 676.859px",
+        "gap": "34px"
+      },
+      "title": {
+        "tag": "h1",
+        "id": "",
+        "className": "befam-static-title",
+        "text": "Gia phả sống. BeFam giữ ký ức.",
+        "x": 284,
+        "y": 322,
+        "width": 769,
+        "height": 167,
+        "display": "block",
+        "position": "static",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "normal"
+      },
+      "footer": {
+        "tag": "footer",
+        "id": "",
+        "className": "befam-static-footer",
+        "text": "BeFam © 2026 · rõ người, rõ việc Riêng tư Điều khoản Xóa tài khoản Hỗ trợ iOS TẢI TRÊN App Store A TẢI TRÊN Google Play",
+        "x": 284,
+        "y": 968,
+        "width": 1480,
+        "height": 64,
+        "display": "flex",
+        "position": "sticky",
+        "margin": "20px 260px 0px 260px",
+        "gridTemplateColumns": "none",
+        "gap": "20px"
+      },
+      "storeLinks": {
+        "tag": "div",
+        "id": "",
+        "className": "befam-static-store-links",
+        "text": "iOS TẢI TRÊN App Store A TẢI TRÊN Google Play",
+        "x": 1465,
+        "y": 979,
+        "width": 284,
+        "height": 42,
+        "display": "flex",
+        "position": "static",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "8px"
+      }
+    }
+  },
+  "backHome": {
+    "label": "home-after-hero-story-click-home",
+    "href": "http://127.0.0.1:8088/",
+    "title": "BeFam | Gia phả sống cho dòng họ Việt",
+    "heroTitle": "Gia phả sống. BeFam giữ ký ức.",
+    "active": [
+      {
+        "text": "TRANG CHỦ",
+        "href": "/",
+        "parentClass": "befam-static-links"
+      }
+    ],
+    "rects": {
+      "shell": {
+        "tag": "main",
+        "id": "befam-static-shell",
+        "className": "befam-static-shell",
+        "text": "BeFam Gia phả sống cho dòng họ Việt TRANG CHỦ CÂU CHUYỆN VỀ CHÚNG TÔI MỞ ỨNG DỤNG DÒNG HỌ / GIA PHẢ SỐ Gia phả sống. BeFam giữ ký ức. Lưu ng",
+        "x": 0,
+        "y": 0,
+        "width": 2048,
+        "height": 1127,
+        "display": "block",
+        "position": "static",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "normal"
+      },
+      "nav": {
+        "tag": "header",
+        "id": "",
+        "className": "befam-static-nav",
+        "text": "BeFam Gia phả sống cho dòng họ Việt TRANG CHỦ CÂU CHUYỆN VỀ CHÚNG TÔI MỞ ỨNG DỤNG",
+        "x": 284,
+        "y": 22,
+        "width": 1480,
+        "height": 72,
+        "display": "flex",
+        "position": "fixed",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "20px"
+      },
+      "hero": {
+        "tag": "section",
+        "id": "",
+        "className": "befam-static-hero",
+        "text": "DÒNG HỌ / GIA PHẢ SỐ Gia phả sống. BeFam giữ ký ức. Lưu người thân, ngày giỗ, sự kiện và quỹ họ trong một nơi rõ ràng. MỞ ỨNG DỤNG CÂU CHUYỆ",
+        "x": 284,
+        "y": 122,
+        "width": 1480,
+        "height": 656,
+        "display": "grid",
+        "position": "static",
+        "margin": "10px 260px 0px 260px",
+        "gridTemplateColumns": "769.141px 676.859px",
+        "gap": "34px"
+      },
+      "title": {
+        "tag": "h1",
+        "id": "",
+        "className": "befam-static-title",
+        "text": "Gia phả sống. BeFam giữ ký ức.",
+        "x": 284,
+        "y": 322,
+        "width": 769,
+        "height": 167,
+        "display": "block",
+        "position": "static",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "normal"
+      },
+      "footer": {
+        "tag": "footer",
+        "id": "",
+        "className": "befam-static-footer",
+        "text": "BeFam © 2026 · rõ người, rõ việc Riêng tư Điều khoản Xóa tài khoản Hỗ trợ iOS TẢI TRÊN App Store A TẢI TRÊN Google Play",
+        "x": 284,
+        "y": 968,
+        "width": 1480,
+        "height": 64,
+        "display": "flex",
+        "position": "sticky",
+        "margin": "20px 260px 0px 260px",
+        "gridTemplateColumns": "none",
+        "gap": "20px"
+      },
+      "storeLinks": {
+        "tag": "div",
+        "id": "",
+        "className": "befam-static-store-links",
+        "text": "iOS TẢI TRÊN App Store A TẢI TRÊN Google Play",
+        "x": 1465,
+        "y": 979,
+        "width": 284,
+        "height": 42,
+        "display": "flex",
+        "position": "static",
+        "margin": "0px 0px 0px 0px",
+        "gridTemplateColumns": "none",
+        "gap": "8px"
+      }
+    }
+  }
+}

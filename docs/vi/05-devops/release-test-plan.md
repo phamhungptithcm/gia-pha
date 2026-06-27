@@ -33,7 +33,7 @@ Tài liệu này là bộ kiểm thử đầy đủ để xác minh BeFam sẵn 
 - Notifications inbox, mark-read, deep-link
 - Funds + transactions + treasurer/dashboard
 - Scholarship programs, awards, submissions, approvals
-- Billing plan entitlement + 3-step VNPay flow
+- Billing plan entitlement + Store IAP purchase flow
 - Profile, localization EN/VI, location sharing, nearby relatives
 - Firestore/Storage rules cho cả allow và deny case
 
@@ -136,7 +136,7 @@ Ghi chú mức ưu tiên:
 | CTX-005 | P0 | user có quyền hạn khác nhau theo clan | 1) Clan A (admin), clan B (member).<br>2) Switch qua lại và thử action write. | Permission thay đổi đúng theo clan hiện tại. |
 | CTX-006 | P1 | logout từ menu | 1) Mở menu ba chấm.<br>2) Chọn logout.<br>3) Mở lại app. | Logout sạch session + token context local. |
 | CTX-007 | P1 | localization EN/VI | 1) Đổi language trong profile.<br>2) Kiểm tra labels header/menu/action. | Chuỗi UI đổi đúng theo ngôn ngữ, không hardcode còn sót. |
-| CTX-008 | P0 | app startup | 1) Cold start app.<br>2) Quan sát tab đáy. | Tab label đúng UX thống nhất (`Nhà`, `Gia phả`, `Sự kiện`, `Gói`, `Hồ sơ`). |
+| CTX-008 | P0 | app startup | 1) Cold start app.<br>2) Quan sát tab đáy. | Tab label đúng UX thống nhất (`Nhà`, `Gia phả`, `Sự kiện`, `Quỹ`, `Hồ sơ`). `Quỹ` là quỹ họ, không phải gói BeFam. |
 
 ### 7.3) Member, Relationship, Genealogy
 
@@ -210,22 +210,22 @@ Ghi chú mức ưu tiên:
 | SCH-009 | P1 | switch clan | 1) Chuyển clan active.<br>2) Vào scholarship workspace. | Program/award/submission chỉ thuộc clan active. |
 | SCH-010 | P1 | localization | 1) Chuyển EN/VI.<br>2) Kiểm tra label/trạng thái trong scholarship. | Không còn text hardcode sai ngôn ngữ. |
 
-### 7.8) Billing và VNPay
+### 7.8) Billing và Store IAP
 
 | ID | Mức | Tiền điều kiện | Bước test (step-by-step) | Kỳ vọng |
 | --- | --- | --- | --- | --- |
-| BILL-001 | P0 | owner/admin clan | 1) Mở trang Gói.<br>2) Kiểm tra plan hiện tại + member count. | Entitlement phản ánh đúng plan thực tế đang hiệu lực. |
+| BILL-001 | P0 | owner/admin clan | 1) Mở `Gói dịch vụ` từ web CTA hoặc Profile trong app.<br>2) Kiểm tra plan hiện tại + member count. | Entitlement phản ánh đúng plan thực tế đang hiệu lực. Không nhầm với tab `Quỹ` của dòng họ. |
 | BILL-002 | P0 | clan có 0-10 member | 1) Resolve entitlement.<br>2) Kiểm tra plan tối thiểu. | Mặc định `FREE`. |
 | BILL-003 | P0 | clan có 11-200 member | 1) Resolve entitlement.<br>2) Kiểm tra minimum tier. | Clan phải ở mức tối thiểu `BASE`. |
 | BILL-004 | P0 | đang ở plan cao | 1) Chọn hạ gói dưới mức tối thiểu theo member count.<br>2) Continue checkout. | Hệ thống chặn downgrade không hợp lệ, báo lỗi rõ ràng. |
 | BILL-005 | P1 | đang còn hạn gói hiện tại | 1) Chọn gia hạn cùng gói khi chưa gần hạn.<br>2) Continue. | Chặn renew sớm theo rule hiện tại. |
-| BILL-006 | P0 | upgrade hợp lệ | 1) Chọn gói cao hơn ở step 1.<br>2) Sang step 2 xác nhận.<br>3) Qua step 3 VNPay. | Stepper cân đối, CTA không xuống dòng, flow rõ ràng. |
-| BILL-007 | P0 | VNPay success path | 1) Thanh toán thành công.<br>2) Quay lại app.<br>3) Refresh billing. | Transaction/invoice/subscription cập nhật, plan kích hoạt đúng. |
-| BILL-008 | P0 | VNPay pending path | 1) Tạo giao dịch pending.<br>2) Kiểm tra UI trạng thái. | Không kích hoạt plan mới cho đến khi confirmed. |
-| BILL-009 | P0 | VNPay failed/cancel | 1) Hủy/failed tại cổng thanh toán.<br>2) Quay lại app. | Giữ plan cũ, hiển thị trạng thái thất bại rõ ràng. |
+| BILL-006 | P0 | upgrade hợp lệ | 1) Chọn gói cao hơn.<br>2) Bấm mua gói trên iOS/Android.<br>3) Xác nhận Store purchase. | CTA rõ ràng, không double-submit, trạng thái loading dễ hiểu. |
+| BILL-007 | P0 | Store IAP success path | 1) Thanh toán thành công.<br>2) Quay lại app.<br>3) Refresh billing. | Transaction/invoice/subscription cập nhật, plan kích hoạt đúng. |
+| BILL-008 | P0 | Store IAP pending path | 1) Tạo giao dịch pending/deferred.<br>2) Kiểm tra UI trạng thái. | Không kích hoạt plan mới cho đến khi confirmed. |
+| BILL-009 | P0 | Store IAP failed/cancel | 1) Hủy/failed tại purchase sheet.<br>2) Quay lại app. | Giữ plan cũ, hiển thị trạng thái thất bại rõ ràng. |
 | BILL-010 | P1 | non-billing role | 1) Đăng nhập member thường.<br>2) Mở billing data nhạy cảm. | Bị chặn đọc document billing nhạy cảm theo rules. |
 | BILL-011 | P1 | checkout form | 1) Nhập số điện thoại liên hệ.<br>2) Kiểm tra normalize lưu payload. | Phone được normalize nhất quán. |
-| BILL-012 | P1 | pending transactions | 1) Mở detail giao dịch chờ.<br>2) Copy checkout URL (nếu có). | Detail đầy đủ, copy URL hoạt động. |
+| BILL-012 | P1 | pending transactions | 1) Mở detail giao dịch chờ.<br>2) Refresh billing. | Detail đầy đủ, trạng thái không kích hoạt gói trước khi confirmed. |
 
 ### 7.9) Profile, Localization, Nearby Relatives
 
@@ -282,7 +282,7 @@ Ghi chú mức ưu tiên:
 | Notification inbox + deep-link | Notifications docs + code | NOTIF-001..NOTIF-008, RULE-006..RULE-007 |
 | Quỹ và giao dịch | Funds features + functions triggers | FUND-001..FUND-009, RULE-005 |
 | Khuyến học | Scholarship features + triggers | SCH-001..SCH-010, RULE-012 |
-| Billing + VNPay + entitlement | Pricing/callables/rules | BILL-001..BILL-012, RULE-009..RULE-010 |
+| Billing + Store IAP + entitlement | Pricing/callables/rules | BILL-001..BILL-012, RULE-009..RULE-010 |
 | Hồ sơ, localization, nearby | Profile/member/home code | PRO-001..PRO-009, NFR-007 |
 | Reliability trước release | CI + runtime | NFR-001..NFR-008 |
 

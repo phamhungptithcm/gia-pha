@@ -20,7 +20,7 @@ _Cập nhật gần nhất: 17/03/2026_
 
 Billing runtime đang hoạt động với:
 
-- cổng thanh toán do Cloud Functions điều phối
+- xác minh Store IAP do Cloud Functions điều phối
 - trạng thái thuê bao/hóa đơn lưu trong Firestore
 - runtime override không chứa secret ở `runtimeConfig/global`
 

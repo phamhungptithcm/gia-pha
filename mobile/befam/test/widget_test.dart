@@ -5,6 +5,7 @@ import 'package:befam/features/auth/models/auth_entry_method.dart';
 import 'package:befam/features/auth/models/auth_member_access_mode.dart';
 import 'package:befam/features/auth/services/auth_analytics_service.dart';
 import 'package:befam/features/auth/services/auth_session_store.dart';
+import 'package:befam/core/widgets/app_form_controls.dart';
 import './support/features/auth/services/debug_auth_gateway.dart';
 import 'package:befam/features/clan/services/clan_repository.dart';
 import './support/features/clan/services/debug_clan_repository.dart';
@@ -257,6 +258,132 @@ void main() {
     expect(childField.controller?.text, 'BEFAM-CHILD-002');
   });
 
+  testWidgets('auth phone form shows required and invalid input errors', (
+    tester,
+  ) async {
+    await pumpAuthApp(tester, locale: const Locale('vi'));
+    await acceptPrivacyPolicy(tester);
+
+    await tester.tap(find.byKey(const Key('auth-method-phone-button')));
+    await safePumpAndSettle(tester);
+
+    await tester.tap(find.byKey(const Key('auth-send-otp-button')));
+    await safePumpAndSettle(tester);
+
+    expect(find.text('Hãy nhập số điện thoại.'), findsOneWidget);
+    expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
+
+    await tester.enterText(find.byKey(const Key('auth-phone-input')), 'abc');
+    await safePumpAndSettle(tester);
+    await tester.tap(find.byKey(const Key('auth-send-otp-button')));
+    await safePumpAndSettle(tester);
+
+    expect(find.text('Số điện thoại chưa đúng định dạng.'), findsOneWidget);
+  });
+
+  testWidgets('auth phone CTA remains tappable above Android keyboard', (
+    tester,
+  ) async {
+    await pumpAuthApp(
+      tester,
+      locale: const Locale('vi'),
+      viewportSize: const Size(390, 760),
+    );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -700));
+    await safePumpAndSettle(tester);
+    await tester.tap(find.byKey(const Key('auth-privacy-consent-control')));
+    await safePumpAndSettle(tester);
+
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -320));
+    await safePumpAndSettle(tester);
+    await tester.tap(find.byKey(const Key('auth-method-phone-button')));
+    await safePumpAndSettle(tester);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pump();
+
+    await tester.enterText(
+      find.byKey(const Key('auth-phone-input')),
+      '0901234567',
+    );
+    await tester.pump();
+
+    final sendOtpButton = find.byKey(const Key('auth-send-otp-button'));
+    final buttonRect = tester.getRect(sendOtpButton);
+    final visibleBottom =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio -
+        tester.view.viewInsets.bottom / tester.view.devicePixelRatio;
+
+    expect(buttonRect.height, greaterThanOrEqualTo(48));
+    expect(buttonRect.bottom, lessThanOrEqualTo(visibleBottom));
+    expect(tester.widget<FilledButton>(sendOtpButton).onPressed, isNotNull);
+  });
+
+  testWidgets('auth phone input survives compact keyboard layout switch', (
+    tester,
+  ) async {
+    await pumpAuthApp(tester, locale: const Locale('vi'));
+    await acceptPrivacyPolicy(tester);
+
+    await tester.tap(find.byKey(const Key('auth-method-phone-button')));
+    await safePumpAndSettle(tester);
+
+    await tester.enterText(
+      find.byKey(const Key('auth-phone-input')),
+      '0901234567',
+    );
+    await tester.pump();
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('auth-send-otp-button')));
+    await waitFor(
+      tester,
+      condition: () =>
+          find.byKey(const Key('otp-code-input')).evaluate().isNotEmpty,
+    );
+
+    expect(find.text('Hãy nhập số điện thoại.'), findsNothing);
+    expect(find.byKey(const Key('otp-code-input')), findsOneWidget);
+  });
+
+  testWidgets('auth child and OTP forms show inline required errors', (
+    tester,
+  ) async {
+    await pumpAuthApp(tester, locale: const Locale('vi'));
+    await acceptPrivacyPolicy(tester);
+
+    await tester.tap(find.byKey(const Key('auth-method-child-button')));
+    await safePumpAndSettle(tester);
+
+    await tester.tap(find.byKey(const Key('auth-child-continue-button')));
+    await safePumpAndSettle(tester);
+
+    expect(find.text('Hãy nhập mã dành cho bé.'), findsOneWidget);
+    expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
+
+    await tester.enterText(
+      find.byKey(const Key('auth-child-code-input')),
+      'BEFAM-CHILD-002',
+    );
+    await safePumpAndSettle(tester);
+    await tester.tap(find.byKey(const Key('auth-child-continue-button')));
+    await waitFor(
+      tester,
+      condition: () =>
+          find.byKey(const Key('otp-code-input')).evaluate().isNotEmpty,
+    );
+
+    await tester.enterText(find.byKey(const Key('otp-code-input')), '12');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('auth-confirm-otp-button')));
+    await safePumpAndSettle(tester);
+
+    expect(find.text('Nhập đủ 6 số trong mã xác nhận.'), findsOneWidget);
+  });
+
   testWidgets('completes child access with parent OTP context', (tester) async {
     await pumpAuthApp(tester, locale: const Locale('vi'));
 
@@ -314,7 +441,10 @@ void main() {
       'Chi Trưởng',
     );
     await tester.enterText(find.byKey(const Key('branch-code-input')), 'CT');
-    await tester.enterText(find.byKey(const Key('branch-generation-input')), '1');
+    await tester.enterText(
+      find.byKey(const Key('branch-generation-input')),
+      '1',
+    );
 
     expect(find.byKey(const Key('branch-name-input')), findsOneWidget);
     expect(find.byKey(const Key('branch-code-input')), findsOneWidget);
@@ -369,6 +499,66 @@ void main() {
 
     expect(find.text('Họ Nguyễn Văn'), findsWidgets);
     expect(find.text('Đã lưu hồ sơ họ tộc.'), findsOneWidget);
+  });
+
+  testWidgets('clan editor shows inline required errors', (tester) async {
+    await pumpAuthApp(
+      tester,
+      locale: const Locale('vi'),
+      clanRepository: DebugClanRepository.empty(),
+    );
+
+    await loginWithPhone(tester);
+
+    await tester.tap(find.byKey(const Key('shortcut-clan')));
+    await safePumpAndSettle(tester);
+    await tester.tap(find.byKey(const Key('clan-edit-fab')));
+    await safePumpAndSettle(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Tiếp tục'));
+    await safePumpAndSettle(tester);
+
+    expect(find.text('Hãy nhập tên họ tộc.'), findsOneWidget);
+    expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
+    expect(find.byKey(const Key('clan-description-input')), findsNothing);
+
+    await tester.enterText(find.byKey(const Key('clan-name-input')), 'Họ Test');
+    await tester.enterText(find.byKey(const Key('clan-country-input')), '');
+    await tester.tap(find.widgetWithText(FilledButton, 'Tiếp tục'));
+    await safePumpAndSettle(tester);
+
+    expect(find.text('Hãy nhập mã quốc gia hợp lệ.'), findsOneWidget);
+    expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
+    expect(find.byKey(const Key('clan-description-input')), findsNothing);
+  });
+
+  testWidgets('branch editor shows inline required errors', (tester) async {
+    await pumpAuthApp(
+      tester,
+      locale: const Locale('vi'),
+      clanRepository: DebugClanRepository.seeded(),
+    );
+    await loginWithPhone(tester);
+    await tester.tap(find.byKey(const Key('shortcut-clan')));
+    await safePumpAndSettle(tester);
+    await tapVisibleText(tester, 'Thêm chi mới');
+    await tester.tap(find.widgetWithText(FilledButton, 'Tiếp tục'));
+    await safePumpAndSettle(tester);
+
+    expect(find.text('Hãy nhập tên chi.'), findsOneWidget);
+    expect(find.text('Hãy nhập mã chi.'), findsOneWidget);
+    expect(find.byKey(const Key('branch-leader-input')), findsNothing);
+
+    await tester.enterText(find.byKey(const Key('branch-name-input')), 'Chi A');
+    await tester.enterText(find.byKey(const Key('branch-code-input')), 'A');
+    await tester.enterText(
+      find.byKey(const Key('branch-generation-input')),
+      '0',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Tiếp tục'));
+    await safePumpAndSettle(tester);
+
+    expect(find.text('Hãy nhập gợi ý đời lớn hơn 0.'), findsOneWidget);
+    expect(find.byKey(const Key('branch-leader-input')), findsNothing);
   });
 
   testWidgets(
@@ -590,6 +780,72 @@ void main() {
     expect(find.text('Phạm Hải An'), findsWidgets);
   });
 
+  testWidgets('member add form blocks next step until required fields pass', (
+    tester,
+  ) async {
+    await pumpAuthApp(
+      tester,
+      locale: const Locale('vi'),
+      clanRepository: DebugClanRepository.seeded(),
+      memberRepository: DebugMemberRepository.seeded(),
+    );
+
+    await loginWithPhone(tester);
+    await openMembersWorkspace(tester);
+
+    await tester.tap(find.byKey(const Key('member-add-fab')));
+    await safePumpAndSettle(tester);
+    await tester.tap(find.byKey(const Key('member-phone-lookup-skip')));
+    await safePumpAndSettle(tester);
+
+    await tester.tap(find.byKey(const Key('member-editor-step-2-label')));
+    await safePumpAndSettle(tester);
+
+    expect(find.text('Hãy nhập họ và tên thành viên.'), findsOneWidget);
+    expect(find.text('Hãy nhập số điện thoại.'), findsOneWidget);
+    expect(find.byKey(const Key('member-parent-picker-button')), findsNothing);
+    expect(find.byKey(AppRequiredFieldLabel.markerKey), findsWidgets);
+
+    await tester.enterText(
+      find.byKey(const Key('member-full-name-input')),
+      'Lê Minh An',
+    );
+    await tester.tap(find.byKey(const Key('member-editor-step-2-label')));
+    await safePumpAndSettle(tester);
+
+    expect(find.text('Hãy nhập số điện thoại.'), findsOneWidget);
+    expect(find.byKey(const Key('member-parent-picker-button')), findsNothing);
+  });
+
+  testWidgets('member phone lookup requires a phone before continue', (
+    tester,
+  ) async {
+    await pumpAuthApp(
+      tester,
+      locale: const Locale('vi'),
+      clanRepository: DebugClanRepository.seeded(),
+      memberRepository: DebugMemberRepository.seeded(),
+    );
+
+    await loginWithPhone(tester);
+    await openMembersWorkspace(tester);
+
+    await tester.tap(find.byKey(const Key('member-add-fab')));
+    await safePumpAndSettle(tester);
+    await tester.tap(find.byKey(const Key('member-phone-lookup-continue')));
+    await safePumpAndSettle(tester);
+
+    expect(
+      find.text('Hãy nhập số điện thoại hoặc chọn Tạo mới thủ công.'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('member-full-name-input')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('member-phone-lookup-skip')));
+    await safePumpAndSettle(tester);
+    expect(find.byKey(const Key('member-full-name-input')), findsOneWidget);
+  });
+
   testWidgets(
     'filters parent candidates to people at least 15 years older when birth date is set',
     (tester) async {
@@ -609,8 +865,16 @@ void main() {
       await safePumpAndSettle(tester);
 
       await tester.enterText(
+        find.byKey(const Key('member-full-name-input')),
+        'Nguyễn Gia Bảo',
+      );
+      await tester.enterText(
         find.byKey(const Key('member-birth-date-input')),
         '2000-01-01',
+      );
+      await tester.enterText(
+        find.byKey(const Key('member-phone-input')),
+        '+84908889999',
       );
       await safePumpAndSettle(tester);
 

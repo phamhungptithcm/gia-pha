@@ -1,6 +1,6 @@
 # Checklist QA trước release
 
-_Cập nhật gần nhất: 19/03/2026_
+_Cập nhật gần nhất: 17/05/2026_
 
 Tài liệu test đầy đủ (test plan + test cases + step-by-step):
 
@@ -32,7 +32,8 @@ Tài liệu test đầy đủ (test plan + test cases + step-by-step):
 
 - [ ] thẻ gói hiện tại chỉ hiển thị gói đang hiệu lực thực tế
 - [ ] điều kiện nâng cấp/gia hạn hoạt động đúng
-- [ ] luồng VNPay 3 bước dễ hiểu
+- [ ] luồng mua gói App Store / Google Play dễ hiểu
+- [ ] web billing nói rõ việc mua gói thực hiện trong app mobile
 - [ ] trạng thái thanh toán rõ ràng
 - [ ] thanh toán chờ/thất bại không kích hoạt gói mới
 

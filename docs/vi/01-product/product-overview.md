@@ -1,6 +1,6 @@
 # Tổng quan sản phẩm
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 17/05/2026_
 
 BeFam là nền tảng mobile-first cho gia phả và vận hành dòng họ, tập trung vào
 nhu cầu thực tế của các gia đình Việt Nam hiện đại.
@@ -43,7 +43,7 @@ BeFam giải quyết khoảng trống này bằng 3 lớp giá trị:
 
 ### Gói dịch vụ và thanh toán
 - gói năm theo quy mô thành viên
-- luồng thanh toán ưu tiên VNPay trên mobile
+- luồng mua gói qua App Store / Google Play trên mobile
 - trạng thái thanh toán rõ ràng: thành công, chờ đối soát, thất bại/hủy
 - chỉ kích hoạt gói sau khi hệ thống xác nhận thành công
 

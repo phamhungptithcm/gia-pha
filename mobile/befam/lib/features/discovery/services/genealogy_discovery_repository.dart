@@ -3,6 +3,7 @@ import '../models/genealogy_discovery_result.dart';
 import '../models/join_request_draft.dart';
 import '../models/join_request_review_item.dart';
 import '../models/my_join_request_item.dart';
+import 'debug_genealogy_discovery_repository.dart';
 import 'firebase_genealogy_discovery_repository.dart';
 
 abstract interface class GenealogyDiscoveryRepository {
@@ -41,5 +42,8 @@ abstract interface class GenealogyDiscoveryRepository {
 GenealogyDiscoveryRepository createDefaultGenealogyDiscoveryRepository({
   AuthSession? session,
 }) {
+  if (session?.isSandbox == true) {
+    return DebugGenealogyDiscoveryRepository.seeded();
+  }
   return FirebaseGenealogyDiscoveryRepository();
 }

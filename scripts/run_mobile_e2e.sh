@@ -39,6 +39,9 @@ Environment:
   BEFAM_E2E_SKIP_DEP_PREP       true/false. If true, skip flutter pub get/gen-l10n pre-step in this script.
   BEFAM_E2E_FAST_MODE           true/false. If true, pass fast-mode test defines to integration tests.
   BEFAM_E2E_SKIP_SCREENSHOTS    true/false. If true, integration tests skip screenshot capture.
+  BEFAM_E2E_USE_MOCK_AUTH       true/false. Defaults to true in debug mode so local device E2E does not depend on live OTP.
+  BEFAM_E2E_MOCK_AUTH_OTP       Mock OTP for debug E2E when BEFAM_E2E_USE_MOCK_AUTH=true (default: 123456).
+  BEFAM_E2E_ANDROID_MAX_ATTEMPTS Optional integer override for Android retry attempts (default: 2).
   BEFAM_E2E_IOS_MAX_ATTEMPTS    Optional integer override for iOS retry attempts (default: smoke=1, full=2).
   BEFAM_E2E_SEED_DEBUG_PROFILES true/false. If true, run Firebase debug profile seed script first.
   FIREBASE_PROJECT_ID           Firebase project for debug profile seed script.
@@ -128,7 +131,7 @@ print(fallback)
 '
 }
 
-machine_output_has_ios_transient_start_failure() {
+machine_output_has_transient_start_failure() {
   local machine_output_file="$1"
   python3 - <<'PY' "${machine_output_file}"
 import sys
@@ -142,6 +145,7 @@ if not path.exists():
 content = path.read_text(encoding="utf-8", errors="ignore").lower()
 needles = (
     "connecting to the vm service timed out",
+    "vmservicedisappearedexception",
     "unable to start the app on the device",
 )
 print("1" if any(needle in content for needle in needles) else "0")
@@ -276,6 +280,7 @@ run_suite_on_device() {
   local max_attempts=1
   local run_started_at
   local expanded_output_file="${ARTIFACTS_DIR}/e2e-${MODE}-${target_platform}-${SUITE}-expanded.log"
+  local android_max_attempts="${BEFAM_E2E_ANDROID_MAX_ATTEMPTS:-}"
   local ios_max_attempts="${BEFAM_E2E_IOS_MAX_ATTEMPTS:-}"
   local tests=()
   local defines=(
@@ -304,8 +309,20 @@ run_suite_on_device() {
       "--dart-define=BEFAM_E2E_TEST_OTP=${BEFAM_E2E_TEST_OTP}"
     )
   elif [[ "${SUITE}" == "smoke" ]]; then
+    if [[ "${BEFAM_E2E_USE_MOCK_AUTH:-true}" == "true" ]]; then
+      defines+=(
+        "--dart-define=BEFAM_USE_MOCK_AUTH=true"
+        "--dart-define=BEFAM_MOCK_AUTH_OTP=${BEFAM_E2E_MOCK_AUTH_OTP:-123456}"
+      )
+    fi
     tests=("integration_test/e2e_smoke_ci_test.dart")
   else
+    if [[ "${BEFAM_E2E_USE_MOCK_AUTH:-true}" == "true" ]]; then
+      defines+=(
+        "--dart-define=BEFAM_USE_MOCK_AUTH=true"
+        "--dart-define=BEFAM_MOCK_AUTH_OTP=${BEFAM_E2E_MOCK_AUTH_OTP:-123456}"
+      )
+    fi
     tests=(
       "integration_test/e2e_auth_and_role_matrix_test.dart"
       "integration_test/e2e_feature_journeys_test.dart"
@@ -315,7 +332,13 @@ run_suite_on_device() {
   app_version="$(awk '/^version:/{print $2; exit}' "${APP_DIR}/pubspec.yaml" || true)"
   build_sha="$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || true)"
 
-  if [[ "${target_platform}" == "ios" ]]; then
+  if [[ "${target_platform}" == "android" ]]; then
+    if [[ -n "${android_max_attempts}" ]]; then
+      max_attempts="${android_max_attempts}"
+    else
+      max_attempts=2
+    fi
+  elif [[ "${target_platform}" == "ios" ]]; then
     if [[ -n "${ios_max_attempts}" ]]; then
       max_attempts="${ios_max_attempts}"
     elif [[ "${SUITE}" == "smoke" ]]; then
@@ -415,12 +438,15 @@ PY
       fi
     fi
 
-    if [[ "${target_platform}" == "ios" && "${retry_attempt}" -lt "${max_attempts}" ]]; then
-      local has_transient_ios_failure
-      has_transient_ios_failure="$(machine_output_has_ios_transient_start_failure "${machine_output_file}")"
-      if [[ "${has_transient_ios_failure}" == "1" ]]; then
-        log "Detected transient iOS startup/VM-service failure. Retrying once..."
-        reboot_ios_simulator "${device_id}" || true
+    if [[ "${retry_attempt}" -lt "${max_attempts}" ]]; then
+      local has_transient_start_failure
+      has_transient_start_failure="$(machine_output_has_transient_start_failure "${machine_output_file}")"
+      if [[ "${has_transient_start_failure}" == "1" ]]; then
+        log "Detected transient ${target_platform} startup/VM-service failure. Retrying..."
+        if [[ "${target_platform}" == "ios" ]]; then
+          reboot_ios_simulator "${device_id}" || true
+        fi
+        sleep 5
         retry_attempt=$((retry_attempt + 1))
         continue
       fi

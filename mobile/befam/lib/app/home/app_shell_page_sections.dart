@@ -283,12 +283,9 @@ class _HomeDashboard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  l10n.pick(
-                    vi: 'Hôm nay trong gia đình',
-                    en: 'Today with your family',
-                  ),
+                  l10n.pick(vi: 'Nhà mình hôm nay', en: 'Family today'),
                   style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 SizedBox(
@@ -316,7 +313,7 @@ class _HomeDashboard extends StatelessWidget {
                             child: Text(
                               l10n.pick(vi: 'Lối tắt', en: 'Shortcuts'),
                               style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w900,
                               ),
                             ),
                           ),
@@ -343,9 +340,12 @@ class _HomeDashboard extends StatelessWidget {
                         ),
                         itemBuilder: (context, index) {
                           final shortcut = _primaryShortcuts[index];
-                          return _ShortcutCard(
-                            shortcut: shortcut,
-                            onTap: _onShortcutTap(context, shortcut.id),
+                          return AppStaggeredEntrance(
+                            index: index,
+                            child: _ShortcutCard(
+                              shortcut: shortcut,
+                              onTap: _onShortcutTap(context, shortcut.id),
+                            ),
                           );
                         },
                       ),
@@ -565,16 +565,16 @@ class _DashboardSectionShell extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
+        color: Colors.white.withValues(alpha: 0.88),
         gradient: gradient,
         borderRadius: radius,
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.92),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.84),
         ),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.08),
-            blurRadius: 32,
+            color: colorScheme.shadow.withValues(alpha: 0.045),
+            blurRadius: 30,
             offset: const Offset(0, 18),
           ),
         ],
@@ -583,30 +583,10 @@ class _DashboardSectionShell extends StatelessWidget {
         borderRadius: radius,
         child: Stack(
           children: [
-            if (showAccentOrbs) ...[
-              Positioned(
-                top: -44,
-                right: -24,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colorScheme.secondary.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const SizedBox(width: 132, height: 132),
-                ),
+            if (showAccentOrbs)
+              const Positioned.fill(
+                child: AppLineageGridOverlay(opacity: 0.55, spacing: 28),
               ),
-              Positioned(
-                bottom: -54,
-                left: -18,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const SizedBox(width: 154, height: 154),
-                ),
-              ),
-            ],
             Padding(padding: resolvedPadding, child: child),
           ],
         ),
@@ -695,21 +675,25 @@ class _ShortcutCard extends StatelessWidget {
     final isEnabled = onTap != null;
     final compactTile = layout.isMobile;
     final statusColor = switch (shortcut.status) {
-      AppShortcutStatus.live => colorScheme.primaryContainer,
-      AppShortcutStatus.bootstrap => colorScheme.secondaryContainer,
+      AppShortcutStatus.live => colorScheme.primary,
+      AppShortcutStatus.bootstrap => colorScheme.secondary,
       AppShortcutStatus.planned => colorScheme.surfaceContainerHighest,
     };
     final showDescription = !compactTile;
-    final tilePadding = compactTile ? tokens.spaceMd : tokens.spaceLg;
-    final avatarRadius = compactTile ? 17.0 : 19.0;
+    final tilePadding = compactTile ? tokens.spaceMd : tokens.spaceLg + 2;
     final titleFontSize = compactTile ? 16.0 : 17.0;
 
     return Material(
-      color: Colors.white.withValues(alpha: isEnabled ? 0.92 : 0.72),
-      borderRadius: BorderRadius.circular(tokens.radiusMd + 4),
+      color: Colors.white.withValues(alpha: isEnabled ? 0.94 : 0.70),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(tokens.radiusMd),
+        side: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.86),
+        ),
+      ),
       child: InkWell(
         key: Key('shortcut-${shortcut.id}'),
-        borderRadius: BorderRadius.circular(tokens.radiusMd + 4),
+        borderRadius: BorderRadius.circular(tokens.radiusMd),
         onTap: onTap,
         onLongPress: onTap,
         child: Opacity(
@@ -722,13 +706,27 @@ class _ShortcutCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: avatarRadius,
-                      backgroundColor: statusColor,
-                      foregroundColor: colorScheme.onSurface,
-                      child: Icon(
-                        _iconFor(shortcut.iconKey),
-                        size: compactTile ? 16 : 18,
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(
+                          alpha: shortcut.status == AppShortcutStatus.planned
+                              ? 1
+                              : 0.12,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: 0.22),
+                        ),
+                      ),
+                      child: SizedBox.square(
+                        dimension: compactTile ? 34 : 38,
+                        child: Icon(
+                          _iconFor(shortcut.iconKey),
+                          color: shortcut.status == AppShortcutStatus.planned
+                              ? colorScheme.onSurfaceVariant
+                              : statusColor,
+                          size: compactTile ? 16 : 18,
+                        ),
                       ),
                     ),
                     const Spacer(),
@@ -745,7 +743,7 @@ class _ShortcutCard extends StatelessWidget {
                 Text(
                   l10n.shortcutTitle(shortcut.id),
                   style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                     fontSize: titleFontSize,
                   ),
                   maxLines: 1,
@@ -757,8 +755,9 @@ class _ShortcutCard extends StatelessWidget {
                     _productionShortcutDescription(context, shortcut.id),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
+                      height: 1.28,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -774,34 +773,19 @@ class _ShortcutCard extends StatelessWidget {
 String _productionShortcutDescription(BuildContext context, String shortcutId) {
   final l10n = context.l10n;
   return switch (shortcutId) {
-    'clan' => l10n.pick(
-      vi: 'Xem thông tin họ tộc và các nhánh trong gia đình.',
-      en: 'View clan details and family branches.',
-    ),
+    'clan' => l10n.pick(vi: 'Thông tin họ tộc.', en: 'Clan details.'),
     'tree' => l10n.pick(
-      vi: 'Xem cây gia phả và các mối quan hệ trong họ.',
-      en: 'Explore the family tree and member relationships.',
+      vi: 'Quan hệ và thế hệ.',
+      en: 'People and generations.',
     ),
-    'members' => l10n.pick(
-      vi: 'Tìm và cập nhật hồ sơ thành viên.',
-      en: 'Search and update member profiles.',
-    ),
-    'events' => l10n.pick(
-      vi: 'Theo dõi lịch họ, giỗ và lời nhắc quan trọng.',
-      en: 'Follow family events, memorial dates, and reminders.',
-    ),
-    'funds' => l10n.pick(
-      vi: 'Theo dõi đóng góp, thu chi và số dư quỹ.',
-      en: 'Track contributions, spending, and fund balance.',
-    ),
+    'members' => l10n.pick(vi: 'Hồ sơ thành viên.', en: 'Member profiles.'),
+    'events' => l10n.pick(vi: 'Giỗ lễ, lịch họ.', en: 'Events and memorials.'),
+    'funds' => l10n.pick(vi: 'Thu chi rõ ràng.', en: 'Clear fund tracking.'),
     'scholarship' => l10n.pick(
-      vi: 'Theo dõi hồ sơ khuyến học của gia đình.',
-      en: 'Review scholarship requests and student support.',
+      vi: 'Khuyến học trong họ.',
+      en: 'Family scholarships.',
     ),
-    'profile' => l10n.pick(
-      vi: 'Cập nhật hồ sơ và thiết lập tài khoản.',
-      en: 'Update your profile and account settings.',
-    ),
+    'profile' => l10n.pick(vi: 'Thông tin của bạn.', en: 'Your information.'),
     _ => l10n.shortcutDescription(shortcutId),
   };
 }
@@ -1130,9 +1114,8 @@ class _UpcomingEventSectionState extends State<_UpcomingEventSection>
           }
 
           return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeOutCubic,
+            duration: Duration.zero,
+            transitionBuilder: AppMotion.noSwitcherTransition,
             child: child,
           );
         },
@@ -1689,9 +1672,15 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
 
   late Future<_NearbyRelativeLoadResult> _future;
   _NearbyRelativeLoadResult? _cachedResult;
+  bool _hasScheduledInitialLoad = false;
   bool _isRefreshing = false;
   String _lastNearbyAlertSignature = '';
   DateTime? _lastNearbyAlertAt;
+
+  bool get _usesLocalSandboxData =>
+      widget.session.isSandbox ||
+      widget.memberRepository.isSandbox ||
+      AppEnvironment.useMockAuth;
 
   CollectionReference<Map<String, dynamic>> get _membersCollection =>
       FirebaseServices.firestore.collection('members');
@@ -1699,6 +1688,15 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_hasScheduledInitialLoad) {
+      return;
+    }
+    _hasScheduledInitialLoad = true;
     _future = _loadNearbyRelativesAndCache();
   }
 
@@ -1775,6 +1773,17 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
         message: l10n.pick(
           vi: 'Tham gia gia phả để biết ai trong gia đình đang ở gần bạn.',
           en: 'Join a genealogy first to see nearby relatives.',
+        ),
+      );
+    }
+    if (_usesLocalSandboxData) {
+      return _NearbyRelativeLoadResult(
+        items: const [],
+        canRetry: false,
+        emptyStateType: _NearbyEmptyStateType.noSharedMembers,
+        message: l10n.pick(
+          vi: 'Bản kiểm thử chưa có dữ liệu vị trí chia sẻ. Khi người thân bật vị trí, danh sách sẽ hiện ở đây.',
+          en: 'This test workspace has no shared location data yet. Relatives will appear here once they share location.',
         ),
       );
     }
@@ -2273,6 +2282,24 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
     final l10n = context.l10n;
     final tokens = context.uiTokens;
     final layout = ResponsiveLayout.of(context);
+    if (_usesLocalSandboxData) {
+      return _DashboardSectionShell(
+        padding: EdgeInsets.all(tokens.spaceLg),
+        child: _NearbyRelativesEmpty(
+          key: const ValueKey<String>('nearby-sandbox-empty'),
+          emptyStateType: _NearbyEmptyStateType.noSharedMembers,
+          message: l10n.pick(
+            vi: 'Bản kiểm thử chưa có dữ liệu vị trí chia sẻ.',
+            en: 'This test workspace has no shared location data yet.',
+          ),
+          canRetry: false,
+          retryAction: _NearbyRetryAction.reload,
+          onRetry: _reload,
+          onRadarScan: null,
+          onOpenSettings: _openNearbySettings,
+        ),
+      );
+    }
     return _DashboardSectionShell(
       padding: EdgeInsets.all(tokens.spaceLg),
       child: FutureBuilder<_NearbyRelativeLoadResult>(
@@ -2368,9 +2395,8 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
             ],
           );
           return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeOutCubic,
+            duration: Duration.zero,
+            transitionBuilder: AppMotion.noSwitcherTransition,
             child: content,
           );
         },
@@ -2404,7 +2430,7 @@ class _NearbyRelativesSectionState extends State<_NearbyRelativesSection> {
 class _NearbySectionHeader extends StatelessWidget {
   const _NearbySectionHeader({
     required this.title,
-    required this.onRefresh,
+    this.onRefresh,
     this.badgeLabel,
     this.isRefreshing = false,
   });
@@ -2412,7 +2438,7 @@ class _NearbySectionHeader extends StatelessWidget {
   final String title;
   final String? badgeLabel;
   final bool isRefreshing;
-  final VoidCallback onRefresh;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -2457,18 +2483,20 @@ class _NearbySectionHeader extends StatelessWidget {
             ),
           ),
         ],
-        SizedBox(width: tokens.spaceSm),
-        AppCompactIconButton(
-          tooltip: context.l10n.pick(vi: 'Làm mới', en: 'Refresh'),
-          onPressed: isRefreshing ? null : onRefresh,
-          icon: isRefreshing
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.radar_rounded),
-        ),
+        if (onRefresh != null) ...[
+          SizedBox(width: tokens.spaceSm),
+          AppCompactIconButton(
+            tooltip: context.l10n.pick(vi: 'Làm mới', en: 'Refresh'),
+            onPressed: isRefreshing ? null : onRefresh,
+            icon: isRefreshing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.radar_rounded),
+          ),
+        ],
       ],
     );
   }
@@ -2784,7 +2812,7 @@ class _NearbyRelativesEmpty extends StatelessWidget {
     required this.canRetry,
     required this.retryAction,
     required this.onRetry,
-    required this.onRadarScan,
+    this.onRadarScan,
     this.settingsTarget,
     this.onOpenSettings,
   });
@@ -2794,7 +2822,7 @@ class _NearbyRelativesEmpty extends StatelessWidget {
   final bool canRetry;
   final _NearbyRetryAction retryAction;
   final VoidCallback onRetry;
-  final VoidCallback onRadarScan;
+  final VoidCallback? onRadarScan;
   final _NearbySettingsTarget? settingsTarget;
   final Future<void> Function(_NearbySettingsTarget target)? onOpenSettings;
 
@@ -3442,6 +3470,83 @@ class _ShellDestination {
   final String id;
   final IconData icon;
   final IconData selectedIcon;
+}
+
+class _BfMark extends StatelessWidget {
+  const _BfMark({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFF12182F),
+          borderRadius: BorderRadius.circular(size * 0.22),
+          border: Border.all(
+            color: Theme.of(
+              context,
+            ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(
+                context,
+              ).colorScheme.shadow.withValues(alpha: 0.08),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              right: -size * 0.08,
+              top: -size * 0.08,
+              child: Transform.rotate(
+                angle: 0.32,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3155FF),
+                    borderRadius: BorderRadius.circular(size * 0.05),
+                  ),
+                  child: SizedBox.square(dimension: size * 0.34),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -size * 0.07,
+              bottom: -size * 0.07,
+              child: Transform.rotate(
+                angle: 0.32,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE34CFF),
+                    borderRadius: BorderRadius.circular(size * 0.05),
+                  ),
+                  child: SizedBox.square(dimension: size * 0.28),
+                ),
+              ),
+            ),
+            Center(
+              child: Text(
+                'BF',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: size * 0.42,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 IconData _iconFor(String iconKey) {

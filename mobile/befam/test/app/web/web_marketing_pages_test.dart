@@ -40,6 +40,10 @@ void main() {
           path: '/account-deletion',
           builder: (context, state) => const WebAccountDeletionPage(),
         ),
+        GoRoute(
+          path: '/app',
+          builder: (context, state) => const _WebAppEntrySmokePage(),
+        ),
       ],
       errorBuilder: (context, state) => const WebLandingPage(),
     );
@@ -81,13 +85,95 @@ void main() {
     expect(find.byType(WebAccountDeletionPage), findsOneWidget);
   });
 
-  testWidgets('navigates from landing CTA to about page', (tester) async {
+  testWidgets('public nav stays marketing-only before app entry', (
+    tester,
+  ) async {
     await pumpWebRouter(tester, initialLocation: '/');
 
-    await tester.tap(find.byType(OutlinedButton).first);
+    expect(find.text('TRANG CHỦ'), findsOneWidget);
+    expect(find.text('CÂU CHUYỆN'), findsOneWidget);
+    expect(find.text('VỀ CHÚNG TÔI'), findsWidgets);
+    expect(find.text('GIA PHẢ'), findsNothing);
+    expect(find.text('GIỖ LỄ'), findsNothing);
+    expect(find.text('QUỸ HỌ'), findsNothing);
+    expect(find.text('GÓI DỊCH VỤ'), findsNothing);
+    expect(find.text('BẢO MẬT'), findsNothing);
+
+    await tester.tap(find.text('CÂU CHUYỆN'));
     await tester.pumpAndSettle();
 
     expect(find.byType(WebAboutUsPage), findsOneWidget);
+    expect(find.byKey(const Key('web-app-entry-smoke')), findsNothing);
+
+    await tester.tap(find.text('VỀ CHÚNG TÔI'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(WebBeFamInfoPage), findsOneWidget);
+    expect(find.byKey(const Key('web-app-entry-smoke')), findsNothing);
+  });
+
+  testWidgets('landing primary CTA opens app entry instead of marketing loop', (
+    tester,
+  ) async {
+    await pumpWebRouter(tester, initialLocation: '/');
+
+    await tester.tap(find.text('Mở ứng dụng').first);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('web-app-entry-smoke')), findsOneWidget);
+    expect(find.byType(WebLandingPage), findsNothing);
+  });
+
+  testWidgets('keeps public marketing content and footer store links visible', (
+    tester,
+  ) async {
+    await pumpWebRouter(tester, initialLocation: '/');
+
+    expect(find.text('Quỹ họ'), findsWidgets);
+    expect(find.text('Gói dịch vụ'), findsWidgets);
+    expect(find.text('Mua và nâng cấp trong app.'), findsOneWidget);
+    expect(find.text('iOS'), findsOneWidget);
+    expect(find.text('Android'), findsOneWidget);
+    expect(find.text('Quỹ và quyền dùng'), findsNothing);
+
+    await pumpWebRouter(tester, initialLocation: '/befam-info');
+
+    expect(find.text('VỀ CHÚNG TÔI'), findsWidgets);
+    expect(
+      find.text('BeFam được làm cho những dòng họ cần rõ người, rõ việc.'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('web-app-entry-smoke')), findsNothing);
+  });
+
+  testWidgets('landing primary CTA opens app entry instead of marketing loop', (
+    tester,
+  ) async {
+    await pumpWebRouter(tester, initialLocation: '/');
+
+    await tester.tap(find.text('Mở ứng dụng').first);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('web-app-entry-smoke')), findsOneWidget);
+    expect(find.byType(WebLandingPage), findsNothing);
+  });
+
+  testWidgets('separates clan funds from service plans across web pages', (
+    tester,
+  ) async {
+    await pumpWebRouter(tester, initialLocation: '/');
+
+    expect(find.text('Quỹ họ'), findsWidgets);
+    expect(find.text('Gói dịch vụ'), findsWidgets);
+    expect(find.text('Mua và nâng cấp trong app.'), findsOneWidget);
+    expect(find.text('Quỹ và quyền dùng'), findsNothing);
+
+    await pumpWebRouter(tester, initialLocation: '/befam-info');
+
+    expect(find.text('Quỹ họ'), findsWidgets);
+    expect(find.text('Gói dịch vụ'), findsNothing);
+    expect(find.text('Quỹ và quyền dùng'), findsNothing);
+    expect(find.text('Dành cho ban điều hành họ tộc'), findsOneWidget);
   });
 
   testWidgets('shows compact navigation on narrow width', (tester) async {
@@ -114,4 +200,32 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('keeps mobile header branded with a clear app CTA', (
+    tester,
+  ) async {
+    await pumpWebRouter(
+      tester,
+      initialLocation: '/',
+      viewportSize: const Size(390, 844),
+    );
+
+    expect(find.byKey(const Key('web-marketing-brand-name')), findsOneWidget);
+    expect(find.byKey(const Key('web-marketing-top-open-app')), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuButton),
+      findsNothing,
+    );
+  });
+}
+
+class _WebAppEntrySmokePage extends StatelessWidget {
+  const _WebAppEntrySmokePage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: Text('App entry', key: Key('web-app-entry-smoke'))),
+    );
+  }
 }

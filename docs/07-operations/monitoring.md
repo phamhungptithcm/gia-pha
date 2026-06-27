@@ -1,6 +1,6 @@
 # Monitoring
 
-_Last reviewed: March 26, 2026_
+_Last reviewed: May 16, 2026_
 
 ## Application monitoring
 
@@ -50,9 +50,15 @@ Billing monitoring (Epic #213):
 
 Required checks for protected branches:
 
-- `ci-docs`
-- `ci-functions`
-- `ci-mobile`
+- `CI - Docs Validation and Build`
+- `CI - Functions Build and Test`
+- `CI - Mobile Build and Test`
+- `Security - Dependency Review`
+- `Security - Trivy Filesystem Scan`
+- `Security - Gitleaks Secret Scan`
+- `Security - Trivy Container Image Scan`
+- `E2E - Android Test Run`
+- `E2E - iOS Test Run`
 
 These checks validate docs build, functions compile, Flutter analyze/test, and
 release-image build viability.

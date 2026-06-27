@@ -40,7 +40,20 @@ class AppBootstrap {
 
         try {
           final options = _resolveFirebaseOptions();
-          await Firebase.initializeApp(options: options);
+          if (Firebase.apps.isEmpty) {
+            await Firebase.initializeApp(options: options);
+          } else {
+            final existingOptions = Firebase.app().options;
+            if (existingOptions.projectId != options.projectId) {
+              throw StateError(
+                'Firebase default app is already initialized for '
+                '${existingOptions.projectId}, expected ${options.projectId}.',
+              );
+            }
+            AppLogger.info(
+              'Firebase default app already initialized for ${options.projectId}; reusing it.',
+            );
+          }
           final setupResults = await Future.wait<Object?>([
             _activateAppCheck().then<Object?>((_) => null),
             AdController.initializeSdk().then<Object?>((_) => null),

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
@@ -239,3 +241,59 @@ test(
     }
   },
 );
+
+test('billing contract: store purchase mutation is owner-only', async () => {
+  const { __testOnly } = await import('../billing/callables');
+
+  assert.doesNotThrow(() => {
+    __testOnly.ensureBillingOwnerMutationAccess({
+      requireOwnerMutationAccess: true,
+      uid: 'owner-uid',
+      ownerUid: 'owner-uid',
+      ownerDisplayName: 'Owner',
+    });
+  });
+
+  assert.throws(
+    () => {
+      __testOnly.ensureBillingOwnerMutationAccess({
+        requireOwnerMutationAccess: true,
+        uid: 'billing-admin-uid',
+        ownerUid: 'owner-uid',
+        ownerDisplayName: 'Owner',
+      });
+    },
+    (error) =>
+      typeof error === 'object' &&
+      error != null &&
+      'code' in error &&
+      error.code === 'permission-denied',
+  );
+
+  assert.doesNotThrow(() => {
+    __testOnly.ensureBillingOwnerMutationAccess({
+      requireOwnerMutationAccess: false,
+      uid: 'billing-admin-uid',
+      ownerUid: 'owner-uid',
+      ownerDisplayName: 'Owner',
+    });
+  });
+});
+
+test('billing contract: verifyInAppPurchase requires owner mutation access', () => {
+  const sourcePath = path.join(
+    __dirname,
+    '..',
+    '..',
+    'src',
+    'billing',
+    'callables.ts',
+  );
+  const source = readFileSync(sourcePath, 'utf8');
+  const start = source.indexOf('export const verifyInAppPurchase');
+  const end = source.indexOf('const platform = normalizeIapPlatform', start);
+  assert.ok(start >= 0, 'verifyInAppPurchase callable is present');
+  assert.ok(end > start, 'verifyInAppPurchase scope block is readable');
+  const scopeBlock = source.slice(start, end);
+  assert.match(scopeBlock, /requireOwnerMutationAccess:\s*true/);
+});

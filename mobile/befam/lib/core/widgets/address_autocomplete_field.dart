@@ -11,6 +11,7 @@ class AddressAutocompleteField extends StatefulWidget {
     required this.controller,
     required this.labelText,
     this.hintText,
+    this.focusNode,
     this.validator,
     this.enabled = true,
     this.maxLines = 1,
@@ -23,6 +24,7 @@ class AddressAutocompleteField extends StatefulWidget {
   final TextEditingController controller;
   final String labelText;
   final String? hintText;
+  final FocusNode? focusNode;
   final FormFieldValidator<String>? validator;
   final bool enabled;
   final int maxLines;
@@ -37,22 +39,30 @@ class AddressAutocompleteField extends StatefulWidget {
 }
 
 class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
-  final FocusNode _focusNode = FocusNode();
+  late final FocusNode _fallbackFocusNode;
   Timer? _debounce;
   bool _isResolvingCurrentLocation = false;
   bool _isLoadingSuggestions = false;
   int _suggestionToken = 0;
   List<String> _suggestions = const [];
 
+  FocusNode get _focusNode => widget.focusNode ?? _fallbackFocusNode;
+
   @override
   void initState() {
     super.initState();
+    _fallbackFocusNode = FocusNode();
     _focusNode.addListener(_handleFocusChange);
   }
 
   @override
   void didUpdateWidget(covariant AddressAutocompleteField oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      final previousFocusNode = oldWidget.focusNode ?? _fallbackFocusNode;
+      previousFocusNode.removeListener(_handleFocusChange);
+      _focusNode.addListener(_handleFocusChange);
+    }
     if (!widget.enabled && _suggestions.isNotEmpty) {
       setState(() {
         _suggestions = const [];
@@ -64,9 +74,8 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
   @override
   void dispose() {
     _debounce?.cancel();
-    _focusNode
-      ..removeListener(_handleFocusChange)
-      ..dispose();
+    _focusNode.removeListener(_handleFocusChange);
+    _fallbackFocusNode.dispose();
     super.dispose();
   }
 

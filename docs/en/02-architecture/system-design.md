@@ -1,6 +1,6 @@
 # System Design
 
-_Last reviewed: March 15, 2026_
+_Last reviewed: May 17, 2026_
 
 ## High-level architecture
 
@@ -11,11 +11,11 @@ flowchart TD
     A --> D["Firebase Storage"]
     A --> E["Cloud Functions v2 (asia-southeast1)"]
     A --> F["Firebase Cloud Messaging"]
-    A --> K["Card/VNPay checkout redirect or SDK flow"]
+    A --> K["App Store / Google Play Store IAP"]
     A --> M["Ad SDK/Network (planned, plan-gated)"]
     E --> C
     E --> F
-    K --> L["Payment Gateway"]
+    K --> L["Store subscription platform"]
     L --> E
     G["GitHub Actions CI/CD"] --> H["staging/main protected branches"]
     G --> I["GitHub Releases + GHCR images"]

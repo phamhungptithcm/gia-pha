@@ -28,11 +28,19 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-docs.txt
 
+      - name: Set up Node.js for design.md
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "20"
+
       - name: Install docs dependencies
         run: pip install -r requirements-docs.txt
 
       - name: Validate rules documentation
         run: python3 scripts/validate_rules_documentation.py
+
+      - name: Validate DESIGN.md
+        run: ./scripts/lint_design_md.sh
 
       - name: Build docs
         run: mkdocs build --strict
@@ -58,6 +66,9 @@ jobs:
       - name: Install Functions dependencies
         run: npm ci
 
+      - name: Audit Functions dependencies
+        run: npm audit --audit-level=high
+
       - name: Build Functions
         run: npm run build
 
@@ -65,7 +76,13 @@ jobs:
         run: npx tsc --noEmit --noUnusedLocals --noUnusedParameters
 
       - name: Run Functions contract tests
-        run: echo "::notice::Temporarily skipping Functions contract tests while CI is focused on build and release."
+        run: npm test
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Run Firebase rules emulator tests
+        run: npm run test:rules
 
       - name: Prepare Docker auth for public registry pulls
         working-directory: ${{ github.workspace }}
@@ -132,17 +149,44 @@ jobs:
       - name: Enforce Dart dead-code gate
         run: dart analyze --fatal-infos --fatal-warnings
 
-      - name: Run Flutter tests
-        run: echo "::notice::Temporarily skipping Flutter tests while CI is focused on build and release."
+      - name: Run Flutter tests with coverage
+        run: |
+          flutter test \
+            --coverage \
+            --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true \
+            --dart-define=BEFAM_OTP_PROVIDER=firebase \
+            --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
+            --dart-define=BEFAM_ENABLE_APP_CHECK=false
 
       - name: Enforce Flutter coverage gate
-        run: echo "::notice::Temporarily skipping Flutter coverage enforcement while CI is focused on build and release."
+        env:
+          MIN_LINE_COVERAGE: "20.0"
+        run: |
+          set -euo pipefail
+          if [ ! -s coverage/lcov.info ]; then
+            echo "::error::Missing coverage/lcov.info"
+            exit 1
+          fi
+          lines="$(awk -F: '/^LF:/{total += $2} END {print total + 0}' coverage/lcov.info)"
+          hits="$(awk -F: '/^LH:/{total += $2} END {print total + 0}' coverage/lcov.info)"
+          if [ "$lines" -le 0 ]; then
+            echo "::error::Coverage file does not contain executable lines."
+            exit 1
+          fi
+          coverage="$(awk -v hits="$hits" -v lines="$lines" 'BEGIN { printf "%.2f", (hits / lines) * 100 }')"
+          echo "Flutter line coverage: ${coverage}%"
+          awk -v coverage="$coverage" -v minimum="$MIN_LINE_COVERAGE" 'BEGIN { exit coverage + 0 >= minimum + 0 ? 0 : 1 }' || {
+            echo "::error::Flutter line coverage ${coverage}% is below ${MIN_LINE_COVERAGE}%."
+            exit 1
+          }
 
-      - name: Run Flutter E2E release catalog contract
-        run: echo "::notice::Temporarily skipping Flutter release catalog contract while CI is focused on build and release."
+      - name: Skip Flutter E2E release catalog contract
+        run: |
+          echo "::notice::Flutter release catalog E2E contract is intentionally skipped for CI/CD."
+          echo "::notice::Run manual Android/iOS E2E before release approval."
 
       - name: Run Flutter web smoke tests
-        run: echo "::notice::Temporarily skipping Flutter web smoke tests while CI is focused on build and release."
+        run: flutter test test/app/web/web_marketing_pages_test.dart
 
       - name: Build Flutter web
         env:
