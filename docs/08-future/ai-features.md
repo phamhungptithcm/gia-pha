@@ -2,16 +2,21 @@
 
 _Last reviewed: March 14, 2026_
 
-This page captures potential AI enhancements after core clan workflows are
-fully production-complete.
+This page tracks AI work after the core clan workflows reached a production
+baseline. Phase-1 rollout now exists as a concrete product epic:
+
+- [EN epic: vNext AI Integration Rollout](../en/01-product/epic-vnext-ai-integration-rollout.md)
+- [VI epic: vNext AI Integration Rollout](../vi/01-product/epic-vnext-ai-integration-rollout.md)
+
+Phase-1 implementation focuses on structured, in-flow assistance instead of a
+generic chat surface.
 
 ## Candidate features
 
-- guided relationship suggestion assistants for admin review
-- smart duplicate detection for member onboarding
 - natural-language family search (Vietnamese-first prompts)
-- ceremony/reminder drafting help based on event history
-- profile quality hints (missing key fields, inconsistent dates)
+- OCR-assisted genealogy digitization from paper records
+- guided relationship suggestion assistants for admin review
+- richer memorial recap drafting based on event history
 
 ## Guardrails
 
@@ -21,8 +26,8 @@ fully production-complete.
 
 ## Delivery prerequisite
 
-Before adding advanced AI features:
+Before adding the next wave of AI features:
 
-- complete events/funds/scholarship UI baseline
-- stabilize notification inbox and deep-link flows
-- finalize analytics foundations for behavior measurement
+- validate phase-1 usefulness metrics in profile/event/genealogy flows
+- finalize analytics foundations for AI usage and outcome measurement
+- confirm model cost ceilings and failure fallback behavior in staging

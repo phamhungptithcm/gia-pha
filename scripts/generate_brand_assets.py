@@ -19,12 +19,13 @@ ARTIFACTS = ROOT / ".codex-artifacts"
 
 @dataclass(frozen=True)
 class Palette:
-    midnight: str = "#30364F"
-    midnight_light: str = "#46506F"
-    cream: str = "#F0F0DB"
-    sand: str = "#E1D9BC"
-    mist: str = "#ACBAC4"
-    outline: str = "#7E889B"
+    midnight: str = "#0F172A"
+    midnight_light: str = "#3155FF"
+    cream: str = "#F7FAFF"
+    sand: str = "#F4B740"
+    mist: str = "#32C6B8"
+    magenta: str = "#E34CFF"
+    outline: str = "#526076"
     white: str = "#FFFFFF"
 
 
@@ -440,14 +441,14 @@ def orbit_svg(cx: int, cy: int, rx: int, ry: int, angle: int, color: str, width:
 
 
 def write_svg_logo(path: Path, background: str | None, dark: bool = False) -> None:
-    width, height = 1600, 900
+    width, height = 3840, 2160
     bg_fill = f'<rect width="{width}" height="{height}" rx="44" fill="{background}" />' if background else ""
     primary = PALETTE.cream if dark else PALETTE.midnight
-    secondary = PALETTE.sand if dark else PALETTE.mist
+    secondary = PALETTE.sand if dark else PALETTE.midnight_light
     subtitle = PALETTE.cream if dark else PALETTE.outline
-    orbit_colors = [PALETTE.cream, PALETTE.sand, PALETTE.mist, PALETTE.cream] if dark else [PALETTE.midnight, PALETTE.mist, PALETTE.sand, PALETTE.midnight]
+    orbit_colors = [PALETTE.cream, PALETTE.sand, PALETTE.mist, PALETTE.magenta] if dark else [PALETTE.midnight_light, PALETTE.mist, PALETTE.sand, PALETTE.magenta]
     svg = [
-        svg_header((width, height)),
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 1600 900">',
         bg_fill,
         orbit_svg(800, 235, 158, 58, 14, orbit_colors[0], 24),
         orbit_svg(800, 235, 158, 58, 62, orbit_colors[1], 24),
@@ -474,23 +475,23 @@ def save_resized(image: Image.Image, path: Path, size: tuple[int, int]) -> None:
 
 def generate_shared_assets() -> dict[str, Image.Image]:
     primary_logo = draw_stacked_logo(
-        (1600, 900),
-        [PALETTE.midnight, PALETTE.mist, PALETTE.sand, PALETTE.midnight],
+        (3840, 2160),
+        [PALETTE.midnight_light, PALETTE.mist, PALETTE.sand, PALETTE.magenta],
         wordmark_primary=PALETTE.midnight,
-        wordmark_secondary=PALETTE.mist,
+        wordmark_secondary=PALETTE.midnight_light,
         subtitle_color=PALETTE.outline,
     )
     light_logo = draw_stacked_logo(
-        (1600, 900),
-        [PALETTE.midnight, PALETTE.mist, PALETTE.sand, PALETTE.midnight],
+        (3840, 2160),
+        [PALETTE.midnight_light, PALETTE.mist, PALETTE.sand, PALETTE.magenta],
         wordmark_primary=PALETTE.midnight,
-        wordmark_secondary=PALETTE.mist,
+        wordmark_secondary=PALETTE.midnight_light,
         subtitle_color=PALETTE.outline,
         background=PALETTE.cream,
     )
     dark_logo = draw_stacked_logo(
-        (1600, 900),
-        [PALETTE.cream, PALETTE.sand, PALETTE.mist, PALETTE.cream],
+        (3840, 2160),
+        [PALETTE.cream, PALETTE.sand, PALETTE.mist, PALETTE.magenta],
         wordmark_primary=PALETTE.cream,
         wordmark_secondary=PALETTE.sand,
         subtitle_color=PALETTE.cream,

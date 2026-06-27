@@ -524,18 +524,18 @@ class AddressActionTools {
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       if (context.mounted) {
+        final permanentlyDenied =
+            permission == LocationPermission.deniedForever;
         _showSnack(
           context,
           context.l10n.pick(
-            vi: permission == LocationPermission.deniedForever
-                ? 'Ứng dụng đã bị chặn quyền vị trí. Bạn có thể mở cài đặt để cấp lại.'
+            vi: permanentlyDenied
+                ? 'Vị trí đang bị chặn. Bạn có thể mở cài đặt từ hồ sơ khi cần.'
                 : 'Bạn chưa cấp quyền vị trí cho ứng dụng.',
-            en: permission == LocationPermission.deniedForever
-                ? 'Location permission is permanently denied. Open settings to enable it.'
+            en: permanentlyDenied
+                ? 'Location is blocked. You can reopen it from profile settings when needed.'
                 : 'Location permission is not granted for this app.',
           ),
-          actionLabel: context.l10n.pick(vi: 'Mở cài đặt', en: 'Open settings'),
-          onAction: Geolocator.openAppSettings,
         );
       }
       return false;
@@ -717,17 +717,33 @@ class AddressActionTools {
     }
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        action: (actionLabel == null || onAction == null)
-            ? null
-            : SnackBarAction(
-                label: actionLabel,
-                onPressed: () {
-                  unawaited(onAction());
-                },
-              ),
+      buildFeedbackSnackBar(
+        message: message,
+        actionLabel: actionLabel,
+        onAction: onAction,
       ),
+    );
+  }
+
+  @visibleForTesting
+  static SnackBar buildFeedbackSnackBar({
+    required String message,
+    String? actionLabel,
+    Future<bool> Function()? onAction,
+  }) {
+    return SnackBar(
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+      duration: const Duration(seconds: 3),
+      content: Text(message),
+      action: (actionLabel == null || onAction == null)
+          ? null
+          : SnackBarAction(
+              label: actionLabel,
+              onPressed: () {
+                unawaited(onAction());
+              },
+            ),
     );
   }
 }

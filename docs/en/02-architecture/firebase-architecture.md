@@ -20,7 +20,7 @@ _Last reviewed: March 16, 2026_
 
 Billing runtime is active:
 
-- payment gateway integration (card + VNPay) mediated by Cloud Functions
+- Store IAP verification mediated by Cloud Functions
 - subscription lifecycle and invoice state stored in Firestore
 - runtime billing overrides loaded from Firestore `runtimeConfig/global`
 

@@ -1,12 +1,12 @@
 # Production Readiness Checklist
 
-_Last reviewed: April 4, 2026_
+_Last reviewed: May 16, 2026_
 
 This checklist is the source of truth for BeFam production readiness across code, CI/CD, Firebase, Google Cloud, and store release operations.
 
 Primary operator runbook:
 
-- [docs/vi/05-devops/production-release-runbook.md](/Users/hunpeo97/Desktop/Workspace/Coder/gia-pha/docs/vi/05-devops/production-release-runbook.md)
+- [docs/vi/05-devops/production-release-runbook.md](docs/vi/05-devops/production-release-runbook.md)
 
 ## Target Operating Model
 
@@ -50,7 +50,7 @@ Primary operator runbook:
   - Google test AdMob app IDs
   - Google test AdMob unit IDs
 - Secret templates in repo no longer contain the previously committed signing values.
-- `app-ads.txt` now exists at `mobile/befam/web/app-ads.txt` with an explicit placeholder line that must be replaced before production.
+- `app-ads.txt` now exists at `mobile/befam/web/app-ads.txt` with the production publisher entry verified on `https://befam.co/app-ads.txt`.
 - GitHub environment audit script now exists at `scripts/audit_github_environment.sh`.
 
 ## Final Checklist
@@ -64,10 +64,11 @@ Primary operator runbook:
 | Secret hygiene | Repo templates scrubbed of signing material | Platform | `Done` | Example files now use placeholders only |
 | Secret hygiene | Rotate Android signing keystore, passwords, and any exposed derivatives outside repo | Security + Mobile | `Blocker` | This cannot be completed by code alone; rotate in keystore storage, Play/App Store, and GitHub secrets |
 | Secret hygiene | Audit git history and invalidate any previously leaked credentials still trusted by CI/store tooling | Security + Platform | `Blocker` | Use secret scanning + rotation log; treat past committed signing values as compromised |
-| GitHub production env | Required iOS signing secrets exist in the `production` environment | Platform + Mobile | `Blocker` | Current audit found `IOS_P12_BASE64`, `IOS_P12_PASSWORD`, `IOS_PROVISIONING_PROFILE_BASE64`, and `IOS_TEAM_ID` missing from GitHub `production` secrets |
-| GitHub production env | Required runtime/store vars exist in the `production` environment | Platform | `Blocker` | Current audit found `BEFAM_OTP_PROVIDER`, `BEFAM_WEB_BASE_URL`, `BEFAM_IOS_APP_STORE_URL`, and `BEFAM_ANDROID_PLAY_STORE_URL` missing from GitHub `production` vars |
-| GitHub production env | Required production AdMob vars exist in the `production` environment | Growth + Platform | `Blocker` | Current audit found production AdMob app IDs and unit IDs missing from GitHub `production` vars |
-| GitHub production env | Production environment requires reviewer approval without self-approval | Platform | `Blocker` | `scripts/audit_github_environment.sh --env production --strict` now fails until `prevent_self_review` is enabled |
+| GitHub production env | Required iOS signing secrets exist in the `production` environment | Platform + Mobile | `Done` | May 16 audit found no missing required production secrets |
+| GitHub production env | Required runtime/store vars exist in the `production` environment | Platform | `Done` | May 16 audit found no missing required production vars |
+| GitHub production env | Required production AdMob vars exist in the `production` environment | Growth + Platform | `Done` | May 16 audit found no missing required production AdMob vars and `app-ads.txt` is ready |
+| GitHub production env | Production environment requires reviewer approval without self-approval | Platform | `Done` | May 16 audit confirms `prevent_self_review` is enabled |
+| GitHub branch protection | `staging` and `main` require release CI/E2E/security checks | Platform | `Done` | May 16 audit confirms both branches require CI, security, and mobile E2E status checks |
 | Firebase projects | Separate staging and production Firebase projects exist | Backend/Firebase | `Verify` | User confirmed production project exists; verify it is not reusing staging resources accidentally |
 | Firebase projects | Production GitHub vars point to the production Firebase project only | Platform | `Verify` | Check `production` environment vars/secrets in GitHub |
 | Firebase projects | `.firebaserc` aliases and local docs clearly distinguish staging vs production | Platform | `Partial` | Repo still defaults to staging locally; acceptable, but team must avoid ad-hoc prod CLI deploys |
@@ -94,11 +95,11 @@ Primary operator runbook:
 | Billing/IAP | Production subscription catalog matches code IDs exactly | Backend + Mobile | `Verify` | Must include `befam.base.yearly`, `befam.plus.yearly`, `befam.pro.yearly` |
 | Billing/IAP | Google Play RTDN Pub/Sub is configured to production webhook audience | Backend/Firebase | `Verify` | Required for reliable subscription status updates |
 | Billing/IAP | App Store server notifications / receipt validation secrets are configured | Backend/Firebase | `Verify` | Match production bundle/app |
-| Ads | Production AdMob app IDs are stored in GitHub production vars | Growth + Platform | `Partial` | Required by `release-main` preflight |
-| Ads | Production AdMob ad unit IDs are stored in GitHub production vars | Growth + Platform | `Partial` | Required by `release-main` preflight |
+| Ads | Production AdMob app IDs are stored in GitHub production vars | Growth + Platform | `Done` | May 16 production audit found required AdMob vars present |
+| Ads | Production AdMob ad unit IDs are stored in GitHub production vars | Growth + Platform | `Done` | May 16 production audit found required AdMob unit vars present |
 | Ads | Android native AdMob app ID is injected only from production vars on real production builds | Mobile + Platform | `Done` | Guarded in [`build.gradle.kts`](mobile/befam/android/app/build.gradle.kts) |
 | Ads | iOS native AdMob app ID is injected only from production vars on real production builds | Mobile + Platform | `Done` | Guarded in [`project.pbxproj`](mobile/befam/ios/Runner.xcodeproj/project.pbxproj) |
-| Ads | `app-ads.txt` is published on the production web domain | Web + Growth | `Blocker` | Required before real AdMob traffic |
+| Ads | `app-ads.txt` is published on the production web domain | Web + Growth | `Done` | Verified `https://befam.co/app-ads.txt` returns the production publisher entry |
 | Ads | Consent flow and privacy choices are validated on real production candidates | QA + Growth + Mobile | `Partial` | In-app privacy choices entry now exists; validate it on clean Android and iOS installs before launch |
 | Web hosting | Production custom domain is attached and SSL is healthy | Web + Platform | `Verify` | Also verify redirects/canonical base URL |
 | Web hosting | Sitemap includes legal URLs and production base URL is correct | Web | `Done` | Updated in [`sitemap.template.xml`](mobile/befam/web/sitemap.template.xml) |
@@ -106,7 +107,7 @@ Primary operator runbook:
 | Observability | Cloud Logging alerts exist for Functions failures and Scheduler failures | Platform + Backend/Firebase | `Verify` | Configure log-based alerts in Google Cloud |
 | Observability | Cloud Billing budget alerts exist for production project | Platform | `Verify` | Required to avoid surprise startup spend |
 | Observability | On-call destination for release failures exists | Platform + PM | `Partial` | Slack webhook exists in workflows; decide escalation owner and response window |
-| QA gate | Release smoke suite exists for every `release_tag` before any production promote | QA + Mobile + Backend | `Blocker` | Must include OTP, push, genealogy create flows, fund, scholarship, billing, web legal pages |
+| QA gate | Release smoke suite exists for every `release_tag` before any production promote | QA + Mobile + Backend | `Done` | Root [`TEST_CASES.md`](TEST_CASES.md) defines automated gates and P0 manual smoke cases |
 | QA gate | Real-device push notification smoke test is included in RC checklist | QA + Mobile | `Partial` | Debug helpers now exist; formalize test steps in QA runbook |
 | Store release | Google Play App Signing is configured and production SHA fingerprints are registered in Firebase | Mobile + Platform | `Verify` | Needed for Auth/App Check/Maps/sign-in edge cases |
 | Store release | Google Play internal/closed testing track is used before production rollout | Product + Mobile | `Verify` | `main` release artifact should go here first |

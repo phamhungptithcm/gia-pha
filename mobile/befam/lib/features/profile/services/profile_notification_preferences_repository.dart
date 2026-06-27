@@ -1,5 +1,6 @@
 import '../../auth/models/auth_session.dart';
 import '../models/profile_notification_preferences.dart';
+import 'debug_profile_notification_preferences_repository.dart';
 import 'firebase_profile_notification_preferences_repository.dart';
 
 abstract interface class ProfileNotificationPreferencesRepository {
@@ -15,5 +16,8 @@ abstract interface class ProfileNotificationPreferencesRepository {
 
 ProfileNotificationPreferencesRepository
 createDefaultProfileNotificationPreferencesRepository({AuthSession? session}) {
+  if (session?.isSandbox == true) {
+    return DebugProfileNotificationPreferencesRepository.shared();
+  }
   return FirebaseProfileNotificationPreferencesRepository();
 }

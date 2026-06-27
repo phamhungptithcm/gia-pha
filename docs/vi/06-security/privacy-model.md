@@ -1,6 +1,6 @@
 # Mô hình quyền riêng tư
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 17/05/2026_
 
 ## Nguyên tắc riêng tư
 
@@ -8,7 +8,7 @@ _Cập nhật gần nhất: 17/03/2026_
 - ghi theo quyền tối thiểu cần thiết
 - kiểm tra vai trò tường minh cho thao tác nhạy cảm
 - mutation định danh/quan hệ phải có khả năng audit
-- dữ liệu thanh toán tối giản và token hóa qua cổng thanh toán
+- dữ liệu thanh toán tối giản; giao dịch Store IAP được nhà cung cấp xử lý
 
 ## Ranh giới truy cập
 
@@ -37,7 +37,8 @@ _Cập nhật gần nhất: 17/03/2026_
 
 - checkout tạo phía server với giá chuẩn theo `member_count`
 - thông tin thẻ thu tại UI/SDK của nhà cung cấp; BeFam chỉ lưu token/reference
-- callback VNPay/cổng thanh toán phải qua kiểm tra chữ ký trước khi đổi trạng thái
+- giao dịch App Store / Google Play phải được backend xác minh trước khi đổi trạng thái
+- callback VNPay/thẻ cũ phải qua kiểm tra chữ ký trước khi đổi trạng thái
 - webhook xử lý idempotent để tránh side effect trùng lặp
 - billing audit logs ghi actor/action/transaction reference phục vụ điều tra
 - metadata nhạy cảm được loại bỏ khỏi log phía client

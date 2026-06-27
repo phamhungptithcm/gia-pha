@@ -7,7 +7,11 @@ import 'mock_auth_gateway.dart';
 
 AuthGateway createDefaultAuthGateway() {
   if (AppEnvironment.useMockAuth) {
-    return MockAuthGateway(firestore: FirebaseFirestore.instance);
+    return MockAuthGateway(
+      firestore: AppEnvironment.useRemoteDebugLoginProfiles
+          ? FirebaseFirestore.instance
+          : null,
+    );
   }
   return FirebaseAuthGateway();
 }

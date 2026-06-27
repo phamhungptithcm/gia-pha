@@ -16,11 +16,10 @@ concurrency:
 jobs:
   e2e-ios:
     name: E2E - iOS Test Run
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Temporarily skip iOS E2E
-        run: echo "::notice::Temporarily skipping iOS E2E while CI is focused on build and release."
+      - name: Skip iOS E2E
+        run: |
+          echo "::notice::iOS mobile E2E is intentionally skipped for CI/CD."
+          echo "::notice::Manual device/simulator E2E should be run before release approval."

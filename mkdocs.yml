@@ -56,7 +56,9 @@ nav:
           - User stories: vi/01-product/user-stories.md
           - Đặc tả tính năng: vi/01-product/feature-spec.md
           - Epic lịch kép: vi/01-product/epic-dual-calendar-system.md
+          - Epic cộng đồng thôn/làng và memorial: vi/01-product/epic-thon-lang-memorial.md
           - Epic gói dịch vụ: vi/01-product/epic-tiered-subscription-payments.md
+          - Epic AI vNext: vi/01-product/epic-vnext-ai-integration-rollout.md
           - Lộ trình phát triển: vi/01-product/roadmap.md
       - Kiến trúc:
           - Thiết kế hệ thống: vi/02-architecture/system-design.md
@@ -78,6 +80,8 @@ nav:
           - CI/CD: vi/05-devops/ci-cd.md
           - Tăng cường Production CI/CD: vi/05-devops/ci-cd-production-hardening.md
           - Cấu hình Production: vi/05-devops/production-configuration.md
+          - Runbook release production: vi/05-devops/production-release-runbook.md
+          - Inventory dịch vụ: vi/05-devops/service-inventory.md
           - Mẫu form xóa tài khoản cho Google Play: vi/05-devops/google-play-account-deletion-form.md
           - Test Plan trước release: vi/05-devops/release-test-plan.md
           - Test Execution Sheet: vi/05-devops/release-test-execution-guide.md
@@ -98,6 +102,7 @@ nav:
           - Feature Spec: en/01-product/feature-spec.md
           - Dual Calendar Epic: en/01-product/epic-dual-calendar-system.md
           - Subscription Epic: en/01-product/epic-tiered-subscription-payments.md
+          - AI vNext Epic: en/01-product/epic-vnext-ai-integration-rollout.md
           - Roadmap: en/01-product/roadmap.md
       - Architecture:
           - System Design: en/02-architecture/system-design.md

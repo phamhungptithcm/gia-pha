@@ -85,6 +85,19 @@ class AppEnvironment {
     defaultValue: 'asia-southeast1',
   );
 
+  static const String functionsEmulatorHost = String.fromEnvironment(
+    'BEFAM_FUNCTIONS_EMULATOR_HOST',
+    defaultValue: '',
+  );
+
+  static const int functionsEmulatorPort = int.fromEnvironment(
+    'BEFAM_FUNCTIONS_EMULATOR_PORT',
+    defaultValue: 5001,
+  );
+
+  static bool get useFunctionsEmulator =>
+      !kReleaseMode && functionsEmulatorHost.trim().isNotEmpty;
+
   static const String defaultTimezone = String.fromEnvironment(
     'BEFAM_DEFAULT_TIMEZONE',
     defaultValue: 'Asia/Ho_Chi_Minh',
@@ -112,6 +125,18 @@ class AppEnvironment {
   static const bool useMockAuth =
       !kReleaseMode &&
       bool.fromEnvironment('BEFAM_USE_MOCK_AUTH', defaultValue: false);
+
+  static const bool useRemoteDebugLoginProfiles =
+      !kReleaseMode &&
+      bool.fromEnvironment(
+        'BEFAM_USE_REMOTE_DEBUG_LOGIN_PROFILES',
+        defaultValue: false,
+      );
+
+  static const String mockAuthOtpCode = String.fromEnvironment(
+    'BEFAM_MOCK_AUTH_OTP',
+    defaultValue: '123456',
+  );
 
   static const bool allowFirebasePhoneAuthFallback =
       !kReleaseMode &&

@@ -2,6 +2,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 
 import { APP_REGION, CALLABLE_ENFORCE_APP_CHECK } from "../config/runtime";
 import { loadBillingRuntimeConfig } from "../config/runtime-overrides";
+import { loadAiUsageSummaryForUser } from "../ai/usage";
 import {
   applyPaymentResult,
   cancelStalePendingTransactionsRun,
@@ -173,13 +174,12 @@ async function resolveBillingScopeContext({
     };
   }
   const clanScope = await resolveClanBillingScopeMetadata(scopeId);
-  if (requireOwnerMutationAccess && uid !== clanScope.ownerUid) {
-    const ownerLabel = clanScope.ownerDisplayName ?? clanScope.ownerUid;
-    throw new HttpsError(
-      "permission-denied",
-      `Only clan owner ${ownerLabel} can perform this billing action.`,
-    );
-  }
+  ensureBillingOwnerMutationAccess({
+    requireOwnerMutationAccess,
+    uid,
+    ownerUid: clanScope.ownerUid,
+    ownerDisplayName: clanScope.ownerDisplayName,
+  });
   return {
     clanId: scopeId,
     ownerUid: clanScope.ownerUid,
@@ -257,6 +257,9 @@ export const resolveBillingEntitlement = onCall(
       now,
     });
     const entitlement = buildEntitlementFromSubscription(ensured.subscription);
+    const aiUsageSummary = await loadAiUsageSummaryForUser(auth.uid, {
+      clanId: scope.clanId,
+    });
 
     return {
       clanId: scope.clanId,
@@ -269,6 +272,7 @@ export const resolveBillingEntitlement = onCall(
       pricingTiers: BILLING_PRICING_TIERS,
       settings: ensured.settings,
       memberCount: resolvedMemberCount,
+      aiUsageSummary,
     };
   },
 );
@@ -285,6 +289,7 @@ export const loadBillingWorkspace = onCall(
       token: auth.token,
       data: request.data,
       requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const runtimeConfig = await loadBillingRuntimeConfig();
@@ -325,6 +330,9 @@ export const loadBillingWorkspace = onCall(
           .limit(40)
           .get(),
       ]);
+    const aiUsageSummary = await loadAiUsageSummaryForUser(auth.uid, {
+      clanId: scope.clanId,
+    });
 
     return {
       clanId: scope.clanId,
@@ -338,6 +346,7 @@ export const loadBillingWorkspace = onCall(
       checkoutFlow: buildCheckoutFlowConfig(),
       pricingTiers: BILLING_PRICING_TIERS,
       memberCount: resolvedMemberCount,
+      aiUsageSummary,
       transactions: transactionsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...normalizeFirestoreJson(doc.data()),
@@ -363,6 +372,7 @@ export const updateBillingPreferences = onCall(
       token: auth.token,
       data: request.data,
       requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const paymentMode = normalizePaymentModeFromInput(request.data);
@@ -420,6 +430,7 @@ export const verifyInAppPurchase = onCall(
       token: auth.token,
       data: request.data,
       requireManageRole: true,
+      requireOwnerMutationAccess: true,
     });
 
     const platform = normalizeIapPlatform(readString(request.data, "platform"));
@@ -572,17 +583,24 @@ export const verifyInAppPurchase = onCall(
     }
 
     try {
-      const ownerPolicy = await resolveOwnerBillingPolicy({
-        ownerUid: scope.ownerUid,
-        now,
-      });
+      const policyMemberCount = isPersonalBillingScope(
+        scope.clanId,
+        scope.ownerUid,
+      )
+        ? undefined
+        : (
+            await resolveOwnerBillingPolicy({
+              ownerUid: scope.ownerUid,
+              now,
+            })
+          ).totalMemberCount;
       const checkout = await createPendingCheckout({
         clanId: scope.clanId,
         ownerUid: scope.ownerUid,
         actorUid: auth.uid,
         paymentMethod: iapPlatformToPaymentMethod(platform),
         requestedPlanCode: productPlanCode,
-        policyMemberCount: ownerPolicy.totalMemberCount,
+        policyMemberCount,
         now,
       });
 
@@ -890,6 +908,27 @@ function normalizeClanStatus(value: unknown): string {
   return normalized.length > 0 ? normalized : "active";
 }
 
+function ensureBillingOwnerMutationAccess({
+  requireOwnerMutationAccess,
+  uid,
+  ownerUid,
+  ownerDisplayName,
+}: {
+  requireOwnerMutationAccess: boolean;
+  uid: string;
+  ownerUid: string;
+  ownerDisplayName: string | null;
+}): void {
+  if (!requireOwnerMutationAccess || uid === ownerUid) {
+    return;
+  }
+  const ownerLabel = ownerDisplayName ?? ownerUid;
+  throw new HttpsError(
+    "permission-denied",
+    `Only clan owner ${ownerLabel} can perform this billing action.`,
+  );
+}
+
 function serializeBillingScope(
   scope: BillingScopeContext,
 ): Record<string, unknown> {
@@ -911,14 +950,9 @@ async function resolveWorkspaceMemberCount({
   fallbackMemberCount: number;
   now: Date;
 }): Promise<number> {
-  if (!isPersonalBillingScope(scope.clanId, scope.ownerUid)) {
-    return fallbackMemberCount;
-  }
-  const policy = await resolveOwnerBillingPolicy({
-    ownerUid: scope.ownerUid,
-    now,
-  });
-  return policy.totalMemberCount;
+  void scope;
+  void now;
+  return fallbackMemberCount;
 }
 
 function serializeSubscription(
@@ -1001,3 +1035,7 @@ function buildCheckoutFlowConfig(): Record<string, unknown> {
     storeProductIdsByPlanByPlatform,
   };
 }
+
+export const __testOnly = {
+  ensureBillingOwnerMutationAccess,
+};

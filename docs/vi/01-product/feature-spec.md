@@ -1,6 +1,6 @@
 # Đặc tả tính năng
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 17/05/2026_
 
 ## Ma trận trạng thái tính năng
 
@@ -20,7 +20,7 @@ _Cập nhật gần nhất: 17/03/2026_
 | Hồ sơ và cài đặt | Đã chạy nền tảng | Màn hình hồ sơ, sửa hồ sơ, placeholder tùy chọn |
 | Hộp thư thông báo | Đã chạy nền tảng | Danh sách thông báo, trạng thái đã đọc |
 | Gói dịch vụ | Đã chạy | Tính gói theo số thành viên |
-| Luồng thanh toán | Đã chạy | 3 bước: Chọn gói -> Xác nhận -> Thanh toán VNPay |
+| Luồng thanh toán | Đã chạy | Mua gói qua App Store / Google Play; web hướng dẫn mở app mobile |
 | Trạng thái thanh toán | Đã chạy | Thành công / Chờ đối soát / Thất bại-hủy |
 | Kích hoạt quyền gói | Đã chạy | Chỉ kích hoạt sau khi xác nhận thanh toán thành công |
 
@@ -32,13 +32,13 @@ _Cập nhật gần nhất: 17/03/2026_
 - Hạ gói: bị chặn nếu số thành viên vượt giới hạn gói mục tiêu.
 
 ### Cam kết hệ thống
-- Phiên checkout được tạo phía backend trước khi mở VNPay.
+- Giao dịch Store IAP được backend xác minh trước khi đổi quyền gói.
 - Thanh toán đang chờ hoặc thất bại không kích hoạt gói mới.
 - Thẻ gói đang dùng chỉ phản ánh gói thực sự đang hiệu lực.
 
 ### Kênh thanh toán
-- Luồng người dùng trên mobile ưu tiên VNPay.
-- Nhánh callback thẻ vẫn giữ cho tương thích backend.
+- Mobile mua gói qua App Store / Google Play.
+- Nhánh checkout/callback cũ vẫn giữ cho tương thích backend.
 
 ## Khám phá & chặn trùng gia phả (hiện tại)
 

@@ -1,7 +1,7 @@
 # GITHUB AUTOMATION AI PIPELINE
 ## AI-driven PR, Build, Review, and Release Workflow
 
-_Last reviewed: April 2, 2026_
+_Last reviewed: May 16, 2026_
 
 This document describes the current automation model used in this repository.
 
@@ -21,9 +21,15 @@ Both `staging` and `main` require:
 - pull request merge only (no direct push)
 - at least one reviewer approval
 - required status checks from `CI - Branch Quality Gates`:
-  - `ci-docs`
-  - `ci-functions`
-  - `ci-mobile`
+  - `CI - Docs Validation and Build`
+  - `CI - Functions Build and Test`
+  - `CI - Mobile Build and Test`
+  - `Security - Dependency Review`
+  - `Security - Trivy Filesystem Scan`
+  - `Security - Gitleaks Secret Scan`
+  - `Security - Trivy Container Image Scan`
+  - `E2E - Android Test Run`
+  - `E2E - iOS Test Run`
 
 ## 3. Workflow inventory
 
@@ -32,8 +38,9 @@ Both `staging` and `main` require:
 Runs on pushes to `staging` and `main`:
 
 - strict docs build
-- functions install + build
-- Flutter analyze + test + Android release build
+- Functions install, high-severity audit, build, and contract tests
+- Flutter analyze, coverage tests, release catalog contract, web smoke tests,
+  and Android release build
 - Docker image build checks for mobile and Firebase tooling
 - dependency review + Trivy (filesystem + image) + gitleaks
 

@@ -115,11 +115,19 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-docs.txt
 
+      - name: Set up Node.js for design.md
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "20"
+
       - name: Install docs dependencies
         run: pip install -r requirements-docs.txt
 
       - name: Validate rules documentation
         run: python3 scripts/validate_rules_documentation.py
+
+      - name: Validate DESIGN.md
+        run: ./scripts/lint_design_md.sh
 
       - name: Build docs
         run: mkdocs build --strict
@@ -147,6 +155,9 @@ jobs:
       - name: Install Functions dependencies
         run: npm ci
 
+      - name: Audit Functions dependencies
+        run: npm audit --audit-level=high
+
       - name: Build Functions
         run: npm run build
 
@@ -154,7 +165,13 @@ jobs:
         run: npx tsc --noEmit --noUnusedLocals --noUnusedParameters
 
       - name: Run Functions contract tests
-        run: echo "::notice::Temporarily skipping Functions contract tests while release is focused on build and publishing."
+        run: npm test
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.19.1
+
+      - name: Run Firebase rules emulator tests
+        run: npm run test:rules
 
   quality-gate-security:
     name: Quality Gate - Security
@@ -237,29 +254,53 @@ jobs:
       - name: Enforce Dart dead-code gate
         run: dart analyze --fatal-infos --fatal-warnings
 
-      - name: Run Flutter tests
-        run: echo "::notice::Temporarily skipping Flutter tests while release is focused on build and publishing."
+      - name: Run Flutter tests with coverage
+        run: |
+          flutter test \
+            --coverage \
+            --dart-define=BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=true \
+            --dart-define=BEFAM_OTP_PROVIDER=firebase \
+            --dart-define=BEFAM_ALLOW_FIREBASE_PHONE_FALLBACK=false \
+            --dart-define=BEFAM_ENABLE_APP_CHECK=false
 
       - name: Enforce Flutter coverage gate
-        run: echo "::notice::Temporarily skipping Flutter coverage enforcement while release is focused on build and publishing."
+        env:
+          MIN_LINE_COVERAGE: "20.0"
+        run: |
+          set -euo pipefail
+          if [ ! -s coverage/lcov.info ]; then
+            echo "::error::Missing coverage/lcov.info"
+            exit 1
+          fi
+          lines="$(awk -F: '/^LF:/{total += $2} END {print total + 0}' coverage/lcov.info)"
+          hits="$(awk -F: '/^LH:/{total += $2} END {print total + 0}' coverage/lcov.info)"
+          if [ "$lines" -le 0 ]; then
+            echo "::error::Coverage file does not contain executable lines."
+            exit 1
+          fi
+          coverage="$(awk -v hits="$hits" -v lines="$lines" 'BEGIN { printf "%.2f", (hits / lines) * 100 }')"
+          echo "Flutter line coverage: ${coverage}%"
+          awk -v coverage="$coverage" -v minimum="$MIN_LINE_COVERAGE" 'BEGIN { exit coverage + 0 >= minimum + 0 ? 0 : 1 }' || {
+            echo "::error::Flutter line coverage ${coverage}% is below ${MIN_LINE_COVERAGE}%."
+            exit 1
+          }
 
       - name: Run Flutter release catalog integration contract
-        run: echo "::notice::Temporarily skipping Flutter release catalog contract while release is focused on build and publishing."
+        run: flutter test test/release/release_catalog_contract_test.dart
 
       - name: Run Flutter web smoke tests
-        run: echo "::notice::Temporarily skipping Flutter web smoke tests while release is focused on build and publishing."
+        run: flutter test test/app/web/web_marketing_pages_test.dart
 
   quality-gate-mobile-e2e-android:
     name: Quality Gate - Mobile E2E Android
     needs: quality-gate-mobile-fast
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Temporarily skip Android E2E quality gate
-        run: echo "::notice::Temporarily skipping Android E2E quality gate while release is focused on build and publishing."
+      - name: Skip Android release E2E
+        run: |
+          echo "::notice::Android mobile E2E is intentionally skipped for CI/CD."
+          echo "::notice::Manual device/simulator E2E should be run before release approval."
 
   preflight-production-readiness:
     name: Preflight - Production Readiness
@@ -299,6 +340,18 @@ jobs:
           BEFAM_ADMOB_IOS_BANNER_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_BANNER_UNIT_ID }}
           BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID }}
           BEFAM_ADMOB_IOS_REWARDED_UNIT_ID: ${{ vars.BEFAM_ADMOB_IOS_REWARDED_UNIT_ID }}
+          BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS: ${{ vars.BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS }}
+          BEFAM_ENABLE_APP_CHECK: ${{ vars.BEFAM_ENABLE_APP_CHECK }}
+          BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY: ${{ vars.BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY }}
+          BEFAM_FIREBASE_PROJECT_ID: ${{ vars.BEFAM_FIREBASE_PROJECT_ID }}
+          BEFAM_FIREBASE_STORAGE_BUCKET: ${{ vars.BEFAM_FIREBASE_STORAGE_BUCKET }}
+          BEFAM_FIREBASE_WEB_API_KEY: ${{ vars.BEFAM_FIREBASE_WEB_API_KEY }}
+          BEFAM_FIREBASE_WEB_APP_ID: ${{ vars.BEFAM_FIREBASE_WEB_APP_ID }}
+          BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ vars.BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID }}
+          BEFAM_FIREBASE_WEB_AUTH_DOMAIN: ${{ vars.BEFAM_FIREBASE_WEB_AUTH_DOMAIN }}
+          BEFAM_FIREBASE_WEB_MEASUREMENT_ID: ${{ vars.BEFAM_FIREBASE_WEB_MEASUREMENT_ID }}
+          BEFAM_WEB_BASE_URL: ${{ vars.BEFAM_WEB_BASE_URL }}
+          BEFAM_OTP_PROVIDER: ${{ vars.BEFAM_OTP_PROVIDER }}
           BILLING_WEBHOOK_SECRET: ${{ secrets.BILLING_WEBHOOK_SECRET }}
           APPLE_SHARED_SECRET: ${{ secrets.APPLE_SHARED_SECRET }}
         run: |
@@ -322,6 +375,18 @@ jobs:
             BEFAM_ADMOB_IOS_BANNER_UNIT_ID
             BEFAM_ADMOB_IOS_INTERSTITIAL_UNIT_ID
             BEFAM_ADMOB_IOS_REWARDED_UNIT_ID
+            BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS
+            BEFAM_ENABLE_APP_CHECK
+            BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY
+            BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_STORAGE_BUCKET
+            BEFAM_FIREBASE_WEB_API_KEY
+            BEFAM_FIREBASE_WEB_APP_ID
+            BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_WEB_AUTH_DOMAIN
+            BEFAM_FIREBASE_WEB_MEASUREMENT_ID
+            BEFAM_WEB_BASE_URL
+            BEFAM_OTP_PROVIDER
             BILLING_WEBHOOK_SECRET
             APPLE_SHARED_SECRET
           )
@@ -346,6 +411,30 @@ jobs:
           fi
           if [ "$CALLABLE_ENFORCE_APP_CHECK" != "true" ]; then
             echo "::error::Production environment must set CALLABLE_ENFORCE_APP_CHECK=true. Current: ${CALLABLE_ENFORCE_APP_CHECK}."
+            exit 1
+          fi
+          if [ "$BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS" != "false" ]; then
+            echo "::error::Production web must set BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS=false. Current: ${BEFAM_ALLOW_BUNDLED_FIREBASE_OPTIONS}."
+            exit 1
+          fi
+          if [ "$BEFAM_ENABLE_APP_CHECK" != "true" ]; then
+            echo "::error::Production web must set BEFAM_ENABLE_APP_CHECK=true. Current: ${BEFAM_ENABLE_APP_CHECK}."
+            exit 1
+          fi
+          if [ -z "${BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY:-}" ]; then
+            echo "::error::Production web App Check requires BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY."
+            exit 1
+          fi
+          if [ "$BEFAM_OTP_PROVIDER" != "twilio" ]; then
+            echo "::error::Production web must set BEFAM_OTP_PROVIDER=twilio. Current: ${BEFAM_OTP_PROVIDER}."
+            exit 1
+          fi
+          if [[ "$BEFAM_WEB_BASE_URL" != https://* ]]; then
+            echo "::error::Production web must set BEFAM_WEB_BASE_URL to an https:// URL."
+            exit 1
+          fi
+          if [ "$BEFAM_FIREBASE_PROJECT_ID" != "$FIREBASE_PROJECT_ID" ]; then
+            echo "::error::BEFAM_FIREBASE_PROJECT_ID must match FIREBASE_PROJECT_ID for production web."
             exit 1
           fi
 
@@ -945,7 +1034,7 @@ jobs:
           export FLUTTER_XCODE_CODE_SIGN_STYLE=Manual
           export FLUTTER_XCODE_CODE_SIGN_IDENTITY="Apple Distribution"
           export FLUTTER_XCODE_DEVELOPMENT_TEAM="${IOS_TEAM_ID}"
-          
+
           echo "Injecting AdMob App ID into Info.plist..."
 
           plist="ios/Runner/Info.plist"
@@ -1094,9 +1183,12 @@ jobs:
           fi
           required_web_keys=(
             BEFAM_FIREBASE_PROJECT_ID
+            BEFAM_FIREBASE_STORAGE_BUCKET
             BEFAM_FIREBASE_WEB_API_KEY
             BEFAM_FIREBASE_WEB_APP_ID
             BEFAM_FIREBASE_WEB_MESSAGING_SENDER_ID
+            BEFAM_FIREBASE_WEB_AUTH_DOMAIN
+            BEFAM_WEB_BASE_URL
           )
           for key in "${required_web_keys[@]}"; do
             if [ -z "${!key:-}" ]; then
@@ -1104,6 +1196,10 @@ jobs:
               exit 1
             fi
           done
+          if [ "$enable_app_check" = "true" ] && [ -z "${BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY:-}" ]; then
+            echo "::error::Production web App Check is enabled but BEFAM_APP_CHECK_WEB_RECAPTCHA_SITE_KEY is missing."
+            exit 1
+          fi
           web_base_url="${BEFAM_WEB_BASE_URL:-}"
           if [ -z "$web_base_url" ] && [ -n "${BEFAM_FIREBASE_PROJECT_ID:-}" ]; then
             web_base_url="https://${BEFAM_FIREBASE_PROJECT_ID}.web.app"

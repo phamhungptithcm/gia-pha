@@ -29,6 +29,15 @@ enum AuthStep {
 
 typedef AuthOtpAction = Future<AuthOtpRequestResult> Function();
 
+String _challengeLogSummary(PendingOtpChallenge challenge) {
+  final maskedDestination = challenge.maskedDestination.trim().isNotEmpty
+      ? challenge.maskedDestination.trim()
+      : (challenge.phoneE164.trim().isNotEmpty
+            ? PhoneNumberFormatter.mask(challenge.phoneE164.trim())
+            : 'n/a');
+  return 'method=${challenge.loginMethod.name}, destination=$maskedDestination, verificationId=<redacted>';
+}
+
 class AuthController extends ChangeNotifier {
   AuthController({
     required AuthGateway authGateway,
@@ -216,7 +225,7 @@ class AuthController extends ChangeNotifier {
       return;
     }
     AppLogger.info(
-      'OTP verification started (method=${challenge.loginMethod.name}, phone=${challenge.phoneE164}, verificationId=${challenge.verificationId}).',
+      'OTP verification started (${_challengeLogSummary(challenge)}).',
     );
 
     await _runBusy(
@@ -416,7 +425,7 @@ class AuthController extends ChangeNotifier {
 
     if (result.challenge case final PendingOtpChallenge challenge) {
       AppLogger.info(
-        '[$flowId] OTP challenge received (method=${challenge.loginMethod.name}, phone=${challenge.phoneE164}, verificationId=${challenge.verificationId}, source=$source).',
+        '[$flowId] OTP challenge received (${_challengeLogSummary(challenge)}, source=$source).',
       );
       pendingChallenge = challenge;
       step = AuthStep.otp;

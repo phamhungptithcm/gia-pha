@@ -4,6 +4,7 @@ import '../models/fund_profile.dart';
 import '../models/fund_transaction.dart';
 import '../models/fund_transaction_draft.dart';
 import '../models/fund_workspace_snapshot.dart';
+import 'debug_fund_repository.dart';
 import 'firebase_fund_repository.dart';
 
 enum FundRepositoryErrorCode {
@@ -44,5 +45,8 @@ abstract interface class FundRepository {
 }
 
 FundRepository createDefaultFundRepository({AuthSession? session}) {
+  if (session?.isSandbox == true) {
+    return DebugFundRepository.shared();
+  }
   return FirebaseFundRepository();
 }

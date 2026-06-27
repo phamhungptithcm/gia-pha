@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/services/performance_measurement_logger.dart';
 import '../../auth/models/auth_session.dart';
 import '../models/branch_draft.dart';
 import '../models/branch_profile.dart';
@@ -13,12 +14,19 @@ class ClanController extends ChangeNotifier {
   ClanController({
     required ClanRepository repository,
     required AuthSession session,
+    PerformanceMeasurementLogger? performanceLogger,
   }) : _repository = repository,
        _session = session,
+       _performanceLogger =
+           performanceLogger ??
+           PerformanceMeasurementLogger(
+             defaultSlowThreshold: const Duration(milliseconds: 900),
+           ),
        permissions = ClanPermissions.forSession(session);
 
   final ClanRepository _repository;
   final AuthSession _session;
+  final PerformanceMeasurementLogger _performanceLogger;
 
   final ClanPermissions permissions;
 
@@ -47,7 +55,12 @@ class ClanController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final snapshot = await _repository.loadWorkspace(session: _session);
+      final snapshot = await _performanceLogger.measureAsync(
+        metric: 'clan.workspace_refresh',
+        warnAfter: const Duration(milliseconds: 900),
+        dimensions: const {'surface': 'clan'},
+        action: () => _repository.loadWorkspace(session: _session),
+      );
       _clan = snapshot.clan;
       _branches = snapshot.branches;
       _members = snapshot.members;

@@ -1,6 +1,6 @@
 # Kiến trúc mobile
 
-_Cập nhật gần nhất: 17/03/2026_
+_Cập nhật gần nhất: 17/05/2026_
 
 ## Cấu trúc ứng dụng
 
@@ -34,6 +34,7 @@ lib/
   - Home
   - Tree
   - Events (dual calendar)
+  - Gói
   - Profile
 - handler deep-link từ push có thể đưa người dùng tới ngữ cảnh phù hợp
 
@@ -47,5 +48,5 @@ lib/
 
 ## Bổ sung đã triển khai
 
-- workspace quản lý gói dịch vụ và thanh toán VNPay-first cho owner/admin
+- workspace quản lý gói dịch vụ và mua gói Store IAP cho owner/admin
 - quyền lợi theo gói được phản ánh rõ trong UI và trạng thái phiên

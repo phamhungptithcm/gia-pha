@@ -107,14 +107,19 @@ void main() {
         await shellPage.expectLoaded();
         await shellPage.openProfileTab();
 
-        await profilePage.expectNotificationSettingsVisible();
+        await profilePage.openSettings();
         await profilePage.togglePushNotificationSetting();
+        await profilePage.expectNotificationSettingsVisible();
         await profilePage.switchLanguageToEnglish();
         await profilePage.expectEnglishApplied();
+        await profilePage.closeSettings();
 
         await shellPage.openHomeTab();
         await shellPage.openProfileTab();
+        await profilePage.expectProfileLanguageSummaryEnglish();
+        await profilePage.openSettings();
         await profilePage.expectEnglishApplied();
+        await profilePage.closeSettings();
 
         final shellSession = extractShellSession(tester);
         await notificationPage.openInbox(shellSession);

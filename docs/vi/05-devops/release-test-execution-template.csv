@@ -141,32 +141,32 @@ RC-YYYYMMDD-01,Scholarship,SCH-009,P1,switch clan,"1) Chuyển clan active.
 2) Vào scholarship workspace.",Program/award/submission chỉ thuộc clan active.,NOT_RUN,,,,,,,staging,,,,
 RC-YYYYMMDD-01,Scholarship,SCH-010,P1,localization,"1) Chuyển EN/VI.
 2) Kiểm tra label/trạng thái trong scholarship.",Không còn text hardcode sai ngôn ngữ.,NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-001,P0,owner/admin clan,"1) Mở trang Gói.
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-001,P0,owner/admin clan,"1) Mở trang Gói.
 2) Kiểm tra plan hiện tại + member count.",Entitlement phản ánh đúng plan thực tế đang hiệu lực.,NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-002,P0,clan có 0-10 member,"1) Resolve entitlement.
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-002,P0,clan có 0-10 member,"1) Resolve entitlement.
 2) Kiểm tra plan tối thiểu.",Mặc định FREE.,NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-003,P0,clan có 11-200 member,"1) Resolve entitlement.
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-003,P0,clan có 11-200 member,"1) Resolve entitlement.
 2) Kiểm tra minimum tier.",Clan phải ở mức tối thiểu BASE.,NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-004,P0,đang ở plan cao,"1) Chọn hạ gói dưới mức tối thiểu theo member count.
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-004,P0,đang ở plan cao,"1) Chọn hạ gói dưới mức tối thiểu theo member count.
 2) Continue checkout.","Hệ thống chặn downgrade không hợp lệ, báo lỗi rõ ràng.",NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-005,P1,đang còn hạn gói hiện tại,"1) Chọn gia hạn cùng gói khi chưa gần hạn.
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-005,P1,đang còn hạn gói hiện tại,"1) Chọn gia hạn cùng gói khi chưa gần hạn.
 2) Continue.",Chặn renew sớm theo rule hiện tại.,NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-006,P0,upgrade hợp lệ,"1) Chọn gói cao hơn ở step 1.
-2) Sang step 2 xác nhận.
-3) Qua step 3 VNPay.","Stepper cân đối, CTA không xuống dòng, flow rõ ràng.",NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-007,P0,VNPay success path,"1) Thanh toán thành công.
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-006,P0,upgrade hợp lệ,"1) Chọn gói cao hơn.
+2) Bấm mua gói trên iOS/Android.
+3) Xác nhận Store purchase.","CTA rõ ràng, không double-submit, trạng thái loading dễ hiểu.",NOT_RUN,,,,,,,staging,,,,
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-007,P0,Store IAP success path,"1) Thanh toán thành công.
 2) Quay lại app.
 3) Refresh billing.","Transaction/invoice/subscription cập nhật, plan kích hoạt đúng.",NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-008,P0,VNPay pending path,"1) Tạo giao dịch pending.
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-008,P0,Store IAP pending/deferred path,"1) Tạo giao dịch pending/deferred.
 2) Kiểm tra UI trạng thái.",Không kích hoạt plan mới cho đến khi confirmed.,NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-009,P0,VNPay failed/cancel,"1) Hủy/failed tại cổng thanh toán.
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-009,P0,Store IAP failed/cancel,"1) Hủy/failed tại purchase sheet.
 2) Quay lại app.","Giữ plan cũ, hiển thị trạng thái thất bại rõ ràng.",NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-010,P1,non-billing role,"1) Đăng nhập member thường.
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-010,P1,non-billing role,"1) Đăng nhập member thường.
 2) Mở billing data nhạy cảm.",Bị chặn đọc document billing nhạy cảm theo rules.,NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-011,P1,checkout form,"1) Nhập số điện thoại liên hệ.
-2) Kiểm tra normalize lưu payload.",Phone được normalize nhất quán.,NOT_RUN,,,,,,,staging,,,,
-RC-YYYYMMDD-01,Billing & VNPay,BILL-012,P1,pending transactions,"1) Mở detail giao dịch chờ.
-2) Copy checkout URL (nếu có).","Detail đầy đủ, copy URL hoạt động.",NOT_RUN,,,,,,,staging,,,,
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-011,P1,web billing guidance,"1) Mở billing trên web.
+2) Chọn gói trả phí.","Không mở checkout web; UI hướng dẫn mua trên iOS/Android.",NOT_RUN,,,,,,,staging,,,,
+RC-YYYYMMDD-01,Billing & Store IAP,BILL-012,P1,pending transactions,"1) Mở detail giao dịch chờ.
+2) Refresh billing.","Detail đầy đủ, trạng thái không kích hoạt gói trước khi confirmed.",NOT_RUN,,,,,,,staging,,,,
 RC-YYYYMMDD-01,"Profile, Localization, Nearby Relatives",PRO-001,P0,member linked,"1) Mở profile.
 2) Sửa thông tin được phép.
 3) Lưu.","Chỉ field cho phép được update, lưu thành công.",NOT_RUN,,,,,,,staging,,,,

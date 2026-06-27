@@ -115,6 +115,21 @@ void main() {
       expect(destinations.length, 5);
       expect(destinations[3].label, 'Billing');
       expect(destinations[4].label, 'Profile');
+      expect(find.byKey(const Key('shell-ai-assistant-button')), findsNothing);
+
+      await tester.tap(find.text('Billing'));
+      await pumpUi(tester);
+
+      expect(find.text('Choose your next plan'), findsOneWidget);
+      expect(find.byKey(const Key('shell-ai-assistant-button')), findsNothing);
+
+      await tester.tap(find.text('Events'));
+      await pumpUi(tester);
+
+      expect(
+        find.byKey(const Key('shell-ai-assistant-button')),
+        findsOneWidget,
+      );
     },
   );
 
@@ -148,46 +163,41 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'unlinked shell opens personal billing workspace in billing tab',
-    (tester) async {
-      setMobileViewport(tester);
-      await tester.pumpWidget(
-        _ShellTestApp(
-          child: AppShellPage(
-            status: buildReadyStatus(),
-            session: buildUnlinkedSession(),
-            clanRepository: DebugClanRepository.seeded(),
-            memberRepository: DebugMemberRepository.seeded(),
-            billingRepository: DebugBillingRepository.shared(),
-            scholarshipRepository: DebugScholarshipRepository.shared(),
-            pushNotificationService: _NoopPushNotificationService(),
-          ),
+  testWidgets('unlinked shell keeps subscription layout in billing tab', (
+    tester,
+  ) async {
+    setMobileViewport(tester);
+    await tester.pumpWidget(
+      _ShellTestApp(
+        child: AppShellPage(
+          status: buildReadyStatus(),
+          session: buildUnlinkedSession(),
+          clanRepository: DebugClanRepository.seeded(),
+          memberRepository: DebugMemberRepository.seeded(),
+          billingRepository: DebugBillingRepository.shared(),
+          scholarshipRepository: DebugScholarshipRepository.shared(),
+          pushNotificationService: _NoopPushNotificationService(),
         ),
-      );
-      await pumpUi(tester);
+      ),
+    );
+    await pumpUi(tester);
 
-      final destinations = tester
-          .widgetList<NavigationDestination>(find.byType(NavigationDestination))
-          .toList(growable: false);
-      expect(destinations.length, 5);
-      expect(destinations[3].label, 'Billing');
-      expect(destinations[4].label, 'Profile');
+    final destinations = tester
+        .widgetList<NavigationDestination>(find.byType(NavigationDestination))
+        .toList(growable: false);
+    expect(destinations.length, 5);
+    expect(destinations[3].label, 'Billing');
+    expect(destinations[4].label, 'Profile');
+    expect(find.byKey(const Key('shell-ai-assistant-button')), findsNothing);
 
-      await tester.tap(find.text('Billing'));
-      await pumpUi(tester, frames: 96);
+    await tester.tap(find.text('Billing'));
+    await pumpUi(tester, frames: 96);
 
-      expect(
-        find.byKey(const Key('billing-plan-selector')).evaluate().isNotEmpty ||
-            find.text('Subscription & billing').evaluate().isNotEmpty ||
-            find.text('Subscription').evaluate().isNotEmpty ||
-            find.text('Service plans').evaluate().isNotEmpty,
-        isTrue,
-      );
-      expect(find.text('Discover genealogies'), findsNothing);
-      expect(find.text('Create clan workspace'), findsNothing);
-    },
-  );
+    expect(find.text('Choose your next plan'), findsOneWidget);
+    expect(find.text('Discover genealogies'), findsNothing);
+    expect(find.text('Create clan workspace'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'stale unlinked session falls back to genealogy discovery instead of clan tree',
