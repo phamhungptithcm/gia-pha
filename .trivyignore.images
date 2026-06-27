@@ -1,6 +1,11 @@
 # Trivy image baseline (CI build images only)
 # These CVEs are currently reported in tooling/build images and are tracked for upstream updates.
 # Remove entries as soon as base images / toolchains ship fixed transitive dependencies.
+# Kotlin compiler in the Flutter/Android build image bundles jline-remote-telnet
+# 3.24.1, but the CI image uses it only as a compiler artifact and does not run
+# a Telnet server. Remove when Flutter/Kotlin ship JLine 4.2.1+.
+GHSA-2r2c-cx56-8933
+GHSA-47qp-hqvx-6r3f
 CVE-2024-21538
 CVE-2025-64756
 CVE-2026-23745
