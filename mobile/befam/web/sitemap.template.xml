@@ -26,6 +26,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>__BEFAM_WEB_BASE_URL__/child-safety-standards</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>__BEFAM_WEB_BASE_URL__/account-deletion</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>

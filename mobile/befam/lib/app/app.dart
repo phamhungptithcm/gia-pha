@@ -231,6 +231,10 @@ class _BeFamAppState extends State<BeFamApp> {
           builder: (context, state) => const WebTermsPage(),
         ),
         GoRoute(
+          path: '/child-safety-standards',
+          builder: (context, state) => const WebChildSafetyStandardsPage(),
+        ),
+        GoRoute(
           path: '/account-deletion',
           builder: (context, state) => const WebAccountDeletionPage(),
         ),

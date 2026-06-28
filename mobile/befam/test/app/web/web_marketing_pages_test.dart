@@ -37,6 +37,10 @@ void main() {
           builder: (context, state) => const WebTermsPage(),
         ),
         GoRoute(
+          path: '/child-safety-standards',
+          builder: (context, state) => const WebChildSafetyStandardsPage(),
+        ),
+        GoRoute(
           path: '/account-deletion',
           builder: (context, state) => const WebAccountDeletionPage(),
         ),
@@ -80,6 +84,10 @@ void main() {
 
     await pumpWebRouter(tester, initialLocation: '/terms');
     expect(find.byType(WebTermsPage), findsOneWidget);
+
+    await pumpWebRouter(tester, initialLocation: '/child-safety-standards');
+    expect(find.byType(WebChildSafetyStandardsPage), findsOneWidget);
+    expect(find.textContaining('CSAE'), findsWidgets);
 
     await pumpWebRouter(tester, initialLocation: '/account-deletion');
     expect(find.byType(WebAccountDeletionPage), findsOneWidget);
