@@ -855,8 +855,14 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Use CocoaPods for iOS plugin integration
+        run: flutter config --no-enable-swift-package-manager
+
       - name: Install Flutter dependencies
         run: flutter pub get
+
+      - name: Verify iOS CocoaPods plugin graph
+        run: ruby ../../scripts/verify_flutter_ios_pod_graph.rb .
 
       - name: Install CocoaPods dependencies
         working-directory: mobile/befam/ios
