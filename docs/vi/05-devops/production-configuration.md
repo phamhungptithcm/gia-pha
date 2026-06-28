@@ -112,7 +112,8 @@ Bắt buộc khi `OTP_PROVIDER=twilio`:
 Secret tùy chọn:
 - `CARD_WEBHOOK_SECRET`
 - `BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN`
-- `APPLE_IAP_WEBHOOK_BEARER_TOKEN`
+- `APPLE_IAP_WEBHOOK_BEARER_TOKEN` (để trống khi dùng trực tiếp App Store
+  Server Notifications; Apple xác thực bằng signed JWS payload)
 - `GOOGLE_IAP_WEBHOOK_BEARER_TOKEN`
 
 Secret bắt buộc khi `AI_ASSIST_ENABLED=true`:

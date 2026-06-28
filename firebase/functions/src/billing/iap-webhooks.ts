@@ -50,7 +50,10 @@ export const appleIapWebhook = onRequest(
     }
     try {
       const expectedToken = getAppleIapWebhookBearerToken();
-      if (!isAuthorizedWithSharedBearer(request, expectedToken)) {
+      if (
+        expectedToken.length > 0 &&
+        !isAuthorizedWithSharedBearer(request, expectedToken)
+      ) {
         response.status(401).json({ ok: false, message: 'Unauthorized' });
         return;
       }

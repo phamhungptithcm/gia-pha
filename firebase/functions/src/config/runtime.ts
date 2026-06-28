@@ -225,7 +225,7 @@ export function getAppleSharedSecret(): string {
 }
 
 export function getAppleIapWebhookBearerToken(): string {
-  return readEnvString('APPLE_IAP_WEBHOOK_BEARER_TOKEN', getBillingWebhookSecret());
+  return readEnvString('APPLE_IAP_WEBHOOK_BEARER_TOKEN');
 }
 
 export function getGooglePlayPackageName(): string {
