@@ -657,6 +657,127 @@ class WebTermsPage extends StatelessWidget {
   }
 }
 
+class WebChildSafetyStandardsPage extends StatelessWidget {
+  const WebChildSafetyStandardsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _LegalContentPage(
+      currentPath: '/child-safety-standards',
+      pageTitle: context.l10n.pick(
+        vi: 'Tiêu chuẩn an toàn trẻ em | BeFam',
+        en: 'Child Safety Standards | BeFam',
+      ),
+      icon: Icons.health_and_safety_rounded,
+      eyebrow: context.l10n.pick(vi: 'An toàn trẻ em', en: 'Child safety'),
+      title: context.l10n.pick(
+        vi: 'BeFam nghiêm cấm khai thác và xâm hại tình dục trẻ em.',
+        en: 'BeFam prohibits child sexual abuse and exploitation.',
+      ),
+      subtitle: context.l10n.pick(
+        vi: 'Các tiêu chuẩn này áp dụng cho BeFam: Gia phả & Họ tộc và Hunpeo Labs.',
+        en: 'These standards apply to BeFam: Gia phả & Họ tộc and Hunpeo Labs.',
+      ),
+      facts: [
+        _LegalFact(
+          title: context.l10n.pick(vi: 'Phạm vi', en: 'Scope'),
+          description: context.l10n.pick(
+            vi: 'CSAE, CSAM và an toàn trẻ em',
+            en: 'CSAE, CSAM, and child safety',
+          ),
+        ),
+        _LegalFact(
+          title: context.l10n.pick(
+            vi: 'Liên hệ an toàn trẻ em',
+            en: 'Child safety contact',
+          ),
+          description: _kSupportEmail,
+        ),
+        _LegalFact(
+          title: context.l10n.pick(vi: 'Nhà phát triển', en: 'Developer'),
+          description: 'Hunpeo Labs',
+        ),
+      ],
+      sections: [
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '1. Tiêu chuẩn chống CSAE',
+            en: '1. Standards against CSAE',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'BeFam cấm mọi nội dung, hành vi hoặc việc sử dụng sản phẩm liên quan đến khai thác và xâm hại tình dục trẻ em (CSAE). Nội dung xâm hại tình dục trẻ em (CSAM), dụ dỗ, tống tiền tình dục, mua bán hoặc khai thác trẻ em đều không được phép.',
+              en: 'BeFam prohibits any content, conduct, or product use involving child sexual abuse and exploitation (CSAE). Child sexual abuse material (CSAM), grooming, sextortion, trafficking, or exploitation of children is not allowed.',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '2. Báo cáo trong app và qua email',
+            en: '2. In-app and email reporting',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'Người dùng có thể báo cáo lo ngại an toàn trẻ em trong app bằng các luồng hỗ trợ hoặc báo cáo có sẵn, hoặc gửi email trực tiếp đến kênh hỗ trợ chính thức.',
+              en: 'Users can report child safety concerns in the app through available support or reporting flows, or by emailing the official support channel directly.',
+            ),
+          ],
+          actions: [
+            _LegalAction(
+              label: context.l10n.pick(
+                vi: 'Báo cáo qua email',
+                en: 'Report by email',
+              ),
+              href:
+                  'mailto:$_kSupportEmail?subject=BeFam%20Child%20Safety%20Report',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(vi: '3. Xử lý CSAM', en: '3. Handling CSAM'),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'Khi BeFam nhận được báo cáo hoặc phát hiện nội dung nghi liên quan đến CSAM, chúng tôi xem xét, hạn chế quyền truy cập, xóa hoặc vô hiệu hóa nội dung/tài khoản liên quan khi phù hợp, lưu giữ thông tin cần thiết để điều tra và xử lý theo luật áp dụng.',
+              en: 'When BeFam receives a report or identifies suspected CSAM, we review it, restrict access, remove or disable related content or accounts where appropriate, preserve information needed for investigation, and handle it under applicable law.',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '4. Tuân thủ pháp luật và cơ quan có thẩm quyền',
+            en: '4. Legal compliance and authorities',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'BeFam tuân thủ các yêu cầu pháp luật liên quan đến an toàn trẻ em. Khi luật yêu cầu hoặc khi cần để bảo vệ trẻ em, chúng tôi báo cáo vấn đề liên quan đến CSAM/CSAE cho cơ quan khu vực hoặc quốc gia có thẩm quyền.',
+              en: 'BeFam complies with applicable child safety legal requirements. Where required by law or necessary to protect children, we report CSAM/CSAE matters to relevant regional or national authorities.',
+            ),
+          ],
+        ),
+        _LegalSection(
+          title: context.l10n.pick(
+            vi: '5. Điểm liên hệ',
+            en: '5. Point of contact',
+          ),
+          paragraphs: [
+            context.l10n.pick(
+              vi: 'Điểm liên hệ có thể trao đổi về thực hành phòng chống CSAM và tuân thủ chính sách là email hỗ trợ chính thức của BeFam.',
+              en: 'The point of contact for CSAM prevention practices and policy compliance is BeFam’s official support email.',
+            ),
+          ],
+          actions: [
+            _LegalAction(
+              label: _kSupportEmail,
+              href:
+                  'mailto:$_kSupportEmail?subject=BeFam%20Child%20Safety%20Contact',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class WebAccountDeletionPage extends StatelessWidget {
   const WebAccountDeletionPage({super.key});
 
@@ -2742,6 +2863,10 @@ class _WebFooter extends StatelessWidget {
             _FooterLinkButton(
               label: l10n.pick(vi: 'Điều khoản', en: 'Terms'),
               onPressed: () => context.go('/terms'),
+            ),
+            _FooterLinkButton(
+              label: l10n.pick(vi: 'An toàn trẻ em', en: 'Child safety'),
+              onPressed: () => context.go('/child-safety-standards'),
             ),
             _FooterLinkButton(
               label: l10n.pick(vi: 'Xóa tài khoản', en: 'Delete account'),
