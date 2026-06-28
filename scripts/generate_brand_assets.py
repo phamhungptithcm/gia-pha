@@ -468,6 +468,17 @@ def save_png(image: Image.Image, path: Path) -> None:
     image.save(path, format="PNG")
 
 
+def opaque_rgb(image: Image.Image, background: str = PALETTE.midnight) -> Image.Image:
+    if image.mode == "RGB":
+        return image
+    if "A" not in image.getbands():
+        return image.convert("RGB")
+
+    flattened = Image.new("RGBA", image.size, rgba(background))
+    flattened.alpha_composite(image.convert("RGBA"))
+    return flattened.convert("RGB")
+
+
 def save_resized(image: Image.Image, path: Path, size: tuple[int, int]) -> None:
     resized = image.resize(size, Image.Resampling.LANCZOS)
     save_png(resized, path)
@@ -498,13 +509,14 @@ def generate_shared_assets() -> dict[str, Image.Image]:
         background=PALETTE.midnight,
     )
     app_icon = draw_app_icon(1024)
+    app_icon_opaque = opaque_rgb(app_icon)
     splash_logo = draw_splash_logo((1200, 1200))
     feature_graphic = draw_feature_graphic((1024, 500))
 
     save_png(primary_logo, BRANDING_ROOT / "logos" / "logo-primary.png")
     save_png(light_logo, BRANDING_ROOT / "logos" / "logo-light.png")
     save_png(dark_logo, BRANDING_ROOT / "logos" / "logo-dark.png")
-    save_png(app_icon, BRANDING_ROOT / "app-icon" / "app-icon-1024.png")
+    save_png(app_icon_opaque, BRANDING_ROOT / "app-icon" / "app-icon-1024.png")
     save_png(splash_logo, BRANDING_ROOT / "splash" / "splash-logo.png")
     save_png(feature_graphic, BRANDING_ROOT / "store" / "google-play-feature-graphic.png")
 
@@ -576,6 +588,7 @@ def generate_android_assets(app_icon: Image.Image, splash_logo: Image.Image) -> 
 
 
 def generate_ios_assets(app_icon: Image.Image, splash_logo: Image.Image) -> None:
+    app_icon_opaque = opaque_rgb(app_icon)
     icon_sizes = {
         "Icon-App-20x20@1x.png": 20,
         "Icon-App-20x20@2x.png": 40,
@@ -594,7 +607,7 @@ def generate_ios_assets(app_icon: Image.Image, splash_logo: Image.Image) -> None
         "Icon-App-1024x1024@1x.png": 1024,
     }
     for filename, edge in icon_sizes.items():
-        save_resized(app_icon, IOS_ASSETS / "AppIcon.appiconset" / filename, (edge, edge))
+        save_resized(app_icon_opaque, IOS_ASSETS / "AppIcon.appiconset" / filename, (edge, edge))
 
     launch_sizes = {
         "LaunchImage.png": (168, 185),
