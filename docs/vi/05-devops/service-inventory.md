@@ -56,7 +56,7 @@ Legend:
 | Google Play IAP verify (Android) | Khuyên dùng (nếu test IAP) | Bắt buộc | `GOOGLE_PLAY_PACKAGE_NAME`, `BILLING_IAP_ALLOW_TEST_MOCK` | [ ] | [ ] |
 | Apple IAP verify (iOS) | Khuyên dùng (nếu test IAP) | Bắt buộc | `APPLE_SHARED_SECRET`, `BILLING_IAP_APPLE_VERIFY_*` | [ ] | [ ] |
 | Google RTDN qua Pub/Sub (Android subscription webhook) | Khuyên dùng | Bắt buộc | `GOOGLE_IAP_RTDN_AUDIENCE`, `GOOGLE_IAP_RTDN_SERVICE_ACCOUNT_EMAIL` | [ ] | [ ] |
-| Webhook auth token cho IAP | Tùy chọn (fallback qua secret chung) | Khuyên dùng | `APPLE_IAP_WEBHOOK_BEARER_TOKEN`, `GOOGLE_IAP_WEBHOOK_BEARER_TOKEN`, fallback `BILLING_WEBHOOK_SECRET` | [ ] | [ ] |
+| Webhook auth token cho IAP | Tùy chọn | Khuyên dùng | `GOOGLE_IAP_WEBHOOK_BEARER_TOKEN` fallback `BILLING_WEBHOOK_SECRET`; `APPLE_IAP_WEBHOOK_BEARER_TOKEN` chỉ dùng khi có proxy/caller thêm Bearer header | [ ] | [ ] |
 | URL store hiển thị trên web/app | Tùy chọn | Khuyên dùng | `BEFAM_IOS_APP_STORE_URL`, `BEFAM_ANDROID_PLAY_STORE_URL` | [ ] | [ ] |
 | Twilio Verify (OTP nhà mạng) | Tùy chọn | Tùy chọn (bắt buộc nếu `OTP_PROVIDER=twilio`) | `OTP_PROVIDER`, `OTP_TWILIO_VERIFY_SERVICE_SID`, `OTP_TWILIO_ACCOUNT_SID`, `OTP_TWILIO_AUTH_TOKEN` | [ ] | [ ] |
 | FCM Push notification | Khuyên dùng | Khuyên dùng | `NOTIFICATION_PUSH_ENABLED` + cấu hình Firebase Messaging của app | [ ] | [ ] |

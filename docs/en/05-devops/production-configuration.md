@@ -112,7 +112,8 @@ Required when `OTP_PROVIDER=twilio`:
 Optional secrets:
 - `CARD_WEBHOOK_SECRET`
 - `BILLING_CONTACT_NOTICE_WEBHOOK_TOKEN`
-- `APPLE_IAP_WEBHOOK_BEARER_TOKEN`
+- `APPLE_IAP_WEBHOOK_BEARER_TOKEN` (leave unset for direct App Store Server
+  Notifications; Apple authenticates via the signed JWS payload)
 - `GOOGLE_IAP_WEBHOOK_BEARER_TOKEN`
 
 Required when `AI_ASSIST_ENABLED=true`:
